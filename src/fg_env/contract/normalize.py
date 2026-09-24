@@ -17,7 +17,7 @@ RULES: list[Rule] = []
 
 
 def rule(fn: Rule) -> Rule:
-    """Register ``fn`` as a normalization rule (rules run in registration order)."""
+    """Register ``fn`` as a normalization rule (see :func:`_rules` for the order they run in)."""
     RULES.append(fn)
     return fn
 
@@ -29,6 +29,37 @@ def normalize(data: Any) -> tuple[Any, list[str]]:
         return data, []
     out: dict[str, Any] = copy.deepcopy(dict(data))
     notes: list[str] = []
-    for fn in RULES:
+    for fn in _rules():
         notes.extend(fn(out))
+    notes.extend(_arm_patches(out))
     return out, notes
+
+
+def _arm_patches(data: dict[str, Any]) -> list[str]:
+    """Each arm's patch is a contract fragment: every rule is applied to it on its own, after the rules that read a
+    patch beside the contract it patches (the patch is merged into the rewritten contract)."""
+    arms = data.get("arms")
+    if not isinstance(arms, dict):
+        return []
+    notes = []
+    for name, arm in arms.items():
+        patch = arm.get("patch") if isinstance(arm, dict) else None
+        if isinstance(patch, dict) and patch:
+            arm["patch"], found = normalize(patch)
+            notes += [f"arms.{name}.patch.{note}" for note in found]
+    return notes
+
+
+#: The modules holding the rules, in the order their rules run: state first (a macro may make any section), then the
+#: sections that became mechanisms, then happenings and time.
+_MODULES = ("normalize_state", "normalize_mechanisms", "normalize_happenings")
+
+
+def _rules() -> list[Rule]:
+    """Every rule, module by module in :data:`_MODULES` order and in registration order within one. The rules live one
+    module per part of the language, which registers them when it is first imported (here, not at load: they import
+    :func:`rule` from this module), so the order does not depend on which module something imported first."""
+    from . import normalize_happenings, normalize_mechanisms, normalize_state  # noqa: F401
+
+    position = {f"{__package__}.{name}": index for index, name in enumerate(_MODULES)}
+    return sorted(RULES, key=lambda fn: position[fn.__module__])

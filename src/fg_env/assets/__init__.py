@@ -1,6 +1,6 @@
 """Files and media: assets an environment carries, delivered to agents under its visibility rules.
 
-See ``fg_env.guide('assets')``. The contract declares files beside it (:class:`fg_env.contract.AssetSpec`);
+See ``fg_env.guide('assets')``. The contract declares files beside it (inputs of type `file`);
 loading reads and hashes them (:mod:`.catalog`) into the run's :class:`AssetStore`; agents receive
 :class:`Attachment` objects through views, records, briefs, tool results and inspect (:mod:`.delivery`), which LLM
 participants send as multimodal parts (:mod:`.multimodal`); agents submit files through `file` parameters

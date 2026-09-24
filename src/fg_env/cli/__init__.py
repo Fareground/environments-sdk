@@ -142,10 +142,10 @@ def _checked(path: str, rounds: int | None) -> str:
         played = " (static checks only)"
     else:
         length = f"{SMOKE_ROUNDS} rounds (or to the last scheduled event)" if rounds is None else f"{rounds} round(s)"
-        policies = " and with each policy" if contract.policies else ""
+        policies = " and with each policy" if any(spec.policies for spec in contract.types.values()) else ""
         played = f" and played {length} with random agents, with idle agents{policies}"
     clock = contract.clock
-    note = "" if clock.mode == "continuous" or "rounds" in clock.model_fields_set else \
+    note = "" if "rounds" in clock.model_fields_set else \
         f"; clock.rounds is not set, so a run lasts {clock.rounds} rounds"
     return f"contract OK: checked every section{played}{note}"
 
@@ -436,7 +436,8 @@ def add_commands(sub: Any) -> None:
     add_new_command(sub)
     add_author_command(sub)
 
-    p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
+    p = sub.add_parser("expand",
+                       help="print the contract as the engine reads it: imports merged, earlier forms rewritten")
     p.add_argument("file", help="contract JSON file")
     p.add_argument("--mechanisms", action="store_true", help="also expand every mechanism into ordinary sections")
     p.set_defaults(func=_guarded(cmd_expand))

@@ -13,7 +13,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import assets, balance, move_items, move_money
 from .econ_base import (
     INVENTORY,
@@ -145,7 +145,6 @@ class NegotiationConfig(BaseModel):
     actions: list[Literal["propose", "counter", "accept", "reject", "withdraw", "fulfill"]] = Field(
         ["propose", "counter", "accept", "reject", "withdraw", "fulfill"],
         description="Tools generated for the parties.")
-    tools: ToolsSetting = tools_field()
 
     @field_validator("breach", mode="before")
     @classmethod
@@ -390,7 +389,7 @@ def terms_text(config: NegotiationConfig, terms: Mapping[str, Any]) -> str:
 
 
 @function("terms_text(terms, negotiation)", "Terms of an offer or deal as plain words, with units.", min_args=2,
-          max_args=2)
+          max_args=2, family="agreements")
 def _terms_text(call: Call) -> str:
     world: Any = call.scope.world
     terms = call.arg(0)
@@ -591,7 +590,7 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
     if not count:
         world.set_prop(deal, "status", "completed")
     if config.on_sign:
-        runner.run([{"block": f"{name}_on_sign", "with": {role: f"${role}" for role in SIGN_ROLES}}], dict(roles),
+        runner.run([{"call": f"{name}_on_sign", "with": {role: f"${role}" for role in SIGN_ROLES}}], dict(roles),
                    f"mechanisms.{name}.on_sign")
     _stat(world, name, "deals", 1)
     if config.once:

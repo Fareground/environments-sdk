@@ -239,9 +239,9 @@ def _retry(wake):
 
 
 @pytest.mark.parametrize("path, action", [
-    ("when[0]", {"when": "$random() < 0.5"}),
+    ("when[0]", {"when": "$uniform(0, 1) < 0.5"}),
     ("when[0]", {"params": {"x": {"type": "int", "min": 0, "max": 1}}, "when": "$chance(0.5) && $params.x >= 0"}),
-    ("params.x.max", {"params": {"x": {"type": "int", "min": 0, "max": "$floor($random() * 2)"}}}),
+    ("params.x.max", {"params": {"x": {"type": "int", "min": 0, "max": "$floor($uniform(0, 1) * 2)"}}}),
     ("params.y.default", {"params": {"x": {"type": "int"}, "y": {"type": "int", "default": "$randint(0, 1)"}}}),
     ("params.x.where", {"params": {"x": {"type": "entity", "of": "p", "where": "$chance(0.5)"}}}),
 ])

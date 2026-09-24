@@ -107,15 +107,6 @@ def test_nested_schedules_keep_values_through_both_delays():
     assert result.to_dict() == restored.run().to_dict()
 
 
-def test_continuous_delays_retain_their_timing_and_values():
-    c = batch(4)
-    c['clock'] = {'mode': 'continuous', 'horizon': 5}
-    c['events'][0]['do'][1]['do'][0]['after'] = 1.5
-    result = fg_env.run(c, seed=1)
-    assert result.ok, result.error
-    assert result.outputs['total'] == 6
-
-
 def test_refused_parent_action_leaves_no_scheduled_work():
     c = {'name': 'Refused shipment', 'clock': {'rounds': 3},
          'types': {'worker': {'agent': True}}, 'entities': {'a': {'type': 'worker'}},

@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import move_money
 from .econ_base import (
     BOOKINGS,
@@ -75,7 +75,6 @@ class BookingsConfig(BaseModel):
     refund: float = Field(1, ge=0, le=1, description="Share of the price returned when a booking is cancelled.")
     actions: list[Literal["book", "cancel"]] = Field(["book", "cancel"],
                                                      description="Tools generated for agent guests.")
-    tools: ToolsSetting = tools_field()
 
 
 register_config(BOOKINGS, BookingsConfig)
@@ -242,7 +241,7 @@ def _promote(world: Any, name: str, config: BookingsConfig, resource: Any, slot:
 
 
 @function("booking_text(agent, bookings)", "The agent's latest booking of a bookings mechanism, in words.", min_args=2,
-          max_args=2)
+          max_args=2, family="agreements")
 def _booking_text(call: Call) -> str:
     world: Any = call.scope.world
     agent = maybe_entity(world, call.arg(0))
@@ -270,7 +269,8 @@ def _booking_text(call: Call) -> str:
 
 
 @function("places_text(resource, bookings)",
-          "Free places of a resource in the coming rounds (slots) or the line length (queue).", min_args=2, max_args=2)
+          "Free places of a resource in the coming rounds (slots) or the line length (queue).", min_args=2, max_args=2,
+          family="agreements")
 def _places_text(call: Call) -> str:
     world: Any = call.scope.world
     resource = maybe_entity(world, call.arg(0))

@@ -17,23 +17,19 @@ __all__ = ["dumped", "texts", "effect_nodes", "in_effects", "roles", "calls", "w
 _CALL = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
 #: Sections that build the world before round 1.
-_SETUP = frozenset({"world", "types", "entities", "population", "links", "relations", "space"})
+_SETUP = frozenset({"world", "types", "entities", "relations", "space"})
 #: Sections whose expressions change or steer the world during play.
-_RULES = frozenset({"actions", "events", "triggers", "stages", "end", "defs", "blocks", "physics", "invariants",
-                    "feeds"})
+_RULES = frozenset({"actions", "events", "stages", "end", "defs", "invariants"})
 #: Fields whose text an agent reads: briefs, descriptions, news, outcomes, entries, titles, refusal reasons.
 _TEXT_FIELDS = frozenset({"brief", "description", "outcome", "announce", "say", "show", "why", "title", "empty",
                           "invalid"})
 #: Parameter fields that shape the tool an agent is offered (choices and bounds); they are rules too.
 _TOOL_FIELDS = frozenset({"values", "where", "min", "max"})
 #: Sections read as data about the contract, not by the running world: raw mechanism config is already expanded,
-#: arm patches apply only when that arm runs, policies are participants, metrics and outputs measure.
-_ASIDE = frozenset({"mechanisms", "arms", "policies", "inputs", "metrics", "outputs"})
+#: arm patches apply only when that arm runs, outputs measure (and a type's policies, which are participants).
+_ASIDE = frozenset({"mechanisms", "arms", "inputs", "outputs"})
 #: Fields holding effect lists.
-_EFFECT_LISTS = frozenset({"do", "otherwise", "then", "else", "on_enter", "on_exit", "on_idle", "on_wake",
-                           "on_turn_end", "on_timeout", "on_create", "on_remove"})
-#: Type fields whose effects run whenever an entity is created or removed, during play too.
-_HOOKS = frozenset({"on_create", "on_remove"})
+_EFFECT_LISTS = frozenset({"do", "then", "else"})
 
 
 def dumped(contract: Contract) -> dict[str, Any]:
@@ -71,14 +67,20 @@ def _parts(path: str) -> list[str]:
 def in_effects(path: str) -> bool:
     """Whether ``path`` lies inside an effect list the running world executes."""
     parts = _parts(path)
-    return bool(parts) and parts[0] not in _ASIDE and bool(_EFFECT_LISTS.intersection(parts))
+    return bool(parts) and not _aside(parts) and bool(_EFFECT_LISTS.intersection(parts))
 
 
-def roles(path: str) -> frozenset[str]:
+def _aside(parts: list[str]) -> bool:
+    return parts[0] in _ASIDE or (parts[0] == "types" and parts[2:3] == ["policies"])
+
+
+def roles(path: str, engine: Sequence[str] = ()) -> frozenset[str]:
     """Where text at ``path`` acts: ``setup``, ``rules`` and/or ``shown`` (to agents); empty for measurement and data.
-    """
+    ``engine`` names the mechanisms the engine runs from their config (physics, feeds): their texts are rules."""
     parts = _parts(path)
-    if not parts or parts[0] in _ASIDE:
+    if len(parts) > 1 and parts[0] == "mechanisms" and parts[1] in engine:
+        return frozenset({"rules"}) if parts[-1] not in _TEXT_FIELDS else frozenset()
+    if not parts or _aside(parts):
         return frozenset()
     last = parts[-1]
     found: set[str] = set()
@@ -86,8 +88,6 @@ def roles(path: str) -> frozenset[str]:
         found.add("shown")
     if parts[0] in _SETUP and last not in _TEXT_FIELDS:
         found.add("setup")
-        if _HOOKS.intersection(parts):
-            found.add("rules")
     if parts[0] in _RULES and last not in _TEXT_FIELDS:
         found.add("rules")
     return frozenset(found)
@@ -138,8 +138,8 @@ def draws(contract: Contract, texts: Sequence[str]) -> bool:
             return True
         for name in called - seen:
             seen.add(name)
-            if name in contract.defs:
-                pending.append(contract.defs[name].expr)
+            if name in contract.expr_defs():
+                pending.append(contract.defs[name].expr or "")
     return False
 
 

@@ -4,7 +4,7 @@ import threading
 import time
 from pathlib import Path
 
-from test_time_limits import _with_stage
+from test_time_limits import GAME
 
 import fg_env
 from fg_env import host
@@ -47,8 +47,9 @@ def test_a_host_answer_that_lands_after_its_turn_timed_out_stays_off_the_tape_an
     assert replayed.ok, replayed.message
 
 
-#: Ann's turn times out; she reports her model usage after it closed, then tries to act. Bo waits for the report.
-LATE_REPORT = _with_stage(time_limit=f"{LIMIT} if $actor.id == ann else 10")
+#: Ann's turn times out; she reports her model usage after it closed, while Bo's turn waits for the report: the run's
+#: turn limit, and when the report lands (after Ann's deadline, well before Bo's).
+TURN, REPORT = 0.5, 0.75
 
 
 def _late_reporter(late):
@@ -56,7 +57,7 @@ def _late_reporter(late):
 
     def participant(wake):
         if wake.entity_id == "ann":
-            time.sleep(LATE)  # the turn closed at its deadline
+            time.sleep(REPORT)  # the turn closed at its deadline
             wake.record_usage(llm_calls=1, input_tokens=500, output_tokens=20)
             late.append(wake.call("score", {"points": 3}))
             reported.set()
@@ -69,8 +70,8 @@ def _late_reporter(late):
 
 def test_usage_reported_after_the_deadline_counts_toward_stats_and_the_budget_but_the_agent_cannot_act():
     late = []
-    env = fg_env.load(LATE_REPORT, seed=1, exposures=True)
-    result = env.run(_late_reporter(late), budget={"tokens": 100})
+    env = fg_env.load(GAME, seed=1, exposures=True)
+    result = env.run(_late_reporter(late), budget={"tokens": 100}, time_limit=TURN)
     assert (result.ended_by, result.rounds) == ("budget", 1)
     assert result.stats["input_tokens"] == 500 and result.agent_stats["ann"]["output_tokens"] == 20
     assert not late[0].ok and env.entity("ann")["props"]["score"] == 0
@@ -79,7 +80,7 @@ def test_usage_reported_after_the_deadline_counts_toward_stats_and_the_budget_bu
 
 
 def test_a_replay_adds_usage_reported_after_the_deadline_as_that_turn_ends():
-    result = fg_env.load(LATE_REPORT, seed=1, exposures=True).run(_late_reporter([]), rounds=1)
-    replayed = fg_env.analysis.trace(result).replay(LATE_REPORT)
+    result = fg_env.load(GAME, seed=1, exposures=True).run(_late_reporter([]), rounds=1, time_limit=TURN)
+    replayed = fg_env.analysis.trace(result).replay(GAME)
     assert replayed.ok, replayed.message
     assert replayed.result.stats["input_tokens"] == result.stats["input_tokens"] == 500

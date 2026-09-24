@@ -18,7 +18,6 @@ def test_a_round_is_called_by_its_length():
     assert unit_word({"unit": "minute", "step": 15}) == "quarter-hour"
     assert unit_word({"unit": "day", "step": 7}) == "week"
     assert unit_word({"unit": "hour", "step": 2}) == "2-hour period"
-    assert unit_word({"mode": "continuous", "unit": "second"}) == "round"
     assert unit_word({}) == "round"
 
 

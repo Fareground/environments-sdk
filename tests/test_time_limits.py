@@ -17,9 +17,11 @@ GAME = {
     "entities": {"ann": {"type": "player", "name": "Ann"}, "bo": {"type": "player", "name": "Bo"}},
     "actions": {"score": {"by": "player", "params": {"points": {"type": "int", "min": 1, "max": 3}},
                           "do": ["$actor.score += $params.points"], "terminal": True}},
-    "stages": [{"name": "play", "time_limit": 0.2, "on_timeout": ["$actor.strikes += 1"],
-                "on_idle": ["$world.idle += 1"]}],
+    "stages": [{"name": "play"}],
+    "events": [{"on": "stage.play.turn", "when": "$timed_out", "do": ["$actor.strikes += 1"]},
+               {"on": "stage.play.turn", "when": "not $acted and not $timed_out", "do": ["$world.idle += 1"]}],
 }
+LIMIT = 0.2
 
 
 def _with_stage(**changes):
@@ -40,7 +42,7 @@ def test_a_hung_participant_times_out_and_the_run_goes_on():
     env = fg_env.load(GAME, seed=1)
     start = time.monotonic()
     try:
-        result = env.run(participant)
+        result = env.run(participant, time_limit=LIMIT)
     finally:
         release.set()
     assert time.monotonic() - start < 3
@@ -48,7 +50,7 @@ def test_a_hung_participant_times_out_and_the_run_goes_on():
     assert result.degraded == ["agents_often_failed"]  # every one of ann's turns ran out of time
     assert env.entity("ann")["props"] == {"score": 0, "strikes": 2}
     assert env.entity("bo")["props"]["score"] == 4
-    assert env.props["idle"] == 0  # on_timeout ran instead of on_idle
+    assert env.props["idle"] == 0  # the timeout's event ran instead of the idle one
     assert result.stats["timeouts"] == 2
     timeouts = [e for e in result.events if e["kind"] == "timeout"]
     assert [e["actor"] for e in timeouts] == ["ann", "ann"]
@@ -65,8 +67,8 @@ def test_calls_after_the_deadline_are_refused_and_change_nothing():
         late.append(wake.update)
         finished.set()
 
-    env = fg_env.load(_with_stage(time_limit=0.1), seed=1)
-    result = env.run({"ann": slow, "bo": "idle"}, rounds=1)
+    env = fg_env.load(GAME, seed=1)
+    result = env.run({"ann": slow, "bo": "idle"}, rounds=1, time_limit=0.1)
     assert finished.wait(3)
     refused, update = late
     assert not refused.ok and refused.ended and refused.data["error"] == "timeout"
@@ -85,7 +87,7 @@ def test_an_async_participant_past_its_deadline_is_cancelled():
             cancelled.set()
             raise
 
-    result = fg_env.load(_with_stage(time_limit=0.1), seed=1).run({"ann": dawdles, "bo": "idle"})
+    result = fg_env.load(GAME, seed=1).run({"ann": dawdles, "bo": "idle"}, time_limit=0.1)
     assert result.status == "completed", result.error
     assert result.degraded == ["agents_often_failed"]  # every one of ann's turns ran out of time
     assert result.stats["timeouts"] == 2
@@ -97,7 +99,7 @@ def test_participants_that_finish_in_time_play_exactly_as_without_a_limit():
     limited = fg_env.run(SHOP, seed=4, time_limit=30)
     assert limited.events == plain.events and limited.outputs == plain.outputs
 
-    sealed = _with_stage(turns="simultaneous", time_limit=None, on_timeout=[])
+    sealed = _with_stage(turns="simultaneous")
     free = fg_env.load(sealed, seed=6).run()
     timed = fg_env.load(sealed, seed=6).run(time_limit=30)
     assert timed.events == free.events and timed.stats["timeouts"] == 0
@@ -114,7 +116,7 @@ def test_in_a_simultaneous_stage_the_others_choices_still_count_when_one_agent_t
 
     env = fg_env.load(_with_stage(turns="simultaneous"), seed=1)
     try:
-        result = env.run(participant, rounds=1)
+        result = env.run(participant, rounds=1, time_limit=LIMIT)
     finally:
         release.set()
     assert result.status == "running", result.error
@@ -124,7 +126,7 @@ def test_in_a_simultaneous_stage_the_others_choices_still_count_when_one_agent_t
 
 
 def test_under_a_limit_participants_not_marked_concurrent_still_take_their_turns_one_at_a_time():
-    contract = _with_stage(turns="simultaneous", time_limit=5)
+    contract = _with_stage(turns="simultaneous")
     contract["entities"].update({"cy": {"type": "player", "name": "Cy"}, "di": {"type": "player", "name": "Di"}})
 
     def tracked(concurrent):
@@ -144,20 +146,18 @@ def test_under_a_limit_participants_not_marked_concurrent_still_take_their_turns
         return play, counts
 
     careful, careful_counts = tracked(False)
-    fg_env.load(contract, seed=1).run(careful, rounds=1)
+    fg_env.load(contract, seed=1).run(careful, rounds=1, time_limit=5)
     eager, eager_counts = tracked(True)
-    fg_env.load(contract, seed=1).run(eager, rounds=1)
+    fg_env.load(contract, seed=1).run(eager, rounds=1, time_limit=5)
     assert careful_counts["most"] == 1
     assert eager_counts["most"] > 1
 
 
-def test_the_limit_can_depend_on_the_agent_and_falls_back_to_the_run_default():
-    contract = _with_stage(time_limit="5 if $actor.id == ann else null")
-    env = fg_env.load(contract, seed=1)
+def test_every_agent_is_told_the_run_limit():
+    env = fg_env.load(GAME, seed=1)
     env.time_limit = 7
-    ann, bo = env.preview("ann"), env.preview("bo")
-    assert ann["time_limit"] == 5 and bo["time_limit"] == 7
-    assert "You have 5 seconds for this turn" in ann["update"]
+    assert env.preview("ann")["time_limit"] == 7
+    assert "You have 7 seconds for this turn" in env.preview("ann")["update"]
 
     limits = {}
 
@@ -166,30 +166,40 @@ def test_the_limit_can_depend_on_the_agent_and_falls_back_to_the_run_default():
         wake.end()
 
     env.run(notes, rounds=1, time_limit=9)
-    assert limits["ann"][0] == 5 and limits["bo"][0] == 9
-    assert 0 < limits["bo"][1] <= 9
+    assert limits["ann"][0] == 9 and 0 < limits["bo"][1] <= 9
 
 
-def test_a_run_limit_applies_to_stages_that_set_none():
-    release = threading.Event()
-
-    def hangs(wake):
-        release.wait(10)
-
-    contract = _with_stage(time_limit=None)
-    try:
-        result = fg_env.load(contract, seed=1).run(hangs, rounds=1, time_limit=0.1)
-    finally:
-        release.set()
-    assert result.stats["timeouts"] == 2
-
-
-def test_limits_that_cannot_work_are_reported_before_the_run():
-    for limit, message in ((0, "above 0"), (-2, "above 0"), ("30", "not a number"),
-                           ("$nobody.patience", "not available")):
-        errors = [str(i) for i in fg_env.check(_with_stage(time_limit=limit)) if i.severity == "error"]
-        assert any("time_limit" in e and message in e for e in errors), (limit, errors)
+def test_a_limit_that_cannot_work_is_refused():
     with pytest.raises(ValueError, match="time_limit"):
         fg_env.load(GAME, seed=1).run(time_limit=0)
-    bad = fg_env.load(_with_stage(time_limit="$actor.score - 1"), seed=1).run(rounds=1)
-    assert bad.status == "failed" and "stages.play.time_limit" in bad.error
+
+
+def _hanging_ann(release):
+    def participant(wake):
+        if wake.entity_id == "ann":
+            release.wait(10)
+        else:
+            wake.call("score", {"points": 2})
+    return participant
+
+
+def test_experiments_run_jobs_and_tournaments_take_a_turn_time_limit():
+    from fg_env.experiments.experiment import Job, run_jobs
+
+    release = threading.Event()
+    try:
+        runs = fg_env.experiment(GAME, runs=1, participants=_hanging_ann(release), time_limit=LIMIT).arms["baseline"]
+        assert runs.runs[0].stats["timeouts"] == 2
+        [job] = run_jobs(GAME, [Job({}, None, 1)], participants=_hanging_ann(release), time_limit=LIMIT)
+        assert job.stats["timeouts"] == 2
+        played = fg_env.rl.tournament(GAME, {"slow": _hanging_ann(release), "quick": _hanging_ann(release)},
+                                   seats=["ann", "bo"], time_limit=LIMIT)
+        assert all(run.stats["timeouts"] == 2 for run in played.runs)
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("bad", [0, -1, "5", True])
+def test_a_bad_time_limit_raises_before_anything_runs(bad):
+    with pytest.raises(ValueError, match="time_limit must be a number of seconds"):
+        fg_env.experiment(GAME, runs=1, time_limit=bad)

@@ -50,7 +50,7 @@ def plain(value: Any) -> Any:
 def request_key(world: Any, service: str, site: str, actor: str | None, identity: Any, moment: bool = True) -> str:
     parts: list = [service, site, actor]
     if moment:
-        parts += [world.round, world.time if world.continuous else None, world.stage]
+        parts += [world.round, None, world.stage]  # None held a clock time: kept so recorded tapes still match
     text = json.dumps([parts, plain(identity)], sort_keys=True, ensure_ascii=False, default=repr)
     return hashlib.sha256(text.encode()).hexdigest()[:32]
 

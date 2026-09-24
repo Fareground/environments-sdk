@@ -56,22 +56,6 @@ def test_independent_entity_defaults_also_control_numerical_accuracy():
     assert result.outputs["x"] == pytest.approx(math.exp(-20), abs=1e-10)
 
 
-def test_clock_reads_follow_intermediate_continuous_times():
-    import fg_env
-
-    result = fg_env.load({
-        "name": "Linearly increasing force",
-        "clock": {"mode": "continuous", "horizon": 1},
-        "types": {"marker": {}},
-        "physics": {"read": {"force": "$clock.time"},
-                    "vars": {"impulse": {"start": 0, "rate": "force"}}},
-        "outputs": {"impulse": "$physics.impulse"},
-    }).run()
-    assert result.status == "completed"
-    assert result.time == 1
-    assert result.outputs["impulse"] == pytest.approx(0.5, abs=1e-10)
-
-
 @pytest.mark.parametrize("field,value", [("rtol", 0), ("rtol", float("inf")), ("atol", -1), ("atol", float("nan"))])
 def test_invalid_accuracy_requests_are_rejected(field, value):
     import fg_env

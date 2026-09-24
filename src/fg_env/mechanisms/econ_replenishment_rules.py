@@ -371,7 +371,7 @@ def _item_value(world: Any, name: str, config: ReplenishmentConfig, demand: Dema
 @function("replenishment_totals(mechanism, measure, by?)",
           "A replenishment mechanism's total: orders, units_ordered, purchases, holding_cost, order_cost, "
           "stockout_cost, backorder_cost, total_cost, on_order or stock_value (units on hand at unit cost, now) — "
-          "overall, or {key: total} by 'item' or 'group'.", min_args=2, max_args=3)
+          "overall, or {key: total} by 'item' or 'group'.", min_args=2, max_args=3, family="economy")
 def _replenishment_totals(call: Call) -> Any:
     world: Any = call.scope.world
     name, measure, by = str(call.arg(0)), str(call.arg(1)), call.arg(2)

@@ -24,7 +24,6 @@ Config:
 - `backstop` (default "adjourn"): When the pass cap is hit: adjourn to the next round, or vote on the open question.
 - `end` (default "never"): never (the run goes on) | decision: end the run once a main motion is decided | adoption: once one passes.
 - `when` (default null): Hold the discussion only when true (e.g. "$round <= 5").
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `decision` op:
 - `speak` — takes `text` (needs `text`): {"decision": "hall", "action": "speak", "text": "$params.text"}  (a speech; under floor control only by the member holding the floor)

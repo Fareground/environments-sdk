@@ -2,16 +2,17 @@
 
 .. code-block:: json
 
-    "trial": {"kind": "flow", "mode": "procedure", "phases": {...}, "stack": {"who": ["attorney", "judge"], "kinds": {
+    "trial": {"kind": "decision", "mode": "procedure", "phases": {...},
+              "stack": {"who": ["attorney", "judge"], "kinds": {
         "exhibit": {"tool": false, "params": {"name": "text"}, "responders": "$is($it, attorney) and $it.id !=
         $item.by",
                     "resolve": ["$world.admitted += $params.name"]},
         "objection": {"starts": false, "on": ["exhibit"], "who": "attorney", "responders": "$is($it, judge)",
-                      "resolve": [{"if": "$world.sustained", "then": [{"flow": "trial", "action": "counter"}]}]},
+                      "resolve": [{"if": "$world.sustained", "then": [{"decision": "trial", "action": "counter"}]}]},
         "ruling": {"starts": false, "on": ["objection"], "who": "judge", "responders": "false",
                    "params": {"sustain": "bool"}, "resolve": ["$world.sustained = $params.sustain"]}}}}
 
-An item is pushed by its tool ``<name>_<kind>`` or by ``{"flow": name, "action": "push", "item": kind, ...}``
+An item is pushed by its tool ``<name>_<kind>`` or by ``{"decision": name, "action": "push", "item": kind, ...}``
 inside any action. While it is on top, its responders — the agents for whom the kind's
 ``responders`` holds — each answer it once: push an item that may sit on it (the kind lists the top's
 kind in ``on``), which counts as their answer, or ``<name>_pass``. Once nobody owes an answer the top
@@ -42,7 +43,7 @@ from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
 from ..world.live import Abort
 from . import _common as common
-from ._common import Config, Effects
+from ._common import Config, Effects, stage_event
 from ._social import check_expr, require_type
 
 __all__ = ["StackConfig", "StackKind", "expand_stack", "run_step", "check_push", "check_stack_rules", "read_stack"]
@@ -339,7 +340,7 @@ def _close(runner: Any, name: str, cfg: StackConfig, where: str) -> None:
 
 def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapping[str, Any], vars: dict[str, Any],
              where: str) -> None:
-    """One stack action of the flow op: push, pass, idle, counter or close."""
+    """One stack action of the decision op: push, pass, idle, counter or close."""
     world = runner.world
     if action == "close":
         _close(runner, name, cfg, where)
@@ -455,7 +456,7 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> di
             require_type(contract, type_name, f"{at}.who", agent=True)
         check_expr(spec.when, f"{at}.when", ("actor", "top"))
         check_expr(spec.responders, f"{at}.responders", ("it", "item"))
-    op = {"flow": name}
+    op = {"decision": name}
     actions: dict[str, Any] = {}
     for kind, spec in cfg.kinds.items():
         if not spec.tool:
@@ -478,21 +479,22 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> di
                   "why": "Nothing on the stack is waiting for your answer."}],
         "do": [{**op, "action": "pass"}], "outcome": "You let it stand.", "private": True, "terminal": True,
     }
-    window: dict[str, Any] = {"on_exit": [{**op, "action": "close"}]}
+    stage = cfg.stage or f"{name}_stack"
+    events = [stage_event(stage, "end", [{**op, "action": "close"}])]
     if cfg.silence == "pass":
-        window["on_idle"] = [{**op, "action": "idle"}]
+        events.append(stage_event(stage, "turn", [{**op, "action": "idle"}], when="not $acted"))
     fragment: dict[str, Any] = {
         "world": {f"{name}_stack": {"type": "map", "default": {"items": [], "next": 1},
                                     "description": "The stack: its items, bottom first."}},
-        "actions": actions,
+        "actions": actions, "events": events,
     }
     if cfg.stage is None:
-        fragment["stages"] = [{"name": f"{name}_stack", "turns": "sequential", "actions": list(actions),
+        fragment["stages"] = [{"name": stage, "turns": "sequential", "actions": list(actions),
                                "who": f"$stack({name}, waiting, $it)", "until": f"$stack({name}, top) == null",
                                "when": f"$stack({name}, top) != null", "passes": cfg.passes,
-                               "brief": "Answer the item on top of the stack, or let it stand.", **window}]
+                               "brief": "Answer the item on top of the stack, or let it stand."}]
     else:
-        fragment["stage_hooks"] = {cfg.stage: {"actions": list(actions), **window}}
+        fragment["stage_hooks"] = {cfg.stage: {"actions": list(actions)}}
     if cfg.views:
         fragment["views"] = {f"{name}_stack": {"for": players, "title": "The stack",
                                                "when": f"$stack({name}, top) != null",

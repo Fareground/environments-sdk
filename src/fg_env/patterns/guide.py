@@ -14,7 +14,7 @@ from .base import GROUPS, KINDS, PatternConfig
 __all__ = ["patterns_page"]
 
 _INTRO = """\
-## `patterns`: {name: {kind, …}}
+## Patterns: `"mechanisms": {name: {"kind": "pattern", "mode": <kind>, …}}`
 
 The world's own regularities, declared once like its physics and read anywhere as values: a season, a trend, how
 demand answers price, a random walk, a draw per customer, noisy counts, an effect that carries over. Write
@@ -26,8 +26,8 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
   change the pattern with it. Run-time values (a price, a stock level) are arguments or a memory `input`.
 * Keys: `keys` (an entity type — keys are its ids —, a list, or an expression over `$inputs`) and/or `table` +
   `column` (one row of parameters per key: per-SKU bases, per-category profiles).
-* Time: `t` counts clock units from round 1 (round 1 is t = 0; with unit day and step 7 round 2 is t = 7), the clock
-  time when continuous. With `clock.start`, yearly, weekly and daily positions follow the real calendar and times
+* Time: `t` counts clock units from round 1 (round 1 is t = 0; with unit day and step 7 round 2 is t = 7). With
+  `clock.start`, yearly, weekly and daily positions follow the real calendar and times
   may be ISO dates. Random paths step once per round (or every `every` clock units).
 * Randomness comes from the pattern's own stream (run seed, name, key): adding a pattern never shifts another draw,
   every arm sees the same paths, and a snapshot, clone or fork reads the same values. Observations use one uniform
@@ -43,7 +43,7 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
 * State that agents and events change is not a pattern: keep it in props written by events or `physics`, which read
   patterns (`"$it.trust += $pattern.trust_noise($it)"`)."""  # noqa: E501 — guide text: each line is shown as written
 
-_EXAMPLES = {
+_EXAMPLES: dict[str, dict[str, dict[str, Any]]] = {
     "time": {"season": {"kind": "seasonal", "period": "year", "table": "$inputs.categories", "column": "category",
                         "profile": "$row.profile"},
              "growth": {"kind": "trend", "form": "exponential", "rate": "$inputs.growth"}},
@@ -126,10 +126,10 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
   mistaken for price response. `censored: "stockout"` marks rows where demand went unmet (sales capped by stock, so
   demand was more than what sold): they are fitted as censored (expectation–maximisation), not dropped. `noise: "sales"` estimates that counts pattern's
   dispersion around the fitted means.
-* `fit` and `calibration` answer different questions. `fit` estimates parameters from recorded data, once, and
-  writes them into the contract; the `calibration` section tunes inputs at every load so simulated outputs hit
-  targets — for what only the simulation identifies. Never list a fitted input in `calibration.params` (the checker
-  warns): the load would replace the estimate.
+* `fit` and `fg_env.analysis.calibrate` answer different questions. `fit` estimates parameters from recorded data,
+  once, and writes them into the contract; `calibrate` searches inputs so simulated outputs hit targets — for what
+  only the simulation identifies. Calibrate only inputs no pattern fits: a calibrated value would replace the
+  estimate.
 * Judge a fitted contract on history it did not see: `fg_env.analysis.validate(result.contract, cases, season=52, test=0.25)`.
   `result.priors` holds the number estimates as `{input: {dist: "normal", mean, sd}}` for `uncertainty=` on
   experiment, sweep, backtest and validate — pass the input `parameter_uncertainty: 0` with them, since the contract
@@ -142,14 +142,19 @@ def patterns_page() -> str:
     lines = [_INTRO, "", _FITTING, "", "### Groups", ""]
     for group, about in GROUPS.items():
         kinds = [name for name, spec in KINDS.items() if spec.group == group]
-        example = json.dumps(_EXAMPLES[group], ensure_ascii=False)
+        example = json.dumps({name: _declared(spec) for name, spec in _EXAMPLES[group].items()}, ensure_ascii=False)
         lines += [f"**{group}** — {about}: " + ", ".join(f"`{k}`" for k in kinds) + ".",
-                  f"`\"patterns\": {example}` · read {_READS[group]}", ""]
+                  f"`\"mechanisms\": {example}` · read {_READS[group]}", ""]
     lines += ["### Kinds", ""]
     for group in GROUPS:
         for name, spec in KINDS.items():
             if spec.group != group:
                 continue
             lines += [f"#### `{name}` ({group}, {spec.shape})", "", spec.doc, "", f"Read: {_call(spec)}. Example: "
-                      f"`{json.dumps(spec.example, ensure_ascii=False)}`", *_fields(spec.model), ""]
+                      f"`{json.dumps(_declared(spec.example), ensure_ascii=False)}`", *_fields(spec.model), ""]
     return "\n".join(lines).rstrip()
+
+
+def _declared(spec: dict[str, Any]) -> dict[str, Any]:
+    """A pattern's config as it is declared: a mechanism of kind `pattern` whose mode is the pattern's kind."""
+    return {"kind": "pattern", "mode": spec["kind"], **{k: v for k, v in spec.items() if k != "kind"}}

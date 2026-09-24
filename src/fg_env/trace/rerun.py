@@ -335,7 +335,7 @@ def replay_run(recording: Trace, contract: Any, *, fallback: Any = None, hosts: 
         use_chance(env, player.chooser(env.world))
     budget = {**recorded.budget["limits"], "on_exhaust": recorded.budget["on_exhaust"]} if recorded.budget else None
     rounds = None if recorded.status in _FINISHED else recorded.rounds - env.world.round
-    result = env.run(player, rounds=rounds, budget=budget, time_limit=_run_time_limit(recording, env.contract))
+    result = env.run(player, rounds=rounds, budget=budget, time_limit=_run_time_limit(recording))
     divergence = player.divergence or _failure(recorded, result) or _events(recorded, result) or player.unplayed() \
         or player.unpicked() or _ending(recorded, result)
     return ReplayResult(result, divergence)
@@ -373,10 +373,9 @@ def _from_start(recording: Trace, contract: Any, start: Mapping[str, Any], hosts
     return env
 
 
-def _run_time_limit(recording: Trace, contract: Any) -> float | None:
-    """The run-wide turn time limit the recording was made with: the one its wakes show in stages that set none."""
-    staged = {stage.name for stage in contract.stage_list() if stage.time_limit is not None}
-    found = {wake["time_limit"] for wake in recording.wakes if "time_limit" in wake and wake["stage"] not in staged}
+def _run_time_limit(recording: Trace) -> float | None:
+    """The run-wide turn time limit the recording was made with: the one its wakes show."""
+    found = {wake["time_limit"] for wake in recording.wakes if "time_limit" in wake}
     return next(iter(found)) if len(found) == 1 else None
 
 

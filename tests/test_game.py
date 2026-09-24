@@ -244,10 +244,10 @@ def test_rewards_add_up_to_returns_and_every_run_reports_returns_per_seat():
     assert earned == state.returns()
     result = fg_env.run(NIM, seed=2)
     assert set(result.returns) == {"a", "b"} and sum(result.returns.values()) == 0
-    unfair = copy.deepcopy(NIM)
-    unfair["game"]["returns"] = "1 if $world.winner != '' else 0"  # every seat wins: not zero-sum
+    unfair = fg_env.expand(NIM)
+    unfair["types"]["player"]["score"]["value"] = "1 if $world.winner != '' else 0"  # every seat wins: not zero-sum
     broken = fg_env.run(unfair, seed=2)
-    assert not broken.ok and [issue["path"] for issue in broken.output_issues] == ["game.utility"]
+    assert not broken.ok and [issue["path"] for issue in broken.output_issues] == ["types.player.score.utility"]
 
 
 def test_observations_are_what_the_seat_reads_and_what_it_may_see():
@@ -267,20 +267,20 @@ def test_observations_are_what_the_seat_reads_and_what_it_may_see():
     assert [entity["props"] for entity in other if entity["id"] == "p1"] == [{"seat": 1}]  # the private card is hidden
 
 
-def test_the_game_section_is_checked_and_mechanisms_can_fill_it_in():
+def test_scores_are_checked_and_mechanisms_can_fill_the_game_in():
     def errors(contract):
         return {(issue.path, issue.message) for issue in fg_env.check(contract) if issue.severity == "error"}
 
-    odd = copy.deepcopy(NIM)
-    odd["game"].update({"utility": "zero sum", "players": "stone"})
-    del odd["game"]["returns"]
+    odd = fg_env.expand(NIM)
+    odd["types"]["player"]["score"]["utility"] = "zero sum"
+    odd["types"]["stone"] = {"score": {"value": "1", "utility": "zero_sum"}}
     found = errors(odd)
-    assert any(path == "game.utility" for path, _ in found)
-    assert any(path == "game.returns" for path, _ in found)
-    assert any(path == "game.players" for path, _ in found)
-    constant = copy.deepcopy(NIM)
-    constant["game"]["utility"] = "constant_sum"
-    assert any("needs `total`" in message for _, message in errors(constant))
+    assert ("types.player.score.utility", "unknown utility 'zero sum'") in found
+    assert any(path == "types.stone.score" and "not an agent type" in message for path, message in found)
+    assert any(path == "types.stone.score.utility" and "differs" in message for path, message in found)
+    missing = fg_env.expand(NIM)
+    del missing["types"]["player"]["score"]["value"]
+    assert any(path == "types.player.score.value" for path, _ in errors(missing))
     stepped = copy.deepcopy(AUCTIONEER)
     stepped["actions"]["say"]["params"]["text"] = {"type": "text", "step": 1}
     assert any(path.endswith("params.text.step") for path, _ in errors(stepped))
@@ -298,25 +298,25 @@ def test_tournaments_score_seats_by_their_returns_and_describe_reads_the_utility
     assert scorer(result) == (result.returns, "")
     metadata = describe(NIM).metadata
     assert metadata["utility"] == "zero_sum" and "checked" in metadata["evidence"]["utility"][0]
-    constant = copy.deepcopy(NIM)
-    constant["game"].update({"returns": "1", "utility": "general_sum"})
+    constant = fg_env.expand(NIM)
+    constant["types"]["player"]["score"].update({"value": "1", "utility": "general_sum"})
     assert describe(constant).metadata["utility"] == "general_sum"
 
 
-def test_claims_in_the_game_section_are_verified_by_check():
-    claiming = copy.deepcopy(NIM)
-    claiming["game"].update({"dynamics": "simultaneous", "returns": "1", "utility": "zero_sum"})
+def test_a_declared_utility_is_verified_by_check_and_earlier_claims_are_derived_instead():
+    claiming = fg_env.expand(NIM)
+    claiming["types"]["player"]["score"].update({"value": "1", "utility": "zero_sum"})
     found = {issue.path: issue for issue in fg_env.check(claiming)}
-    assert found["game.dynamics"].severity == "error" and "'sequential'" in found["game.dynamics"].message
-    assert found["game.utility"].severity == "error" and "'identical'" in found["game.utility"].message
-    honest = copy.deepcopy(NIM)
-    honest["game"]["dynamics"] = "sequential"
-    assert [i for i in fg_env.check(honest) if i.severity == "error"] == []
+    utility = found["types.player.score.utility"]
+    assert utility.severity == "error" and "'identical'" in utility.message
+    old = copy.deepcopy(NIM)
+    old["game"]["dynamics"] = "simultaneous"  # a claim describe derives: dropped when the section is rewritten
+    assert [i for i in fg_env.check(old) if i.severity == "error"] == []
 
 
 def test_a_game_without_returns_says_what_to_declare():
     plain = copy.deepcopy(NIM)
     del plain["game"]
     state = fg_env.rl.game(plain).new_initial_state()
-    with pytest.raises(ContractError, match="game.returns"):
+    with pytest.raises(ContractError, match="no type has a `score`"):
         state.returns()

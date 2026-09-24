@@ -1,4 +1,4 @@
-"""Delivery latency and lossy channels: delay and drop on post, emit and wake."""
+"""Delivery latency and lossy channels: delay and drop on post and emit."""
 import copy
 import json
 
@@ -18,7 +18,6 @@ RADIO = {
         "flare": {"by": "station",
                   "do": [{"emit": "flare", "say": "{$actor.name} fired a flare.", "delay": 1, "to": "ben"}]},
         "shout": {"by": "station", "do": [{"post": "air", "text": "hey", "drop": "$world.loss"}]},
-        "ping": {"by": "station", "do": [{"wake": "ben", "why": "ping", "drop": 1}]},
         "wait": {"by": "station", "do": []},
     },
     "world": {"loss": 0.5},
@@ -53,18 +52,7 @@ def test_a_refused_action_sends_nothing():
     assert result.outputs["heard"] == 0 and env.world.scheduled == []
 
 
-def test_a_delayed_emit_reaches_its_audience_at_its_moment_on_a_continuous_clock():
-    contract = copy.deepcopy(RADIO)
-    contract["clock"] = {"mode": "continuous", "horizon": 10}
-    contract["actions"]["flare"]["do"][0]["delay"] = 2.5
-    contract["stages"] = [{"name": "air", "turns": "scheduled", "interval": 4, "max_actions": 3}]
-    env = fg_env.load(contract, seed=1)
-    result = env.run(_play({(1, "ana"): [("flare", {})]}))
-    [flare] = [event for event in result.events if event["kind"] == "flare"]
-    assert flare["time"] == 2.5 and flare["to"] == ["ben"] and flare["text"] == "Ana fired a flare."
-
-
-def test_drop_loses_messages_by_the_seed_and_can_lose_wakes():
+def test_drop_loses_messages_by_the_seed():
     calls = {(r, "ana"): [("shout", {}), ("shout", {}), ("shout", {})] for r in range(1, 6)}
     heard = [fg_env.load(RADIO, seed=s).run(_play(calls)).outputs["heard"] for s in (1, 1)]
     assert heard[0] == heard[1] and 0 < heard[0] < 15
@@ -74,9 +62,6 @@ def test_drop_loses_messages_by_the_seed_and_can_lose_wakes():
     always = copy.deepcopy(RADIO)
     always["world"]["loss"] = 0
     assert fg_env.load(always, seed=1).run(_play(calls)).outputs["heard"] == 15
-    env = fg_env.load(RADIO, seed=1)
-    env.run(_play({(1, "ana"): [("ping", {})]}), rounds=1)
-    assert env.world.wake_requests == {}
 
 
 def test_a_run_split_by_a_snapshot_delivers_pending_messages_exactly_once():
@@ -102,7 +87,7 @@ def test_the_checker_names_bad_delivery_options():
         ("records.air.fields.delay", "'delay' is a `post` option, so a post cannot set it"),
         ("actions.wait.do[0].drop", "is 2; a drop chance runs from 0 to 1"),
         ("actions.wait.do[0].delay", "is 1.5; a delay is a whole number of rounds ≥ 0"),
-        ("actions.wait.do[1].delay", "`wake` takes `in` (continuous clock) instead of `delay`"),
+        ("actions.wait.do[1].delay", "'delay' is not part of `wake`"),
     ]:
         assert issue in found, (issue, found)
     assert [i for i in fg_env.check(RADIO) if i.severity == "error"] == []

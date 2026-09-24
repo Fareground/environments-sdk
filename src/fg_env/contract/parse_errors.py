@@ -29,6 +29,18 @@ _EXPECTED: dict[str, tuple[str, str]] = {
 }
 #: Longest value quoted back.
 _SHOWN = 60
+_ROUNDS_ONLY = "the continuous clock was removed: every clock counts rounds (`unit` and `step` say what one is)"
+#: Fields that were removed without a form to rewrite them to, by section and field: what to write instead.
+_REMOVED = {
+    ("clock", "mode"): _ROUNDS_ONLY, ("clock", "tick"): _ROUNDS_ONLY, ("clock", "jump"): _ROUNDS_ONLY,
+    ("clock", "horizon"): _ROUNDS_ONLY + "; set `rounds`",
+    ("stages", "interval"): _ROUNDS_ONLY + "; run a stage on some rounds with its `when`",
+    ("stages", "first_wake"): _ROUNDS_ONLY + "; run a stage on some rounds with its `when`",
+    ("stages", "on_wake"): "run it in an event on 'stage.<name>.start' (with an `each` over the agents), or after "
+                           "each agent's previous turn on 'stage.<name>.turn'",
+    ("stages", "auto"): "removed: every turn wakes its agent (a stage `when` or `who` skips the turns not needed)",
+    ("actions", "duration"): _ROUNDS_ONLY,
+}
 
 
 def _all_field_names() -> list[str]:
@@ -124,8 +136,14 @@ def validation_issues(exc: ValidationError) -> list[Issue]:
                 fix: str | None = f"'{key}' belongs to another part of the contract; remove it here"
             else:
                 fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
-            if len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
-                fix = 'Use at for scheduled rounds (at=2 or at=[2, 4]); use every for an interval (every=2)'
+            if loc and (str(loc[0]), key) in _REMOVED:
+                fix = _REMOVED[(str(loc[0]), key)]
+            elif len(loc) == 1 and key == "links":
+                fix = ("starting links belong to their relation, and this one's relation is not declared: declare "
+                       "it under `relations` and write the links as relations.<relation>.links")
+            elif len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
+                fix = ('an event fires on given rounds through its when: "when": "$round == 2", "$round in [2, 4]", '
+                       '"$round % 2 == 0"')
             elif len(loc) == 3 and loc[0] == "events" and key == "chance":
                 fix = ('an event fires at random through its when: "when": '
                        f'"$chance({_probability(error.get("input"))})"')

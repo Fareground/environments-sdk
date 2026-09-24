@@ -23,7 +23,7 @@ MOST_SLOWER = 4
 def _crowd(action):
     return {"name": "crowd", "clock": {"rounds": 1},
             "types": {"p": {"agent": True, "props": {"w": 0}}},
-            "population": [{"type": "p", "count": CROWD, "props": {"w": "$random()"}}],
+            "population": [{"type": "p", "count": CROWD, "props": {"w": "$uniform(0, 1)"}}],
             "stages": [{"name": "s"}],
             "actions": {"act": action}}
 

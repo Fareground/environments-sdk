@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ._common import ToolsSetting, raw_is_a, tools_field
+from ._common import raw_is_a
 from .econ_assets import assets, destroy_items, is_holder
 from .econ_base import (
     INVENTORY,
@@ -69,7 +69,6 @@ class InventoryConfig(BaseModel):
         ["give", "consume"],
         description="Tools generated for agent holders: give, consume (consumable items), drop and pickup (needs a "
                     "space).")
-    tools: ToolsSetting = tools_field()
     give_to: str = Field("$it.id != $actor.id", description="Which holders an agent may give goods to ($actor, $it).")
     needs: dict[str, dict[str, int | str]] = Field(
         {}, description="Goods used up every `every` rounds per type: {type: {item: qty or expression over $it}}.")

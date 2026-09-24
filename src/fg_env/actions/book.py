@@ -24,14 +24,12 @@ from ..expr import (
     PrivateRead,
     Scope,
     compile_expr,
-    is_expr,
     shared_budget,
     truthy,
 )
 from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
-from ..sampling.probability import is_probability
 from ..world.live import Abort, LuckAhead, SdkWorld, _plain
 from .faults import fault_reason
 from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
@@ -53,7 +51,6 @@ UNDECIDED_BY_LUCK = ("luck cannot decide whether a call is allowed or what its a
 class Outcome:
     ok: bool
     text: str
-    success: bool = True
     params: dict[str, Any] = field(default_factory=dict)
     #: The assets the action's `attach` delivers to its actor.
     assets: list[str] = field(default_factory=list)
@@ -78,9 +75,9 @@ def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> list[
 
 
 def announces(contract: Contract, stage: StageSpec) -> bool:
-    """Whether some agent's action in ``stage`` is announced to everyone (not `private`): then everyone learns who
-    acts in it."""
-    return any(not contract.actions[name].private
+    """Whether some agent's action in ``stage`` is announced to everyone (not `announce: false`): then everyone learns
+    who acts in it."""
+    return any(not contract.actions[name].silent
                for kind in contract.agent_types() for name in stage_actions(contract, stage, kind))
 
 
@@ -91,11 +88,6 @@ class ActionBook(ActionSchemas, ActionValidation):
         self.effects = effects
         #: Per action, the arguments its effects write into a private property.
         self._kept_secrets: dict[str, frozenset[str]] = {}
-        #: Shared tool name → the actions offered inside it, in declaration order.
-        self.groups: dict[str, list[str]] = {}
-        for name, spec in contract.actions.items():
-            if spec.tool is not None:
-                self.groups.setdefault(spec.tool, []).append(name)
 
     # -- legality -------------------------------------------------------------
 
@@ -310,27 +302,18 @@ class ActionBook(ActionSchemas, ActionValidation):
         mark = world.journal.mark()
         vars: dict[str, Any] = {"actor": actor, "params": params}
         path = f"actions.{name}"
-        success = True
         log_mark = world.log[-1].seq if world.log else 0
         record_mark = world._record_seq
         try:
-            if spec.chance is not None:
-                probability = compile_expr(spec.chance)(world.scope(**vars)) if is_expr(spec.chance) else spec.chance
-                if not is_probability(probability):
-                    raise RunError(f"chance must be a number from 0 to 1, got {probability!r}", f"{path}.chance")
-                success = world.rng.random() < probability
-            self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
-            # `outcome` tells the action succeeding: a failed `chance` roll is told as such, never as a success
-            told = spec.outcome if success else None
-            text = self._render(told, {**vars, "viewer": actor}, f"{path}.outcome") if told else \
-                "" if trial else self.default_outcome(name, params, success)
+            self.effects.run(spec.do, vars, f"{path}.do")
+            text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
+                "" if trial else self.default_outcome(name, params)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
             if trial:
-                if announce is not None and not spec.private:
+                if isinstance(announce, str):
                     self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
-                world.touch()  # the announcement would have changed the state version
-            elif not spec.private:
+            elif announce is not False:
                 public = {} if self._sealed() else \
                     self._public_params(params, self._posted_since(record_mark), self._kept_secret(name))
                 if announce is not None:
@@ -338,38 +321,25 @@ class ActionBook(ActionSchemas, ActionValidation):
                 elif _notified_since(world, log_mark):
                     line = ""  # the posted entry itself is the news
                 else:
-                    line = self._default_announce(actor, name, public, success)
+                    line = self._default_announce(actor, name, public)
                 # Public: every agent may learn of it; the actor's own announcement is
                 # filtered out of its news by perception.
                 announcement = world.emit("action", line, actor=actor.id, to=None,
-                                          data={"action": name, "params": _plain(public), "success": success})
+                                          data={"action": name, "params": _plain(public), "success": True})
                 _first_in_order(world, log_mark, announcement)
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),
-                           data={"action": name, "params": _plain(params), "success": success, "private": True})
+                           data={"action": name, "params": _plain(params), "success": True, "private": True})
         except Abort as abort:
             world.journal.rollback(mark)
-            return Outcome(False, abort.reason, False, params)
+            return Outcome(False, abort.reason, params)
         except ExprError as exc:
             world.journal.rollback(mark)
             raise RunError(str(exc), path) from None
         except RunError:
             world.journal.rollback(mark)
             raise
-        return Outcome(True, text, success, params, assets)
-
-    def duration(self, actor: Entity, name: str, params: dict[str, Any]) -> float:
-        """How long the action takes on a continuous clock (0 when it declares no duration)."""
-        raw = self.contract.actions[name].duration
-        if raw is None:
-            return 0.0
-        try:
-            value = compile_expr(raw)(self.world.scope(actor=actor, params=params)) if is_expr(raw) else raw
-        except ExprError as exc:
-            raise RunError(str(exc), f"actions.{name}.duration") from None
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
-            raise RunError(f"duration must be a number ≥ 0, got {format_value(value)}", f"actions.{name}.duration")
-        return float(value)
+        return Outcome(True, text, params, assets)
 
     def ends_turn(self, actor: Entity, name: str, params: dict[str, Any]) -> bool:
         terminal = self.contract.actions[name].terminal
@@ -449,7 +419,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         known = self._kept_secrets.get(name)
         if known is None:
             spec = self.contract.actions[name]
-            known = frozenset(_written_into(self.world.private_names, [spec.do, spec.otherwise]))
+            known = frozenset(_written_into(self.world.private_names, [spec.do]))
             self._kept_secrets[name] = known
         return known
 
@@ -478,14 +448,11 @@ class ActionBook(ActionSchemas, ActionValidation):
         parts = [f"{k}={format_value(v)}" for k, v in params.items() if v is not None]
         return f" ({', '.join(parts)})" if parts else ""
 
-    def default_outcome(self, name: str, params: dict[str, Any], success: bool) -> str:
-        verb = name.replace("_", " ")
-        return f"Done: {verb}{self._args_text(params)}." if success else f"{verb.capitalize()} did not succeed."
+    def default_outcome(self, name: str, params: dict[str, Any]) -> str:
+        return f"Done: {name.replace('_', ' ')}{self._args_text(params)}."
 
-    def _default_announce(self, actor: Entity, name: str, params: dict[str, Any], success: bool) -> str:
-        verb = name.replace("_", " ")
-        suffix = "" if success else " — it did not succeed"
-        return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
+    def _default_announce(self, actor: Entity, name: str, params: dict[str, Any]) -> str:
+        return f"{actor.name}: {name.replace('_', ' ')}{self._args_text(params)}."
 
 
 def _written_into(private: frozenset[str], effects: Any) -> Iterator[str]:

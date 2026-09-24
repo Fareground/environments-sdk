@@ -14,7 +14,6 @@ Config:
 - `patience` (default null): Rounds a waiting guest waits before giving up (number or expression over $it).
 - `refund` (default 1): Share of the price returned when a booking is cancelled.
 - `actions` (default ["book", "cancel"]): Tools generated for agent guests.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **ResourceSpec** — Something with limited places each round.

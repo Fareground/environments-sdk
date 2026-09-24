@@ -16,7 +16,6 @@ from ..expr import ExprError, PrivateRead, compile_expr, is_expr, resolve
 from ..expr.objects import Entity
 from ..world.live import _copy, _plain
 from .params import (
-    _LISTED_UNKNOWN,
     _STEP_TOLERANCE,
     TEXT_MAX_LEN,
     _item_count,
@@ -25,7 +24,7 @@ from .params import (
     _preview,
     _tidy,
 )
-from .tool_text import compact_ids, shared_description, shared_param, text_limit, usage_limits
+from .tool_text import compact_ids, text_limit, usage_limits
 
 if TYPE_CHECKING:
     from .book import ActionBook
@@ -71,69 +70,8 @@ class ActionSchemas:
 
     def tools(self: ActionBook, actor: Entity, names: Sequence[str],  # type: ignore[misc]
               staged: bool = False) -> list[ToolSpec]:
-        """Tools for these legal actions: one per action, except that actions sharing a `tool` become one
-        tool, placed where the first of them would be, whose `action` argument lists the legal ones."""
-        slots: list[Any] = []
-        shared: dict[str, list[str]] = {}
-        for name in names:
-            group = self.contract.actions[name].tool
-            if group is None:
-                slots.append(self.tool(actor, name, staged))
-            elif group in shared:
-                shared[group].append(name)
-            else:
-                shared[group] = [name]
-                slots.append(group)
-        return [self.shared_tool(actor, slot, shared[slot], staged) if isinstance(slot, str) else slot
-                for slot in slots]
-
-    def shared_tool(self: ActionBook, actor: Entity, group: str, members: Sequence[str],  # type: ignore[misc]
-                    staged: bool = False) -> ToolSpec:
-        """One flat tool for several actions: ``action`` (required) picks one; every other argument belongs to
-        the actions that take it, and the engine checks each action's own arguments when it is called."""
-        choices = _choice_names(group, self.groups.get(group) or list(members))
-        tools = [self.tool(actor, name) for name in members]
-        properties: dict[str, Any] = {"action": {
-            "type": "string", "enum": [choices[t.name] for t in tools],
-            "description": "One of the actions listed in this tool's description."}}
-        takers: dict[str, list[tuple[str, dict[str, Any]]]] = {}
-        for tool in tools:
-            for pname, schema in tool.input_schema.get("properties", {}).items():
-                takers.setdefault(pname, []).append((choices[tool.name], schema))
-        for pname, entries in takers.items():
-            properties[pname] = shared_param(entries, len(tools))
-        schema = {"type": "object", "properties": properties, "required": ["action"], "additionalProperties": False}
-        description = shared_description(group,
-                                         [(choices[t.name], t.description, list(t.input_schema.get("properties", {})))
-                                          for t in tools], staged)
-        return ToolSpec(group, description, schema, "act", all(t.terminal for t in tools))
-
-    def route(self: ActionBook, group: str, args: Any, legal: Sequence[str]) -> tuple[str,  # type: ignore[misc]
-              dict[str, Any], str | None]:
-        """The action a call to a shared tool picks, with that action's own arguments — or a correction.
-
-        Arguments the chosen action does not take are refused unless they are null (clients in strict
-        mode send every property)."""
-        members = self.groups[group]
-        choices = _choice_names(group, members)
-        open_now = ", ".join(choices[name] for name in members if name in legal) or "none right now"
-        given = dict(args or {})
-        picked = given.pop("action", None)
-        if picked is None:
-            return group, {}, f"{group} was not done: say which `action` to take (legal now: {open_now})."
-        name = next((n for n in members if picked in (choices[n], n)), None)
-        if name is None:
-            return (group, {},
-                    f"{group} was not done: {_preview(picked)} is not one of its actions (legal now: {open_now}).")
-        params = self.contract.actions[name].params
-        given = {key: value for key, value in given.items() if value is not None}
-        extra = [str(key) for key in given if key not in params]
-        if extra:
-            takes = ", ".join(params) or "no other arguments"
-            return group, {}, (f"{group} was not done: {choices[name]} does not take "
-                               f"{', '.join(extra[:_LISTED_UNKNOWN])} (it takes: {takes}). Correct the arguments and "
-                               "call again.")
-        return name, given, None
+        """One tool for each of these legal actions."""
+        return [self.tool(actor, name, staged) for name in names]
 
     def tool(self: ActionBook, actor: Entity, name: str, staged: bool = False) -> ToolSpec:  # type: ignore[misc]
         # A copy: callers may change the schema they are given (the remembered one is listed again this turn).
@@ -316,16 +254,6 @@ def _enum_type(values: Sequence[Any]) -> str | None:
     if kinds == {"integer", "number"}:
         return "number"
     return next(iter(kinds)) if len(kinds) == 1 and "other" not in kinds else None
-
-
-def _choice_names(group: str, members: Sequence[str]) -> dict[str, str]:
-    """How each action is named inside its shared tool: without the tool's name as a prefix when that stays unambiguous.
-    """
-    prefix = f"{group}_"
-    short = {name: name[len(prefix):] if name.startswith(prefix) and len(name) > len(prefix) else name
-             for name in members}
-    taken = list(short.values())
-    return {name: s if taken.count(s) == 1 and (s == name or s not in members) else name for name, s in short.items()}
 
 
 def _mentions_expr(value: Any) -> bool:

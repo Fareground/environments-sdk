@@ -1,10 +1,10 @@
 """Shared plumbing for the native mechanism families.
 
 * Action hooks: families attach extra ``when`` conditions and effects to actions the contract
-  already declares (a status that blocks ``attack``, a cooldown on ``fireball``) by returning an
-  ``action_hooks`` section, which the spine's merge applies.
-* Modifiers: ``$effective(entity, prop)`` — a property with every active modifier applied. Status
-  and terrain families register modifier sources here.
+  already declares (a status that blocks ``attack``) by returning an ``action_hooks`` section, which the
+  spine's merge applies.
+* Modifiers: ``$effective(entity, prop)`` — a property with every active modifier applied. Statuses register
+  their modifier source here.
 * Small value helpers shared by the families (numbers, entity lists, frozen params, checks).
 """
 from __future__ import annotations
@@ -14,7 +14,7 @@ import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from difflib import get_close_matches
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,7 +29,7 @@ __all__ = [
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
-    "is_agent_type",
+    "is_agent_type", "stage_event",
 ]
 
 
@@ -45,22 +45,17 @@ class Config(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
 
-#: How a mode that generates several agent tools offers them (the spine applies it after expansion).
-ToolsSetting = Literal["each", "one", "auto"]
-
-
-def tools_field() -> Any:
-    """The ``tools`` field every mode that generates several agent tools declares, with one meaning."""
-    return Field("each", description="How the generated tools are offered: each (one tool per action) | one (one tool "
-                                     "named after the mechanism, whose `action` argument lists the actions legal now) "
-                                     "| auto (one tool only when every action takes the same arguments).")
-
-
 class ModifierSpec(Config):
-    """How a status or a place changes a property: ``(base + add) * mul`` (per stack for statuses)."""
+    """How a status changes a property: ``(base + add) * mul`` per stack."""
 
     add: Number = Field(0.0, description="Added to the property (number or expression over $it).")
     mul: Number = Field(1.0, description="Multiplies the property (number or expression over $it).")
+
+
+def stage_event(stage: str, point: str, do: Effects, when: str | None = None) -> dict[str, Any]:
+    """An event that runs ``do`` at ``point`` of stage ``stage``: its start, its end, or after each agent's turn
+    (``turn``), under ``when``."""
+    return {"on": f"stage.{stage}.{point}", **({"when": when} if when else {}), "do": list(do)}
 
 
 def uses(contract: Any, kind: str) -> list[tuple[str, Mapping[str, Any]]]:
@@ -278,9 +273,9 @@ def modifier_terms(world: Any, raw: Any, entity: Entity, where: str) -> tuple[fl
 
 
 @function("effective(entity, prop)",
-          "The property with every active modifier applied: (base + adds) × multipliers from statuses and "
-          "terrain, kept within the property's min/max, e.g. $effective($actor, 'armor').",
-          min_args=2, max_args=2)
+          "The property with every active modifier applied: (base + adds) × multipliers from statuses, kept "
+          "within the property's min/max, e.g. $effective($actor, 'armor').",
+          min_args=2, max_args=2, family="game")
 def _effective(call: Call) -> Any:
     world: Any = call.scope.world
     entity = world.entity(call.arg(0))

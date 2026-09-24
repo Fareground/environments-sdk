@@ -15,7 +15,6 @@ so the handle to pass is always in view.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any
 
@@ -23,6 +22,7 @@ from ..assets.delivery import references
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
 from ..expr.objects import Entity
+from ..expr.scope import Scope
 from ..expr.template import format_value
 from .book import ToolSpec
 from .tool_text import compact_ids, free_reads
@@ -57,11 +57,15 @@ def may_inspect(env: Env, viewer: Entity, target: Entity) -> bool:
     return _may_inspect_rule(env, viewer, target, inspect_rule(env.contract, target.entity_type))
 
 
-def _may_inspect_rule(env: Env, viewer: Entity, target: Entity, rule: Any) -> bool:
+def _may_inspect_rule(env: Env, viewer: Entity, target: Entity, rule: Any, scope: Scope | None = None) -> bool:
+    """``target``'s inspect ``rule`` for ``viewer``; ``scope``: the viewer's, when many targets are asked about."""
+    if target.id == viewer.id:
+        return True
     if isinstance(rule, bool):
-        return rule or target.id == viewer.id
+        return rule
     try:
-        return target.id == viewer.id or truthy(compile_expr(rule)(env.world.scope(viewer=viewer, it=target)))
+        here = scope.child(it=target) if scope is not None else env.world.scope(viewer=viewer, it=target)
+        return truthy(compile_expr(rule)(here))
     except ExprError as exc:
         raise RunError(str(exc), f"types.{target.entity_type}.inspect") from None
 
@@ -69,8 +73,9 @@ def _may_inspect_rule(env: Env, viewer: Entity, target: Entity, rule: Any) -> bo
 def inspectable(env: Env, viewer: Entity) -> list[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
     rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
+    scope = env.world.scope(viewer=viewer)
     return [entity for entity in _candidates(env, viewer, rules)
-            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])]
+            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type], scope)]
 
 
 def _candidates(env: Env, viewer: Entity, rules: dict[str, Any]) -> list[Entity]:
@@ -90,8 +95,9 @@ def _candidates(env: Env, viewer: Entity, rules: dict[str, Any]) -> list[Entity]
 def _offered(env: Env, viewer: Entity) -> list[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
     rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
+    scope = env.world.scope(viewer=viewer)
     return [entity for entity in _candidates(env, viewer, rules)
-            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])
+            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type], scope)
             and (entity.location_id is not None or any(True for _ in _shown(env, viewer, entity)))]
 
 
@@ -121,40 +127,27 @@ def look_tool(looks: Sequence[tuple[str, str]], allowance: int) -> ToolSpec:
         "required": ["view"], "additionalProperties": False}, "look")
 
 
-@dataclass
-class InspectCache:
-    version: int
-    allowance: int
-    shared_viewers: set[str]
-    ready: bool = False
-    tool: ToolSpec | None = None
-
-
 def inspect_tool(env: Env, viewer: Entity, allowance: int) -> ToolSpec | None:
-    """Reuse a listing only when its visibility is independent of the viewer."""
-    cache = env._inspect_cache
-    if cache is None or cache.version != env.world.journal.version or cache.allowance != allowance:
-        shared: set[str] = set()
-        for kind in env.contract.types:
-            rule = inspect_rule(env.contract, kind)
-            if not isinstance(rule, bool):
-                shared.clear()
-                break
-            if rule and not any(spec.private for spec in env.contract.props_of(kind).values()):
-                shared.add(kind)
-        cache = env._inspect_cache = InspectCache(env.world.journal.version, allowance, shared)
-    if viewer.entity_type not in cache.shared_viewers:
-        tool = _build_inspect_tool(env, viewer, allowance)
-    else:
-        if not cache.ready:
-            cache.tool = _build_inspect_tool(env, viewer, allowance)
-            cache.ready = True
-        # ToolSpec is frozen but its schema is mutable. Never share that schema
-        # across callers; enums have at most 60 ids, so copying stays bounded.
-        tool = cache.tool.copy() if cache.tool is not None else None
+    """The inspect tool ``viewer`` is offered, worked out once per world state: for every viewer of a type whose
+    listing is the same for all (see :func:`_shares_listing`), else for each."""
+    key = ("inspect", allowance) if _shares_listing(env, viewer) else ("inspect", allowance, viewer.id)
+    listed = env.world.remembered(key, lambda: _build_inspect_tool(env, viewer, allowance))
+    # A copy: callers may change the schema they are given (enums have at most 60 ids, so copying stays bounded).
+    tool = listed.copy() if listed is not None else None
     if tool is not None and tool.input_schema["properties"]["id"].get("enum") == [viewer.id]:
         return None  # its only choice is the agent itself: its views are where it reads its own state
     return tool
+
+
+def _shares_listing(env: Env, viewer: Entity) -> bool:
+    """Whether every agent of ``viewer``'s type is offered the same entities to inspect: every type's inspect rule is
+    true or false (no rule reads the viewer), and its own type's is true with no private property (so none is hidden
+    from one member but not from another)."""
+    contract = env.contract
+    if any(not isinstance(inspect_rule(contract, kind), bool) for kind in contract.types):
+        return False
+    return inspect_rule(contract, viewer.entity_type) is True and not any(
+        spec.private for spec in contract.props_of(viewer.entity_type).values())
 
 
 def _build_inspect_tool(env: Env, viewer: Entity, allowance: int) -> ToolSpec | None:

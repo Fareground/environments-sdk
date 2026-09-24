@@ -309,7 +309,7 @@ def _agent(call: Call) -> Entity:
 
 
 @function("skill(agent, skill)", "The agent's level in a skill (the skill's start level until it gains one).",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _skill(call: Call) -> int:
     world = call.scope.world
     skill = str(call.arg(1))
@@ -323,7 +323,8 @@ def _productions(world: Any) -> list[ProductionConfig]:
     return list(uses_of(world, PRODUCTION).values())
 
 
-@function("recipes(agent, production)", "Recipes of a production the agent can start now.", min_args=2, max_args=2)
+@function("recipes(agent, production)", "Recipes of a production the agent can start now.", min_args=2, max_args=2,
+          family="economy")
 def _recipes(call: Call) -> list[str]:
     world, name, config = _config(call, 1)
     agent = _agent(call)
@@ -331,7 +332,8 @@ def _recipes(call: Call) -> list[str]:
 
 
 @function("max_batches(agent, production, recipe)",
-          "Most batches of a recipe the agent can start now (0 when it cannot).", min_args=3, max_args=3)
+          "Most batches of a recipe the agent can start now (0 when it cannot).", min_args=3, max_args=3,
+          family="economy")
 def _max_batches_fn(call: Call) -> int:
     world, name, config = _config(call, 1)
     recipe = str(call.arg(2))
@@ -342,7 +344,7 @@ def _max_batches_fn(call: Call) -> int:
 
 @function("recipes_text(agent, production)",
           "Every recipe as plain lines: what it takes, what it makes, and what stops the agent now.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _recipes_text(call: Call) -> str:
     world, name, config = _config(call, 1)
     agent = _agent(call)

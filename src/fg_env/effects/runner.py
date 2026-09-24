@@ -18,9 +18,9 @@ An effect list mixes assignment statements and keyed operations::
     {"fail": "You cannot afford that."}
     {"end": "bankrupt", "winner": "$top(player, $it.score, 1)", "say": "..."}
     {"after": 3, "do": [...]}
-    {"wake": "$params.who", "why": "{$actor.name} asked you a question."}
+    {"wake": "$params.who", "why": "{$actor.name} asked you a question.", "now": true}
     {"repeat": 1000, "while": "$best_bid.price >= $best_ask.price", "do": [...]}
-    {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
+    {"call": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
     {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails"}], "as": "coin"}
 
 Everything an action does is atomic: ``fail`` (or any error) rolls every change back.
@@ -41,18 +41,18 @@ from ..expr.objects import Entity, PropsView
 from ..expr.template import compile_template, format_value
 from ..expr.values import _eq
 from ..registry import OPS, OpSpec, family_action_hint
-from ..world.clock_math import advance_time
 from ..world.links import Link
 from ..world.live import Abort, SdkWorld
 from ..world.parts import PhysicsView
 from .delivery import dropped, send
 from .statements import Statement, capture_roots, compile_statement, structured_capture_roots
+from .sync import run_synced
 
 __all__ = ["EFFECT_OPS", "EffectRunner"]
 
 EFFECT_OPS: dict[str, tuple[str, ...]] = {
     "if": ("if", "then", "else"),
-    "each": ("each", "where", "do", "as"),
+    "each": ("each", "where", "do", "as", "sync"),
     "create": ("create", "count", "id", "name", "props", "at", "as"),
     "remove": ("remove",),
     "transfer": ("transfer", "from", "to", "amount", "into"),
@@ -64,9 +64,9 @@ EFFECT_OPS: dict[str, tuple[str, ...]] = {
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why", "in", "now", "actions", "drop"),
+    "wake": ("wake", "why", "now", "actions"),
     "repeat": ("repeat", "while", "do"),
-    "block": ("block", "with"),
+    "call": ("call", "with"),
     "chance": ("chance", "outcomes", "weight", "as", "do"),
 }
 
@@ -133,33 +133,46 @@ def removed_since(items: Sequence[Any]) -> Callable[[int], bool]:
 
 
 class EffectRunner:
-    """Applies effect lists to one world, and runs the types' lifecycle hooks when entities are
-    created or removed (inside whatever change made them, so they commit or roll back with it)."""
+    """Applies effect lists to one world, and fires the events on ``create.<type>`` and ``remove.<type>`` when entities
+    are created or removed (inside whatever change made them, so they commit or roll back with it)."""
 
-    #: How deep lifecycle hooks may set off further hooks.
+    #: How deep create and remove events may set off further ones.
     HOOK_DEPTH = 16
 
     def __init__(self, world: SdkWorld):
         self.world = world
         self._hook_depth = 0
-        self._hooks: dict[tuple[str, str], list[tuple[str, list[Any]]]] = {}
+        self._hooks: dict[tuple[str, str], list[tuple[int, Any]]] = {}
         world.lifecycle = self.lifecycle
 
-    def lifecycle(self, hook: str, entity: Entity, where: str) -> None:
-        """Run ``hook`` (on_create / on_remove) of the entity's type and its ancestors, root first ($it)."""
-        key = (entity.entity_type, hook)
-        hooks = self._hooks.get(key)
-        if hooks is None:
-            hooks = self._hooks[key] = self.world.contract.hooks_of(entity.entity_type, hook)
-        if not hooks:
+    def lifecycle(self, kind: str, entity: Entity, where: str) -> None:
+        """Fire the events on ``<kind>.<type>`` (create / remove) for the entity's type and its ancestors, root first,
+        with ``$it`` the entity."""
+        key = (entity.entity_type, kind)
+        events = self._hooks.get(key)
+        if events is None:
+            contract = self.world.contract
+            events = self._hooks[key] = [found for name in contract.lineage(entity.entity_type)
+                                         for found in contract.events_on(f"{kind}.{name}")]
+        if not events:
             return
         if self._hook_depth >= self.HOOK_DEPTH:
-            raise RunError(f"{hook} hooks set each other off more than {self.HOOK_DEPTH} levels deep (does "
-                           f"{entity.entity_type}'s {hook} create or remove another {entity.entity_type}?)", where)
+            raise RunError(f"events on {kind} set each other off more than {self.HOOK_DEPTH} levels deep (does "
+                           f"creating or removing a {entity.entity_type} {kind} another?)", where)
         self._hook_depth += 1
         try:
-            for type_name, effects in hooks:
-                self.run(effects, {"it": entity}, f"types.{type_name}.{hook}")
+            for index, event in events:
+                path = f"events[{index}]"
+                try:
+                    if event.when is not None and not self._condition(event.when, {"it": entity}):
+                        continue
+                except ExprError as exc:
+                    raise RunError(str(exc), f"{path}.when") from None
+                self.run(event.do, {"it": entity}, f"{path}.do")
+                if event.say:
+                    text = self.text(event.say, {"it": entity, "viewer": EVERYONE})
+                    if text.strip():
+                        self.world.emit("news", text, data={"event": event.name or index})
         finally:
             self._hook_depth -= 1
 
@@ -384,6 +397,16 @@ class EffectRunner:
         name = effect.get("as") or "it"
         items = each_items(self._eval(effect["each"], vars), self.world, where)
         where_expr = effect.get("where")
+        if effect.get("sync"):
+            def run_item(position: int, item: Any) -> bool:
+                inner = {**vars, name: item, "i": position}
+                if where_expr is not None and not self._condition(where_expr, inner):
+                    return False
+                self.run(effect.get("do") or [], inner, f"{where}.do")
+                return True
+
+            run_synced(self.world, items, run_item, where)
+            return
         from ..runtime.diagnosis import LoopWrites  # run_diagnosis reads actions, which run effects
 
         watch = LoopWrites.start(self.world, effect, where)
@@ -522,14 +545,8 @@ class EffectRunner:
     def _op_after(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         delay = self._eval(effect["after"], vars)
         world = self.world
-        if world.continuous:
-            if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay > 0:
-                raise RunError(f"`after` needs a time greater than 0 on a continuous clock, got {delay!r}", where)
-            due = advance_time(world.time, delay, where)
-        else:
-            if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
-                raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
-            due = world.round + delay
+        if isinstance(delay, bool) or not isinstance(delay, int) or delay < 1:
+            raise RunError(f"`after` needs a whole number of rounds ≥ 1, got {delay!r}", where)
         effects = one_or_many(effect.get("do")) or []
         captured = vars
         if all(isinstance(item, str) for item in effects):
@@ -541,45 +558,34 @@ class EffectRunner:
                 roots = None
         if roots is not None and not roots.intersection(world.contract.defs):
             captured = {name: value for name, value in vars.items() if name in roots}
-        world.schedule(due, effects, captured, f"{where}.do")
+        world.schedule(world.round + delay, effects, captured, f"{where}.do")
 
     def _op_wake(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         why = self._text(effect.get("why"), vars) or "You were asked to act."
-        world = self.world
-        delay = self._eval(effect["in"], vars) if "in" in effect else 0
-        if "in" in effect and not world.continuous:
-            raise RunError("`in` needs a continuous clock (clock.mode: continuous)", where)
-        if isinstance(delay, bool) or not isinstance(delay, (int, float)) or delay < 0:
-            raise RunError(f"`in` must be a time ≥ 0, got {delay!r}", where)
         now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
-        if now and "in" in effect:
-            raise RunError("`wake` takes `now` or `in`, not both", where)
-        if self._dropped(effect, vars, where):
-            return
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             if now:
-                world.request_reaction(entity_id, why, effect.get("actions"))
-                continue
-            world.request_wake(entity_id, why)
-            if world.continuous:
-                world.set_wake_at(entity_id, advance_time(world.time, delay, where))
+                self.world.request_reaction(entity_id, why, effect.get("actions"))
+            else:
+                self.world.request_wake(entity_id, why)
 
-    def _op_block(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-        name = effect["block"]
-        spec = self.world.contract.blocks.get(name)
-        if spec is None:
-            raise RunError(f"'{name}' is not a declared block (blocks: "
-                           f"{', '.join(self.world.contract.blocks) or 'none'})", where)
+    def _op_call(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
+        name = effect["call"]
+        defs = self.world.contract.defs
+        spec = defs.get(name)
+        if spec is None or spec.do is None:
+            raise RunError(f"'{name}' is not a def with `do` (effect defs: "
+                           f"{', '.join(n for n, d in defs.items() if d.do is not None) or 'none'})", where)
         given = effect.get("with") or {}
         if set(given) != set(spec.args):
-            raise RunError(f"block '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
+            raise RunError(f"def '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
         depth = getattr(self, "_depth", 0)
         if depth >= 16:
-            raise RunError(f"block '{name}' runs blocks too deeply (recursion?)", where)
+            raise RunError(f"def '{name}' calls defs too deeply (recursion?)", where)
         inner = {key: self._eval(value, vars) for key, value in given.items()}
         self._depth = depth + 1
         try:
-            self.run(spec.do, inner, f"blocks.{name}.do")
+            self.run(spec.do, inner, f"defs.{name}.do")
         finally:
             self._depth = depth
 

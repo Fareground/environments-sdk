@@ -44,7 +44,7 @@ class EntityDynamicsStep:
     """One compiled ``physics.per.<type>`` entry."""
 
     def __init__(self, world: SdkWorld, type_name: str, spec: EntityDynamics, params: dict[str, float]):
-        path = f"physics.per.{type_name}"
+        path = f"mechanisms.physics.per.{type_name}"
         self.type_name = type_name
         self.path = path
         self.params = params

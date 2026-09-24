@@ -1,4 +1,4 @@
-"""The round loop: a round's safe points, starting a round (scheduled effects, feeds, start events, physics),
+"""The round loop: a round's safe points, starting a round (scheduled effects, feeds, `round.start` events, physics),
 playing its stages in order, ending the round or the run, and atomic effect blocks."""
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import shared_budget
 from ..expr.objects import Entity
-from ..world.clock_math import advance_time
 from ..world.live import Abort, OutOfBounds
 from .feeds import run_feeds
 from .measure import sample_metrics
@@ -57,81 +56,31 @@ class RunRounds:
     ended_by: str | None
 
     def _begin_round(self: Env) -> bool:  # type: ignore[misc]
-        """Start the next round: scheduled effects, feeds, start events, physics. False if the run ended."""
+        """Start the next round: scheduled effects, feeds, `round.start` events, physics. False if the run ended."""
         world = self.world
         self._in_round = True
         if self.status in ("ready", "stopped"):
             self.status = "running"
-        elapsed: float | None = None
-        if world.continuous:
-            elapsed = self._advance_time()
-            if elapsed is None:  # the next moment is past the horizon
-                self._in_round = False
-                self.ended_by, self.status = "horizon", "completed"
-                self._final_event()
-                return False
         world.round += 1
         world.firings.clear()
         world.stage = None
         self._used_round.clear()
-        # Continuous dynamics belong to the interval that just elapsed. Boundary
-        # effects must see its final state and affect only subsequent intervals.
-        if elapsed is not None and elapsed > 0:
-            with self._lock:
-                world.step_physics(elapsed)
-                world.journal.clear()
-            self._check_invariants("physics")
-            self.happenings.check_triggers("physics")
-            if self._ended():
-                self._finish()
-                return False
         self.happenings.run_scheduled()
         run_feeds(self)
-        self.happenings.run_events("start")
+        self.happenings.fire("round.start")
         self._check_end()
         if self._ended():
             self._finish()
             return False
         with self._lock:
-            if elapsed is None:
-                world.step_physics()
+            world.step_physics()
             world.journal.clear()
-        if elapsed is None:
-            self._check_invariants("physics")
-            self.happenings.check_triggers("physics")
+        self._check_invariants("physics")
+        self.happenings.check_changes("physics")
         if self._ended():
             self._finish()
             return False
         return True
-
-    def _advance_time(self: Env) -> float | None:  # type: ignore[misc]
-        """Move a continuous clock to the next round's moment; the time elapsed, or None past the horizon."""
-        world, clock = self.world, self.contract.clock
-        if world.round == 0:
-            return 0.0
-        previous = world.time
-        if world.horizon is not None and previous >= world.horizon:
-            return None
-        target = advance_time(previous, clock.tick, "clock.tick")
-        due = self._next_due()
-        if due is not None:
-            # Even a ticking clock must stop at intervening events. Jump mode
-            # may skip empty ticks, but neither mode may skip a due effect.
-            target = max(previous, due) if clock.jump else min(target, max(previous, due))
-        if world.horizon is not None:
-            target = min(target, world.horizon)
-        world.time = target
-        world.touch()
-        return target - previous
-
-    def _next_due(self: Env) -> float | None:  # type: ignore[misc]
-        """The earliest moment something is due: a living agent's wake time or a scheduled effect."""
-        world = self.world
-        times = [at for entity_id, at in world.wake_at.items()
-                 if (entity := world.entities.get(entity_id)) is not None and entity.alive]
-        if world.scheduled:
-            times.append(world.scheduled[0][0])
-        return min(times) if times else None
 
     def _round(self: Env, resumed: bool = False) -> _Steps:  # type: ignore[misc]
         """A round, from its start — or, ``resumed``, from the waiting turn a copy of the run was taken in (see
@@ -156,10 +105,10 @@ class RunRounds:
                 self._finish()
                 return
         world.stage = None
-        self.happenings.run_events("end")
+        self.happenings.fire("round.end")
         world.patterns.commit()
         sample_metrics(self.contract, world)
-        self.happenings.check_triggers("round end")
+        self.happenings.check_changes("round end")
         self._check_invariants("round", "round")
         self._check_end()
         self._flush_events()
@@ -198,15 +147,16 @@ class RunRounds:
         self._flush_events()
 
     def _atomic(self: Env, effects: list[Any], vars: dict[str, Any], path: str,  # type: ignore[misc]
-                check: bool = True, owner: Any = None) -> None:
+                check: bool = True, owner: Any = None, luck: str | None = None) -> None:
         """Apply ``effects`` as one undoable block of world logic: a refusal in it (a `fail`, a transfer or write that
         does not fit) fails the run — or, inside an agent's action, refuses that action. ``check=False``: one item of a
-        block whose invariants are checked once it is whole (an `each` event), unless a trigger fires or an agent reacts
-        first. The block draws from the stream of its path and ``owner`` (default: its $actor), so an entity's luck
-        does not shift when others come or go."""
+        block whose invariants are checked once it is whole (a round event's `each`), unless a `change` event fires or
+        an agent reacts first. The block draws from the stream of ``luck`` (default: its path) and ``owner`` (default:
+        its $actor), so an entity's luck does not shift when others come or go."""
         if not effects:
             return
-        with self._lock, self.world.drawing_for(path, vars.get("actor") if owner is None else owner):
+        site = luck or path
+        with self._lock, self.world.drawing_for(site, vars.get("actor") if owner is None else owner):
             mark = self.world.journal.mark()
             try:
                 with shared_budget(ACTION_BUDGET, path):
@@ -234,4 +184,4 @@ class RunRounds:
         if self._end_on_action:
             self._check_end("action")
         self.world.journal.clear()
-        self.happenings.check_triggers(path)
+        self.happenings.check_changes(path)

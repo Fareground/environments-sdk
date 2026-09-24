@@ -50,7 +50,6 @@ Config:
 - `score` (default "none"): Winner when the game ends by passes or when nobody can move: pieces on the board, or area (pieces + surrounded empty cells).
 - `komi` (default {}): Points added to a side's score: {white: 6.5}.
 - `stage` (default null): Play during this declared stage instead of a generated one.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **SideSpec** — A seat at the board: a player entity id.

@@ -95,17 +95,6 @@ def test_wake_now_gives_a_reaction_turn_after_the_action_and_before_the_turn_con
     assert result.stats["reactions"] == 1
 
 
-def test_auto_turns_skip_the_agent_when_there_is_no_real_choice():
-    contract = {"name": "Auto", "clock": {"rounds": 2}, "world": {"n": 0},
-                "types": {"p": {"agent": True}}, "population": [{"type": "p", "count": 2}],
-                "actions": {"tick": {"by": "p", "do": ["$world.n += 1"], "terminal": True}},
-                "stages": [{"name": "s", "turns": "sequential", "auto": True}]}
-    woken = []
-    result = fg_env.load(contract, seed=1).run(lambda wake: woken.append(wake.entity_id))
-    assert woken == [] and result.stats["auto_turns"] == 4 and result.stats["wakes"] == 0
-    assert result.outputs == {} and fg_env.load(contract, seed=1).run().stats["actions"] == 4
-
-
 def test_two_triggers_that_undo_each_other_settle_instead_of_looping():
     c = {"name": "PingPong", "clock": {"rounds": 2}, "world": {"x": 0, "hits": 0},
          "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},

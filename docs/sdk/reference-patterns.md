@@ -1,6 +1,6 @@
 # patterns
 
-## `patterns`: {name: {kind, …}}
+## Patterns: `"mechanisms": {name: {"kind": "pattern", "mode": <kind>, …}}`
 
 The world's own regularities, declared once like its physics and read anywhere as values: a season, a trend, how
 demand answers price, a random walk, a draw per customer, noisy counts, an effect that carries over. Write
@@ -12,8 +12,8 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
   change the pattern with it. Run-time values (a price, a stock level) are arguments or a memory `input`.
 * Keys: `keys` (an entity type — keys are its ids —, a list, or an expression over `$inputs`) and/or `table` +
   `column` (one row of parameters per key: per-SKU bases, per-category profiles).
-* Time: `t` counts clock units from round 1 (round 1 is t = 0; with unit day and step 7 round 2 is t = 7), the clock
-  time when continuous. With `clock.start`, yearly, weekly and daily positions follow the real calendar and times
+* Time: `t` counts clock units from round 1 (round 1 is t = 0; with unit day and step 7 round 2 is t = 7). With
+  `clock.start`, yearly, weekly and daily positions follow the real calendar and times
   may be ISO dates. Random paths step once per round (or every `every` clock units).
 * Randomness comes from the pattern's own stream (run seed, name, key): adding a pattern never shifts another draw,
   every arm sees the same paths, and a snapshot, clone or fork reads the same values. Observations use one uniform
@@ -48,10 +48,10 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
   mistaken for price response. `censored: "stockout"` marks rows where demand went unmet (sales capped by stock, so
   demand was more than what sold): they are fitted as censored (expectation–maximisation), not dropped. `noise: "sales"` estimates that counts pattern's
   dispersion around the fitted means.
-* `fit` and `calibration` answer different questions. `fit` estimates parameters from recorded data, once, and
-  writes them into the contract; the `calibration` section tunes inputs at every load so simulated outputs hit
-  targets — for what only the simulation identifies. Never list a fitted input in `calibration.params` (the checker
-  warns): the load would replace the estimate.
+* `fit` and `fg_env.analysis.calibrate` answer different questions. `fit` estimates parameters from recorded data,
+  once, and writes them into the contract; `calibrate` searches inputs so simulated outputs hit targets — for what
+  only the simulation identifies. Calibrate only inputs no pattern fits: a calibrated value would replace the
+  estimate.
 * Judge a fitted contract on history it did not see: `fg_env.analysis.validate(result.contract, cases, season=52, test=0.25)`.
   `result.priors` holds the number estimates as `{input: {dist: "normal", mean, sd}}` for `uncertainty=` on
   experiment, sweep, backtest and validate — pass the input `parameter_uncertainty: 0` with them, since the contract
@@ -62,25 +62,25 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
 ### Groups
 
 **time** — values that follow time: trends, seasons, calendars, cycles, lifecycles, steps and data series: `trend`, `seasonal`, `calendar`, `cycle`, `lifecycle`, `step`, `series`.
-`"patterns": {"season": {"kind": "seasonal", "period": "year", "table": "$inputs.categories", "column": "category", "profile": "$row.profile"}, "growth": {"kind": "trend", "form": "exponential", "rate": "$inputs.growth"}}` · read "$pattern.demand($it) * $pattern.growth"
+`"mechanisms": {"season": {"kind": "pattern", "mode": "seasonal", "period": "year", "table": "$inputs.categories", "column": "category", "profile": "$row.profile"}, "growth": {"kind": "pattern", "mode": "trend", "form": "exponential", "rate": "$inputs.growth"}}` · read "$pattern.demand($it) * $pattern.growth"
 
 **random** — random paths drawn from seeded streams: walks, mean reversion, autoregression, volatility, regimes, shocks, noise, weather: `random_walk`, `mean_reversion`, `autoregressive`, `volatility`, `regimes`, `shocks`, `noise`, `weather`.
-`"patterns": {"fuel": {"kind": "mean_reversion", "mean": 3.4, "rate": 0.2, "sd": 0.15, "min": 0}}` · read "$world.fuel_price = $pattern.fuel"
+`"mechanisms": {"fuel": {"kind": "pattern", "mode": "mean_reversion", "mean": 3.4, "rate": 0.2, "sd": 0.15, "min": 0}}` · read "$world.fuel_price = $pattern.fuel"
 
 **response** — how a quantity answers a driver: price elasticity, substitution, promotions, saturation, thresholds, reference prices, learning curves, network effects, hazards: `elasticity`, `cross_price`, `saturation`, `threshold`, `learning_curve`, `network`, `promotion`, `reference_price`.
-`"patterns": {"price_effect": {"kind": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99}}` · read "$pattern.price_effect($it.price)"
+`"mechanisms": {"price_effect": {"kind": "pattern", "mode": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99}}` · read "$pattern.price_effect($it.price)"
 
 **population** — differences between entities and how things spread: draws, segments, diffusion, habit and fatigue: `draw`, `segments`, `diffusion`, `hazard`, `habit`.
-`"patterns": {"patience": {"kind": "draw", "keys": "customer", "dist": "lognormal", "mu": 1.2, "sigma": 0.4}}` · read "$chance(0.1 * $pattern.patience($it))"
+`"mechanisms": {"patience": {"kind": "pattern", "mode": "draw", "keys": "customer", "dist": "lognormal", "mu": 1.2, "sigma": 0.4}}` · read "$chance(0.1 * $pattern.patience($it))"
 
 **observation** — what gets recorded: counts with over-dispersion, measurement error, censoring, missing values: `counts`, `measurement`, `censored`, `missing`.
-`"patterns": {"sales": {"kind": "counts", "dist": "negative_binomial", "dispersion": 4}}` · read "$it.sold = $min($it.stock, $pattern.sales($mean, $it))"
+`"mechanisms": {"sales": {"kind": "pattern", "mode": "counts", "dist": "negative_binomial", "dispersion": 4}}` · read "$it.sold = $min($it.stock, $pattern.sales($mean, $it))"
 
 **memory** — effects that carry over from earlier rounds: adstock and lags: `carryover`.
-`"patterns": {"ads": {"kind": "carryover", "input": "$world.ad_spend", "half_life": 2}}` · read "$world.visits = 500 * (1 + 0.001 * $pattern.ads)"
+`"mechanisms": {"ads": {"kind": "pattern", "mode": "carryover", "input": "$world.ad_spend", "half_life": 2}}` · read "$world.visits = 500 * (1 + 0.001 * $pattern.ads)"
 
 **composition** — patterns built from other patterns: products and sums: `product`, `sum`.
-`"patterns": {"demand": {"kind": "product", "keys": "sku", "scale": "$row.base", "table": "$inputs.skus", "column": "sku", "of": ["growth", {"pattern": "season", "key": "$row.category"}]}}` · read "$pattern.demand($it)"
+`"mechanisms": {"demand": {"kind": "pattern", "mode": "product", "keys": "sku", "scale": "$row.base", "table": "$inputs.skus", "column": "sku", "of": ["growth", {"pattern": "season", "key": "$row.category"}]}}` · read "$pattern.demand($it)"
 
 ### Kinds
 
@@ -88,7 +88,7 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
 
 A long-run trend: linear, exponential or a logistic S-curve.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "trend", "form": "exponential", "start": 100, "rate": "$inputs.growth"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "trend", "form": "exponential", "start": 100, "rate": "$inputs.growth"}`
 - `form`: linear | exponential | logistic = "linear" — linear: start + slope·t | exponential: start·e^(rate·t) | logistic: capacity / (1 + e^(−steepness·(t − midpoint))).
 - `start`: number | text = 1.0 — Value at `origin` (linear, exponential).
 - `slope`: number | text = 0.0 — Change per clock unit (linear).
@@ -102,7 +102,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "tre
 
 A repeating season: a profile per month, weekday or hour, a smooth wave, or harmonics — around 1 or 0.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "seasonal", "period": "year", "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "seasonal", "period": "year", "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]}`
 - `period`: year | quarter | month | week | day | hour | number = "year" — year, quarter, month, week, day, hour — or a number of clock units. With clock.start, year, week and day follow the calendar.
 - `profile`: list | text — One value per slot of the period: 12 over a year are calendar months, 7 over a week weekdays (Monday first), 24 over a day hours; other counts are equal slices.
 - `amplitude`: number | text = 0.0 — Height of a smooth yearly-style wave (0.2 = ±20% with form multiply).
@@ -114,7 +114,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "sea
 
 Calendar effects — weekends, named days, holidays, paydays, month ends, months — per day; a longer round averages the days it covers. Needs clock.start and a calendar unit.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "calendar", "effects": [{"on": "weekend", "effect": 1.3}, {"on": "dates", "dates": ["12-25"], "effect": 0.1, "before": 0}]}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "calendar", "effects": [{"on": "weekend", "effect": 1.3}, {"on": "dates", "dates": ["12-25"], "effect": 0.1, "before": 0}]}`
 - `effects`: list (required) — [{on, effect, dates, days, months, before, after}]: every matching effect applies to a day.
 - `form`: multiply | add = "multiply" — multiply: effects multiply a base of 1 | add: effects add to 0.
 
@@ -122,7 +122,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "cal
 
 A regular cycle of any length: sine, square, triangle or sawtooth.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "cycle", "period": 26, "amplitude": 0.1, "level": 1}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "cycle", "period": 26, "amplitude": 0.1, "level": 1}`
 - `period`: number | text (required) — Clock units per cycle (a business cycle of 20 weeks: 20).
 - `amplitude`: number | text = 1.0 — Height above and below the level.
 - `level`: number | text = 0.0 — The centre it swings around.
@@ -133,7 +133,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "cyc
 
 A life after a date: before → ramp up to a peak → decay toward a floor (a product launch, a price falling after a new model). Several starts multiply.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "lifecycle", "start": "2025-09-19", "before": 1, "peak": 0.93, "floor": 0.6, "half_life": 40}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "lifecycle", "start": "2025-09-19", "before": 1, "peak": 0.93, "floor": 0.6, "half_life": 40}`
 - `start`: number | text | list (required) — When it begins: clock units, an ISO date, or a list (one curve per start, multiplied: each later model launch).
 - `before`: number | text = 1.0 — Value before the start.
 - `peak`: number | text = 1.0 — Value when the ramp ends.
@@ -146,7 +146,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "lif
 
 Step changes that last: a value that jumps to, by or times an amount at set times.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "step", "start": 0.2, "changes": [{"at": "2026-01-01", "to": 0.23}]}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "step", "start": 0.2, "changes": [{"at": "2026-01-01", "to": 0.23}]}`
 - `start`: number | text = 0.0 — The value before any change.
 - `changes`: list (required) — [{at, to | by | times}]: changes that last (a new tax, a price list).
 
@@ -154,7 +154,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "ste
 
 Values from data: a real history (weather, prices, footfall) read at the current time — how a pattern is driven by the customer's own series.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c", "missing": "interpolate"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c", "missing": "interpolate"}`
 - `data`: text (required) — Expression over $inputs: a list with one value per round, or rows (a table input).
 - `time`: text — Rows: the column saying when (an ISO date, or clock units from round 1). Without it rows are one per round, in order.
 - `value`: text — Rows: the column holding the value.
@@ -166,7 +166,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "ser
 
 A random walk, additive or geometric, with drift.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "random_walk", "start": 100, "drift": 0.001, "sd": 0.02, "form": "multiply"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "random_walk", "start": 100, "drift": 0.001, "sd": 0.02, "form": "multiply"}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `start`: number | text = 0.0 — Value at round 1.
 - `drift`: number | text = 0.0 — Added each step (form add) or log growth each step (form multiply).
@@ -177,7 +177,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "ran
 
 Mean reversion (Ornstein–Uhlenbeck, exact at any step length): wanders but is pulled back to a mean.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "mean_reversion", "mean": 0.7, "rate": 0.05, "sd": 0.02}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "mean_reversion", "mean": 0.7, "rate": 0.05, "sd": 0.02}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `mean`: number | text (required) — The level it is pulled back to.
 - `rate`: number | text (required) — Pull per clock unit (0.1: a gap shrinks by e^−0.1 ≈ 10% a unit).
@@ -188,7 +188,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "mea
 
 Autoregression AR(p): each step carries a share of the last ones, plus a new shock (persistence, momentum).
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "autoregressive", "coefficients": [0.6, 0.2], "mean": 20, "sd": 2}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "autoregressive", "coefficients": [0.6, 0.2], "mean": 20, "sd": 2}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `coefficients`: list | text (required) — [φ1, φ2, …]: how much each earlier step carries into the next.
 - `mean`: number | text = 0.0 — The level deviations are measured from.
@@ -199,7 +199,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "aut
 
 Volatility clustering (GARCH(1,1)): calm and turbulent spells, as returns, a price level or the volatility itself.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "volatility", "omega": 1e-05, "alpha": 0.08, "beta": 0.9, "output": "level", "start": 50}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "volatility", "omega": 1e-05, "alpha": 0.08, "beta": 0.9, "output": "level", "start": 50}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `omega`: number | text (required) — Baseline variance added each step (> 0).
 - `alpha`: number | text = 0.1 — How much the last return's size raises the next variance.
@@ -212,7 +212,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "vol
 
 Regime switching: a Markov chain of states (boom, recession) each with its own values.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "regimes", "states": {"boom": {"growth": 0.02}, "bust": {"growth": -0.01}}, "transitions": {"boom": {"bust": 0.05}, "bust": {"boom": 0.2}}}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "regimes", "states": {"boom": {"growth": 0.02}, "bust": {"growth": -0.01}}, "transitions": {"boom": {"bust": 0.05}, "bust": {"boom": 0.2}}}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `states`: object (required) — {state: value}: what each state gives (a number, or a map read as $pattern.economy.growth); null gives the state's name.
 - `transitions`: object (required) — {from: {to: probability per step}}; the rest of the probability stays in the state.
@@ -222,7 +222,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "reg
 
 Shocks: one-off (at), recurring (recur) or random (chance) jumps that last and then fade (half_life). An event can act while one is on: when: $pattern.strike > 0.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "shocks", "chance": 0.05, "size": -0.4, "lasts": 2, "half_life": 3, "form": "multiply"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "shocks", "chance": 0.05, "size": -0.4, "lasts": 2, "half_life": 3, "form": "multiply"}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `chance`: number | text = 0.0 — Probability a shock starts in a step.
 - `at`: list — Times shocks certainly start (clock units or ISO dates).
@@ -240,7 +240,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "sho
 
 Fresh noise every step, independent over time; a key (or a keyed pattern) gives each item its own draws.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "noise", "dist": "normal", "sd": 0.01, "keys": "resident"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "noise", "dist": "normal", "sd": 0.01, "keys": "resident"}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `dist`: normal | uniform | lognormal | laplace = "normal" — The distribution of each step's draw.
 - `mean`: number | text = 0.0 — Centre (normal, laplace); log-mean (lognormal).
@@ -252,7 +252,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "noi
 
 Weather-like driver: a yearly seasonal normal plus persistent departures (autocorrelated), e.g. temperature.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "weather", "mean": 18, "amplitude": 9, "peak": 0.55, "persistence": 0.75, "sd": 3}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "weather", "mean": 18, "amplitude": 9, "peak": 0.55, "persistence": 0.75, "sd": 3}`
 - `every`: number — Clock units per step of the path (default: one round).
 - `mean`: number | text (required) — Average over the year.
 - `amplitude`: number | text = 0.0 — Seasonal swing above and below the mean.
@@ -264,7 +264,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "wea
 
 Price elasticity: a multiplier on demand for a price, constant-elasticity or linear.
 
-Read: `$pattern.<name>(price[, key])`. Example: `{"kind": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99}`
+Read: `$pattern.<name>(price[, key])`. Example: `{"kind": "pattern", "mode": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99}`
 - `elasticity`: number | text (required) — % change in quantity per % change in price at the reference (−1.5).
 - `reference`: number | text = 1.0 — The price where the effect is 1.
 - `form`: constant | linear = "constant" — constant: (price/reference)^elasticity | linear: 1 + elasticity·(price/reference − 1), never below 0.
@@ -273,7 +273,7 @@ Read: `$pattern.<name>(price[, key])`. Example: `{"kind": "elasticity", "elastic
 
 Substitution between items: each item's demand multiplier from every item's price relative to its reference (own and cross elasticities, or a full matrix). Called with {key: price} and the item's key.
 
-Read: `$pattern.<name>(prices[, key])`. Example: `{"kind": "cross_price", "keys": ["economy", "premium"], "reference": {"economy": 20, "premium": 35}, "own": -1.8, "cross": 0.6}`
+Read: `$pattern.<name>(prices[, key])`. Example: `{"kind": "pattern", "mode": "cross_price", "keys": ["economy", "premium"], "reference": {"economy": 20, "premium": 35}, "own": -1.8, "cross": 0.6}`
 - `reference`: number | text | object (required) — Reference price: one for all keys, or {key: price}.
 - `own`: number | text (required) — Own-price elasticity (on the diagonal).
 - `cross`: number | text = 0.0 — Cross-price elasticity toward the other keys (> 0: substitutes, < 0: complements).
@@ -284,7 +284,7 @@ Read: `$pattern.<name>(prices[, key])`. Example: `{"kind": "cross_price", "keys"
 
 Diminishing returns: spend, effort or exposure that helps less and less (Hill, logistic or exponential).
 
-Read: `$pattern.<name>(x[, key])`. Example: `{"kind": "saturation", "form": "hill", "limit": 0.35, "half": 2000, "shape": 1.2}`
+Read: `$pattern.<name>(x[, key])`. Example: `{"kind": "pattern", "mode": "saturation", "form": "hill", "limit": 0.35, "half": 2000, "shape": 1.2}`
 - `form`: hill | logistic | exponential = "hill" — hill: limit·x^shape/(half^shape + x^shape) | logistic: limit/(1 + e^(−steepness·(x − midpoint))) | exponential: limit·(1 − e^(−x/scale)).
 - `limit`: number | text = 1.0 — The most it gives.
 - `base`: number | text = 0.0 — Added to the result (the level with no driver).
@@ -298,7 +298,7 @@ Read: `$pattern.<name>(x[, key])`. Example: `{"kind": "saturation", "form": "hil
 
 A threshold or tipping point: one value below it, another above, switching hard or smoothly.
 
-Read: `$pattern.<name>(x[, key])`. Example: `{"kind": "threshold", "at": 0.3, "below": 1, "above": 1.8, "width": 0.05}`
+Read: `$pattern.<name>(x[, key])`. Example: `{"kind": "pattern", "mode": "threshold", "at": 0.3, "below": 1, "above": 1.8, "width": 0.05}`
 - `at`: number | text (required) — The tipping point.
 - `below`: number | text = 0.0 — Value below it.
 - `above`: number | text = 1.0 — Value above it.
@@ -308,7 +308,7 @@ Read: `$pattern.<name>(x[, key])`. Example: `{"kind": "threshold", "at": 0.3, "b
 
 A learning curve (Wright's law): cost per unit falls by a fixed ratio each time cumulative output doubles.
 
-Read: `$pattern.<name>(units[, key])`. Example: `{"kind": "learning_curve", "first": 120, "rate": 0.85, "floor": 40}`
+Read: `$pattern.<name>(units[, key])`. Example: `{"kind": "pattern", "mode": "learning_curve", "first": 120, "rate": 0.85, "floor": 40}`
 - `first`: number | text (required) — Cost (or time) of the first unit.
 - `rate`: number | text = 0.8 — Progress ratio: each doubling of cumulative units multiplies the cost by it.
 - `floor`: number | text = 0.0 — Lowest it gets.
@@ -317,7 +317,7 @@ Read: `$pattern.<name>(units[, key])`. Example: `{"kind": "learning_curve", "fir
 
 Network effects: value (or appeal) growing with the number or share of users.
 
-Read: `$pattern.<name>(users[, key])`. Example: `{"kind": "network", "form": "log", "strength": 0.2}`
+Read: `$pattern.<name>(users[, key])`. Example: `{"kind": "pattern", "mode": "network", "form": "log", "strength": 0.2}`
 - `form`: power | log = "power" — power: base + strength·users^exponent | log: base + strength·ln(1 + users).
 - `strength`: number | text (required) — How much users add.
 - `exponent`: number | text = 1.0 — power: 1 linear, 2 Metcalfe-like, < 1 diminishing.
@@ -327,7 +327,7 @@ Read: `$pattern.<name>(users[, key])`. Example: `{"kind": "network", "form": "lo
 
 Promotion lift with a post-promotion dip: demand rises by `lift` × intensity while a promotion runs, then dips while customers work through what they bought early.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "promotion", "input": "$it.promo", "keys": "sku", "lift": 0.8, "dip": 0.25, "half_life": 1.5}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "promotion", "input": "$it.promo", "keys": "sku", "lift": 0.8, "dip": 0.25, "half_life": 1.5}`
 - `input`: text (required) — What drives it, read every round: an expression over the world ($world.promo_spend, $it.price with entity keys).
 - `every`: number — Clock units per step of carry-over (default: one round).
 - `lift`: number | text (required) — Extra demand per unit of promotion intensity (form linear: 0.6 = +60% at 1).
@@ -340,7 +340,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pro
 
 Reference-price effects: customers remember past prices; a price under the memory lifts demand, one above cuts it more (loss aversion). The memory drifts toward prices paid.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "reference_price", "input": "$it.price", "keys": "sku", "retain": 0.8, "gain": 0.8, "loss": 1.6}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "reference_price", "input": "$it.price", "keys": "sku", "retain": 0.8, "gain": 0.8, "loss": 1.6}`
 - `input`: text (required) — What drives it, read every round: an expression over the world ($world.promo_spend, $it.price with entity keys).
 - `every`: number — Clock units per step of carry-over (default: one round).
 - `retain`: number | text = 0.7 — Weight of the old reference when it updates toward the price paid.
@@ -352,7 +352,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "ref
 
 A value drawn once per run — a prior on an uncertain quantity — or once per key: heterogeneous traits per entity, correlated with mvnormal. Parameters of other patterns may read it.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"}`
 - `dist`: normal | lognormal | uniform | beta | gamma | triangular | choice | mvnormal | poisson (required) — The distribution. mvnormal draws correlated values (a list, or a map with `names`).
 - `mean`: number | text
 - `sd`: number | text
@@ -360,7 +360,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "dra
 - `sigma`: number | text
 - `low`: number | text
 - `high`: number | text
-- `mode`: number | text
+- `peak`: number | text — triangular: the most likely value.
 - `a`: number | text
 - `b`: number | text
 - `shape`: number | text
@@ -377,14 +377,14 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "dra
 
 Segments: each key (entity) falls in one segment by share, and reads the segment's values.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "segments", "keys": "customer", "segments": {"bargain": {"share": 0.6, "values": {"elasticity": -2.4}}, "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "segments", "keys": "customer", "segments": {"bargain": {"share": 0.6, "values": {"elasticity": -2.4}}, "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}}`
 - `segments`: object (required) — {segment: {share, values}}: each key falls in one segment, drawn once per run; reads give {segment, …values}.
 
 #### `diffusion` (population, signal)
 
 Bass diffusion: adoption through innovation and word of mouth — the S-shaped curve over time, or the adoption chance for a given share already adopted (driven by the run's own adopters).
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "diffusion", "p": 0.03, "q": 0.38, "market": 5000, "start": "2025-03-01", "output": "new"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "diffusion", "p": 0.03, "q": 0.38, "market": 5000, "start": "2025-03-01", "output": "new"}`
 - `p`: number | text (required) — Innovation: the share adopting on their own each unit.
 - `q`: number | text (required) — Imitation: how strongly adopters draw in others (word of mouth).
 - `market`: number | text = 1.0 — Everyone who will eventually adopt.
@@ -395,7 +395,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "dif
 
 A hazard curve: the chance something happens now (churn, failure, leaving) given how long it has lasted — use as $chance($pattern.churn($it.tenure)).
 
-Read: `$pattern.<name>(age[, key])`. Example: `{"kind": "hazard", "form": "weibull", "shape": 0.7, "scale": 30}`
+Read: `$pattern.<name>(age[, key])`. Example: `{"kind": "pattern", "mode": "hazard", "form": "weibull", "shape": 0.7, "scale": 30}`
 - `form`: constant | weibull | loglogistic | table = "constant" — constant: the same chance at every age | weibull: rising (shape > 1) or falling (< 1) | loglogistic: rising then falling | table: one chance per age.
 - `rate`: number | text = 0.05 — constant: chance per `span`.
 - `shape`: number | text = 1.0 — weibull, loglogistic: the curve's shape.
@@ -407,7 +407,7 @@ Read: `$pattern.<name>(age[, key])`. Example: `{"kind": "hazard", "form": "weibu
 
 Habit and fatigue: repeated exposure (purchases, ads, messages) builds a habit that raises response, or a fatigue that wears it down; both fade when exposure stops.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "habit", "form": "fatigue", "input": "$it.ads_seen", "keys": "viewer", "strength": 0.3, "half_life": 3}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "habit", "form": "fatigue", "input": "$it.ads_seen", "keys": "viewer", "strength": 0.3, "half_life": 3}`
 - `input`: text (required) — What drives it, read every round: an expression over the world ($world.promo_spend, $it.price with entity keys).
 - `every`: number — Clock units per step of carry-over (default: one round).
 - `form`: habit | fatigue = "habit" — habit: 1 + strength·S/(1 + S), growing with repetition | fatigue: 1/(1 + strength·S), wearing out with exposure.
@@ -419,7 +419,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "hab
 
 Whole-number counts around an expected value: Poisson, or negative binomial for over-dispersed sales and arrivals.
 
-Read: `$pattern.<name>(mean[, key])`. Example: `{"kind": "counts", "dist": "negative_binomial", "dispersion": 6}`
+Read: `$pattern.<name>(mean[, key])`. Example: `{"kind": "pattern", "mode": "counts", "dist": "negative_binomial", "dispersion": 6}`
 - `dist`: poisson | negative_binomial = "negative_binomial" — poisson: variance = mean | negative_binomial: variance = mean + mean²/dispersion (over-dispersed).
 - `dispersion`: number | text = 10.0 — negative_binomial: k; smaller is noisier (fitted by the method of moments).
 - `every`: number — Clock units per fresh draw (default: one round).
@@ -428,7 +428,7 @@ Read: `$pattern.<name>(mean[, key])`. Example: `{"kind": "counts", "dist": "nega
 
 Measurement error: a reading of a true value with bias and noise (surveys, sensors, stock counts).
 
-Read: `$pattern.<name>(value[, key])`. Example: `{"kind": "measurement", "sd": 0.08, "bias": -0.03, "whole": true}`
+Read: `$pattern.<name>(value[, key])`. Example: `{"kind": "pattern", "mode": "measurement", "sd": 0.08, "bias": -0.03, "whole": true}`
 - `sd`: number | text (required) — Spread of the error (a share of the value with form multiply).
 - `bias`: number | text = 0.0 — Systematic error (a share with form multiply: 0.05 reads 5% high).
 - `form`: add | multiply = "multiply" — add: value + bias + sd·z | multiply: value·(1 + bias + sd·z).
@@ -439,13 +439,13 @@ Read: `$pattern.<name>(value[, key])`. Example: `{"kind": "measurement", "sd": 0
 
 Censoring: what is observed when a quantity is capped — sales = min(demand, stock) — with what was lost. Gives {value, lost, censored}: $pattern.sold($demand, $it.stock).value.
 
-Read: `$pattern.<name>(demand, capacity[, key])`. Example: `{"kind": "censored"}`
+Read: `$pattern.<name>(demand, capacity[, key])`. Example: `{"kind": "pattern", "mode": "censored"}`
 
 #### `missing` (observation, response)
 
 Missing observations: the value, or null with some chance (gaps in a dashboard, unreported sales).
 
-Read: `$pattern.<name>(value[, key])`. Example: `{"kind": "missing", "chance": 0.05}`
+Read: `$pattern.<name>(value[, key])`. Example: `{"kind": "pattern", "mode": "missing", "chance": 0.05}`
 - `chance`: number | text (required) — Probability a reading is missing (null).
 - `every`: number — Clock units per fresh draw (default: one round).
 
@@ -453,7 +453,7 @@ Read: `$pattern.<name>(value[, key])`. Example: `{"kind": "missing", "chance": 0
 
 Carry-over (adstock) and lags: past inputs keep counting, fading by `retain` each step — advertising, word of mouth, a backlog.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "carryover", "input": "$world.ad_spend", "half_life": 2, "lag": 1}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "carryover", "input": "$world.ad_spend", "half_life": 2, "lag": 1}`
 - `input`: text (required) — What drives it, read every round: an expression over the world ($world.promo_spend, $it.price with entity keys).
 - `every`: number — Clock units per step of carry-over (default: one round).
 - `retain`: number | text = 0.5 — Share carried into the next step (adstock decay).
@@ -466,7 +466,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "car
 
 A product of patterns: a base level times every factor — decompose shows each factor's share; fit estimates the base and every factor together.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "product", "of": ["trend", {"pattern": "season", "key": "$row.category"}], "scale": "$row.base", "table": "$inputs.skus", "column": "sku"}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "product", "of": ["trend", {"pattern": "season", "key": "$row.category"}], "scale": "$row.base", "table": "$inputs.skus", "column": "sku"}`
 - `of`: list (required) — The patterns combined: names (keyed ones get this pattern's key) or {pattern, key}.
 - `scale`: number | text = 1.0 — Multiplies the product (a base level).
 
@@ -474,7 +474,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pro
 
 A weighted sum of patterns plus a base: level + seasonal swing + noise.
 
-Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "sum", "of": ["normal_temp", "anomaly"], "base": 0}`
+Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "sum", "of": ["normal_temp", "anomaly"], "base": 0}`
 - `of`: list (required) — The patterns combined: names (keyed ones get this pattern's key) or {pattern, key}.
 - `weights`: list — One weight per pattern (default 1 each).
 - `base`: number | text = 0.0 — Added to the sum.

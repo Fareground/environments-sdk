@@ -75,7 +75,7 @@ class Ctx:
         return calendar_of(self.rt.world)
 
     def fail(self, message: str) -> ExprError:
-        return ExprError(f"patterns.{self.name}: {message}", self.source)
+        return ExprError(f"mechanisms.{self.name}: {message}", self.source)
 
     def param(self, field: str) -> Any:
         """A parameter's value for this key (expressions evaluated once per run)."""
@@ -259,7 +259,7 @@ class PatternRuntime:
             try:
                 value = resolve(raw, Scope(roots, self.world))
             except ExprError as exc:
-                raise ExprError(f"patterns.{name}.{field}: {exc.detail}", source) from None
+                raise ExprError(f"mechanisms.{name}.{field}: {exc.detail}", source) from None
         if field in self.configs[name].uncertainty and not self.estimates:
             value = self._uncertain(name, key, field, value, source, depth)
         self._params[cache] = value
@@ -275,12 +275,12 @@ class PatternRuntime:
         try:
             error = resolve(raw, scope)
         except ExprError as exc:
-            raise ExprError(f"patterns.{name}.uncertainty.{field}: {exc.detail}", source) from None
+            raise ExprError(f"mechanisms.{name}.uncertainty.{field}: {exc.detail}", source) from None
         rng = self.world.seeds.rng("pattern", name, key or "", "uncertainty", field)
         values, errors = (value, error) if isinstance(value, list) else ([value], [error])
         if not isinstance(errors, list) or len(errors) != len(values) or not all(
                 _number(v) for v in values) or not all(_number(e) and e >= 0 for e in errors):
-            raise ExprError(f"patterns.{name}.uncertainty.{field}: needs one standard error ≥ 0 per value of "
+            raise ExprError(f"mechanisms.{name}.uncertainty.{field}: needs one standard error ≥ 0 per value of "
                             f"`{field}`, got {error!r} for {value!r}", source)
         drawn = [v + e * rng.gauss(0.0, 1.0) if e > 0 else v for v, e in zip(values, errors)]
         return drawn if isinstance(value, list) else drawn[0]
@@ -304,13 +304,13 @@ class PatternRuntime:
                 try:
                     listed = resolve(cfg.keys, Scope({"inputs": self.world.inputs}, self.world))
                 except ExprError as exc:
-                    raise ExprError(f"patterns.{name}.keys: {exc.detail}", source) from None
+                    raise ExprError(f"mechanisms.{name}.keys: {exc.detail}", source) from None
             if not isinstance(listed, list):
-                raise ExprError(f"patterns.{name}.keys must give a list, got {listed!r}", source)
+                raise ExprError(f"mechanisms.{name}.keys must give a list, got {listed!r}", source)
             try:
                 self._keys[name] = [key_text(item) for item in listed]
             except ValueError as exc:
-                raise ExprError(f"patterns.{name}.keys: {exc}", source) from None
+                raise ExprError(f"mechanisms.{name}.keys: {exc}", source) from None
         return self._keys[name]
 
     def row(self, name: str, key: str | None, source: str) -> Mapping[str, Any] | None:
@@ -319,7 +319,7 @@ class PatternRuntime:
         rows = self._table(name, source)
         if key not in rows:
             shown = ", ".join(list(rows)[:8]) + (" …" if len(rows) > 8 else "")
-            raise ExprError(f"patterns.{name}: its table has no row for key '{key}' (keys: {shown})", source)
+            raise ExprError(f"mechanisms.{name}: its table has no row for key '{key}' (keys: {shown})", source)
         return rows[key]
 
     def _table(self, name: str, source: str) -> dict[str, Mapping[str, Any]]:
@@ -328,13 +328,13 @@ class PatternRuntime:
             try:
                 rows = compile_expr(str(cfg.table))(Scope({"inputs": self.world.inputs}, self.world))
             except ExprError as exc:
-                raise ExprError(f"patterns.{name}.table: {exc.detail}", source) from None
+                raise ExprError(f"mechanisms.{name}.table: {exc.detail}", source) from None
             if not isinstance(rows, list) or not all(isinstance(r, Mapping) for r in rows):
-                raise ExprError(f"patterns.{name}.table must give a list of rows, got {type(rows).__name__}", source)
+                raise ExprError(f"mechanisms.{name}.table must give a list of rows, got {type(rows).__name__}", source)
             indexed: dict[str, Mapping[str, Any]] = {}
             for index, row in enumerate(rows):
                 if cfg.column not in row:
-                    raise ExprError(f"patterns.{name}.table: row {index} has no column '{cfg.column}'", source)
+                    raise ExprError(f"mechanisms.{name}.table: row {index} has no column '{cfg.column}'", source)
                 indexed[key_text(row[cfg.column])] = row
             self._rows[name] = indexed
         return self._rows[name]
@@ -377,7 +377,7 @@ class PatternRuntime:
         try:
             return compile_expr(str(getattr(cfg, "input")))(self.world.scope(**values))  # noqa: B009 — only some pattern kinds declare `input`
         except ExprError as exc:
-            raise ExprError(f"patterns.{ctx.name}.input: {exc.detail}", ctx.source) from None
+            raise ExprError(f"mechanisms.{ctx.name}.input: {exc.detail}", ctx.source) from None
 
     def commit(self) -> None:
         """Carry every memory pattern's state past the round that just ended."""
@@ -387,7 +387,7 @@ class PatternRuntime:
         t = now(self.world)
         store = dict(self.world.props.get(MEMORY_STATE) or {})
         for name in names:
-            where = f"patterns.{name}"
+            where = f"mechanisms.{name}"
             entries = dict(store.get(name) or {})
             keys: list[str | None] = list(self.keys(name, where)) if self.configs[name].keyed else [None]
             for key in keys:
@@ -452,7 +452,7 @@ def _signature(name: str, names: Sequence[str], keyed: bool, random: bool) -> st
 
 
 @function("pattern_values(name)", "Every key's value of a keyed pattern now, as {key: value}: "
-          "$pattern_values('season').", min_args=1, max_args=1)
+          "$pattern_values('season').", min_args=1, max_args=1, family="pattern")
 def _pattern_values(call: Call) -> Any:
     runtime = getattr(call.scope.world, "patterns", None)
     name = call.arg(0)

@@ -1,79 +1,109 @@
 {
   "fg_env": "1",
   "name": "Contact centre peak",
-  "description": "Four peak half hours (09:00-13:00) of the business study's contact centre at a quarter of its volume, with its fitted handle times and calibrated patience. Calls arrive at each half hour's forecast rate, wait in one queue, are answered by the agents logged in that half hour or hang up when their patience runs out.",
+  "description": "Four peak hours (09:00-13:00) of the business study's contact centre at a quarter of its volume, one half hour a round, with its fitted handle times and calibrated patience. Calls arrive at each half hour's forecast rate, wait in one queue, are answered by the agents logged in that half hour or hang up when their patience runs out.",
   "inputs": {
-    "estimates": {"type": "map", "source": "estimates.json", "description": "Handle time per half hour, shrinkage, cost per agent hour."},
-    "forecast": {"type": "table", "source": "forecast.csv", "columns": {"slot": "int", "calls_expected": "number"}},
-    "agents": {"type": "list", "default": [], "description": "Agents logged in per half hour; empty = the manager's rule."},
-    "aht_sd_log": {"type": "number", "default": 0.375, "min": 0.1, "max": 1.2},
-    "patience_sec": {"type": "number", "default": 400, "min": 20, "max": 900},
-    "sl_seconds": {"type": "number", "default": 30},
-    "sl_target": {"type": "number", "default": 0.8}
+    "estimates": {
+      "type": "map",
+      "source": "estimates.json",
+      "description": "Handle time per half hour, shrinkage, cost per agent hour."
+    },
+    "forecast": {
+      "type": "table",
+      "source": "forecast.csv",
+      "columns": {
+        "slot": "int",
+        "calls_expected": "number"
+      }
+    },
+    "agents": {
+      "type": "list",
+      "default": [],
+      "description": "Agents logged in per half hour; empty = the manager's rule."
+    },
+    "aht_sd_log": {
+      "type": "number",
+      "default": 0.375,
+      "min": 0.1,
+      "max": 1.2
+    },
+    "patience_sec": {
+      "type": "number",
+      "default": 400,
+      "min": 20,
+      "max": 900
+    },
+    "sl_seconds": {
+      "type": "number",
+      "default": 30
+    },
+    "sl_target": {
+      "type": "number",
+      "default": 0.8
+    }
   },
-  "clock": {"mode": "continuous", "unit": "second", "horizon": "$len($inputs.forecast) * 1800"},
+  "clock": {
+    "rounds": "$len($inputs.forecast)",
+    "unit": "minute",
+    "step": 30
+  },
   "world": {
-    "rates": {"type": "list", "default": "$map($inputs.forecast, $it.calls_expected)"},
-    "plan": {"type": "list", "default": "$inputs.agents"},
-    "slot": {"type": "int", "default": 0},
-    "capacity": {"type": "int", "default": 0},
-    "busy": {"type": "int", "default": 0},
-    "queue": {"type": "list", "default": []},
-    "offered": {"type": "list", "default": "$map($inputs.forecast, 0)"},
-    "answered": {"type": "list", "default": "$map($inputs.forecast, 0)"},
-    "in_sl": {"type": "list", "default": "$map($inputs.forecast, 0)"},
-    "abandoned": {"type": "list", "default": "$map($inputs.forecast, 0)"}
+    "plan": {
+      "type": "list",
+      "default": "$inputs.agents"
+    }
   },
-  "types": {
-    "call": {"props": {"arrived": 0.0, "slot": 0, "status": {"type": "enum", "values": ["waiting", "served", "abandoned"], "default": "waiting"}}}
+  "types": {},
+  "events": [
+    {
+      "name": "rule",
+      "when": "$round == 1 and $len($world.plan) != $len($inputs.forecast)",
+      "do": [
+        "$world.plan = $map($range($len($inputs.forecast)), $max(2, $ceil($inputs.forecast[$it].calls_expected * $inputs.estimates.aht_by_slot[$it] / 1800 * 1.1 + 2)))"
+      ]
+    }
+  ],
+  "mechanisms": {
+    "centre": {
+      "kind": "operations",
+      "mode": "queue",
+      "unit": "second",
+      "interval": 1800,
+      "channels": {
+        "calls": {
+          "arrivals": "$inputs.forecast[$interval].calls_expected",
+          "service": {
+            "dist": "lognormal",
+            "mean": "$inputs.estimates.aht_by_slot[$interval]",
+            "cv": "$sqrt($exp($inputs.aht_sd_log ** 2) - 1)"
+          },
+          "patience": {
+            "mean": "$inputs.patience_sec"
+          },
+          "threshold": 30,
+          "target": 0.8
+        }
+      },
+      "servers": {
+        "agents": {
+          "staff": "$world.plan[$interval]"
+        }
+      }
+    }
   },
-  "defs": {
-    "rate_now": "$world.rates[$world.slot] / 1800",
-    "handle_time": "$lognormal($log($inputs.estimates.aht_by_slot[$world.slot]) - $inputs.aht_sd_log ** 2 / 2, $inputs.aht_sd_log)",
-    "patience": "$exponential(1 / $inputs.patience_sec)",
-    "waiting": "$len($world.queue)"
-  },
-  "blocks": {
-    "serve": {"args": ["call"], "do": [
-      "$call.status = served",
-      "$world.busy += 1",
-      "$world.answered[$call.slot] += 1",
-      "$world.in_sl[$call.slot] += 1 if $clock.time - $call.arrived <= $inputs.sl_seconds else 0",
-      {"after": "$handle_time", "do": ["$world.busy -= 1", {"block": "pull"}]}
-    ]},
-    "pull": {"do": [
-      {"if": "$world.busy < $world.capacity and $waiting > 0", "then": [
-        "$next_call = $entity($world.queue[0])",
-        "$world.queue = $slice($world.queue, 1)",
-        {"block": "serve", "with": {"call": "$next_call"}}
-      ]}
-    ]},
-    "arrive": {"do": [
-      {"create": "call", "props": {"arrived": "$clock.time", "slot": "$world.slot"}, "as": "made"},
-      "$world.offered[$world.slot] += 1",
-      {"if": "$world.busy < $world.capacity and $waiting == 0", "then": [{"block": "serve", "with": {"call": "$made"}}],
-       "else": ["$world.queue += $made.id",
-                {"after": "$patience", "do": [{"if": "$made.status == waiting", "then": ["$made.status = abandoned", "$world.abandoned[$made.slot] += 1", "$world.queue -= $made.id"]}]}]},
-      {"after": "$exponential($rate_now)", "do": [{"block": "arrive"}]}
-    ]},
-    "half_hour": {"do": [
-      "$world.capacity = $world.plan[$world.slot]",
-      {"repeat": 100, "while": "$world.busy < $world.capacity and $waiting > 0", "do": [{"block": "pull"}]},
-      {"after": 1800, "do": [{"if": "$world.slot < $len($world.rates) - 1", "then": ["$world.slot += 1", {"block": "half_hour"}]}]}
-    ]}
-  },
-  "events": [{"name": "open", "at": 1, "do": [
-    {"if": "$len($world.plan) != $len($world.rates)", "then": [
-      "$world.plan = $map($range($len($world.rates)), $max(2, $ceil($world.rates[$it] * $inputs.estimates.aht_by_slot[$it] / 1800 * 1.1 + 2)))"
-    ]},
-    {"block": "half_hour"}, {"block": "arrive"}]}],
   "outputs": {
-    "calls": {"type": "int", "expr": "$sum($world.offered)"},
-    "sl": {"type": "number", "expr": "$round($pct($sum($world.in_sl), $sum($world.offered)), 4)", "description": "Share of offered calls answered within the threshold."},
-    "abandon": {"type": "number", "expr": "$round($pct($sum($world.abandoned), $sum($world.offered)), 4)"},
-    "slots_below_target": {"type": "int", "expr": "$count($range($len($world.offered)), $world.offered[$it] > 0 and $pct($world.in_sl[$it], $world.offered[$it]) < $inputs.sl_target)"},
-    "agent_hours": {"type": "number", "expr": "$sum($world.plan) / 2"},
-    "staffing_cost": {"type": "number", "expr": "$round($sum($world.plan) / 2 / (1 - $inputs.estimates.shrinkage) * $inputs.estimates.agent_cost_per_hour, 0)"},
-    "plan": {"type": "list", "expr": "$world.plan"}
+    "sl": {
+      "type": "number",
+      "expr": "$round($world.centre_totals.service_level, 4)",
+      "description": "Share of calls answered within the threshold."
+    },
+    "staffing_cost": {
+      "type": "number",
+      "expr": "$round($sum($world.plan) / 2 / (1 - $inputs.estimates.shrinkage) * $inputs.estimates.agent_cost_per_hour, 0)"
+    },
+    "plan": {
+      "type": "list",
+      "expr": "$world.plan"
+    }
   }
 }

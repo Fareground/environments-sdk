@@ -52,8 +52,7 @@ def _signature(state):
            "observations": [state.observation_string(seat) for seat in seats],
            "structures": [state.observation(seat, "struct") for seat in seats],
            "information": [state.information_state_string(seat) for seat in seats]}
-    spec = state.game.contract.game
-    if spec is not None and spec.returns is not None:
+    if state.game.contract.scoring() is not None:
         out["returns"], out["rewards"] = state.returns(), state.rewards()
     if not terminal and not state.is_chance_node():
         out["legal"] = {seat: ([(a.id, a.text) for a in state.legal_tool_calls(seat)], state.unlisted_actions(seat))
@@ -165,9 +164,9 @@ def test_a_seat_woken_to_react_inside_a_call_goes_on_as_a_piloted_run():
 
 
 def test_contracts_that_need_a_thread_of_their_own_are_piloted():
-    timed = load_game("tic_tac_toe")
-    timed["stages"][0]["time_limit"] = 30
-    assert not game(timed)._stepped
+    atomic = load_game("tic_tac_toe")
+    atomic["stages"][0]["valid"] = "true"
+    assert not game(atomic)._stepped
     assert not game(TIC_TAC_TOE, players=["x"], others=lambda wake: wake.end())._stepped
     assert game(TIC_TAC_TOE)._stepped
 

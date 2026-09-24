@@ -1,4 +1,4 @@
-"""Contract sections of the world model: inputs, brief, clock and space; types, entities, populations and
+"""Contract sections of the world model: inputs, brief, clock and space; types, entities (named or generated) and
 relations; physics; and feeds."""
 from __future__ import annotations
 
@@ -13,14 +13,15 @@ from .base import (
     MAX_SUBSTEPS,
     PROP_TYPES,
     SPELLINGS,
-    Effects,
     TypeName,
     _ceiling,
     _Model,
 )
+from .game import ScoreSpec
+from .rules import PolicySpec
 
 __all__ = ["InputSpec", "Brief", "Clock", "LAYER_TYPES", "GridSpace", "GraphSpace", "PlaneSpace", "LayerSpec", "Space",
-           "PropSpec", "TypeSpec", "EntitySpec", "MixSpec", "MembersSpec", "RakingSpec", "PopulationSpec",
+           "PropSpec", "TypeSpec", "EntitySpec",
            "RelationSpec", "LinkSpec", "PhysicsVar", "EntityVar", "EntityDynamics", "PhysicsSpec", "FeedSpec"]
 # ---------------------------------------------------------------------------
 # Inputs, brief, clock, space
@@ -44,7 +45,8 @@ class InputSpec(_Model):
     source: str | None = Field(None,
                                description="Load the value from a data file (.csv → table, .json, .jsonl) inside the "
                                            "data directory: the contract file's folder, or `data_dir=` at load. "
-                                           "Undeclared CSV columns stay text.")
+                                           "Undeclared CSV columns stay text. A `file` input carries the file (an "
+                                           "image, PDF, text, audio) or every file of the folder named here.")
     description: str = ""
     unit: str = ""
     label: str = Field("", description="Human-readable input label; defaults to the input name in a host UI.")
@@ -58,6 +60,19 @@ class InputSpec(_Model):
                                                 description="Typed configurable fields of a map object or each table "
                                                             "row; supports nested objects, defaults and control hints.")
     items: InputSpec | None = Field(None, description="Typed elements of a list input.")
+    caption: str = Field("", description="file: what the file shows, as agents read it next to the file ({name} is "
+                                         "the file name).")
+    alt: str = Field("", description="file: a longer description for readers that cannot see the file (text-only "
+                                     "models read it).")
+    tags: list[str] = Field(default_factory=list,
+                            description="file: labels for expressions: `'exhibit' in $asset(id).tags`.")
+    max_bytes: int | None = Field(None, ge=1,
+                                  description="file: the largest file accepted (default: by kind — image 10 MB, pdf "
+                                              "32 MB, text 2 MB, audio 25 MB, other 32 MB).")
+    describe: str | None = Field(None,
+                                 description="file: a host (a Describer) that writes a caption and extracted text for "
+                                             "the file when the world is built, recorded on the host tape: "
+                                             "`$asset(id).caption` and `.text` read it.")
 
     @model_validator(mode="after")
     def _input_presentation(self) -> InputSpec:
@@ -85,6 +100,12 @@ class InputSpec(_Model):
                 raise ValueError(f"field '{name}' conflicts with its column type")
         if self.items is not None and self.items.source is not None:
             raise ValueError("declare data sources on the containing input, not list items")
+        file_fields = [key for key in ("caption", "alt", "tags", "max_bytes", "describe")
+                       if key in self.model_fields_set]
+        if file_fields and self.type != "file":
+            raise ValueError(f"{file_fields[0]} only applies to file inputs")
+        if self.type == "file" and self.source is None:
+            raise ValueError("a file input needs `source`: the path of its file (or folder) beside the contract")
         return self
 
 
@@ -109,16 +130,6 @@ class Clock(_Model):
                               description="ISO date of round 1 (adds a calendar date), or an expression over $inputs "
                                           "giving one (`\"$inputs.start\"`).")
     step: int = Field(1, description="Units per round (e.g. 7 with unit 'day' = weekly rounds).")
-    mode: str = Field("rounds",
-                      description="rounds (every round is one step) | continuous (time is a number: actions take "
-                                  "`duration`, `scheduled` stages wake agents when their time comes).")
-    tick: float = Field(1.0, gt=0, description="Continuous: how far time moves when nothing is due sooner.")
-    jump: bool = Field(True,
-                       description="Continuous: jump straight to the next moment something is due (an agent's turn or "
-                                   "an `after` effect) instead of moving by `tick`.")
-    horizon: float | str | None = Field(None,
-                                        description="Continuous: the run completes when time would pass this (number "
-                                                    "or expression over $inputs).")
 
     @field_validator("rounds")
     @classmethod
@@ -249,124 +260,65 @@ class TypeSpec(_Model):
     extends: str | None = Field(None, description="Parent type whose props and role this type inherits.")
     description: str = ""
     props: dict[str, PropSpec] = Field(default_factory=dict)
-    policy: str | None = Field(None, description="Default coded policy for agents of this type.")
+    policies: dict[str, PolicySpec] = Field(default_factory=dict,
+                                            description="Coded participants for agents of this type (and its "
+                                                        "subtypes), played as `policy:<name>`: crowds and baselines.")
+    policy: str | None = Field(None, description="The policy agents of this type play when a run names none.")
+    score: ScoreSpec | None = Field(None, description="What each agent of this type scores as a seat, for returns, "
+                                                      "tournaments, game search and gyms.")
     inspect: bool | str = Field(False,
                                 description="Whether agents may inspect these entities (each agent may always inspect "
                                             "itself): false (default), true, or an expression over $viewer and $it. "
                                             "Inspect shows every property that is not private.")
-    on_create: Effects = Field(default_factory=list,
-                               description="Effects run for every entity of this type (subtypes too) the moment it is "
-                                           "created ($it), atomically with whatever created it; an ancestor's hooks "
-                                           "run first.")
-    on_remove: Effects = Field(default_factory=list,
-                               description="Effects run for every entity of this type (subtypes too) the moment it is "
-                                           "removed ($it, already no longer alive), atomically with the removal.")
-    on_create_at_build: bool = Field(True,
-                                     description="Also run on_create for entities made when the world is built (once "
-                                                 "the whole world exists, in creation order); false runs it only for "
-                                                 "entities created during the run. The nearest declaration in the "
-                                                 "type's lineage wins.")
 
 
 class EntitySpec(_Model):
-    """A named starting entity."""
+    """A starting entity, whose id is its key. With ``count`` or ``from`` it generates many instead (households from
+    a table, a crowd of traders): their ids are ``<key>_<n>`` (a row's own ``id``, or the ``id`` template, when given),
+    and an id already taken is an error. Entities are built in the order they are declared."""
 
     type: str
-    name: str | None = None
-    props: dict[str, Any] = Field(default_factory=dict)
-    at: Any = None
-    brief: str | None = Field(None, description="Private text added to this entity's own brief (template).")
-
-
-class MixSpec(_Model):
-    """One archetype (segment) of a population mix."""
-
-    name: str
-    weight: float | str = Field(1.0,
-                                description="Share of the population (relative; number or expression over $inputs).")
+    name: str | None = Field(None, description="Its name (default: the id). Generated: a template over $row and $i "
+                                               "(default: the type's title and the number).")
     props: dict[str, Any] = Field(default_factory=dict,
-                                  description="Trait values or expressions for this archetype (over $row, $i, $it).")
-    brief: str | None = Field(None, description="Extra private brief text for members of this archetype.")
-
-
-class MembersSpec(_Model):
-    """Entities generated inside each generated entity (people in a household, staff in a firm)."""
-
-    type: str
-    count: int | str = Field(..., description="How many per parent (number or expression over $parent, $row).")
-    props: dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($parent, $row, $i, $it).")
-    link: str | None = Field(None, description="Relation linking each member to its parent (member → parent).")
-    parent_prop: str | None = Field(None, description="A member property set to the parent's id.")
-    name: str | None = Field(None, description="Name template ({$parent.name}, {$i}).")
-    brief: str | None = Field(None, description="Private brief template for each member.")
-
-
-class RakingSpec(_Model):
-    """Reweight rows so weighted shares match known margins (iterative proportional fitting)."""
-
-    margins: dict[str, dict[str, float]] = Field(...,
-                                                 description="{column: {value: target share}}; shares per column sum "
-                                                             "to 1.")
-    iterations: int = Field(50, ge=1, le=1000)
-    tolerance: float = Field(1e-6, gt=0)
-
-
-class PopulationSpec(_Model):
-    """Entities generated at load: a count, one per table row, or a weighted sample of rows."""
-
-    type: str
-    count: int | str | None = Field(None,
-                                    description="How many (number or expression). Omit with `from` = one per row.")
-    from_: str | None = Field(None, alias="from", description="Expression giving rows (e.g. $inputs.households).")
-    where: str | None = Field(None, description="Row filter ($row).")
-    weight: str | None = Field(None, description="Row sampling weight ($row); sampled without replacement.")
-    replace: bool = Field(False, description="Sample rows with replacement.")
-    id: str | None = Field(None, description="Id template ({$i}, {$row.x}); default <type>_<n>.")
-    name: str | None = Field(None, description="Name template.")
-    props: dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($row, $i, $normal(...)).")
+                                  description="Values or expressions ($row, $i, $normal(...) when generated).")
     at: Any = None
-    brief: str | None = Field(None,
-                              description="Private text added to each generated entity's brief (template over $row, "
-                                          "$i).")
-    mix: list[MixSpec] = Field(default_factory=list,
-                               description="Archetypes: each entity belongs to one, with its own traits and brief; the "
-                                           "type's `archetype` prop (if declared) records which.")
-    quota: bool = Field(True,
-                        description="Mix counts are exact shares (largest remainder) instead of independent draws.")
-    members: list[MembersSpec] = Field(default_factory=list,
-                                       description="Entities generated inside each one (households → people).")
-    raking: RakingSpec | None = Field(None,
-                                      description="Reweight `from` rows to match margins before sampling (uses "
-                                                  "`weight` as the base weight).")
+    brief: str | None = Field(None, description="Private text added to this entity's own brief (template; over $row "
+                                                "and $i when generated).")
+    count: int | str | None = Field(None,
+                                    description="Generate this many (number or expression). Omit with `from` = one "
+                                                "per row.")
+    from_: str | None = Field(None, alias="from", description="Generate from rows: an expression giving them "
+                                                              "(e.g. $inputs.households).")
+    where: str | None = Field(None, description="Generated: row filter ($row).")
+    weight: str | None = Field(None, description="Generated: row sampling weight ($row); sampled without "
+                                                 "replacement.")
+    replace: bool = Field(False, description="Generated: sample rows with replacement.")
+    id: str | None = Field(None, description="Generated: id template ({$i}, {$row.x}); default <key>_<n>.")
 
     @field_validator("count")
     @classmethod
     def _count_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_POPULATION, "generate fewer entities; this many is almost certainly a typo")
 
+    @model_validator(mode="after")
+    def _generator_fields(self) -> EntitySpec:
+        if self.count is None and self.from_ is None:
+            used = [key for key in ("where", "weight", "replace", "id") if key in self.model_fields_set]
+            if used:
+                raise ValueError(f"`{used[0]}` applies to generated entities: add `count` or `from`, or remove it")
+        return self
 
-class RelationSpec(_Model):
-    """A kind of link between entities (follows, trusts, owns …). Every link carries a number
-    (``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``)."""
-
-    symmetric: bool = False
-    default: float | None = Field(None, description="Value of a link made without one (default 1).")
-    min: float | None = Field(None,
-                              description="Lowest allowed link value: a write below it is refused, never clamped "
-                                          "(saturate with $clamp).")
-    max: float | None = Field(None,
-                              description="Highest allowed link value: a write above it is refused, never clamped "
-                                          "(saturate with $clamp).")
-    props: dict[str, PropSpec] = Field(default_factory=dict,
-                                       description="Typed fields every link carries, read as $link(a, b, kind).field; "
-                                                   "defaults may be expressions over $from and $to.")
-    description: str = ""
+    @property
+    def generates(self) -> bool:
+        """Whether this entry generates entities (``count`` or ``from``) rather than naming one."""
+        return self.count is not None or self.from_ is not None
 
 
 class LinkSpec(_Model):
-    """Starting links: one explicit link, or a generated network among a type."""
+    """Starting links of a relation: one explicit link, links from data rows, or a generated network among a
+    type."""
 
-    relation: str
     from_: str | None = Field(None, alias="from")
     to: str | None = None
     value: Any = 1
@@ -393,6 +345,26 @@ class LinkSpec(_Model):
                                   description="Link field values or expressions over $from and $to ($row too with "
                                               "`rows`, whose columns named like a field fill it).")
     where: str | None = None
+
+
+class RelationSpec(_Model):
+    """A kind of link between entities (follows, trusts, owns …). Every link carries a number
+    (``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``)."""
+
+    symmetric: bool = False
+    default: float | None = Field(None, description="Value of a link made without one (default 1).")
+    min: float | None = Field(None,
+                              description="Lowest allowed link value: a write below it is refused, never clamped "
+                                          "(saturate with $clamp).")
+    max: float | None = Field(None,
+                              description="Highest allowed link value: a write above it is refused, never clamped "
+                                          "(saturate with $clamp).")
+    props: dict[str, PropSpec] = Field(default_factory=dict,
+                                       description="Typed fields every link carries, read as $link(a, b, kind).field; "
+                                                   "defaults may be expressions over $from and $to.")
+    links: list[LinkSpec] = Field(default_factory=list,
+                                  description="Links made when the world is built, after the entities.")
+    description: str = ""
 
 
 # ---------------------------------------------------------------------------

@@ -58,10 +58,10 @@ _PROP_READ = re.compile(r"(?:\$it|\$actor|\))\.([A-Za-z_]\w*)")
 _ASSIGNED = re.compile(r"[.$]([A-Za-z_]\w*)\s*(?:\[[^\]]*\]\s*)*(?:[-+*/]=|(?<![<>!=])=(?!=))")
 #: Roots whose value moves on its own: a condition reading one can hold later even if nothing else changes.
 _MOVING = re.compile(
-    r"\$(round|clock|time|stage|metrics|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
+    r"\$(round|clock|time|stage|outputs|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
 _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 #: Sections whose effects and settings can write properties, post to records or name a winner.
-_RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics", "policies")
+_RULE_SECTIONS = ("actions", "stages", "events", "defs", "end")
 
 
 def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]] = ()) -> list[dict[str, str]]:
@@ -282,6 +282,12 @@ def _actions(env: Env) -> list[dict[str, str]]:
     return out
 
 
+def _policy_at(env: Env, path: str) -> Any:
+    """The policy a rule path (``types.<type>.policies.<name>.rules[i]``) is in."""
+    _, owner, _, name = path.split(".")[:4]
+    return env.contract.types[owner].policies[name]
+
+
 def _policy_rules(env: Env) -> list[dict[str, str]]:
     out = []
     for path, (acted, refused, refusal) in sorted(env.diagnosis.policy_rules.items()):
@@ -290,7 +296,7 @@ def _policy_rules(env: Env) -> list[dict[str, str]]:
                                 f"was tried {refused} time(s) and refused every time: {refusal}",
                                 "fix its `with` so the arguments are valid, or its `when` so it is tried only when "
                                 "they are"))
-        elif refused and env.contract.policies[path.split(".")[1]].repeat:
+        elif refused and _policy_at(env, path).repeat:
             out.append(_finding("policy_repeat_refused", path,
                                 f"acted {acted} time(s) and was refused {refused} time(s), most recently: {refusal}; "
                                 "the `repeat` policy then moved to its next rule, and its turn ended when no rule "
@@ -361,14 +367,14 @@ def _stuck_measures(env: Env, outputs: dict[str, Any], rules: _Rules, failed: se
                 out.append(_finding("output_empty", f"outputs.{name}",
                                     f"is empty (null) at the end of the run: {cause}",
                                     "set what it reads in an action or event, or read what the rules do change"))
-    for name, metric in env.contract.metrics.items():
+    for name, spec in env.contract.series_outputs().items():
         series = env.world.series.get(name, [])
         if len(series) < MIN_ROUNDS or _changes(series):
             continue
-        cause = rules.cause(metric.expr)
+        cause = rules.cause(spec.sampled or "")
         if cause:
             shown = "null" if series[0] is None else json.dumps(series[0], default=str)
-            out.append(_finding("metric_never_changes", f"metrics.{name}",
+            out.append(_finding("metric_never_changes", f"outputs.{name}",
                                 f"stayed {shown} for all {len(series)} rounds: {cause}",
                                 "set what it reads in an action or event, or read what the rules do change"))
     return out
@@ -436,7 +442,7 @@ class _Rules:
             for section in _RULE_SECTIONS:
                 _walk(data.get(section), names, winner)
             for spec in data.get("types", {}).values():
-                _walk({key: spec.get(key) for key in ("on_create", "on_remove")}, names, winner)
+                _walk(spec.get("policies"), names, winner)
             names |= _mechanism_owned(contract)
             self._scanned = (names, winner[0])
         return self._scanned

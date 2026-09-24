@@ -14,7 +14,6 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..registry import MechanismError
-from ._common import ToolsSetting, tools_field
 from .board_geometry import Geometry, GeometryError, graph, grid, hex_board, ring
 
 __all__ = ["BoardConfig", "Rules", "Pattern", "Promotion", "Castle", "CaptureRule", "compile_rules"]
@@ -198,7 +197,6 @@ class BoardConfig(_Strict):
                                                                  "surrounded empty cells).")
     komi: dict[str, float] = Field(default_factory=dict, description="Points added to a side's score: {white: 6.5}.")
     stage: str | None = Field(None, description="Play during this declared stage instead of a generated one.")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------

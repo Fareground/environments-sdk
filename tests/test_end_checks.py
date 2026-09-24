@@ -51,17 +51,6 @@ def test_an_action_end_stops_committing_sealed_choices_in_turn_order():
     assert result.status == "ended" and result.winner == "ann" and result.outputs["guesses"] == 1
 
 
-def test_an_action_end_stops_a_continuous_clock_at_that_moment():
-    contract = _contract(clock={"mode": "continuous", "horizon": 30},
-                         stages=[{"name": "guess", "turns": "scheduled", "interval": 10}],
-                         world={"secret": 7, "found_by": "", "tries": 0})
-    contract["actions"]["guess"]["do"] = ["$actor.guesses += 1", "$world.tries += 1",
-                                          {"if": "$world.tries == 4", "then": ["$world.found_by = $actor.id"]}]
-    result = fg_env.run(contract, _guesser({"ann": 1, "bob": 1, "cy": 1}), seed=1)
-    assert result.status == "ended" and result.winner == "ann" and result.time == 10
-    assert result.outputs["guesses"] == 4
-
-
 def test_an_action_end_fires_after_an_effect_block_outside_any_turn():
     events = [{"phase": "end", "do": ["$world.found_by = 'cy'"]}, {"phase": "end", "do": ["$world.found_by = ''"]}]
     result = fg_env.run(_contract(events=events), _guesser({"ann": 1, "bob": 1, "cy": 1}), seed=1)

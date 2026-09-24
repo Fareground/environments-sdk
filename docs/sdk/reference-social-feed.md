@@ -27,7 +27,6 @@ Config:
 - `notify` (default ["follow", "reply", "repost", "friend", "label"]): What an account is told about: follow, reply, repost, reaction, friend, label.
 - `turns` (default "simultaneous"): Turns of the generated stage.
 - `stage` (default null): Offer the tools during this declared stage instead of a generated one.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **FeedWeights** — How much each signal counts when ranking a feed.

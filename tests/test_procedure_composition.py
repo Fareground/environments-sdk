@@ -14,7 +14,7 @@ def contract(order=("north", "south")):
         "world": {"north_checks": 0, "south_checks": 0},
         "actions": {f"check_{name}": {"by": "manager", "do": [f"$world.{name}_checks += 1"]}
                     for name in order},
-        "mechanisms": {name: {"kind": "flow", "mode": "procedure", "phases": {
+        "mechanisms": {name: {"kind": "decision", "mode": "procedure", "phases": {
             "review": {"stages": [{"actions": [f"check_{name}"]}],
                        "next": [{"to": "done", "after": 1 if name == "north" else 2}]},
             "done": {},

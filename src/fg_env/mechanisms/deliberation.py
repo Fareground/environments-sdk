@@ -37,7 +37,7 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
+from ._common import stage_event
 from ._social import check_expr, entity, named_use, props, require_type
 from .voting import tally
 
@@ -88,7 +88,6 @@ class DeliberationConfig(BaseModel):
                                                                       "run once a main motion is decided | adoption: "
                                                                       "once one passes.")
     when: str | None = Field(None, description="Hold the discussion only when true (e.g. \"$round <= 5\").")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +141,7 @@ def _use(call: Call, index: int) -> Any:
 
 @function("pending_motion(mechanism?)", "The question before the body (the top motion or amendment) as "
           "{id, kind, text, mover, seconder, status, speeches, target}, or null (deliberation mechanism).", min_args=0,
-          max_args=1)
+          max_args=1, family="decision")
 def _pending_fn(call: Call) -> dict[str, Any] | None:
     world, name, _ = _use(call, 0)
     stack = (world.props.get(name) or _fresh())["stack"]
@@ -150,21 +149,21 @@ def _pending_fn(call: Call) -> dict[str, Any] | None:
 
 
 @function("discussion_over(mechanism?)", "True when the discussion should stop this round: a vote is due, or every "
-          "member (the last speaker aside) is ready.", min_args=0, max_args=1)
+          "member (the last speaker aside) is ready.", min_args=0, max_args=1, family="decision")
 def _over_fn(call: Call) -> bool:
     world, name, config = _use(call, 0)
     return bool((world.props.get(name) or _fresh())["phase"] == "voting" or _all_ready(world, name, config))
 
 
 @function("decisions(mechanism?)", "Decided main motions, oldest first: [{id, text, passed, counts, round}].",
-          min_args=0, max_args=1)
+          min_args=0, max_args=1, family="decision")
 def _decisions_fn(call: Call) -> list[dict[str, Any]]:
     world, name, _ = _use(call, 0)
     return [dict(d) for d in (world.props.get(name) or _fresh())["decisions"]]
 
 
 @function("house(viewer, mechanism?)", "The state of the deliberation as the viewer should read it: question, floor, "
-          "hands, readiness.", min_args=1, max_args=2)
+          "hands, readiness.", min_args=1, max_args=2, family="decision")
 def _house_fn(call: Call) -> str:
     world, name, config = _use(call, 1)
     viewer = world.entity(call.arg(0).id if isinstance(call.arg(0), Entity) else call.arg(0))
@@ -250,7 +249,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
         else:
             actor = vars.get("actor")
             if not isinstance(actor, Entity):
-                raise RunError(f"`{action}` runs inside an action or on_idle ($actor)", where)
+                raise RunError(f"`{action}` runs inside an action or after a turn ($actor)", where)
             value: dict[str, Any] = {key: runner.eval(effect[key], vars) for key in ("text", "who", "choice")
                                      if key in effect}
             _member_act(world, name, config, state, actor, action, value, where)
@@ -620,12 +619,13 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         "name": name, "turns": "sequential", "actions": talk_names, "quiet": "skip", "passes": config.passes,
         "until": f"$discussion_over('{name}')", "max_actions": 2,
         "brief": "Discuss. Anything said clears everyone's readiness; end your turn (or say you are ready) when you "
-                 "have nothing to add.",
-        "on_enter": [{"decision": name, "action": "open"}], "on_exit": [{"decision": name, "action": "close"}]}
+                 "have nothing to add."}
+    events = [stage_event(name, "start", [{"decision": name, "action": "open"}]),
+              stage_event(name, "end", [{"decision": name, "action": "close"}])]
     if chair:
         discussion["order"] = f"0 if $is($it, {chair}) else 1"
     if config.ready_when_silent:
-        discussion["on_idle"] = [{"decision": name, "action": "idle"}]
+        events.append(stage_event(name, "turn", [{"decision": name, "action": "idle"}], when="not $acted"))
     if config.when:
         discussion["when"] = config.when
     viewers = [members] + ([chair] if chair else [])
@@ -640,7 +640,7 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         "stages": [discussion,
                    {"name": f"{name}_vote", "turns": "simultaneous", "actions": vote_names,
                     "when": f"$world.{name}.phase == 'voting'",
-                    "brief": "Vote yes, no or abstain on the question before the body.",
-                    "on_exit": [{"decision": name, "action": "tally"}]}],
+                    "brief": "Vote yes, no or abstain on the question before the body."}],
+        "events": [*events, stage_event(f"{name}_vote", "end", [{"decision": name, "action": "tally"}])],
         "views": {f"{name}_house": {"for": viewers, "title": "The floor", "show": f"{{$house($actor, '{name}')}}"}},
     }

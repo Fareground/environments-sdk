@@ -10,6 +10,7 @@ from ..actions.book import ACTION_BUDGET, stage_actions
 from ..contract import StageSpec
 from ..errors import ContractError, Issue
 from ..expr import shared_budget
+from ..participants.builtin import policy_names
 from ..runtime.perception import is_spectator
 from ..runtime.turn import Turn
 from ..runtime.turn_tools import HostWake
@@ -51,8 +52,6 @@ class Previews:
         if self.frames and self.frames[-1]["round"] == world.round:
             self.frames.pop()  # the run ended at the start of a round: the frame it closed on is final
         frame: dict[str, Any] = {"round": world.round, "views": self.spectate()}
-        if world.continuous:
-            frame["time"] = world.time
         if final:
             frame["final"] = True
         self.frames.append(frame)
@@ -73,9 +72,7 @@ class Previews:
         probe = self.probe(snapshot, participants)
         for point in probe._round():
             if point.stage is not None and entity_id in point.reasons and stage in (None, point.stage.name):
-                reason = point.reasons[entity_id]
-                if not probe.previews.plays_itself(entity_id, point.stage, reason):
-                    return probe.previews.turn(entity_id, point.stage, reason)
+                return probe.previews.turn(entity_id, point.stage, point.reasons[entity_id])
         start = self.probe(snapshot, participants)  # not woken this round: show the round as it opens
         start._begin_round()
         return start.previews.now(entity_id, stage)
@@ -85,7 +82,7 @@ class Previews:
         ``participants`` — by default the run's built-in and named ones."""
         env = self.env
         probe = restore_env(type(env), env.contract, snapshot, parallel=1)
-        policies = env.contract.policies
+        policies = policy_names(env.contract)
         if participants is None:  # the run's own: only those that play for free
             probe.driver.spec = {k: v for k, v in env.driver.spec.items() if _plays_free(v, policies)}
         else:  # the caller's: its own callables play, but a named LLM or search algorithm never does
@@ -113,18 +110,7 @@ class Previews:
             reason = f"(Preview only: stage {spec.name} does not run now.)"
         elif actor not in env._eligible(spec, ordered=False):
             reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
-        elif self.plays_itself(entity_id, spec, reason):
-            reason = (f"(Preview only: {actor.name} would not be woken in {spec.name} now: the stage is `auto` and "
-                      "the turn has no real choice, so it plays itself.)")
         return self.turn(entity_id, spec, reason)
-
-    def plays_itself(self, entity_id: str, spec: StageSpec, reason: str) -> bool:
-        """Whether the run would play this turn without waking the agent (an `auto` stage with no real choice)."""
-        if not spec.auto:
-            return False
-        env = self.env
-        turn = Turn(env, env.world.entities[entity_id], spec, reason, spec.turns == "simultaneous", peek=True)
-        return env.driver.trivial(turn)
 
     def turn(self, entity_id: str, spec: StageSpec, reason: str) -> dict[str, Any]:
         env = self.env
@@ -141,7 +127,7 @@ class Previews:
                            "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
 
 
-def _plays_free(participant: Any, policies: Mapping[str, Any]) -> bool:
+def _plays_free(participant: Any, policies: list[str]) -> bool:
     """Whether a participant plays the earlier turns of a preview: only the built-in ones that cost nothing and answer
     at once (random, idle, a contract policy). An LLM, a search algorithm or your own callable is replaced by the
     agent's default (its type's policy, else random): a preview never makes a paid or slow call."""

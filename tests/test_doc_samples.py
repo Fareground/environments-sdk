@@ -99,6 +99,6 @@ def test_every_sample_on_the_page_runs(page, tmp_path, monkeypatch, capsys):
 
 def test_a_model_docstring_reads_unindented_in_the_guide_on_every_python():
     # Python 3.13 strips docstring indentation itself; 3.11 and 3.12 keep it, which Markdown shows as code.
-    from fg_env.contract import AssetSpec
+    from fg_env.contract import InputSpec
 
-    assert inspect.cleandoc(AssetSpec.__doc__) in fg_env.guide("assets")
+    assert inspect.cleandoc(InputSpec.__doc__) in fg_env.guide("inputs")

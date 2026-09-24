@@ -15,6 +15,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..patterns.base import declared
 from ..registry import MechanismError, mode
 from .econ_base import (
     DEMAND,
@@ -209,7 +210,7 @@ def _check_lead_time(config: ReplenishmentConfig, contract: Mapping[str, Any]) -
     if not isinstance(lead, LeadTimeRef):
         compiles(lead, "lead_time")
         return
-    spec = (contract.get("patterns") or {}).get(lead.pattern)
+    spec = declared(contract).get(lead.pattern)
     if not isinstance(spec, Mapping):
         raise MechanismError(f"'{lead.pattern}' is not a declared pattern", "declare a noise pattern for the lead time",
                              "lead_time.pattern")

@@ -168,9 +168,8 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
             reached.append(result.rounds)
             total = env.world.rounds
     if reached:
-        of = f" of {total:,}" if contract.clock.mode == "rounds" else ""
-        return "", (f"tested at least {min(reached):,}{of} rounds in every test run within the {seconds:g}s test "
-                    "budget; longer runs untested"), len(seeds)
+        return "", (f"tested at least {min(reached):,} of {total:,} rounds in every test run within the {seconds:g}s "
+                    "test budget; longer runs untested"), len(seeds)
     if game_metadata(contract)["chance_mode"] == "deterministic":
         return "", "", len(seeds)  # nothing it does is luck: more seeds would only vary what random agents choose
     return _more_seeds(source, hosts, deadline, seeds, most, seen)
@@ -255,7 +254,7 @@ def _reads(turn: Turn) -> list[tuple[str, str, dict[str, Any]]]:
     """``(kind, what, args)`` of a ``look`` at every view ``turn`` offers, and an ``inspect`` of one entity of every
     type it may inspect (a different one each round)."""
     env, actor = turn.env, turn.actor
-    reads = [("look", view, {"view": view}) for view in env.perception.look_views(actor, turn.stage)]
+    reads = [("look", view, {"view": view}) for view in env.perception.look_views(actor)]
     if inspect_tool(env, actor, turn.max_calls) is not None:
         members: dict[str, list[str]] = {}
         for entity in inspectable(env, actor):

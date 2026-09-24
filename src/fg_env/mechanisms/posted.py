@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, fmt, tools_field
+from ._common import entity_of, fmt
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -82,7 +82,6 @@ class PostedMarketConfig(BaseModel):
                                           "the market.")
     max_actions: int = Field(3, ge=1, description="Actions per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare the invariant that no listing's stock goes negative.")
-    tools: ToolsSetting = tools_field()
 
 
 def posted_config(world: Any, name: Any) -> PostedMarketConfig:
@@ -309,19 +308,21 @@ def _listing_arg(call: Call, index: int, name: str) -> Entity:
 
 @function("shelf(name, item?)",
           "Listings in stock on a posted-price market, ranked (sponsored, rating, price by default).",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="market")
 def _shelf_function(call: Call) -> list[Entity]:
     return shelf(call.scope.world, _market(call), call.arg(1))
 
 
-@function("posted_price(name, listing)", "A listing's asking price now, promotions applied.", min_args=2, max_args=2)
+@function("posted_price(name, listing)", "A listing's asking price now, promotions applied.", min_args=2, max_args=2,
+          family="market")
 def _price_function(call: Call) -> float:
     name = _market(call)
     return price_now(call.scope.world, _listing_arg(call, 1, name))
 
 
 @function("posted_line(name, listing, viewer?)",
-          "A listing as one shelf line: price, rating, stock, capacity, offers, counters.", min_args=2, max_args=3)
+          "A listing as one shelf line: price, rating, stock, capacity, offers, counters.", min_args=2, max_args=3,
+          family="market")
 def _line_function(call: Call) -> str:
     name = _market(call)
     viewer = call.scope.world.entity(call.arg(2)) if len(call) > 2 else None
@@ -329,7 +330,7 @@ def _line_function(call: Call) -> str:
 
 
 @function("posted_counters(name, buyer)", "Ids of listings where the buyer holds an open counter-offer.", min_args=2,
-          max_args=2)
+          max_args=2, family="market")
 def _counters_function(call: Call) -> list[str]:
     name = _market(call)
     world: Any = call.scope.world
@@ -343,7 +344,7 @@ def _counters_function(call: Call) -> list[str]:
 
 
 @function("posted_ok(name)", "True while no listing of a posted-price market has negative stock.", min_args=1,
-          max_args=1)
+          max_args=1, family="market")
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _market(call))
 

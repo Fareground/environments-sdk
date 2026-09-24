@@ -261,5 +261,5 @@ def test_a_world_rule_that_crashes_on_a_boundary_value_is_reported():
                                         "do": ["$actor.rate = $params.r"]}},
                 "events": [{"phase": "end", "each": "p", "do": ["$it.cash -= 1", "$it.cash += 10 / $it.rate"]}],
                 "outputs": {"cash": "$entity(a).cash"}}
-    found = [i for i in _errors(contract) if i.path == "events[0].do[1]"]
+    found = [i for i in _errors(contract) if i.path == "events[0].do[0].do[1]"]
     assert len(found) == 1 and "division by zero" in found[0].message

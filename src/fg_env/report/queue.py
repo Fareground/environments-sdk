@@ -76,9 +76,7 @@ class QueueView:
         return min(found) if found else None
 
     def when(self, first: int, last: int) -> str:
-        if self.clock.get("mode", "rounds") == "rounds":
-            return span_label(self.clock, first + 1, last + 1, rounds=self.rounds)
-        return f"interval {first + 1}" if first == last else f"intervals {first + 1}–{last + 1}"
+        return span_label(self.clock, first + 1, last + 1, rounds=self.rounds)
 
     def staff(self, option: Option) -> list[int]:
         key = f"{self.name}_staff_by_interval"
@@ -100,7 +98,7 @@ class QueueView:
 
         rounds = resolved(clock.rounds)
         return cls(name, dict(contract.mechanisms.get(name) or {}),
-                   {"mode": clock.mode, "unit": clock.unit, "step": clock.step, "start": resolved(clock.start)},
+                   {"unit": clock.unit, "step": clock.step, "start": resolved(clock.start)},
                    rounds if isinstance(rounds, int) else 0, values)
 
     def staffing_input(self) -> str | None:
@@ -173,7 +171,7 @@ class QueueView:
     def peak_driver(self, option: Option, contract: Any) -> str | None:
         """What makes the busiest interval busy: every factor of the product patterns its arrivals read."""
         index = self.busiest(option)
-        if contract is None or index is None or self.clock.get("mode", "rounds") != "rounds":
+        if contract is None or index is None:
             return None
         channels = self.config.get("channels") or {}
         names = [n for c in channels.values() if isinstance(c, Mapping)
@@ -198,7 +196,7 @@ class QueueView:
         """What each factor of the product patterns its arrivals read adds over the whole run: the day of the week, and
         time of day at its busiest and quietest (see :mod:`.pattern_effects`)."""
         run = option.runs[0] if option.runs else None
-        if contract is None or run is None or self.clock.get("mode", "rounds") != "rounds":
+        if contract is None or run is None:
             return None
         from .pattern_effects import Effects, clauses, factor_of
 

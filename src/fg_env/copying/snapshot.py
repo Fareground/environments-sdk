@@ -33,7 +33,7 @@ if TYPE_CHECKING:
 __all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot",
            "restore_env", "restore_state", "matching_contract", "check_snapshot", "recording_start"]
 
-SNAPSHOT_VERSION = 3
+SNAPSHOT_VERSION = 4
 
 _E = TypeVar("_E", bound="Env")
 
@@ -129,12 +129,11 @@ def take_snapshot(env: Env) -> dict[str, Any]:
         "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
         "schedule_seq": w._schedule_seq,
         "wake_requests": encode(w.wake_requests),
-        "time": w.time, "horizon": w.horizon, "wake_at": dict(w.wake_at),
         "counters": dict(w.counters), "firings": dict(w.firings), "end_request": encode(w.end_request),
         "fired_once": sorted(env._fired_once),
         "turn_count": env._turn_count,
-        "triggers": {"armed": {str(k): v for k, v in env._trigger_armed.items()}, "fired": sorted(env._triggers_fired)},
-        "memory": {k: {"cursor": m.cursor, "views": encode(m.views), "turns": m.turns}
+        "armed": {str(k): v for k, v in env._armed.items()},
+        "memory": {k: {"cursor": m.cursor, "turns": m.turns}
                    for k, m in env._memories.items()},
         "rng": [state[0], list(state[1]), state[2]],
         "stats": env.stats.to_dict(),
@@ -370,8 +369,7 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     for raw in snapshot["log"]:
         e = decode(raw)
         w.log.append(LogEvent(e["seq"], e["round"], e["kind"], e.get("text", ""), e.get("actor"),
-                              tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage"),
-                              e.get("time")))
+                              tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage")))
     w.rebuild_event_index()
     w._seq = snapshot["seq"]
     if snapshot.get("physics") and w.physics is not None:
@@ -385,8 +383,6 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w._schedule_seq = snapshot["schedule_seq"]
     w.wake_requests = decode(snapshot["wake_requests"])
     w.reactions = []  # snapshots are taken between rounds, when no reaction is pending
-    w.time, w.horizon = float(snapshot["time"]), snapshot.get("horizon")
-    w.wake_at = {str(k): float(v) for k, v in snapshot["wake_at"].items()}
     w.counters = dict(snapshot["counters"])
     w.firings = {str(k): int(v) for k, v in snapshot["firings"].items()}
     w.end_request = decode(snapshot.get("end_request"))
@@ -396,11 +392,10 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     w.rng.setstate((state[0], tuple(state[1]), state[2]))
     env._fired_once = set(snapshot["fired_once"])
     env._turn_count = int(snapshot["turn_count"])
-    env._trigger_armed = {int(k): bool(v) for k, v in snapshot["triggers"]["armed"].items()}
-    env._triggers_fired = set(snapshot["triggers"]["fired"])
+    env._armed = {int(k): bool(v) for k, v in snapshot["armed"].items()}
     for key, m in snapshot["memory"].items():
         memory = env._memory(key)
-        memory.cursor, memory.views, memory.turns = m["cursor"], decode(m["views"]), m["turns"]
+        memory.cursor, memory.turns = m["cursor"], m["turns"]
     status = snapshot["status"]
     env.status = status if status != "stopped" else ("running" if w.round else "ready")
     env.ended_by, env.error = snapshot.get("ended_by"), snapshot.get("error")

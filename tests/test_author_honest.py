@@ -101,14 +101,14 @@ def test_random_agents_play_more_seeds_of_a_contract_that_draws_on_chance_while_
     # Its end-of-round event fails on seeds 8 and 12 only: the first three seeds, and check's plays, all pass.
     rare = game("Rare", world={"table": {"type": "map", "default": {"a": 1}}, "x": 0},
                 events=[{"phase": "end",
-                         "do": [{"if": "$random() * 20 < 1", "then": ["$world.x = $world.table['b']"]}]}])
+                         "do": [{"if": "$uniform(0, 1) * 20 < 1", "then": ["$world.x = $world.table['b']"]}]}])
 
     result, _ = authored(rare)
 
     assert not result.ok and result.problem.startswith("a run with random agents (seed 8) failed in round")
     _, replies = authored(WORKING)  # it draws nothing at random: more seeds would only vary the random agents
     assert "runs to the end on 3 seeds with random agents, 3 with idle ones" in replies[0]
-    _, replies = authored(game("Dice", events=[{"phase": "end", "do": ["$world.x = $random()"]}]))
+    _, replies = authored(game("Dice", events=[{"phase": "end", "do": ["$world.x = $uniform(0, 1)"]}]))
     assert "runs to the end on 20 seeds with random agents, 3 with idle ones" in replies[0]
 
 

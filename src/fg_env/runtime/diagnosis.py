@@ -77,8 +77,6 @@ class Diagnosis:
         env = turn.env
         if (result.data or {}).get("error") in _NOT_ABOUT_RULES:
             return
-        if name not in env.contract.actions and name in env.actions.groups:
-            name = env.actions.route(name, args, ())[0]
         if name not in env.contract.actions:
             return
         entry = self._action(name)

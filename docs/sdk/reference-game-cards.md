@@ -22,7 +22,6 @@ Config:
 - `draw` (default null): Generate `<name>_draw`.
 - `give` (default null): Generate `<name>_give` (give a card to another player, privately).
 - `views` (default true): Generate the hand and table views.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **CardEntry** — One card, or a family of cards (every suit × every rank), with copies.

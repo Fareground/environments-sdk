@@ -7,8 +7,7 @@ assumes of a game.
 * clone — a clone has the same state key and continues identically (state, every seat's observation text and
   information state, returns).
 * serialize — a serialized and deserialized state has the same key and history and continues identically.
-* returns — a finished playout's returns fit the declared utility class and ``min_return``/``max_return``;
-  declared per-step rewards add up to the returns.
+* returns — a finished playout's returns fit the declared utility class and each score's ``min``/``max``.
 * replay — the same steps on the game built again from its contract and seed reach the same state.
 * resume — the contract played by ``random`` participants ends exactly the same whether it runs straight, is
   stopped part-way and cloned, or is snapshotted between rounds (JSON) and restored.
@@ -29,7 +28,7 @@ from ..effects.chance import PROBABILITY_TOLERANCE
 from ..errors import ContractError, RunError, SnapshotError
 from ..expr import ExprError
 from ..runtime.env import Env
-from ..runtime.returns import UTILITY_TOLERANCE, utility_issues
+from ..runtime.returns import utility_issues
 from .game import Game, game
 from .leaks import leak_issues
 from .state import GameState
@@ -137,9 +136,7 @@ class _Checker:
         self.leak_branches = leak_branches
         self.max_steps = max_steps
         self.resume = resume
-        spec = subject.contract.game
-        self.has_returns = spec is not None and spec.returns is not None
-        self.declared_rewards = self.has_returns and spec is not None and spec.rewards is not None
+        self.has_returns = subject.contract.scoring() is not None
 
     def run(self, sims: int) -> None:
         for sim in range(sims):
@@ -177,7 +174,6 @@ class _Checker:
 
     def _playout(self, rng: random.Random) -> list[Step] | None:
         steps: list[Step] = []
-        earned = [0.0] * self.game.num_players()
         try:
             state = self.game.new_initial_state()
         except _FAILURES as exc:
@@ -196,9 +192,7 @@ class _Checker:
                     return None
                 if not self._advance(state, step, steps):
                     return None
-                if self.declared_rewards:
-                    earned = [total + reward for total, reward in zip(earned, state.rewards())]
-            self._finished(state, steps, earned)
+            self._finished(state, steps)
             return steps
         except _FAILURES as exc:
             self.issue("legal", f"the playout failed: {exc}", steps)
@@ -293,15 +287,13 @@ class _Checker:
                 "information state": [state.information_state(s) for s in seats],
                 "returns": state.returns() if self.has_returns else None}
 
-    def _finished(self, state: GameState, steps: list[Step], earned: list[float]) -> None:
+    def _finished(self, state: GameState, steps: list[Step]) -> None:
         if self.has_returns:
             self.report.checks["returns"] += 1
             returns = state.returns()
-            for broken in utility_issues(self.game.contract, dict(zip(self.game.players, returns))):
+            for broken in utility_issues(self.game.contract, dict(zip(self.game.players, returns)),
+                                         self.game._root.world):
                 self.issue("returns", f"{broken.path} {broken.message}", steps)
-            slack = UTILITY_TOLERANCE * max(1.0, sum(abs(value) for value in returns))
-            if self.declared_rewards and any(abs(a - b) > slack for a, b in zip(earned, returns)):
-                self.issue("returns", f"the rewards add up to {earned}, but the returns are {returns}", steps)
         self.report.checks["replay"] += 1
         expected = self._signature(state)
         try:

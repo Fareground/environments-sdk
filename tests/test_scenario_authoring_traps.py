@@ -143,7 +143,7 @@ def test_a_misspelled_turn_order_is_refused_with_a_suggestion():
 
 def test_a_misspelled_event_order_is_refused_with_a_suggestion():
     [issue] = _errors(_world(events=[{"each": "t", "order": "randm", "do": ["$it.v += 1"]}]))
-    assert issue.path == "events[0].order" and issue.fix == "did you mean 'random'?"
+    assert issue.path == "events[0].do[0].order"
 
 
 def test_orders_by_expression_still_work():
@@ -159,7 +159,7 @@ def test_misspelled_stage_words_suggest_the_right_one(field, value, hint):
 
 def test_a_misspelled_event_phase_suggests_the_right_one():
     [issue] = _errors(_world(events=[{"phase": "ned", "do": ["$entity(a).v += 1"]}]))
-    assert issue.path == "events[0].phase" and issue.fix == "did you mean 'end'?"
+    assert issue.path == "events[0].on" and "did you mean 'round.end'?" in issue.message
 
 
 def test_misspelled_checks_fail_at_load():

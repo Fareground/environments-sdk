@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
+from ._common import stage_event
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 from .econ_base import lineage
@@ -73,7 +73,6 @@ class PotConfig(BaseModel):
     max_calls: int = Field(6, ge=1, description="Tool calls per betting turn.")
     conserve: bool = Field(True, description="Add the invariant that chips are never created or destroyed.")
     views: bool = Field(True, description="Generate the table view.")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------
@@ -468,7 +467,8 @@ def _function_table(call: Call) -> tuple[str, PotConfig]:
 
 @function("pot_options(pot, player)",
           "What a player may do in a betting round: {your_turn, to_call, call_amount, can_check, can_call, can_bet, "
-          "min_bet, can_raise, min_raise_to, max_to, can_all_in, current_bet, pot}.", min_args=2, max_args=2)
+          "min_bet, can_raise, min_raise_to, max_to, can_all_in, current_bet, pot}.", min_args=2, max_args=2,
+          family="game")
 def _pot_options_function(call: Call) -> dict[str, Any]:
     name, config = _function_table(call)
     player = call.scope.world.entity(call.arg(1))
@@ -477,20 +477,22 @@ def _pot_options_function(call: Call) -> dict[str, Any]:
     return options(call.scope.world, config, name, player)
 
 
-@function("pot_live(pot)", "Players still in the hand (not folded), in seat order.", min_args=1, max_args=1)
+@function("pot_live(pot)", "Players still in the hand (not folded), in seat order.", min_args=1, max_args=1,
+          family="game")
 def _pot_live_function(call: Call) -> list[Entity]:
     name, config = _function_table(call)
     return [p for p in _seats(call.scope.world, config, name) if _live(p)]
 
 
-@function("pot_total(pot)", "Chips in the pot this hand (every player's committed chips).", min_args=1, max_args=1)
+@function("pot_total(pot)", "Chips in the pot this hand (every player's committed chips).", min_args=1, max_args=1,
+          family="game")
 def _pot_total_function(call: Call) -> int:
     _, config = _function_table(call)
     return sum(_p(p, "committed") for p in call.scope.world.entities_of(config.who))
 
 
 @function("pot_table(pot, viewer)", "Lines describing the table (pot, bets, stacks, who is to act) for the table view.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="game")
 def _pot_table_function(call: Call) -> list[str]:
     name, config = _function_table(call)
     world: Any = call.scope.world
@@ -609,14 +611,16 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
         raise MechanismError("at least one street (betting round) is needed", '{"betting": []}', "streets")
     live = f"$len($pot_live('{name}')) > 1"
     players = config.who
-    stages = []
+    stages, betting = [], []
     for index, (street, effects) in enumerate(config.streets.items()):
         opening = [] if index == 0 and config.blinds else [{"game": name, "action": "open_betting"}]
+        if effects or opening:
+            betting.append(stage_event(street, "start", list(effects) + opening))
+        betting.append(stage_event(street, "turn", [{"game": name, "action": "timeout"}], when="not $acted"))
         stages.append({
             "name": street, "when": live, "turns": "sequential", "actions": [f"{name}_{move}" for move in ACTIONS],
             "who": f"$it.id == $world.{name}_to_act", "until": f"$world.{name}_to_act == ''", "passes": 1000,
             "max_actions": 1, "max_calls": config.max_calls, "must_act": True,
-            "on_idle": [{"game": name, "action": "timeout"}], "on_enter": list(effects) + opening,
             "brief": f"{street.replace('_', ' ').capitalize()} betting. The pot is {{$pot_total('{name}')}}; "
                      f"you need {{$pot_options('{name}', $actor).call_amount}} more chips to call.",
         })
@@ -652,7 +656,7 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
         "stages": stages,
         "events": [{"name": f"{name}_hand", "phase": "start", "do": start},
                    {"name": f"{name}_showdown", "phase": "end",
-                    "do": showdown_effects + [{"game": name, "action": "showdown"}]}],
+                    "do": showdown_effects + [{"game": name, "action": "showdown"}]}, *betting],
     }
     if config.conserve:
         world_props[f"{name}_chips"] = {"type": "int", "default": f"$sum({players}, $it.stack)",

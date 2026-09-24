@@ -1,7 +1,7 @@
 # decision / ballot
 
 ### `decision.ballot`
-A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit effects, so read the result in a later stage, event or on_enter, not in the vote stage's on_exit. The result is in $world.<name>_result ({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty map until the first count) and is announced, options that are entity ids named: `decided` is true when there is a winner, `passed` when the first option won, so list a motion's yes first. Turnout counts the voters still in the game. `weight` gives shareholder-style votes, `threshold_of: members` measures the threshold over every member (cloture), `veto` lets some voters defeat a motion alone (a security council).
+A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or supermajority with an optional quorum when the vote's stage ends — after the contract's own events on its end, so read the result in a later stage or event, not in an event on the vote stage's end. The result is in $world.<name>_result ({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty map until the first count) and is announced, options that are entity ids named: `decided` is true when there is a winner, `passed` when the first option won, so list a motion's yes first. Turnout counts the voters still in the game. `weight` gives shareholder-style votes, `threshold_of: members` measures the threshold over every member (cloture), `veto` lets some voters defeat a motion alone (a security council).
 
 Config:
 - `who` (required): Agent type that votes (subtypes included).
@@ -19,7 +19,6 @@ Config:
 - `when` (default null): Hold the vote only when true (e.g. "$round == 3").
 - `question` (default ""): What is being decided, shown with the ballot.
 - `announce` (default ""): Result text (template over $result); default names the winner or says it failed.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `decision` op:
 - `tally`: {"decision": "election", "action": "tally"}  (count the ballot now: sets $world.election_result, announces it, opens a fresh ballot)

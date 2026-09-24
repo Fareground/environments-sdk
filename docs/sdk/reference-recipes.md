@@ -16,15 +16,12 @@
   Read a big table by key, not by scanning it per row: `$lookup($inputs.sales, sku, $row.sku)` (rows, indexed once
   per run; fields and keys may be lists) and `$lookup_one($inputs.models, model, $row.model)`. A queue served once per
   arrival is a world list of ids (`$world.queue += $made.id`), not a `$count(call, …)`; `check` warns about both scans.
-* Continuous time (clinics, queues, trading days, emergencies): `"clock": {"mode": "continuous",
-  "unit": "minute", "horizon": 480}`, a stage with `"turns": "scheduled"`, and `"duration"` on actions.
-  Each agent acts when its time comes (earliest first) and next acts `duration` later (or the stage
-  `interval` if it did nothing timed); `$clock.time` is the time; `after` and `wake` with `in` schedule
-  by time; physics rates are per time unit. The run jumps from one due moment to the next.
-
+* Clinics, queues, trading days: a round is a stretch of time (`"clock": {"unit": "minute", "step": 30}` for
+  half-hours); the `operations.queue` mechanism plays each interval's arrivals natively, and a stage `when`
+  (`"$round % 7 == 1"`) runs a step only on some rounds.
 * Money & trade: number props + `transfer` (atomic, never negative). Invariants like
   `"$all(trader, $it.cash >= 0)"` guard the books.
-* Markets / order books: orders as entities (`create` with side, price, qty, owner); an end-phase
+* Markets / order books: orders as entities (`create` with side, price, qty, owner); a `round.end`
   event matches with `repeat` while best bid ≥ best ask using `$top`/`$sort`; trades update
   holdings and `remove` filled orders.
 * Voting: the `decision` family — `{"kind": "decision", "mode": "ballot", "who": "voter", "options": [...]}` adds
@@ -33,7 +30,7 @@
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
 * Answers before something takes effect (an exhibit offered → objection → ruling → admitted or excluded; a
-  motion and its amendments; a spell and its counter): a procedure `stack` (guide('flow.procedure')). The offer
+  motion and its amendments; a spell and its counter): a procedure `stack` (guide('decision.procedure')). The offer
   only pushes an item; the agents its kind names answer it; items resolve last in, first out, so the ruling
   resolves before the objection and the objection (countering the offer when sustained) before the offer.
   `"stack": {..., "stage": "exam"}` holds the answers in the examination stage itself, so one stage runs many
@@ -48,16 +45,16 @@
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
-  `private: true` actions (no announcement). Agents get `inspect` only for types that set `inspect`.
+  `announce: false` on actions (nobody else learns they happened). Agents get `inspect` only for types that set `inspect`.
   A `private` prop is hidden from every agent but its owner: an agent owns its own; the world's and any other
   entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
   prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
   value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
-  outcome text, briefs, policies, defs they call, metrics worked out from private props) is an error at run time,
+  outcome text, briefs, policies, defs they call, series outputs worked out from private props) is an error at run time,
   however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
   stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
-  several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
+  several agents — an `announce`, an event's `say`, an emit's `say` without a lone `to` — may read no
   private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
   A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
   wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
@@ -67,7 +64,7 @@
   `private`. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
   is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
   shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
-  `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
+  `when`/`do`, events, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
   so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
   explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))`.
 * Spaces (agent-based models): `"space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size",
@@ -82,10 +79,11 @@
   a whole layer with `{"layer": "sugar", "set": "$min($value + 1, 4)"}` (every cell reads the old values),
   `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. A set past the layer's min/max is
   refused like a prop's (saturate with `$min`/`$clamp`); diffuse and decay stay within it. Layers are kept in snapshots.
-* Cellular automata and simultaneous updates: an `each` event with `"sync": true` — every item's rules read the
-  world as it was before the event and all writes land together (Game of Life is one event:
-  `"$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"`). `"order": "random"` (or an
-  expression, lowest first) orders the items of any `each` event.
+* Cellular automata and simultaneous updates: an `each` loop with `"sync": true` — every item's rules read the
+  world as it was before the loop and all writes land together (Game of Life is one event: `{"on": "round.end",
+  "do": [{"each": "cell", "sync": true, "do": ["$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on
+  and $n == 2)"]}]}`). Items in random order: `"each": "$shuffle(ant)"`; by a key, lowest first:
+  `"each": "$sort(order, $it.price)"`.
 * Board and card games: `space.grid` + piece entities with `at`, or cell entities; legal moves
   via entity params with `where`; decks as card entities with an `order` prop and `$shuffle`;
   win checks in `end`.
@@ -101,41 +99,44 @@
   "channel": {"type": "enum", "values": ["work", "family"], "default": "work"}}}}`. Read `$link(a, b, trusts).since`;
   list `$links($actor, trusts)` in views (`"show": "{target.name} via {channel}"`); set fields with `link` +
   `props`, by assignment, or in `links` (`props` over `$from`/`$to`; `rows` columns named like a field fill it).
-* Continuous dynamics: `physics` vars with rates (math over bare names), `read` from the world,
+* Continuous dynamics: the `physics` mechanism (`"mechanisms": {"physics": {"kind": "dynamics", "mode": "ode",
+  ...}}`, guide('dynamics.ode')): vars with rates (math over bare names), `read` from the world,
   `write` back to props; effects adjust `$physics.x` (policy shocks). `noise` adds a random term
   (`"noise": "sigma*price"`, Itô noise drawn from stable entity/variable seed paths).
   Drift refines automatically with `rtol`/`atol`; general noise refines the same Brownian path with `noise_rtol`.
   Supported independent affine processes use exact transitions. Convergence failure stops the run.
-* Per-entity dynamics (viral load, firm capital, habit strength): `"physics": {"per": {"person": {"vars":
+* Per-entity dynamics (viral load, firm capital, habit strength): the physics mechanism's `"per": {"person": {"vars":
   {"viral_load": {"rate": "growth*viral_load - immunity*viral_load", "noise": "0.2*viral_load"}},
-  "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}}`.
+  "read": {"exposure": "$count($neighbors($it, contact), $it.sick)"}, "write": {"sick": "viral_load > 5"}}}`.
   Every person integrates its own number props; rates read its number props, the type's `params` and
   `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
   Entities couple through `read`; intermediate states are shared rather than held fixed for the round.
-* Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds (or clock units)
-  later with its content as it was when sent; `"drop": 0.1` loses it (also on `wake`), rolled from the
+* Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds
+  later with its content as it was when sent; `"drop": 0.1` loses it, rolled from the
   run's seed when sent. A refused action sends nothing. Entries carry the round they arrive.
-* External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
-  "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
+* External data (prices, news, weather): a `host.feed` mechanism, `"oil": {"kind": "host", "mode": "feed", "host":
+  "market", "into": "world.oil_price", "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback":
+  "$world.oil_price * $uniform(0.98, 1.02)"}`,
   or `"into": "records.news"` for entries. Bind the host when loading: `fg_env.load(path, hosts={"market":
   adapter})`, where the adapter is any object with `fetch(request)`; `fg_env.host.adapters.historical(rows,
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
-  patches), `events` with `at`/`every`/`arms` (and `when: "$chance(p)"`) for shocks; `fg_env.experiment` runs arms
+  patches), events with a `when` for shocks (`"$round == 10 and $arm == 'shock'"`, `"$chance(p)"`); `fg_env.experiment` runs arms
   with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
-* Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
-  "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`
+* Games: a player type's `score` names the seats and what each scores (`"types": {"player": {..., "score":
+  {"seat": "$it.seat", "value": "$it.chips - 10", "utility": "zero_sum"}}}`); dealt cards and dice as `chance`
   effects (`{"chance": "deal", "outcomes": "$world.deck", "as": "card", "do": [...]}`) so solvers can
   enumerate them; `must_act` stages so a seat cannot stall; `step` on number params so bids have ids.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
   `$count(trader)`, `by: trader`, views `for: trader` and `brief.roles.trader` cover every kind.
-* Bookkeeping on birth and death: `"types": {"firm": {"on_create": ["$world.firms_founded += 1",
-  {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}], "on_remove":
-  [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}}` — every firm, however it
-  was created, is counted and connected; closing one lays off its jobs.
-* Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
-  `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
+* Bookkeeping on birth and death: `"events": [{"on": "create.firm", "do": ["$world.firms_founded += 1",
+  {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}]}, {"on": "remove.firm", "do":
+  [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}]` — every firm, however it was
+  created, is counted and connected; closing one lays off its jobs.
+* Reusable logic: `defs` — a formula (`"utility": {"args": ["side", "offer"], "expr": "..."}`, read as
+  `$utility(...)`) or an effect list (`"match": {"args": ["order"], "do": [...]}`, run with
+  `{"call": "match", "with": {"order": "$made"}}`).
 * Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
   those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
   the agent itself: show an agent's own state in a view).
@@ -147,6 +148,6 @@
   quarter, …) and `$is_holiday(d, $inputs.holidays)` do the arithmetic; narratives name rounds in the clock's unit.
 * Policy rules with `each` act once per item: `{"each": "$filter(army, $it.owner == $actor.id)",
   "do": "hold", "with": {"army": "$it"}}`.
-* Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
-  set `types.X.policy` to make them the default.
+* Coded participants: `types.X.policies` rules (first legal matching rule wins) for crowds and baselines;
+  set `types.X.policy` to make one the default.
 

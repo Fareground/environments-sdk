@@ -6,11 +6,10 @@ inputs exist, and that each expression only uses roots available where it is wri
 
 The checker's sections live beside it: effects (:mod:`.effects`), the world model
 (:mod:`.world`), actions, stages and views (:mod:`.actions`), and events, policies,
-measures, defs, arms and calibration (:mod:`.rules`).
+measures, defs and arms (:mod:`.rules`).
 """
 from __future__ import annotations
 
-import copy
 from collections.abc import Iterable, Mapping
 from difflib import get_close_matches
 from typing import Any
@@ -21,11 +20,12 @@ from .. import contract as C
 from ..assets.checks import check_assets
 from ..contract import Contract
 from ..contract.base import TYPE_SYNONYMS
+from ..contract.normalize import normalize
 from ..contract.parse_errors import validation_issues
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
 from ..expr.base import WrongKind
-from ..expr.calls import suggest_function
+from ..expr.calls import callable_in, callable_names, suggest_function
 from ..expr.codegen import _ITEM_ROOTS
 from ..expr.template import compile_template, quoted_placeholders
 from ..host.common import raw_model_ids
@@ -39,7 +39,7 @@ from .privacy import PrivacyChecks
 from .roots import BASE, ENTITY_FIELDS, Types
 from .rules import RuleChecks
 from .scans import check_scans
-from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
+from .state import check_feeds, check_physics_state, check_relation_fields
 from .world import WorldChecks
 
 __all__ = ["parse_contract", "check_contract"]
@@ -67,18 +67,15 @@ def parse_contract(data: Any) -> Contract:
         raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
     from ..mechanisms import expand_mechanisms
 
-    source = copy.deepcopy(dict(data))
+    source, notes = normalize(data)
     expanded, mechanism_issues = expand_mechanisms(source)
     if mechanism_issues:
         raise ContractError(_dedupe(mechanism_issues))
-    from ..patterns.expand import expand_patterns
-
-    expanded, pattern_issues = expand_patterns(expanded)
-    if pattern_issues:
-        raise ContractError(_dedupe(pattern_issues))
+    expanded = normalize(expanded)[0]  # what mechanisms generate in an earlier form: not the author's to rewrite
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source
+        contract._notes = notes
         return contract
     except ValidationError as exc:
         raise ContractError(_dedupe(validation_issues(exc))) from None
@@ -109,7 +106,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self.type_props: dict[str, set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
         self.agents = contract.agent_types()
         words: set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
-        words |= ({s.name for s in contract.stage_list()} | set(contract.metrics) | set(contract.policies)
+        words |= ({s.name for s in contract.stage_list()} | set(contract.outputs)
+                  | {name for spec in contract.types.values() for name in spec.policies}
                   | set(contract.arms))
         for kind in contract.types:
             for spec in contract.props_of(kind).values():
@@ -123,6 +121,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self.known_words = words
         self.stage_names = [s.name for s in contract.stage_list()]
         self.collection_funcs = _collection_funcs()
+        self.families = contract.mechanism_families()
 
     # -- reporting -----------------------------------------------------------------
 
@@ -245,15 +244,26 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
               params: Mapping[str, C.ParamSpec]) -> None:
         # An unknown callee may be the collection function that binds $it, $i and $outer (a misspelled $max): report
         # the name to repair, not those roots. Independent errors are kept.
-        unknown = sorted(name for name in compiled.functions if name not in FUNCTIONS and name not in self.c.defs)
+        exprs = self.c.expr_defs()
+        for name in sorted(name for name in compiled.functions if name in self.c.defs and name not in exprs):
+            self.error(path, f"${name}: def '{name}' runs effects, so it is not read as a value",
+                       f"run it as an effect: {{\"call\": \"{name}\", \"with\": {{...}}}} — in `{compiled.source}`")
+        unknown = sorted(name for name in compiled.functions
+                         if not callable_in(name, self.families) and name not in self.c.defs)
         for name in unknown:
-            hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
+            if name in FUNCTIONS:
+                families = FUNCTIONS[name].families
+                self.error(path, f"${name} reads a {' or '.join(f'`{f}`' for f in families)} mechanism, and this "
+                                 "contract declares none",
+                           f"declare one (guide('{families[0]}')) — in `{compiled.source}`")
+                continue
+            hint = suggest_function(name, callable_names(self.families) + list(exprs))
             self.error(path, f"unknown function ${name}",
                        (f"did you mean {hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for root in compiled.roots:
             if unknown and root in _ITEM_ROOTS:
                 continue
-            if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
+            if root not in roots and not (root in exprs and not exprs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
                 self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
         if not (compiled.roots or compiled.functions or compiled.methods):
@@ -284,7 +294,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                            self._suggest(symbol, self.c.records))
         check_pattern_call(self, compiled, path)
         for name, signature in getattr(compiled, "arity_errors", ()):
-            if name not in self.c.defs:
+            if name not in self.c.defs and callable_in(name, self.families):  # else it is reported as unavailable
                 self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
         for chain, word in compiled.comparisons:
             self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)
@@ -333,22 +343,35 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                      else set())
             if first not in known:
                 self.error(path, f"$physics.{first}: no such physics variable or param", self._suggest(first, known))
-        elif root == "metrics":
-            if first not in self.c.metrics:
-                self.error(path, f"$metrics.{first}: no such metric", self._suggest(first, self.c.metrics))
-        elif root == "series":
-            if first not in self.c.metrics:
-                self.error(path, f"$series.{first}: no such metric", self._suggest(first, self.c.metrics))
+        elif root in ("outputs", "series"):
+            self._output_read(root, first, path)
         elif root == "clock":
-            if first not in ("round", "rounds", "left", "unit", "date", "start", "label", "time", "horizon"):
-                self.error(path, f"$clock.{first}: no such field",
-                           "clock fields: round, rounds, left, unit, date, start, label, time, horizon")
+            if first not in ("round", "rounds", "left", "unit", "date", "start", "label"):
+                self.error(path, f"$clock.{first}: no such field", "clock fields: round, rounds, left, unit, date, "
+                                                                   "start, label")
+
+    def _output_read(self, root: str, name: str, path: str) -> None:
+        """``$outputs.name`` / ``$series.name``: during the run only series outputs have values; an output's own
+        expression may also read the outputs worked out before it."""
+        sampled = self.c.series_outputs()
+        reader = self.c.outputs.get(path.split(".")[1]) if path.startswith("outputs.") else None
+        at_end = root == "outputs" and reader is not None and reader.series is not True \
+            and not path.endswith(".series")
+        if name in sampled or (at_end and name in self.c.outputs):
+            return
+        if name in self.c.outputs:
+            self.error(path, f"${root}.{name}: outputs.{name} is worked out only when the run ends",
+                       f"add \"series\": true to outputs.{name} to sample it every round")
+        else:
+            self.error(path, f"${root}.{name}: no such output",
+                       self._suggest(name, sampled if not at_end else self.c.outputs) or "declare it under `outputs` "
+                       "with \"series\": true")
 
     def _spec_for(self, chain: tuple[str, ...], types: Types,
                   params: Mapping[str, C.ParamSpec]) -> tuple[Any, str] | None:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
         root = chain[0]
-        named = self.c.entities.get(root[len("entity("):-1]) if root.startswith("entity(") else None
+        named = self.c.named_entities().get(root[len("entity("):-1]) if root.startswith("entity(") else None
         if named is not None and named.type in self.c.types and len(chain) == 2 \
                 and chain[1] in self.c.props_of(named.type):
             spec = self.c.props_of(named.type)[chain[1]]
@@ -430,7 +453,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self._brief()
         self._clock_space()
         self._types_and_world()
-        check_hooks(self, BASE)
         self._keyword_names()
         self._entities()
         check_inventory(self)
@@ -446,12 +468,10 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self._views()
         self._secret_subtypes()
         self._events()
-        self._triggers()
         self._policies()
         self._measure()
         self._arms()
-        self._calibration()
-        self._defs_and_blocks()
+        self._defs()
         check_game(self)
         check_scans(self)
         check_assets(self, BASE)

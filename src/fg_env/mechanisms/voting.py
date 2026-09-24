@@ -12,7 +12,6 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from . import _common
-from ._common import ToolsSetting, tools_field
 
 __all__ = ["tally", "METHODS"]
 
@@ -349,7 +348,6 @@ class BallotConfig(BaseModel):
     announce: str = Field("",
                           description="Result text (template over $result); default names the winner or says it "
                                       "failed.")
-    tools: ToolsSetting = tools_field()
 
 
 def _options(runner: Any, config: BallotConfig, vars: dict[str, Any]) -> list[Any]:
@@ -420,8 +418,8 @@ def _announcement(world: Any, config: BallotConfig, result: dict[str, Any]) -> s
 
 @mode("decision", "ballot", BallotConfig,
            "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or "
-           "supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit "
-           "effects, so read the result in a later stage, event or on_enter, not in the vote stage's on_exit. The "
+           "supermajority with an optional quorum when the vote's stage ends — after the contract's own events on its "
+           "end, so read the result in a later stage or event, not in an event on the vote stage's end. The "
            "result is in $world.<name>_result "
            "({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty map until the first "
            "count) and is announced, options that are entity ids named: `decided` is true when there is a winner, "
@@ -480,8 +478,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     }
     names = list(actions)
     if config.stage is None:
-        stage: dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names,
-                                 "brief": config.question, "on_exit": [{"decision": name, "action": "tally"}]}
+        stage: dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names, "brief": config.question}
         if config.when:
             stage["when"] = config.when
         fragment["stages"] = [stage]
@@ -489,5 +486,6 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
         if config.when:
             for action in actions.values():
                 action["when"].append({"expr": config.when, "why": "The vote is not open now."})
-        fragment["stage_hooks"] = {config.stage: {"actions": names, "on_exit": [{"decision": name, "action": "tally"}]}}
+        fragment["stage_hooks"] = {config.stage: {"actions": names}}
+    fragment["events"] = [_common.stage_event(config.stage or name, "end", [{"decision": name, "action": "tally"}])]
     return fragment

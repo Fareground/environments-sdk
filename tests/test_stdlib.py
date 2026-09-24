@@ -69,15 +69,12 @@ VALUES = [
     ("$starts_with('Hello', 'He')", True),
     ("$starts_with('Hello', 'he')", False),
     ("$ends_with('Hello', 'lo')", True),
-    ("$index_of('banana', 'na')", 2),
-    ("$index_of('banana', 'x')", -1),
-    ("$count_text('banana', 'ana')", 1),
+    ("$index('banana', 'na')", 2),
+    ("$index('banana', 'x')", -1),
     ("$pad('7', 3, '0')", "007"),
     ("$pad('ab', 5, '.', right)", "ab..."),
     ("$pad('ab', 6, '*', both)", "**ab**"),
     ("$pad('long text', 3)", "long text"),
-    ("$repeat_text('ab', 3)", "ababab"),
-    ("$repeat_text('ab', 0)", ""),
     ("$matches('crane', '^[a-z]{5}$')", True),
     ("$matches('cranes', '^[a-z]{5}$')", False),
     ("$matches('order #1234', '#\\\\d+')", True),
@@ -270,12 +267,9 @@ ERRORS = [
     ("$upper([1])", r"\$upper: argument 1 must be text"),
     ("$replace('abc', '', 'x')", r"text to find cannot be empty"),
     ("$substr('abc', 1.5)", r"character position"),
-    ("$count_text('abc', '')", r"cannot be empty"),
     ("$pad('a', 3, 'ab')", r"exactly one character"),
     ("$pad('a', 3, ' ', middle)", r"left, right or both"),
     ("$pad('a', -1)", r"at least 0"),
-    ("$repeat_text('ab', 600000)", r"limit is 1,000,000"),
-    ("$repeat_text('ab', -1)", r"at least 0"),
     ("$matches('a', '(ab')", r"missing '\)'"),
     ("$matches('a', 'a**')", r"cannot follow another quantifier"),
     ("$matches('a', 'a*?')", r"cannot follow another quantifier"),
@@ -289,7 +283,7 @@ ERRORS = [
     ("$matches('a', '[abc')", r"missing '\]'"),
     ("$matches('a', '^*')", r"anchor cannot be repeated"),
     ("$matches('a', 'a)')", r"unmatched"),
-    ("$similar($repeat_text('a', 1001), 'b')", r"up to 1,000 characters"),
+    ("$similar($pad('', 1001, 'a'), 'b')", r"up to 1,000 characters"),
     ("$wordle_feedback('abc', 'abcd')", r"3 letters but the answer has 4"),
     ("$wordle_feedback(5, 'abcd')", r"guess text"),
     ("$mask('abc', 5)", r"list of letters"),
@@ -428,14 +422,14 @@ def test_regex_and_similarity_charge_the_budget():
     with pytest.raises(ExprError, match="work budget"):
         ev("$map($range(4), $len($window($range(1500), 900)))")
     with pytest.raises(ExprError, match="work budget"):
-        ev("$sum($map($range(3000), $similar($repeat_text('a', 1000), 'b')))")
+        ev("$sum($map($range(3000), $similar($pad('', 1000, 'a'), 'b')))")
 
 
 # --- provenance --------------------------------------------------------------------------------
 
 TAINTED = [
     "$split($t)", "$chars($t)", "$words($t)", "$upper($t)", "$title($t)", "$trim($t)", "$substr($t, 1)",
-    "$pad($t, 20)", "$repeat_text($t, 2)", "$replace($t, 'o', '0')", "$replace('plain', 'a', $t)",
+    "$pad($t, 20)", "$replace($t, 'o', '0')", "$replace('plain', 'a', $t)",
     "$mask($t, [o])", "$mask('secret', [], $c)", "$pad('x', 3, $c)", "$union([$t], ['Hello World'])",
     "$merge({a: $t}, {b: 1})", "$zip([$t], [1])", "$set_at([1], 0, $t)",
 ]

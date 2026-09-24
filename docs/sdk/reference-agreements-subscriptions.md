@@ -11,7 +11,6 @@ Config:
 - `price_min` (default 0): Lowest price a provider may set.
 - `price_max` (default null): Highest price a provider may set.
 - `actions` (default ["subscribe", "cancel", "resume", "set_price"]): Tools generated for agents.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **PlanSpec** — A plan offered from the start (more can be added as entities of type `<name>_plan`).

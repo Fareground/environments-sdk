@@ -9,10 +9,11 @@
 the entry is. A mechanism expands into ordinary contract sections — actions, stages, world props, events, views, defs —
 backed by native functions and effect ops. Everything the engine does (checking, preview, atomic actions, snapshots,
 determinism) therefore applies to it unchanged. Anything the author declares under a generated name wins (a named event,
-trigger or end entry too), so generated parts can be overridden (world properties excepted: they are the mechanism's
+or end entry too), so generated parts can be overridden (world properties excepted: they are the mechanism's
 state), while two mechanisms generating different entries under one name is an error naming both; types the author
 declares gain the mechanism's properties without losing their own. A mechanism may extend declared actions
-(``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms. A declared stage that offers only
+(``action_hooks``) and stages (``stage_hooks``: tools and turn settings; what it runs when a stage starts or ends, or
+after each turn, is an event on the stage's anchor), and generate other mechanisms. A declared stage that offers only
 mechanisms' actions and sets no ``max_actions`` allows, per turn, what each mechanism attached to it allows (a hook's
 ``max_actions``, default 1). A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
 which each type using it already acts.
@@ -41,19 +42,17 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: Sections merged by key: the author's entry wins over a generated one of the same name.
 _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "policies", "metrics",
-          "outputs", "defs", "blocks", "arms", "patterns")
+          "outputs", "defs", "blocks", "arms")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
-_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "auto", "brief")
-#: Stage effect lists a mechanism may append to.
-_HOOK_EFFECTS = ("on_enter", "on_exit", "on_idle", "on_wake", "on_turn_end")
+_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "brief")
 #: ``max_actions`` in a hook is the mechanism's share of the stage's turn (see :func:`_share_turns`).
-_HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
+_HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
-_LISTED = ("population", "links", "events", "triggers", "end", "invariants")
+_LISTED = ("population", "links", "events", "end", "invariants")
 #: Listed sections whose items may have a `name`: a declared item of that name replaces the generated one.
-_NAMED_ITEMS = ("events", "triggers", "end")
+_NAMED_ITEMS = ("events", "end")
 #: What an action hook may add to a declared action.
-_ACTION_HOOK_KEYS = ("when", "do", "otherwise")
+_ACTION_HOOK_KEYS = ("when", "do")
 #: Words authors use for the agent type a mechanism involves; every family calls it `who`.
 _ACTOR_WORDS = frozenset({"by", "of", "among", "voter", "voters", "bidder", "bidders", "player", "players",
                           "member", "members", "trader", "traders", "holder", "holders", "guest", "guests",
@@ -168,7 +167,7 @@ def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mappi
 #: Sections whose entries have names (``stages`` by each stage's name).
 _NAMED = ("actions", "stages", "views", "records", "world", "metrics", "outputs", "defs", "blocks", "types", "entities")
 #: Sections of unnamed items, reported by how many were added.
-_COUNTED = ("events", "triggers", "end", "invariants", "population", "links")
+_COUNTED = ("events", "end", "invariants", "population", "links")
 
 
 def _names(data: Mapping[str, Any]) -> dict[str, list[str]]:
@@ -196,6 +195,10 @@ def _added(before: Mapping[str, list[str]], after: Mapping[str, list[str]]) -> d
     return added
 
 
+#: Families whose mechanisms the engine reads in place ($physics, $pattern), usually generating nothing.
+_READ_IN_PLACE = ("dynamics", "pattern")
+
+
 def generated_summary(data: Mapping[str, Any]) -> list[str]:
     """One compact line per declared mechanism naming what it generated (and whether it can end the run), e.g.
     ``sale (market.auction): actions sale_bid · stages sale · outputs sale_sold, sale_revenue · 2 events``."""
@@ -207,6 +210,8 @@ def generated_summary(data: Mapping[str, Any]) -> list[str]:
     lines = []
     for name, parts in generated.items():
         use = (data.get("mechanisms") or {}).get(name)
+        if not parts and isinstance(use, Mapping) and use.get("kind") in _READ_IN_PLACE:
+            continue  # physics and patterns generate nothing: they are read where they are declared
         label = f"{use.get('kind')}.{use.get('mode')}" if isinstance(use, Mapping) and use.get("mode") else "generated"
         shown = [f"{section} {', '.join(names)}" if section in _NAMED else f"{len(names)} {section}"
                  for section, names in parts.items()]
@@ -341,7 +346,7 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
     except ValidationError as exc:
         return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
     try:
-        fragment = _group_tools(name, config, spec.expand(name, config, out))
+        fragment = spec.expand(name, config, out)
         clash = _claim(out, name, fragment, owners)
         if clash is not None:
             return [clash]
@@ -391,10 +396,8 @@ def _entries(data: Mapping[str, Any], section: str) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-#: The former `dynamics` family and its old kind names, and what replaced each.
+#: Modes of an earlier `dynamics` family (written as the kind, or as a mode of `dynamics`), and what replaced each.
 _FOLDED_INTO_PATTERNS = {
-    "dynamics": "drift → trend, seasonal, random_walk or mean_reversion patterns (an event applies them to state); "
-                "shocks → a shocks pattern an event reads; priors → draw patterns",
     "drift": "use trend, seasonal, random_walk or mean_reversion patterns, applied to state by an event when agents "
              "change it too",
     "shocks": "use a shocks pattern, and an event with when: $pattern.<name> > 0 for what it does",
@@ -414,15 +417,18 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
         mode = use.get("mode")
         modes = ", ".join(family.modes) or "none"
         if mode is None:
-            return Issue(path, f"a `{kind}` mechanism needs a `mode`", f"{kind} modes: {modes}")
+            return Issue(path, f"a `{kind}` mechanism needs a `mode`", f"{kind} modes: {modes} (guide('{kind}'))")
         spec = family.modes.get(mode) if isinstance(mode, str) else None
+        if spec is None and kind in ("dynamics", "pattern") and mode in _FOLDED_INTO_PATTERNS:
+            return Issue(f"{path}.mode", f"'{mode}' is no longer a mechanism: the world's own changes are patterns",
+                         _FOLDED_INTO_PATTERNS[mode] + " (guide('patterns'))")
         if spec is None:
             hint = get_close_matches(str(mode), list(family.modes), n=1)
             return Issue(f"{path}.mode", f"'{mode}' is not a mode of `{kind}`",
                          f"did you mean '{hint[0]}'?" if hint else f"{kind} modes: {modes}")
         return spec, f"`{kind}` mode `{mode}`"
     if isinstance(kind, str) and kind in _FOLDED_INTO_PATTERNS:
-        return Issue(f"{path}.kind", f"'{kind}' is no longer a mechanism: the world's own changes are `patterns`",
+        return Issue(f"{path}.kind", f"'{kind}' is no longer a mechanism: the world's own changes are patterns",
                      _FOLDED_INTO_PATTERNS[kind] + " (guide('patterns'))")
     owner = family_of_mode(kind) if isinstance(kind, str) else None
     if owner is not None:
@@ -449,8 +455,8 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
     if error["type"] == "missing":
         info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
         about = f"`{loc[0]}`: {info.description.rstrip('.')}. " if info is not None and info.description else ""
-        return Issue(at, "is required", f"{about}{label} takes: {', '.join(model.model_fields)}")
-    return Issue(at, str(error["msg"]), None)
+        return Issue(at, "is required", f"{about}{label} takes: {', '.join(_fields_at(model, ()))}")
+    return Issue(at, str(error["msg"]).removeprefix("Value error, "), (error.get("ctx") or {}).get("fix"))
 
 
 def _fields_at(model: Any, loc: tuple[Any, ...]) -> list[str]:
@@ -459,7 +465,9 @@ def _fields_at(model: Any, loc: tuple[Any, ...]) -> list[str]:
     for part in loc:
         if isinstance(current, type) and issubclass(current, BaseModel) and part in current.model_fields:
             current = _model_in(current.model_fields[part].annotation)
-    return list(current.model_fields) if isinstance(current, type) and issubclass(current, BaseModel) else []
+    if not (isinstance(current, type) and issubclass(current, BaseModel)):
+        return []
+    return [name for name in current.model_fields if not (current is model and name in ("kind", "mode"))]
 
 
 def _model_in(annotation: Any) -> Any:
@@ -472,33 +480,6 @@ def _model_in(annotation: Any) -> Any:
     return None
 
 
-def _group_tools(name: str, config: Any, fragment: dict[str, Any]) -> dict[str, Any]:
-    """Apply a mode's ``tools`` setting: ``one`` offers every generated action inside one tool named after
-    the mechanism; ``auto`` does so only when all of them take the same arguments; ``each`` changes nothing."""
-    setting = getattr(config, "tools", None)
-    actions = fragment.get("actions")
-    if setting not in ("one", "auto") or not isinstance(actions, Mapping):
-        return fragment
-    grouped = [key for key, action in actions.items() if isinstance(action, Mapping)]
-    if len(grouped) < 2:
-        return fragment
-    if setting == "auto" and len({_shape(actions[key]) for key in grouped}) > 1:
-        return fragment
-    return {**fragment, "actions": {key: ({**action, "tool": name} if key in grouped else action)
-                                    for key, action in actions.items()}}
-
-
-def _shape(action: Mapping[str, Any]) -> tuple[tuple[str, str, str], ...]:
-    """The arguments an action takes: (name, type, entity type) for each parameter."""
-    shape = []
-    for pname, param in (action.get("params") or {}).items():
-        if isinstance(param, str):
-            shape.append((str(pname), param, ""))
-        elif isinstance(param, Mapping):
-            shape.append((str(pname), str(param.get("type", "")), str(param.get("of") or "")))
-    return tuple(sorted(shape))
-
-
 def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
     """Merge contract sections into ``data`` (a mechanism's output, or an imported file); ``data``'s own entries win."""
     for section, value in fragment.items():
@@ -509,6 +490,13 @@ def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
                     types[type_name] = copy.deepcopy(spec)
                     continue
                 _fill(types[type_name], spec)
+        elif section == "relations":  # the author's entry may only add links to a generated relation
+            relations = data.setdefault("relations", {})
+            for kind, spec in value.items():
+                if kind in relations and isinstance(relations[kind], dict):
+                    _fill(relations[kind], spec)
+                else:
+                    relations.setdefault(kind, copy.deepcopy(spec))
         elif section == "entities":
             entities = data.setdefault("entities", {})
             for entity_id, spec in value.items():
@@ -540,7 +528,7 @@ def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
                     roles = brief.setdefault(key, {})
                     for role, role_text in text.items():
                         roles.setdefault(role, role_text)
-        elif section in ("clock", "game"):  # a mechanism (a board, a victory rule) may fill in what the author left out
+        elif section in ("clock", "game"):  # a mechanism (a board, a pot) may fill in what the author left out
             settings = data.setdefault(section, {})
             for key, item in value.items():
                 settings.setdefault(key, copy.deepcopy(item))
@@ -588,7 +576,8 @@ def _fill(declared: dict[str, Any], generated: Mapping[str, Any]) -> None:
 
 
 def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
-    """Add actions and effects to stages the author declared (identical effects are added once)."""
+    """Add actions and turn settings to stages the author declared (what a mechanism runs around one is an event on
+    the stage's anchors, generated like any other)."""
     stages: dict[Any, dict[str, Any]] = {s.get("name"): s for s in data.get("stages", []) if isinstance(s, dict)}
     for stage_name, hook in hooks.items():
         stage = stages.get(stage_name)
@@ -609,15 +598,10 @@ def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
         for key in _HOOK_SETTINGS:  # turn settings the author left unset
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
-        for key in _HOOK_EFFECTS:
-            written = stage.get(key, [])
-            effects = stage[key] = [written] if isinstance(written, (str, Mapping)) else written
-            seen = {_canonical(e) for e in effects}
-            effects.extend(copy.deepcopy(e) for e in hook.get(key) or [] if _canonical(e) not in seen)
 
 
 def _hook_actions(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
-    """Append ``when`` conditions and ``do``/``otherwise`` effects to actions the author declared.
+    """Append ``when`` conditions and ``do`` effects to actions the author declared.
 
     The action stays the author's: nothing it declares is replaced, and an identical item is added once."""
     actions = data.get("actions") or {}
@@ -661,16 +645,13 @@ from . import families  # noqa: E402,F401  (registers the mechanism families bef
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
 from . import boards  # noqa: E402,F401  (registers the board-game mechanism)
 from . import markets  # noqa: E402,F401  (registers the market mechanisms)
-from . import card_scoring, cards, cards_mechanism, pot, roles, slots  # noqa: E402,F401  (cards, pots, roles, worker placement)
+from . import card_scoring, cards, cards_mechanism, pot, roles  # noqa: E402,F401  (cards, pots, roles)
 from . import social  # noqa: E402,F401  (registers the social mechanism family)
 from . import matching  # noqa: E402,F401  (two-sided stable matching, a groups mode)
 from . import status  # noqa: E402,F401
-from . import abilities  # noqa: E402,F401
-from . import locations  # noqa: E402,F401
 from . import procedure  # noqa: E402,F401
-from . import turn_order  # noqa: E402,F401
-from . import victory  # noqa: E402,F401
-from . import judging, host_personas, host_tools, memory  # noqa: E402,F401  (host-evaluated intelligence, in guide order)
+from . import judging, host_personas, host_tools, memory, host_feed  # noqa: E402,F401  (host services, in guide order)
 from . import economy  # noqa: E402,F401  (registers the economy mechanisms)
-from . import ops_queue  # noqa: E402,F401  (registers the operations mechanisms)
+from . import ops_queue  # noqa: E402,F401  (the economy's service queues)
+from . import dynamics, pattern_modes  # noqa: E402,F401  (the world's continuous change and its patterns)
 # isort: on

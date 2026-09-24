@@ -17,6 +17,7 @@ from pydantic_core import PydanticUndefined
 from .. import contract as C
 from ..effects.runner import EFFECT_OPS
 from ..expr import FUNCTIONS, FunctionSpec
+from ..expr.calls import CORE_FUNCTIONS
 from ..registry import FAMILIES, OPS, FamilySpec, ModeSpec
 from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 
@@ -32,36 +33,35 @@ ROOTS: list[tuple[str, str, str]] = [
     ("actions", "when", "$actor ($params too: such a requirement is checked when the action is called)"),
     ("actions", "params.*.where", "$actor $it $i $params (earlier params)"),
     ("actions", "params.*.min/max/values/default", "$actor $params (earlier params)"),
-    ("actions", "chance/do/otherwise/outcome/announce/terminal", "$actor $params + locals"),
-    ("stages", "who/order/first_wake", "$it $i"),
-    ("stages", "brief/time_limit/interval/on_wake/on_idle/on_turn_end/on_timeout", "$actor"),
+    ("actions", "do/outcome/announce/terminal", "$actor $params + locals"),
+    ("stages", "who/order", "$it $i"),
+    ("stages", "brief", "$actor"),
     ("stages", "valid (expr and why)", "$actor $pending"),
-    ("stages", "when/until/on_enter/on_exit", "—"),
+    ("stages", "when/until", "—"),
     ("views", "when/of", "$actor"),
     ("views", "where/sort/show", "$actor $it $i"),
     ("views", "with for: spectator", "no $actor ($it $i in lists)"),
     ("records", "visible", "$viewer $it (entry)"),
     ("records", "show", "$it (entry: its fields directly, $it.text, plus author, round, seq, stage, to)"),
-    ("events", "where/do (with each)", "$it $i (or the `as` name)"),
-    ("triggers", "when/do/say", "—"),
-    ("population", "where/weight", "$row"),
-    ("population", "props/id/name", "$row $i ($i counts from 1)"),
-    ("population", "brief", "$actor $row $i"),
-    ("entities", "brief", "$actor"),
+    ("events", "on: round.* / stage.<s>.start / stage.<s>.end / change", "—"),
+    ("events", "on: stage.<s>.turn", "$actor $acted $timed_out"),
+    ("events", "on: create.<t> / remove.<t>", "$it (the entity)"),
+    ("entities", "brief", "$actor (generated: $row $i too)"),
+    ("entities", "where/weight (generated)", "$row"),
+    ("entities", "props/id/name (generated)", "$row $i ($i counts from 1)"),
     ("types", "inspect", "$viewer $it"),
-    ("types", "on_create/on_remove", "$it (the entity) + locals"),
+    ("types", "policies.*.rules.*", "$actor ($it $i with `each`)"),
     ("relations", "props.*.default", "$from $to"),
-    ("links", "props", "$from $to (+ $row with `rows`)"),
-    ("physics", "per.*.read/where", "$it"),
-    ("feeds", "query/when/fallback", "—"),
+    ("relations", "links.*.props", "$from $to (+ $row with `rows`)"),
+    ("mechanisms", "physics.per.*.read/where (dynamics)", "$it"),
+    ("mechanisms", "<feed>.query/when/fallback (host.feed)", "—"),
     ("defs", "expr", "the def's args"),
-    ("blocks", "do", "the block's args + locals"),
-    ("policies", "rules.*", "$actor ($it $i with `each`)"),
-    ("metrics", "*", "—"),
-    ("outputs", "*", "$outputs (earlier outputs) $result (winner, ended_by)"),
+    ("defs", "do", "the def's args + locals"),
+    ("outputs", "*", "$outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result "
+                     "(winner, ended_by; not in a sampled one)"),
     ("end", "when/winner/say", "—"),
-    ("game", "seat", "$it $i"),
-    ("game", "returns/rewards", "$actor $result (winner, ended_by)"),
+    ("types", "score.seat", "$it $i"),
+    ("types", "score.value", "$it (the seat) $result (winner, ended_by)"),
     ("invariants", "*", "—"),
 ]
 
@@ -71,16 +71,16 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Static text every agent reads first: the situation, the rules, and per-type role text."),
     ("clock", [C.Clock], "Clock", "How long a run lasts (`rounds`, default 20) and what one round is called."),
     ("inputs", [C.InputSpec], "{name: InputSpec}",
-     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
+     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables, and the files the "
+     "environment carries (`type: file`; see guide('assets'))."),
     ("world", [C.PropSpec], "{prop: default | PropSpec}", "Global properties ($world.x)."),
-    ("assets", [C.AssetSpec], "{asset: AssetSpec}",
-     "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see "
-     "guide('assets')."),
-    ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}",
-     "Kinds of entities and their properties; `agent: true` makes a type act."),
-    ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
-    ("population", [C.PopulationSpec], "[PopulationSpec]",
-     "Generated entities: a count, or one per data row, with sampled traits."),
+    ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule, C.ScoreSpec], "{type: TypeSpec}",
+     "Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded "
+     "participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its "
+     "agents scores as a seat, for tournaments, game search and gyms."),
+    ("entities", [C.EntitySpec], "{id: EntitySpec}",
+     "Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row "
+     "(`from`), with sampled traits; ids `<key>_<n>`."),
     ("records", [C.RecordSpec], "{record: RecordSpec}",
      "Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`."),
     ("actions", [C.ActionSpec, C.ParamSpec, C.Condition], "{action: ActionSpec}",
@@ -91,41 +91,31 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "The steps of every round: who acts, how (sequential or sealed simultaneous), which actions."),
     ("views", [C.ViewSpec], "{view: ViewSpec}", "What agents read each turn: single lines or ranked, filtered lists."),
     ("events", [C.EventSpec], "[EventSpec]",
-     "What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a "
-     "condition holds, or by chance."),
-    ("triggers", [C.TriggerSpec], "[TriggerSpec]",
-     "What the world does the moment a condition becomes true (checked after every action and effect block), unlike an "
-     "event, which runs at a set point of the round."),
+     "What the world does outside agents' turns. `on` is when an event is considered — round.start (the default), "
+     "round.end, stage.<s>.start, stage.<s>.end, stage.<s>.turn (after each agent's turn: $actor, $acted, "
+     "$timed_out), create.<type>, remove.<type> ($it), or change (the moment `when` becomes true) — and `when` "
+     "whether it fires: on given rounds (\"$round == 5\", \"$round % 7 == 1\"), in an arm (\"$arm == 't'\"), by "
+     "chance. Events on one anchor fire in the order written, before those mechanisms generate."),
     ("end", [C.EndSpec], "[EndSpec]",
      "Conditions that end the run early, with an optional winner ($result.winner in outputs)."),
-    ("metrics", [C.MetricSpec], "{metric: expr | MetricSpec}",
-     "Values sampled every round ($metrics.x latest, $series.x every round)."),
-    ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}", "The typed results of a run."),
+    ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}",
+     "The typed results of a run; with `series: true` also sampled every round ($outputs.x latest, $series.x every "
+     "round)."),
     ("invariants", [C.InvariantSpec], "[expr | InvariantSpec]",
      "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); "
      "a break by anything else fails the run."),
     ("mechanisms", [], "{name: {kind, mode, ...config}}",
-     "Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms')."),
-    ("game", [C.GameSpec], "GameSpec", "Seats and what each scores, for tournaments, game search and gyms."),
+     "Native building blocks by family (markets, voting, cards, roles, physics, patterns, feeds …): see "
+     "guide('mechanisms')."),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space",
      "Positions: a grid, a graph of places or a plane, with values on cells."),
-    ("relations", [C.RelationSpec], "{relation: RelationSpec}",
-     "Typed links between entities (trust, follows), with fields."),
-    ("links", [C.LinkSpec], "[LinkSpec]", "Links made at build: listed, from data rows, or generated networks."),
-    ("physics", [C.PhysicsSpec, C.PhysicsVar, C.EntityDynamics, C.EntityVar], "PhysicsSpec",
-     "Continuous variables integrated every round (world-level and per entity)."),
-    ("feeds", [C.FeedSpec], "{feed: FeedSpec}",
-     "External data written into world props or records, answered by host adapters."),
-    ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}",
-     "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
+    ("relations", [C.RelationSpec, C.LinkSpec], "{relation: RelationSpec}",
+     "Typed links between entities (trust, follows), with fields, and the links made at build (`links`): listed, "
+     "from data rows, or generated networks."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
-    ("calibration", [C.CalibrationSpec], "CalibrationSpec",
-     "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a "
-     "load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
     ("defs", [C.DefSpec], "{name: expr | DefSpec}",
-     "Reusable expressions, called like built-ins: $utility($actor, 3)."),
-    ("blocks", [C.BlockSpec], "{name: BlockSpec}",
-     "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
+     "Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with "
+     "{\"call\": name, \"with\": {...}}."),
     ("imports", [], "[path]",
      "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and "
      "imported files may import others."),
@@ -133,10 +123,8 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
 
 #: The core language: the sections and functions the start page (``guide('authoring')``) teaches, enough for most
 #: environments. Every other section and function is extended: reach for one when the core cannot say it.
-CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "population", "records", "actions", "stages",
-                 "views", "events", "end", "metrics", "outputs", "invariants")
-CORE_FUNCTIONS = ("count", "sum", "avg", "min", "max", "filter", "map", "dict", "top", "best", "any", "all", "len",
-                  "get", "chance", "randint", "normal", "choice", "round", "floor", "clamp", "entity")
+CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "records", "actions", "stages",
+                 "views", "events", "end", "outputs", "invariants")
 
 _SECTION_INDEX = {name: (models, shape, doc) for name, models, shape, doc in SECTIONS}
 
@@ -168,51 +156,44 @@ def section_page(section: str) -> str:
 
 #: Group of each core function (the rest are grouped by the module that registers them).
 _CORE_GROUPS = {
-    "collections": "count sum avg min max median quantile stdev top sort filter map pick any all ids len first last "
+    "collections": "count sum avg min max median quantile stdev top sort best filter map pick any all len first last "
                    "unique tally mode reverse slice range flatten dict keys values get is",
-    "world": "entity exists records events seen asset",
+    "world": "entity records events seen asset",
     "space": "relation linked link links neighbors distance",
     "math": "abs floor ceil sqrt exp log round clamp pct",
-    "random": "random chance uniform randint normal lognormal beta exponential poisson choice sample shuffle",
+    "random": "chance uniform randint normal lognormal beta exponential poisson choice sample shuffle",
     "text": "text lower contains join fmt",
 }
 _MODULE_GROUPS = {
-    "stdlib.mathx": "math", "stdlib.linalg": "math", "stdlib.dists": "random", "stdlib.strings": "text",
-    "stdlib.words": "game", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
+    "stdlib.mathx": "math", "stdlib.linalg": "random", "stdlib.dists": "random", "stdlib.strings": "text",
+    "stdlib.words": "words", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
     "stdlib.sets": "lists", "stdlib.stats": "stats",
-    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "game",
-    "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
-    "mechanisms.econ_assets": "economy", "mechanisms.econ_replenishment_rules": "economy",
-    "mechanisms.market_stats": "market", "mechanisms.book_functions": "market",
-    "mechanisms.book_rules": "market",
-    "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
-    "patterns.runtime": "world",
+    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "words",
+    "mechanisms.market_stats": "stats", "mechanisms.voting": "stats",
 }
 #: What each non-family group holds, in the order the guide lists them.
 FUNCTION_GROUPS = {
     "collections": "counting, summing, ranking and filtering lists and entity types",
     "world": "entities, records, events and what agents were shown",
-    "math": "arithmetic, trigonometry, interpolation, linear algebra",
+    "math": "arithmetic, trigonometry, interpolation",
     "random": "seeded draws and distributions",
     "text": "text and formatting",
     "dates": "calendar arithmetic and parts of ISO dates",
     "lists": "list and map manipulation, sets",
     "stats": "statistics, time series and forecast scores",
     "space": "grids, graphs, networks and links",
+    "words": "word games and puzzles: dictionaries, anagrams, crosswords, sudoku",
 }
 _OTHER = "other"
 
 
 def _group(spec: FunctionSpec) -> str:
+    if spec.families:  # a mechanism's function: on its (first) family's page
+        return spec.families[0]
     for group, names in _CORE_GROUPS.items():
         if spec.name in names.split():
             return group
-    module = spec.impl.__module__.removeprefix("fg_env.")
-    if module in _MODULE_GROUPS:
-        return _MODULE_GROUPS[module]
-    families = sorted({name for name, family in FAMILIES.items()
-                       for mode in family.modes.values() if mode.expand.__module__ == spec.impl.__module__})
-    return families[0] if len(families) == 1 else _OTHER
+    return _MODULE_GROUPS.get(spec.impl.__module__.removeprefix("fg_env."), _OTHER)
 
 
 def function_groups() -> dict[str, list[FunctionSpec]]:
@@ -231,11 +212,13 @@ def functions_index() -> str:
     groups = function_groups()
     for group in [g for g in groups if g in FUNCTION_GROUPS]:
         lines.append(f"- `{group}` ({FUNCTION_GROUPS[group]}): " + " ".join(f"${s.name}" for s in groups[group]))
-    lines += ["", "Mechanism functions, for reading a mechanism family's state (a board, a deck, a market …); each "
-                  "group is also on its family's page:", ""]
-    for group in [g for g in groups if g not in FUNCTION_GROUPS]:
-        about = FAMILIES[group].doc if group in FAMILIES else ""
-        lines.append(f"- `{group}` ({about.rstrip('.')}): " + " ".join(f"${s.name}" for s in groups[group]))
+    other = groups.get(_OTHER)
+    if other:
+        lines.append(f"- `{_OTHER}`: " + " ".join(f"${s.name}" for s in other))
+    families = [g for g in groups if g in FAMILIES]
+    lines += ["", "A mechanism's functions read its state (a board, a deck, a market …) and can be called only in a "
+                  "contract that declares a mechanism of its family; each family's page lists them: "
+              + ", ".join(f"`guide('{g}')`" for g in families) + "."]
     return "\n".join(lines)
 
 
@@ -271,7 +254,7 @@ def mechanisms_page() -> str:
              "`max_actions` gives each attached mechanism the actions per turn it has in its own stage. Combine",
              "them freely, several of one mode included: a function reading a mechanism takes its name as the last",
              "argument (`$decisions('committee')`), optional while the contract has only one of that mode. Only a",
-             "mechanism made to end the run does (victory, a board's game over, a terminal phase, a deliberation with",
+             "mechanism made to end the run does (a board's game over, a terminal phase, a deliberation with",
              "`end`): `fg-env check` lists what each one generated, and which can end the run, and",
              "`fg-env expand file.json --mechanisms` shows all of it. A family has one effect op:",
              "`{\"<family>\": \"<mechanism name>\", \"action\": \"<action>\", ...}`. Read a family with",
@@ -301,6 +284,8 @@ def family_page(name: str) -> str:
 def mode_page(spec: ModeSpec) -> str:
     lines = [f"### `{spec.key}`", spec.doc, "", "Config:"]
     for field_name, info in spec.config.model_fields.items():
+        if field_name in ("kind", "mode"):  # the entry's own kind and mode, above
+            continue
         default = "required" if info.is_required() else \
             f"default {json.dumps(info.get_default(call_default_factory=True), default=str)}"
         lines.append(f"- `{field_name}` ({default}): {info.description or ''}")
@@ -329,7 +314,7 @@ def _public(family: FamilySpec, mode: str) -> list[str]:
 # -- model fields ---------------------------------------------------------------
 
 def _type_name(annotation: Any, field: str) -> str:
-    if field in ("do", "otherwise", "on_enter", "on_exit", "on_create", "on_remove"):
+    if field == "do":
         return "effects"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)

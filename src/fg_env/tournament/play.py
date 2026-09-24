@@ -24,7 +24,7 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Se
                swiss_rounds: int | None = None, others: Any = None, inputs: Mapping[str, Any] | None = None,
                arm: str | None = None, rounds: int | None = None, seed: int = 0, workers: int = 1,
                data_dir: Any = None, budget: Mapping[str, Any] | None = None,
-               exposures: bool = False) -> TournamentResult:
+               exposures: bool = False, time_limit: float | None = None) -> TournamentResult:
     """Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
 
     ``seats`` are agent entity ids (default: every agent the contract starts with). ``pairing``:
@@ -47,7 +47,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Se
     each standing's ``cost`` its turns, calls, invalid calls, timeouts, undone turns and model tokens. A callable
     entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
     its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
-    (``result.runs[i].exposures``, events kept), each a trace to read or replay.
+    (``result.runs[i].exposures``, events kept), each a trace to read or replay. ``time_limit`` is the wall-clock
+    seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`).
     """
     names = _entrant_names(entrants)
     check_positive_int("games", games)
@@ -89,7 +90,7 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Se
                     _participants(seat_ids, seating, entrants, others))
                 for s, seating in enumerate(seatings) for g in range(games)]
         results = run_jobs(parsed, jobs, rounds=rounds, workers=workers, events=False, pool=pool, data_dir=folder,
-                           budget=budget, exposures=exposures)
+                           budget=budget, exposures=exposures, time_limit=time_limit)
         batch = [_record(job, result, seat_ids, seatings[job.tags["seating"]], scorer)
                  for job, result in zip(jobs, results)]
         ledger.record_round(batch)

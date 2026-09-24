@@ -7,18 +7,17 @@ The steps of every round: who acts, how (sequential or sealed simultaneous), whi
 Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
 | where | extra roots |
 |---|---|
-| who/order/first_wake | $it $i |
-| brief/time_limit/interval/on_wake/on_idle/on_turn_end/on_timeout | $actor |
+| who/order | $it $i |
+| brief | $actor |
 | valid (expr and why) | $actor $pending |
-| when/until/on_enter/on_exit | — |
+| when/until | — |
 
-**StageSpec** — One step of every round. Stages run in order; each wakes agents to take turns.
+**StageSpec** — One step of every round. Stages run in order; each wakes agents to take turns. What happens around a stage (a
+resolution when it ends, a default move for an agent that did not act) is an event on the stage's anchors.
 - `name`: text (required)
-- `when`: text — Run this stage only when true (e.g. $round == 1).
+- `when`: text — Run this stage only when true (e.g. $round == 1, $round % 7 == 0).
 - `actions`: text | [text] | object = "all" — 'all', a list, or {type: [actions]}.
-- `turns`: text = "sequential" — sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in on_exit) | scheduled (continuous clock: each agent whose wake time has come, earliest first).
-- `interval`: number | text — Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).
-- `first_wake`: number | text — Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).
+- `turns`: text = "sequential" — sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in an event on `stage.<name>.end`).
 - `order`: text — seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Every agent sees it, so it may read no agent's private property. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.
 - `who`: text — Which agents are woken ($it); e.g. $it.alive and $chance(0.3).
 - `until`: text — Repeat turns within the round until true.
@@ -28,13 +27,4 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `max_calls`: int | text = 8 — Tool calls (including looks) per turn: a number or an expression over $inputs.
 - `brief`: text — Instruction shown during this stage (template).
 - `must_act`: bool = false — While an action is available, the agent cannot just end its turn.
-- `on_idle`: [any] — Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.
-- `on_wake`: [any] — Effects for each agent just before its turn ($actor), so what it reads reflects them: an upkeep, a draw, marking news as seen.
-- `on_turn_end`: [any] — Effects for each agent after its turn ($actor), whether or not it acted (simultaneous: after choices are committed).
-- `auto`: bool = false — Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.
-- `time_limit`: number | text — Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.
-- `on_timeout`: [any] — Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.
-- `atomic`: bool = false — The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone. An action's own `outcome` text (and attached files) is shown once the turn commits, so an undone turn shows nothing it was not charged for.
-- `valid`: [Condition] — Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck. Makes the stage atomic.
-- `on_enter`: effects
-- `on_exit`: effects
+- `valid`: [Condition] — Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. The turn's actions apply together or not at all: events, reactions and invariants wait until it ends, and an action's `outcome` (and attached files) is shown once the turn commits. `"true"` makes the turn atomic with no condition. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck.

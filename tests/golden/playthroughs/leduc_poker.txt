@@ -1,5 +1,5 @@
 # fg-env playthrough: Leduc poker
-Game: leduc_poker@76643b48:4642e142
+Game: leduc_poker@6424aa71:4642e142
 Seed: 1
 Seats: 0 p0, 1 p1
 Dynamics: sequential; chance: explicit; information: imperfect; utility: zero_sum

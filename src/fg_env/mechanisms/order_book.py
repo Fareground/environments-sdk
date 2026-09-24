@@ -37,7 +37,7 @@ from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.live import Abort
 from ..world.props import prop_type
-from ._common import ToolsSetting, entity_of, fmt, lot_floor, tools_field
+from ._common import entity_of, fmt, lot_floor
 from .book_rules import Venue, venue
 from .ledger import EPS, Account, balance, clean, move
 
@@ -162,7 +162,6 @@ class OrderBookConfig(BaseModel):
         True, description="Declare the invariant that reserves match the book and balances stay within limits: true "
                           "or action (checked after every action), round (after every round: much cheaper for big "
                           "crowds), end (once, when the run finishes), or false.")
-    tools: ToolsSetting = tools_field()
 
 
 _CONFIGS: dict[tuple[int, str], tuple[Any, OrderBookConfig]] = {}
@@ -720,7 +719,7 @@ def cancel_all(world: Any, name: str, trader: Entity) -> str:
 
 def crowd_type(name: str) -> str:
     """The type every coded crowd trader of the book is: ``<name>_crowd``, beside ``who`` and never one of its subtypes,
-    so other mechanisms on ``who`` (a ballot, a victory) do not count the crowd."""
+    so other mechanisms on ``who`` (a ballot) do not count the crowd."""
     return f"{name}_crowd"
 
 

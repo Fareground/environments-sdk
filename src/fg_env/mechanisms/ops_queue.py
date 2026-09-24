@@ -1,12 +1,12 @@
-"""The ``operations`` family's ``queue`` mode: customers arriving on channels, served by staffed server pools.
+"""The ``economy`` family's ``queue`` mode: customers arriving on channels, served by staffed server pools.
 
-A contact centre, a clinic, a counter or a repair crew: each interval (a round, or a stretch of a continuous clock)
-the mode reads its numbers — expected arrivals per channel, service and patience distributions, staff on duty per
-pool — and plays every arrival, answer, abandonment, callback and retrial natively (:mod:`.ops_engine`). The results
-are per-interval records and running totals in world props (:mod:`.ops_stats`), read by generated outputs and
-metrics. Numbers are expressions, so staffing is an input vector an optimiser can search
-(``"staff": "$inputs.staffing[$interval]"``), arrivals follow patterns (``"$pattern.calls * $pattern.outage"``) and
-agents can change what the next interval reads (``"$world.rostered"``).
+A contact centre, a clinic, a counter or a repair crew: each interval (a round) the mode reads its numbers —
+expected arrivals per channel, service and patience distributions, staff on duty per pool — and plays every arrival,
+answer, abandonment, callback and retrial natively (:mod:`.ops_engine`). The results are per-interval records and
+running totals in world props (:mod:`.ops_stats`), read by generated outputs and metrics. Numbers are expressions,
+so staffing is an input vector an optimiser can search (``"staff": "$inputs.staffing[$interval]"``), arrivals
+follow patterns (``"$pattern.calls * $pattern.outage"``) and agents can change what the next interval reads
+(``"$world.rostered"``).
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from .ops_stats import empty_totals, latest, merge_counts, record_for, updated_t
 
 __all__ = ["QueueConfig", "ChannelSpec", "PoolSpec", "DurationSpec", "interval_length"]
 
-KEY = "operations.queue"
+KEY = "economy.queue"
 #: Seconds in each time unit the mode and a clock may use.
 UNIT_SECONDS = {"second": 1.0, "minute": 60.0, "hour": 3600.0, "day": 86400.0, "week": 604800.0}
 
@@ -105,33 +105,24 @@ class QueueConfig(Config):
     unit: Literal["second", "minute", "hour"] = Field("second", description="Unit of every duration and threshold.")
     interval: float | None = Field(None, gt=0, description="Length of one interval in `unit` (default: one round of a "
                                                            "clock whose unit is second, minute, hour, day or week). "
-                                                           "Needed on a continuous clock and on rounds without a time "
-                                                           "unit.")
+                                                           "Needed when the clock has no time unit.")
 
 
 def _clock_unit(clock: Mapping[str, Any]) -> str:
     return str(clock.get("unit") or "round").lower().rstrip("s")
 
 
-def interval_length(config: QueueConfig, clock: Mapping[str, Any]) -> tuple[float, float | None]:
-    """``(interval length in the mode's unit, the same in clock units on a continuous clock else None)``; raises
-    :class:`MechanismError` when the clock does not give one."""
+def interval_length(config: QueueConfig, clock: Mapping[str, Any]) -> float:
+    """The length of one interval (one round) in the mode's unit; raises :class:`MechanismError` when the clock does not
+    give one."""
     unit = _clock_unit(clock)
-    continuous = clock.get("mode") == "continuous"
     if config.interval is not None:
-        length = float(config.interval)
-    elif not continuous and unit in UNIT_SECONDS:
-        length = int(clock.get("step") or 1) * UNIT_SECONDS[unit] / UNIT_SECONDS[config.unit]
-    else:
-        raise MechanismError("needs `interval`: how long one interval is, in `unit`",
-                             "e.g. \"unit\": \"second\", \"interval\": 1800 for half-hours (or a clock whose unit is "
-                             "second, minute, hour, day or week: each round is then one interval)", "interval")
-    if not continuous:
-        return length, None
-    if unit not in UNIT_SECONDS:
-        raise MechanismError(f"a continuous clock in '{clock.get('unit')}' has no length in {config.unit}s",
-                             "give the clock a time unit: second, minute, hour or day", "interval")
-    return length, length * UNIT_SECONDS[config.unit] / UNIT_SECONDS[unit]
+        return float(config.interval)
+    if unit in UNIT_SECONDS:
+        return int(clock.get("step") or 1) * UNIT_SECONDS[unit] / UNIT_SECONDS[config.unit]
+    raise MechanismError("needs `interval`: how long one interval is, in `unit`",
+                         "e.g. \"unit\": \"second\", \"interval\": 1800 for half-hours (or a clock whose unit is "
+                         "second, minute, hour, day or week: each round is then one interval)", "interval")
 
 
 def _check(config: QueueConfig) -> None:
@@ -181,15 +172,14 @@ def _check_duration(spec: DurationSpec, path: str) -> None:
                                                                           "\"high\": 240, \"mean\": 150}", path)
 
 
-@mode("operations", "queue", QueueConfig,
+@mode("economy", "queue", QueueConfig,
       "A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at "
       "the interval's expected `arrivals`), are answered at once by a free server of a pool with the skill, or wait in "
       "line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers "
       "facing a long wait a call back, served when nobody is waiting, and `retry` brings some who gave up back later. "
-      "Servers finish what they started when staff drops. Every number is read when the interval is played (on a "
-      "continuous clock: when it starts) and may read `$interval` (0 for the first), `$inputs`, `$world` and "
-      "`$pattern`. On a round clock each round is one interval, played after the round's stages; on a continuous "
-      "clock intervals of `interval` follow each other from time 0. Results: $world.<name>_intervals (one record per "
+      "Servers finish what they started when staff drops. Every number is read when the interval is played and may "
+      "read `$interval` (0 for the first), `$inputs`, `$world` and `$pattern`. Each round is one interval, played "
+      "after the round's stages. Results: $world.<name>_intervals (one record per "
       "interval: offered, answered, within, abandoned, callbacks, retrials, service_level, asa, abandon_rate, staff, "
       "utilisation, queue, max_queue, paid_hours, cost, and per channel and pool) and $world.<name>_totals; outputs "
       "<name>_service_level, _asa, _abandon_rate, _utilisation, _offered, _abandoned, _cost, _paid_hours, "
@@ -207,20 +197,16 @@ def _check_duration(spec: DurationSpec, path: str) -> None:
 def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     _check(config)
     clock = contract.get("clock") or {}
-    _, delay = interval_length(config, clock if isinstance(clock, Mapping) else {})
+    interval_length(config, clock if isinstance(clock, Mapping) else {})
     channels = list(config.channels)
-    state = {**empty_state(), "now": {}}
+    state = empty_state()
     world = {
         f"{name}_state": {"type": "map", "default": state, "description": "The queue between intervals (internal)."},
         f"{name}_intervals": {"type": "list", "default": [], "description": "One record per interval played."},
         f"{name}_totals": {"type": "map", "default": empty_totals(channels),
                            "description": "Totals over every interval."},
     }
-    events: list[dict[str, Any]]
-    if delay is None:
-        events = [{"name": f"{name}: interval", "phase": "end", "do": [{"operations": name, "action": "tick"}]}]
-    else:
-        events = [{"name": f"{name}: open", "at": 1, "do": [{"operations": name, "action": "open"}]}]
+    events = [{"name": f"{name}: interval", "phase": "end", "do": [{"economy": name, "action": "tick"}]}]
     totals, intervals = f"$world.{name}_totals", f"$world.{name}_intervals"
     outputs: dict[str, Any] = {
         f"{name}_service_level": {"expr": f"{totals}.service_level", "type": "number", "format": "pct",
@@ -279,7 +265,7 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
 def _config(world: Any, name: str, where: str) -> QueueConfig:
     raw = world.contract.mechanisms.get(name)
     if not isinstance(raw, Mapping) or f"{raw.get('kind')}.{raw.get('mode')}" != KEY:
-        raise RunError(f"'{name}' is not a declared operations queue", where)
+        raise RunError(f"'{name}' is not a declared economy queue", where)
     return parsed(raw, QueueConfig)
 
 
@@ -310,7 +296,7 @@ def _duration(world: Any, spec: DurationSpec, path: str, index: int) -> dict[str
 
 
 def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str, Any]:
-    """Every number of interval ``index``, as plain data (kept in the state on a continuous clock)."""
+    """Every number of interval ``index``, as plain data."""
     base = f"mechanisms.{name}"
     channels = {}
     for cname, spec in config.channels.items():
@@ -356,7 +342,7 @@ def _engine_inputs(now: Mapping[str, Any]) -> tuple[dict[str, Channel], dict[str
 
 def _play(world: Any, name: str, config: QueueConfig, now: dict[str, Any]) -> dict[str, Any]:
     """Play the interval the state is at with ``now``'s numbers and write the results; the new state."""
-    length, _ = interval_length(config, _clock_data(world))
+    length = interval_length(config, _clock_data(world))
     state = world.props[f"{name}_state"]
     index = int(state["interval"])
     channels, pools = _engine_inputs(now)
@@ -366,47 +352,23 @@ def _play(world: Any, name: str, config: QueueConfig, now: dict[str, Any]) -> di
     record = record_for(index, index * length, length, hours, now, counts, targets)
     records, changed = merge_counts([*world.props[f"{name}_intervals"], record], counts, targets)
     totals = updated_totals(world.props[f"{name}_totals"], record, changed, length, engine_state)
-    new_state = {**engine_state, "now": {}}
     world.set_world(f"{name}_intervals", records, trusted=True)
     world.set_world(f"{name}_totals", latest(totals, records[index]), trusted=True)
-    return new_state
+    return engine_state
 
 
 def _clock_data(world: Any) -> dict[str, Any]:
     clock = world.contract.clock
-    return {"unit": clock.unit, "step": clock.step, "mode": clock.mode}
+    return {"unit": clock.unit, "step": clock.step}
 
 
-@family_action("operations", ("queue",), "tick", internal=True,
-               example='{"operations": "centre", "action": "tick"}  (play the next interval)')
+@family_action("economy", ("queue",), "tick", internal=True,
+               example='{"economy": "centre", "action": "tick"}  (play the next interval)')
 def _tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["operations"]
+    name = effect["economy"]
     config = _config(world, name, where)
     state = world.props[f"{name}_state"]
-    index = int(state["interval"])
-    if not world.continuous:
-        world.set_world(f"{name}_state", _play(world, name, config, resolve(world, name, config, index)), trusted=True)
-        return
-    new_state = _play(world, name, config, state["now"])
-    _, delay = interval_length(config, _clock_data(world))
-    assert delay is not None
-    if world.horizon is None or world.time + delay <= world.horizon + 1e-9:
-        new_state["now"] = resolve(world, name, config, index + 1)
-        world.schedule(world.time + delay, [{"operations": name, "action": "tick"}], {}, f"mechanisms.{name}")
-    world.set_world(f"{name}_state", new_state, trusted=True)
-
-
-@family_action("operations", ("queue",), "open", internal=True,
-               example='{"operations": "centre", "action": "open"}  (continuous clock: read the first interval and '
-                       'schedule it)')
-def _open(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-    world = runner.world
-    name = effect["operations"]
-    config = _config(world, name, where)
-    state = world.props[f"{name}_state"]
-    _, delay = interval_length(config, _clock_data(world))
-    assert delay is not None
-    world.set_world(f"{name}_state", {**state, "now": resolve(world, name, config, int(state["interval"]))},
+    world.set_world(f"{name}_state", _play(world, name, config, resolve(world, name, config, int(state["interval"]))),
                     trusted=True)
-    world.schedule(world.time + delay, [{"operations": name, "action": "tick"}], {}, f"mechanisms.{name}")
+

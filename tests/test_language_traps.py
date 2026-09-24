@@ -20,14 +20,6 @@ AUTO = {"name": "Auto", "clock": {"rounds": 3},
         "stages": [{"name": "s", "actions": ["work"], "auto": True}]}
 
 
-def test_preview_does_not_show_a_turn_that_auto_plays_without_the_agent():
-    woken = []
-    fg_env.load(AUTO, seed=1).run({"a": lambda wake: woken.append(wake.round)})
-    assert woken == []
-    view = fg_env.load(AUTO, seed=1).preview("a")
-    assert "auto" in view["update"] and "not be woken" in view["update"]
-
-
 SEATS = {"name": "Seats", "clock": {"rounds": 2}, "world": {"last": ""},
          "types": {"p": {"agent": True}},
          "entities": {"first": {"type": "p"}, "second": {"type": "p"}},

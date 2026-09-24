@@ -29,10 +29,9 @@ def test_agent_can_measure_a_round_series_or_a_filtered_population():
     c = {"name": "Cohort summary", "clock": {"rounds": 3}, "types": {"buyer": {"props": {"spend": 0}}},
          "entities": {f"buyer_{i}": {"type": "buyer", "props": {"spend": value}}
                       for i, value in enumerate([0, 4, 8, 100])},
-         "metrics": {"sales": "$round * 10"},
-         "outputs": {"median_sales": "$median($series.sales)",
+         "outputs": {"sales": {"expr": "$round * 10", "series": True}, "median_sales": "$median($series.sales)",
                      "paying_customer_spend": "$median(buyer, $it.spend, $it.spend > 0)"}}
     assert not [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
     result = fg_env.run(c, seed=1)
     assert result.status == "completed", result.error
-    assert result.outputs == {"median_sales": 20, "paying_customer_spend": 8}
+    assert result.outputs == {"sales": 30, "median_sales": 20, "paying_customer_spend": 8}

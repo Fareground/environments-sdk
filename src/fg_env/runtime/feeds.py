@@ -52,7 +52,7 @@ def run_feeds(env: Env) -> None:
             except BaseException:
                 world.journal.rollback(mark)
                 raise
-            env._after_commit(f"feeds.{name}")
+            env._after_commit(f"mechanisms.{name}")
 
 
 def _due(world: SdkWorld, name: str, spec: FeedSpec) -> bool:
@@ -63,18 +63,18 @@ def _due(world: SdkWorld, name: str, spec: FeedSpec) -> bool:
     try:
         return truthy(compile_expr(spec.when)(world.scope()))
     except ExprError as exc:
-        raise RunError(str(exc), f"feeds.{name}.when") from None
+        raise RunError(str(exc), f"mechanisms.{name}.when") from None
 
 
 def _pull(world: SdkWorld, name: str, spec: FeedSpec) -> None:
-    path = f"feeds.{name}"
+    path = f"mechanisms.{name}"
     owner, target = feed_target(spec)
     try:
         query = plain(resolve(copy.deepcopy(spec.query), world.scope()))
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.query") from None
     request = {"feed": name, "query": query, "into": spec.into, "expects": _expects(world, owner, target),
-               "round": world.round, "time": world.time if world.continuous else None, "date": world.date()}
+               "round": world.round, "date": world.date()}
     identity = {"query": query}
     fallback = partial(_fallback, world, name, spec) if "fallback" in spec.model_fields_set else None
     answer = consult(world, service=spec.host, method="fetch", site=path, identity=identity,
@@ -103,7 +103,7 @@ def _fallback(world: SdkWorld, name: str, spec: FeedSpec) -> Any:
         try:
             return plain(resolve(copy.deepcopy(spec.fallback), world.scope()))
         except ExprError as exc:
-            raise RunError(str(exc), f"feeds.{name}.fallback") from None
+            raise RunError(str(exc), f"mechanisms.{name}.fallback") from None
 
 
 def _validate(world: SdkWorld, owner: str, target: str, answer: Any) -> Any:

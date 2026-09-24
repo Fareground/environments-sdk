@@ -86,11 +86,11 @@ def test_what_the_state_cannot_follow_is_refused_with_fixes():
     del changed["types"]["shop"]["props"]["cash"]
     changed["actions"]["sell"]["do"] = ["$world.sales += 1"]
     changed["outputs"] = {"sales": {"expr": "$world.sales", "type": "int"}}
-    changed["clock"] = {"rounds": 2, "mode": "continuous", "horizon": 100}
+    changed["clock"] = {"rounds": 2}
     with pytest.raises(ContractError) as refused:
         env.fork(contract=changed)
     paths = {issue.path: issue for issue in refused.value.issues}
-    assert {"types.shop.props.cash", "clock.rounds", "clock.mode"} <= set(paths)
+    assert {"types.shop.props.cash", "clock.rounds"} <= set(paths)
     assert all(issue.fix for issue in refused.value.issues)
     with pytest.raises(ContractError, match="above the maximum 5"):
         env.fork(patch={"types": {"shop": {"props": {"cash": {"default": 0, "max": 5}}}}})

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 __all__ = ["BASE", "ENTITY_FIELDS", "ENTRY_FIELDS", "RECORD_FIELD_TYPES", "Types", "merge_types"]
 
-BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm", "pending",
+BASE = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "outputs", "series", "arm", "pending",
                   "pattern"})
 ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 ENTRY_FIELDS = frozenset({"seq", "round", "stage", "author", "to"})

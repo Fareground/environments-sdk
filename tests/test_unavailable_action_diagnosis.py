@@ -1,13 +1,10 @@
 """Refusal diagnostics must not evaluate another role's or another stage's rules."""
 import copy
 
-import pytest
-
 import fg_env
 
 
-@pytest.mark.parametrize("grouped", [False, True])
-def test_wrong_role_call_is_refused_without_probing_role_specific_effects(grouped):
+def test_wrong_role_call_is_refused_without_probing_role_specific_effects():
     c = {"name": "Role refusal", "clock": {"rounds": 1},
          "types": {"manager": {"agent": True},
                    "worker": {"agent": True, "props": {"done": False}}},
@@ -15,23 +12,19 @@ def test_wrong_role_call_is_refused_without_probing_role_specific_effects(groupe
          "actions": {"ping": {"by": "manager"},
                      "finish": {"by": "worker", "params": {"value": {"type": "bool"}},
                                 "do": "$actor.done = $params.value"}}}
-    if grouped:
-        c["actions"]["finish"]["tool"] = "work"
     env = fg_env.load(c, seed=1)
     refused = []
 
     def play(wake):
         if wake.entity_id == "m":
             before = copy.deepcopy((env.props, env.entities()))
-            reply = wake.call("work" if grouped else "finish",
-                              {"action": "finish", "value": True} if grouped else {"value": True})
+            reply = wake.call("finish", {"value": True})
             assert not reply.ok
             assert before == (env.props, env.entities())
             refused.append(reply.text)
             assert wake.call("ping", {}).ok
         else:
-            assert wake.call("work" if grouped else "finish",
-                             {"action": "finish", "value": True} if grouped else {"value": True}).ok
+            assert wake.call("finish", {"value": True}).ok
         wake.end()
 
     result = env.run(play)

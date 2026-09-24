@@ -13,7 +13,6 @@ from ..contract import Contract
 from ..expr import ExprError, compile_expr, is_expr
 from ..runtime.perception import SPECTATOR
 from ..runtime.session import END_TURN
-from ..sampling.probability import check_literal_probability
 from .params import check_param_bounds
 from .roots import BASE
 from .turns import check_spectator_view, check_stage_turns, spectator_audience_issues
@@ -28,7 +27,7 @@ __all__ = ["ActionChecks"]
 BUILT_IN_TOOLS = (*READS, END_TURN)
 #: The tool names model providers accept (Anthropic and OpenAI alike).
 _PROVIDER_NAME = re.compile(r"[a-zA-Z0-9_-]{1,64}")
-_TURNS = ("sequential", "simultaneous", "scheduled")
+_TURNS = ("sequential", "simultaneous")
 
 
 class ActionChecks:
@@ -44,10 +43,7 @@ class ActionChecks:
             by = [spec.by] if isinstance(spec.by, str) else spec.by
             by_types = {t for t in by if self._type(t, f"{path}.by", agent=True)}
             types: Types = {"actor": by_types}
-            if spec.tool is None:
-                self._tool_name(name, path)
-            else:
-                self._tool_group(spec, path)
+            self._tool_name(name, path)
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
                 if param.type not in C.PARAM_TYPES:
@@ -79,17 +75,10 @@ class ActionChecks:
                 self.template(condition.why or None, f"{path}.when[{index}].why", None, BASE | {"actor", "params"},
                               types, spec.params)
             roots = set(BASE | {"actor", "params"})
-            self.value(spec.chance, f"{path}.chance", roots, types, spec.params)
-            check_literal_probability(self, spec.chance, f"{path}.chance")
-            self.value(spec.duration, f"{path}.duration", roots, types, spec.params)
-            if spec.duration is not None and self.c.clock.mode != "continuous":
-                self.warn(f"{path}.duration", "duration only applies with a continuous clock")
             after = self.effects(spec.do, f"{path}.do", roots, dict(types), spec.params)
-            after |= self.effects(spec.otherwise, f"{path}.otherwise", roots, dict(types), spec.params)
-            if spec.otherwise and spec.chance is None:
-                self.warn(f"{path}.otherwise", "runs only when `chance` fails, and there is no `chance`")
-            for key in ("outcome", "announce"):
-                self.template(getattr(spec, key), f"{path}.{key}", None, after, types, spec.params)
+            self.template(spec.outcome, f"{path}.outcome", None, after, types, spec.params)
+            if isinstance(spec.announce, str):
+                self.template(spec.announce, f"{path}.announce", None, after, types, spec.params)
             self._private_action(spec, types, path)
             self._undecided_by_luck(spec, path)
             if isinstance(spec.terminal, str):
@@ -118,22 +107,7 @@ class ActionChecks:
                 self.error(f"{path}.{key}", "draws at random, but it decides whether a call is allowed or what its "
                                             "arguments may be: a refused call costs nothing, so an agent could call "
                                             "again until luck let it through",
-                           "draw in the action's `do` (or use its `chance`), or in an event that stores the result for "
-                           "this to read")
-
-    def _tool_group(self: _Checker, spec: C.ActionSpec, path: str) -> None:  # type: ignore[misc]
-        """An action offered inside a shared tool: the tool's name is free, and `action` is the tool's own argument."""
-        tool = spec.tool or ""
-        if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_]*", tool):
-            self.error(f"{path}.tool", f"'{tool}' is not a tool name",
-                       "use letters, digits and _, starting with a letter")
-        elif tool in self.c.actions:
-            self.error(f"{path}.tool", f"'{tool}' is also the name of an action", "give the shared tool another name")
-        else:
-            self._tool_name(tool, f"{path}.tool")
-        if "action" in spec.params:
-            self.error(f"{path}.params.action", "an action inside a shared tool cannot take a parameter named `action`",
-                       "the tool's `action` argument picks the action; rename the parameter")
+                           "draw in the action's `do`, or in an event that stores the result for this to read")
 
     def _tool_name(self: _Checker, name: str, path: str) -> None:  # type: ignore[misc]
         """A name offered to models as a tool: not a built-in tool's, and one every provider accepts."""
@@ -203,16 +177,13 @@ class ActionChecks:
                     self._type(type_name, f"{path}.actions.{type_name}", agent=True)
             elif isinstance(stage.actions, str) and stage.actions != "all":
                 self.error(f"{path}.actions", "use 'all', a list of action names, or {type: [actions]}")
-            if stage.turns not in _TURNS:
+            if stage.turns == "scheduled":
+                self.error(f"{path}.turns", "scheduled turns were removed with the continuous clock",
+                           "use sequential turns, and `when` on the stage for the rounds it runs in "
+                           "(\"when\": \"$round % 7 == 1\")")
+            elif stage.turns not in _TURNS:
                 self.error(f"{path}.turns", f"unknown turns '{stage.turns}'",
-                           self._suggest(stage.turns, _TURNS) or "sequential, simultaneous or scheduled")
-            continuous = self.c.clock.mode == "continuous"
-            if stage.turns == "scheduled" and not continuous:
-                self.error(f"{path}.turns", "scheduled turns need a continuous clock", "set clock.mode to continuous")
-            if (stage.interval is not None or stage.first_wake is not None) and stage.turns != "scheduled":
-                self.warn(path, "interval and first_wake only apply to scheduled turns")
-            self.value(stage.interval, f"{path}.interval", BASE | {"actor"}, {"actor": set(self.agents)})
-            self.value(stage.first_wake, f"{path}.first_wake", BASE | {"it", "i"}, {"it": set(self.agents)})
+                           self._suggest(stage.turns, _TURNS) or "sequential or simultaneous")
             if stage.quiet not in ("wake", "skip"):
                 self.error(f"{path}.quiet", f"unknown quiet '{stage.quiet}'",
                            self._suggest(stage.quiet, ("wake", "skip")) or "wake or skip")
@@ -224,10 +195,6 @@ class ActionChecks:
             self.condition(stage.until, f"{path}.until", BASE)
             self.condition(stage.when, f"{path}.when", BASE)
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
-            self.effects(stage.on_enter, f"{path}.on_enter", set(BASE), {})
-            self.effects(stage.on_exit, f"{path}.on_exit", set(BASE), {})
-            for hook in ("on_idle", "on_wake", "on_turn_end"):
-                self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
             self._sealed_announced(stage, path)
             self._private_who(stage, f"{path}.who")
@@ -250,7 +217,7 @@ class ActionChecks:
                           "action belongs in it too")
 
     def _count(self: _Checker, value: Any, path: str) -> None:  # type: ignore[misc]
-        """A count setting (`clock.rounds`, a stage's `passes`, `max_actions`, `max_calls`, an event's `every`): a
+        """A count setting (`clock.rounds`, a stage's `passes`, `max_actions`, `max_calls`): a
         whole number ≥ 1, or an expression over $inputs giving one."""
         if isinstance(value, str) and not is_expr(value):
             self.error(path, f"must be a whole number or an expression with $, got the text '{value}'",
@@ -274,10 +241,6 @@ class ActionChecks:
             actor_types = (set(self.agents) if targets == ["all"]
                            else {t for t in targets if self._type(t, f"{path}.for", agent=True)})
             types: Types = {"actor": actor_types}
-            for stage in view.stages or []:
-                if stage not in self.stage_names:
-                    self.error(f"{path}.stages", f"'{stage}' is not a stage",
-                               self._hint(stage, self.stage_names, "stages"))
             self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
             self._private_view(view, path)
             if view.of is None:

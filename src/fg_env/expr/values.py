@@ -107,14 +107,14 @@ def _check_visible(owner: Any, name: str, scope: Any, source: str | None) -> Non
 
 
 def _check_metric(values: Mapping[str, Any], name: str, scope: Any, source: str | None) -> None:
-    """Refuse (:class:`PrivateRead`) reading metric ``name`` (in ``$metrics`` or ``$series``), worked out from private
-    properties, in what an agent is shown or offered."""
+    """Refuse (:class:`PrivateRead`) reading series output ``name`` (in ``$outputs`` or ``$series``), worked out from
+    private properties, in what an agent is shown or offered."""
     world, viewer = scope.world, scope.vars.get("viewer")
     if viewer is None or not (values is getattr(world, "metrics", None) or values is getattr(world, "series", None)):
         return
     raise PrivateRead(
-        f"metric {name} is worked out from private properties, and this is what "
-        f"{getattr(viewer, 'name', viewer)} is shown or offered: show a metric that reads no private property, or "
+        f"output {name} is worked out from private properties, and this is what "
+        f"{getattr(viewer, 'name', viewer)} is shown or offered: show an output that reads no private property, or "
         "work out what the agent may learn in game logic (an action's do, an event) and show that", source)
 
 

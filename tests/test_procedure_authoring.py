@@ -11,7 +11,7 @@ def contract(conditions):
         "entities": {"a": {"type": "manager", "props": {"north": True}}, "b": {"type": "manager"}},
         "actions": {"approve": {"by": "manager", "when": conditions, "params": {"yes": "bool"},
                                  "do": ["$actor.approved = true"]}},
-        "mechanisms": {"review": {"kind": "flow", "mode": "procedure", "phases": {
+        "mechanisms": {"review": {"kind": "decision", "mode": "procedure", "phases": {
             "approval": {"stages": [{"actions": ["approve"]}],
                          "next": [{"to": "done", "all_did": "approve"}]},
             "done": {},
@@ -73,7 +73,7 @@ def shared_actions_contract(names=("north", "south")):
         "name": "Parallel approvals", "clock": {"rounds": 2},
         "types": {"manager": {"agent": True}}, "entities": {"manager": {"type": "manager"}},
         "actions": {"approve": {"by": "manager", "do": []}},
-        "mechanisms": {name: {"kind": "flow", "mode": "procedure", "phases": {
+        "mechanisms": {name: {"kind": "decision", "mode": "procedure", "phases": {
             "review": {"stages": [{"actions": ["approve"]}],
                        "next": [{"to": "done", "all_did": "approve"}]}, "done": {},
         }} for name in names},

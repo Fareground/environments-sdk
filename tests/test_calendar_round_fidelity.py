@@ -9,7 +9,7 @@ from fg_env.stdlib.dates import calendar_date
 
 
 def clock(start, unit, step=1):
-    return Calendar(start, unit, step, 'rounds', 1)
+    return Calendar(start, unit, step)
 
 
 @pytest.mark.parametrize('start,unit,dates', [

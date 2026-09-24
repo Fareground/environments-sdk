@@ -302,11 +302,12 @@ def test_another_agents_private_property_cannot_be_read_around_the_rule(path, pa
     assert [i.path for i in errors] == [path] and "secret" in errors[0].message and "private" in errors[0].message
 
 
-@pytest.mark.parametrize("show", ["Ann holds {$metrics.held}.", "Ann held {$last($series.held)}."])
-def test_a_metric_worked_out_from_a_private_property_is_not_shown_to_agents(show):
-    c = _secrets(metrics={"held": "$entity(ann).secret", "count": "$count(p)"}, views={"v": {"show": show}},
-                 clock={"rounds": 2})
-    assert any(i.severity == "error" and i.path == "views.v" and "metric held" in i.message for i in fg_env.check(c))
+@pytest.mark.parametrize("show", ["Ann holds {$outputs.held}.", "Ann held {$last($series.held)}."])
+def test_a_series_output_worked_out_from_a_private_property_is_not_shown_to_agents(show):
+    c = _secrets(outputs={"held": {"expr": "$entity(ann).secret", "series": True},
+                          "count": {"expr": "$count(p)", "series": True}},
+                 views={"v": {"show": show}}, clock={"rounds": 2})
+    assert any(i.severity == "error" and i.path == "views.v" and "output held" in i.message for i in fg_env.check(c))
     seen = []
 
     def participant(wake):
@@ -316,7 +317,8 @@ def test_a_metric_worked_out_from_a_private_property_is_not_shown_to_agents(show
     result = Env(parse_contract(c), {}, 1).run(participant)
     assert result.status == "failed" and "views.v" in result.error
     assert not any("4242" in text for text in seen)
-    public = _secrets(metrics={"count": "$count(p)"}, views={"v": {"show": "{$metrics.count} players."}})
+    public = _secrets(outputs={"count": {"expr": "$count(p)", "series": True}},
+                      views={"v": {"show": "{$outputs.count} players."}})
     assert fg_env.run(public, seed=1).status == "completed"
 
 

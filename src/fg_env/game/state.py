@@ -24,7 +24,6 @@ from ..copying.direct import NotCopyable
 from ..copying.snapshot import encode
 from ..errors import ContractError, Issue, RunError
 from ..runtime.driving import Unpausable
-from ..runtime.returns import seat_rewards
 from ..runtime.session import END_TURN, ToolResult
 from ..runtime.turn import Turn
 from .observe import digest, information_state, observation_struct, observation_text, state_key
@@ -219,21 +218,18 @@ class GameState:
     # -- scores --------------------------------------------------------------------------------------
 
     def returns(self) -> list[float]:
-        """Each seat's return so far (the contract's ``game.returns``)."""
+        """Each seat's return so far (its type's ``score.value``)."""
         game = self.game
-        if game.contract.game is None or game.contract.game.returns is None:
-            raise ContractError([Issue("game.returns", "is not declared, so the game has no returns",
-                                       'declare what each seat scores, e.g. "game": {"returns": "$actor.chips"}')])
+        if game.contract.scoring() is None:
+            raise ContractError([Issue("types", "no type has a `score`, so the game has no returns",
+                                       'declare what each seat scores, e.g. "types": {"player": {"agent": true, '
+                                       '"score": {"value": "$it.chips"}}}')])
         run = self._run
         values = run.read_prefetched() if run.prefetch is not None else run.read(game._returns_of)
         return [values[seat] for seat in game.players]
 
     def rewards(self) -> list[float]:
-        """Each seat's reward for the last decision: the contract's ``game.rewards``, else the change in returns."""
-        contract, players = self.game.contract, self.game.players
-        declared = self._run.read(lambda env: seat_rewards(contract, env.world, players))
-        if declared is not None:
-            return [declared[seat] for seat in players]
+        """Each seat's reward for the last decision: the change in its return."""
         now = self.returns()
         if self._previous is None:
             return [0.0] * len(now)
@@ -306,7 +302,7 @@ class GameState:
 
     def _safe_returns(self) -> list[float] | None:
         contract = self.game.contract
-        return self.returns() if contract.game is not None and contract.game.returns is not None else None
+        return self.returns() if contract.scoring() is not None else None
 
     def _turn(self) -> Turn | None:
         pause = self._run.pause
@@ -445,7 +441,7 @@ class GameState:
 
     def _before(self) -> None:
         contract = self.game.contract
-        if contract.game is not None and contract.game.returns is not None:
+        if contract.scoring() is not None:
             self._previous = self.returns()
 
     def _changed(self) -> None:

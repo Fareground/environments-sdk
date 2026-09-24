@@ -131,7 +131,7 @@ def test_recorded_timeouts_replay_in_a_copy():
 
     def participant(wake):
         if wake.entity_id == "ann":
-            time.sleep(0.3)  # past the stage's 0.2 s limit
+            time.sleep(0.3)  # past the run's 0.2 s limit
             wake.call("score", {"points": 3})
             return
         branch = wake.clone(same_luck=True)
@@ -140,7 +140,7 @@ def test_recorded_timeouts_replay_in_a_copy():
         branch.close()
         wake.call("score", {"points": 1})
 
-    real = fg_env.load(one_round, seed=1).run(participant)
+    real = fg_env.load(one_round, seed=1).run(participant, time_limit=0.2)
     assert any(event["kind"] == "timeout" for event in real.events)
     assert copies[0].events == real.events
 

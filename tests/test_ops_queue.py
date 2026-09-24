@@ -1,4 +1,4 @@
-"""The operations queue mode: a service system that matches known queueing results, routes by skill and priority,
+"""The economy queue mode: a service system that matches known queueing results, routes by skill and priority,
 offers callbacks, brings back retries, and keeps its state through snapshots, clones and forks."""
 import copy
 import json
@@ -12,7 +12,7 @@ HALF_HOURS = {"unit": "minute", "step": 30}
 
 
 def centre(rounds=8, channels=None, servers=None, clock=None, **extra):
-    queue = {"kind": "operations", "mode": "queue",
+    queue = {"kind": "economy", "mode": "queue",
              "channels": channels or {"calls": {"arrivals": 100, "service": {"mean": 180}, "threshold": 20}},
              "servers": servers or {"agents": {"staff": 12}}, **extra}
     return {"name": "Centre", "clock": clock or {"rounds": rounds, **HALF_HOURS}, "types": {"clerk": {}},
@@ -153,21 +153,6 @@ def test_customers_who_gave_up_come_back_as_retries():
     assert result.outputs["q_offered"] > sum(no_retry.outputs["q_offered_by_interval"])
 
 
-def test_a_continuous_clock_plays_the_same_intervals_as_a_round_clock():
-    rounds = run(centre(rounds=4,
-                        channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
-                        servers={"agents": {"staff": "$inputs.staffing[$interval]"}}),
-                 inputs={"staffing": [6, 8, 10, 12]})
-    continuous = centre(rounds=4,
-                        channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
-                        servers={"agents": {"staff": "$inputs.staffing[$interval]"}},
-                        clock={"mode": "continuous", "unit": "minute", "horizon": 120}, interval=1800)
-    timed = run(continuous, inputs={"staffing": [6, 8, 10, 12]})
-    for name in ("q_offered_by_interval", "q_service_level_by_interval", "q_staff_by_interval", "q_abandoned"):
-        assert timed.outputs[name] == rounds.outputs[name], name
-    assert timed.time == 120
-
-
 def test_a_run_split_by_a_snapshot_a_clone_or_a_fork_continues_exactly():
     contract = centre(rounds=6, channels={"calls": {"arrivals": 110, "service": {"mean": 180}, "patience": {"mean": 90},
                                                     "callback": {"when": 30, "accept": 0.5},
@@ -203,6 +188,6 @@ def test_config_mistakes_name_what_to_fix():
 
 
 def test_the_guide_documents_the_mode():
-    page = fg_env.guide("operations.queue")
+    page = fg_env.guide("economy.queue")
     assert "patience" in page and "callback" in page and "$interval" in page
-    assert "operations" in fg_env.guide()
+    assert "service queues" in fg_env.guide("economy")

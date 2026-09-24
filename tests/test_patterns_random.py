@@ -132,7 +132,7 @@ def test_adding_a_pattern_or_a_draw_elsewhere_never_shifts_another_patterns_path
     more = {**base, "extra": {"kind": "noise"}, "d": {"kind": "draw", "dist": "uniform", "low": 0, "high": 1}}
     measures = {"w": "$pattern.w"}
     alone = series(base, measures, rounds=6, seed=3)
-    crowded = series(more, {**measures, "e": "$pattern.extra + $pattern.d + $random()"}, rounds=6, seed=3)
+    crowded = series(more, {**measures, "e": "$pattern.extra + $pattern.d + $uniform(0, 1)"}, rounds=6, seed=3)
     assert crowded["w"] == alone["w"]
 
 

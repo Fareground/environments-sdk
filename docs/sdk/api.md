@@ -20,9 +20,9 @@ or a mapping of host name to adapter) answers the judgment the contract asks of 
 (``result.exposures``); a contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects:
 ``"sampled"`` (the default: drawn from the seeded stream) or a callable given each
 :class:`~fg_env.effects.chance.ChanceNode` that returns the index of the outcome to take (a fixed deal, duplicate
-formats); :func:`fg_env.rl.game` enumerates chance for search. A contract with a ``calibration`` section fits its
-inputs with pilot sessions first (``env.calibration`` is the report); ``calibrate=False`` skips that, as
-``fg_env.check``'s smoke play does. ``events=False`` keeps no event log, for a big crowd played for many rounds:
+formats); :func:`fg_env.rl.game` enumerates chance for search. ``calibrate`` is accepted for one release and does
+nothing: fit inputs before loading with :func:`fg_env.analysis.calibrate` and pass its ``params`` as ``inputs``.
+``events=False`` keeps no event log, for a big crowd played for many rounds:
 ``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
 news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
 that reads `$events` or `$seen` keeps its log).
@@ -78,7 +78,7 @@ contract file's folder, so every run, check and analysis of it finds them.
 expand(source: 'ContractLike', *, mechanisms: 'bool' = False) -> 'dict[str, Any]'
 ```
 
-The contract data the engine reads: imports merged and macros expanded (and, with
+The contract data the engine reads: imports merged and earlier forms rewritten (and, with
 ``mechanisms=True``, every mechanism expanded into ordinary sections too; the ``mechanisms`` block stays,
 since the generated effects read their config there, and loading the result again changes nothing).
 
@@ -87,7 +87,7 @@ Raises :class:`ContractError` for problems found while expanding; ``check`` repo
 ## `experiment`
 
 ```pyi
-experiment(source: 'ContractLike', *, runs: 'int' = 10, arms: 'list[str] | None' = None, seed: 'int' = 0, inputs: 'Mapping[str, Any] | None' = None, participants: 'Any' = None, participants_for: 'Callable[[int, str | None], Any] | None' = None, rounds: 'int | None' = None, workers: 'int' = 1, data_dir: 'Any' = None, branch_at: 'int | None' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ExperimentResult'
+experiment(source: 'ContractLike', *, runs: 'int' = 10, arms: 'list[str] | None' = None, seed: 'int' = 0, inputs: 'Mapping[str, Any] | None' = None, participants: 'Any' = None, participants_for: 'Callable[[int, str | None], Any] | None' = None, rounds: 'int | None' = None, workers: 'int' = 1, data_dir: 'Any' = None, branch_at: 'int | None' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, hosts: 'Any' = None, uncertainty: 'Any' = None, time_limit: 'float | None' = None) -> 'ExperimentResult'
 ```
 
 Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
@@ -105,7 +105,8 @@ every arm's run, so they count toward each arm's budget. ``exposures=True`` reco
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
 answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
 :mod:`fg_env.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
-outcomes includes not knowing them.
+outcomes includes not knowing them. ``time_limit`` is the wall-clock seconds each agent's turn may take in every
+run.
 
 Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
 before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
@@ -201,7 +202,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```pyi
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: dict[str, fg_env.contract.assets.AssetSpec] = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: list[fg_env.contract.world.PopulationSpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: list[fg_env.contract.world.LinkSpec] = <factory>, physics: fg_env.contract.world.PhysicsSpec | None = None, feeds: dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: dict[str, dict[str, typing.Any]] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, triggers: list[fg_env.contract.rules.TriggerSpec] = <factory>, policies: dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: fg_env.contract.measure.CalibrationSpec | None = None, game: fg_env.contract.game.GameSpec | None = None, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
+Contract(*, fg_env: str = '1', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.
@@ -209,7 +210,7 @@ An environment: world, people, rules, what agents see, what is measured.
 ## `RunResult`
 
 ```pyi
-RunResult(status: 'str', ended_by: 'str | None', rounds: 'int', seed: 'int', arm: 'str | None', inputs: 'dict[str, Any]', outputs: 'dict[str, Any]', metrics: 'dict[str, Any]', series: 'dict[str, list[Any]]', winner: 'Any' = None, error: 'str | None' = None, time: 'float | None' = None, returns: 'dict[str, float]' = <factory>, output_issues: 'list[dict[str, Any]]' = <factory>, stats: 'dict[str, Any]' = <factory>, agent_stats: 'dict[str, dict[str, Any]]' = <factory>, events: 'list[dict[str, Any]]' = <factory>, exposures: 'dict[str, Any]' = <factory>, frames: 'list[dict[str, Any]]' = <factory>, host_tape: 'dict[str, Any]' = <factory>, budget: 'dict[str, Any]' = <factory>, formats: 'dict[str, str]' = <factory>, diagnostics: 'list[dict[str, str]]' = <factory>, clock: 'dict[str, Any]' = <factory>, assets: 'dict[str, Any]' = <factory>, state: 'dict[str, Any]' = <factory>) -> None
+RunResult(status: 'str', ended_by: 'str | None', rounds: 'int', seed: 'int', arm: 'str | None', inputs: 'dict[str, Any]', outputs: 'dict[str, Any]', metrics: 'dict[str, Any]', series: 'dict[str, list[Any]]', winner: 'Any' = None, error: 'str | None' = None, returns: 'dict[str, float]' = <factory>, output_issues: 'list[dict[str, Any]]' = <factory>, stats: 'dict[str, Any]' = <factory>, agent_stats: 'dict[str, dict[str, Any]]' = <factory>, events: 'list[dict[str, Any]]' = <factory>, exposures: 'dict[str, Any]' = <factory>, frames: 'list[dict[str, Any]]' = <factory>, host_tape: 'dict[str, Any]' = <factory>, budget: 'dict[str, Any]' = <factory>, formats: 'dict[str, str]' = <factory>, diagnostics: 'list[dict[str, str]]' = <factory>, clock: 'dict[str, Any]' = <factory>, assets: 'dict[str, Any]' = <factory>, state: 'dict[str, Any]' = <factory>) -> None
 ```
 
 Everything a run produced. ``outputs`` follows the contract's output contract.
@@ -319,11 +320,12 @@ Never acts.
 ### `participants.PolicyAgent`
 
 ```pyi
-PolicyAgent(contract: 'Contract', name: 'str', seed: 'int' = 0)
+PolicyAgent(contract: 'Contract', name: 'str', seed: 'int' = 0, kinds: 'tuple[str, ...]' = ())
 ```
 
-Runs a coded policy from the contract's ``policies`` section: the first rule whose condition
-holds, whose action is legal and whose arguments are valid is taken.
+Runs a coded policy of the acting agent's type (``types.<type>.policies``, its ancestors' too): the first rule
+whose condition holds, whose action is legal and whose arguments are valid is taken. ``kinds`` are types it
+will play, checked now (others are checked at their first turn).
 
 ### `participants.anthropic`
 
@@ -400,10 +402,11 @@ answers and compares the outcome.
 ### `participants.resolve_participant`
 
 ```pyi
-resolve_participant(value: 'Any', contract: 'Contract', seed: 'int', path: 'str' = 'participants') -> 'Participant'
+resolve_participant(value: 'Any', contract: 'Contract', seed: 'int', path: 'str' = 'participants', kinds: 'tuple[str, ...]' = ()) -> 'Participant'
 ```
 
-The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``.
+The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``. ``kinds``
+are the types it will play, so a policy they do not have is reported now.
 
 ## `fg_env.analysis`
 
@@ -967,7 +970,8 @@ game(source: 'ContractLike', *, inputs: 'Mapping[str, Any] | None' = None, seed:
 
 A contract as a game for search, solving and learning code.
 
-* ``players`` — the seats (entity ids); default: the contract's ``game.players`` (else every agent), in seat order.
+* ``players`` — the seats (entity ids); default: the agents of the types with a `score` (else every agent), in
+  seat order.
 * ``others`` — participants for agents that are not seats (as in ``Env.run``).
 * ``chance`` — ``"explicit"``: every `chance` effect is a chance node whose outcomes search code chooses;
   ``"sampled"``: outcomes are drawn from the seed. Other randomness is always fixed by ``seed``.
@@ -1064,7 +1068,7 @@ A contract as a PettingZoo parallel environment (needs game.returns).
 ### `rl.tournament`
 
 ```pyi
-tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Sequence[str] | None' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'int | None' = None, others: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False) -> 'TournamentResult'
+tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Sequence[str] | None' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'int | None' = None, others: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, time_limit: 'float | None' = None) -> 'TournamentResult'
 ```
 
 Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
@@ -1089,7 +1093,8 @@ vote, which stay meaningful when skill is not transitive; ``returns`` gives ever
 each standing's ``cost`` its turns, calls, invalid calls, timeouts, undone turns and model tokens. A callable
 entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
 its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
-(``result.runs[i].exposures``, events kept), each a trace to read or replay.
+(``result.runs[i].exposures``, events kept), each a trace to read or replay. ``time_limit`` is the wall-clock
+seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`).
 
 ### `rl.TournamentResult`
 
@@ -1256,6 +1261,17 @@ assign_labels(records: 'Iterable[Mapping[str, Any]]', labels: 'Sequence[tuple[st
 
 Assign labels by proportional shares using largest remainder, then shuffle.
 
+### `personas.rake`
+
+```pyi
+rake(records: 'Iterable[Mapping[str, Any]]', margins: 'Mapping[str, Mapping[str, float]]', *, weight_field: 'str' = 'weight', iterations: 'int' = 50, tolerance: 'float' = 1e-06) -> 'list[dict[str, Any]]'
+```
+
+Copies of ``records`` whose ``weight_field`` is reweighted so weighted shares match every margin
+(``{column: {value: share}}``, shares per column summing to 1; iterative proportional fitting, starting from the
+records' own weights, else 1). Pass the result as a table input and sample it with an entity generator's
+``"weight": "$row.weight"``.
+
 ## Environment methods
 
 ### `Env.preview`
@@ -1285,8 +1301,8 @@ Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 ``participants`` is a callable for every agent, or a mapping from entity id, type or ``"*"`` to a participant (a
 callable — plain or ``async def`` — ``"random"``, ``"idle"``, ``"policy:<name>"``). Agents without one use their
 type's ``policy`` or ``"random"``. Every participant is offered the contract's in-turn host tools; ``hosts``
-binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn
-for stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
+binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds each
+agent's turn may take; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
 :meth:`arun`.
 
 ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run

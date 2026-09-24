@@ -88,14 +88,18 @@ Use Python 3.11 or later. Save the following contract as `inventory.json`:
   },
   "events": [
     {
-      "phase": "end",
-      "each": "retailer",
+      "on": "round.end",
       "do": [
-        "$units = $min($it.stock, $inputs.weekly_demand)",
-        "$it.stock -= $units",
-        "$it.sold += $units",
-        "$it.lost += $inputs.weekly_demand - $units",
-        "$it.cash += $units * $inputs.unit_price"
+        {
+          "each": "retailer",
+          "do": [
+            "$units = $min($it.stock, $inputs.weekly_demand)",
+            "$it.stock -= $units",
+            "$it.sold += $units",
+            "$it.lost += $inputs.weekly_demand - $units",
+            "$it.cash += $units * $inputs.unit_price"
+          ]
+        }
       ]
     }
   ],
@@ -159,7 +163,7 @@ import fg_env
 
 result = fg_env.run("inventory.json", {"retailer": "policy:steady"}, seed=7)
 print(result.outputs)
-assert result.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}
+assert result.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0, "stock": 10, "cash": 244.0}
 ```
 
 The same run from the command line:

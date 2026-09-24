@@ -5,11 +5,11 @@
   "first_events": [],
   "metrics": {
     "buying_on_order": 120,
-    "buying_stock_value": 48331.08,
-    "sales_demand": 9,
+    "buying_stock_value": 45175.23,
+    "sales_demand": 13,
     "sales_lost": 0,
-    "sales_sold": 9,
-    "sales_stock": 260
+    "sales_sold": 13,
+    "sales_stock": 245
   },
   "rounds": 4,
   "status": "running",

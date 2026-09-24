@@ -1,5 +1,5 @@
 # fg-env playthrough: Matching pennies
-Game: matching_pennies@9498cd9d:4642e142
+Game: matching_pennies@d1ed781a:4642e142
 Seed: 1
 Seats: 0 m, 1 n
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: zero_sum

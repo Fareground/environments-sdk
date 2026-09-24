@@ -1,5 +1,5 @@
 # fg-env playthrough: Goofspiel
-Game: goofspiel@d637e972:c870fbc4
+Game: goofspiel@74195b61:c870fbc4
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: explicit; information: imperfect; utility: zero_sum

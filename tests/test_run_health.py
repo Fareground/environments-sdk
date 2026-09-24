@@ -226,27 +226,8 @@ def test_a_repeating_policy_stopped_by_a_refusal_says_so():
     result = fg_env.run(contract, "policy:all", seed=1)
     assert result.outputs["hits"] == 1
     [found] = [d for d in result.diagnostics if d["code"] == "policy_repeat_refused"]
-    assert found["path"] == "policies.all.rules[0]" and "acted 1 time(s) and was refused 1 time(s)" in found["message"]
-
-
-def test_auto_skips_sealed_turns_with_nothing_legal():
-    contract = {"name": "Night", "clock": {"rounds": 2},
-                "types": {"p": {"agent": True, "props": {"wolf": False, "kills": 0}}},
-                "entities": {"a": {"type": "p", "props": {"wolf": True}}, "b": {"type": "p"}, "c": {"type": "p"}},
-                "stages": [{"name": "night", "turns": "simultaneous", "auto": True, "actions": ["hunt"]}],
-                "actions": {"hunt": {"by": "p", "when": ["$actor.wolf"],
-                                     "params": {"k": {"type": "int", "min": 1, "max": 3}},
-                                     "do": "$actor.kills += $params.k"}},
-                "outputs": {"kills": "$sum(p, $it.kills)"}}
-    woken = []
-
-    def wolf(wake):
-        woken.append(wake.entity_id)
-        wake.call("hunt", {"k": 2})
-
-    result = fg_env.run(contract, wolf, seed=1)
-    assert woken == ["a", "a"] and result.outputs["kills"] == 4
-    assert result.stats["auto_turns"] == 4 and result.stats["wakes"] == 2
+    assert found["path"] == "types.p.policies.all.rules[0]"
+    assert "acted 1 time(s) and was refused 1 time(s)" in found["message"]
 
 
 def test_parallel_runs_sharing_a_judge_each_count_their_own_tokens():
@@ -288,17 +269,6 @@ def test_a_turn_that_runs_out_of_model_calls_is_counted_and_reported():
     assert agent.usage.out_of_steps == result.agent_stats["yellow"]["out_of_steps"]
     found = {d["code"]: d for d in result.diagnostics}
     assert "yellow" in found["out_of_steps"]["message"] and "max_steps" in found["out_of_steps"]["fix"]
-
-
-def test_an_unchanged_view_is_named_not_dropped():
-    contract = {"name": "Board", "clock": {"rounds": 2}, "world": {"price": 5},
-                "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}}, "actions": {"wait": {"by": "p"}},
-                "views": {"price_board": {"for": "p", "show": "Price: {$world.price}", "only_changes": True}},
-                "outputs": {"price": "$world.price"}}
-    updates = []
-    fg_env.run(contract, lambda wake: updates.append(wake.update), seed=1)
-    assert "Price: 5" in updates[0]
-    assert "Price: 5" not in updates[1] and "Price board: unchanged since your last turn." in updates[1]
 
 
 def test_timed_out_turns_count_as_failed_and_any_failed_turns_are_reported_with_their_rate():
@@ -346,4 +316,3 @@ def test_host_answers_that_were_fallback_stand_ins_degrade_the_run():
     judged["mechanisms"]["judge"]["fallback"] = "midpoint"
     result = fg_env.run(judged, seed=1)
     assert "host_fallback" in result.degraded and not result.ok
-

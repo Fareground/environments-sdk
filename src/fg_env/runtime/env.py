@@ -13,7 +13,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..actions.book import ActionBook
-from ..actions.reads import InspectCache, inspect_rule
+from ..actions.reads import inspect_rule
 from ..assets.store import AssetStore
 from ..contract import MAX_ROUNDS, Contract
 from ..copying.previews import Previews
@@ -71,8 +71,6 @@ class Env(RunChecks, RunRounds, RunStages):
         self.inputs = inputs
         self.seed = seed
         self.arm = arm
-        #: The load-time calibration report (None when the contract fits nothing or this session set the inputs).
-        self.calibration: dict[str, Any] | None = None
         self.parallel = max(1, parallel)
         self.seeds = SeedTree(seed)
         self.world = build_world(contract, inputs, self.seeds, arm, assets)
@@ -89,17 +87,18 @@ class Env(RunChecks, RunRounds, RunStages):
         self.error: str | None = None
         self._memories: dict[str, Memory] = {}
         self._briefs: dict[str, str] = {}
-        self._inspect_cache: InspectCache | None = None
         #: The assets each agent's brief attaches (fixed with the brief text).
         self._brief_assets: dict[str, list[str]] = {}
         self._used_round: dict[str, dict[str, int]] = {}
-        self._fired_once: set = set()
+        #: Events with `once` that fired, by index; and the last truth value of each `change` event's `when`.
+        self._fired_once: set[int] = set()
+        self._armed: dict[int, bool] = {}
         self._lock = threading.RLock()
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()
         self.driver = Driver(self)
-        #: Wall-clock seconds per turn for stages that set no `time_limit` (None: no limit).
+        #: Wall-clock seconds each agent has for a turn (None: no limit).
         self.time_limit: float | None = None
         self.budget: Budget | None = None
         #: Recorded when asked, or when the contract's rules ask `$seen`.
@@ -118,9 +117,6 @@ class Env(RunChecks, RunRounds, RunStages):
         #: The round in progress while a run is stopped inside it, and where in it the run is.
         self._cursor: _Steps | None = None
         self._where = _Where()
-        #: Last truth value of each trigger's condition, and triggers that fired once.
-        self._trigger_armed: dict[int, bool] = {}
-        self._triggers_fired: set = set()
         self._in_round = False
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
         #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
@@ -154,8 +150,8 @@ class Env(RunChecks, RunRounds, RunStages):
         ``participants`` is a callable for every agent, or a mapping from entity id, type or ``"*"`` to a participant (a
         callable — plain or ``async def`` — ``"random"``, ``"idle"``, ``"policy:<name>"``). Agents without one use their
         type's ``policy`` or ``"random"``. Every participant is offered the contract's in-turn host tools; ``hosts``
-        binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn
-        for stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
+        binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds each
+        agent's turn may take; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
         :meth:`arun`.
 
         ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
@@ -269,20 +265,19 @@ class Env(RunChecks, RunRounds, RunStages):
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=self._event_rows() if self._keep_events else [],
-            time=self.world.time if self.world.continuous else None, exposures=recording(self),
+            exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
             diagnostics=diagnose(self, outputs, issues),
-            clock={"mode": self.contract.clock.mode, "unit": self.contract.clock.unit, "step": self.contract.clock.step,
-                   "start": self.world.start},
+            clock={"unit": self.contract.clock.unit, "step": self.contract.clock.step, "start": self.world.start},
             assets=self.world.assets.to_dict() if len(self.world.assets) else {},
             state=end_state(self.contract, self.world),
         )
 
     @property
     def frames(self) -> list[dict[str, Any]]:
-        """Spectator frames so far: ``[{round, views: {name: text}, time?, final?}]``."""
+        """Spectator frames so far: ``[{round, views: {name: text}, final?}]``."""
         return self.previews.frames
 
     def spectate(self) -> dict[str, str]:

@@ -1,30 +1,15 @@
 # assets
 
-## `assets`: {asset: AssetSpec}
-
-Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets').
-
-**AssetSpec** — A file (or a folder of files) beside the contract. Its id is its name here; a folder's files are
-`<name>/<file name>`. Referenced from `asset` properties, record fields and expressions (`$asset(id)`).
-- `file`: text — Path of the file, relative to the contract's folder (or `data_dir=`), inside it.
-- `folder`: text — Path of a folder inside the contract's folder: every file in it (not subfolders, not hidden files) becomes an asset `<name>/<file name>`.
-- `type`: text — image | pdf | text | audio | file. Default: from the file extension; with `folder`, only files of this type are taken.
-- `caption`: text — What the file shows, as agents read it next to the file ({name} is the file name).
-- `alt`: text — A longer description for readers that cannot see the file (text-only models read it).
-- `tags`: [text] — Labels for expressions: `'exhibit' in $asset(id).tags`.
-- `max_bytes`: int — Largest file accepted (default: by type — image 10 MB, pdf 32 MB, text 2 MB, audio 25 MB, file 32 MB).
-- `describe`: text — A host (a Describer) that writes a caption and extracted text for the file when the world is built, recorded on the host tape: `$asset(id).caption` and `.text` read it.
-- `description`: text
-
 ## Files and media
 
 An environment can carry real files — product photos, evidence, contracts, recordings — declared beside the
 contract and delivered to agents under the same visibility rules as everything else.
 
 ```json
-"assets": {
-  "supply_agreement": {"file": "evidence/agreement.pdf", "caption": "The signed supply agreement", "tags": ["exhibit"]},
-  "weld_photos": {"folder": "evidence/welds", "type": "image", "caption": "Weld photo {name}", "describe": "vision"}
+"inputs": {
+  "supply_agreement": {"type": "file", "source": "evidence/agreement.pdf", "caption": "The signed supply agreement",
+                       "tags": ["exhibit"]},
+  "weld_photos": {"type": "file", "source": "evidence/welds", "caption": "Weld photo {name}", "describe": "vision"}
 },
 "types": {"exhibit": {"props": {"file": {"type": "asset"}, "revealed": false}}},
 "records": {"evidence": {"fields": {"text": "text", "file": "asset"}}},
@@ -33,8 +18,9 @@ contract and delivered to agents under the same visibility rules as everything e
                            "do": {"post": "evidence", "text": "New photo", "file": "$params.photo"}}}
 ```
 
-**Declaring.** Each asset is a `file` or a `folder` inside the contract's folder (or `data_dir=`): an id is the
-asset's name, a folder's files are `<name>/<file name>`. Types: image (png, jpg, webp, gif), pdf, text (txt, md),
+**Declaring.** Each file is an input of type `file` whose `source` is a file or a folder inside the contract's folder
+(or `data_dir=`; a path supplied as the input at load replaces it): its id is the input's name, and a folder's
+files are `<name>/<file name>`. Types: image (png, jpg, webp, gif), pdf, text (txt, md),
 audio (wav, mp3) and file (anything else; delivered by reference only). A file's content must match its
 extension, and sizes are capped (image 10 MB, pdf 32 MB, text 2 MB, audio 25 MB, file 32 MB; `max_bytes`
 changes it). Every file is hashed when the contract loads. A table input column of type `asset` names files by
@@ -53,7 +39,7 @@ The text the agent reads carries a compact reference — `[image weld_1.png: "Cr
 participant gets the files: `wake.attachments` (brief and update) and `result.attachments` (a tool result), each
 with `type name media_type caption alt size hash`, `read()` for the bytes and `text()` for text files. Keep an
 exhibit sealed with a private property or a `where` flag, and reveal it by posting a record entry or setting
-the flag in a stage's `on_enter`; `fg-env check` warns when a view attaches another entity's private asset.
+the flag in an event on a stage's start; `fg-env check` warns when a view attaches another entity's private asset.
 
 **Models.** `participants.anthropic(..., media=...)` and `participants.openai(..., media=...)` send real
 content — Anthropic image and document blocks, OpenAI `image_url` data URLs, `file` and `input_audio` parts —

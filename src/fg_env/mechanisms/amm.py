@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, compile_expr, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, fmt, tools_field
+from ._common import entity_of, fmt
 from .econ_base import money_prop
 from .ledger import EPS, Account, balance, clean, move
 
@@ -162,7 +162,6 @@ class PredictionMarketConfig(BaseModel):
                                           "the market.")
     max_actions: int = Field(2, ge=1, description="Trades per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare the invariant that the vault covers every share.")
-    tools: ToolsSetting = tools_field()
 
 
 def market_config(world: Any, name: Any) -> PredictionMarketConfig:
@@ -339,7 +338,7 @@ def _market(call: Call) -> str:
 
 
 @function("amm(name)", "A prediction market: {prices: {outcome: price}, vault, fees, volume, resolved, payout, maker, "
-          "liquidity, question}.", min_args=1, max_args=1)
+          "liquidity, question}.", min_args=1, max_args=1, family="market")
 def _amm_function(call: Call) -> dict[str, Any]:
     name = _market(call)
     world: Any = call.scope.world
@@ -352,7 +351,8 @@ def _amm_function(call: Call) -> dict[str, Any]:
 
 
 @function("amm_outcomes(name, viewer?)",
-          "Each outcome of a prediction market: [{outcome, price, held}] (held by the viewer).", min_args=1, max_args=2)
+          "Each outcome of a prediction market: [{outcome, price, held}] (held by the viewer).", min_args=1, max_args=2,
+          family="market")
 def _outcomes_function(call: Call) -> list[dict[str, Any]]:
     name = _market(call)
     viewer = call.scope.world.entity(call.arg(1)) if len(call) > 1 else None
@@ -361,7 +361,7 @@ def _outcomes_function(call: Call) -> list[dict[str, Any]]:
 
 
 @function("amm_cost(name, outcome, shares)", "What buying `shares` of `outcome` costs now, fees included.", min_args=3,
-          max_args=3)
+          max_args=3, family="market")
 def _cost_function(call: Call) -> float:
     name = _market(call)
     world = call.scope.world
@@ -375,7 +375,8 @@ def _cost_function(call: Call) -> float:
     return value * (1 + cfg.fee_pct)
 
 
-@function("amm_ok(name)", "True while a prediction market's vault covers every share.", min_args=1, max_args=1)
+@function("amm_ok(name)", "True while a prediction market's vault covers every share.", min_args=1, max_args=1,
+          family="market")
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _market(call))
 

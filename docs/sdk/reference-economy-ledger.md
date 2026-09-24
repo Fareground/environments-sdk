@@ -10,7 +10,6 @@ Config:
 - `taxes` (default {}): Levies payments can name: {name: {rate, on, to}}.
 - `loans` (default null): Loans at posted rates with interest, due dates and default.
 - `actions` (default []): Tools generated for agent holders: pay (pay any holder). Loans generate their own.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **CurrencySpec** — 

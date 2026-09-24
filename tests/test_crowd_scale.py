@@ -83,7 +83,7 @@ GUARDED = {
         "item": "$pick(item, $it.owner == $actor.id and $it.worth > $randint(0, 2))"}}]}},
     "events": [{"phase": "end", "each": "owner", "do": [
         "$it.cash += $count(item, $it.owner == $outer.id and $chance(0.5))",
-        {"if": "$any(item, '' == $it.owner and $random() < 0.2)", "then": ["$it.cash -= 1"]}]}],
+        {"if": "$any(item, '' == $it.owner and $uniform(0, 1) < 0.2)", "then": ["$it.cash -= 1"]}]}],
     "metrics": {"held": "$sum(owner, $count(item, $it.owner == $outer.id))"},
     "outputs": {"cash": {"expr": "$sum(owner, $it.cash)", "type": "number"}},
 }

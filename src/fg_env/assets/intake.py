@@ -51,29 +51,16 @@ def _limit(param: ParamSpec) -> int:
                HARD_MAX_BYTES)
 
 
-def _file_params(turn: Turn, name: Any, args: Mapping[str, Any]) -> dict[str, ParamSpec]:
-    contract, env = turn.env.contract, turn.env
-    if not isinstance(name, str):
-        return {}
-    if name in contract.actions:
-        members = [name]
-    else:
-        members = list(env.actions.groups.get(name, ()))
-        picked = args.get("action")
-        members = [m for m in members if picked in (m, m.removeprefix(f"{name}_"))] or members
-    found: dict[str, ParamSpec] = {}
-    for member in members:
-        for pname, param in contract.actions[member].params.items():
-            if param.type == "file":
-                found.setdefault(pname, param)
-    return found
+def _file_params(turn: Turn, name: Any) -> dict[str, ParamSpec]:
+    spec = turn.env.contract.actions.get(name) if isinstance(name, str) else None
+    return {pname: param for pname, param in spec.params.items() if param.type == "file"} if spec else {}
 
 
 def intake(turn: Turn, name: Any, args: Any) -> Any:
     """``args`` with every submitted file stored and replaced by its id (call under the run's lock)."""
     if not isinstance(args, Mapping):
         return args
-    params = _file_params(turn, name, args)
+    params = _file_params(turn, name)
     if not params or not any(key in args for key in params):
         return args
     out = dict(args)
@@ -158,7 +145,7 @@ def previewed(turn: Turn, name: Any, args: Any) -> Iterator[tuple[Any, str | Non
     """``(args, problem)`` as :func:`intake` would make them — files replaced by the ids they would get — for a check
     that must change nothing (a game's legality check before the call is made). Accepted files are known to the store
     only inside the block, which then leaves it exactly as it was: nothing is recorded, nothing is kept."""
-    params = _file_params(turn, name, args) if isinstance(args, Mapping) else {}
+    params = _file_params(turn, name) if isinstance(args, Mapping) else {}
     store = turn.env.world.assets
     added: list[str] = []
     out: Any = dict(args) if params else args

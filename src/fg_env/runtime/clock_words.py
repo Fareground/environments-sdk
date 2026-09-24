@@ -1,6 +1,6 @@
 """Rounds named the way a reader counts time: ``half-hour``, ``09:30–10:00``, ``Week 7 (2026-10-12)``.
 
-A run's clock (``RunResult.clock``: mode, unit, step, start) says what one round is. A clock of minutes or hours
+A run's clock (``RunResult.clock``: unit, step, start) says what one round is. A clock of minutes or hours
 names its rounds by the time of day they cover — with the weekday and date when the run spans more than a day — and a
 clock of days, weeks or months by its unit, number and calendar date. Summaries, narratives, highlights and owner
 reports all name rounds through here, so they agree.
@@ -29,14 +29,12 @@ def _step(clock: Mapping[str, Any]) -> int:
 
 
 def sub_day(clock: Mapping[str, Any]) -> bool:
-    """Rounds shorter than a day (a clock of seconds, minutes or hours on rounds)."""
-    return clock.get("mode", "rounds") == "rounds" and _unit(clock) in _SECONDS
+    """Rounds shorter than a day (a clock of seconds, minutes or hours)."""
+    return _unit(clock) in _SECONDS
 
 
 def unit_word(clock: Mapping[str, Any]) -> str:
     """What one round is called: ``half-hour`` (30 minutes), ``week`` (7 days), ``2-hour period``, ``round``."""
-    if clock.get("mode", "rounds") != "rounds":
-        return "round"
     unit, step = _unit(clock), _step(clock)
     if unit in _SECONDS:
         minutes = step * _SECONDS[unit] / 60

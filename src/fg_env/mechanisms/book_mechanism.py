@@ -162,7 +162,7 @@ def _views(name: str, cfg: OrderBookConfig) -> dict[str, Any]:
            "runs {\"market\": name, \"action\": \"close\"} first. `crowd` adds coded traders (market_maker, "
            "momentum, mean_reversion, fundamentalist, noise, passive) as types `<name>_<strategy>` extending "
            "`<name>_crowd`, which holds what a `who` trader holds but is not of that type, so other mechanisms on "
-           "`who` (a ballot, a victory, channels) leave the crowd out; any trader whose `<name>_strategy` prop names "
+           "`who` (a ballot, a winner's candidates) leave the crowd out; any trader whose `<name>_strategy` prop names "
            "a strategy trades only through `<name>_algo` (the `<name>_algo` policy calls it). A strategy with a "
            "`stop_loss` param (in multiples of the per-round volatility) liquidates a losing position at market. "
            "$book(name).flow is the last round's aggressive quantity by trader kind. Fundamentalists estimate "
@@ -265,7 +265,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     if cfg.stage is None:
         fragment["stages"] = [{"name": name, "turns": "sequential", "actions": names, "max_actions": cfg.max_actions,
                                "order": f"0 if $it.type == '{name}_market_maker' else 1 + "
-                                        "$random()",  # a type is public
+                                        "$uniform(0, 1)",  # a type is public
                                "brief": f"Trade {unit}: buy, sell, cancel, or end your turn."}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}

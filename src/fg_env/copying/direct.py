@@ -1,8 +1,9 @@
 """Copying a stepped run directly while a turn waits for a decision (or before it starts, or once it is over).
 
 The copy gets its own world — entities, properties, links, records, log, schedule, counters, random stream, exposures,
-the asset index — its own bookkeeping — statistics, memories, triggers, tape — its own copies of the turns in progress
-with their random streams, and a round that resumes where the original's is (:class:`~fg_env.runtime.rounds._Where`).
+the asset index — its own bookkeeping — statistics, memories, fired events, tape — its own copies of the turns in
+progress with their random streams, and a round that resumes where the original's is
+(:class:`~fg_env.runtime.rounds._Where`).
 Nothing mutable is shared, so the two runs continue independently and each exactly as the original would. Immutable
 things are shared: the contract, logged events, scheduled items, snapshots.
 
@@ -45,15 +46,14 @@ _ENV_FIELDS = frozenset({
     "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "perception", "stats",
     "agent_stats", "status", "ended_by", "error", "_memories", "_briefs", "_used_round", "_fired_once", "_lock",
     "_signal", "_running", "driver", "time_limit", "budget", "happenings", "previews", "_on_event", "_emitted",
-    "_turn_count", "_cursor", "_where", "_trigger_armed", "_triggers_fired", "_in_round", "origin", "_inspectable",
-    "_invariant_held", "pilot", "calibration", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets",
-    "_inspect_cache", "_rows", "_rows_last", "_keep_events", "_reads_log"})
+    "_turn_count", "_cursor", "_where", "_armed", "_in_round", "origin", "_inspectable",
+    "_invariant_held", "pilot", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets",
+    "_rows", "_rows_last", "_keep_events", "_reads_log"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
     "physics_writes", "entity_dynamics", "round",
-    "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start",
-    "wake_at",
+    "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "start",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
     "joined",
     "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
@@ -64,9 +64,9 @@ _WORLD_FIELDS = frozenset({
 #: Mechanisms keep plain data of their own on the world under these prefixes.
 _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
-    "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_views", "_brief", "_update",
+    "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_brief", "_update",
     "max_actions", "max_calls", "calls_left",
-    "reads_left", "_reads", "did_not_act", "actions_left", "done", "used", "intents", "pending", "stats", "elapsed",
+    "reads_left", "_reads", "did_not_act", "actions_left", "done", "used", "intents", "pending", "stats",
     "_offered", "_tools", "time_limit",
     "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_part", "_counted", "_held", "_committed",
     "number", "exposure", "_delivered"})
@@ -93,13 +93,12 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
         seeds=source.seeds, world=world, status=source.status, ended_by=source.ended_by, error=source.error,
         time_limit=source.time_limit, budget=None, _on_event=None, _emitted=source._emitted,
         _turn_count=source._turn_count, _in_round=source._in_round, _inspectable=source._inspectable,
-        _end_on_action=source._end_on_action, pilot=None, calibration=source.calibration, _inspect_cache=None,
+        _end_on_action=source._end_on_action, pilot=None,
         build_seed=source.build_seed, stepper=None, _invariant_held={}, _briefs=dict(source._briefs),
         _rows=list(source._rows), _rows_last=source._rows_last, _keep_events=source._keep_events,
         _reads_log=source._reads_log,
         _brief_assets={key: list(ids) for key, ids in source._brief_assets.items()},
-        _fired_once=set(source._fired_once), _trigger_armed=dict(source._trigger_armed),
-        _triggers_fired=set(source._triggers_fired),
+        _fired_once=set(source._fired_once), _armed=dict(source._armed),
         _used_round={actor: dict(used) for actor, used in source._used_round.items()},
         stats=_copy_stats(source.stats), agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
         _memories={key: _copy_memory(memory) for key, memory in source._memories.items()})
@@ -139,10 +138,10 @@ def _refuse(source: SteppedEnv, waiting: Waiting | None) -> None:
     elif source.budget is not None or source._on_event is not None or source.pilot is not None:
         why = "the run has a budget, an event callback or a pilot"
     elif world.physics is not None or world.space is not None or world.entity_dynamics or world.buffer is not None:
-        why = "the world has physics or a space, or a sync event is being applied"
+        why = "the world has physics or a space, or a sync loop is being applied"
     elif world.reactions or world.journal.mark() or hosts_for(world) is not None or world.watched_writes is not None:
         why = "the world has pending reactions, uncommitted changes or hosts"
-    elif source._cursor is not None and (waiting is None or _stage_kind(source) == "scheduled"):
+    elif source._cursor is not None and waiting is None:
         why = "the run is not waiting in a sequential or simultaneous turn"
     if why is not None:
         raise NotCopyable(why)
@@ -197,8 +196,8 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         records_store=records, entry_by_seq=by_seq, entity_briefs=dict(source.entity_briefs), log=list(source.log),
         physics=None, physics_writes=source.physics_writes, entity_dynamics=[], round=source.round, stage=source.stage,
         rounds=source.rounds, metrics=_copy(source.metrics), series=_copy(source.series),
-        scheduled=list(source.scheduled), wake_requests=dict(source.wake_requests), reactions=[], time=source.time,
-        horizon=source.horizon, start=source.start, wake_at=dict(source.wake_at), _schedule_seq=source._schedule_seq,
+        scheduled=list(source.scheduled), wake_requests=dict(source.wake_requests), reactions=[],
+        start=source.start, _schedule_seq=source._schedule_seq,
         space=None,
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
         firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures),
@@ -250,7 +249,7 @@ def _copy_stats(source: Stats) -> Stats:
 
 def _copy_memory(source: Memory) -> Memory:
     memory = Memory()
-    memory.cursor, memory.views, memory.turns = source.cursor, dict(source.views), source.turns
+    memory.cursor, memory.turns = source.cursor, source.turns
     return memory
 
 
@@ -269,11 +268,8 @@ def _copy_turn(source: Turn, env: SteppedEnv, entities: dict[str, Entity], log: 
     turn = Turn.__new__(Turn)
     turn.__dict__.update(source.__dict__)
     actor = entities[source.actor.id]
-    memory, kept = env._memories.get(actor.id), source.env._memories.get(actor.id)
-    shares_memory = memory is not None and kept is not None and source._views is kept.views
     turn.__dict__.update(
-        env=env, actor=actor, _views=memory.views if shares_memory and memory is not None else dict(source._views),
-        used=dict(source.used), intents=list(source.intents), pending=list(source.pending),
+        env=env, actor=actor, used=dict(source.used), intents=list(source.intents), pending=list(source.pending),
         stats=_copy_stats(source.stats), _tools=None, _counted=list(source._counted), _held=list(source._held),
         _committed=list(source._committed), _delivered=list(source._delivered),
         exposure=_copy_exposure(source.exposure, log) if source.exposure is not None else None)

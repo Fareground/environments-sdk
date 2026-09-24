@@ -173,18 +173,16 @@ def test_quorum_and_one_ballot_per_voter():
     assert True in seen
 
 
-def test_a_declared_event_or_end_entry_replaces_the_generated_one_of_its_name():
-    race = {"name": "Race", "clock": {"rounds": 5}, "types": {"p": {"agent": True, "props": {"score": 0}}},
-            "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
-            "events": [{"name": "win_most", "phase": "end", "at": 2, "do": [{"end": "most", "winner": "$entity(b)"}]}],
-            "end": [{"name": "first_to", "when": "false"}],
-            "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "p",
-                                   "conditions": [{"first_to": 0, "score": "$it.score"},
-                                                  {"most": "$it.score", "at": 4}]}}}
-    contract = fg_env.parse(race)
-    assert [e.name for e in contract.events] == ["win_most"] and [e.when for e in contract.end] == ["false"]
-    result = fg_env.run(race, seed=1)
-    assert result.rounds == 2 and result.winner == "b"
+def test_a_declared_event_replaces_the_generated_one_of_its_name():
+    market = {"name": "Market", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"cash": 100}}},
+              "entities": {"a": {"type": "p"}, "b": {"type": "p"}}, "world": {"closed": 0},
+              "events": [{"name": "acme_close", "phase": "end", "at": 2, "do": ["$world.closed += 1"]}],
+              "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "p", "start_price": 10}}}
+    contract = fg_env.parse(market)
+    assert [e.name for e in contract.events].count("acme_close") == 1
+    env = fg_env.load(market, seed=1)
+    env.run("idle")
+    assert env.props["closed"] == 1
 
 
 def test_authors_override_generated_parts_and_arms_patch_mechanism_config():
@@ -329,28 +327,9 @@ def test_family_ops_are_checked_against_the_action_they_name():
     assert fix.startswith('`tally` is an action of the `decision` op: {"decision": "<mechanism>", "action": "tally"')
 
 
-def test_tools_one_offers_a_ballot_as_a_single_tool_and_auto_keeps_different_shapes_apart():
-    offered = []
-
-    def vote(wake):
-        tools = {t.name: t for t in wake.tools}
-        offered.append(tools)
-        if "budget" in tools:
-            assert wake.call("budget", {"action": "vote", "choice": "approve"}).ok
-        wake.end()
-
-    env = fg_env.load(_budget(**COUNCIL["mechanisms"]["budget"], tools="one"), seed=1)
-    env.run(vote, rounds=1)
-    assert "budget_vote" not in offered[0]
-    assert offered[0]["budget"].input_schema["properties"]["action"]["enum"] == ["vote", "abstain"]
-    assert env.props["budget_result"]["winner"] == "approve"
-    auto = fg_env.parse(_budget(**COUNCIL["mechanisms"]["budget"], tools="auto"))
-    assert auto.actions["budget_vote"].tool is None and auto.actions["budget_abstain"].tool is None
-
-
 def test_guide_documents_mechanisms_and_native_ops():
     text = fg_env.guide("mechanisms")
-    assert "| `decision` | ballot, deliberation |" in text
+    assert "| `decision` | ballot, deliberation, procedure |" in text
     page = fg_env.guide("decision.ballot")
     assert page.startswith("### `decision.ballot`") and "`quorum`" in page and "- `tally`" in page
     family = fg_env.guide("decision")
@@ -358,7 +337,8 @@ def test_guide_documents_mechanisms_and_native_ops():
     deliberation = fg_env.guide("decision.deliberation")
     assert "- `speak`" in deliberation and "- `open`" not in deliberation
     assert '- `decision`: {"decision": "<decision mechanism>", "action": ...}' in fg_env.guide("effects")
-    assert "$tally_votes(" in family and "$tally_votes(" in fg_env.guide("functions.decision")
+    assert "$decisions(" in family and "$decisions(" in fg_env.guide("functions.decision")
+    assert "$tally_votes(" in fg_env.guide("functions.stats")  # counts any ballots: not only a mechanism's
     with pytest.raises(KeyError):
         fg_env.guide("decision.nope")
 

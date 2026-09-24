@@ -448,37 +448,6 @@ def test_roles_are_dealt_teammates_know_each_other_and_elimination_reveals():
     assert any("They were a wolf." in e.get("text", "") for e in result.events)
 
 
-def test_worker_placement_offers_open_spaces_and_resets_each_round():
-    farm = {"name": "Farm", "clock": {"rounds": 2},
-            "types": {"farmer": {"agent": True, "props": {"wood": 0, "coins": 0}}},
-            "entities": {"f1": {"type": "farmer", "name": "Ana"}, "f2": {"type": "farmer", "name": "Ben"},
-                         "f3": {"type": "farmer", "name": "Cleo"}},
-            "mechanisms": {"board": {"kind": "game", "mode": "slots", "who": "farmer", "spaces": {
-                "forest": {"capacity": 1, "description": "+2 wood", "do": ["$actor.wood += 2"]},
-                "market": {"capacity": 2, "do": ["$actor.coins += 1"]}}}},
-            "outputs": {"goods": {"expr": "$dict(farmer, $it.id, [$it.wood, $it.coins])", "type": "map"}}}
-    assert _errors(farm) == []
-    offered, boards = [], []
-
-    def place(wake):
-        spaces = next(t for t in wake.tools if t.name == "board_place").input_schema["properties"]["space"]["enum"]
-        offered.append((wake.round, wake.entity_id, spaces))
-        if wake.entity_id == "f2":
-            assert not wake.call("board_place", {"space": "forest"}).ok  # full: not a valid choice
-        if wake.entity_id == "f3":
-            boards.append(wake.update)
-        wake.call("board_place", {"space": spaces[0]})
-        wake.end()
-
-    env = fg_env.load(farm, seed=1)
-    result = env.run(place)
-    assert offered == [(r, f, s) for r in (1, 2) for f, s in
-                       (("f1", ["forest", "market"]), ("f2", ["market"]), ("f3", ["market"]))]
-    assert result.outputs["goods"] == {"f1": [4, 0], "f2": [0, 2], "f3": [0, 2]}
-    assert len(boards) == 2 and all("forest (1/1): Ana — +2 wood" in board and "market (1/2): Ben" in board
-                                    for board in boards)
-
-
 # ---------------------------------------------------------------------------
 # Authoring errors and documentation
 # ---------------------------------------------------------------------------
@@ -518,10 +487,10 @@ def test_config_mistakes_are_reported_with_what_to_fix():
             "roles") in (fg_env.load(seated, seed=1).run("idle").error or "")
 
 
-def test_a_pot_fills_the_game_section_with_the_chips_each_player_won_or_lost():
+def test_a_pot_gives_the_players_a_score_of_the_chips_each_won_or_lost():
     contract = _table([1000, 1000, 45], blinds=[5, 10])
-    game = fg_env.parse(contract).game
-    assert (game.players, game.seat, game.utility) == ("player", "$it.seat", "zero_sum")
+    score = fg_env.parse(contract).types["player"].score
+    assert (score.seat, score.utility) == ("$it.seat", "zero_sum")
     moves = {"p1": [("table_raise", {"to": 30}), ("table_call", {})], "p2": [("table_call", {}), ("table_call", {})],
              "p3": [("table_all_in", {})]}
     result = fg_env.load(contract, seed=1).run(_script(moves), rounds=1)
@@ -529,13 +498,12 @@ def test_a_pot_fills_the_game_section_with_the_chips_each_player_won_or_lost():
     assert result.returns == {f"p{i + 1}": float(stack - start) for i, (stack, start) in
                               enumerate(zip(result.outputs["stacks"], [1000, 1000, 45]))}
     assert sum(result.returns.values()) == 0
-    assert fg_env.parse(_table([10, 10], conserve=False)).game.utility == "general_sum"
-    assert fg_env.parse(_card_game()).game is None  # a deck alone does not know what a player scores
+    assert fg_env.parse(_table([10, 10], conserve=False)).scoring().utility == "general_sum"
+    assert fg_env.parse(_card_game()).scoring() is None  # a deck alone does not know what a player scores
 
 
-def test_old_card_pot_and_slots_kinds_name_their_game_mode():
-    for kind, config in (("cards", {"players": "player"}), ("pot", {"players": "player", "score": "0"}),
-                         ("slots", {"workers": "player", "spaces": {"a": {}}})):
+def test_old_card_and_pot_kinds_name_their_game_mode():
+    for kind, config in (("cards", {"players": "player"}), ("pot", {"players": "player", "score": "0"})):
         contract = {**_card_game(), "mechanisms": {"old": {"kind": kind, **config}}}
         issue = next(i for i in _errors(contract) if i.path == "mechanisms.old.kind")
         assert issue.message == f"'{kind}' is a mode of kind 'game'"
@@ -588,26 +556,14 @@ def test_a_moved_card_must_belong_to_the_deck_the_action_names():
     assert any("is not a card of chips" in d["message"] for d in result.diagnostics)
 
 
-def test_tools_one_offers_every_betting_move_as_one_tool():
-    offered = []
-
-    def fold(wake):
-        offered.append(sorted(t.name for t in wake.tools if t.kind == "act"))
-        assert wake.call("table", {"action": "fold"}).ok
-
-    result = fg_env.load(_table([100, 100], blinds=[5, 10], tools="one"), seed=1).run(fold, rounds=1)
-    assert result.status == "completed", result.error
-    assert offered == [["table"]] and sorted(result.outputs["stacks"]) == [95, 105]
-
-
 def test_guide_documents_the_card_mechanisms_ops_and_functions():
     mechanisms = fg_env.guide("mechanisms")
-    assert ("| `game` | board, cards, pot, slots |" in mechanisms
-            and "| `groups` | roles, relationships, factions, matching |" in mechanisms)
-    game = "\n".join(fg_env.guide(key) for key in ("game.cards", "game.pot", "game.slots"))
-    for key in ("game.cards", "game.pot", "game.slots"):
+    assert ("| `game` | board, cards, pot, status |" in mechanisms
+            and "| `groups` | roles, matching |" in mechanisms)
+    game = "\n".join(fg_env.guide(key) for key in ("game.cards", "game.pot"))
+    for key in ("game.cards", "game.pot"):
         assert f"### `{key}`" in game
-    for action in ("deal", "draw", "reveal", "peek", "give", "fold", "raise", "place"):
+    for action in ("deal", "draw", "reveal", "peek", "give", "fold", "raise"):
         assert f"- `{action}`" in game
     assert "- `setup`" not in fg_env.guide("game.cards") and "- `timeout`" not in game
     roles = fg_env.guide("groups.roles")
@@ -615,7 +571,8 @@ def test_guide_documents_the_card_mechanisms_ops_and_functions():
     functions = fg_env.guide("functions.game")
     for name in ("poker_rank", "blackjack_value", "trick_winner", "follow_suit", "hand", "zone", "top_card",
                  "pot_options"):
-        assert f"${name}(" in functions and f"${name}" in fg_env.guide("functions")
+        assert f"${name}(" in functions and f"${name}(" in fg_env.guide("game")
+    assert "$poker_rank" not in fg_env.guide("functions")  # a mechanism's functions are on its family's page
 
 
 # ---------------------------------------------------------------------------

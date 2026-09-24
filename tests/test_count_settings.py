@@ -1,5 +1,5 @@
-"""A stage's `passes` and an event's `every` may be expressions over $inputs: checked, resolved at load, snapshot-safe.
-"""
+"""A stage's `passes` may be an expression over $inputs (as may an event's schedule): checked, resolved at load,
+snapshot-safe."""
 import json
 
 import pytest
@@ -38,16 +38,12 @@ def test_an_expression_count_matches_the_same_literal_count():
 
 
 def test_check_rejects_counts_that_read_more_than_inputs_or_are_below_one():
-    bad = contract(passes="$world.turns + 1", every=0)
+    bad = contract(passes="$world.turns + 1")
     issues = {i.path: i.message for i in fg_env.check(bad) if i.severity == "error"}
     assert "stages[0].passes" in issues and "world" in issues["stages[0].passes"]
-    assert issues["events[0].every"] == "is 0; it must be at least 1"
 
 
 def test_a_count_that_is_not_a_whole_number_fails_at_load_with_its_path():
-    with pytest.raises(RunError) as error:
-        fg_env.load(contract(), inputs={"every": 0}, seed=1)
-    assert error.value.path == "events[0].every" and "whole number ≥ 1" in str(error.value)
     with pytest.raises(RunError) as error:
         fg_env.load(contract(passes="$inputs.passes / 2"), seed=1)
     assert error.value.path == "stages.walk.passes" and "1.5" in str(error.value)

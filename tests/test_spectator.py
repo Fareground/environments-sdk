@@ -80,7 +80,6 @@ def test_the_checker_keeps_spectator_views_apart_from_agents():
         return [str(i) for i in fg_env.check(contract) if i.severity == "error"]
 
     assert any("views.bad.look" in e for e in errors(**{"for": "spectator", "show": "x", "look": True}))
-    assert any("views.bad.stages" in e for e in errors(**{"for": "spectator", "show": "x", "stages": ["betting"]}))
     assert any("$actor is not available" in e for e in errors(**{"for": "spectator", "show": "{$actor.chips}"}))
     assert any("spectators alone" in e for e in errors(**{"for": ["spectator", "player"], "show": "x"}))
     named = copy.deepcopy(TABLE)

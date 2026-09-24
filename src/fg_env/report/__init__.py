@@ -182,7 +182,7 @@ def _declared_queues(contract: Any) -> list[str]:
     if contract is None:
         return []
     return [name for name, raw in contract.mechanisms.items()
-            if isinstance(raw, Mapping) and (raw.get("kind"), raw.get("mode")) == ("operations", "queue")]
+            if isinstance(raw, Mapping) and (raw.get("kind"), raw.get("mode")) == ("economy", "queue")]
 
 
 def _formats(contract: Any) -> dict[str, str]:
@@ -193,7 +193,7 @@ def _clock(contract: Any) -> dict[str, Any]:
     if contract is None:
         return {}
     clock = contract.clock
-    return {"mode": clock.mode, "unit": clock.unit, "step": clock.step}
+    return {"unit": clock.unit, "step": clock.step}
 
 
 def _rule(goal: Goal | None, requirements: list[Requirement], queues: list[QueueView], objective: Any,

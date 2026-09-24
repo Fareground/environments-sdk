@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..contract import LAYER_TYPES, EventSpec, Space
+from ..contract import LAYER_TYPES, Space
 from ..effects.runner import select_ops
 from ..expr import is_expr
 from ..world.geometry import MAX_CELLS, NEIGHBORHOODS
@@ -11,7 +11,7 @@ from ..world.geometry import MAX_CELLS, NEIGHBORHOODS
 if TYPE_CHECKING:
     from . import _Checker
 
-__all__ = ["check_space", "check_event_order", "SYNC_OPS"]
+__all__ = ["check_space", "check_sync", "SYNC_OPS"]
 
 #: Effect operations a sync event may run: they only assign properties and layer cells, branch or refuse.
 SYNC_OPS = frozenset({"if", "each", "layer", "fail"})
@@ -100,19 +100,8 @@ def _capacity(checker: _Checker, raw: Any, cells: bool) -> None:
             checker.error(path, f"must be a whole number ≥ 0, got {limit!r}")
 
 
-def check_event_order(checker: _Checker, event: EventSpec, path: str, roots: frozenset[str], types: Any) -> None:
-    """An event's `order` and `sync`: both need `each`; sync effects may only assign."""
-    if event.each is None:
-        for key in ("order", "sync"):
-            if key in event.model_fields_set:
-                checker.error(f"{path}.{key}", f"`{key}` needs `each`", "add `each`, or remove it")
-        return
-    checker.order_setting(event.order, f"{path}.order", ("random",), roots, types)
-    if event.sync:
-        _sync_effects(checker, event.do, f"{path}.do")
-
-
-def _sync_effects(checker: _Checker, effects: Any, path: str) -> None:
+def check_sync(checker: _Checker, effects: Any, path: str) -> None:
+    """The effects of a `sync` loop may only assign properties and layer cells."""
     for index, effect in enumerate(effects if isinstance(effects, list) else []):
         where = f"{path}[{index}]"
         if not isinstance(effect, dict):
@@ -122,9 +111,9 @@ def _sync_effects(checker: _Checker, effects: Any, path: str) -> None:
             continue
         op = ops[0]
         if op not in SYNC_OPS or (op == "layer" and ("set" not in effect or "at" not in effect)):
-            checker.error(where, f"a sync event only assigns properties and layer cells, so it cannot run `{op}`"
+            checker.error(where, f"a sync loop only assigns properties and layer cells, so it cannot run `{op}`"
                           + (" on a whole layer" if op == "layer" else ""),
-                          "move it to an event without sync")
+                          "move it to a loop without sync")
         for key in ("then", "else", "do"):
             if key in effect:
-                _sync_effects(checker, effect[key], f"{where}.{key}")
+                check_sync(checker, effect[key], f"{where}.{key}")

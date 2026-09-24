@@ -97,7 +97,7 @@ def test_a_ballot_names_the_winner_and_counts_turnout_among_players_still_in_the
 
 
 def test_the_ballot_guide_says_it_counts_after_the_stage_on_exit():
-    assert "after that stage's own on_exit effects" in fg_env.guide("decision.ballot")
+    assert "after the contract's own events on its end" in fg_env.guide("decision.ballot")
 
 
 def test_a_sealed_bid_receipt_names_the_item_without_a_count_for_one_unit():
@@ -160,7 +160,7 @@ def test_event_round_diagnostic_points_to_executable_schedule():
                     'world': {'count': 0}, 'outputs': {'count': '$world.count'},
                     'events': [{misspelling: 2, 'do': '$world.count += 1'}]}
         issue = next(i for i in fg_env.check(contract, rounds=0) if i.path == f'events[0].{misspelling}')
-        assert 'at' in issue.fix and 'every' in issue.fix
-        contract['events'][0]['at'] = contract['events'][0].pop(misspelling)
+        assert '"$round == 2"' in issue.fix
+        contract['events'][0]['when'] = f"$round == {contract['events'][0].pop(misspelling)}"
         result = fg_env.run(contract, lambda wake: wake.end())
         assert result.ok and result.outputs['count'] == 1

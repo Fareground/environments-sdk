@@ -63,6 +63,9 @@ def check_value(type_name: str, value: Any, spec: InputSpec | None = None) -> st
             _dt.date.fromisoformat(value[:10])
         except ValueError:
             return f"must be an ISO date like 2026-01-31, got {value!r}"
+    elif type_name == "file":
+        if not isinstance(value, str) or not value.strip():
+            return f"must be the path of a file (or folder) beside the contract, got {value!r}"
     elif type_name == "table":
         if not isinstance(value, list) or not all(isinstance(row, dict) for row in value):
             return "must be a list of rows (objects)"
@@ -126,6 +129,8 @@ def resolve_inputs(contract: Contract, supplied: Mapping[str, Any] | None = None
     for name, spec in declared.items():
         if name in supplied:
             value = supplied[name]
+        elif spec.type == "file":
+            value = spec.source  # the file's path: the catalog reads it (see fg_env.assets.catalog)
         elif spec.source is not None:
             try:
                 value = load_source(spec, data_dir)

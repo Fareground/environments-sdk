@@ -1,20 +1,28 @@
-"""What the world does on its own: scheduled effects, events, triggers and reactions.
+"""What the world does on its own: scheduled effects, events and reactions.
 
-Every change still goes through the run's atomic blocks (:meth:`Env._atomic`).
+One runner fires the events of every anchor at its place in the round (see :class:`~fg_env.contract.EventSpec`):
+authored events before generated ones, in declaration order. Every change still goes through the run's atomic blocks
+(:meth:`Env._atomic`); events on ``create.<t>`` and ``remove.<t>`` run inside the change that set them off (see
+:meth:`EffectRunner.lifecycle`).
 """
 from __future__ import annotations
 
 import heapq
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from ..contract import StageSpec
+from ..actions.book import ACTION_BUDGET
+from ..actions.faults import world_logic_refused
+from ..contract import EventSpec, StageSpec
 from ..effects.delivery import run_delivery
-from ..effects.runner import each_items, removed_since
+from ..effects.runner import each_items, removed_since, select_ops
+from ..effects.sync import run_synced
 from ..errors import RunError
-from ..expr import EVERYONE, ExprError, compile_expr, truthy
+from ..expr import EVERYONE, ExprError, compile_expr, resolve, shared_budget, truthy
+from ..expr.objects import Entity
 from ..expr.template import compile_template
-from ..world.build import whole_setting
-from .sync_events import run_sync
+from ..world.live import Abort
+from .diagnosis import LoopWrites
 from .turn import Turn
 
 if TYPE_CHECKING:
@@ -22,23 +30,57 @@ if TYPE_CHECKING:
 
 __all__ = ["Happenings"]
 
+#: The stage hook each stage anchor took the place of: its events draw from that hook's stream.
+_HOOK_STREAMS = {"start": "on_enter", "end": "on_exit", "turn": "on_idle"}
+
+
+def _streams(events: list[EventSpec]) -> list[tuple[str, str]]:
+    """Each event's random streams, for its `when` and for its `do`: those of what it was written as before events
+    absorbed triggers and stage hooks (a round event counted among round events, a change event among change events), so
+    every contract keeps its luck."""
+    streams, rounds, changes = [], 0, 0
+    for index, event in enumerate(events):
+        kind, _, rest = event.on.partition(".")
+        if kind == "round":
+            streams.append((f"events[{rounds}]", f"events[{rounds}].do"))
+            rounds += 1
+        elif kind == "change":
+            streams.append((f"triggers[{changes}].when", f"triggers[{changes}].do"))
+            changes += 1
+        elif kind == "stage":
+            stage, _, point = rest.rpartition(".")
+            hook = f"stages.{stage}.{_HOOK_STREAMS[point]}"
+            streams.append((hook, hook))
+        else:  # create / remove: they draw with the change they run in
+            streams.append((f"events[{index}]", f"events[{index}].do"))
+    return streams
+
+
+def _loop(event: EventSpec) -> Mapping[str, Any] | None:
+    """The `each` loop that is a round event's whole `do`, whose items run one by one (see :meth:`Happenings._each`)."""
+    do = event.do
+    if len(do) == 1 and isinstance(do[0], dict) and select_ops(do[0]) == ["each"] and event.on.startswith("round."):
+        return do[0]
+    return None
+
 
 class Happenings:
-    """Scheduled effects, events, triggers and reactions of one run."""
+    """Scheduled effects, events and reactions of one run."""
 
-    #: How deep triggers may set off further triggers (deeper is an error), and reactions further reactions (deeper
+    #: How deep `change` events may set off further ones (deeper is an error), and reactions further reactions (deeper
     #: reactions wait for the agent's next turn).
-    TRIGGER_DEPTH = 8
+    CHANGE_DEPTH = 8
     REACTION_DEPTH = 4
 
     def __init__(self, env: Env):
         self.env = env
-        self._trigger_depth = 0
+        self._streams = _streams(env.contract.events)
+        self._change_depth = 0
         self._reaction_depth = 0
 
     def run_scheduled(self) -> None:
         env, world = self.env, self.env.world
-        while world.scheduled and world.scheduled[0][0] <= world.now():
+        while world.scheduled and world.scheduled[0][0] <= world.round:
             _, _, item = heapq.heappop(world.scheduled)
             if "delivery" in item:
                 run_delivery(env, item)
@@ -46,135 +88,143 @@ class Happenings:
                 env._atomic(item["effects"], world.thaw(item["vars"], version=item.get("capture_version", 0)),
                             item["path"])
 
-    def run_events(self, phase: str) -> None:
+    def fire(self, anchor: str, vars: dict[str, Any] | None = None, owner: Entity | None = None) -> None:
+        """Fire the events on ``anchor`` whose `when` holds, in order, with ``vars`` (a turn's $actor, $acted,
+        $timed_out) and drawing as ``owner``. It stops once the run ends, or once ``owner`` is gone."""
         env, world = self.env, self.env.world
-        for index, event in enumerate(env.contract.events):
-            if event.phase != phase:
-                continue
-            path = f"events[{index}]"
-            if event.arms is not None and env.arm not in event.arms:
-                continue
+        for index, event in env.contract.events_on(anchor):
             if event.once and index in env._fired_once:
                 continue
-            with world.drawing_at(path):  # its own luck: no other event's draws, nor any agent's, shift it
-                self._fire(index, event, path)
-            if env._ended():
+            path = f"events[{index}]"
+            when, do = self._streams[index]
+            with world.drawing_for(when, owner):
+                if event.when is not None and not self._holds(event.when, vars or {}, f"{path}.when"):
+                    continue
+                if event.once:
+                    env._fired_once.add(index)
+                loop = _loop(event)
+                if loop is not None:
+                    self._each(loop, path, when, do)
+                else:
+                    env._atomic(event.do, dict(vars or {}), f"{path}.do", owner=owner, luck=do)
+            self._say(index, event)
+            if env._ended() or (owner is not None and not owner.alive):
                 return
 
-    def _fire(self, index: int, event: Any, path: str) -> None:
+    def _holds(self, condition: str, vars: dict[str, Any], path: str) -> bool:
+        try:
+            return truthy(compile_expr(condition)(self.env.world.scope(**vars)))
+        except ExprError as exc:
+            raise RunError(str(exc), path) from None
+
+    def _each(self, loop: Mapping[str, Any], path: str, when: str, do: str) -> None:
+        """A round event whose `do` is one `each` runs item by item: each item is its own step with luck of its own, so
+        one item's draws never shift another's, and invariants are checked once every item has run."""
         env, world = self.env, self.env.world
-        if not self._due(event, path):
-            return
-        if event.once:
-            env._fired_once.add(index)
-        if event.each is not None:
-            item_name = event.as_ or "it"
+        name, where = loop.get("as") or "it", loop.get("where")
+        body = f"{path}.do[0].do"
+        try:
+            listed = loop["each"]
+            with world.drawing_at(do):  # what the loop goes over is drawn as its `do` would draw it
+                items = world.entities_of(listed) if isinstance(listed, str) and listed in env.contract.types else \
+                    each_items(resolve(listed, world.scope()), world, f"{path}.do[0].each")
+            if loop.get("sync"):
+                self._synced(loop, items, name, body, when, do)
+                return
+            removed = removed_since(items)
+            watch = LoopWrites.start(world, dict(loop), f"{path}.do[0]")
             try:
-                items = world.entities_of(event.each) if event.each in env.contract.types else \
-                    each_items(compile_expr(event.each)(world.scope()), world, f"{path}.each")
-                items = self._ordered(event, list(items), item_name, path)
-                if event.sync:
-                    run_sync(env, event, items, item_name, path)
-                    items = []
-                removed = removed_since(items)
                 for position, item in enumerate(items):
                     if removed(position):
                         continue
-                    inner = {item_name: item, "i": position}
-                    if event.where is not None:
-                        with world.drawing_for(f"{path}.where", item):
-                            if not truthy(compile_expr(event.where)(world.scope(**inner))):
+                    inner = {name: item, "i": position}
+                    if where is not None:
+                        with world.drawing_for(f"{when}.where", item):
+                            if not truthy(compile_expr(where)(world.scope(**inner))):
                                 continue
-                    env._atomic(event.do, inner, f"{path}.do", check=False, owner=item)
-                env._check_invariants(f"{path}.do")
-            except ExprError as exc:
-                raise RunError(str(exc), path) from None
-        else:
-            env._atomic(event.do, {}, f"{path}.do")
-        if event.say:
-            try:
-                text = compile_template(event.say, None).render(world.scope(viewer=EVERYONE))
-            except ExprError as exc:
-                raise RunError(str(exc), f"{path}.say") from None
-            if text.strip():
-                world.emit("news", text, data={"event": event.name or index})
-            world.journal.clear()
-
-    def _ordered(self, event: Any, items: list[Any], name: str, path: str) -> list[Any]:
-        """An `each` event's items in its `order`: shuffled from the run's seed, or by a key (lowest first)."""
-        world = self.env.world
-        if event.order is None:
-            return items
-        if event.order == "random":
-            world.rng.shuffle(items)
-            return items
-        key = compile_expr(event.order)
-        keyed = [(key(world.scope(**{name: item, "i": position})), position, item)
-                 for position, item in enumerate(items)]
-        try:
-            keyed.sort(key=lambda entry: (entry[0], entry[1]))
-        except TypeError:
-            raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
-        return [item for _, _, item in keyed]
-
-    def _due(self, event: Any, path: str) -> bool:
-        world = self.env.world
-        scope = world.scope()
-        try:
-            if event.at is not None:
-                at = compile_expr(event.at)(scope) if isinstance(event.at, str) else event.at
-                rounds = at if isinstance(at, list) else [at]
-                if world.round not in rounds:
-                    return False
-            every = whole_setting(world, event.every, f"{path}.every")
-            if every is not None and (world.round - 1) % every != 0:
-                return False
-            if event.when is not None and not truthy(compile_expr(event.when)(scope)):
-                return False
+                    if watch is not None:
+                        watch.item, watch.position = item, position
+                    env._atomic(loop.get("do") or [], inner, body, check=False, owner=item, luck=do)
+            finally:
+                if watch is not None:
+                    world.watched_writes = None
+            env._check_invariants(body)
         except ExprError as exc:
             raise RunError(str(exc), path) from None
-        return True
 
-    def check_triggers(self, path: str) -> None:
-        env = self.env
-        if not env.contract.triggers or env._ended():
+    def _synced(self, loop: Mapping[str, Any], items: list[Any], name: str, body: str, when: str, do: str) -> None:
+        """:meth:`_each` of a `sync` loop: every item reads the world as it was, and all their writes land together, as
+        one change."""
+        env, world = self.env, self.env.world
+        where = loop.get("where")
+
+        def run_item(position: int, item: Any) -> bool:
+            inner = {name: item, "i": position}
+            if where is not None:
+                with world.drawing_for(f"{when}.where", item):
+                    if not truthy(compile_expr(where)(world.scope(**inner))):
+                        return False
+            with shared_budget(ACTION_BUDGET, body), world.drawing_for(do, item):
+                env.effects.run(loop.get("do") or [], dict(inner), body)
+            return True
+
+        with env._lock:
+            mark = world.journal.mark()
+            try:
+                ran = run_synced(world, items, run_item, body)
+            except Abort as refusal:
+                world.journal.rollback(mark)
+                raise RunError(world_logic_refused(refusal.reason), body) from None
+            except BaseException:
+                world.journal.rollback(mark)
+                raise
+            if ran:
+                env._after_commit(body)
+                self.react(env._stage_spec())
+
+    def _say(self, index: int, event: EventSpec) -> None:
+        if not event.say:
             return
-        if self._trigger_depth >= self.TRIGGER_DEPTH:
-            raise RunError(f"triggers set each other off more than {self.TRIGGER_DEPTH} levels deep (a loop?)", path)
-        world = env.world
-        self._trigger_depth += 1
+        world = self.env.world
         try:
-            for index, trigger in enumerate(env.contract.triggers):
-                if trigger.arms is not None and env.arm not in trigger.arms:
+            text = compile_template(event.say, None).render(world.scope(viewer=EVERYONE))
+        except ExprError as exc:
+            raise RunError(str(exc), f"events[{index}].say") from None
+        if text.strip():
+            world.emit("news", text, data={"event": event.name or index})
+        world.journal.clear()
+
+    def check_changes(self, path: str) -> None:
+        """Fire every `change` event whose `when` has just become true (after a commit at ``path``)."""
+        env = self.env
+        events = env.contract.events_on("change")
+        if not events or env._ended():
+            return
+        if self._change_depth >= self.CHANGE_DEPTH:
+            raise RunError(f"events on 'change' set each other off more than {self.CHANGE_DEPTH} levels deep (a "
+                           "loop?)", path)
+        world = env.world
+        self._change_depth += 1
+        try:
+            for index, event in events:
+                if event.once and index in env._fired_once:
                     continue
-                if trigger.once and index in env._triggers_fired:
-                    continue
-                where = f"triggers[{index}]"
-                try:
-                    with world.drawing_at(f"{where}.when"):
-                        holds = truthy(compile_expr(trigger.when)(world.scope()))
-                except ExprError as exc:
-                    raise RunError(str(exc), f"{where}.when") from None
-                was = env._trigger_armed.get(index, False)
-                env._trigger_armed[index] = holds
+                when, do = self._streams[index]
+                with world.drawing_at(when):
+                    holds = self._holds(event.when or "true", {}, f"events[{index}].when")
+                was = env._armed.get(index, False)
+                env._armed[index] = holds
                 if not holds or was:
                     continue
-                if trigger.once:
-                    env._triggers_fired.add(index)
-                env._check_invariants(path)  # a trigger never acts on a broken world (an `each` item checks late)
-                env._atomic(trigger.do, {}, f"{where}.do")
-                if trigger.say:
-                    try:
-                        text = compile_template(trigger.say, None).render(world.scope(viewer=EVERYONE))
-                    except ExprError as exc:
-                        raise RunError(str(exc), f"{where}.say") from None
-                    if text.strip():
-                        world.emit("news", text, data={"trigger": trigger.name or index})
-                    world.journal.clear()
+                if event.once:
+                    env._fired_once.add(index)
+                env._check_invariants(path)  # a change event never acts on a broken world (an `each` item checks late)
+                env._atomic(event.do, {}, f"events[{index}].do", luck=do)
+                self._say(index, event)
                 if env._ended():
                     return
         finally:
-            self._trigger_depth -= 1
+            self._change_depth -= 1
 
     def react(self, stage: StageSpec | None) -> None:
         """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage — offered the

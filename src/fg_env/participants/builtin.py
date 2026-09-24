@@ -17,9 +17,9 @@ from ..sampling.seeds import LazyStream
 from .llm import PROVIDERS, official_participant
 
 if TYPE_CHECKING:
-    from ..contract import Contract
+    from ..contract import Contract, PolicySpec
 
-__all__ = ["Participant", "RandomAgent", "Idle", "PolicyAgent", "replay", "resolve_participant"]
+__all__ = ["Participant", "RandomAgent", "Idle", "PolicyAgent", "policy_names", "replay", "resolve_participant"]
 
 Participant = Callable[[Wake], Any]
 
@@ -98,19 +98,13 @@ def _fill_dependent(wake: Wake, tool: str, args: dict[str, Any], rng: random.Ran
 
     turn = wake._turn
     actions = turn.env.actions
-    name, own = tool, args
-    if tool in actions.groups:  # a shared tool: its `action` argument names the action
-        name, own, problem = actions.route(tool, args, ())
-        if problem:
-            return args
-    if name not in turn.env.contract.actions:
+    if tool not in turn.env.contract.actions:
         return args
     with turn.env._lock:
         try:
-            filled = actions.fill_dependent(turn.actor, name, own, rng.choice)
+            return actions.fill_dependent(turn.actor, tool, args, rng.choice)
         except RunError:
             return args  # the call reports the broken rule at its path
-    return {**filled, "action": args["action"]} if name != tool else filled
 
 
 def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> list[Any] | None:
@@ -143,31 +137,49 @@ class Idle:
         return "Idle()"
 
 
+def policy_names(contract: Contract) -> list[str]:
+    """Every policy any type declares, once each."""
+    return list(dict.fromkeys(name for spec in contract.types.values() for name in spec.policies))
+
+
 class PolicyAgent:
-    """Runs a coded policy from the contract's ``policies`` section: the first rule whose condition
-    holds, whose action is legal and whose arguments are valid is taken."""
+    """Runs a coded policy of the acting agent's type (``types.<type>.policies``, its ancestors' too): the first rule
+    whose condition holds, whose action is legal and whose arguments are valid is taken. ``kinds`` are types it
+    will play, checked now (others are checked at their first turn)."""
 
     #: Before a rule acts, also evaluate the later rules whose action is legal, so a broken rule that an earlier one
     #: always beats is still reported. Check's smoke play sets it; the policy acts the same either way.
     _probe_later = False
 
-    def __init__(self, contract: Contract, name: str, seed: int = 0):
-        if name not in contract.policies:
-            raise ValueError(f"no policy '{name}' in the contract (policies: {', '.join(contract.policies) or 'none'})")
-        self.name = name
-        self.spec = contract.policies[name]
-        self.seed = seed
+    def __init__(self, contract: Contract, name: str, seed: int = 0, kinds: tuple[str, ...] = ()):
+        if name not in policy_names(contract):
+            raise ValueError(f"no policy '{name}' in the contract (policies: "
+                             f"{', '.join(policy_names(contract)) or 'none'})")
+        self.contract, self.name, self.seed = contract, name, seed
+        for kind in kinds:
+            self._policy(kind)
+
+    def _policy(self, kind: str) -> tuple[PolicySpec, str]:
+        """The spec agents of ``kind`` play under this name, and its path."""
+        found = self.contract.policies_of(kind).get(self.name)
+        if found is None:
+            own = ", ".join(self.contract.policies_of(kind)) or "none"
+            raise ValueError(f"'{kind}' agents have no policy '{self.name}' (their policies: {own}): declare it under "
+                             f"types.{kind}.policies, or play another participant")
+        owner, spec = found
+        return spec, f"types.{owner}.policies.{self.name}"
 
     def __call__(self, wake: Wake) -> None:
         rng: Any = LazyStream(lambda: random.Random(_seed_for(self.seed, wake)))  # only `chance` rules draw
         turn = wake._turn
+        spec, base = self._policy(turn.actor.entity_type)
         while not wake.done:
             acted = False
-            for index, rule in enumerate(self.spec.rules):
-                path = f"policies.{self.name}.rules[{index}]"
+            for index, rule in enumerate(spec.rules):
+                path = f"{base}.rules[{index}]"
                 scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
                 if rule.each is None:
-                    outcome = self._try(wake, index, scope, rng)
+                    outcome = self._try(wake, spec, base, index, scope, rng)
                     if outcome == "passed":
                         return
                     if outcome == "acted":
@@ -177,13 +189,13 @@ class PolicyAgent:
                 for position, item in enumerate(self._items(turn, rule.each, scope, path)):
                     if wake.done:
                         return
-                    outcome = self._try(wake, index, scope.child(it=item, i=position), rng)
+                    outcome = self._try(wake, spec, base, index, scope.child(it=item, i=position), rng)
                     if outcome == "passed":
                         return
                     acted = acted or outcome == "acted"
                 if acted:
                     break
-            if not acted or not self.spec.repeat:
+            if not acted or not spec.repeat:
                 break
         if not wake.done:
             wake.end()
@@ -200,12 +212,12 @@ class PolicyAgent:
         except ExprError as exc:
             raise RunError(str(exc), f"{path}.each") from None
 
-    def _try(self, wake: Wake, index: int, scope: Any, rng: Any) -> str:
+    def _try(self, wake: Wake, spec: PolicySpec, base: str, index: int, scope: Any, rng: Any) -> str:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""
-        turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
+        turn, rule, path = wake._turn, spec.rules[index], f"{base}.rules[{index}]"
         # Read the world as the agent's next choice meets it: in a sealed stage, after the choices it already made.
         with turn.env._lock, turn.after_choices():
-            choice = self._choose(wake, index, scope, rng)
+            choice = self._choose(wake, spec, base, index, scope, rng)
         if choice is None:
             return "skipped"
         if isinstance(choice, str):  # "passed"
@@ -222,10 +234,10 @@ class PolicyAgent:
         turn.env.diagnosis.policy_rule(path, rule.do, result.text)
         return "skipped"  # this rule does not fit right now; try the next one
 
-    def _choose(self, wake: Wake, index: int, scope: Any,
+    def _choose(self, wake: Wake, spec: PolicySpec, base: str, index: int, scope: Any,
                 rng: Any) -> None | str | tuple[dict[str, Any], str | None]:
         """Whether a rule applies now: None (it does not), "passed", or its arguments and why they are invalid."""
-        turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
+        turn, rule, path = wake._turn, spec.rules[index], f"{base}.rules[{index}]"
         if rule.do != "pass" and not turn.env.contract.can_take(turn.actor.entity_type, rule.do):
             return None  # a rule for another agent type: its `when` may read what this type does not have
         try:
@@ -239,7 +251,7 @@ class PolicyAgent:
                     return None
             if rule.do == "pass":
                 if self._probe_later:
-                    self._probe(turn, index)
+                    self._probe(turn, spec, base, index)
                 return "passed"
             # legality without building tool schemas (coded crowds never read them), before `with`, whose arguments
             # may only exist while the action is legal
@@ -251,10 +263,10 @@ class PolicyAgent:
         args = {k: _as_ids(v) for k, v in args.items()}
         _, problem = turn.env.actions.validate(turn.actor, rule.do, args)
         if problem is None and self._probe_later:
-            self._probe(turn, index)
+            self._probe(turn, spec, base, index)
         return args, problem
 
-    def _probe(self, turn: Any, index: int) -> None:
+    def _probe(self, turn: Any, spec: PolicySpec, base: str, index: int) -> None:
         """Evaluate each rule after ``index`` whose action is legal now, as a turn would reach it — `when`, then
         `chance` and `with` if it holds — for the first of its `each` items. Nothing acts, and draws come from a stream
         of their own."""
@@ -262,8 +274,8 @@ class PolicyAgent:
         with turn.env._lock:
             legal = set(turn._legal()) | {"pass"}
         with turn.env.world.drawing_from(random.Random(0)):
-            for later in range(index + 1, len(self.spec.rules)):
-                rule, path = self.spec.rules[later], f"policies.{self.name}.rules[{later}]"
+            for later in range(index + 1, len(spec.rules)):
+                rule, path = spec.rules[later], f"{base}.rules[{later}]"
                 if rule.do not in legal:
                     continue
                 items = [scope] if rule.each is None else [
@@ -289,8 +301,10 @@ def _as_ids(value: Any) -> Any:
     return value.id if hasattr(value, "entity_type") else value
 
 
-def resolve_participant(value: Any, contract: Contract, seed: int, path: str = "participants") -> Participant:
-    """The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``."""
+def resolve_participant(value: Any, contract: Contract, seed: int, path: str = "participants",
+                        kinds: tuple[str, ...] = ()) -> Participant:
+    """The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``. ``kinds``
+    are the types it will play, so a policy they do not have is reported now."""
     if callable(value):
         return value
     if isinstance(value, str):
@@ -299,8 +313,11 @@ def resolve_participant(value: Any, contract: Contract, seed: int, path: str = "
         if value == "idle":
             return Idle()
         name = value[len("policy:"):] if value.startswith("policy:") else value
-        if name in contract.policies:
-            return PolicyAgent(contract, name, seed)
+        if name in policy_names(contract):
+            try:
+                return PolicyAgent(contract, name, seed, kinds)
+            except ValueError as exc:
+                raise ContractError([Issue(path, str(exc))], title="participants are invalid") from None
         provider, sep, model = value.partition(":")
         if sep and provider in PROVIDERS:
             return official_participant(provider, model)
@@ -309,7 +326,7 @@ def resolve_participant(value: Any, contract: Contract, seed: int, path: str = "
         algorithm = algorithm_participant(value, contract, seed)
         if algorithm is not None:
             return algorithm
-    named = ["random", "idle", *(f"policy:{name}" for name in contract.policies)]
+    named = ["random", "idle", *(f"policy:{name}" for name in policy_names(contract))]
     hint = get_close_matches(str(value), named, n=1)
     raise ContractError([Issue(path, f"unknown participant {value!r}", (f"did you mean '{hint[0]}'? " if hint else "")
                                + "use a callable, 'random', 'idle', 'policy:<name>', 'anthropic:<model>', "
@@ -317,7 +334,7 @@ def resolve_participant(value: Any, contract: Contract, seed: int, path: str = "
                                "or a game algorithm: 'mcts:<simulations>', 'ismcts:<simulations>', "
                                "'minimax[:<depth>]', "
                                "'cfr:<policy.json>' or 'cfr:<iterations>' (policies: "
-                               f"{', '.join(contract.policies) or 'none'})")],
+                               f"{', '.join(policy_names(contract)) or 'none'})")],
                         title="participants are invalid")
 
 

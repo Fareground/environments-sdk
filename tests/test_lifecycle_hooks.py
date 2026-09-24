@@ -1,4 +1,5 @@
-"""Entity lifecycle hooks: on_create and on_remove, inherited, atomic, at build and during the run."""
+"""Entity lifecycle hooks (written as a type's on_create and on_remove, which load as events on `create.<type>` and
+`remove.<type>`): inherited, atomic, at build and during the run."""
 import copy
 import json
 
@@ -90,7 +91,7 @@ def test_hooks_that_keep_creating_their_own_type_stop_with_a_clear_error():
     env = _run(contract, {1: [("found", {})]}, expect_ok=False)
     result = env.result()
     assert result.error is None and len(env.entities("firm")) == 3  # the action that set them off was undone
-    assert any("on_create hooks set each other off more than 16 levels deep" in d["message"]
+    assert any("events on create set each other off more than 16 levels deep" in d["message"]
                for d in result.diagnostics)
 
 
@@ -108,9 +109,6 @@ def test_a_run_split_by_a_snapshot_ends_exactly_like_a_straight_run():
 def test_the_checker_checks_hook_effects_over_it():
     contract = copy.deepcopy(FIRMS)
     contract["types"]["firm"]["on_create"] = ["$it.nope = 1", "$actor.capital = 1"]
-    contract["types"]["founder"]["on_create_at_build"] = False
     issues = [(i.path, i.message, i.severity) for i in fg_env.check(contract)]
-    assert ("types.firm.on_create[0]", "$it.nope: bank/firm has no property 'nope'", "error") in issues
-    assert any(path == "types.firm.on_create[1]" and "$actor is not available" in message
-               for path, message, _ in issues)
-    assert ("types.founder.on_create_at_build", "does nothing: this type has no on_create", "warning") in issues
+    assert ("events[0].do[0]", "$it.nope: bank/firm has no property 'nope'", "error") in issues
+    assert any(path == "events[0].do[1]" and "$actor is not available" in message for path, message, _ in issues)

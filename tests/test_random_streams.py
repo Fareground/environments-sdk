@@ -23,7 +23,7 @@ WARD = {
     ],
     "actions": {"test": {"by": "doctor", "params": {"patient": {"type": "entity", "of": "patient",
                                                                  "where": "$it.state == waiting"}},
-                         "do": ["$world.tests += [$random()]", "$params.patient.state = seen"]}},
+                         "do": ["$world.tests += [$uniform(0, 1)]", "$params.patient.state = seen"]}},
     "stages": [{"name": "work", "max_actions": 3}],
     "outputs": {"arrivals": {"expr": "$world.arrivals", "type": "list"}},
 }

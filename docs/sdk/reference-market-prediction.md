@@ -17,7 +17,6 @@ Config:
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the market.
 - `max_actions` (default 2): Trades per turn in the generated stage.
 - `conserve` (default true): Declare the invariant that the vault covers every share.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `market` op:
 - `buy` — takes `who`, `outcome`, `shares`, `spend` (needs `outcome`): {"market": "election", "action": "buy", "outcome": "yes", "spend": 20}  (buy one outcome by `shares` or money (`spend`, the most paid when both are given))

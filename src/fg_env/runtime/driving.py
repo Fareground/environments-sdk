@@ -30,7 +30,7 @@ from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError
 from ..expr.objects import Entity
 from ..participants import Idle, Participant, resolve_participant
-from .session import END_TURN, Wake
+from .session import Wake
 
 if TYPE_CHECKING:
     from .env import Env
@@ -169,13 +169,22 @@ class Driver:
                                            f"did you mean '{hint[0]}'?" if hint else
                                            f"types: {', '.join(env.contract.types)}; '*' is everyone")],
                                     title="participants are invalid")
-            if not callable(value):
-                resolve_participant(value, env.contract, 0, path)  # an unknown name fails now, not mid-run
+            if not callable(value):  # an unknown name, or a policy the agents it plays lack, fails now, not mid-run
+                resolve_participant(value, env.contract, 0, path, self._kinds(key))
             elif _is_async_generator(value):
                 raise TypeError(f"participant for '{key}' is an async generator; a participant plays one turn per "
                                 "call — use a plain function or an async def")
         self.spec = dict(participants)
         self._resolved.clear()
+
+    def _kinds(self, key: str) -> tuple[str, ...]:
+        """The agent types a participant bound to ``key`` (a type, an entity id or '*') plays."""
+        contract, entity = self.env.contract, self.env.world.entities.get(key)
+        if entity is not None:
+            return (entity.entity_type,)
+        if key in contract.types:
+            return tuple(kind for kind in contract.subtypes(key) if contract.is_agent(kind))
+        return ()
 
     def participant(self, actor: Entity) -> Participant:
         budget = self.env.budget
@@ -192,7 +201,8 @@ class Driver:
         if value is None:
             value = next((env.contract.types[kind].policy for kind in lineage if env.contract.types[kind].policy),
                          None) or "random"
-        participant = resolve_participant(value, env.contract, env.seeds.derive("participant"))
+        participant = resolve_participant(value, env.contract, env.seeds.derive("participant"),
+                                          kinds=(actor.entity_type,))
         participant = self._with_turn_tools(participant)
         self._resolved[actor.id] = participant
         return participant
@@ -234,12 +244,7 @@ class Driver:
         budget charged for it. A run that must close its waiting turns ends the round with an exception instead."""
         env = self.env
         discarded = False
-        if resume is None:
-            auto = [turn for turn in turns if turn.stage.auto]
-            played = [turn for turn in turns if turn not in auto or not self._auto(turn)]
-        else:
-            played = list(turns)  # a waiting turn was never an auto turn
-        chosen = [(turn, self.participant(turn.actor)) for turn in played]
+        chosen = [(turn, self.participant(turn.actor)) for turn in turns]
         concurrent = sum(1 for _, p in chosen if runs_concurrently(p))
         threaded = together and env.parallel > 1 and concurrent > 1
         queue: deque[tuple[Turn, Participant, bool]] = deque()
@@ -264,7 +269,7 @@ class Driver:
                     self._submit(flight, answer, rng)
                     self._fly(deque(), [flight])
             self._fly(queue, [])
-            for turn in played:
+            for turn in turns:
                 if not turn.staged:
                     turn.settle_at_end()
         except GeneratorExit:
@@ -272,7 +277,7 @@ class Driver:
             raise
         finally:
             if not discarded:
-                for turn in played:
+                for turn in turns:
                     self.finish(turn)
                 if together:
                     env.origin.staged = []
@@ -442,38 +447,6 @@ class Driver:
         flight.cancelled = True
         if flight.future is not None:
             flight.future.cancel()
-
-    # -- auto turns ---------------------------------------------------------------------------
-
-    def _auto(self, turn: Turn) -> bool:
-        """Play a trivial turn without the agent: the only legal action when it takes no arguments,
-        or nothing when no action is legal. False when the agent has a real choice."""
-        env = self.env
-        with env.world.turn_context(self._rng(turn), turn.pending):
-            acts = self._choices(turn)
-            if acts is None:
-                return False
-            if acts:
-                turn.call(acts[0].name, {})
-            if not turn.done:
-                turn.call(END_TURN, {})
-        turn.stats.wakes = 0
-        turn.stats.auto_turns = 1
-        turn.exposure = None  # the agent was never woken, so it was shown nothing
-        self.finish(turn)
-        return True
-
-    def trivial(self, turn: Turn) -> bool:
-        """Whether :meth:`_auto` would play ``turn`` without the agent (it has no real choice)."""
-        with self.env.world.turn_context(self._rng(turn), turn.pending):
-            return self._choices(turn) is not None
-
-    @staticmethod
-    def _choices(turn: Turn) -> list[Any] | None:
-        """The turn's action tools when it has no real choice (none, or one without arguments); else None."""
-        acts = [tool for tool in turn.tools() if tool.kind == "act"]
-        return None if len(acts) > 1 or (acts and acts[0].input_schema.get("properties")) else acts
-
 
 def _failure(turn: Turn, exc: BaseException) -> RunError:
     return RunError(f"participant for {turn.actor.id} raised {type(exc).__name__}: {exc}",

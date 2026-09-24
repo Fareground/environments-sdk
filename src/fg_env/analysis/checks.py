@@ -232,7 +232,9 @@ def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: int | Non
     rejected = {finding.subject for finding in out}
     if len(runs) < 2:
         return out
-    for name in contract.outputs:
+    for name, spec in contract.outputs.items():
+        if spec.series is True:  # its result is its last sample: the series finding covers it
+            continue
         values = [json.dumps(r.outputs.get(name), sort_keys=True, default=str) for r in runs]
         if f"outputs.{name}" in rejected or len(set(values)) > 1:
             continue
@@ -250,12 +252,12 @@ def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: int | Non
 
 def _metric_findings(contract: Any, runs: Sequence[RunResult]) -> list[Finding]:
     out = []
-    for name in contract.metrics:
+    for name in contract.series_outputs():
         seen = {json.dumps(v, sort_keys=True, default=str) for r in runs for v in r.series.get(name, [])}
         if len(seen) == 1:
             value = next(iter(seen))
-            out.append(Finding("metric_constant", "warning", f"metrics.{name}",
-                               f"The metric stayed at {value} in every round of every run. It may read something "
+            out.append(Finding("metric_constant", "warning", f"outputs.{name}",
+                               f"The series stayed at {value} in every round of every run. It may read something "
                                "that nothing changes.", {"value": json.loads(value)}))
     return out
 

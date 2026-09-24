@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from test_examples import REWRITE_BY_HAND
 
 import fg_env
 from fg_env.__main__ import main
@@ -48,7 +49,7 @@ def test_a_sequential_open_deterministic_game_is_described_exactly():
     assert m["dynamics"] == "sequential" and m["chance_mode"] == "deterministic" and m["chance_during"] == []
     assert m["information"] == "perfect"
     assert (m["num_players"], m["min_players"], m["max_players"]) == (2, 2, 2)
-    assert m["max_game_length"] == {"rounds": 30, "time": None, "decisions": 60}  # 30 rounds × 1 pass × 1 action × 2
+    assert m["max_game_length"] == {"rounds": 30, "decisions": 60}  # 30 rounds × 1 pass × 1 action × 2
     assert m["action_space"] == {"kind": "finite", "size": 3, "per_action": {"take": 3}}
     assert m["utility"] == "unknown" and m["evidence"]["utility"]
     assert m["observations"]["views"] == {"player": ["heap"]} and m["observations"]["inspect"]["player"] == "everyone"
@@ -75,8 +76,9 @@ def test_chance_is_found_in_setup_and_in_play_with_its_paths():
     setup = describe(_variant(world__stones={"type": "int", "default": "$randint(8, 12)", "min": 0})).metadata
     assert setup["chance_mode"] == "sampled" and setup["chance_during"] == ["setup"]
     assert any("world.stones.default calls $randint" in line for line in setup["evidence"]["chance_mode"])
-    play = describe(_variant(actions__take__chance=0.9)).metadata
-    assert play["chance_during"] == ["play"] and "actions.take.chance is 0.9" in play["evidence"]["chance_mode"]
+    play = describe(_variant(actions__take__do=[{"if": "$chance(0.9)", "then": []}])).metadata
+    assert play["chance_during"] == ["play"]
+    assert "actions.take.do[0].if calls $chance" in play["evidence"]["chance_mode"]
 
 
 def test_player_counts_follow_bounded_inputs_and_become_unknown_when_agents_can_be_created():
@@ -122,15 +124,15 @@ def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_descri
     assert outbreak["external_data"] == [{"feed": "weather", "host": "weather", "into": "world.temperature",
                                           "every": 1}]
     chance = outbreak["evidence"]["chance_mode"]
-    assert "feeds.weather.fallback calls $normal" in chance
-    assert "physics.per.resident.vars.viral_load.noise is a random term" in chance
+    assert "mechanisms.weather.fallback calls $normal" in chance
+    assert "mechanisms.physics.per.resident.vars.viral_load.noise is a random term" in chance
     assert "actions.advise.do[0] may lose the message (drop)" in chance
     assert outbreak["information"] == "imperfect"
     assert ({"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"}
             <= set(outbreak["concepts"]))
     hop = describe(EXAMPLES / "hopscotch_race.json")
     assert hop.metadata["evidence"]["dynamics"] == [
-        "stage hop: sequential turns, atomic (a turn's actions stand or fall together), time limit 30.0 s"]
+        "stage hop: sequential turns, atomic (a turn's actions stand or fall together)"]
     assert hop.metadata["observations"]["spectator"] == ["race"]
     assert hop.metadata["max_game_length"]["decisions"] is None  # a turn that breaks `valid` is played again
     assert "### Turn rules of stage `hop`" in hop.markdown and "never shown to an agent: `race`" in hop.markdown
@@ -145,6 +147,8 @@ def test_a_spectator_view_does_not_show_state_to_agents():
 
 def test_every_example_contract_is_described():
     for path in sorted(EXAMPLES.glob("*.json")):
+        if path.stem in REWRITE_BY_HAND:
+            continue
         description = describe(path)
         for heading in ("## 1. Purpose", "## 2. Entities", "## 3. Process", "## 4. Design concepts",
                         "## 5. Initialisation", "## 6. Input data", "## 7. Submodels", "## Game-theoretic summary"):

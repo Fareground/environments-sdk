@@ -6,9 +6,9 @@ kept — entities, properties, links, records, the log, the clock — and the ne
 
 What the state cannot follow is refused, each with its fix: a type, property, relation or record
 that is gone while the state still holds some of it; values the new declarations refuse; physics
-variables that are gone; a different clock mode; a round budget the run is already past. What
-the new contract adds starts from its declaration (new properties get their defaults, new metrics
-start sampling). A `once` event or trigger that already fired keeps that memory only while it is
+variables that are gone; a round budget the run is already past. What
+the new contract adds starts from its declaration (new properties get their defaults, new series outputs
+start sampling). A `once` event that already fired keeps that memory only while it is
 declared unchanged; an edited one counts as new.
 """
 from __future__ import annotations
@@ -17,8 +17,8 @@ import os
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-from ..api import ContractLike, _merge, apply_arm, contract_source, default_data_dir, located, parse
-from ..checks import BASE, _Checker, check_contract, parse_contract
+from ..api import ContractLike, _merge, _parsed, apply_arm, contract_source, default_data_dir, located, parse
+from ..checks import BASE, _Checker, check_contract
 from ..contract import Contract, PropSpec
 from ..contract.inputs import resolve_inputs
 from ..errors import ContractError, Issue, RunError, SnapshotError
@@ -102,8 +102,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     # Continuing the same arm keeps the current rules, including earlier patches.
     # A different arm or replacement contract deliberately selects a new rule base.
     new = old if to is None and new_arm == old_arm else (apply_arm(base, new_arm) if new_arm is not None else base)
-    if patch:
-        new = located(parse_contract(_merge(contract_source(new), dict(patch))), new._folder)
+    if patch:  # a patch may be written in an earlier form: the merged contract is normalized, and the rewrites noted
+        new = located(_parsed(_merge(contract_source(new), dict(patch)), new._notes), new._folder)
     problems = [issue for issue in check_contract(new) if issue.severity == "error"]
     if problems:
         raise ContractError(problems, title="the forked contract is invalid")
@@ -159,10 +159,6 @@ def _inputs(unarmed: Contract, base: Contract, snapshot: Mapping[str, Any], old_
 def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> list[Issue]:
     """Everything in ``snapshot``'s state that ``new`` cannot hold, each with its fix."""
     issues: list[Issue] = []
-    if old.clock.mode != new.clock.mode:
-        issues.append(Issue("clock.mode",
-                            f"cannot change from {old.clock.mode} to {new.clock.mode} part-way through a run",
-                            "keep the clock mode the run started with"))
     probe = SdkWorld(new, decode(snapshot["inputs"]), SeedTree(0))
     missing_types: dict[str, list[str]] = {}
     for row in snapshot["entities"]:
@@ -277,11 +273,13 @@ def _physics(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any]) ->
     names = sorted((held.get("variables") or {}) if isinstance(held.get("variables"), dict)
                    else [var.get("name") for var in held.get("variables") or []])
     if new.physics is None:
-        issues.append(Issue("physics", "is gone, but the run holds physics state", "keep the physics section"))
+        issues.append(Issue("mechanisms.physics", "is gone, but the run holds physics state",
+                            "keep the physics mechanism"))
         return
     for name in names:
         if name not in new.physics.vars:
-            issues.append(Issue(f"physics.vars.{name}", "is gone, but the run holds its value", "keep the variable"))
+            issues.append(Issue(f"mechanisms.physics.vars.{name}", "is gone, but the run holds its value",
+                                "keep the variable"))
 
 
 def _clock(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any], probe: SdkWorld) -> None:
@@ -303,22 +301,19 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
     data = dict(snapshot)
     data["inputs"], data["arm"] = encode(inputs), arm
     data["fired_once"] = _remap(old.events, new.events, snapshot["fired_once"])
-    triggers = snapshot["triggers"]
-    data["triggers"] = {
-        "armed": {str(j): triggers["armed"][str(i)] for i, j in _pairs(old.triggers, new.triggers,
-                                                                        [int(k) for k in triggers["armed"]])},
-        "fired": _remap(old.triggers, new.triggers, triggers["fired"])}
+    armed = snapshot["armed"]
+    data["armed"] = {str(j): armed[str(i)] for i, j in _pairs(old.events, new.events, [int(k) for k in armed])}
     series = decode(snapshot["series"])
     length = max((len(values) for values in series.values()), default=0)
-    data["series"] = encode({name: series.get(name, [None] * length) for name in new.metrics})
+    data["series"] = encode({name: series.get(name, [None] * length) for name in new.series_outputs()})
     metrics = decode(snapshot["metrics"])
-    data["metrics"] = encode({name: metrics.get(name) for name in new.metrics})
+    data["metrics"] = encode({name: metrics.get(name) for name in new.series_outputs()})
     env = restore_state(cls, new, data, parallel)
     world = env.world
     world.rounds = _rounds(world)
     _fill(env, new)
     _physics_params(env, old, new)
-    if env.status == "completed" and env.ended_by in ("rounds", "horizon") and _has_time_left(world):
+    if env.status == "completed" and env.ended_by == "rounds" and world.round < world.rounds:
         env.status, env.ended_by = "running", None
         if world.log and world.log[-1].kind == "end":  # the run is not over after all
             world.log.pop()
@@ -326,12 +321,6 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
     world.journal.clear()
     world.touch()
     return env
-
-
-def _has_time_left(world: SdkWorld) -> bool:
-    if world.continuous and world.horizon is not None:
-        return world.time < world.horizon
-    return world.round < world.rounds
 
 
 def _fill(env: Env, new: Contract) -> None:
@@ -381,7 +370,7 @@ def _physics_params(env: Env, old: Contract, new: Contract) -> None:
         try:
             value = compile_expr(raw)(scope) if is_expr(raw) else raw
         except ExprError as exc:
-            raise RunError(str(exc), f"physics.params.{name}") from None
+            raise RunError(str(exc), f"mechanisms.physics.params.{name}") from None
         model.params[name] = float(value)
     for name in spec.read:
         model.params.setdefault(name, 0.0)

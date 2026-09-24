@@ -20,6 +20,7 @@ from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _s
 from ..runtime.diagnostics import MIN_CALLS
 from ..runtime.measure import RunResult
 from .probing import Prober, hides_numbers
+from .rules import scheduled_rounds
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -48,15 +49,16 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
                  seed: int) -> tuple[list[Issue], list[Issue]]:
     """``(errors, warnings)`` from playing the contract built by ``build``: first with random agents that read
     everything they are shown, then with agents that choose boundary values, then with every agent idle (as when a
-    model times out or refuses), then with each policy playing every agent type (its rules for actions a type cannot
-    take are skipped for that type).
+    model times out or refuses), then with each policy played by the agents of the type that declares it (its
+    subtypes too; its rules for actions a subtype cannot take are skipped for it).
     ``rounds`` None plays :data:`SMOKE_ROUNDS` rounds, or up to the last round a one-off event (`at`, a market's
     resolution) is scheduled for, so each such event is played (the boundary-value and idle plays last only the first
     few rounds); a wall-clock guard stops a play too slow to finish, and
     says so. A number plays exactly that many rounds. An action that was called in these plays and never once succeeded
     is reported too."""
     agents = contract.agent_types()
-    policies = [(name, agents) for name in contract.policies] if agents else []
+    policies = [(owner, name, [kind for kind in contract.subtypes(owner) if kind in agents])
+                for owner, spec in contract.types.items() for name in spec.policies]
     seconds = _GUARD_SECONDS / (3 + len(policies)) if rounds is None else None
     errors: list[Issue] = []
     warnings: list[Issue] = []
@@ -93,14 +95,17 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
         prober = Prober(seed)
         _play(build(), {"*": prober}, 1, None)
         errors.extend(prober.found.values())
-    for name, players in policies:
+    for owner, name, players in policies:
+        if not players:
+            continue  # the static check reports a policy no agent plays
         agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         result = _play(_kept(build(), played), {kind: agent for kind in players}, rounds, seconds)
         _failure(result, who, errors)
+        prefix = f"types.{owner}.policies.{name}."
         warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {result.rounds} round(s), {who})",
                               found["fix"], "warning")
                         for found in result.diagnostics
-                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(f"policies.{name}."))
+                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(prefix))
     reported = {issue.path for issue in errors + warnings}
     warnings.extend(issue for issue in _never_succeeded(contract, played) if issue.path not in reported)
     cut = [env for env in played + [idle_env] if env.status == "stopped"]
@@ -114,17 +119,18 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
 
 
 def _default_rounds(env: Env) -> int:
-    """The rounds a default check plays: :data:`SMOKE_ROUNDS`, or up to the last round a one-off event is scheduled
-    for (``at``, which a mechanism's scheduled resolution is too), within the run's own rounds."""
+    """The rounds a default check plays: :data:`SMOKE_ROUNDS`, or up to the last round an event names in its `when`
+    (``$round == 30``, which a mechanism's scheduled resolution is too), within the run's own rounds."""
     last = SMOKE_ROUNDS
     for event in env.contract.events:
-        try:
-            at = compile_expr(event.at)(env.world.scope()) if isinstance(event.at, str) else event.at
-        except ExprError:
-            continue  # a bad `at` is the static check's to report
-        for moment in at if isinstance(at, list) else [at]:
-            if isinstance(moment, int) and not isinstance(moment, bool):
-                last = max(last, moment)
+        for text in scheduled_rounds(event.when):
+            try:
+                at = compile_expr(text)(env.world.scope())
+            except ExprError:
+                continue  # a bad `when` is the static check's to report
+            for moment in at if isinstance(at, list) else [at]:
+                if isinstance(moment, int) and not isinstance(moment, bool):
+                    last = max(last, moment)
     return min(last, env.world.rounds)
 
 

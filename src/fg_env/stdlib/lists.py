@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from ..expr import Call, _describe, check_size, function
+from ..expr import Call, _describe, charge, check_size, function
 from ._args import check_len, fail, int_arg, key_of, list_arg, present_numbers, sequence_arg, series_arg
 
 
@@ -39,14 +39,31 @@ def _window(call: Call) -> list[list[Any]]:
     return [items[i:i + size] for i in starts]
 
 
-@function("index(list, value)", "Position of the first item equal to `value` (entities match their id), or -1.",
-          min_args=2, max_args=2)
+@function("index(list, value)", "Position of the first item equal to `value` (entities match their id), or -1. In "
+          "text, the position of the first `value` in it (case-sensitive), or -1.", min_args=2, max_args=2)
 def _index(call: Call) -> int:
-    target = key_of(call.arg(1))
-    for position, item in enumerate(sequence_arg(call, 0)):
+    value = call.arg(1)
+    items = call.arg(0)
+    if isinstance(items, str) and not call.scope.world.is_type(items):
+        if not isinstance(value, str):
+            raise fail(call, f"to find something in text, argument 2 must be text, got {_describe(value)}")
+        charge(len(items), call.source)
+        return items.find(value)
+    target = key_of(value)
+    for position, item in enumerate(sequence_arg(call, 0) if isinstance(items, str) else _listed(call, items)):
         if key_of(item) == target:
             return position
     return -1
+
+
+def _listed(call: Call, value: Any) -> list[Any]:
+    """An evaluated argument as a list: null is empty."""
+    if value is None:
+        return []
+    if not isinstance(value, (list, tuple)):
+        raise fail(call, f"argument 1 must be a list or text, got {_describe(value)}")
+    charge(len(value), call.source)
+    return list(value)
 
 
 def _scores(call: Call) -> list[Any | None]:

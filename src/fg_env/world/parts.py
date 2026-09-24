@@ -2,6 +2,7 @@
 expressions read (the `$world` view is :class:`fg_env.expr.objects.PropsView`)."""
 from __future__ import annotations
 
+import itertools
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -20,21 +21,23 @@ _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[str]:
-    """The metrics worked out from agents' private properties: those whose expression — or a def or metric it
-    reads — names one (``private``, the names agent types keep private). Read by name, so a metric that only might
-    read one counts too: showing it to agents is refused, and a metric that must be shown reads no private name."""
+    """The series outputs worked out from agents' private properties: those whose sampled expression — or a def or
+    output it reads — names one (``private``, the names agent types keep private). Read by name, so an output that
+    only might read one counts too: showing it to agents is refused, and an output that must be shown reads no
+    private name."""
     if not private:
         return frozenset()
-    texts = {name: spec.expr for name, spec in contract.metrics.items()}
-    texts.update({name: spec.expr for name, spec in contract.defs.items() if name not in texts})
+    sampled = {name: spec.sampled or "" for name, spec in contract.series_outputs().items()}
+    texts = dict(sampled)
+    texts.update({name: spec.expr or "" for name, spec in contract.expr_defs().items() if name not in texts})
     names = {name: set(_NAME.findall(text)) for name, text in texts.items()}
     hidden = {name for name, found in names.items() if found & private}
     grown = True
-    while grown:  # a metric or def reading one that is worked out from private properties is too
+    while grown:  # an output or def reading one that is worked out from private properties is too
         more = {name for name, found in names.items() if name not in hidden and found & hidden}
         hidden |= more
         grown = bool(more)
-    return frozenset(hidden & set(contract.metrics))
+    return frozenset(hidden & set(sampled))
 
 
 class Entry(dict):
@@ -63,14 +66,12 @@ class LogEvent:
     to: tuple[str, ...] | None = None
     data: dict[str, Any] = field(default_factory=dict)
     stage: str | None = None
-    #: Clock time when it happened (continuous clock only).
-    time: float | None = None
 
     def visible_to(self, entity_id: str) -> bool:
         return self.to is None or entity_id in self.to
 
     def expr_attr(self, name: str, source: str | None) -> Any:
-        if name in ("seq", "round", "kind", "text", "actor", "stage", "time"):
+        if name in ("seq", "round", "kind", "text", "actor", "stage"):
             return getattr(self, name)
         if name in self.data:
             return self.data[name]
@@ -86,8 +87,6 @@ class LogEvent:
             out["to"] = list(self.to)
         if self.data:
             out["data"] = self.data
-        if self.time is not None:
-            out["time"] = self.time
         return out
 
 
@@ -128,19 +127,24 @@ class ClockView:
             return w.start
         if name == "label":
             return w.clock_label()
-        if name == "time":
-            return w.now()
-        if name == "horizon":
-            return w.horizon
-        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label, time, horizon)",
-                        source)
+        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label)", source)
+
+
+#: Every journal's versions come from one count, so no two different states anywhere share a version.
+_VERSIONS = itertools.count(1)
 
 
 class Journal:
     def __init__(self) -> None:
-        self._undo: list[Callable[[], object]] = []
-        #: Bumped by every change and every undo: equal versions mean an unchanged world.
+        #: Each change's undo, with the version it replaced.
+        self._undo: list[tuple[Callable[[], object], int]] = []
+        #: The world's version: a change moves it to one never used before, and undoing a change brings back the one it
+        #: replaced (a tried call rolled back leaves the world, and every cache of it, as it was). Equal versions mean
+        #: an equal world.
         self.version = 0
+        #: Changes below this position were followed by a change outside the journal (:meth:`bump`): undoing them does
+        #: not bring back the world of their version.
+        self._settled = 0
         #: Open :meth:`held` blocks, and whether a :meth:`clear` inside them waits for them to finish.
         self.holding = 0
         self._clear_due = False
@@ -149,25 +153,33 @@ class Journal:
         return len(self._undo)
 
     def push(self, undo: Callable[[], object]) -> None:
-        self._undo.append(undo)
-        self.version += 1
+        self._undo.append((undo, self.version))
+        self.version = next(_VERSIONS)
+
+    def bump(self) -> None:
+        """Record a change made outside the journal (metrics sampling, physics): no earlier version comes back."""
+        self.version = next(_VERSIONS)
+        self._settled = len(self._undo)
 
     def rollback(self, mark: int) -> None:
         while len(self._undo) > mark:
-            self._undo.pop()()
-            self.version += 1
+            undo, before = self._undo.pop()
+            undo()
+            self.version = before if len(self._undo) >= self._settled else next(_VERSIONS)
+        self._settled = min(self._settled, len(self._undo))
 
     def clear(self) -> None:
         if self.holding:
             self._clear_due = True
             return
         self._undo.clear()
+        self._settled = 0
         self._clear_due = False
 
     @contextmanager
     def held(self) -> Iterator[None]:
         """Keep every change made inside the block undoable until it ends: commits inside it (an agent's action and
-        the triggers it sets off) clear the journal only once the block finishes without an error, so a failure
+        the events it sets off) clear the journal only once the block finishes without an error, so a failure
         anywhere in it can still undo all of it."""
         self.holding += 1
         try:

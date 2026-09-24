@@ -16,7 +16,7 @@ from typing import Any, TypeGuard
 from ..api import ContractLike, contract_source, default_data_dir, load, located, parse
 from ..contract import Contract
 from ..errors import ContractError, Issue, RunError
-from ..runtime.budget import Budget
+from ..runtime.budget import Budget, is_seconds
 from ..runtime.measure import RunResult, _usable_output
 from ..sampling.seeds import SeedTree
 from . import workers as pools
@@ -244,13 +244,13 @@ def failed_run(job: Job, error: BaseException) -> RunResult:
 
 def run_job(source: Any, job: Job, participants: Any = None, rounds: int | None = None, events: bool = True,
             data_dir: Any = None, budget: Mapping[str, Any] | None = None, exposures: bool = False,
-            hosts: Any = None) -> RunResult:
+            hosts: Any = None, time_limit: float | None = None) -> RunResult:
     """Run one job; a failure comes back as a failed run, never raised. A run that records exposures keeps its
     events whatever ``events`` says: a recording is replayed against them."""
     try:
-        return load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir,
-                    exposures=exposures, hosts=hosts, events=events or exposures).run(participants, rounds=rounds,
-                                                                                      budget=budget)
+        env = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir,
+                   exposures=exposures, hosts=hosts, events=events or exposures)
+        return env.run(participants, rounds=rounds, budget=budget, time_limit=time_limit)
     except Exception as exc:  # reported per run, never fatal to the batch
         return failed_run(job, exc)
 
@@ -267,6 +267,7 @@ class _Batch:
     events: bool
     budget: Mapping[str, Any] | None
     exposures: bool
+    time_limit: float | None = None
 
 
 def _run_chunk(batch: _Batch, chunk: Sequence[tuple[Job, Any]]) -> tuple[list[RunResult], float]:
@@ -280,8 +281,8 @@ def _run_chunk(batch: _Batch, chunk: Sequence[tuple[Job, Any]]) -> tuple[list[Ru
         contract: Any = pools.cached_contract(batch.key, batch.data, batch.folder)
     except Exception:  # each run reports the contract's problem, as a run reading it itself would
         contract = batch.data
-    results = [run_job(contract, job, who, batch.rounds, batch.events, batch.folder, batch.budget, batch.exposures)
-               for job, who in chunk]
+    results = [run_job(contract, job, who, batch.rounds, batch.events, batch.folder, batch.budget, batch.exposures,
+                       time_limit=batch.time_limit) for job, who in chunk]
     return results, time.perf_counter() - start
 
 
@@ -294,7 +295,7 @@ def _cwd() -> str | None:
 
 def _in_workers(contract: Contract, folder: Path | None, jobs: Sequence[Job], assigned: Callable[[Job], Any],
                 one: Callable[[Job], RunResult], workers: pools.Workers, rounds: int | None, events: bool,
-                budget: Mapping[str, Any] | None, exposures: bool) -> list[RunResult]:
+                budget: Mapping[str, Any] | None, exposures: bool, time_limit: float | None) -> list[RunResult]:
     """Every job through worker processes, or in this process when that is measured to be sooner.
 
     With no measure of this contract's runs and no workers running, the first job runs here and is timed; the
@@ -319,7 +320,7 @@ def _in_workers(contract: Contract, folder: Path | None, jobs: Sequence[Job], as
         if not started:
             pools.record_ran_here(workers.size, time.perf_counter() - clock)
         return finished
-    batch = _Batch(key, data, where, _cwd(), rounds, events, budget, exposures)
+    batch = _Batch(key, data, where, _cwd(), rounds, events, budget, exposures, time_limit)
     try:
         results, seconds = pools.run_chunks(workers.executor(), _run_chunk, batch,
                                             [(job, assigned(job)) for job in rest], chunk)
@@ -333,6 +334,12 @@ def _in_workers(contract: Contract, folder: Path | None, jobs: Sequence[Job], as
 def _check_workers(workers: Any) -> None:
     if isinstance(workers, bool) or not isinstance(workers, int) or workers < 1:
         raise ValueError(f"workers must be a whole number ≥ 1, got {workers!r}")
+
+
+def _check_time_limit(time_limit: Any) -> None:
+    """A bad time limit raises before anything runs, rather than failing every run."""
+    if time_limit is not None and not is_seconds(time_limit):
+        raise ValueError(f"time_limit must be a number of seconds > 0, got {time_limit!r}")
 
 
 @contextmanager
@@ -355,7 +362,8 @@ def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> It
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
              participants_for: Callable[[Job], Any] | None = None, rounds: int | None = None, workers: int = 1,
              events: bool = True, pool: pools.Pool | None = None, data_dir: Any = None,
-             budget: Mapping[str, Any] | None = None, exposures: bool = False, hosts: Any = None) -> list[RunResult]:
+             budget: Mapping[str, Any] | None = None, exposures: bool = False, hosts: Any = None,
+             time_limit: float | None = None) -> list[RunResult]:
     """Run every job, in order, returning one result per job.
 
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
@@ -367,9 +375,11 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     (every run has the whole budget: :mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every
     run's ``exposures``, events kept, so each run is a trace to read or replay (:func:`fg_env.analysis.trace`).
     Inputs with a ``source`` read their files from ``data_dir`` (default: the contract file's folder); ``hosts``
-    answers the contract's host requests (feeds, judges) and keeps runs in this process (threads).
+    answers the contract's host requests (feeds, judges) and keeps runs in this process (threads). ``time_limit`` is the
+    wall-clock seconds each agent's turn may take in every run (as in :meth:`fg_env.Env.run`).
     """
     _check_workers(workers)
+    _check_time_limit(time_limit)
     contract = located(source, data_dir) if isinstance(source, Contract) else parse(source, data_dir)
     folder = default_data_dir(contract)
     if not jobs:
@@ -400,14 +410,15 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
             who = participants_for(job) if participants_for is not None else assigned(job)
         except Exception as exc:
             return failed_run(job, exc)
-        return run_job(contract, job, who, rounds, events, folder, budget, exposures, hosts)
+        return run_job(contract, job, who, rounds, events, folder, budget, exposures, hosts, time_limit)
 
     many = len(jobs) > 1
     portable = hosts is None and participants_for is None and all(_portable(assigned(job)) for job in jobs)
     if (pool is not None or workers > 1) and many and portable:
         handle = pool if isinstance(pool, pools.Workers) else pools.Workers(workers, pool)
         try:
-            return _in_workers(contract, folder, jobs, assigned, one, handle, rounds, events, budget, exposures)
+            return _in_workers(contract, folder, jobs, assigned, one, handle, rounds, events, budget, exposures,
+                               time_limit)
         finally:
             if handle is not pool:
                 handle.close()
@@ -419,7 +430,8 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
 
 def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participants: Any,
               participants_for: Callable[[Job], Any] | None, rounds: int | None, workers: int,
-              folder: Any, budget: Mapping[str, Any] | None, exposures: bool, hosts: Any = None) -> list[RunResult]:
+              folder: Any, budget: Mapping[str, Any] | None, exposures: bool, hosts: Any = None,
+              time_limit: float | None = None) -> list[RunResult]:
     """Each run's first ``branch_at`` rounds played once without an arm, then continued under every job's arm. The
     budget starts with the shared rounds and every continuation carries what they used (a fork keeps the budget)."""
     if isinstance(branch_at, bool) or not isinstance(branch_at, int) or branch_at < 0:
@@ -438,7 +450,7 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
                           hosts=hosts)
             shared.run(participants_for(replace(first, arm=None)) if participants_for else
                        (first.participants if first.participants is not None else participants), rounds=branch_at,
-                       budget=budget)
+                       budget=budget, time_limit=time_limit)
         except ContractError:
             raise
         except Exception as exc:  # the shared history failed: every arm of this run reports it
@@ -449,7 +461,7 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
                 forked = shared.fork(arm=job.arm)
                 who = participants_for(job) if participants_for else \
                     (job.participants if job.participants is not None else participants)
-                done.append((job, forked.run(who, rounds=rest)))
+                done.append((job, forked.run(who, rounds=rest, time_limit=time_limit)))
             except ContractError:
                 raise
             except Exception as exc:
@@ -470,7 +482,8 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: list[str] | None =
                participants_for: Callable[[int, str | None], Any] | None = None,
                rounds: int | None = None, workers: int = 1, data_dir: Any = None,
                branch_at: int | None = None, budget: Mapping[str, Any] | None = None,
-               exposures: bool = False, hosts: Any = None, uncertainty: Any = None) -> ExperimentResult:
+               exposures: bool = False, hosts: Any = None, uncertainty: Any = None,
+               time_limit: float | None = None) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
     (or a single baseline run set when none are declared). ``participants_for(i, arm)``
@@ -486,7 +499,8 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: list[str] | None =
     ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
     answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
     :mod:`fg_env.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
-    outcomes includes not knowing them.
+    outcomes includes not knowing them. ``time_limit`` is the wall-clock seconds each agent's turn may take in every
+    run.
 
     Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
     before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
@@ -497,6 +511,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: list[str] | None =
             raise ValueError(f"{name} must be a whole number ≥ 1, got {value!r}")
     if budget is not None:
         Budget.parse(budget)  # a mistake in the budget raises before anything runs
+    _check_time_limit(time_limit)
     contract = parse(source, data_dir)
     folder = default_data_dir(contract)
     labels: list[str | None] = list(arms) if arms is not None else (list(contract.arms) or [None])
@@ -520,11 +535,11 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: list[str] | None =
 
     if branch_at is not None:
         results = _branched(contract, jobs, branch_at, participants, per_job if participants_for else None, rounds,
-                            workers, folder, budget, exposures, hosts)
+                            workers, folder, budget, exposures, hosts, time_limit)
     else:
         results = run_jobs(contract, jobs, participants=participants,
                            participants_for=per_job if participants_for else None, rounds=rounds, workers=workers,
-                           data_dir=folder, budget=budget, exposures=exposures, hosts=hosts)
+                           data_dir=folder, budget=budget, exposures=exposures, hosts=hosts, time_limit=time_limit)
     out: dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]

@@ -14,7 +14,7 @@ __all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_
 
 CONTRACT_VERSION = "1"
 
-INPUT_TYPES = ("number", "int", "bool", "text", "enum", "list", "table", "map", "date", "any")
+INPUT_TYPES = ("number", "int", "bool", "text", "enum", "list", "table", "map", "date", "file", "any")
 PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any", "asset")
 PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list", "file")
 #: Most items a list argument may hold.

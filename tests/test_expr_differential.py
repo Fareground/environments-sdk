@@ -18,6 +18,7 @@ from pathlib import Path
 import pytest
 from expr_dual import MISMATCHES, dual_evaluation
 from expr_oracle import compile_oracle
+from test_examples import example_params
 from test_hardening_security import (
     FUZZ_CASES,
     FUZZ_SEED,
@@ -125,7 +126,7 @@ def both_ways():
     assert MISMATCHES[start:] == []
 
 
-@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+@pytest.mark.parametrize("path", example_params(EXAMPLES))
 def test_every_example_contract_evaluates_identically(path, both_ways):
     result = fg_env.load(path, seed=7).run(rounds=2)
     assert result.status in ("running", "completed", "ended"), result.error
@@ -177,7 +178,7 @@ _LOOP_CALLS = ["$any({items}, {condition})", "$all({items}, {condition})", "$cou
 _LOOP_ITEMS = ["thing", "$l", "$m", "$e", "null", "7", "'nope'", "[]", "$range(4)"]
 _LOOP_CONDITIONS = ["$it.cash > 1", "$it.cash == $x", "$x == $it.cash", "$it.cash == $missing", "$it.id == $e.id",
                     "$it == $x", "$i > 0 and $it", "$outer", "$missing", "$it.nope", "$count($l, $it > $outer)",
-                    "$chance(0.5)", "$it.cash / ($i - 1)", "$total > $i", "$it.tag == 'ab' or $random() < 0.3",
+                    "$chance(0.5)", "$it.cash / ($i - 1)", "$total > $i", "$it.tag == 'ab' or $uniform(0, 1) < 0.3",
                     "$it.cash if $it else $x", "$any($l, $it == $outer.cash)"]
 
 
@@ -203,7 +204,7 @@ def test_mapped_aggregates_preserve_evaluation_order_and_scope(both_ways, shadow
     scope = world.scope(l=[1, 2, 3], it=world.entities["b"])
     for name in ("sum", "avg"):
         for items in ("thing", "$l", "[]", "null", "7", "{a: 1, b: 2}"):
-            for value in ("$it.cash", "$i", "$outer.cash + $i", "null", "'invalid'", "$random()",
+            for value in ("$it.cash", "$i", "$outer.cash + $i", "null", "'invalid'", "$uniform(0, 1)",
                           "$it / ($i - 1)", "$sum($l, $it + $outer.cash)", "$missing"):
                 _evaluate(f"${name}({items}, {value})", scope)
                 for condition in ("true", "false", "$i > 0", "$it.cash == 1", "$chance(0.5)", "$missing"):

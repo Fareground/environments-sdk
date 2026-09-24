@@ -1,5 +1,6 @@
 """Run budgets: tokens, tool calls, host calls and seconds end a run (or idle its agents) at a safe point."""
 import json
+import threading
 import time
 from types import SimpleNamespace as NS
 
@@ -46,19 +47,43 @@ def test_a_token_budget_counts_input_output_and_cache_writes_in_full_and_cache_r
     assert result.budget["used"]["tokens"] == 400 and result.stats["wakes"] == 2 and result.ended_by == "budget"
 
 
-@pytest.mark.parametrize("turns, used", [("sequential", 300), ("simultaneous", 400)])
-def test_a_token_budget_stops_turns_in_progress_once_it_is_spent(turns, used):
-    def chatty(wake):
-        while not wake.done:  # a model loop: one reply, then its tool call
-            wake.record_usage(input_tokens=100)
-            wake.call("look", {"view": "board"})
-    chatty.concurrent = True  # like a model client: a simultaneous stage runs both turns at once
+def _chatty(wake):
+    while not wake.done:  # a model loop: one reply, then its tool call
+        wake.record_usage(input_tokens=100)
+        wake.call("look", {"view": "board"})
 
-    town = {**TOWN, "stages": [{"name": "talk", "turns": turns}]}
-    result = fg_env.run(town, chatty, seed=1, budget={"tokens": 250})
+
+def test_a_token_budget_stops_the_turn_whose_reply_spends_it():
+    town = {**TOWN, "stages": [{"name": "talk", "turns": "sequential"}]}
+    result = fg_env.run(town, _chatty, seed=1, budget={"tokens": 250})
     assert (result.ended_by, result.rounds) == ("budget", 1)
-    # Ann's turn ends with the reply that spends it; in a simultaneous stage Bo's first reply ends Bo's turn too
-    assert result.budget["used"]["tokens"] == used
+    assert result.budget["used"]["tokens"] == 300  # Ann's third reply spends it, and her turn ends there
+
+
+def test_a_reply_that_spends_the_token_budget_ends_every_turn_in_play():
+    # A simultaneous stage runs both turns at once. The order is pinned: Ann replies twice (200), then Bo's first
+    # reply spends the budget, and Ann, still in her turn, finds it over without replying again.
+    ann_replied, bo_replied = threading.Event(), threading.Event()
+    replies = {"ann": 0, "bo": 0}
+
+    def paced(wake):
+        if wake.entity_id == "bo":
+            assert ann_replied.wait(10)
+        while not wake.done:
+            wake.record_usage(input_tokens=100)
+            replies[wake.entity_id] += 1
+            wake.call("look", {"view": "board"})
+            if wake.entity_id == "ann" and replies["ann"] == 2:
+                ann_replied.set()
+                assert bo_replied.wait(10)
+        if wake.entity_id == "bo":
+            bo_replied.set()
+    paced.concurrent = True  # like a model client
+
+    town = {**TOWN, "stages": [{"name": "talk", "turns": "simultaneous"}]}
+    result = fg_env.run(town, paced, seed=1, budget={"tokens": 250})
+    assert (result.ended_by, result.rounds) == ("budget", 1)
+    assert replies == {"ann": 2, "bo": 1} and result.budget["used"]["tokens"] == 300
 
 
 def test_an_llm_participant_makes_no_more_model_calls_once_the_token_budget_is_spent():
