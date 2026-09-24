@@ -13,11 +13,11 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
-from .clock_math import advance_time
+from ..world.clock_math import advance_time
 
 if TYPE_CHECKING:
+    from ..runtime.env import Env
     from ..world.live import SdkWorld
-    from .env import Env
 
 __all__ = ["dropped", "send", "run_delivery"]
 

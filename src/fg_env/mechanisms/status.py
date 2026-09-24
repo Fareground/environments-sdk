@@ -27,9 +27,9 @@ from pydantic import Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..expr.template import compile_template
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
 

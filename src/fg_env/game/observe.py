@@ -18,9 +18,9 @@ from typing import TYPE_CHECKING, Any
 
 from ..contract import StageSpec
 from ..copying.snapshot import encode
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..runtime.turn import Turn, entity_dict
-from ..world.entity import Entity
 from .space import as_turn
 
 if TYPE_CHECKING:

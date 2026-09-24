@@ -3,8 +3,8 @@ import random
 import pytest
 
 from fg_env.expr import ExprError, Scope, World, compile_expr, evaluate, is_expr, resolve
+from fg_env.expr.objects import Entity
 from fg_env.expr.template import render
-from fg_env.world.entity import Entity
 
 
 class _World(World):

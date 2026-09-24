@@ -18,14 +18,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host.common import NAME, agents_of, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
-from ..host.tape import consult, plain, tape_prop
+from ..host.tape import consult, plain
 from ..registry import MechanismError, family_action, mode, use_key
-from ..world.entity import Entity
 
 __all__ = ["MemoryConfig", "RecapConfig", "lexical_relevance"]
 

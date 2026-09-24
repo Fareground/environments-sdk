@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from . import _common
 
 __all__ = ["config_of", "number", "entity_of", "lot_floor", "fmt"]

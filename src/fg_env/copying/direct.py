@@ -20,6 +20,7 @@ import random
 import threading
 from typing import Any
 
+from ..expr.objects import Entity, PropsView
 from ..host.hosts import hosts_for
 from ..runtime.diagnosis import Diagnosis
 from ..runtime.diagnosis import _copy as _copy_counts
@@ -27,9 +28,8 @@ from ..runtime.exposure import Exposure, ExposureLog
 from ..runtime.measure import Stats
 from ..runtime.rounds import _Where
 from ..runtime.turn import Memory, Turn
-from ..world.entity import Entity
 from ..world.live import SdkWorld, _copy
-from ..world.parts import ClockView, Entry, Journal, PhysicsView, PropsView
+from ..world.parts import ClockView, Entry, Journal, PhysicsView
 from ..world.type_index import TypeIndex
 from .replay import Origin
 from .stepping import SteppedEnv, Waiting

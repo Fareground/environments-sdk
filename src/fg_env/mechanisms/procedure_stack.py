@@ -38,8 +38,8 @@ from pydantic import Field, model_validator
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, truthy
+from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
-from ..world.entity import Entity
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects

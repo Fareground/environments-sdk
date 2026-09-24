@@ -17,11 +17,12 @@ previews and replays without the host are identical::
     replay = host.load("debate_judged.json", hosts=host.Hosts.replaying(host.tape_of(env)), seed=1)
     assert host.run(replay, {"debater": my_llm}).outputs == result.outputs
 """
+from ..contract.base import TAPE
 from . import adapters, stubs
 from .api import load, restore, run, wrap
 from .hosts import Hosts, bind, hosts_for
 from .protocols import Describer, Evaluator, Feed, GameMaster, HostError, Ranker, Tools, Writer
-from .tape import TAPE, consult, tape_of
+from .tape import consult, tape_of
 
 __all__ = [
     "Hosts", "HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed", "Describer",

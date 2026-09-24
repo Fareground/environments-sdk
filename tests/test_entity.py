@@ -1,5 +1,5 @@
 """Tests for fg_env/world/entity.py"""
-from fg_env.world.entity import Entity
+from fg_env.expr.objects import Entity
 
 
 class TestEntity:

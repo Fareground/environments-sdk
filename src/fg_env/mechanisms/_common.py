@@ -26,8 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
+from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, use_key
-from ..world.entity import Entity
 
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",

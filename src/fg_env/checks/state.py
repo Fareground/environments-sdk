@@ -7,9 +7,9 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, TypeGuard
 
 from ..contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
+from ..contract.base import TAPE
 from ..contract.inputs import check_value
 from ..expr import EXPRESSION_WORDS, is_expr
-from ..host.tape import TAPE
 from ..physics.entities import MATH_NAMES
 from ..runtime.feeds import feed_target
 from ..world.links import LINK_ATTRS

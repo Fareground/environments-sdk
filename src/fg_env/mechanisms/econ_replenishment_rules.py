@@ -12,9 +12,9 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
+from ..expr.objects import Entity
 from ..patterns.runtime import key_text
 from ..registry import family_action
-from ..world.entity import Entity
 from ..world.live import Abort
 from .econ_assets import balance, burn_money, credit_of
 from .econ_base import DEMAND, REPLENISHMENT, config_of, entity_of, props

@@ -10,7 +10,7 @@ import heapq
 from collections.abc import Iterable
 
 from ..contract import Contract
-from .entity import Entity
+from ..expr.objects import Entity
 
 __all__ = ["TypeIndex"]
 

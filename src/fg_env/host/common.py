@@ -11,8 +11,8 @@ from pydantic import BaseModel
 
 from ..errors import RunError
 from ..expr import Untrusted
+from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, use_key
-from ..world.entity import Entity
 
 __all__ = ["NAME", "config_of", "type_list", "agents_of", "clip", "ellipsis"]
 

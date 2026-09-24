@@ -196,7 +196,7 @@ def _arm_inputs(env: Env) -> list[dict[str, str]]:
 
 
 def _host_fallbacks(env: Env) -> list[dict[str, str]]:
-    from ..host.tape import TAPE
+    from ..contract.base import TAPE
 
     tape = env.world.props.get(TAPE)
     counts: dict[tuple[str, str], int] = {}

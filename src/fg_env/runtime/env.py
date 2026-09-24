@@ -22,11 +22,11 @@ from ..copying.snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..host.hosts import count_host_tokens
 from ..host.tape import tape_of
 from ..sampling.seeds import SeedTree
 from ..world.build import build_world
-from ..world.entity import Entity
 from ..world.live import _plain
 from .budget import Budget, is_seconds
 from .checks import RunChecks

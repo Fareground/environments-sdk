@@ -28,8 +28,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..participants import Idle, Participant, resolve_participant
-from ..world.entity import Entity
 from .session import END_TURN, Wake
 
 if TYPE_CHECKING:
@@ -201,7 +201,7 @@ class Driver:
         """The contract's in-turn host tools (recall, note, host services), by name."""
         tools = self.__dict__.get("_turn_tools")
         if tools is None:
-            from ..host.turn_tools import turn_tools
+            from .turn_tools import turn_tools
 
             tools = self.__dict__["_turn_tools"] = turn_tools(self.env.contract)
         return tools
@@ -210,7 +210,7 @@ class Driver:
         tools = self.turn_tool_specs()
         if not tools:
             return participant
-        from ..host.turn_tools import offer
+        from .turn_tools import offer
 
         return offer(participant, tools)
 

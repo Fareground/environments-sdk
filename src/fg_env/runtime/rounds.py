@@ -10,9 +10,9 @@ from ..actions.book import ACTION_BUDGET
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import shared_budget
-from ..world.entity import Entity
+from ..expr.objects import Entity
+from ..world.clock_math import advance_time
 from ..world.live import Abort, OutOfBounds
-from .clock_math import advance_time
 from .feeds import run_feeds
 from .measure import sample_metrics
 from .turn import Turn

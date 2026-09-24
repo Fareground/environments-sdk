@@ -15,8 +15,8 @@ from ..assets.delivery import attached_ids, entry_assets, references
 from ..contract import Contract, StageSpec, ViewSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
+from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
-from ..world.entity import Entity
 from ..world.live import Entry, LogEvent, SdkWorld
 from ..world.record_index import author_only
 

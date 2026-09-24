@@ -18,9 +18,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import use_key
-from ..world.entity import Entity
 from ..world.live import Abort
 
 __all__ = ["Account", "EPS", "move", "balance", "clean", "whole", "market_places"]

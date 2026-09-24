@@ -33,8 +33,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, tainted
+from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ._social import NAME, check_expr, config_of, edges, eid, ids, require_type, seat_order, uses_of
 
 __all__ = ["DiffusionConfig"]

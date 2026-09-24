@@ -7,8 +7,8 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..registry import family_action
-from ..world.entity import Entity
 from .book_session import close_round, open_round
 from .common import entity_of
 from .order_book import account, audit, book_config, cancel, cancel_all, depth, place, quote

@@ -22,8 +22,8 @@ from pydantic import Field, model_validator
 from ..contract import Condition
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
+from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number

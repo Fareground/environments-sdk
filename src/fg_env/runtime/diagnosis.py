@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import stage_actions
-from ..world.entity import Entity
+from ..expr.objects import Entity
 
 if TYPE_CHECKING:
     from .session import ToolResult

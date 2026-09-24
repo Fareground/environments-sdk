@@ -13,10 +13,10 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..patterns.base import KINDS
 from ..patterns.observe import count_quantile
 from ..registry import family_action
-from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import condition
 from .econ_assets import burn_money, mint_money

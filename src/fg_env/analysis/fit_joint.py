@@ -32,12 +32,12 @@ import math
 from typing import Any
 
 from ..expr import ExprError, Scope, compile_expr
-from . import timebase as tb
-from .base import KINDS
-from .compose import operand_names
+from ..patterns import timebase as tb
+from ..patterns.base import KINDS
+from ..patterns.compose import operand_names
+from ..patterns.numeric import Design, count_regression, dispersion
+from ..patterns.runtime import key_text
 from .fit import Estimate, PatternFit, Problem, Row, factor_spec, quality
-from .numeric import Design, count_regression, dispersion
-from .runtime import key_text
 
 __all__ = ["fit_product"]
 
@@ -291,7 +291,7 @@ def _variance(gradient: dict[int, float], covariance: list[list[float]]) -> floa
 
 def _confounded(terms: list[_Term], design: Design, reason: str) -> str:
     """Which factors the data cannot tell apart: each whose removal makes the design solvable is named."""
-    from .numeric import least_squares
+    from ..patterns.numeric import least_squares
 
     culprits = []
     for term in terms:

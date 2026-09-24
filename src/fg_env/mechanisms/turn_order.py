@@ -27,8 +27,8 @@ from pydantic import Field, ValidationError
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
+from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from . import _common as common
 from ._common import Config
 

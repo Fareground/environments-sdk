@@ -117,7 +117,7 @@ class Budget:
         return env.budget.to_dict(env) if env.budget is not None else {}
 
     def used(self, env: Env) -> dict[str, float]:
-        from ..host.tape import TAPE
+        from ..contract.base import TAPE
 
         tape = env.world.props.get(TAPE)
         entries = tape.values() if isinstance(tape, Mapping) else ()

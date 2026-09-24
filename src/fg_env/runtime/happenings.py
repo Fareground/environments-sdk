@@ -8,12 +8,12 @@ import heapq
 from typing import TYPE_CHECKING, Any
 
 from ..contract import StageSpec
+from ..effects.delivery import run_delivery
 from ..effects.runner import each_items, removed_since
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, compile_expr, truthy
 from ..expr.template import compile_template
 from ..world.build import whole_setting
-from .delivery import run_delivery
 from .sync_events import run_sync
 from .turn import Turn
 

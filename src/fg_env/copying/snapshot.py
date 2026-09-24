@@ -19,10 +19,11 @@ from ..assets.store import AssetStore
 from ..contract import Contract
 from ..errors import ContractError, RunError, SnapshotError
 from ..expr import Untrusted
+from ..expr.objects import Entity
 from ..runtime.budget import Budget
 from ..runtime.exposure import ExposureLog
 from ..runtime.measure import Stats
-from ..world.entity import Entity
+from ..runtime.turn_tools import wrap
 from ..world.live import Abort, Entry, LogEvent
 
 if TYPE_CHECKING:
@@ -158,7 +159,7 @@ def _identity(env: Env) -> dict[str, Any]:
 def _part_way(env: Env) -> dict[str, Any]:
     """A run stopped part-way through a round: its base, the tape since, and the host answers recorded so far (so
     the replay never asks a host again)."""
-    from ..host.tape import TAPE
+    from ..contract.base import TAPE
     from .branch import fresh_copy
     from .pilot import PilotedEnv
 
@@ -180,7 +181,6 @@ def _part_way(env: Env) -> dict[str, Any]:
 
 def _replay_part_way(env: Env, held: Mapping[str, Any], round_: int) -> None:
     """Play ``env``, rebuilt from the base of a part-way snapshot, back along its tape to where it was stopped."""
-    from ..host.turn_tools import wrap
     from .replay import Playback, Tape
 
     tape = Tape()

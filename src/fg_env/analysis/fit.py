@@ -6,7 +6,7 @@ inputs — ``<pattern>_<parameter>`` (or a ``<pattern>_fit`` table, one row per 
 read them, so the fitted world is inspectable, sweepable and reproducible. Standard errors are written beside them
 and become the pattern's ``uncertainty``, scaled by the input ``parameter_uncertainty`` (1 samples estimation
 uncertainty every run; 0 uses the estimates as they are). What each kind estimates and assumes is in
-:mod:`.estimators` and :mod:`.joint`.
+:mod:`.fit_estimators` and :mod:`.fit_joint`.
 """
 from __future__ import annotations
 
@@ -22,10 +22,10 @@ from ..api import ContractLike, _read, contract_source, default_data_dir, load
 from ..contract import Contract
 from ..errors import ContractError, Issue
 from ..expr import ExprError, Scope, compile_expr
-from . import timebase as tb
-from .base import FitFactor, PatternConfig
-from .expand import validated
-from .runtime import key_text
+from ..patterns import timebase as tb
+from ..patterns.base import FitFactor, PatternConfig
+from ..patterns.expand import validated
+from ..patterns.runtime import key_text
 
 __all__ = ["fit_patterns", "FitResult", "PatternFit", "Row", "Problem", "Estimate", "UNCERTAINTY_INPUT"]
 
@@ -181,12 +181,12 @@ def fit_patterns(contract: ContractLike, *, data_dir: str | Path | None = None,
 
 def _estimate(problem: Problem,
               configs: dict[str, PatternConfig]) -> tuple[dict[str, dict[str | None, Estimate]], PatternFit]:
-    from . import estimators, joint
+    from . import fit_estimators, fit_joint  # both build on this module's types
 
     cfg = problem.cfg
     if cfg.kind == "product":
-        return joint.fit_product(problem, configs)
-    estimator = estimators.ESTIMATORS.get(cfg.kind)
+        return fit_joint.fit_product(problem, configs)
+    estimator = fit_estimators.ESTIMATORS.get(cfg.kind)
     if estimator is None:
         raise problem.fail(f"a {cfg.kind} pattern cannot be fitted from rows",)
     groups: dict[str | None, list[Row]] = {}

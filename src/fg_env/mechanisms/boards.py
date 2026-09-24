@@ -14,8 +14,8 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, family_action, mode, use_key
-from ..world.entity import Entity
 from ..world.live import Abort
 from ._game import game_section
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score

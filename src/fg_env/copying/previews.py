@@ -12,6 +12,7 @@ from ..errors import ContractError, Issue
 from ..expr import shared_budget
 from ..runtime.perception import is_spectator
 from ..runtime.turn import Turn
+from ..runtime.turn_tools import HostWake
 from .snapshot import restore_env
 
 if TYPE_CHECKING:
@@ -131,8 +132,6 @@ class Previews:
         turn = Turn(env, actor, spec, reason, spec.turns == "simultaneous", peek=True)
         extras = env.driver.turn_tool_specs()
         if extras:  # what the agent will be offered, in-turn host tools included
-            from ..host.turn_tools import HostWake
-
             tools = HostWake(turn, extras).tools
         else:
             tools = turn.tools()

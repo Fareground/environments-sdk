@@ -41,7 +41,7 @@ import json
 from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import Entry, LogEvent
 
 if TYPE_CHECKING:

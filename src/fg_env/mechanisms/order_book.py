@@ -33,7 +33,7 @@ from typing import Annotated, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import Abort
 from ..world.props import prop_type
 from ._common import ToolsSetting, tools_field

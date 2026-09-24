@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any
 from ..contract import EntityDynamics
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.props import prop_type
 from .integration import integrate
 from .model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr

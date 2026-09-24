@@ -13,8 +13,8 @@ from pydantic import BaseModel
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
+from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, use_key
-from ..world.entity import Entity
 
 __all__ = ["NAME", "props", "cache", "config_of", "uses_of", "named_use", "eid", "ids", "entity",
            "require_type", "check_expr", "edges", "seat_order"]

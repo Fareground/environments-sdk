@@ -16,8 +16,8 @@ from pydantic import BaseModel, ValidationError
 
 from ..errors import RunError
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
+from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, use_key
-from ..world.entity import Entity
 from ..world.live import Abort
 
 __all__ = [

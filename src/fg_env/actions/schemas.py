@@ -13,7 +13,7 @@ from ..assets.intake import file_schema
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, PrivateRead, compile_expr, is_expr, resolve
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import _copy, _plain
 from .params import (
     _LISTED_UNKNOWN,

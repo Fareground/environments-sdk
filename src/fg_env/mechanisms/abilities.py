@@ -25,9 +25,9 @@ from pydantic import Field, model_validator
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..expr.template import compile_template
 from ..registry import MechanismError, family_action, mode, use_key
-from ..world.entity import Entity
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects

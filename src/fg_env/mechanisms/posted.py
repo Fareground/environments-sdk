@@ -21,8 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .common import config_of, entity_of, fmt

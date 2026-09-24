@@ -45,6 +45,12 @@ and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `partic
   `authoring/`, `experiments/`, `cli/`, `analysis/`, `game/`, `host/` …) whose `__init__.py` docstring says what it
   holds.
 
+The parts form layers, and a module imports at load time only from its own layer or the ones below:
+the contract (`contract/`), then the expression language (`expr/`), then the world and what changes it (`world/`,
+`effects/`, `actions/`, `mechanisms/`, `host/` …), then runs (`runtime/`, `participants/`, `copying/`, `checks/`,
+`api.py`), then the tools built on runs (`analysis/`, `report/`, `game/`, `authoring/`, `guides/`, `cli/` …).
+`tests/test_import_cycles.py` holds the exact list and fails on an import that points up.
+
 Every module opens with a docstring saying what it is for: read those rather than a map here, which would go stale.
 To find the code behind a behaviour, search for the error message or guide text it produces.
 

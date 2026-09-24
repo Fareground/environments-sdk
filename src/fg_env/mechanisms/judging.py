@@ -19,15 +19,16 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..assets.delivery import Attachment, attached_ids, entry_assets
 from ..assets.multimodal import host_attachments
+from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import Untrusted
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host import allowlist
 from ..host.common import NAME, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
-from ..host.tape import consult, plain, tape_prop
+from ..host.tape import consult, plain
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ..world.live import Abort, _plain
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]

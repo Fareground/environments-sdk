@@ -15,7 +15,7 @@ from ..actions.book import ACTION_BUDGET
 from ..contract import EventSpec
 from ..errors import RunError
 from ..expr import compile_expr, shared_budget, truthy
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import Abort
 
 if TYPE_CHECKING:

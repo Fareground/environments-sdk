@@ -22,17 +22,17 @@ from ..actions.faults import guarded, refused_text
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..expr.template import compile_template
+from ..host.tape import discard
 from ..participants import resolve_participant
 from ..registry import config_data, use_key
-from ..runtime.driving import runs_concurrently
-from ..runtime.session import ToolResult, Wake
 from ..world.live import Abort
-from .tape import discard
+from .driving import runs_concurrently
+from .session import ToolResult, Wake
 
 if TYPE_CHECKING:
-    from ..runtime.env import Env
-    from ..runtime.turn import Turn
-    from ..world.entity import Entity
+    from ..expr.objects import Entity
+    from .env import Env
+    from .turn import Turn
 
 __all__ = ["TurnTool", "turn_tools", "HostWake", "offer", "wrap"]
 
@@ -53,8 +53,8 @@ class TurnTool:
 
 def turn_tools(contract: Any) -> dict[str, TurnTool]:
     """The in-turn tools a contract declares, by tool name."""
+    from ..host.tools import HostToolConfig, prefetch
     from ..mechanisms.memory import MemoryConfig
-    from .tools import HostToolConfig, prefetch
 
     tools: dict[str, TurnTool] = {}
     for name, raw in contract.mechanisms.items():

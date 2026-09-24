@@ -20,12 +20,12 @@ from ..contract import (
 from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
+from ..expr.objects import Entity
 from ..expr.template import compile_template
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import parse_moment
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
 from .defaults import default_order, world_reads
-from .entity import Entity
 from .live import Abort, SdkWorld
 
 __all__ = ["build_world"]

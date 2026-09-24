@@ -7,8 +7,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ._common import ToolsSetting, raw_is_a, tools_field
 from .econ_assets import assets, destroy_items, is_holder
 from .econ_base import (

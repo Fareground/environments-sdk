@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
 from ..expr import ExprError, Untrusted, compile_expr, is_expr
-from .entity import Entity
+from ..expr.objects import Entity
 
 if TYPE_CHECKING:
     from .live import SdkWorld

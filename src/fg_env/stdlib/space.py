@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..expr import Call, ExprError, _describe, check_size, function, truthy
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.geometry import SpaceError
 
 __all__: list = []

@@ -8,8 +8,8 @@ from typing import Any
 from ..contract import UTILITIES, Contract
 from ..errors import Issue, RunError
 from ..expr import ExprError, compile_expr
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..world.entity import Entity
 
 __all__ = ["seat_ids", "seat_returns", "seat_rewards", "measured", "utility_issues", "check_game", "run_result"]
 

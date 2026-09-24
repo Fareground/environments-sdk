@@ -33,9 +33,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import check_expr, config_of, entity, named_use, props, require_type

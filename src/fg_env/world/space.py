@@ -9,7 +9,7 @@ from ..contract import Space
 from ..effects import layer as _layer_effect  # noqa: F401  (registers the `layer` effect)
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
-from .entity import Entity
+from ..expr.objects import Entity
 from .geometry import Geometry, SpaceError
 from .layers import Layers
 from .positions import PositionIndex

@@ -14,8 +14,7 @@ from typing import Any
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from ..assets.spec import AssetSpec
-from ..host.tape import TAPE, tape_prop
+from .assets import AssetSpec
 from .base import (
     CONTRACT_VERSION,
     INPUT_TYPES,
@@ -31,8 +30,10 @@ from .base import (
     OUTPUT_TYPES,
     PARAM_TYPES,
     PROP_TYPES,
+    TAPE,
     _Model,
     one_or_many,
+    tape_prop,
 )
 from .game import UTILITIES, GameSpec
 from .measure import (

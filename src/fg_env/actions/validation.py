@@ -9,8 +9,8 @@ from ..assets.intake import file_value
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, truthy
+from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
-from ..world.entity import Entity
 from ..world.live import _plain
 from .params import (
     _LISTED_UNKNOWN,

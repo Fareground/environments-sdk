@@ -37,15 +37,15 @@ from typing import Any
 from ..contract import MAX_CREATE, one_or_many
 from ..errors import RunError
 from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, map_key, resolve, truthy
+from ..expr.objects import Entity, PropsView
 from ..expr.template import compile_template, format_value
 from ..expr.values import _eq
 from ..registry import OPS, OpSpec, family_action_hint
-from ..runtime.clock_math import advance_time
-from ..runtime.delivery import dropped, send
-from ..world.entity import Entity
+from ..world.clock_math import advance_time
 from ..world.links import Link
 from ..world.live import Abort, SdkWorld
-from ..world.parts import PhysicsView, PropsView
+from ..world.parts import PhysicsView
+from .delivery import dropped, send
 from .statements import Statement, capture_roots, compile_statement, structured_capture_roots
 
 __all__ = ["EFFECT_OPS", "EffectRunner"]

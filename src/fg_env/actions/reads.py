@@ -22,8 +22,8 @@ from typing import TYPE_CHECKING, Any
 from ..assets.delivery import references
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..world.entity import Entity
 from .book import ToolSpec
 from .tool_text import compact_ids, free_reads
 

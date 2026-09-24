@@ -31,6 +31,7 @@ from typing import Any
 
 from .base import _BUDGET, ExprError
 from .calls import FUNCTIONS, Call, EqualityGuard, Evaluator
+from .objects import PropsView
 from .scope import Scope
 from .values import _BINARY, _COMPARE, _ENTITY_FIELDS, _add, _Entity, _eq, _in, _index, _mul, _number, _pow, attr
 
@@ -94,8 +95,6 @@ def _plus(value: Any, source: str) -> Any:
 
 def _helpers() -> dict[str, Any]:
     """Everything compiled code may name besides its own constants and functions."""
-    from ..world.parts import PropsView  # the world's parts import the language: bound on first compile
-
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
         "_enumerate": enumerate, "_sum": sum, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope,

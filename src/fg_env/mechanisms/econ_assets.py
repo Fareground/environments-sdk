@@ -21,7 +21,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import Abort
 from .econ_base import EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, maybe_entity, money, props, uses_of
 from .ledger import market_places

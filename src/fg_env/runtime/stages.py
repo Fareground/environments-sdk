@@ -10,10 +10,10 @@ from ..actions.faults import guarded
 from ..contract import MAX_STAGE_PASSES, StageSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
+from ..expr.objects import Entity
 from ..world.build import whole_setting
-from ..world.entity import Entity
+from ..world.clock_math import advance_time
 from .budget import is_seconds
-from .clock_math import advance_time
 from .diagnosis import SealedWrites
 from .measure import Stats
 from .rounds import _Point, _Steps

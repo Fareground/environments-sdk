@@ -14,13 +14,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import compile_template, format_value
 from ..registry import MechanismError, family_action, mode
 from .common import NAME, agents_of, clip, config_of, type_list
 from .protocols import HostError
-from .tape import consult, plain, tape_prop
+from .tape import consult, plain
 
 __all__ = ["PersonaConfig", "generate", "KEY"]
 

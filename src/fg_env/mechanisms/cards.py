@@ -26,8 +26,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function, is_expr
+from ..expr.objects import Entity
 from ..registry import config_data, family_action
-from ..world.entity import Entity
 from ._common import ToolsSetting, tools_field
 from .card_scoring import RANK_LABELS, SUIT_LETTERS, SUIT_SYMBOLS, SUITS
 from .contract_cache import parse_kind, per_contract

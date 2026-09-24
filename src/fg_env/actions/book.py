@@ -28,9 +28,9 @@ from ..expr import (
     shared_budget,
     truthy,
 )
+from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
 from ..sampling.probability import is_probability
-from ..world.entity import Entity
 from ..world.live import Abort, LuckAhead, SdkWorld, _plain
 from .faults import fault_reason
 from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy

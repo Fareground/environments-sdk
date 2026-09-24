@@ -7,8 +7,8 @@ import operator
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from ..world.entity import Entity as _Entity
 from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, WrongKind, charge
+from .objects import Entity as _Entity
 
 __all__ = ["attr", "EVERYONE", "map_key"]
 
@@ -31,7 +31,7 @@ def attr(obj: Any, name: str, source: str | None = None, scope: Any = None) -> A
     reader = getattr(obj, "expr_attr", None)
     if reader is not None:
         return reader(name, source)
-    # Entities from the world store (fg_env.world.entity.Entity) — read by duck type so
+    # Entities from the world store (fg_env.expr.objects.Entity) — read by duck type so
     # this module stays independent of the storage layer.
     props = getattr(obj, "properties", None)
     if isinstance(props, dict) and hasattr(obj, "entity_type"):

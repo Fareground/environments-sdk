@@ -147,7 +147,7 @@ def test_clock_arithmetic_preserves_distinct_nearby_events_and_rejects_no_progre
     import math
 
     from fg_env.errors import RunError
-    from fg_env.runtime.clock_math import advance_time
+    from fg_env.world.clock_math import advance_time
 
     assert advance_time(0.1, 0.2, "test") == 0.3
     assert advance_time(0.3, math.ulp(0.3), "test") == math.nextafter(0.3, math.inf)

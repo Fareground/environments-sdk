@@ -15,6 +15,7 @@ from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import FatalRunError, RunError
 from ..expr import FUNCTIONS, ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from ..expr.calls import suggest_function
+from ..expr.objects import Entity, PropsView
 from ..expr.template import format_value
 from ..patterns.runtime import PatternRuntime
 from ..physics import world as world_physics
@@ -23,9 +24,8 @@ from ..sampling.seeds import DrawSite, SeedTree
 from ..stdlib.dates import calendar_date
 from . import links as _links
 from .defaults import default_order
-from .entity import Entity
 from .links import Link
-from .parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
+from .parts import ClockView, Entry, Journal, LogEvent, PhysicsView, private_metrics
 from .props import finite_number as _finite_number
 from .props import prop_type
 from .props import shown_value as _shown_value

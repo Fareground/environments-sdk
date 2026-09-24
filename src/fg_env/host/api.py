@@ -73,6 +73,6 @@ def run(env: Env, participants: Any = None, **kwargs: Any) -> RunResult:
 
 def wrap(env: Env, participants: Any = None) -> Any:
     """Participants whose wakes offer the contract's in-turn host tools (for ``env.run``)."""
-    from .turn_tools import wrap as wrap_participants
+    from ..runtime.turn_tools import wrap as wrap_participants
 
     return wrap_participants(env, participants)

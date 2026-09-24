@@ -31,9 +31,9 @@ from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, shared_budget, truthy
+from ..expr.objects import Entity
 from ..expr.template import compile_template, entity_handles, format_value
 from ..world.build import whole_setting
-from ..world.entity import Entity
 from ..world.live import _plain
 from .measure import Stats
 from .session import END_TURN, ToolResult

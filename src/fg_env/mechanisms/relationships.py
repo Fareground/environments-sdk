@@ -29,8 +29,8 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, family_action, mode
-from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import NAME, check_expr, config_of, eid, entity, named_use, require_type, seat_order

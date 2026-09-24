@@ -15,11 +15,11 @@ from typing import Any
 from ..api import ContractLike, load
 from ..errors import ContractError, Issue
 from ..expr import ExprError
-from . import timebase as tb
-from .base import KINDS
-from .compose import operand_key, operand_names
-from .product_math import scaled_product, unscale
-from .runtime import Ctx, key_text
+from ..patterns import timebase as tb
+from ..patterns.base import KINDS
+from ..patterns.compose import operand_key, operand_names
+from ..patterns.product_math import scaled_product, unscale
+from ..patterns.runtime import Ctx, key_text
 
 __all__ = ["decompose", "Decomposition"]
 

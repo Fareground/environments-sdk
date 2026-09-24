@@ -13,15 +13,16 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import TAPE, tape_prop
 from ..errors import RunError
 from ..expr import Untrusted
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
 from ..world.live import Abort
 from .common import agents_of, clip, config_of, prop_of, type_list
 from .protocols import HostError
-from .tape import TAPE, consult, plain, request_key, tape_prop
+from .tape import consult, plain, request_key
 
 __all__ = ["HostToolConfig", "fetch", "prefetch"]
 

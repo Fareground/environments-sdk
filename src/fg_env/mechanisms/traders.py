@@ -33,7 +33,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import Abort
 from .book_rules import venue
 from .common import lot_floor, number
