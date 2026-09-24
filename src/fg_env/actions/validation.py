@@ -9,6 +9,7 @@ from ..assets.intake import file_value
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, truthy
+from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
 from ..world.live import _plain
@@ -232,7 +233,8 @@ class ActionValidation:
         if "i" in expr.roots or not nested_free():  # $i needs the full listing; nested work charges a budget
             return None
         try:  # it draws nothing: whether a call is allowed is decided without luck (see ActionBook.deciding)
-            holds = truthy(expr(self.world.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
+            here = self.world.scope(actor=actor, viewer=actor, params=params).child(it=entity)
+            holds = truthy(expr(here.child(**{REVEALS: entity}) if reveals(self.contract, expr, param.of) else here))
         except ExprError:
             holds = False  # the full listing reports it
         return entity if holds else None

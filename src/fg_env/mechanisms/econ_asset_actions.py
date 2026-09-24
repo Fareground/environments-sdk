@@ -11,6 +11,7 @@ from ..registry import family_action
 from ..world.live import Abort
 from ._common import entity_of
 from .econ_assets import (
+    UNPAID,
     _item,
     _ledger,
     assets,
@@ -139,7 +140,8 @@ def _pay(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) 
     have, limit = balance(world, source, currency, where), credit_of(world, source, currency)
     if have - need < -limit - EPS:
         extra = f" (credit {money(limit)})" if limit else ""
-        raise Abort(f"{source.name} has only {money(have)} {currency}{extra}; {money(need)} is needed.")
+        raise world.refusal(source, currency, f"{source.name} has only {money(have)} {currency}{extra}; "
+                                              f"{money(need)} is needed.", UNPAID)
     # A payee tax is withheld from what the payee receives; a payer tax is added on top. The payer pays the levy.
     move_money(world, currency, source, target, value if tax.on == "payer" else value - levy, where)
     if tax.to:

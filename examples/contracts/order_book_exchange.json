@@ -432,8 +432,7 @@
         "owner": {
           "type": "text",
           "default": "",
-          "private": true,
-          "description": "Id of the trader who placed it."
+          "description": "Id of the trader who placed it (no view shows it: the book is anonymous)."
         },
         "seq": {
           "type": "int",

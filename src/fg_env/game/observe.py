@@ -18,6 +18,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..contract import StageSpec
 from ..copying.snapshot import encode
+from ..expr import ExprError, compile_expr, truthy
+from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..runtime.turn import Turn, entity_dict
@@ -58,10 +60,9 @@ def observation_struct(env: Env, actor: Entity, turn: Turn | None, actions: list
         for entity in env.world.entities.values():
             if entity is actor or not entity.alive or not peek._may_inspect(entity):
                 continue
-            specs = env.contract.props_of(entity.entity_type)
             shown = entity_dict(entity)
             shown["props"] = {key: value for key, value in shown["props"].items()
-                              if not (specs.get(key) is not None and specs[key].private)}
+                              if not env.world.hides(entity, key, actor)}
             others.append(shown)
     return {"entity": actor.id, "round": env.world.round, "stage": stage.name, "me": entity_dict(actor),
             "views": {name: text for name, text in views.items() if text is not None}, "entities": others,
@@ -108,21 +109,40 @@ def state_key(env: Env, pending: dict[str, Any]) -> str:
 
 
 def visible_key(env: Env, actor: Entity, pending: dict[str, Any]) -> str:
-    """A key for the state with what ``actor`` cannot see left out: other entities' private properties and events not
-    addressed to it. Two states with equal keys differ at most in what the rules hide from ``actor``."""
-    world, contract = env.world, env.contract
+    """A key for the state with what ``actor`` cannot see left out: properties hidden from it (see expr/hidden.py)
+    and events not addressed to it. Two states with equal keys differ at most in what the rules hide from ``actor``."""
+    world = env.world
+    owned = _owned(env, actor)
     rows = []
     for entity in world.entities.values():
-        props = entity.properties
-        if entity is not actor:
-            specs = contract.props_of(entity.entity_type)
-            props = {key: value for key, value in props.items()
-                     if not (specs.get(key) is not None and specs[key].private)}
+        props = {key: value for key, value in entity.properties.items()
+                 if entity.id in owned or not world.hides(entity, key, actor)}
         rows.append([entity.id, entity.entity_type, entity.alive, entity.location_id, encode(props)])
     data = _world_data(env, rows, pending)
+    data["props"] = encode({key: value for key, value in world.props.items() if key not in world.hidden.world})
     data["log"] = [[event.round, event.kind, event.text, event.actor, encode(event.data)]
                    for event in world.log if event.visible_to(actor.id)]
     return digest(json.dumps(data, sort_keys=True, default=str))
+
+
+def _owned(env: Env, actor: Entity) -> set[str]:
+    """The ids of the entities a view's or entity choice's `where` picks for ``actor`` as their owner (see
+    expr/hidden.py): their private properties are not hidden from it."""
+    contract, world = env.contract, env.world
+    wheres = [(view.of, view.where) for view in contract.views.values()]
+    wheres += [(param.of, param.where) for action in contract.actions.values() for param in action.params.values()
+               if param.type == "entity"]
+    owned: set[str] = set()
+    for kind, where in wheres:
+        if where is None or not reveals(contract, expr := compile_expr(where), kind) or "params" in expr.roots:
+            continue
+        for item in world.alive_of(str(kind)):
+            try:
+                if truthy(expr(world.scope(actor=actor, viewer=actor, it=item, **{REVEALS: item}))):
+                    owned.add(item.id)
+            except ExprError:
+                continue  # the view or tool reports it where it is shown
+    return owned
 
 
 def _world_data(env: Env, entities: list[Any], pending: dict[str, Any]) -> dict[str, Any]:

@@ -70,7 +70,7 @@ TRIAL = {
          "on_enter": [{"if": "not $world.trial_open", "then": [
              "$world.trial_open = true",
              {"each": "exhibit", "where": "$it.offered",
-              "do": [{"post": "evidence", "text": "$it.title", "file": "$it.file"}]}]}]},
+              "do": ["$revealed = $it.file", {"post": "evidence", "text": "$it.title", "file": "$revealed"}]}]}]},
     ],
     "views": {"own": {"for": "attorney", "stages": ["preparation"], "of": "exhibit", "where": "$it.side == $actor.side",
                       "show": "{title}", "attach": "$it.file"}},

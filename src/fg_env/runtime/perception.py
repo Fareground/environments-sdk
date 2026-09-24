@@ -15,6 +15,7 @@ from ..assets.delivery import attached_ids, entry_assets, references
 from ..contract import Contract, StageSpec, ViewSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
+from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
 from ..world.live import Entry, LogEvent, SdkWorld
@@ -53,6 +54,9 @@ class Perception:
         self.contract = contract
         self.world = world
         self._takes_text = any(p.type == "text" for a in contract.actions.values() for p in a.params.values())
+        #: The list views whose `where` reveals their items' private properties to the reader (see expr/hidden.py).
+        self._revealing = frozenset(name for name, view in contract.views.items() if view.where is not None
+                                    and reveals(contract, compile_expr(view.where), view.of))
 
     # -- brief -------------------------------------------------------------------
 
@@ -170,12 +174,14 @@ class Perception:
                 if attached is not None:
                     attached.extend(files)
                 return f"{title}: {body}" if title else body
-            items = self._select(view, scope)
+            reveal = actor is not None and name in self._revealing
+            items = self._select(view, scope, reveal)
             template = compile_template(view.show, "it")
             marker = "- " if view.bullet else ""
-            rendered = [self._attach(view, scope.child(it=it, i=i + 1), it,
-                                     marker + template.render(scope.child(it=it, i=i + 1)),
-                                     files, path) for i, it in enumerate(items)]
+            rendered = []
+            for i, it in enumerate(items):
+                here = scope.child(it=it, i=i + 1, **{REVEALS: it}) if reveal else scope.child(it=it, i=i + 1)
+                rendered.append(self._attach(view, here, it, marker + template.render(here), files, path))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         if shown is not None:
@@ -190,16 +196,21 @@ class Perception:
             attached.extend(files)
         return f"{title}:\n" + "\n".join(rendered)
 
-    def _select(self, view: ViewSpec, scope: Any) -> list[Any]:
-        """The items a list view shows: filtered, sorted and cut to its limit."""
+    def _select(self, view: ViewSpec, scope: Any, reveal: bool) -> list[Any]:
+        """The items a list view shows: filtered, sorted and cut to its limit. With ``reveal``, its `where` reads each
+        item's private properties for the reader, and its sort those of the items the `where` picked."""
         items = self._items(view, scope)
+
+        def at(it: Any, i: int) -> Any:
+            return scope.child(it=it, i=i, **{REVEALS: it}) if reveal else scope.child(it=it, i=i)
+
         if view.where is not None:
             where = compile_expr(view.where)
-            items = [it for i, it in enumerate(items) if truthy(where(scope.child(it=it, i=i)))]
+            items = [it for i, it in enumerate(items) if truthy(where(at(it, i)))]
         if view.sort is not None:
             key = compile_expr(view.sort)
             # Ties keep listing order: positions are unique, so the items themselves are never compared.
-            keyed = [(_sort_key(key(scope.child(it=it, i=i))), i, it) for i, it in enumerate(items)]
+            keyed = [(_sort_key(key(at(it, i))), i, it) for i, it in enumerate(items)]
             if view.limit is None:
                 keyed.sort(reverse=view.desc)
             else:  # only the shown items need ordering

@@ -14,7 +14,7 @@ contract and delivered to agents under the same visibility rules as everything e
   "supply_agreement": {"file": "evidence/agreement.pdf", "caption": "The signed supply agreement", "tags": ["exhibit"]},
   "weld_photos": {"folder": "evidence/welds", "type": "image", "caption": "Weld photo {name}", "describe": "vision"}
 },
-"types": {"exhibit": {"props": {"file": {"type": "asset", "private": true}, "revealed": false}}},
+"types": {"exhibit": {"props": {"file": {"type": "asset"}, "revealed": false}}},
 "records": {"evidence": {"fields": {"text": "text", "file": "asset"}}},
 "views": {"exhibits": {"of": "exhibit", "where": "$it.revealed", "show": "{name}", "attach": "$it.file"}},
 "actions": {"file_photo": {"by": "attorney", "params": {"photo": {"type": "file", "kinds": ["image"]}},

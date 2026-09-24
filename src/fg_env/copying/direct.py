@@ -57,7 +57,7 @@ _WORLD_FIELDS = frozenset({
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
     "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
     "_physics_view", "_clock_view",
-    "_type_props", "_private", "_hidden", "private_names", "private_metrics", "hidden_reads", "_def_cache",
+    "_type_props", "hidden", "private_names", "private_metrics", "_def_cache",
     "_def_cache_state", "_def_cache_on", "_remembered", "_remembered_state",
     "_subtypes", "types", "assets", "patterns"})
 #: Mechanisms keep plain data of their own on the world under these prefixes.
@@ -201,8 +201,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
         firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures),
         written=set(source.written), touched=None, watched_writes=None, diagnosis=None, _seq=source._seq,
-        _record_seq=source._record_seq, _type_props=source._type_props, _private=source._private,
-        _hidden=source._hidden, hidden_reads=0,
+        _record_seq=source._record_seq, _type_props=source._type_props, hidden=source.hidden,
         private_names=source.private_names, private_metrics=source.private_metrics, _def_cache={},
         _def_cache_state=None, _remembered={}, _remembered_state=None,
         _def_cache_on=source._def_cache_on, _subtypes=source._subtypes, types=types, assets=source.assets.copy())

@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, WrongKind, charge
+from .hidden import REVEALS
 from .objects import Entity as _Entity
 
 __all__ = ["attr", "EVERYONE", "map_key"]
@@ -16,8 +17,8 @@ _ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 
 
 def attr(obj: Any, name: str, source: str | None = None, scope: Any = None) -> Any:
-    """Read ``obj.name`` under expression semantics (entities, dicts, records). With the ``scope`` it is read in, an
-    agent's private property is refused while ``$viewer`` is bound to anyone but that agent."""
+    """Read ``obj.name`` under expression semantics (entities, dicts, records). With the ``scope`` it is read in, a
+    value hidden from ``$viewer`` is refused (see :func:`_check_visible`)."""
     if name.startswith("_"):
         raise ExprError(f"private field '{name}' cannot be read", source)
     if type(obj) is _Entity:  # the common case, first
@@ -30,6 +31,8 @@ def attr(obj: Any, name: str, source: str | None = None, scope: Any = None) -> A
         raise ExprError(f"cannot read '.{name}' of null", source)
     reader = getattr(obj, "expr_attr", None)
     if reader is not None:
+        if scope is not None and name in scope.world.private_names:
+            _check_visible(obj, name, scope, source)  # $world's private properties
         return reader(name, source)
     # Entities from the world store (fg_env.expr.objects.Entity) — read by duck type so
     # this module stays independent of the storage layer.
@@ -78,37 +81,39 @@ class _Everyone:
 EVERYONE = _Everyone()
 
 
-def _check_visible(entity: _Entity, name: str, scope: Any, source: str | None) -> None:
-    """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered, or
-    in text sent to several (:data:`EVERYONE`). Game logic binds no ``$viewer`` and reads the true state; an agent
-    always sees its own properties."""
-    viewer = scope.vars.get("viewer")
-    if viewer is None:  # game logic reads the true state; note when it reads what the acting agent may not see
-        actor = scope.vars.get("actor")
-        if (actor is None or _entity_id(actor) != entity.id) and scope.world.is_hidden(entity.entity_type, name):
-            scope.world.hidden_reads += 1
+def _check_visible(owner: Any, name: str, scope: Any, source: str | None) -> None:
+    """Enforce the one definition of hidden (see expr/hidden.py) on reading ``owner``'s (an entity's or ``$world``'s)
+    ``name``. Game logic binds no ``$viewer`` and reads the true state, noting a read hidden from the acting agent;
+    what one agent is shown or offered — or text sent to several (:data:`EVERYONE`) — refuses it
+    (:class:`PrivateRead`), unless a revealing `where` picked this item for its reader."""
+    world, viewer = scope.world, scope.vars.get("viewer")
+    if viewer is None:
+        if world.hides(owner, name, scope.vars.get("actor")):
+            world.read_hidden()
         return
-    if _entity_id(viewer) == entity.id or not scope.world.is_private(entity.entity_type, name):
+    if not world.hides(owner, name, viewer) or scope.vars.get(REVEALS) is owner:
         return
+    entity = hasattr(owner, "entity_type")
+    whose, own = (f"{owner.name}'s", owner.entity_type in world.hidden.agents) if entity else ("the world's", False)
     if viewer is EVERYONE:
         raise PrivateRead(
-            f"{entity.name}'s {name} is private, and this text is sent to others than {entity.name}: work out what "
-            "they may learn in game logic (e.g. `\"$shown = ...\"` in the action's do) and show that, or send it `to` "
-            f"{entity.name} alone", source)
+            f"{whose} {name} is private, and this text is sent to more than one agent: work out what they may learn in "
+            "game logic (e.g. `\"$shown = ...\"` in the action's do) and show that"
+            + (f", or send it `to` {owner.name} alone" if own else ""), source)
     raise PrivateRead(
-        f"{entity.name}'s {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: "
-        "read only the agent's own (guard with `$it.id == $actor.id`), or work out what it may learn in game logic "
-        "(an action's do, an event) and show that", source)
+        f"{whose} {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: show an "
+        "agent only its own (guard with `$it.id == $actor.id`), pick the items it owns in a `where` "
+        "(`$it.owner == $actor.id`), or work out what it may learn in game logic and show that", source)
 
 
 def _check_metric(values: Mapping[str, Any], name: str, scope: Any, source: str | None) -> None:
-    """Refuse (:class:`PrivateRead`) reading metric ``name`` (in ``$metrics`` or ``$series``), worked out from agents'
-    private properties, in what an agent is shown or offered."""
+    """Refuse (:class:`PrivateRead`) reading metric ``name`` (in ``$metrics`` or ``$series``), worked out from private
+    properties, in what an agent is shown or offered."""
     world, viewer = scope.world, scope.vars.get("viewer")
     if viewer is None or not (values is getattr(world, "metrics", None) or values is getattr(world, "series", None)):
         return
     raise PrivateRead(
-        f"metric {name} is worked out from agents' private properties, and this is what "
+        f"metric {name} is worked out from private properties, and this is what "
         f"{getattr(viewer, 'name', viewer)} is shown or offered: show a metric that reads no private property, or "
         "work out what the agent may learn in game logic (an action's do, an event) and show that", source)
 

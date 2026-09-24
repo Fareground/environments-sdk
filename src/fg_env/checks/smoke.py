@@ -1,7 +1,8 @@
 """The smoke play of :func:`fg_env.check`: the contract built and played with random agents, then with agents that
-choose boundary values (a parameter's least value, zero, its greatest), then with agents that never act, then once
-per declared policy, so problems that only appear with real values — in a later round, at an edge of what a tool
-allows, in a policy's own rules, on a missed turn — are reported like the static ones."""
+choose boundary values (a parameter's least value, zero, its greatest), then with agents that never act, then with an
+agent that tries to read hidden numbers out through its actions (:mod:`.probing`), then once per declared policy, so
+problems that only appear with real values — in a later round, at an edge of what a tool allows, in a policy's own
+rules, on a missed turn, in a refusal that tells a hidden number for free — are reported like the static ones."""
 from __future__ import annotations
 
 import math
@@ -16,6 +17,7 @@ from ..errors import Issue
 from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _seed_for, sample_args
 from ..runtime.diagnostics import MIN_CALLS
 from ..runtime.measure import RunResult
+from .probing import Prober, hides_numbers
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -73,6 +75,10 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     _failure(idle_play, "agents that never act", errors,
              "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
              "the rules allow, or guard the rule for it")
+    if hides_numbers(contract):  # one round of probing; how that play ends says nothing about the contract
+        prober = Prober(seed)
+        _play(build(), {"*": prober}, 1, None)
+        errors.extend(prober.found.values())
     for name, players in policies:
         agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         result = _play(_kept(build(), played), {kind: agent for kind in players}, rounds, seconds)

@@ -356,8 +356,7 @@
             "looks_misleading",
             "looks_accurate"
           ],
-          "default": "unresearched",
-          "private": true
+          "default": "unresearched"
         },
         "label": {
           "type": "enum",

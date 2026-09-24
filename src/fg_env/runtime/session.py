@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ToolSpec
+from ..actions.params import REFUSED_ARGS, unbounded
 from ..assets.delivery import Attachment
 from ..assets.intake import intake
 from .measure import Stats
@@ -147,6 +148,9 @@ class Wake:
     def call(self, name: str, args: dict[str, Any] | None = None) -> ToolResult:
         """Execute one tool call. Invalid calls cost nothing but a call and return what to fix."""
         turn = self._turn
+        problem = unbounded(args)
+        if problem is not None:  # refused before anything copies or walks them: the call is invalid, saying why
+            args = {REFUSED_ARGS: problem}
         with turn.env._lock:  # a call made after the deadline is refused, so it is no step on the tape
             if turn.refusal() is None:
                 args = intake(turn, name, args)  # submitted files are stored first: the tape holds their ids

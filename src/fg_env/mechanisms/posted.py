@@ -548,7 +548,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
     if cfg.sellers:
         fragment["views"][f"{name}_mine"] = {"for": cfg.sellers,
                                              "title": f"Your listings (your cash: {{$actor.{cfg.currency}|money}})",
-                                             "of": f"$filter({listing}, $it.seller == $actor.id)",
+                                             "of": listing, "where": "$it.seller == $actor.id",
                                              "show": f"{{$posted_line({name}, $it)}} · sold {{sold}} for "
                                                      "{revenue|money}"}
     names = list(actions)
