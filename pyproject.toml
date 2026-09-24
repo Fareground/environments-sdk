@@ -66,7 +66,7 @@ known-first-party = ["fg_env"]
 
 [tool.mypy]
 plugins = ["pydantic.mypy"]
-# The package ships py.typed, so CI must actually type-check it. Not fully strict yet: tighten flags over time.
+# The package ships py.typed, so it must type-check: run `mypy` before pushing. Not fully strict yet: tighten flags over time.
 files = ["src/fg_env"]
 ignore_missing_imports = true
 check_untyped_defs = true

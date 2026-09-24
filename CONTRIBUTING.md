@@ -115,8 +115,9 @@ Optional features may add dev-only dependencies under `[project.optional-depende
   `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`.
 - One logical change per PR; include tests for new behavior.
 - Update `CHANGELOG.md` under `## [Unreleased]`.
-- There is no CI test run: run the whole suite (`make test`), `ruff check src tests scripts`, `mypy`,
-  `make check-schema` and `make check-docs` locally before pushing.
+- There is no CI: the tests and checks run locally. Use `make test-fast` while iterating, and before every push run
+  the whole suite (`make test`), `ruff check src tests scripts`, `mypy`, `make check-schema` and `make check-docs`.
+- A pushed `v*` tag publishes that commit to PyPI without running anything: run the same checks on it first.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.
 

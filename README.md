@@ -12,7 +12,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Fareground/environments-sdk/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/Fareground/environments-sdk/ci.yml?branch=main&amp;style=flat-square&amp;label=CI" /></a>
   <img src="https://img.shields.io/badge/python-3.11%2B-blue" alt="Python 3.11+" />
   <a href="https://pypi.org/project/fg-env/"><img src="https://img.shields.io/pypi/v/fg-env?style=flat-square" alt="PyPI version" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-lightgrey" alt="Apache-2.0" /></a>
