@@ -55,6 +55,7 @@ _WORLD_FIELDS = frozenset({
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start",
     "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
+    "joined",
     "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
     "_physics_view", "_clock_view",
     "_type_props", "_private", "_hidden", "private_names", "private_metrics", "hidden_reads", "_def_cache",

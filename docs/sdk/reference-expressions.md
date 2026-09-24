@@ -31,6 +31,9 @@ Any string containing `$name` is an expression; other strings are literal text.
   `$events` as its caller does: in a view or an agent's choices, only what that agent may see.
 * Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
 * Strict: unknown props, missing roots and type errors are errors, never silent zeros.
+* Ties: `$best` breaks one at random (seeded; `ties: "none"` gives null, `"all"` every tied item). `$sort` puts tied
+  items in their order (for a type, creation order) and `$top`, which is `$sort` reversed, the other way round; give
+  a list of keys (`[$it.score, $it.age]`) to decide ties yourself.
 
 Roots available by location (plus everywhere: $inputs $world $physics $clock $round $stage
 $metrics $series $arm):

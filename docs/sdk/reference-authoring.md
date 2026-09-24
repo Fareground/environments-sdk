@@ -89,9 +89,8 @@ or effect, or when rounds run out.
   `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
   agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or at `max_calls` calls.
-* An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told
-  why; that costs the action only if it rolled luck or read a hidden value. In world logic (events, hooks, triggers)
-  the same failure fails the run: guard such a block with an `if`.
+* An action is atomic: a `fail` or a short `transfer` undoes it and tells the agent why (spent only if it drew
+  luck or read a hidden value); in events and hooks it fails the run.
 * An agent also gets `inspect` (one entity's non-`private` props) when a type sets `"inspect": true` or an
   expression over `$viewer` and `$it`; own state belongs in a view.
 
@@ -140,9 +139,7 @@ A string with `$name` in it is an expression; other strings are text.
   `$top(offer, $it.price, 3)`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
   `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)`, `$round(x, 2)`, `$floor`, `$clamp`.
   `$min` `$max` `$sum` `$avg` take a collection and a value (`$min(stand, $it.price)`) or a list; `$min` and
-  `$max` also take numbers (`$min(3, $x)`). A tie for `$best` is broken at random (seeded; `ties: "none"` gives
-  null, `"all"` every tied item). `$sort` puts tied items in their order (for a type, creation order) and `$top`,
-  which is `$sort` reversed, the other way round: give a list of keys (`[$it.score, $it.age]`) to decide ties.
+  `$max` also take numbers (`$min(3, $x)`).
 * Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject
   (`$it` in lists, `$actor` otherwise); `{$params.amount|money}` is any expression with a format.
 
