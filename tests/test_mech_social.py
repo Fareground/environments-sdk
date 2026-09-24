@@ -17,8 +17,14 @@ def ev(env, source, **vars):
 
 
 def do(env, actor, effects):
-    """Apply effects atomically (as `actor` when given); False when they were refused and rolled back."""
-    return env._atomic(effects, {"actor": env.world.entities[actor]} if actor else {}, "test")
+    """Apply effects atomically (as `actor` when given); False when they were refused (a `fail`) and rolled back."""
+    try:
+        env._atomic(effects, {"actor": env.world.entities[actor]} if actor else {}, "test")
+    except fg_env.RunError as exc:
+        if "World logic cannot be refused" not in str(exc):
+            raise
+        return False
+    return True
 
 
 class Script:
