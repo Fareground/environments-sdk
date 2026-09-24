@@ -33,7 +33,7 @@ def props(item: Any) -> dict[str, Any]:
 
 def cache(world: Any, namespace: str) -> dict[Any, Any]:
     """A scratch dict for derived values, emptied whenever the world changes."""
-    store: dict[str, Any] = world.__dict__.setdefault("_social_cache", {})
+    store: dict[str, Any] = world.caches.setdefault("social", {})
     stamp = (world.version, world.round, world.stage)
     if store.get("$stamp") != stamp:
         store.clear()

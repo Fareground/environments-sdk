@@ -131,6 +131,9 @@ class SdkWorld(World):
         self.watched_writes: Any = None
         #: The run's sink of facts (a :class:`~fg_env.runtime.facts.Facts`), set by the run.
         self.facts: Any = None
+        #: What mechanisms work out from this world and keep while it holds, by name: caches keyed on the version (or
+        #: the contract) they were worked out at, never state, so a copy starts without them.
+        self.caches: dict[str, Any] = {}
         #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
         self.assets = AssetStore()
         #: The sequence numbers the log's last event and the records' last entry took.

@@ -7,8 +7,8 @@ every index over it is rebuilt or copied. What only the contract and its build d
 physics, pattern parameters) is shared: nothing changes it while a run plays. Caches start empty, and the callbacks the
 run wires into its world (its facts, its lifecycle and join hooks, a chance chooser) are left for the copy's run to set.
 
-A mechanism may keep plain data of its own on the world (an attribute this module does not name): it is copied as plain
-data. ``tests/kernel/test_kernel_copies.py`` holds a copy to sharing nothing mutable with its original.
+What mechanisms cache on the world (``world.caches``) is left behind with the other caches.
+``tests/kernel/test_kernel_copies.py`` holds a copy to sharing nothing mutable with its original.
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ _SHARED = frozenset({
     "contract", "inputs", "arm", "physics_writes", "entity_dynamics", "start", "type_props", "hidden", "private_names",
     "private_metrics", "_def_cache_on", "_subtypes"})
 #: Wired by the run, or caches: a copy starts without them.
-_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "_def_cache": dict,
+_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "caches": dict, "_def_cache": dict,
           "_def_cache_state": None, "_remembered": dict, "_remembered_state": None}
 #: Copied by what they are (below).
 _COPIED = frozenset({
@@ -57,7 +57,7 @@ def copy_world(source: SdkWorld) -> SdkWorld:
             empty = _UNSET[key]
             data[key] = empty() if callable(empty) else empty
         elif key not in _COPIED:
-            data[key] = _plain_copy(value)  # plain data: counters, metrics, the rules' bookkeeping, a mechanism's own
+            data[key] = _plain_copy(value)  # plain data: counters, metrics, the rules' bookkeeping
     entities = {key: _copy_entity(entity) for key, entity in source.entities.items()}
     records, by_seq = _copy_records(source, world)
     journal = Journal(world)

@@ -54,10 +54,9 @@ def register_config(kind: str, model: type[BaseModel]) -> None:
 
 
 def _cache(world: Any) -> dict[Any, Any]:
-    cache = world.__dict__.get("_econ_configs")
+    cache = world.caches.get("econ_configs")
     if cache is None or cache[0] is not world.contract:
-        cache = (world.contract, {})
-        world.__dict__["_econ_configs"] = cache
+        cache = world.caches["econ_configs"] = (world.contract, {})
     return cache[1]
 
 
