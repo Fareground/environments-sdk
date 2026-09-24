@@ -78,17 +78,17 @@ def test_an_offered_move_whose_rule_fails_as_it_applies_is_caught_without_dry_ru
 
 
 def test_returns_outside_the_declared_bounds_are_reported():
-    loose = load_game("tic_tac_toe")
-    loose["game"].update({"min_return": 0, "max_return": 0})
+    loose = fg_env.expand(load_game("tic_tac_toe"))
+    loose["types"]["player"]["score"].update({"min": 0, "max": 0})
     report = fg_env.rl.conformance(loose, sims=2, resume=False, leak_branches=0)
-    assert any(issue.check == "returns" and "game.m" in issue.message for issue in report.issues)
+    assert any(issue.check == "returns" and "types.player.score.m" in issue.message for issue in report.issues)
     assert fg_env.check(loose) == [] or all(i.severity != "error" for i in fg_env.check(loose))
 
 
 def test_an_inconsistent_bound_declaration_is_a_check_error():
-    wrong = copy.deepcopy(load_game("nim"))
-    wrong["game"].update({"min_return": 1, "max_return": -1})
-    assert any(issue.path == "game.min_return" and issue.severity == "error" for issue in fg_env.check(wrong))
+    wrong = fg_env.expand(load_game("nim"))
+    wrong["types"]["player"]["score"].update({"min": 1, "max": -1})
+    assert any(issue.path == "types.player.score.min" and issue.severity == "error" for issue in fg_env.check(wrong))
 
 
 def test_the_report_names_the_seed_and_steps_that_reproduce_an_issue():

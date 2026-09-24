@@ -178,7 +178,7 @@ class Branch:
         return self._pilot.read(self._pilot.env.result)
 
     def returns(self) -> dict[str, float]:
-        """Each seat's return so far (the contract's ``game.returns``); ``{}`` when none is declared."""
+        """Each seat's return so far (its type's ``score.value``); ``{}`` when no type scores."""
         env = self._pilot.env
         return self._pilot.read(lambda: seat_returns(env.contract, env.world))
 

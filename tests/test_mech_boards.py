@@ -384,9 +384,9 @@ def test_tools_one_offers_moving_and_passing_as_one_tool():
     assert offered[0] == ["go"] and env.ended_by == "passes"
 
 
-def test_a_board_fills_the_game_section_so_the_winner_scores_against_the_loser():
-    game = fg_env.parse(CHESS).game
-    assert (game.players, game.utility) == ("player", "zero_sum")
+def test_a_board_gives_the_players_a_score_so_the_winner_scores_against_the_loser():
+    score = fg_env.parse(CHESS).types["player"].score
+    assert score.utility == "zero_sum"
     assert _board_issues(CHESS) == []
     _, result = _replay(CHESS, "chess", ["e2-e4", "e7-e5", "f1-c4", "b8-c6", "d1-h5", "g8-f6", "h5xf7"])
     assert result.returns == {"white": 1.0, "black": -1.0}
@@ -399,14 +399,15 @@ def test_a_board_fills_the_game_section_so_the_winner_scores_against_the_loser()
     assert result.returns == {"x": 2.0, "o": -1.0, "z": -1.0}
 
 
-def test_an_authors_game_section_or_a_second_scoring_mechanism_leaves_the_game_section_alone():
-    authored = fg_env.parse({**CHESS, "game": {"returns": "$actor.id == 'white'"}}).game
-    assert authored.returns == "$actor.id == 'white'" and authored.utility == "general_sum" and authored.players is None
+def test_an_authors_score_or_a_second_scoring_mechanism_leaves_the_score_alone():
+    authored = fg_env.parse({**CHESS, "types": {"player": {"agent": True, "score": {"value": "$it.id == 'white'"}}}})
+    score = authored.types["player"].score
+    assert score.value == "$it.id == 'white'" and score.utility == "general_sum"
     two = copy.deepcopy(CHESS)
     two["mechanisms"]["other"] = {"kind": "game", "mode": "board", "size": 3, "sides": ["red", "blue"],
                                   "piece_type": "stone",
                                   "pieces": {"mark": {}}, "place": {}, "line": 3, "stage": "chess"}
-    assert fg_env.parse(two).game is None
+    assert fg_env.parse(two).scoring() is None
 
 
 def test_guide_documents_the_board_grammar():

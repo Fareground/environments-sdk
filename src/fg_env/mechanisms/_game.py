@@ -24,5 +24,8 @@ def game_section(contract: Mapping[str, Any], spec: dict[str, Any]) -> dict[str,
     declared = contract.get("game")
     if declared is not None and (not isinstance(declared, Mapping) or any(key in declared for key in SEATING)):
         return {}
+    types = contract.get("types")
+    if isinstance(types, Mapping) and any(isinstance(spec, Mapping) and spec.get("score") for spec in types.values()):
+        return {}  # the author says what the seats score
     scorers = sum(len(uses_of(contract.get("mechanisms"), key)) for key in SCORING)
     return {"game": spec} if scorers == 1 else {}

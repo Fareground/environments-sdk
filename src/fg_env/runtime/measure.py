@@ -98,7 +98,7 @@ class RunResult:
     error: str | None = None
     #: The clock time reached (continuous clock), else None.
     time: float | None = None
-    #: Each seat's return (the contract's `game.returns`), in seat order; empty when none is declared.
+    #: Each seat's return (its type's `score` value), in seat order; empty when no type scores.
     returns: dict[str, float] = field(default_factory=dict)
     output_issues: list[dict[str, Any]] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)

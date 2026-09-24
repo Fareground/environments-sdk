@@ -518,10 +518,10 @@ def test_config_mistakes_are_reported_with_what_to_fix():
             "roles") in (fg_env.load(seated, seed=1).run("idle").error or "")
 
 
-def test_a_pot_fills_the_game_section_with_the_chips_each_player_won_or_lost():
+def test_a_pot_gives_the_players_a_score_of_the_chips_each_won_or_lost():
     contract = _table([1000, 1000, 45], blinds=[5, 10])
-    game = fg_env.parse(contract).game
-    assert (game.players, game.seat, game.utility) == ("player", "$it.seat", "zero_sum")
+    score = fg_env.parse(contract).types["player"].score
+    assert (score.seat, score.utility) == ("$it.seat", "zero_sum")
     moves = {"p1": [("table_raise", {"to": 30}), ("table_call", {})], "p2": [("table_call", {}), ("table_call", {})],
              "p3": [("table_all_in", {})]}
     result = fg_env.load(contract, seed=1).run(_script(moves), rounds=1)
@@ -529,8 +529,8 @@ def test_a_pot_fills_the_game_section_with_the_chips_each_player_won_or_lost():
     assert result.returns == {f"p{i + 1}": float(stack - start) for i, (stack, start) in
                               enumerate(zip(result.outputs["stacks"], [1000, 1000, 45]))}
     assert sum(result.returns.values()) == 0
-    assert fg_env.parse(_table([10, 10], conserve=False)).game.utility == "general_sum"
-    assert fg_env.parse(_card_game()).game is None  # a deck alone does not know what a player scores
+    assert fg_env.parse(_table([10, 10], conserve=False)).scoring().utility == "general_sum"
+    assert fg_env.parse(_card_game()).scoring() is None  # a deck alone does not know what a player scores
 
 
 def test_old_card_pot_and_slots_kinds_name_their_game_mode():

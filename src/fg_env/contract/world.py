@@ -18,6 +18,7 @@ from .base import (
     _ceiling,
     _Model,
 )
+from .game import ScoreSpec
 from .rules import PolicySpec
 
 __all__ = ["InputSpec", "Brief", "Clock", "LAYER_TYPES", "GridSpace", "GraphSpace", "PlaneSpace", "LayerSpec", "Space",
@@ -254,6 +255,8 @@ class TypeSpec(_Model):
                                             description="Coded participants for agents of this type (and its "
                                                         "subtypes), played as `policy:<name>`: crowds and baselines.")
     policy: str | None = Field(None, description="The policy agents of this type play when a run names none.")
+    score: ScoreSpec | None = Field(None, description="What each agent of this type scores as a seat, for returns, "
+                                                      "tournaments, game search and gyms.")
     inspect: bool | str = Field(False,
                                 description="Whether agents may inspect these entities (each agent may always inspect "
                                             "itself): false (default), true, or an expression over $viewer and $it. "

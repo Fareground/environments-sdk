@@ -9,7 +9,7 @@ agent is played by participants. Gymnasium is not required; when it is installed
   the update the agent reads; while the turn goes on it is the last call's result.
 * action — a tool call: ``{"tool": name, "args": {...}}``, ``(name, args)``, a tool name, or an action id
   (with ``action_ids=True``).
-* reward — the contract's ``game.rewards`` for the agent, else the change in its ``game.returns``.
+* reward — the change in the agent's score (its type's ``score.value``) since its previous step.
 * terminated — the run is over; truncated — ``max_steps`` calls were made.
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ from ..copying.branch import Branch, copy_pilot
 from ..copying.replay import Tape
 from ..errors import ContractError, Issue, RunError
 from ..runtime.env import Env
-from ..runtime.returns import seat_ids, seat_returns, seat_rewards
+from ..runtime.returns import seat_ids, seat_returns
 from ..runtime.session import ToolResult
 from ..sampling.seeds import SeedTree, mint_seed
 
@@ -50,12 +50,14 @@ class GymEnv(_Base):  # type: ignore[misc]
             issues.append(Issue("agent", f"'{agent}' is not an agent of this contract",
                                 "agents: " + ", ".join(e.id for e in root.world.entities.values()
                                                        if contract.is_agent(e.entity_type))))
+        elif contract.scoring() is None:
+            kind = root.world.entities[agent].entity_type
+            issues.append(Issue(f"types.{kind}.score", "is needed: rewards come from what the agent scores",
+                                f'e.g. "types": {{"{kind}": {{"score": {{"value": "$it.cash"}}}}}}'))
         elif agent not in seat_ids(contract, root.world):
-            issues.append(Issue("game.players", f"'{agent}' is not one of the game's seats",
-                                "add its type to game.players"))
-        if contract.game is None or contract.game.returns is None:
-            issues.append(Issue("game.returns", "is needed: rewards come from what the agent scores",
-                                'e.g. "game": {"returns": "$actor.cash"}'))
+            kind = root.world.entities[agent].entity_type
+            issues.append(Issue(f"types.{kind}.score", f"'{agent}' is not one of the game's seats",
+                                f"give types.{kind} a score"))
         if issues:
             raise ContractError(issues, title="the contract cannot be a gym for this agent")
         self._root = root
@@ -116,9 +118,7 @@ class GymEnv(_Base):  # type: ignore[misc]
         if branch.finished and branch.result().status == "failed":
             raise RunError(f"the run failed: {branch.result().error}", "gym")
         now = self._agent_return()
-        declared = branch._pilot.read(lambda: seat_rewards(self._root.contract, branch._pilot.env.world, [self.agent]))
-        reward = declared[self.agent] if declared is not None else now - self._return
-        self._return = now
+        reward, self._return = now - self._return, now
         terminated = branch.pending is None
         truncated = not terminated and self.max_steps is not None and self._steps >= self.max_steps
         return self._observation(result), reward, terminated, truncated, self._info(result)

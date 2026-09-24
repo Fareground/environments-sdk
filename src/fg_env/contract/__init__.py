@@ -35,7 +35,7 @@ from .base import (
     one_or_many,
     tape_prop,
 )
-from .game import UTILITIES, GameSpec
+from .game import UTILITIES, ScoreSpec
 from .measure import (
     END_CHECKS,
     INVARIANT_CHECKS,
@@ -117,7 +117,7 @@ __all__ = [
     "ArmSpec",
     "CalibrationSpec",
     "AssetSpec",
-    "GameSpec",
+    "ScoreSpec",
     "UTILITIES",
     "DefSpec",
     "BlockSpec",
@@ -187,7 +187,6 @@ class Contract(_Model):
     calibration: CalibrationSpec | None = Field(None,
                                                 description="Inputs fitted by short pilot sessions whenever the "
                                                             "contract loads.")
-    game: GameSpec | None = Field(None, description="Seats, returns and utility for game and learning interfaces.")
     invariants: list[InvariantSpec] = Field(default_factory=list)
     defs: dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
     blocks: dict[str, BlockSpec] = Field(default_factory=dict,
@@ -273,6 +272,15 @@ class Contract(_Model):
         """``(relation, path, spec)`` for every starting link entry, in build order (relation by relation)."""
         return [(kind, f"relations.{kind}.links[{index}]", link) for kind, spec in self.relations.items()
                 for index, link in enumerate(spec.links)]
+
+    def score_of(self, type_name: str) -> ScoreSpec | None:
+        """What an entity of ``type_name`` scores as a seat: the nearest score in its lineage, or None."""
+        return next((self.types[kind].score for kind in reversed(self.lineage(type_name))
+                     if self.types[kind].score is not None), None)
+
+    def scoring(self) -> ScoreSpec | None:
+        """The first declared score (its seat order and utility are the game's), or None when no type scores."""
+        return next((spec.score for spec in self.types.values() if spec.score is not None), None)
 
     def named_entities(self) -> dict[str, EntitySpec]:
         """The entities declared one by one (the key is the id), without the generator entries."""

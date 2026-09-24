@@ -188,7 +188,7 @@ def expand(source: ContractLike, *, mechanisms: bool = False) -> dict[str, Any]:
     expanded, issues = expand_mechanisms(data)
     if issues:
         raise ContractError(issues, title="mechanisms cannot be expanded")
-    return expanded
+    return normalize(expanded)[0]  # what mechanisms generate in an earlier form
 
 
 def _without_unknown_fields(data: Any, issues: list[Issue]) -> Any:

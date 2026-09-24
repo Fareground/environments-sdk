@@ -59,8 +59,8 @@ ROOTS: list[tuple[str, str, str]] = [
     ("outputs", "*", "$outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result "
                      "(winner, ended_by; not in a sampled one)"),
     ("end", "when/winner/say", "—"),
-    ("game", "seat", "$it $i"),
-    ("game", "returns/rewards", "$actor $result (winner, ended_by)"),
+    ("types", "score.seat", "$it $i"),
+    ("types", "score.value", "$it (the seat) $result (winner, ended_by)"),
     ("invariants", "*", "—"),
 ]
 
@@ -75,9 +75,10 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
     ("assets", [C.AssetSpec], "{asset: AssetSpec}",
      "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see "
      "guide('assets')."),
-    ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule], "{type: TypeSpec}",
-     "Kinds of entities and their properties; `agent: true` makes a type act, and its `policies` are coded "
-     "participants for its agents, for crowds and baselines (`policy:<name>`)."),
+    ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule, C.ScoreSpec], "{type: TypeSpec}",
+     "Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded "
+     "participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its "
+     "agents scores as a seat, for tournaments, game search and gyms."),
     ("entities", [C.EntitySpec], "{id: EntitySpec}",
      "Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row "
      "(`from`), with sampled traits; ids `<key>_<n>`."),
@@ -106,7 +107,6 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "a break by anything else fails the run."),
     ("mechanisms", [], "{name: {kind, mode, ...config}}",
      "Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms')."),
-    ("game", [C.GameSpec], "GameSpec", "Seats and what each scores, for tournaments, game search and gyms."),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space",
      "Positions: a grid, a graph of places or a plane, with values on cells."),
     ("relations", [C.RelationSpec, C.LinkSpec], "{relation: RelationSpec}",

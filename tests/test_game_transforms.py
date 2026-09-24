@@ -31,7 +31,7 @@ def test_a_repeated_game_is_an_ordinary_contract_whose_returns_are_the_totals():
                              1: {"tool": "choose", "args": {"move": "cooperate"}}})
     assert state.is_terminal() and state.returns() == [15.0, 0.0]
     assert "B chose to cooperate" in state.information_state_string(0)
-    assert contract["game"]["max_return"] == 15 and "(repeated 3 times)" in contract["name"]
+    assert contract["types"]["player"]["score"]["max"] == 15 and "(repeated 3 times)" in contract["name"]
     with pytest.raises(ValueError, match="one-round"):
         repeated(GAMES / "tic_tac_toe.json", 2)
     with pytest.raises(ValueError, match="end a run early"):
@@ -40,7 +40,8 @@ def test_a_repeated_game_is_an_ordinary_contract_whose_returns_are_the_totals():
 
 def test_misere_negates_returns_and_bounds_and_zerosum_centres_them():
     flipped = misere(GAMES / "chicken.json")
-    assert flipped["game"]["min_return"] == -1 and flipped["game"]["max_return"] == 10
+    score = flipped["types"]["player"]["score"]
+    assert score["min"] == -1 and score["max"] == 10
     state = fg_env.rl.game(flipped).new_initial_state()
     state.apply_actions({0: {"tool": "drive", "args": {"move": "straight"}},
                          1: {"tool": "drive", "args": {"move": "swerve"}}})

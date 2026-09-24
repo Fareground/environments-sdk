@@ -143,11 +143,6 @@ def _core() -> str:
             .replace("ENGINES", engines).replace("PARTS", parts))
 
 
-def _game_page() -> str:
-    """`game` names both a contract section and a mechanism family; both are about games, so they share a page."""
-    return family_page("game") + "\n\n" + section_page("game")
-
-
 _TOPICS: dict[str, Callable[[], str]] = {
     "core": _core,
     "authoring": lambda: AUTHORING,
@@ -183,8 +178,6 @@ def guide_parts() -> list[str]:
 def _render(part: str) -> str | None:
     if part in _TOPICS:
         return _TOPICS[part]()
-    if part == "game":
-        return _game_page()
     if part in FAMILIES:
         return family_page(part)
     if any(part == name for name, *_ in SECTIONS):

@@ -5,6 +5,8 @@
 * ``population`` → generator entries of ``entities`` (keyed by type; ``mix``, ``quota``, ``members`` and ``raking``
   are refused with how to say them now).
 * ``links`` → ``relations.<r>.links`` (each entry without its ``relation``).
+* ``game`` → ``types.<player>.score`` (``returns`` over $actor → ``value`` over $it; the claims, which describe and
+  check derive, and ``total`` are dropped; ``rewards`` is refused).
 * Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
@@ -263,6 +265,48 @@ def links_under_relations(data: dict[str, Any]) -> list[str]:
         target.append(entry)
         notes.append(f"links[{index}]: now relations.{link['relation']}.links[{len(target) - 1}]")
     return notes
+
+
+# -- game → types.<t>.score -----------------------------------------------------------------------------------------
+
+_ACTOR = re.compile(r"\$actor\b")
+#: game fields that become score fields.
+_SCORE_FIELDS = {"seat": "seat", "utility": "utility", "min_return": "min", "max_return": "max"}
+
+
+@rule
+def game_into_scores(data: dict[str, Any]) -> list[str]:
+    """``game: {players, returns, seat, utility, min_return, max_return}`` → ``types.<player>.score: {value, seat,
+    utility, min, max}`` on each player type (every most general agent type when ``players`` is not given); a score
+    the type already has keeps its own fields."""
+    game = data.get("game")
+    types = _types(data)
+    if not isinstance(game, dict) or not types:
+        return []
+    if "rewards" in game:
+        raise ContractError([Issue("game.rewards", "is no longer part of the contract",
+                                   "a seat's reward is the change in its score since its previous step: keep what it "
+                                   "earns in a property and score that, e.g. \"score\": {\"value\": \"$it.earned\"}")])
+    players = game.get("players")
+    if players is None:
+        agents = [kind for kind in types if _is_agent(types, kind)]
+        listed = [kind for kind in agents if not any(parent in agents for parent in _lineage(types, kind)[1:])]
+    else:
+        listed = [players] if isinstance(players, str) else list(players) if isinstance(players, list) else []
+    unknown = [kind for kind in listed if kind not in types]
+    if unknown or not listed:
+        raise ContractError([Issue("game.players", f"'{unknown[0]}' is not a declared type" if unknown
+                                   else "names no agent type", "name the agent types whose entities are the seats")])
+    score = {new: game[old] for old, new in _SCORE_FIELDS.items() if old in game}
+    if isinstance(game.get("returns"), str):
+        score["value"] = _ACTOR.sub("$it", game["returns"])
+    for kind in listed:
+        own = types[kind].setdefault("score", {})
+        for key, value in score.items():
+            if isinstance(own, dict):  # else the parser reports the malformed score
+                own.setdefault(key, value)
+    del data["game"]
+    return ["game: now the score of " + ", ".join(f"types.{kind}" for kind in listed)]
 
 
 # -- arm patches ----------------------------------------------------------------------------------------------------
