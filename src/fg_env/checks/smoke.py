@@ -138,10 +138,11 @@ def _outputs(play: RunResult, errors: list[Issue], warnings: list[Issue]) -> Non
 def _random_findings(play: RunResult, errors: list[Issue], warnings: list[Issue]) -> None:
     """The random play's diagnostics, one per cause: an action whose rule always failed is not also reported as
     offered when none of its choices could succeed (the failing rule is why). The play's own time running out
-    (`budget_cut`) says nothing about the contract."""
+    (`budget_cut`) says nothing about the contract, and an action no call of this play got through is judged over
+    every play (:func:`_never_succeeded`)."""
     broken = {found["path"] for found in play.diagnostics if found["code"] == "action_always_faulted"}
     for found in play.diagnostics:
-        if found["code"] in ("output_failed", "budget_cut") or (
+        if found["code"] in ("output_failed", "budget_cut", "action_never_succeeded") or (
                 found["code"] == "action_offered_but_unusable" and found["path"] in broken):
             continue  # a failing output is reported by _outputs; the failing rule is why the action was unusable
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch

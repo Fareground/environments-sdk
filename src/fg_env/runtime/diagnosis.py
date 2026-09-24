@@ -109,14 +109,21 @@ class Diagnosis:
         if action is not None:
             self._action(action)["faulted"] += 1
 
-    def policy_rule(self, path: str, refusal: str | None = None) -> None:
-        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call was refused."""
+    def policy_rule(self, path: str, refusal: str | None = None, action: str | None = None) -> None:
+        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call was refused — before it was made,
+        for arguments the contract ``action`` does not accept (given ``action``), which counts as a refused call of it
+        too."""
         entry = self.policy_rules.setdefault(path, [0, 0, ""])
         if refusal is None:
             entry[0] += 1
-        else:
-            entry[1] += 1
-            entry[2] = refusal
+            return
+        entry[1] += 1
+        entry[2] = refusal
+        if action is not None:
+            counts = self._action(action)
+            counts["calls"] += 1
+            counts["refused"] += 1
+            _tally(counts["reasons"], refusal)
 
     def _action(self, name: str) -> dict[str, Any]:
         return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {},

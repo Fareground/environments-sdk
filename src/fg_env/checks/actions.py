@@ -7,6 +7,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from .. import contract as C
+from ..actions.params import choice_list
 from ..actions.reads import READS
 from ..contract import Contract
 from ..expr import is_expr
@@ -168,8 +169,9 @@ class ActionChecks:
         low, high = param.min_items, param.max_items
         if isinstance(low, int) and isinstance(high, int) and low > high:
             self.error(ppath, f"min_items ({low}) is more than max_items ({high})")
-        if isinstance(high, int) and high > C.MAX_LIST_ITEMS:
-            self.error(f"{ppath}.max_items", f"is more than the limit of {C.MAX_LIST_ITEMS}")
+        if isinstance(high, int) and high > C.MAX_LIST_ITEMS and not choice_list(param):
+            self.error(f"{ppath}.max_items", f"is more than the limit of {C.MAX_LIST_ITEMS} for a list of free values",
+                       "a list of distinct choices (`of` an entity type, or `values`) may be longer")
         entity_of = item.of if item is not None and item.type == "entity" else (param.of if item is None else None)
         where = item.where if item is not None else param.where
         if (item is not None and item.type == "entity") or (item is None and param.of is not None):

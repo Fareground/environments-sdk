@@ -26,7 +26,8 @@ __all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", 
            "MODEL_FAILED_SHARE"]
 
 #: In a run with model participants (which report their usage), an action called this often and mostly refused is
-#: reported; random and coded agents choose blindly, so their refusals say nothing about the tools.
+#: reported; random and coded agents choose blindly, so their refusals say nothing about the tools — unless every call
+#: of an action called this often was refused, whoever called it: then nothing it does ever ran.
 MIN_CALLS = 4
 REFUSED_SHARE = 0.5
 #: Rounds of evidence needed before a metric that never changes, or an agent type that never can act, is reported.
@@ -34,12 +35,13 @@ MIN_ROUNDS = 2
 #: An action that failed this often as it applied, and never once took effect, is broken for every choice, not just
 #: some.
 ALWAYS_FAULTED = 2
-#: Findings that mean the run does not show what the environment is for: an action that can never happen, agents that
+#: Findings that mean the run does not show what the environment is for: an action that can never happen, or that
+#: never did (every call refused, so nothing it feeds ran), agents that
 #: never acted or too many of whose turns failed, agents that never had an action to take, turns lost to a failing
 #: provider, an output that raised an error, a run its budget cut short, host answers that were the contract's
 #: stand-ins.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
-DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "agents_often_failed",
+DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
                        "agents_never_able_to_act", "turns_forfeited", "output_failed", "budget_cut", "host_fallback"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
@@ -256,6 +258,15 @@ def _actions(env: Env) -> list[dict[str, str]]:
                                 "made, not just some",
                                 "fix the rule the action_rule_failed or action_broke_invariant finding names; until "
                                 "then no agent can take this action"))
+        if entry["calls"] >= MIN_CALLS and entry["refused"] == entry["calls"] and not entry["faulted"] \
+                and not entry["unusable"]:
+            out.append(_finding("action_never_succeeded", f"actions.{name}",
+                                f"never happened: all {entry['calls']} call(s) were refused, so what it does (and any "
+                                f"mechanism it feeds) never ran in this run; most often: "
+                                f"{_most_common(entry['reasons'])}",
+                                "make the tool offer only choices that can work: bound or list its parameters (min, "
+                                "max, values, where), put a requirement that depends on the state in `when` with a "
+                                "`why`, and give a coded policy's `with` arguments the tool accepts"))
         if entry["unusable"]:
             out.append(_finding("action_offered_but_unusable", f"actions.{name}",
                                 f"was offered {entry['unusable']} time(s) when none of its choices could succeed; "

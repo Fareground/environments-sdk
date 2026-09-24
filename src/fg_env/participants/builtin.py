@@ -212,13 +212,14 @@ class PolicyAgent:
             wake.end()
             return choice
         args, problem = choice
-        if problem is None:
-            result = wake.call(rule.do, args)
-            if result.ok:
-                turn.env.diagnosis.policy_rule(path)
-                return "acted"
-            problem = result.text
-        turn.env.diagnosis.policy_rule(path, problem)
+        if problem is not None:  # arguments the action does not accept: the call is never made, but it was refused
+            turn.env.diagnosis.policy_rule(path, problem, action=rule.do)
+            return "skipped"
+        result = wake.call(rule.do, args)
+        if result.ok:
+            turn.env.diagnosis.policy_rule(path)
+            return "acted"
+        turn.env.diagnosis.policy_rule(path, result.text)
         return "skipped"  # this rule does not fit right now; try the next one
 
     def _choose(self, wake: Wake, index: int, scope: Any,
