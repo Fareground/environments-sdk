@@ -14,7 +14,8 @@ state), while two mechanisms generating different entries under one name is an e
 declares gain the mechanism's properties without losing their own. A mechanism may extend declared actions
 (``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms. A declared stage that offers only
 mechanisms' actions and sets no ``max_actions`` allows, per turn, what each mechanism attached to it allows (a hook's
-``max_actions``, default 1).
+``max_actions``, default 1). A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
+which each type using it already acts.
 """
 from __future__ import annotations
 
@@ -32,6 +33,7 @@ from ..contract.parse_errors import shape_issue
 from ..contract.rules import StageSpec
 from ..errors import Issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
+from ._common import raw_is_a
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]
 
@@ -93,8 +95,43 @@ def expand_mechanisms(data: Mapping[str, Any], generated: dict[str, dict[str, li
             issues.extend(_expand_one(out, name, use, owners, shares))
             if generated is not None:
                 generated[str(name)] = _added(before, _names(out))
+    _stage_orphans(out, owners, shares)
     _share_turns(data, out, shares)
     return out, issues
+
+
+def _offered(stage: Mapping[str, Any], actions: Mapping[str, Any]) -> list[str]:
+    listed = stage.get("actions", "all")
+    if listed == "all":
+        return list(actions)
+    return [a for names in listed.values() for a in names] if isinstance(listed, Mapping) else list(listed)
+
+
+def _stage_orphans(out: dict[str, Any], owners: Mapping[tuple[str, str], str], shares: dict[str, int]) -> None:
+    """A mechanism's tool that no stage offers (money, loans) joins the first stage in which each type using it already
+    acts: it is used alongside other moves, and a stage of its own would cost every agent a turn each round."""
+    stages = [s for s in out.get("stages") or [] if isinstance(s, dict)]
+    actions = out.get("actions") or {}
+    offered = {id(s): _offered(s, actions) for s in stages}
+    placed = {a for names in offered.values() for a in names}
+    acting = {key: tuple(names) for key, names in offered.items()}  # where each type acts before any tool joins
+
+    def users(name: str) -> list[str]:
+        by = actions.get(name, {}).get("by") if isinstance(actions.get(name), Mapping) else None
+        return [by] if isinstance(by, str) else [b for b in by or [] if isinstance(b, str)]
+
+    for tool in [name for section, name in owners if section == "actions" and name not in placed]:
+        for user in users(tool):
+            stage = next((s for s in stages if any(raw_is_a(out, user, t) or raw_is_a(out, t, user)
+                                                   for a in acting[id(s)] for t in users(a))), None)
+            if stage is None or tool in offered[id(stage)]:
+                continue
+            listed = stage["actions"]
+            for names in listed.values() if isinstance(listed, Mapping) else [listed]:
+                names.append(tool)
+            offered[id(stage)].append(tool)
+            if stage.get("name") in shares:
+                shares[stage["name"]] += 1
 
 
 def _malformed_sections(data: Mapping[str, Any]) -> list[Issue]:
