@@ -274,7 +274,7 @@ class SealedWrites:
         before = self._last.get(key)
         self._last[key] = (self.writer, value)
         sides = _ASSIGNMENT.split(source, 1)
-        builds_on_before = len(sides) == 2 and sides[0].strip() in sides[1]
+        builds_on_before = len(sides) == 2 and _whole(sides[0]) in sides[1]
         if before is None or before[0] == self.writer or _same(before[1], value) or builds_on_before:
             return  # the first write, the same agent again, the same value, or a change built on the value before
         shown = f"{owner.name or owner.id}.{prop}" if isinstance(owner, Entity) else f"$world.{prop}"
@@ -303,7 +303,7 @@ class LoopWrites:
     def assigned(self, owner: Any, prop: str, rest: Sequence[Any], value: Any, source: str) -> None:
         if owner is self.item:
             return
-        target = _ASSIGNMENT.split(source, 1)[0].strip()
+        target = _whole(_ASSIGNMENT.split(source, 1)[0])
         if self.body.count(target) > 1:
             return  # the loop reads the target too: a running best, a guard, a change built on it
         key = (owner.id if isinstance(owner, Entity) else "$world", prop, repr(list(rest)))
@@ -313,6 +313,12 @@ class LoopWrites:
             return
         self.world.diagnosis.overwrote(self.path, f"`{source}` ran for several items with different values, so only "
                                                   "the last item's value is kept", loop=True)
+
+
+def _whole(target: str) -> str:
+    """An assignment's target without its element path: ``$who.tally`` for ``$who.tally[x]``, so reading the whole
+    value (``$get($who.tally, x, 0)``) counts as reading the target."""
+    return target.strip().split("[", 1)[0].rstrip()
 
 
 def _same(a: Any, b: Any) -> bool:
