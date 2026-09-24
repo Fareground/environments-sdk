@@ -11,7 +11,8 @@ from ..errors import RunError
 from ..expr import ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, truthy
 from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
-from ..expr.template import compile_template, format_value
+from ..expr.template import format_value
+from ..information.gate import render
 from ..world.live import _plain
 from .params import (
     _LISTED_UNKNOWN,
@@ -92,12 +93,9 @@ class ActionValidation:
                 problems.append(_waiting_on(pname, failed))  # its bounds or choices read an argument that failed
                 continue
             if problem and param.invalid:
-                try:
-                    shown = Untrusted(raw) if isinstance(raw, str) else raw
-                    problem = compile_template(param.invalid, None).render(
-                        self.world.scope(actor=actor, viewer=actor, params=params, value=shown))
-                except ExprError as exc:
-                    raise RunError(str(exc), f"actions.{name}.params.{pname}.invalid") from None
+                shown = Untrusted(raw) if isinstance(raw, str) else raw
+                problem = render(self.world, param.invalid, {"actor": actor, "params": params, "value": shown},
+                                 viewer=actor, path=f"actions.{name}.params.{pname}.invalid")
                 problems.append(problem.rstrip("."))
             elif problem:
                 problems.append(f"{pname} {problem}")

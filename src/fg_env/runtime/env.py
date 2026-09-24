@@ -74,7 +74,8 @@ class Env:
         self._lock = threading.RLock()
         self.information = Information(contract, self.world, self.actions, self.state, self._lock, exposures)
         self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
-        self.rules = Rules(contract, self.world, self.effects, self.actions, self.state, self.diagnosis, self._lock)
+        self.rules = Rules(contract, self.world, self.effects, self.actions, self.information, self.state,
+                           self.diagnosis, self._lock)
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()

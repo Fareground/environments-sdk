@@ -15,12 +15,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..contract.base import tape_prop
-from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import compile_template, format_value
 from ..host.common import MODEL_HINT, NAME, agents_of, clip, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain
+from ..information.gate import render
 from ..registry import MechanismError, family_action, mechanism_config, mode
 
 __all__ = ["PersonaConfig", "generate", "KEY"]
@@ -98,10 +98,8 @@ def _ask_write(request: dict[str, Any], adapter: Any) -> Any:
 
 
 def _render(world: Any, template: str, entity: Any, path: str) -> str:
-    try:
-        return compile_template(template, "it").render(world.scope(it=entity)).strip()
-    except ExprError as exc:
-        raise RunError(str(exc), path) from None
+    """A persona template for a host (not an agent): the rules' own words, in the true state."""
+    return render(world, template, {"it": entity}, viewer=None, subject="it", path=path).strip()
 
 
 def _persona(answer: Any, limit: int) -> str:

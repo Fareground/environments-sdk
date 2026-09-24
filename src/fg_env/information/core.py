@@ -9,6 +9,7 @@ actions are legal is the rules' to decide: it receives them.
 from __future__ import annotations
 
 import threading
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET, ActionBook
@@ -16,8 +17,10 @@ from ..contract import Contract, StageSpec, ViewSpec
 from ..expr import shared_budget
 from ..expr.objects import Entity
 from ..expr.template import entity_handles
+from ..expr.values import _Everyone
 from ..world.live import LogEvent, SdkWorld
 from .exposure import ExposureLog, Shown, asks_seen
+from .gate import render
 from .perception import Perception, is_spectator
 from .reads import find_target, handle_filter, inspect_rule, inspect_text, inspect_tool, look_tool, may_inspect
 from .schemas import END_TURN, ToolSchemas, ToolSpec
@@ -46,6 +49,13 @@ class Information:
         #: The spectator views (`"for": "spectator"`), by name.
         self.spectator = [name for name, view in contract.views.items() if is_spectator(view)]
         world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
+
+    # -- the gate ------------------------------------------------------------------------------------------------
+
+    def render(self, template: str, vars: Mapping[str, Any], *, viewer: Entity | _Everyone | None,
+               subject: str | None = None, path: str | None = None) -> str:
+        """``template`` rendered for ``viewer`` over the run's world: the one gate (see information/gate.py)."""
+        return render(self.world, template, vars, viewer=viewer, subject=subject, path=path)
 
     # -- brief and update ------------------------------------------------------------------------------------------
 

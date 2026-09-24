@@ -26,13 +26,13 @@ from ..actions.faults import fault_reason, world_logic_refused
 from ..contract import Contract, StageSpec
 from ..effects.runner import EffectRunner
 from ..errors import FatalRunError, InvariantViolation, RunError
-from ..expr import EVERYONE, ExprError, Scope, compile_expr, item_conditions, shared_budget, truthy
+from ..expr import EVERYONE, ExprError, compile_expr, item_conditions, shared_budget, truthy
 from ..expr.objects import Entity
-from ..expr.template import compile_template
 from ..world.live import Abort, OutOfBounds, _plain
 from .events import Events
 
 if TYPE_CHECKING:
+    from ..information.core import Information
     from ..world.live import SdkWorld
     from .diagnosis import Diagnosis
     from .state import RunState
@@ -53,11 +53,13 @@ class Rules:
     """The rules of one run over its world. ``lock`` is the run's lock: every change is made holding it."""
 
     def __init__(self, contract: Contract, world: SdkWorld, effects: EffectRunner, actions: ActionBook,
-                 state: RunState, diagnosis: Diagnosis, lock: threading.RLock):
+                 information: Information, state: RunState, diagnosis: Diagnosis, lock: threading.RLock):
         self.contract = contract
         self.world = world
         self.effects = effects
         self.actions = actions
+        #: Renders the rules' texts for their readers (the one gate, see information/gate.py).
+        self.information = information
         self.state = state
         self.diagnosis = diagnosis
         self.lock = lock
@@ -179,7 +181,10 @@ class Rules:
             except ExprError as exc:
                 raise RunError(str(exc), f"invariants[{index}]") from None
             if not holds:
-                why = _why(invariant.why, scope, f"invariants[{index}].why")
+                # told to the agent whose action broke it, so it may read no agent's private property (whose action
+                # it is, the invariant does not know)
+                why = self.information.render(invariant.why, {}, viewer=EVERYONE,
+                                              path=f"invariants[{index}].why") if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
                                          f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
             held[index] = state if observed.pure(state, world.state_version()) else None
@@ -220,7 +225,7 @@ class Rules:
                 if not truthy(compile_expr(end.when)(scope)):
                     continue
                 winner = _plain(compile_expr(end.winner)(scope)) if end.winner else None
-                text = compile_template(end.say, None).render(scope) if end.say else ""
+                text = self.information.render(end.say, {}, viewer=None) if end.say else ""
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
             world.request_end(end.name or f"end_{index}", winner, text)
@@ -263,25 +268,15 @@ class Rules:
     def invalid(self, actor: Entity, stage: StageSpec) -> str | None:
         """Why ``actor``'s turn as played breaks ``stage``'s `valid` rules, or None when it meets them."""
         path = f"stages.{stage.name}.valid"
-        scope = self.world.scope(actor=actor)
+        vars = {"actor": actor}
+        scope = self.world.scope(**vars)
         with shared_budget(ACTION_BUDGET, path):
             for index, condition in enumerate(stage.valid):
                 try:
                     if truthy(compile_expr(condition.expr)(scope)):
                         continue
-                    why = compile_template(condition.why, None).render(scope) if condition.why else ""
+                    why = self.information.render(condition.why, vars, viewer=None) if condition.why else ""
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}[{index}]") from None
                 return str(why).strip().rstrip(".") or "this turn is not allowed"
         return None
-
-
-def _why(template: str, scope: Scope, path: str) -> str:
-    """An invariant's `why`, rendered: the agent whose action broke it is told, so it may read no agent's private
-    property (whose action it is, the invariant does not know)."""
-    if not template:
-        return ""
-    try:
-        return compile_template(template, None).render(scope.child(viewer=EVERYONE))
-    except ExprError as exc:
-        raise RunError(str(exc), path) from None

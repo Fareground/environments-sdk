@@ -38,8 +38,9 @@ from ..contract import MAX_CREATE, one_or_many
 from ..errors import RunError
 from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, map_key, resolve, truthy
 from ..expr.objects import Entity, PropsView
-from ..expr.template import compile_template, format_value
-from ..expr.values import _eq
+from ..expr.template import format_value
+from ..expr.values import _eq, _Everyone
+from ..information.gate import render
 from ..registry import OPS, OpSpec, family_action_hint
 from ..world.links import Link
 from ..world.live import Abort, SdkWorld
@@ -170,7 +171,7 @@ class EffectRunner:
                     raise RunError(str(exc), f"{path}.when") from None
                 self.run(event.do, {"it": entity}, f"{path}.do")
                 if event.say:
-                    text = self.text(event.say, {"it": entity, "viewer": EVERYONE})
+                    text = self.text(event.say, {"it": entity}, EVERYONE)
                     if text.strip():
                         self.world.emit("news", text, data={"event": event.name or index})
         finally:
@@ -370,17 +371,17 @@ class EffectRunner:
         """Evaluate an expression (or a structure of them) with these locals."""
         return resolve(value, self.world.scope(**vars))
 
-    def text(self, template: str | None, vars: dict[str, Any]) -> str:
-        """Render a template with these locals."""
+    def text(self, template: str | None, vars: dict[str, Any], viewer: Entity | _Everyone | None = None) -> str:
+        """Render a template with these locals for ``viewer`` (see information/gate.py)."""
         if not template:
             return ""
-        return compile_template(template, None).render(self.world.scope(**vars))
+        return render(self.world, template, vars, viewer=viewer)
 
     def said(self, template: str | None, vars: dict[str, Any], to: Sequence[str] | None) -> str:
         """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
         properties may show."""
         viewer = self.world.entities.get(to[0]) if to is not None and len(to) == 1 else None
-        return self.text(template, {**vars, "viewer": viewer or EVERYONE})
+        return self.text(template, vars, viewer or EVERYONE)
 
     _eval = eval
     _text = text
@@ -535,7 +536,7 @@ class EffectRunner:
 
     def _op_fail(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         actor = vars.get("actor")  # the refusal is text the actor is shown
-        text = self.text(effect["fail"], {**vars, "viewer": actor} if isinstance(actor, Entity) else vars)
+        text = self.text(effect["fail"], vars, actor if isinstance(actor, Entity) else None)
         raise Abort(text or "That is not possible right now.")
 
     def _op_end(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:

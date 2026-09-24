@@ -29,8 +29,9 @@ from ..expr import (
 )
 from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
-from ..expr.template import compile_template, format_value
+from ..expr.template import format_value
 from ..information.announce import Redaction, notified_since
+from ..information.gate import render
 from ..information.schemas import _ENUM_CHOICES
 from ..world.live import Abort, SdkWorld, _plain
 from ..world.randomness import LuckAhead
@@ -138,6 +139,7 @@ class ActionBook(ActionValidation):
     def _unmet(self, actor: Entity, name: str, params: dict[str, Any] | None, offered: bool = False) -> str | None:
         """The `why` of the first requirement that does not hold: those over $actor alone (``params`` None), or
         those that read $params. ``offered``: leave out those that read another agent's private property."""
+        vars: dict[str, Any] = {"actor": actor} if params is None else {"actor": actor, "params": params}
         scope: Scope | None = None
         for index, condition in enumerate(self.contract.actions[name].when):
             compiled = compile_expr(condition.expr)
@@ -146,18 +148,15 @@ class ActionBook(ActionValidation):
             if offered and self._reads_hidden(actor, compiled):
                 continue
             if scope is None:  # built for the first requirement evaluated
-                scope = (self.world.scope(actor=actor) if params is None
-                         else self.world.scope(actor=actor, params=params))
+                scope = self.world.scope(**vars)
             path = f"actions.{name}.when[{index}]"
             try:
                 if truthy(compiled(scope)):
                     continue
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
-            try:  # the why is a template, like a `fail` text: text the actor is shown
-                why = compile_template(condition.why, None).render(scope.child(viewer=actor)) if condition.why else ""
-            except ExprError as exc:
-                raise RunError(str(exc), f"{path}.why") from None
+            # the why is a template, like a `fail` text: text the actor is shown
+            why = render(self.world, condition.why, vars, viewer=actor, path=f"{path}.why") if condition.why else ""
             return (why or "its requirements are not met").rstrip(". ")
         return None
 
@@ -323,17 +322,17 @@ class ActionBook(ActionValidation):
         record_mark = world._record_seq
         try:
             self.effects.run(spec.do, vars, f"{path}.do")
-            text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
+            text = render(world, spec.outcome, vars, viewer=actor, path=f"{path}.outcome") if spec.outcome else \
                 "" if trial else self.default_outcome(name, params)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
             if trial:
                 if isinstance(announce, str):
-                    self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
+                    render(world, announce, vars, viewer=EVERYONE, path=f"{path}.announce")
             elif announce is not False:
                 public = self.redaction.public_params(world, name, params, record_mark)
                 if announce is not None:
-                    line = self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
+                    line = render(world, announce, vars, viewer=EVERYONE, path=f"{path}.announce")
                 elif notified_since(world, log_mark):
                     line = ""  # the posted entry itself is the news
                 else:
@@ -411,12 +410,6 @@ class ActionBook(ActionValidation):
             return self.dry_run(actor, name, params)
         except RunError as exc:
             return fault_reason(exc)
-
-    def _render(self, template: str, vars: dict[str, Any], path: str) -> str:
-        try:
-            return compile_template(template, None).render(self.world.scope(**vars))
-        except ExprError as exc:
-            raise RunError(str(exc), path) from None
 
     @staticmethod
     def _args_text(params: dict[str, Any]) -> str:

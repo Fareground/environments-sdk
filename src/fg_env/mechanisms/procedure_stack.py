@@ -40,7 +40,8 @@ from pydantic import Field, model_validator
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, truthy
 from ..expr.objects import Entity
-from ..expr.template import compile_template, format_value
+from ..expr.template import format_value
+from ..information.gate import render
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects, stage_event
@@ -181,7 +182,7 @@ def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], by: bool = 
     if by:
         text += f" by {owner.name if owner is not None else item['by']}"
     if spec.show:
-        shown = compile_template(spec.show, None).render(world.scope(**_vars(world, cfg, item, None)))
+        shown = render(world, spec.show, _vars(world, cfg, item, None), viewer=None)
     else:
         params = common.thaw(item["params"], world, version=item.get("capture_version", 0))
         shown = ", ".join(f"{key} {format_value(value)}" for key, value in params.items())

@@ -21,7 +21,7 @@ from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from ..expr.objects import Entity
-from ..expr.template import compile_template
+from ..information.gate import render
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import parse_moment
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
@@ -64,11 +64,8 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
         # Briefs render once the whole world exists, so they can count and read everything.
         for entity_id, template, vars, path in pending_briefs:
             actor = world.entities[entity_id]
-            try:
-                world.entity_briefs[entity_id] = compile_template(template, "actor").render(
-                    world.scope(actor=actor, viewer=actor, **vars)).strip()
-            except ExprError as exc:
-                raise RunError(str(exc), path) from None
+            world.entity_briefs[entity_id] = render(world, template, {"actor": actor, **vars}, viewer=actor,
+                                                    subject="actor", path=path).strip()
         _build_hooks(world)
     except ExprError as exc:
         raise RunError(str(exc), "build") from None
@@ -212,20 +209,18 @@ def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,
     else:
         count = _capped(int(_whole(_value(world, spec.count, {}), f"{path}.count")), f"{path}.count")
         rows = [None] * count
-    id_template = compile_template(spec.id, None) if spec.id else None
-    name_template = compile_template(spec.name, None) if spec.name else None
     title = spec.type.replace("_", " ").title()
     for n, row in enumerate(rows, start=1):
         vars = {"i": n, "row": row}
         scope = world.scope(**vars)
-        if id_template is not None:
-            entity_id = id_template.render(scope)
+        if spec.id:  # generated ids and names are world data: the rules' own words
+            entity_id = render(world, spec.id, vars, viewer=None)
         elif isinstance(row, dict) and isinstance(row.get("id"), str):
             entity_id = row["id"]
         else:
             entity_id = f"{key}_{n}"
-        if name_template is not None:
-            name = name_template.render(scope)
+        if spec.name:
+            name = render(world, spec.name, vars, viewer=None)
         elif isinstance(row, dict) and isinstance(row.get("name"), str):
             name = row["name"]
         else:

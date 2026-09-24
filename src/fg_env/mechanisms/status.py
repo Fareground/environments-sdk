@@ -28,7 +28,7 @@ from pydantic import Field
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
-from ..expr.template import compile_template
+from ..information.gate import render
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
@@ -230,10 +230,7 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
 def _say(runner: Any, mech: str, template: str, vars: dict[str, Any], where: str) -> None:
     if not template:
         return
-    try:
-        text = compile_template(template, None).render(runner.world.scope(**vars))
-    except ExprError as exc:
-        raise RunError(str(exc), where) from None
+    text = render(runner.world, template, vars, viewer=None, path=where)
     if text.strip():
         runner.world.emit(mech, text, data={"mechanism": KEY})
 

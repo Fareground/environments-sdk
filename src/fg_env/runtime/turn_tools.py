@@ -21,7 +21,6 @@ from ..actions.book import ACTION_BUDGET
 from ..actions.faults import refused_text
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
-from ..expr.template import compile_template
 from ..host.tape import discard
 from ..information.schemas import ToolSpec
 from ..participants import resolve_participant
@@ -177,8 +176,7 @@ class HostWake(Wake):
         try:
             with shared_budget(ACTION_BUDGET, path):
                 env.effects.run(spec.do, vars, f"{path}.do")
-                text = compile_template(spec.outcome, None).render(world.scope(viewer=turn.actor, **vars)) \
-                    if spec.outcome else "Done."
+                text = env.information.render(spec.outcome, vars, viewer=turn.actor) if spec.outcome else "Done."
         except Abort as abort:
             world.journal.rollback(mark)
             turn.stats.rejected_actions += 1

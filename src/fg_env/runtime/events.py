@@ -20,7 +20,6 @@ from ..effects.sync import run_synced
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, compile_expr, resolve, shared_budget, truthy
 from ..expr.objects import Entity
-from ..expr.template import compile_template
 from ..world.live import Abort
 from ..world.randomness import event_streams
 from .diagnosis import LoopWrites
@@ -173,10 +172,7 @@ class Events:
         if not event.say:
             return
         world = self.rules.world
-        try:
-            text = compile_template(event.say, None).render(world.scope(viewer=EVERYONE))
-        except ExprError as exc:
-            raise RunError(str(exc), f"events[{index}].say") from None
+        text = self.rules.information.render(event.say, {}, viewer=EVERYONE, path=f"events[{index}].say")
         if text.strip():
             world.emit("news", text, data={"event": event.name or index})
         world.journal.clear()

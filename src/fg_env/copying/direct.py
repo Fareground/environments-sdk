@@ -103,8 +103,8 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
                                perception=_rebound(source.information.perception, world=world),
                                schemas=_rebound(source.information.schemas, actions=env.actions))
     env.diagnosis = world.diagnosis = _copy_diagnosis(source.diagnosis, world.written)
-    env.rules = _rebound(source.rules, world=world, effects=env.effects, actions=env.actions, state=env.state,
-                         diagnosis=env.diagnosis, lock=env._lock)
+    env.rules = _rebound(source.rules, world=world, effects=env.effects, actions=env.actions,
+                         information=env.information, state=env.state, diagnosis=env.diagnosis, lock=env._lock)
     env.rules.events = _rebound(source.rules.events, rules=env.rules)
     env.previews = _rebound(source.previews, env=env)
     env.schedule = _rebound(source.schedule, env=env, rules=env.rules, _round=None, on_event=None)
