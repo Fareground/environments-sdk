@@ -244,11 +244,11 @@ def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[in
     """Run one job; a failure comes back as a failed run, never raised. A run that records exposures keeps its
     events whatever ``events`` says: a recording is replayed against them."""
     try:
-        result = load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir,
-                      exposures=exposures, hosts=hosts).run(participants, rounds=rounds, budget=budget)
+        return load(source, inputs=dict(job.inputs), seed=job.seed, arm=job.arm, data_dir=data_dir,
+                    exposures=exposures, hosts=hosts, events=events or exposures).run(participants, rounds=rounds,
+                                                                                      budget=budget)
     except Exception as exc:  # reported per run, never fatal to the batch
         return failed_run(job, exc)
-    return result if events or exposures else replace(result, events=[])
 
 
 @dataclass(frozen=True)

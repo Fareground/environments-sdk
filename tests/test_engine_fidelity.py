@@ -8,6 +8,8 @@ import pytest
 
 import fg_env
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 SEEDS = range(8)
 
 

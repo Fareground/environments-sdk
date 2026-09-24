@@ -7,6 +7,8 @@ import fg_env
 
 from _leaks import EXAMPLES, SMALL, scan
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 ROUNDS = 3
 
 

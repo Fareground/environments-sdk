@@ -3,7 +3,11 @@ from them, and the price follows the hidden fundamental at about the volatility 
 import math
 import statistics
 
+import pytest
+
 import fg_env
+
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 
 #: The audit's crowd: every strategy, (count, cash, shares) each.
 CROWD = {"market_maker": (2, 50000, 500), "momentum": (4, 10000, 100), "mean_reversion": (4, 10000, 100),

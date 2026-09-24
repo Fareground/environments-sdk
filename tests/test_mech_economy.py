@@ -864,6 +864,7 @@ def _conserved_everywhere(env):
     return {name: compile_expr(f"$conserved('{name}')")(env.world.scope()) for name in uses}
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("stem", sorted(LONG_RUNS))
 def test_examples_conserve_value_over_200_random_agent_rounds(stem):
     env = fg_env.load(EXAMPLES / f"{stem}.json", inputs=LONG_RUNS[stem], seed=3)

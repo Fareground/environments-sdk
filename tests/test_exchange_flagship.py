@@ -12,6 +12,8 @@ import fg_env
 from fg_env import expr
 from fg_env.mechanisms import order_book
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 PATH = Path(__file__).parents[1] / "examples" / "contracts" / "exchange_flagship.json"
 SMALL = {"participants": 40, "bars": 4, "substeps": 6}
 CRASH = [{"bar": 2, "headline": "DEMO's auditor resigns.", "shock_pct": -30, "sentiment": -1, "duration_bars": 3}]

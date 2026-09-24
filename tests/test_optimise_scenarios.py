@@ -4,7 +4,11 @@ grade — every choice checked on seeds no search saw, against the rule of thumb
 from pathlib import Path
 from statistics import fmean
 
+import pytest
+
 import fg_env
+
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 
 FIXTURES = Path(__file__).parent / "fixtures" / "optimise"
 CENTRE = str(FIXTURES / "contact_centre" / "contact_centre.json")

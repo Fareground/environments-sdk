@@ -239,6 +239,7 @@ CROWD = {"name": "Crowd", "clock": {"rounds": 500},
                                            "noise": {"count": 6, "cash": 10000, "shares": 200}}}}}
 
 
+@pytest.mark.slow
 def test_conservation_holds_over_500_rounds_of_random_traders_makers_and_noise():
     env = fg_env.load(CROWD, seed=11)
     result = env.run()  # the generated invariant is checked after every action and round
@@ -287,6 +288,7 @@ def test_a_crowd_trades_on_its_book_but_is_not_one_of_the_traders_other_mechanis
     assert result.outputs["acme_trades"] > 0 and not order_book.audit(env.world, "acme")
 
 
+@pytest.mark.slow
 def test_coded_traders_produce_a_moving_stylized_facts_tape_across_seeds():
     """The default crowd's price follows a fair value that walks at the book's volatility: it neither pins to the start
     price nor bounces between bid and ask. One seed is not a claim, so the facts are medians over several."""

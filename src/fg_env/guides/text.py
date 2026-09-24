@@ -461,6 +461,10 @@ stored once. `$seen(agent, item)` asks whether an agent was shown an event, a re
 a contract that uses it records exposures automatically. `experiment`, `tournament`, `evaluate` and `run_jobs`
 take `exposures=True` too, every run keeping its own (`--exposures` with `--json`). `result.frames` and
 `env.spectate()` give the spectator views (`fg-env run file.json --frames frames.json` saves them).
+A big crowd played for many rounds: `fg_env.run(..., events=False)` (or `load`) keeps no event log, so memory stays
+flat however long the run: `result.events` is empty (`on_event=` still streams every event), and the run forgets each
+event once every agent's news is past it. Everything the run does is the same; a contract that reads `$events` or
+`$seen` keeps its log.
 
 Traces: a run with `exposures=True` is a trace (`fg-env run file.json --trace run.jsonl`); `result.save("run.json")`
 or `.jsonl`, `fg_env.RunResult.load(path)`. `t = fg_env.analysis.trace(result_or_file)`: `t.overview()` (per agent: turns,
@@ -590,7 +594,8 @@ the first few entities of each type with every prop (`result.state`), so you can
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
 reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
 rules) as warnings. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
-is reported even when an earlier one always wins.
+is reported even when an earlier one always wins. A population that grows fast enough (agents creating agents) to pass
+the engine's ceiling of 1,000,000 living entities before the run ends is a warning: a run fails when it reaches it.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,

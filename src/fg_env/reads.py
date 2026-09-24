@@ -67,28 +67,40 @@ def _may_inspect_rule(env: "Env", viewer: Entity, target: Entity, rule: Any) -> 
 
 def inspectable(env: "Env", viewer: Entity) -> List[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
-    return [entity for entity in env.world.entities.values() if entity.alive and may_inspect(env, viewer, entity)]
+    rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
+    return [entity for entity in _candidates(env, viewer, rules)
+            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])]
+
+
+def _candidates(env: "Env", viewer: Entity, rules: Dict[str, Any]) -> List[Entity]:
+    """The living entities ``viewer`` might inspect, in the world's order: itself, and the members of every type
+    whose rule is not false. A type only its members may inspect is never scanned, so a turn costs the same however
+    many of them the world holds."""
+    world = env.world
+    found = [viewer] if viewer.alive else []
+    for kind, rule in rules.items():
+        if rule is not False:
+            found.extend(entity for entity in world.alive_of(kind) if entity.entity_type == kind and entity is not viewer)
+    order = world.types.ordinal
+    return sorted(found, key=lambda entity: order[entity.id]) if len(found) > 1 else found
 
 
 def _offered(env: "Env", viewer: Entity) -> List[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
+    rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
     # Type metadata is identical for every instance, but permissions and values
     # are live state: cache only metadata, and only for this listing.
-    metadata: Dict[str, Tuple[Any, set[str]]] = {}
+    private: Dict[str, set[str]] = {}
     offered: List[Entity] = []
-    for entity in env.world.entities.values():
-        if not entity.alive:
-            continue
+    for entity in _candidates(env, viewer, rules):
         kind = entity.entity_type
-        if kind not in metadata:
-            metadata[kind] = (inspect_rule(env.contract, kind),
-                              {key for key, spec in env.contract.props_of(kind).items() if spec.private})
-        rule, private = metadata[kind]
-        if not _may_inspect_rule(env, viewer, entity, rule):
+        if kind not in private:
+            private[kind] = {key for key, spec in env.contract.props_of(kind).items() if spec.private}
+        if not _may_inspect_rule(env, viewer, entity, rules[kind]):
             continue
         own = entity.id == viewer.id
         if entity.location_id is not None or any(
-                (own or key not in private) and not _empty(value) for key, value in entity.properties.items()):
+                (own or key not in private[kind]) and not _empty(value) for key, value in entity.properties.items()):
             offered.append(entity)
     return offered
 

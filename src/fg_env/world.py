@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List,
 from .entity import Entity
 from .physics import PhysicsModel, _CompiledExpr
 from .assets.store import AssetStore
-from .contract import Contract, PropSpec
+from .contract import MAX_ENTITIES, Contract, PropSpec
 from .captures import CAPTURE_VERSION, freeze, thaw
-from .errors import RunError
+from .errors import FatalRunError, RunError
 from .expr.calls import suggest_function
 from .expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
@@ -657,6 +657,12 @@ class SdkWorld(World):
         spec = self.contract.types.get(type_name)
         if spec is None:
             raise RunError(f"'{type_name}' is not a declared type", where)
+        if self.types.living >= MAX_ENTITIES:  # an engine limit, not a rule failing: the run fails wherever it is
+            raise FatalRunError(
+                f"cannot create another '{type_name}': the world already holds {MAX_ENTITIES:,} living entities, the "
+                f"most a run may hold. Something creates entities without bound (agents creating agents?): create only "
+                f"while a limit holds, e.g. {{\"if\": \"$count({type_name}) < 1000\", \"then\": [{{\"create\": "
+                f"\"{type_name}\"}}]}}, or remove entities that are done", where)
         eid = entity_id or self.next_id(type_name)
         if eid in self.entities:
             raise RunError(f"an entity with id '{eid}' already exists", where)

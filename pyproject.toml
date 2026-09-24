@@ -83,3 +83,5 @@ strict_optional = false
 testpaths = ["tests"]
 # A serializer warning means a contract field holds a value its type does not expect: fail instead of warning.
 filterwarnings = ["error:Pydantic serializer warnings:UserWarning"]
+# `make test-fast` (`-m "not slow"`) leaves these out; `make test` runs everything.
+markers = ["slow: a statistical or engine-behaviour test that takes many seconds"]

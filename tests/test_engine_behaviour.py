@@ -10,6 +10,8 @@ import pytest
 import fg_env
 from fg_env.host.stubs import StubEvaluator
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 SEEDS = range(6)
 
 

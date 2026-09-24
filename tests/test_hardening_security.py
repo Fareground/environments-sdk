@@ -516,6 +516,7 @@ def _statement(rng, depth=2):
     return {"emit": "noise", "say": "{$" + e().lstrip("$") + "}"}
 
 
+@pytest.mark.slow
 def test_grammar_fuzz_never_crashes_or_hangs():
     rng = random.Random(FUZZ_SEED)
     env = fg_env.load(_world(), seed=1)
