@@ -3,36 +3,42 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, StrictBool, model_validator
 
 from .base import OUTPUT_TYPES, Effects, TypeName, _ExprShorthand, _Model
 
-__all__ = ["MetricSpec", "OutputSpec", "EndSpec", "DefSpec", "BlockSpec", "ArmSpec", "INVARIANT_CHECKS", "END_CHECKS",
+__all__ = ["OutputSpec", "EndSpec", "DefSpec", "BlockSpec", "ArmSpec", "INVARIANT_CHECKS", "END_CHECKS",
            "InvariantSpec", "CalibrationSpec"]
 # ---------------------------------------------------------------------------
 # Measurement, ending, experiment, invariants
 # ---------------------------------------------------------------------------
 
 
-class MetricSpec(_ExprShorthand):
-    """A number tracked every round (a series). Shorthand: the expression. One that names a private property (directly
-    or through a def or metric) is not shown to agents: `$metrics`/`$series` reads of it in what they are shown are
-    refused."""
-
-    expr: str
-    description: str = ""
-    unit: str = ""
-
-
 class OutputSpec(_ExprShorthand):
-    """A typed field of the run result. ``$metrics.x`` is a metric's final value, ``$series.x`` its history."""
+    """A typed field of the run result, worked out when the run ends. With ``series`` it is also sampled every round:
+    ``$outputs.x`` reads its latest sample, ``$series.x`` every sample so far (``result.metrics`` and
+    ``result.series``). One worked out from a private property (directly or through a def or another output) is not
+    shown to agents: `$outputs`/`$series` reads of it in what they are shown are refused."""
 
     expr: str
     type: TypeName = Field("any", description="One of: " + ", ".join(OUTPUT_TYPES))
     description: str = ""
+    unit: str = ""
     format: str = Field("",
                         description="How result.summary() and the CLI show it: a template format (money, pct, pct1, "
                                     "int, 0-4 decimals …); the stored value stays exact. Unset: numbers to 4 decimals.")
+    series: StrictBool | str = Field(False,
+                                     description="Also sample it every round: true samples `expr` (the result is the "
+                                                 "last sample); an expression samples that instead, when the "
+                                                 "per-round figure differs from the final one (sales each round, "
+                                                 "total sales at the end).")
+
+    @property
+    def sampled(self) -> str | None:
+        """The expression sampled every round, or None for an output worked out only at the end."""
+        if isinstance(self.series, str):
+            return self.series
+        return self.expr if self.series else None
 
 
 class EndSpec(_Model):

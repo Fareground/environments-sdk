@@ -194,7 +194,7 @@ def test_two_objectives_trace_a_pareto_frontier_of_undominated_decisions():
     ({"v": {"length": 3, "low": 0, "high": 9, "sum": 9, "monotone": "increasing"}}, "maximise vec", [], {},
      "cannot be combined"),
     ({"x": {}}, "profit", [], {}, "start with maximise or minimise"),
-    ({"x": {}}, "maximise nope", [], {}, "neither an output nor a metric"),
+    ({"x": {}}, "maximise nope", [], {}, "is not an output"),
     ({"x": {}}, "maximise profit", ["service >= lots"], {}, "right side must be a number"),
     ({"x": {}}, "maximise profit", ["service"], {}, "write it as"),
     ({"x": {}, "y": {"step": 0.01}}, "maximise profit", [], {"method": "grid"}, "the grid holds"),

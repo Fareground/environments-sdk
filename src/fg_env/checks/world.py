@@ -141,7 +141,7 @@ class WorldChecks:
                            if prop == "name" else "choose another property name; built-in entity fields already exist")
                     self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", fix)
                 self._prop_spec(prop_spec, f"types.{name}.props.{prop}",
-                                BASE - {"metrics", "series"} | {"row", "i", "it"}, {"it": {name}})
+                                BASE - {"outputs", "series"} | {"row", "i", "it"}, {"it": {name}})
             if spec.extends is not None:
                 if spec.extends not in self.c.types:
                     self.error(f"types.{name}.extends", f"'{spec.extends}' is not a declared type",
@@ -285,7 +285,7 @@ class WorldChecks:
         for name, raw in spec.params.items():
             self.value(raw, f"physics.params.{name}", {"inputs", "world"})
         for name, src in spec.read.items():
-            self.expr(src, f"physics.read.{name}", BASE - {"physics", "metrics", "series"})
+            self.expr(src, f"physics.read.{name}", BASE - {"physics", "outputs", "series"})
         for name, var in spec.vars.items():
             self.value(var.start, f"physics.vars.{name}.start", {"inputs", "world"})
             if var.rate is not None:

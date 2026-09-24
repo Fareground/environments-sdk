@@ -58,7 +58,7 @@ _PROP_READ = re.compile(r"(?:\$it|\$actor|\))\.([A-Za-z_]\w*)")
 _ASSIGNED = re.compile(r"[.$]([A-Za-z_]\w*)\s*(?:\[[^\]]*\]\s*)*(?:[-+*/]=|(?<![<>!=])=(?!=))")
 #: Roots whose value moves on its own: a condition reading one can hold later even if nothing else changes.
 _MOVING = re.compile(
-    r"\$(round|clock|time|stage|metrics|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
+    r"\$(round|clock|time|stage|outputs|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
 _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 #: Sections whose effects and settings can write properties, post to records or name a winner.
 _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics", "policies")
@@ -361,14 +361,14 @@ def _stuck_measures(env: Env, outputs: dict[str, Any], rules: _Rules, failed: se
                 out.append(_finding("output_empty", f"outputs.{name}",
                                     f"is empty (null) at the end of the run: {cause}",
                                     "set what it reads in an action or event, or read what the rules do change"))
-    for name, metric in env.contract.metrics.items():
+    for name, spec in env.contract.series_outputs().items():
         series = env.world.series.get(name, [])
         if len(series) < MIN_ROUNDS or _changes(series):
             continue
-        cause = rules.cause(metric.expr)
+        cause = rules.cause(spec.sampled or "")
         if cause:
             shown = "null" if series[0] is None else json.dumps(series[0], default=str)
-            out.append(_finding("metric_never_changes", f"metrics.{name}",
+            out.append(_finding("metric_never_changes", f"outputs.{name}",
                                 f"stayed {shown} for all {len(series)} rounds: {cause}",
                                 "set what it reads in an action or event, or read what the rules do change"))
     return out

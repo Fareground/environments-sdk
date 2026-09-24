@@ -18,7 +18,7 @@ __all__ = ["RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts"
 
 RESERVED_ROOTS = frozenset({
     "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round",
-    "stage", "metrics", "series", "arm", "viewer", "event", "outer", "pending", "result", "pattern",
+    "stage", "outputs", "series", "arm", "viewer", "event", "outer", "pending", "result", "pattern",
 })
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 

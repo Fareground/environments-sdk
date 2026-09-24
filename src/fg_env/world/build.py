@@ -56,8 +56,8 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
             _links(world, link, index, seeds)
         _world_props(world, after_entities=True)
         world.build_physics()
-        world.series = {name: [] for name in contract.metrics}
-        world.metrics = {name: None for name in contract.metrics}
+        world.series = {name: [] for name in contract.series_outputs()}
+        world.metrics = {name: None for name in contract.series_outputs()}
         # Briefs render once the whole world exists, so they can count and read everything.
         for entity_id, template, vars, path in pending_briefs:
             actor = world.entities[entity_id]

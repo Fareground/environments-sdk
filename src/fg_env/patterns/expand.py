@@ -105,7 +105,7 @@ def expand_patterns(data: Mapping[str, Any]) -> tuple[dict[str, Any], list[Issue
             continue
         kind = KINDS[cfg.kind]
         memory = memory or kind.shape == "memory"
-        if (cfg.record and name not in (data.get("metrics") or {})
+        if (cfg.record and name not in (data.get("outputs") or {})
             and not kind.arg_names(cfg)):  # else the check says why
             expr = f"$pattern_values('{name}')" if cfg.keyed else f"$pattern.{name}"
             metrics[name] = {"expr": expr, "description": cfg.description or f"The {cfg.kind} pattern '{name}'.",

@@ -531,7 +531,7 @@ class SdkWorld(World):
             "pattern": self.patterns.view,
             "round": self.round,
             "stage": self.stage,
-            "metrics": self.metrics,
+            "outputs": self.metrics,
             "series": self.series,
             "arm": self.arm,
             "pending": getattr(local, "pending", None) or [],

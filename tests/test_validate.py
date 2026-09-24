@@ -88,7 +88,7 @@ def test_list_actual_values_are_checked_position_by_position_and_held_out_cases_
 
 @pytest.mark.parametrize("cases, message", [
     ([{"name": "a", "inputs": {}}], "needs 'actuals'"),
-    ([{"name": "a", "actuals": {"missing": 1}}], "'missing' is neither an output nor a metric"),
+    ([{"name": "a", "actuals": {"missing": 1}}], "'missing' is not an output"),
     ([{"name": "a", "actuals": {"total": "lots"}}], "actual total must be a number"),
 ])
 def test_validation_mistakes_say_what_to_pass(cases, message):

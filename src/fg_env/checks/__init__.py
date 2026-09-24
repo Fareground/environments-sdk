@@ -10,7 +10,6 @@ measures, defs, arms and calibration (:mod:`.rules`).
 """
 from __future__ import annotations
 
-import copy
 from collections.abc import Iterable, Mapping
 from difflib import get_close_matches
 from typing import Any
@@ -21,6 +20,7 @@ from .. import contract as C
 from ..assets.checks import check_assets
 from ..contract import Contract
 from ..contract.base import TYPE_SYNONYMS
+from ..contract.normalize import normalize
 from ..contract.parse_errors import validation_issues
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
@@ -67,7 +67,7 @@ def parse_contract(data: Any) -> Contract:
         raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
     from ..mechanisms import expand_mechanisms
 
-    source = copy.deepcopy(dict(data))
+    source = normalize(data)[0]
     expanded, mechanism_issues = expand_mechanisms(source)
     if mechanism_issues:
         raise ContractError(_dedupe(mechanism_issues))
@@ -76,6 +76,7 @@ def parse_contract(data: Any) -> Contract:
     expanded, pattern_issues = expand_patterns(expanded)
     if pattern_issues:
         raise ContractError(_dedupe(pattern_issues))
+    expanded = normalize(expanded)[0]  # what mechanisms and patterns generate in an earlier form
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source
@@ -109,7 +110,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self.type_props: dict[str, set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
         self.agents = contract.agent_types()
         words: set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
-        words |= ({s.name for s in contract.stage_list()} | set(contract.metrics) | set(contract.policies)
+        words |= ({s.name for s in contract.stage_list()} | set(contract.outputs) | set(contract.policies)
                   | set(contract.arms))
         for kind in contract.types:
             for spec in contract.props_of(kind).values():
@@ -333,16 +334,29 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                      else set())
             if first not in known:
                 self.error(path, f"$physics.{first}: no such physics variable or param", self._suggest(first, known))
-        elif root == "metrics":
-            if first not in self.c.metrics:
-                self.error(path, f"$metrics.{first}: no such metric", self._suggest(first, self.c.metrics))
-        elif root == "series":
-            if first not in self.c.metrics:
-                self.error(path, f"$series.{first}: no such metric", self._suggest(first, self.c.metrics))
+        elif root in ("outputs", "series"):
+            self._output_read(root, first, path)
         elif root == "clock":
             if first not in ("round", "rounds", "left", "unit", "date", "start", "label", "time", "horizon"):
                 self.error(path, f"$clock.{first}: no such field",
                            "clock fields: round, rounds, left, unit, date, start, label, time, horizon")
+
+    def _output_read(self, root: str, name: str, path: str) -> None:
+        """``$outputs.name`` / ``$series.name``: during the run only series outputs have values; an output's own
+        expression may also read the outputs worked out before it."""
+        sampled = self.c.series_outputs()
+        reader = self.c.outputs.get(path.split(".")[1]) if path.startswith("outputs.") else None
+        at_end = root == "outputs" and reader is not None and reader.series is not True \
+            and not path.endswith(".series")
+        if name in sampled or (at_end and name in self.c.outputs):
+            return
+        if name in self.c.outputs:
+            self.error(path, f"${root}.{name}: outputs.{name} is worked out only when the run ends",
+                       f"add \"series\": true to outputs.{name} to sample it every round")
+        else:
+            self.error(path, f"${root}.{name}: no such output",
+                       self._suggest(name, sampled if not at_end else self.c.outputs) or "declare it under `outputs` "
+                       "with \"series\": true")
 
     def _spec_for(self, chain: tuple[str, ...], types: Types,
                   params: Mapping[str, C.ParamSpec]) -> tuple[Any, str] | None:

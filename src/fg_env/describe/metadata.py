@@ -20,7 +20,7 @@ __all__ = ["game_metadata", "MAX_EVIDENCE"]
 #: Most evidence lines kept per property (the rest are counted).
 MAX_EVIDENCE = 12
 _INPUT_REF = re.compile(r"\s*\$inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*")
-_MEASURE_REF = re.compile(r"\$(?:metrics|series)\.([A-Za-z_][A-Za-z0-9_]*)")
+_MEASURE_REF = re.compile(r"\$(?:outputs|series)\.([A-Za-z_][A-Za-z0-9_]*)")
 _RANDOM_GRAPHS = frozenset({"random", "small_world", "scale_free", "blocks"})
 _MARKETS = frozenset({"market"})
 _TALK = frozenset({"social", "decision.deliberation"})
@@ -57,9 +57,10 @@ class _Scan:
             self.texts.append((path, text, frozenset(where)))
         shown = [text for _, text, where in self.texts if "shown" in where]
         rules = [text for _, text, where in self.texts if "rules" in where]
-        measured = {name for text in shown for name in _MEASURE_REF.findall(text) if name in contract.metrics}
+        sampled = contract.series_outputs()
+        measured = {name for text in shown for name in _MEASURE_REF.findall(text) if name in sampled}
         called = {name for text in shown for name in walk.calls(text) if name in contract.defs}
-        shown += [contract.metrics[name].expr for name in measured] + [contract.defs[name].expr for name in called]
+        shown += [sampled[name].sampled or "" for name in measured] + [contract.defs[name].expr for name in called]
         self.shown_world: set[str] = set().union(*(walk.world_reads(text) for text in shown))
         self.rule_world: set[str] = set().union(*(walk.world_reads(text) for text in rules))
         self.shows_physics = any("$physics." in text for text in shown)

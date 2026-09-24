@@ -57,8 +57,8 @@ ROOTS: list[tuple[str, str, str]] = [
     ("defs", "expr", "the def's args"),
     ("blocks", "do", "the block's args + locals"),
     ("policies", "rules.*", "$actor ($it $i with `each`)"),
-    ("metrics", "*", "—"),
-    ("outputs", "*", "$outputs (earlier outputs) $result (winner, ended_by)"),
+    ("outputs", "*", "$outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result "
+                     "(winner, ended_by; not in a sampled one)"),
     ("end", "when/winner/say", "—"),
     ("game", "seat", "$it $i"),
     ("game", "returns/rewards", "$actor $result (winner, ended_by)"),
@@ -98,9 +98,9 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "event, which runs at a set point of the round."),
     ("end", [C.EndSpec], "[EndSpec]",
      "Conditions that end the run early, with an optional winner ($result.winner in outputs)."),
-    ("metrics", [C.MetricSpec], "{metric: expr | MetricSpec}",
-     "Values sampled every round ($metrics.x latest, $series.x every round)."),
-    ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}", "The typed results of a run."),
+    ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}",
+     "The typed results of a run; with `series: true` also sampled every round ($outputs.x latest, $series.x every "
+     "round)."),
     ("invariants", [C.InvariantSpec], "[expr | InvariantSpec]",
      "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); "
      "a break by anything else fails the run."),
@@ -134,7 +134,7 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
 #: The core language: the sections and functions the start page (``guide('authoring')``) teaches, enough for most
 #: environments. Every other section and function is extended: reach for one when the core cannot say it.
 CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "population", "records", "actions", "stages",
-                 "views", "events", "end", "metrics", "outputs", "invariants")
+                 "views", "events", "end", "outputs", "invariants")
 CORE_FUNCTIONS = ("count", "sum", "avg", "min", "max", "filter", "map", "dict", "top", "best", "any", "all", "len",
                   "get", "chance", "randint", "normal", "choice", "round", "floor", "clamp", "entity")
 

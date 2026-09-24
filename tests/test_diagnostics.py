@@ -116,13 +116,14 @@ def test_a_stage_whose_condition_reads_only_what_no_rule_changes_is_reported():
 
 def test_measures_that_read_only_what_nothing_changes_are_reported_and_ones_rules_could_change_are_not():
     contract = _contract(types={"buyer": {"agent": True, "props": {"cash": 30, "loaves": 0}}},
-                         metrics={"sold": "$world.sold", "loaves": "$sum(buyer, $it.loaves)"},
-                         outputs={"champion": "$result.winner.name if $result.winner else null"})
+                         outputs={"champion": "$result.winner.name if $result.winner else null",
+                                  "sold": {"expr": "$world.sold", "series": True},
+                                  "loaves": {"expr": "$sum(buyer, $it.loaves)", "series": True}})
     found = fg_env.run(contract, "idle", seed=1).diagnostics
     assert [(d["code"], d["path"], d["message"]) for d in found] == [
         ("output_empty", "outputs.champion", "is empty (null) at the end of the run: it reads only `$result.winner`, "
                                              "which no `end` condition or effect gives"),
-        ("metric_never_changes", "metrics.sold", "stayed 0 for all 3 rounds: it reads only `$world.sold`, which no "
+        ("metric_never_changes", "outputs.sold", "stayed 0 for all 3 rounds: it reads only `$world.sold`, which no "
                                                  "rule changes")]
 
 

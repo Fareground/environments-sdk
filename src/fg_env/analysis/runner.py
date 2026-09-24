@@ -74,19 +74,18 @@ failed_result = failed_run
 
 
 def resolve_measure(contract: Contract, name: str) -> tuple[str, str]:
-    """``(section, key)`` for a measure name: ``outputs.x``, ``metrics.x``, or a bare name (output first)."""
+    """``(section, key)`` for a measure name: ``outputs.x`` (the result), ``metrics.x`` (a series output's latest
+    sample), or a bare name (an output)."""
     section, dot, key = name.partition(".")
     if dot and section in ("outputs", "metrics"):
-        names = contract.outputs if section == "outputs" else contract.metrics
+        names = contract.outputs if section == "outputs" else contract.series_outputs()
         if key in names:
             return section, key
-        raise ValueError(f"'{key}' is not a declared {section[:-1]} (declared: {', '.join(names) or 'none'})")
+        what = "output" if section == "outputs" else "series output"
+        raise ValueError(f"'{key}' is not a declared {what} (declared: {', '.join(names) or 'none'})")
     if name in contract.outputs:
         return "outputs", name
-    if name in contract.metrics:
-        return "metrics", name
-    raise ValueError(f"'{name}' is neither an output nor a metric (outputs: {', '.join(contract.outputs) or 'none'}; "
-                     f"metrics: {', '.join(contract.metrics) or 'none'})")
+    raise ValueError(f"'{name}' is not an output (outputs: {', '.join(contract.outputs) or 'none'})")
 
 
 def raw_value(result: RunResult, measure: tuple[str, str]) -> Any:
@@ -104,7 +103,7 @@ def value(result: RunResult, measure: tuple[str, str]) -> float | None:
 
 
 def series(result: RunResult, name: str) -> list[float]:
-    """A metric's per-round history as numbers (non-numeric rounds are skipped)."""
+    """A series output's per-round history as numbers (non-numeric rounds are skipped)."""
     values = (numeric(v) for v in result.series.get(name, []))
     return [v for v in values if v is not None]
 

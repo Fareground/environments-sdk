@@ -110,8 +110,6 @@ class RuleChecks:
                 self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
 
     def _measure(self: _Checker) -> None:  # type: ignore[misc]
-        for name, metric in self.c.metrics.items():
-            self.expr(metric.expr, f"metrics.{name}", BASE)
         for name, output in self.c.outputs.items():
             path = f"outputs.{name}"
             if output.format and output.format not in FORMATS:
@@ -120,7 +118,9 @@ class RuleChecks:
             if output.type not in C.OUTPUT_TYPES:
                 self.error(f"{path}.type", f"unknown type '{output.type}'",
                            self._suggest_type(output.type, C.OUTPUT_TYPES))
-            self.expr(output.expr, path, BASE | {"outputs", "result"})
+            self.expr(output.expr, path, BASE | ({"result"} if output.series is not True else set()))
+            if isinstance(output.series, str):
+                self.expr(output.series, f"{path}.series", BASE)
         for index, end in enumerate(self.c.end):
             self.condition(end.when, f"end[{index}].when", BASE)
             if _at_last_round(end.when, self.c.clock.rounds):
@@ -211,14 +211,14 @@ class RuleChecks:
                            self._hint(name, self.c.inputs, "inputs"))
             elif name in spec.params:
                 self.error(f"calibration.inputs.{name}", f"'{name}' is fitted; a pilot input cannot also fix it")
-        measures = {**self.c.outputs, **self.c.metrics}
+        measures = self.c.outputs
         for name, target in spec.targets.items():
             path = f"calibration.targets.{name}"
             measure = str(target.get("of", name)) if isinstance(target, dict) and "stat" in target else name
             measure = measure[len("series."):] if measure.startswith("series.") else measure
             if measure not in measures:
-                self.error(path, f"'{measure}' is not an output or metric",
-                           self._hint(measure, measures, "outputs and metrics"))
+                self.error(path, f"'{measure}' is not an output",
+                           self._hint(measure, measures, "outputs"))
             self.value(target.get("value") if isinstance(target, dict) else target, path, BASE)
 
 

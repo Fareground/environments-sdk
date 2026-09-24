@@ -53,14 +53,14 @@ WEEKLY = {"name": "Weekly shop", "clock": {"rounds": 4, "unit": "week", "start":
           "types": {"t": {"props": {"v": 0}}},
           "world": {"sold": 10},
           "events": [{"phase": "start", "do": ["$world.sold = 80 if $round == 3 else 10"]}],
-          "metrics": {"sold": "$world.sold"},
-          "outputs": {"first": "$clock.start", "week": "$date_part($clock.date, week)"}}
+          "outputs": {"first": "$clock.start", "week": "$date_part($clock.date, week)",
+                      "sold": {"expr": "$world.sold", "series": True}}}
 
 
 def test_clock_start_may_come_from_an_input_so_each_case_carries_its_own_dates():
     assert [i for i in fg_env.check(WEEKLY) if i.severity == "error"] == []
     result = fg_env.run(WEEKLY, seed=1, inputs={"start": "2026-01-05"})
-    assert result.outputs == {"first": "2026-01-05", "week": 5}  # week 4 of the run starts 2026-01-26, ISO week 5
+    assert result.outputs == {"first": "2026-01-05", "week": 5, "sold": 10}  # week 4 of the run starts 2026-01-26, ISO week 5
     assert fg_env.run(WEEKLY, seed=1).outputs["first"] == "2026-08-31"
 
 

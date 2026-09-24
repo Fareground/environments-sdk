@@ -73,14 +73,16 @@ def _purpose(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
         if text:
             lines += [text.strip(), ""]
     outputs = [[name, spec.type, spec.description, f"`{spec.expr}`"] for name, spec in contract.outputs.items()]
-    metrics = [[name, spec.unit, spec.description, f"`{spec.expr}`"] for name, spec in contract.metrics.items()]
+    metrics = [[name, spec.unit, spec.description, f"`{spec.sampled}`"]
+               for name, spec in contract.series_outputs().items()]
     if outputs:
         lines += ["Patterns the model is evaluated by (outputs):", ""] + _table(
             ["output", "type", "meaning", "computed as"], outputs)
     else:
         lines += ["No outputs are declared.", ""]
     if metrics:
-        lines += ["Tracked every round (metrics):", ""] + _table(["metric", "unit", "meaning", "computed as"], metrics)
+        lines += ["Tracked every round (series outputs):", ""] + _table(["output", "unit", "meaning", "sampled as"],
+                                                                         metrics)
     return lines
 
 

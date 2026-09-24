@@ -45,7 +45,6 @@ from .measure import (
     DefSpec,
     EndSpec,
     InvariantSpec,
-    MetricSpec,
     OutputSpec,
 )
 from .rules import (
@@ -121,7 +120,6 @@ __all__ = [
     "TriggerSpec",
     "PolicyRule",
     "PolicySpec",
-    "MetricSpec",
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
@@ -194,7 +192,6 @@ class Contract(_Model):
     triggers: list[TriggerSpec] = Field(default_factory=list,
                                         description="Reactions that fire the moment a condition becomes true.")
     policies: dict[str, PolicySpec] = Field(default_factory=dict)
-    metrics: dict[str, MetricSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec] = Field(default_factory=dict)
     end: list[EndSpec] = Field(default_factory=list)
     arms: dict[str, ArmSpec] = Field(default_factory=dict)
@@ -276,6 +273,10 @@ class Contract(_Model):
             if "on_create_at_build" in self.types[name].model_fields_set:
                 return self.types[name].on_create_at_build
         return True
+
+    def series_outputs(self) -> dict[str, OutputSpec]:
+        """The outputs sampled every round (``series``), in declaration order."""
+        return {name: spec for name, spec in self.outputs.items() if spec.series is not False}
 
     def is_agent(self, type_name: str) -> bool:
         return any(self.types[name].agent for name in self.lineage(type_name))

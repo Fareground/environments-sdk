@@ -63,9 +63,9 @@ def check_patterns(checker: _Checker, base: frozenset[str]) -> None:
 
 def _record(checker: _Checker, name: str, cfg: PatternConfig, path: str) -> None:
     source = checker.c._source if isinstance(checker.c._source, dict) else {}
-    if name in (source.get("metrics") or {}):
-        checker.error(f"{path}.record", f"a metric is already named '{name}'",
-                      "rename the metric or the pattern (a recorded pattern is a metric of its own name)")
+    if name in (source.get("outputs") or {}):
+        checker.error(f"{path}.record", f"an output is already named '{name}'",
+                      "rename the output or the pattern (a recorded pattern is a series output of its own name)")
     wanted = KINDS[cfg.kind].arg_names(cfg)
     if wanted:
         checker.error(f"{path}.record",

@@ -96,7 +96,7 @@ class EffectChecks:
             self.error(path, f"${root} is not available here",
                        f"available: {', '.join('$' + r for r in sorted(roots))}")
             return
-        if root in ("inputs", "metrics", "series", "clock", "round", "stage", "arm"):
+        if root in ("inputs", "outputs", "series", "clock", "round", "stage", "arm"):
             self.error(path, f"${root} is read-only", "assign to an entity's property, $world.x or $physics.x")
             return
         self._chain((root, *fields), path, types, params or {}, source)

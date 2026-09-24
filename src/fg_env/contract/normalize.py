@@ -32,3 +32,6 @@ def normalize(data: Any) -> tuple[Any, list[str]]:
     for fn in RULES:
         notes.extend(fn(out))
     return out, notes
+
+
+from . import normalize_state  # noqa: E402,F401  (registers its rules)
