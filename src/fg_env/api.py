@@ -56,7 +56,8 @@ def _read_noted(source: ContractLike) -> tuple[Any, list[str]]:
 def _parsed(data: Any, notes: list[str]) -> Contract:
     """The contract read from ``data`` (see :func:`_read_noted`), keeping the notes of what reading it rewrote."""
     contract = parse_contract(data)
-    contract._notes = [*notes, *contract._notes]
+    if contract is not data:  # a contract parsed earlier already holds its notes
+        contract._notes = [*notes, *contract._notes]
     return contract
 
 

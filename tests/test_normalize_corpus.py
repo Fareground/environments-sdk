@@ -19,3 +19,13 @@ def test_normalizing_twice_is_normalizing_once(path):
     once, _ = normalize(data)
     twice, notes = normalize(once)
     assert twice == once and notes == []
+
+
+def test_loading_a_parsed_contract_again_keeps_its_notes_as_they_are():
+    import fg_env
+
+    contract = fg_env.load({"name": "Old", "types": {"t": {}}, "metrics": {"m": "1"}}).contract
+    notes = list(contract._notes)
+    for _ in range(40):  # each load used to double them
+        contract = fg_env.load(contract).contract
+    assert contract._notes == notes
