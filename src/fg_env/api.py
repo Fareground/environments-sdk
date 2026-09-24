@@ -14,6 +14,7 @@ from .checks.smoke import run_issue, smoke_issues
 from .contract import Contract
 from .contract.inputs import resolve_inputs
 from .contract.macros import expand_macros
+from .contract.normalize import normalize
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
 from .runtime.calibration import calibrate_at_load
@@ -55,7 +56,7 @@ MAX_IMPORTS = 64
 
 def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> Any:
     """``data`` with its macros expanded and its ``imports`` merged in (unchanged when it has neither)."""
-    data = expand_macros(data)
+    data = normalize(expand_macros(data))[0]
     if not isinstance(data, Mapping) or "imports" not in data:
         return data
     return _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
