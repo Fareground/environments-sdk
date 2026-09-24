@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of
 from .econ_assets import move_money
 from .econ_base import (
@@ -326,13 +326,15 @@ def _book(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str)
     else:
         values["status"] = "waiting"
         _stat(world, name, "waitlisted", 1)
-    world.create(f"{name}_booking", None, f"{guest.name} at {resource.name}", values, None, world.scope(), where)
+    evaluation = world.evaluation
+    evaluation.create(f"{name}_booking", None, f"{guest.name} at {resource.name}", values, None, evaluation.scope(),
+                      where)
 
 
 def _number(world: Any, value: int | str, guest: Any, where: str) -> float:
     if isinstance(value, str):
         try:
-            value = compile_expr(value)(world.scope(it=guest))
+            value = compile_expr(value)(world.evaluation.scope(it=guest))
         except ExprError as exc:
             raise RunError(str(exc), where) from None
     if isinstance(value, bool) or not isinstance(value, (int, float)):

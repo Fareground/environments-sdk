@@ -33,7 +33,7 @@ def _props(env, entity_id):
 
 
 def _read(env, source):
-    return compile_expr(source)(env.world.scope())
+    return compile_expr(source)(env.world.evaluation.scope())
 
 
 DUEL = {

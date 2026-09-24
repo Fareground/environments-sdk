@@ -12,7 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of
 from .econ_assets import assets, balance, move_items, move_money
 from .econ_base import (
@@ -490,11 +490,12 @@ def _offer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str
     if duplicate:
         raise Abort(f"Your offer {duplicate[0].id} to them is still open; withdraw it or wait for an answer.")
     note = runner.eval(effect.get("note", ""), vars) or ""
-    made = world.create(f"{name}_offer", None, f"Offer from {sender.name}",
-                        {"sender": sender.id, "recipients": recipients, "terms": terms, "depth": depth,
-                         "made": world.round,
-                         "expires": world.round + config.expires if config.expires else 0, "note": note}, None,
-                        world.scope(), where)
+    evaluation = world.evaluation
+    made = evaluation.create(f"{name}_offer", None, f"Offer from {sender.name}",
+                             {"sender": sender.id, "recipients": recipients, "terms": terms, "depth": depth,
+                              "made": world.round,
+                              "expires": world.round + config.expires if config.expires else 0, "note": note}, None,
+                             evaluation.scope(), where)
     _stat(world, name, "offers", 1)
     emit_to(world, f"{name}_offer", f"{sender.name} offers {terms_text(config, terms)} [{made.id}].", recipients,
             {"offer": made.id}, why=f"{sender.name} made you an offer.")
@@ -557,10 +558,10 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
     world = runner.world
     p = props(offer)
     parties = [p["sender"], *p["recipients"]]
-    deal = world.create(f"{name}_deal", None, f"Deal {offer.id}",
-                        {"parties": parties, "proposer": p["sender"], "acceptors": list(p["recipients"]),
-                         "terms": dict(p["terms"]),
-                         "signed": world.round, "offer": offer.id}, None, world.scope(), where)
+    deal = world.evaluation.create(f"{name}_deal", None, f"Deal {offer.id}",
+                                   {"parties": parties, "proposer": p["sender"], "acceptors": list(p["recipients"]),
+                                    "terms": dict(p["terms"]),
+                                    "signed": world.round, "offer": offer.id}, None, world.evaluation.scope(), where)
     roles = {"proposer": world.entities[p["sender"]], "acceptor": world.entities[p["recipients"][0]],
              "parties": [world.entities[i] for i in parties], "terms": dict(p["terms"]), "deal": deal}
     moved = [item for index, spec in enumerate(config.transfers)
@@ -581,11 +582,12 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
                 raise RunError(f"amount must be a number ≥ 0, got {value!r}", f"{path}.amount")
             if value == 0:
                 continue
-            world.create(f"{name}_duty", None, spec.label or f"{kind} {asset}",
-                         {"deal": deal.id, "label": spec.label, "by": debtor.id, "to": creditor.id, "kind": kind,
-                          "asset": asset, "amount": value, "due": world.round + spec.start + (k - 1) * spec.every,
-                          "manual": spec.manual},
-                         None, world.scope(), where)
+            evaluation = world.evaluation
+            evaluation.create(f"{name}_duty", None, spec.label or f"{kind} {asset}",
+                              {"deal": deal.id, "label": spec.label, "by": debtor.id, "to": creditor.id, "kind": kind,
+                               "asset": asset, "amount": value, "due": world.round + spec.start + (k - 1) * spec.every,
+                               "manual": spec.manual},
+                              None, evaluation.scope(), where)
             count += 1
     if not count:
         world.set_prop(deal, "status", "completed")

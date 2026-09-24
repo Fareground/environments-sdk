@@ -1,5 +1,11 @@
-"""The live world of one run: entities, global properties, links, records, the event log,
-physics and space — every mutation journaled so an action commits atomically or not at all."""
+"""The world of one run: entities, global properties, links, records, the event log, physics and space — and every
+change to them journaled, so a block of changes commits whole or is undone exactly (:meth:`World.mark`,
+:meth:`World.rollback`, :meth:`World.commit`).
+
+The world stores and changes; it does not evaluate. Values arrive worked out, and what an expression may read of the
+world goes through its :class:`~fg_env.world.evaluation.EvalContext` (``world.evaluation``): scopes, defs, what a viewer
+may see of the records and the log, and entities created from contract text.
+"""
 from __future__ import annotations
 
 import heapq
@@ -8,54 +14,40 @@ from typing import TYPE_CHECKING, Any
 
 from ..assets.store import AssetStore
 from ..contract import MAX_ENTITIES, Contract, PropSpec
-from ..effects.captures import CAPTURE_VERSION, freeze, thaw
+from ..effects.captures import CAPTURE_VERSION, freeze
 from ..errors import FatalRunError, RunError
-from ..expr import ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
-from ..expr.calls import callable_names, suggest_function
+from ..expr import ExprError
+from ..expr import World as ExpressionWorld
 from ..expr.hidden import Hidden
-from ..expr.objects import Entity, PropsView
-from ..expr.template import format_value
+from ..expr.objects import Entity
 from ..patterns.runtime import PatternRuntime
-from ..physics import world as world_physics
 from ..physics.model import PhysicsModel, _CompiledExpr
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import calendar_date
 from . import links as _links
-from .defaults import default_order
+from .abort import Abort, within_bounds
+from .evaluation import EvalContext
 from .journal import Journal
 from .links import Link
-from .parts import ClockView, Entry, LogEvent, PhysicsView, private_metrics
+from .parts import Entry, LogEvent, private_metrics
 from .props import finite_number as _finite_number
 from .props import prop_type
 from .props import shown_value as _shown_value
-from .randomness import Context, Randomness
+from .randomness import Randomness
 from .record_events import RecordEvents
-from .record_index import RecordAuthors, author_only
+from .record_index import RecordAuthors
 from .space import Spatial, position_of
 from .type_index import TypeIndex
+from .values import plain_value
 
 if TYPE_CHECKING:
     from ..effects.sync import WriteBuffer
 
-__all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
+__all__ = ["World"]
 
 
-class Abort(Exception):
-    """Stop the current action; every change it made is rolled back. The text reaches the actor."""
-
-    def __init__(self, reason: str):
-        self.reason = reason
-        super().__init__(reason)
-
-
-class OutOfBounds(Abort):
-    """A number past a declared min or max (a property's, a link value's or a layer cell's). An agent's action is
-    refused like any :class:`Abort`; world logic (an event no action set off) that does it
-    fails the run, because that is a contract bug no agent can fix."""
-
-
-class SdkWorld(World):
-    """World store for one run. Expressions read it through the :class:`World` interface."""
+class World(ExpressionWorld):
+    """The store of one run. Expressions read it through the :class:`~fg_env.expr.World` interface."""
 
     def __init__(self, contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm: str | None = None):
         self.contract = contract
@@ -90,13 +82,15 @@ class SdkWorld(World):
         self.scheduled: list[tuple[float, int, dict[str, Any]]] = []
         self.wake_requests: dict[str, str] = {}
         #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits: id, why, and
-        #: the
-        #: actions offered (None: the stage's).
+        #: the actions offered (None: the stage's).
         self.reactions: list[tuple[str, str, list[str] | None]] = []
         #: The calendar date of round 1: ``clock.start`` as written or read from ``$inputs`` at build (None without
         #: one).
         self.start: str | None = None
-        #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
+        #: The sequence numbers the log's last event, the records' last entry and the last scheduled effect took (a
+        #: scheduled effect's breaks the tie between effects due in the same round: the order they were scheduled).
+        self.event_seq = 0
+        self.record_seq = 0
         self.schedule_seq = 0
         #: The declared space, resolved at build (sizes may read $inputs); None without one.
         self.space: Spatial | None = None
@@ -136,12 +130,6 @@ class SdkWorld(World):
         self.caches: dict[str, Any] = {}
         #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
         self.assets = AssetStore()
-        #: The sequence numbers the log's last event and the records' last entry took.
-        self.event_seq = 0
-        self.record_seq = 0
-        self._props_view = PropsView(self)
-        self._physics_view = PhysicsView(self)
-        self._clock_view = ClockView(self)
         self.patterns = PatternRuntime(self)
         #: Each type's declared properties (its own and inherited), by name.
         self.type_props = {t: contract.props_of(t) for t in contract.types}
@@ -149,16 +137,11 @@ class SdkWorld(World):
         self.hidden = Hidden(contract)
         self.private_names = self.hidden.names
         self.private_metrics = private_metrics(contract, self.private_names)
-        #: Def results for the current world state (see :meth:`call_def`).
-        self._def_cache: dict[Any, Any] = {}
-        self._def_cache_state: Any = None
-        self._def_cache_on = False
-        #: What :meth:`remembered` worked out for the current world state.
-        self._remembered: dict[Any, Any] = {}
-        self._remembered_state: Any = None
         self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
         #: The living entities of every type, kept current by create and remove.
         self.types = TypeIndex(contract)
+        #: How expressions read this world: scopes, defs, and what a viewer may see.
+        self.evaluation = EvalContext(self)
 
     # -- randomness (see world/randomness.py) -----------------------------------------------------------------
 
@@ -166,12 +149,12 @@ class SdkWorld(World):
     def seeds(self) -> SeedTree:
         return self.luck.seeds
 
-    @property  # type: ignore[override]
+    @property
     def rng(self) -> Any:
         """The random stream expressions and mechanisms draw from now (:meth:`Randomness.current`)."""
         return self.luck.current(self.round)
 
-    # -- expression interface ------------------------------------------------
+    # -- reads (the expression interface) ------------------------------------------------------------------
 
     def entities_of(self, type_name: str) -> list[Entity]:
         return list(self.alive_of(type_name))
@@ -183,21 +166,9 @@ class SdkWorld(World):
             raise ExprError(f"'{type_name}' is not a declared type (types: {', '.join(self.contract.types)})")
         return self.types.alive(type_name, compact=self.journal.mark() == 0)
 
-    def rebuild_index(self) -> None:
-        """Re-index every entity after the entity store was replaced wholesale (a restore)."""
-        self.touched = None
-        self.types.rebuild(self.entities.values())
-        if self.space is not None:
-            self.space.positions.rebuild(self.entities.values())
-
     def subtypes_of(self, type_name: str) -> Any:
         """``type_name`` and every type that extends it."""
         return self._subtypes[type_name]
-
-    def build_space(self) -> None:
-        """Resolve the declared space before anything is placed in it."""
-        if self.contract.space is not None:
-            self.space = Spatial(self, self.contract.space)
 
     def entity(self, entity_id: Any) -> Entity | None:
         if isinstance(entity_id, Entity):
@@ -205,21 +176,12 @@ class SdkWorld(World):
         return self.entities.get(entity_id) if isinstance(entity_id, str) else None
 
     def hides(self, owner: Any, prop: str, agent: Any) -> bool:
-        if owner is self._props_view:
+        if owner is self.evaluation.props_view:
             return prop in self.hidden.world
         return type(owner) is Entity and self.hidden.entity_hides(owner, prop, agent)
 
     def read_hidden(self) -> None:
         self.luck.count_hidden_read()
-
-    def refusal(self, entity: Entity, prop: str, told: str, instead: str) -> Abort:
-        """The refusal of a rule about ``entity``'s ``prop``: ``told``, or ``instead`` — which says nothing of it —
-        when the value is hidden from the agent whose action is running (the read is noted, so the refusal spends the
-        action; see expr/hidden.py)."""
-        if self.hides(entity, prop, self.luck.here().actor):
-            self.read_hidden()
-            return Abort(instead)
-        return Abort(told)
 
     def records(self, name: str) -> list[Entry]:
         if name not in self.records_store:
@@ -227,25 +189,11 @@ class SdkWorld(World):
             raise ExprError(f"'{name}' is not a declared record (records: {known})")
         return self.records_store[name]
 
+    def visible_records(self, name: str, viewer: Any) -> list[Entry]:
+        return self.evaluation.visible_records(name, viewer)
+
     def events(self, kind: str | None, viewer: Any = None) -> list[LogEvent]:
-        """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
-        seen = viewer if isinstance(viewer, Entity) else None
-        candidates = self.record_events.candidates(self.contract, seen) if kind == "record" and seen else self.log
-        return [e for e in candidates if (kind is None or e.kind == kind)
-                and (seen is None or self.event_visible(e, seen))]
-
-    def rebuild_event_index(self) -> None:
-        self.record_events = RecordEvents(self.log, self.entry_by_seq, self.contract)
-
-    def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
-        """Record notifications carry the same visibility as their retained source entry."""
-        if not event.visible_to(viewer.id):
-            return False
-        if event.kind != "record":
-            return True
-        record = event.data.get("record")
-        entry = self.entry_by_seq.get(event.data.get("entry"))
-        return record in self.contract.records and entry is not None and self.entry_visible(record, entry, viewer)
+        return self.evaluation.events(kind, viewer)
 
     def relation(self, a: Any, b: Any, kind: str) -> float | None:
         return _links.relation(self, a, b, kind)
@@ -260,42 +208,11 @@ class SdkWorld(World):
     def links_of(self, entity: Any, kind: str) -> list[Link]:
         return _links.links_of(self, entity, kind)
 
-    def visible_records(self, name: str, viewer: Any) -> list[Entry]:
-        rows = self.records(name)
-        if not isinstance(viewer, Entity):
-            return rows
-        indexed = self.record_authors.candidates(name, viewer)
-        if indexed is not None:
-            rows = indexed
-        return [row for row in rows if self.entry_visible(name, row, viewer)]
-
-    def rebuild_record_index(self) -> None:
-        self.record_authors = RecordAuthors(
-            {name: spec.visible for name, spec in self.contract.records.items()}, self.records_store)
-
-    def entry_visible(self, record: str, entry: Entry, viewer: Entity | None) -> bool:
-        if viewer is None:
-            return True
-        to = entry.get("to")
-        if to is not None and viewer.id not in to and entry.get("author") != viewer.id:
-            return False
-        visible = self.contract.records[record].visible
-        if visible == "all":
-            return True
-        if author_only(visible) and entry.get("author") != viewer.id:
-            return False  # Exact author-only predicates cannot hold for another reader.
-        try:
-            expr = compile_expr(visible)
-            # A pure reader/entry rule needs no clock, metric, pattern or turn roots.
-            # Keep function calls on the full scope: they may read implicit context.
-            scope = Scope({"viewer": viewer, "it": entry}, self) \
-                if not expr.functions and expr.roots <= {"viewer", "it"} else self.scope(viewer=viewer, it=entry)
-            return truthy(expr(scope))
-        except ExprError as exc:
-            raise RunError(str(exc), f"records.{record}.visible") from None
-
     def is_a(self, type_name: str, ancestor: str) -> bool:
         return type_name in self._subtypes.get(ancestor, ())
+
+    def is_type(self, name: str) -> bool:
+        return name in self.contract.types
 
     def has_def(self, name: str) -> bool:
         spec = self.contract.defs.get(name)
@@ -306,61 +223,59 @@ class SdkWorld(World):
         return spec is not None and spec.expr is not None
 
     def call_def(self, name: str, args: list[Any], source: str, viewer: Any = None) -> Any:
-        """Call the def ``name``. It sees the caller's ``viewer`` (bound while rendering for, or offering choices to,
-        one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
-        spec = self.contract.defs.get(name)
-        if spec is None or spec.expr is None:
-            hint = suggest_function(name, callable_names(self.contract.mechanism_families())
-                                    + list(self.contract.expr_defs()))
-            raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
-        if len(args) != len(spec.args):
-            raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got "
-                            f"{len(args)}", source)
-        here = self.luck.here()  # the running turn's context, read once: nothing before the evaluation changes it
-        key = self._def_key(name, args, viewer)
-        if key is not None:
-            state = self._version(here)
-            if state != self._def_cache_state:
-                self._def_cache, self._def_cache_state = {}, state
-            elif key in self._def_cache:
-                return self._def_cache[key]
-        depth = here.depth
-        if depth >= 32:
-            raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
-        here.depth = depth + 1
-        observed = self.luck.observe()
-        try:
-            values = dict(zip(spec.args, args))
-            if viewer is not None:
-                values["viewer"] = viewer
-            value = compile_expr(spec.expr)(self._scope(here, values))
-        finally:
-            here.depth = depth
-        # Only a pure call is reused (a reuse would neither draw nor count a hidden read); with the same state and
-        # arguments it takes the same path again, so its value is exactly what a fresh call would return.
-        if key is not None and observed.pure(state, self._version(here)) and isinstance(value, _CACHEABLE):
-            self._def_cache[key] = value
-        return value
+        return self.evaluation.call_def(name, args, source, viewer)
 
-    def remembered(self, key: tuple[Any, ...], work: Callable[[], Any]) -> Any:
-        """``work()``, reused under ``key`` while the world stays as it is: one turn asks for the same choices and
-        tools several times (legality, its tools, validating a call, diagnostics). Work that drew at random or read a
-        hidden value is never reused: each call draws and counts its hidden reads afresh."""
-        state = self.state_version()
-        if state != self._remembered_state:
-            self._remembered, self._remembered_state = {}, state
-        elif key in self._remembered:
-            return self._remembered[key]
-        observed = self.luck.observe()
-        value = work()
-        if observed.pure(state, self.state_version()):
-            self._remembered[key] = value
-        return value
+    def distance(self, a: Any, b: Any) -> float:
+        if self.space is None:
+            raise ExprError("this environment declares no space")
+        start, end = position_of(a), position_of(b)
+        if start is None or end is None:
+            raise ExprError("both entities need a position (at) to measure distance")
+        return self.space.geometry.distance(start, end)
 
-    def enable_def_cache(self) -> None:
-        """Start caching def results; called once the world is built."""
-        self._def_cache_on = True
-        self.touch()
+    def prop_spec(self, entity: Entity, prop: str) -> PropSpec:
+        specs = self.type_props.get(entity.entity_type, {})
+        if prop not in specs:
+            raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {', '.join(specs) or 'none'})",
+                           f"{entity.entity_type}.{prop}")
+        return specs[prop]
+
+    # -- clock ---------------------------------------------------------------
+
+    def date(self) -> str | None:
+        clock = self.contract.clock
+        return calendar_date(self.start, clock.unit, clock.step, max(0, max(1, self.round) - 1))
+
+    def clock_label(self) -> str:
+        unit = self.contract.clock.unit
+        name = f"{unit[:1].upper()}{unit[1:]}"
+        label = f"{name} {max(1, self.round)} of {self.rounds}"
+        date = self.date()
+        return f"{label} ({date})" if date else label
+
+    # -- indexes: rebuilt when a part of the store was replaced wholesale (a restore, a copy) --------------------
+
+    def rebuild_index(self) -> None:
+        """Re-index every entity after the entity store was replaced wholesale (a restore)."""
+        self.touched = None
+        self.types.rebuild(self.entities.values())
+        if self.space is not None:
+            self.space.positions.rebuild(self.entities.values())
+
+    def rebuild_event_index(self) -> None:
+        self.record_events = RecordEvents(self.log, self.entry_by_seq, self.contract)
+
+    def rebuild_record_index(self) -> None:
+        self.record_authors = RecordAuthors(
+            {name: spec.visible for name, spec in self.contract.records.items()}, self.records_store)
+
+    def rebuild_adjacency(self) -> None:
+        _links.rebuild_adjacency(self)
+
+    def build_space(self) -> None:
+        """Resolve the declared space before anything is placed in it."""
+        if self.contract.space is not None:
+            self.space = Spatial(self, self.contract.space)
 
     # -- transactions (see world/journal.py) ------------------------------------------------------------------
 
@@ -395,84 +310,7 @@ class SdkWorld(World):
         """Record a change made outside the journal (metrics sampling, physics), so cached reads refresh."""
         self.journal.bump()
 
-    def state_version(self) -> Any:
-        """Equal values mean nothing a read could see has changed (for caches of derived values)."""
-        return self._version(self.luck.here())
-
-    def _version(self, here: Context) -> Any:
-        """:meth:`state_version` as the running context ``here`` sees it."""
-        pending = here.pending  # a turn's (runtime/ledger.py Pending), or None
-        return (self.journal.version, self.round, self.stage, pending.version if pending is not None else 0)
-
-    def _def_key(self, name: str, args: list[Any], viewer: Any) -> tuple[Any, ...] | None:
-        """A cache key for a def call, or None when the call cannot be cached."""
-        if not self._def_cache_on:
-            return None
-        parts: list[Any] = [name]
-        for arg in [viewer, *args]:
-            if isinstance(arg, Entity):
-                parts.append(("$entity", arg.id))
-            elif arg is None or type(arg) in (int, float, bool, str):
-                parts.append((type(arg).__name__, arg))
-            else:
-                return None  # lists, maps, records and participant text are not cached
-        return tuple(parts)
-
-    def distance(self, a: Any, b: Any) -> float:
-        if self.space is None:
-            raise ExprError("this environment declares no space")
-        start, end = position_of(a), position_of(b)
-        if start is None or end is None:
-            raise ExprError("both entities need a position (at) to measure distance")
-        return self.space.geometry.distance(start, end)
-
-    def prop_spec(self, entity: Entity, prop: str) -> PropSpec:
-        specs = self.type_props.get(entity.entity_type, {})
-        if prop not in specs:
-            raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {', '.join(specs) or 'none'})",
-                           f"{entity.entity_type}.{prop}")
-        return specs[prop]
-
-    def is_type(self, name: str) -> bool:
-        return name in self.contract.types
-
-    # -- scopes --------------------------------------------------------------
-
-    def scope(self, **values: Any) -> Scope:
-        return self._scope(self.luck.here(), values)
-
-    def _scope(self, here: Context, values: dict[str, Any]) -> Scope:
-        """A scope over the world as ``here`` (the running turn's context) sees it, with ``values`` as extra roots."""
-        base: dict[str, Any] = {
-            "inputs": self.inputs,
-            "world": self._props_view,
-            "physics": self._physics_view,
-            "clock": self._clock_view,
-            "pattern": self.patterns.view,
-            "round": self.round,
-            "stage": self.stage,
-            "outputs": self.metrics,
-            "series": self.series,
-            "arm": self.arm,
-            "pending": here.pending.items if here.pending is not None else [],
-        }
-        base.update(values)
-        return Scope(base, self)
-
-    # -- clock ---------------------------------------------------------------
-
-    def date(self) -> str | None:
-        clock = self.contract.clock
-        return calendar_date(self.start, clock.unit, clock.step, max(0, max(1, self.round) - 1))
-
-    def clock_label(self) -> str:
-        unit = self.contract.clock.unit
-        name = f"{unit[:1].upper()}{unit[1:]}"
-        label = f"{name} {max(1, self.round)} of {self.rounds}"
-        date = self.date()
-        return f"{label} ({date})" if date else label
-
-    # -- mutation (journaled) --------------------------------------------------
+    # -- changes (journaled) --------------------------------------------------
 
     def coerce(self, spec: PropSpec | None, value: Any, where: str, owner: str = "") -> Any:
         """``value`` as ``spec`` stores it. A number past a declared min or max is refused (:class:`Abort`), never
@@ -521,15 +359,16 @@ class SdkWorld(World):
             known = ", ".join(specs) or "none"
             raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {known})", where)
         self.written.add(prop)
-        new = self.coerce(specs[prop], _plain(value), where, entity.name)
+        new = self.coerce(specs[prop], plain_value(value), where, entity.name)
         if self.buffer is not None:
             self.buffer.write(("prop", entity.id, prop), new, lambda: self.set_prop(entity, prop, new), where)
             return
         self.journal.push(("prop", entity.id, prop, entity.properties.get(prop)))
         entity.properties[prop] = new
-        self._touch_entity(entity)
+        self.touch_entity(entity)
 
-    def _touch_entity(self, entity: Entity) -> None:
+    def touch_entity(self, entity: Entity) -> None:
+        """Note that ``entity`` has values no invariant check has seen together (see :attr:`touched`)."""
         if self.touched is not None:
             self.touched[entity.id] = None
 
@@ -541,7 +380,7 @@ class SdkWorld(World):
             known = ", ".join(self.contract.world) or "none"
             raise RunError(f"world has no property '{prop}' (declared: {known})", f"world.{prop}")
         self.written.add(prop)
-        new = self.coerce(spec, value if trusted else _plain(value), f"world.{prop}")
+        new = self.coerce(spec, value if trusted else plain_value(value), f"world.{prop}")
         if self.buffer is not None:
             self.buffer.write(("world", prop), new, lambda: self.set_world(prop, new), f"world.{prop}")
             return
@@ -581,13 +420,12 @@ class SdkWorld(World):
         self.counters[type_name] = n
         return candidate
 
-    def create(self, type_name: str, entity_id: str | None, name: str | None,
-               props: dict[str, Any], at: Any, scope: Scope, where: str, evaluate: bool = True) -> Entity:
-        """Create an entity. ``props`` values that are expressions are evaluated when ``evaluate`` is
-        true (contract text); runtime values from native ops pass ``evaluate=False``. Participant text
-        is never evaluated, whatever it looks like."""
-        spec = self.contract.types.get(type_name)
-        if spec is None:
+    def new_entity(self, type_name: str, entity_id: str | None, name: str | None, given: Iterable[str], at: Any,
+                   where: str) -> Entity:
+        """An entity of ``type_name`` about to be created — its id (``entity_id``, or the next free one), name and
+        position, no properties yet — once the world may hold it and it declares every one of the ``given``
+        properties. :meth:`add` puts it in the world."""
+        if type_name not in self.contract.types:
             raise RunError(f"'{type_name}' is not a declared type", where)
         if self.types.living >= MAX_ENTITIES:  # an engine limit, not a rule failing: the run fails wherever it is
             raise FatalRunError(
@@ -599,54 +437,31 @@ class SdkWorld(World):
         if eid in self.entities:
             raise RunError(f"an entity with id '{eid}' already exists", where)
         declared = self.type_props[type_name]
-        unknown = set(props) - set(declared)
+        unknown = set(given) - set(declared)
         if unknown:
             raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: "
                            f"{', '.join(declared) or 'none'})", where)
         entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None)
-        space = self.space
         if at is not None:  # placed first, so props can read the position: `$layer(sugar, $it.at)`
             entity.location_id = self.place(at, where)
-        own = scope.child(it=entity)  # props read other props of the same entity: `$it.income * 0.3`
-        raws = {prop: props[prop] if prop in props else prop_spec.default for prop, prop_spec in declared.items()}
-        # Expressions: contract text given here, and a type's defaults. Participant text is never one.
-        expressions = {prop: raw for prop, raw in raws.items() if is_expr(raw) and (
-            prop not in props or (evaluate and not isinstance(raw, Untrusted)))}
-        order = self._prop_order(raws, expressions, where)
-        for prop in order:
-            raw = raws[prop]
-            try:
-                value = compile_expr(raw)(own) if prop in expressions else _copy(raw)
-            except ExprError as exc:
-                raise RunError(str(exc), f"{where}.props.{prop}") from None
-            entity.properties[prop] = self.coerce(declared[prop], _plain(value), f"{where}.props.{prop}", entity.name)
-        if order is not raws:  # evaluated out of declaration order: keep the declared order
-            entity.properties = {prop: entity.properties[prop] for prop in declared}
+        return entity
+
+    def add(self, entity: Entity, where: str) -> Entity:
+        """Put ``entity`` (from :meth:`new_entity`, its properties set) in the world."""
+        space = self.space
         if entity.location_id is not None:
             self._make_room(entity, entity.location_id, "cannot be placed")
-        self.entities[eid] = entity
+        self.entities[entity.id] = entity
         self.types.created(entity)
-        self._touch_entity(entity)
+        self.touch_entity(entity)
         if space is not None:
             space.positions.add(entity)
-        self.journal.push(("create", eid))
+        self.journal.push(("create", entity.id))
         if self.lifecycle is not None:
             self.lifecycle("create", entity, where)
         if self.joined is not None and self.round:
             self.joined(entity)
         return entity
-
-    @staticmethod
-    def _prop_order(raws: dict[str, Any], expressions: dict[str, Any], where: str) -> Iterable[str]:
-        """The order a new entity's props are evaluated in: declaration order (``raws`` itself), but each prop after
-        the props it reads through `$it`, whichever order they are written in."""
-        if not any("$it." in raw for raw in expressions.values()):
-            return raws
-        order, circle = default_order({prop: expressions.get(prop) for prop in raws}, "it")
-        if circle is not None:
-            raise RunError(f"props {' → '.join(circle)} read each other through $it in a circle, so none can be "
-                           "worked out first: give one of them a plain value", f"{where}.props")
-        return order
 
     def remove(self, entity: Entity, where: str = "remove") -> None:
         if not entity.alive:
@@ -670,6 +485,10 @@ class SdkWorld(World):
         if space is not None:
             space.positions.add(entity)
 
+    def place(self, at: Any, where: str) -> Any:
+        """``at`` as a position in the space (checked against it), or as given without one."""
+        return at if self.space is None else self.space.place(at, where)
+
     def _make_room(self, entity: Entity, position: Any, what: str) -> None:
         """Refuse (roll back) putting ``entity`` at ``position`` when the cell is full."""
         full = self.space.no_room(entity, position) if self.space is not None else None
@@ -686,9 +505,6 @@ class SdkWorld(World):
     def set_link_field(self, view: Link, name: str, value: Any, where: str) -> None:
         _links.set_link_field(self, view, name, value, where)
 
-    def rebuild_adjacency(self) -> None:
-        _links.rebuild_adjacency(self)
-
     def post(self, record: str, fields: dict[str, Any], author: str | None,
              to: tuple[str, ...] | None, where: str) -> Entry:
         spec = self.contract.records.get(record)
@@ -702,7 +518,7 @@ class SdkWorld(World):
         entry = Entry()
         entry.world = self
         for name, kind in spec.fields.items():
-            value = _plain(fields.get(name))
+            value = plain_value(fields.get(name))
             if value is not None and kind == "text" and not isinstance(value, str):
                 value = str(value)
             elif value is not None and kind == "asset":
@@ -808,76 +624,3 @@ class SdkWorld(World):
         used[action] = used.get(action, 0) + 1
         if undoable:
             self.journal.push(("use", actor_id, action))
-
-    def thaw(self, vars: dict[str, Any], *, version: int = 0) -> dict[str, Any]:
-        return {k: thaw(v, self, version=version) for k, v in vars.items()}
-
-    # -- physics (see world_physics) --------------------------------------------------
-
-    def build_physics(self) -> None:
-        world_physics.build_physics(self)
-
-    def step_physics(self) -> list[dict[str, Any]]:
-        """Advance physics one round. Integrated variables stay inside their bounds; a formula written to a property
-        past its bounds has nothing to refuse, so it fails."""
-        try:
-            return world_physics.step_physics(self)
-        except Abort as refusal:
-            raise RunError(f"{refusal.reason} Keep the formula in range, e.g. with clamp(x, low, high)",
-                           "mechanisms.physics") from None
-
-    # -- helpers ---------------------------------------------------------------
-
-    def _key(self, kind: str, a: str, b: str) -> tuple[str, str]:
-        return _links.edge_key(self, kind, a, b)
-
-    def place(self, at: Any, where: str) -> Any:
-        """``at`` as a position in the space (checked against it), or as given without one."""
-        return at if self.space is None else self.space.place(at, where)
-
-# ---------------------------------------------------------------------------
-
-
-#: Def results that are immutable, so a cached value can be handed out again safely.
-_CACHEABLE = (int, float, bool, str, type(None), Entity)
-
-
-def within_bounds(spec: Any, value: float, subject: str) -> None:
-    """Refuse (:class:`OutOfBounds`) a number past ``spec``'s min or max, naming ``subject`` ("Ann's coins"). Saturating
-    is written out: ``$clamp(x, low, high)``. A private property's value stays out of the reason, which the acting
-    agent is told."""
-    if spec.min is not None and value < spec.min:
-        limit = f"cannot go below {format_value(spec.min)}"
-    elif spec.max is not None and value > spec.max:
-        limit = f"cannot go above {format_value(spec.max)}"
-    else:
-        return
-    if getattr(spec, "private", False):
-        raise OutOfBounds(f"{subject} {limit}.")
-    raise OutOfBounds(f"{subject} {limit}: it would be {format_value(value)}.")
-
-
-def _copy(value: Any) -> Any:
-    if isinstance(value, list):
-        return [_copy(v) for v in value]
-    if isinstance(value, dict):
-        return {k: _copy(v) for k, v in value.items()}
-    return value
-
-
-def _plain(value: Any) -> Any:
-    """Store entities by id and links as data: properties never hold live object references."""
-    kind = type(value)
-    if kind is str or kind is int or kind is float or kind is bool or value is None:
-        return value
-    if isinstance(value, Entity):
-        return value.id
-    if isinstance(value, Link):
-        return value.as_dict()
-    if isinstance(value, list):
-        return [_plain(v) for v in value]
-    if isinstance(value, dict) and not isinstance(value, Entry):
-        return {k: _plain(v) for k, v in value.items()}
-    if isinstance(value, Entry):
-        return {k: v for k, v in value.items()}
-    return value

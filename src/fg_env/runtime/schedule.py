@@ -26,6 +26,7 @@ from ..contract import MAX_STAGE_PASSES, StageSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
 from ..expr.objects import Entity
+from ..physics.world import step_physics
 from ..world.build import whole_setting
 from .diagnosis import SealedWrites
 from .driving import WAITING
@@ -155,7 +156,7 @@ class Schedule:
             self.finish()
             return False
         with rules.lock:
-            world.step_physics()
+            step_physics(world)
             world.commit()
         rules.check_invariants("physics")
         rules.check_changes("physics")
@@ -266,7 +267,7 @@ class Schedule:
                 return
             if stage.until is not None:
                 try:
-                    if truthy(compile_expr(stage.until)(world.scope())):
+                    if truthy(compile_expr(stage.until)(world.evaluation.scope())):
                         break
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}.until") from None
@@ -280,7 +281,7 @@ class Schedule:
         if stage.when is None:
             return True
         try:
-            return truthy(compile_expr(stage.when)(self.env.world.scope()))
+            return truthy(compile_expr(stage.when)(self.env.world.evaluation.scope()))
         except ExprError as exc:
             raise RunError(str(exc), f"stages.{stage.name}.when") from None
 
@@ -308,7 +309,7 @@ class Schedule:
                 self._shuffle(stage, agents)
             elif stage.order is not None and stage.order != "seat":
                 key = compile_expr(stage.order)  # every agent sees the order: it may read no agent's private property
-                keyed = [(key(world.scope(it=a, i=i, viewer=EVERYONE)), i, a) for i, a in enumerate(agents)]
+                keyed = [(key(world.evaluation.scope(it=a, i=i, viewer=EVERYONE)), i, a) for i, a in enumerate(agents)]
                 keyed.sort(key=lambda t: (t[0], t[1]))
                 agents = [a for _, _, a in keyed]
         except PrivateRead as exc:
@@ -330,7 +331,7 @@ class Schedule:
         woken = []
         for i, agent in enumerate(agents):
             with world.luck.stream("who", stage.name, world.round, pass_index, agent.id):
-                if truthy(who(world.scope(it=agent, i=i, **shown))):
+                if truthy(who(world.evaluation.scope(it=agent, i=i, **shown))):
                     woken.append(agent)
         return woken
 

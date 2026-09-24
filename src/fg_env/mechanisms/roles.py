@@ -95,7 +95,7 @@ def deal_roles(world: Any, config: RolesConfig, where: str) -> None:
         if raw == REST:
             rest = role
             continue
-        count = compile_expr(raw)(world.scope()) if is_expr(raw) else raw
+        count = compile_expr(raw)(world.evaluation.scope()) if is_expr(raw) else raw
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise RunError(f"the count of {role} must be a whole number ≥ 0, got {count!r}", where)
         pool += [role] * count

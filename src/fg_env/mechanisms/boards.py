@@ -16,7 +16,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, family_action, mode, use_key
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._game import game_section
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score
 from .board_rules import BoardConfig, Rules, compile_rules, parse_setup
@@ -393,9 +393,10 @@ def _set(world: Any, rules: Rules, key: str, value: Any) -> None:
 
 
 def _create(world: Any, rules: Rules, side: int, kind: str, cell: str, moved: bool, where: str) -> Entity:
-    return world.create(rules.config.piece_type, None, f"{rules.side_names[side]} {rules.kind_names[kind]}",
-                        {"owner": rules.sides[side], "kind": kind, "cell": cell, "moved": moved}, None, world.scope(),
-                        where)
+    evaluation = world.evaluation
+    return evaluation.create(rules.config.piece_type, None, f"{rules.side_names[side]} {rules.kind_names[kind]}",
+                             {"owner": rules.sides[side], "kind": kind, "cell": cell, "moved": moved}, None,
+                             evaluation.scope(), where)
 
 
 def _write(world: Any, rules: Rules, before: Pos, after: Pos) -> None:

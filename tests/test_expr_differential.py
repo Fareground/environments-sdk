@@ -187,7 +187,7 @@ def test_inlined_collection_loops_evaluate_identically(both_ways, shadowed):
     contract = (dict(_THINGS, defs={**_THINGS["defs"], "any": {"args": ["a", "b"], "expr": "7"}}) if shadowed
                 else _THINGS)
     world = fg_env.load(contract, seed=3).world
-    scope = world.scope(x=1, l=[1, 2, 3], m={"a": 1, "b": 0}, e=world.entities["a"], it=world.entities["b"])
+    scope = world.evaluation.scope(x=1, l=[1, 2, 3], m={"a": 1, "b": 0}, e=world.entities["a"], it=world.entities["b"])
     for call in _LOOP_CALLS:
         for items in _LOOP_ITEMS:
             for condition in _LOOP_CONDITIONS:
@@ -201,7 +201,7 @@ def test_mapped_aggregates_preserve_evaluation_order_and_scope(both_ways, shadow
         name: {"args": ["a", "b", "c"], "expr": "7"} for name in ("sum", "avg")
     }}) if shadowed else _THINGS
     world = fg_env.load(contract, seed=3).world
-    scope = world.scope(l=[1, 2, 3], it=world.entities["b"])
+    scope = world.evaluation.scope(l=[1, 2, 3], it=world.entities["b"])
     for name in ("sum", "avg"):
         for items in ("thing", "$l", "[]", "null", "7", "{a: 1, b: 2}"):
             for value in ("$it.cash", "$i", "$outer.cash + $i", "null", "'invalid'", "$uniform(0, 1)",
@@ -228,7 +228,8 @@ def test_the_grammar_fuzz_evaluates_identically(both_ways):
         source = _mangle(rng, _expr(rng, rng.randint(1, 4)))
         effects = [_statement(rng) for _ in range(rng.randint(1, 2))]
         try:
-            scope = world.scope(actor=actor, params=params, it=rng.choice([actor, 3, params["s"], None]), i=0)
+            it = rng.choice([actor, 3, params["s"], None])
+            scope = world.evaluation.scope(actor=actor, params=params, it=it, i=0)
             compile_expr(source)(scope)
             render("{" + source + "}" + rng.choice(["", "|money", "|pct"]), scope, None)
         except (ExprError, RunError):

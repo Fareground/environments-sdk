@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from .base import ExprError
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["Entity", "PropertyValue", "PropsView"]
 
@@ -55,7 +55,7 @@ class Entity:
 class PropsView:
     """``$world`` — global properties, readable and assignable."""
 
-    def __init__(self, world: SdkWorld):
+    def __init__(self, world: World):
         self._world = world
 
     def expr_attr(self, name: str, source: str | None) -> Any:

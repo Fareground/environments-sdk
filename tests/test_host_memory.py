@@ -74,7 +74,7 @@ def test_forgetting_keeps_the_strongest_memories_and_the_view_fits_its_budget():
     assert len(memory) == 5 and any(e["kind"] == "note" for e in memory)
     ids = [e["id"] for e in memory]
     assert ids == sorted(ids) and env.entity("ana")["props"]["memory_seq"] > 5
-    shown = env.world.scope()
+    shown = env.world.evaluation.scope()
     from fg_env.expr import compile_expr
     items = compile_expr("$memories($entity(ana), 'memory')")(shown)
     assert sum(len(i["text"]) + len(i["label"]) + 2 for i in items) <= 20 * 4

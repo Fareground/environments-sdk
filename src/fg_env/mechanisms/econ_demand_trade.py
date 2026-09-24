@@ -17,7 +17,7 @@ from ..expr.objects import Entity
 from ..patterns.base import KINDS
 from ..patterns.observe import count_quantile
 from ..registry import family_action
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import condition, entity_of
 from .econ_assets import burn_money, mint_money
 from .econ_base import DEMAND, bump, cached, config_of, props, whole

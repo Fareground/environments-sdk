@@ -20,9 +20,10 @@ from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.scope import Scope
 from ..expr.template import compile_template, entity_handles, format_value
-from ..world.live import Entry, LogEvent, SdkWorld
+from ..world.parts import Entry, LogEvent
 from ..world.randomness import LuckAhead
 from ..world.record_index import author_only
+from ..world.store import World
 from .news_index import NewsIndex
 
 if TYPE_CHECKING:
@@ -67,7 +68,7 @@ class Perception:
     _shared: set[str]
     _silent_records: set[str]
 
-    def __init__(self, contract: Contract, world: SdkWorld, like: Perception | None = None):
+    def __init__(self, contract: Contract, world: World, like: Perception | None = None):
         self.contract = contract
         self.world = world
         #: view → (world state, its items, the work they took)
@@ -92,7 +93,7 @@ class Perception:
     def brief(self, actor: Entity, attached: list[str] | None = None) -> str:
         """``actor``'s brief; the assets it attaches are added to ``attached``."""
         c = self.contract
-        scope = self.world.scope(actor=actor, viewer=actor)
+        scope = self.world.evaluation.scope(actor=actor, viewer=actor)
 
         def text(template: str, path: str) -> str:
             try:
@@ -182,7 +183,8 @@ class Perception:
         ``shown`` collects the events and record entries it listed, ``attached`` the assets it delivers."""
         files: list[str] = []
         path = f"views.{name}"
-        scope = self.world.scope(actor=actor, viewer=actor) if actor is not None else self.world.scope()
+        evaluation = self.world.evaluation
+        scope = evaluation.scope(actor=actor, viewer=actor) if actor is not None else evaluation.scope()
         try:
             if view.when is not None and not truthy(compile_expr(view.when)(scope)):
                 return None
@@ -235,7 +237,7 @@ class Perception:
         used, handles = budget.used, _Handles()
         try:
             with world.luck.forbidden(), entity_handles(handles):
-                items = self._select(view, world.scope(viewer=EVERYONE), False)
+                items = self._select(view, world.evaluation.scope(viewer=EVERYONE), False)
         except (PrivateRead, LuckAhead):
             items = None
         except ExprError:
@@ -307,14 +309,14 @@ class Perception:
 
     def _render(self, template: str, actor: Entity, path: str) -> str:
         try:
-            return compile_template(template, "actor").render(self.world.scope(actor=actor, viewer=actor))
+            return compile_template(template, "actor").render(self.world.evaluation.scope(actor=actor, viewer=actor))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
     # -- news -----------------------------------------------------------------------
 
     def entry_visible(self, record: str, entry: Entry, viewer: Entity | None) -> bool:
-        return self.world.entry_visible(record, entry, viewer)
+        return self.world.evaluation.entry_visible(record, entry, viewer)
 
     def news(self, actor: Entity, since: int, limit: int | None = None,
              shown: Shown | None = None, attached: list[str] | None = None) -> tuple[list[str], int]:
@@ -382,7 +384,7 @@ class Perception:
         if event.kind == "record":
             entry = self.world.entry_by_seq.get(event.data.get("entry"))
             return (entry is not None and entry.get("author") != actor.id
-                    and self.world.event_visible(event, actor))
+                    and self.world.evaluation.event_visible(event, actor))
         if event.kind == "action" and event.actor == actor.id:
             return False
         return bool(event.text)
@@ -414,7 +416,8 @@ class Perception:
             return None
         template = spec.show or _default_show(spec.fields)
         try:
-            body = compile_template(template, "it").render(self.world.scope(actor=actor, viewer=actor, it=entry))
+            scope = self.world.evaluation.scope(actor=actor, viewer=actor, it=entry)
+            body = compile_template(template, "it").render(scope)
         except ExprError as exc:
             raise RunError(str(exc), f"records.{name}.show") from None
         return body

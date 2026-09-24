@@ -14,13 +14,14 @@ from typing import TYPE_CHECKING, Any
 from ..actions.book import ACTION_BUDGET
 from ..actions.faults import world_logic_refused
 from ..contract import EventSpec
+from ..effects.captures import thaw
 from ..effects.delivery import deliver
 from ..effects.runner import each_items, removed_since, select_ops
 from ..effects.sync import run_synced
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, compile_expr, resolve, shared_budget, truthy
 from ..expr.objects import Entity
-from ..world.live import Abort
+from ..world.abort import Abort
 from ..world.randomness import event_streams
 from .diagnosis import LoopWrites
 
@@ -57,7 +58,7 @@ class Events:
             if "delivery" in item:
                 self._deliver(item)
             else:
-                rules.run_block(item["effects"], world.thaw(item["vars"], version=item.get("capture_version", 0)),
+                rules.run_block(item["effects"], thaw(item["vars"], world, version=item.get("capture_version", 0)),
                                 item["path"])
 
     def _deliver(self, item: Mapping[str, Any]) -> None:
@@ -99,7 +100,7 @@ class Events:
 
     def _holds(self, condition: str, vars: dict[str, Any], path: str) -> bool:
         try:
-            return truthy(compile_expr(condition)(self.rules.world.scope(**vars)))
+            return truthy(compile_expr(condition)(self.rules.world.evaluation.scope(**vars)))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
@@ -113,7 +114,7 @@ class Events:
             listed = loop["each"]
             with world.luck.at(do):  # what the loop goes over is drawn as its `do` would draw it
                 items = world.entities_of(listed) if isinstance(listed, str) and listed in rules.contract.types else \
-                    each_items(resolve(listed, world.scope()), world, f"{path}.do[0].each")
+                    each_items(resolve(listed, world.evaluation.scope()), world, f"{path}.do[0].each")
             if loop.get("sync"):
                 self._synced(loop, items, name, body, when, do)
                 return
@@ -126,7 +127,7 @@ class Events:
                     inner = {name: item, "i": position}
                     if where is not None:
                         with world.luck.at(f"{when}.where", item):
-                            if not truthy(compile_expr(where)(world.scope(**inner))):
+                            if not truthy(compile_expr(where)(world.evaluation.scope(**inner))):
                                 continue
                     if watch is not None:
                         watch.item, watch.position = item, position
@@ -148,7 +149,7 @@ class Events:
             inner = {name: item, "i": position}
             if where is not None:
                 with world.luck.at(f"{when}.where", item):
-                    if not truthy(compile_expr(where)(world.scope(**inner))):
+                    if not truthy(compile_expr(where)(world.evaluation.scope(**inner))):
                         return False
             with shared_budget(ACTION_BUDGET, body), world.luck.at(do, item):
                 rules.effects.run(loop.get("do") or [], dict(inner), body)

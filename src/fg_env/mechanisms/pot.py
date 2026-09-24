@@ -23,7 +23,7 @@ from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import stage_event
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
@@ -96,7 +96,7 @@ def _seats(world: Any, config: PotConfig, where: str) -> list[Entity]:
         return players
     key = compile_expr(config.seat)
     try:
-        keyed = [(key(world.scope(it=p, i=i)), i, p) for i, p in enumerate(players)]
+        keyed = [(key(world.evaluation.scope(it=p, i=i)), i, p) for i, p in enumerate(players)]
         keyed.sort(key=lambda t: (t[0], t[1]))
     except (ExprError, TypeError) as exc:
         raise RunError(f"seat: {exc}", where) from None
@@ -104,7 +104,7 @@ def _seats(world: Any, config: PotConfig, where: str) -> list[Entity]:
 
 
 def _chips(world: Any, raw: Any, where: str) -> int:
-    value = compile_expr(raw)(world.scope()) if is_expr(raw) else raw
+    value = compile_expr(raw)(world.evaluation.scope()) if is_expr(raw) else raw
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or float(value) != int(value):
         raise RunError(f"must be a whole number of chips ≥ 0, got {value!r}", where)
     return int(value)

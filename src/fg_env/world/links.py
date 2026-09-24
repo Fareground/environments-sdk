@@ -14,7 +14,7 @@ from ..expr import ExprError, Untrusted, compile_expr, is_expr
 from ..expr.objects import Entity
 
 if TYPE_CHECKING:
-    from .live import SdkWorld
+    from .store import World
 
 __all__ = ["Link", "LINK_ATTRS", "entity_id", "edge_key", "relation", "neighbors", "link", "unlink", "set_link_field",
            "link_view", "links_of", "rebuild_adjacency"]
@@ -31,7 +31,7 @@ class Link:
 
     __slots__ = ("world", "kind", "key")
 
-    def __init__(self, world: SdkWorld, kind: str, key: Key):
+    def __init__(self, world: World, kind: str, key: Key):
         self.world = world
         self.kind = kind
         self.key = key
@@ -79,29 +79,29 @@ def entity_id(value: Any) -> str:
     raise ExprError(f"expected an entity or id, got {value!r}")
 
 
-def edges_of(world: SdkWorld, kind: str, where: str | None = None) -> dict[Key, float]:
+def edges_of(world: World, kind: str, where: str | None = None) -> dict[Key, float]:
     if kind not in world.links:
         raise ExprError(f"'{kind}' is not a declared relation (relations: {', '.join(world.links) or 'none'})", where)
     return world.links[kind]
 
 
-def edge_key(world: SdkWorld, kind: str, a: str, b: str) -> Key:
+def edge_key(world: World, kind: str, a: str, b: str) -> Key:
     spec = world.contract.relations.get(kind)
     if spec is not None and spec.symmetric and b < a:
         return (b, a)
     return (a, b)
 
 
-def relation(world: SdkWorld, a: Any, b: Any, kind: str) -> float | None:
+def relation(world: World, a: Any, b: Any, kind: str) -> float | None:
     return edges_of(world, kind).get(edge_key(world, kind, entity_id(a), entity_id(b)))
 
 
-def link_view(world: SdkWorld, a: Any, b: Any, kind: str) -> Link | None:
+def link_view(world: World, a: Any, b: Any, kind: str) -> Link | None:
     key = edge_key(world, kind, entity_id(a), entity_id(b))
     return Link(world, kind, key) if key in edges_of(world, kind) else None
 
 
-def neighbors(world: SdkWorld, entity: Any, kind: str) -> list[Entity]:
+def neighbors(world: World, entity: Any, kind: str) -> list[Entity]:
     edges_of(world, kind)
     out: list[Entity] = []
     for other in world.adjacent[kind].get(entity_id(entity), {}):
@@ -111,7 +111,7 @@ def neighbors(world: SdkWorld, entity: Any, kind: str) -> list[Entity]:
     return out
 
 
-def links_of(world: SdkWorld, entity: Any, kind: str) -> list[Link]:
+def links_of(world: World, entity: Any, kind: str) -> list[Link]:
     """The ``kind`` links from ``entity`` (either direction on a symmetric relation) to living entities."""
     edges = edges_of(world, kind)
     me = entity_id(entity)
@@ -126,7 +126,7 @@ def links_of(world: SdkWorld, entity: Any, kind: str) -> list[Link]:
     return out
 
 
-def link(world: SdkWorld, kind: str, a: Any, b: Any, value: Any, where: str,
+def link(world: World, kind: str, a: Any, b: Any, value: Any, where: str,
          fields: Mapping[str, Any] | None = None) -> None:
     """Create or update a link. ``value`` None keeps an existing link's value (a new link gets the
     relation's default, or 1); ``fields`` set some of the relation's fields (a new link starts
@@ -144,7 +144,7 @@ def link(world: SdkWorld, kind: str, a: Any, b: Any, value: Any, where: str,
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise RunError(f"link value must be a number, got {value!r}", where)
     value = float(value)
-    from .live import within_bounds
+    from .abort import within_bounds
 
     within_bounds(spec, value, f"{_name(world, key[0])}'s {kind} link to {_name(world, key[1])}")
     table = world.link_fields[kind]
@@ -159,7 +159,7 @@ def link(world: SdkWorld, kind: str, a: Any, b: Any, value: Any, where: str,
         table[key] = new_fields
 
 
-def _fields(world: SdkWorld, kind: str, a: Any, b: Any, current: dict[str, Any] | None,
+def _fields(world: World, kind: str, a: Any, b: Any, current: dict[str, Any] | None,
             given: Mapping[str, Any], where: str) -> dict[str, Any] | None:
     """The link's fields after this change, or None when the relation declares none."""
     declared = world.contract.relations[kind].props
@@ -170,26 +170,26 @@ def _fields(world: SdkWorld, kind: str, a: Any, b: Any, current: dict[str, Any] 
     unknown = sorted(set(given) - set(declared))
     if unknown:
         raise RunError(f"a {kind} link has no fields {unknown} (fields: {', '.join(declared)})", where)
-    from .live import _copy, _plain
+    from .values import copy_value, plain_value
 
     if current is not None:
         out = dict(current)
     else:
         out = {}
-        scope = world.scope(**{"from": world.entity(entity_id(a)), "to": world.entity(entity_id(b))})
+        scope = world.evaluation.scope(**{"from": world.entity(entity_id(a)), "to": world.entity(entity_id(b))})
         for name, spec in declared.items():
             raw = spec.default
             try:
-                start = compile_expr(raw)(scope) if is_expr(raw) and not isinstance(raw, Untrusted) else _copy(raw)
+                start = compile_expr(raw)(scope) if is_expr(raw) and not isinstance(raw, Untrusted) else copy_value(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"relations.{kind}.props.{name}.default") from None
-            out[name] = world.coerce(spec, _plain(start), f"relations.{kind}.props.{name}")
+            out[name] = world.coerce(spec, plain_value(start), f"relations.{kind}.props.{name}")
     for name, raw_value in given.items():
-        out[name] = world.coerce(declared[name], _plain(raw_value), f"{where}.props.{name}")
+        out[name] = world.coerce(declared[name], plain_value(raw_value), f"{where}.props.{name}")
     return out
 
 
-def set_link_field(world: SdkWorld, view: Link, name: str, value: Any, where: str) -> None:
+def set_link_field(world: World, view: Link, name: str, value: Any, where: str) -> None:
     """Assign one field of an existing link (``value`` included), journaled."""
     kind, key = view.kind, view.key
     if key not in world.links[kind]:
@@ -203,14 +203,14 @@ def set_link_field(world: SdkWorld, view: Link, name: str, value: Any, where: st
     if name not in declared:
         raise RunError(f"a {kind} link has no field '{name}' (fields: {', '.join([*LINK_ATTRS, *declared])})", where)
     fields = world.link_fields[kind][key]
-    from .live import _plain
+    from .values import plain_value
 
-    new = world.coerce(declared[name], _plain(value), f"{where}.{name}")
+    new = world.coerce(declared[name], plain_value(value), f"{where}.{name}")
     world.journal.push(("link_field", kind, key, name, fields.get(name)))
     fields[name] = new
 
 
-def unlink(world: SdkWorld, kind: str, a: Any, b: Any, where: str) -> None:
+def unlink(world: World, kind: str, a: Any, b: Any, where: str) -> None:
     edges = edges_of(world, kind, where)
     key = edge_key(world, kind, entity_id(a), entity_id(b))
     if key not in edges:
@@ -221,12 +221,12 @@ def unlink(world: SdkWorld, kind: str, a: Any, b: Any, where: str) -> None:
     world.journal.push(("unlink", kind, key, old, old_fields))
 
 
-def _name(world: SdkWorld, entity: str) -> str:
+def _name(world: World, entity: str) -> str:
     found = world.entities.get(entity)
     return found.name if found is not None else entity
 
 
-def _adjust(world: SdkWorld, kind: str, key: Key, delta: int) -> None:
+def _adjust(world: World, kind: str, key: Key, delta: int) -> None:
     a, b = key
     if a == b:
         return
@@ -240,7 +240,7 @@ def _adjust(world: SdkWorld, kind: str, key: Key, delta: int) -> None:
             row.pop(y, None)
 
 
-def rebuild_adjacency(world: SdkWorld) -> None:
+def rebuild_adjacency(world: World) -> None:
     world.adjacent = {kind: {} for kind in world.links}
     for kind, edges in world.links.items():
         for key in edges:

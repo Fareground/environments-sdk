@@ -16,11 +16,15 @@ class World:
     empty world, which is what static checks and pure evaluations use.
     """
 
-    rng: Any = None
     #: Every property name declared private (by a type or the world): reading any other name needs no check or count.
     private_names: frozenset[str] = frozenset()
     #: Metrics worked out from private properties: what an agent is shown may not read them.
     private_metrics: frozenset[str] = frozenset()
+
+    @property
+    def rng(self) -> Any:
+        """The random stream expressions draw from (the empty world has none)."""
+        return None
 
     def entities_of(self, type_name: str) -> list[Any]:
         raise ExprError(f"no entities of type '{type_name}' exist in this context")

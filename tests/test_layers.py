@@ -36,8 +36,8 @@ def _with(events, **space):
 def test_layer_defaults_read_their_cell_and_keep_to_type():
     env = fg_env.load(FIELD, seed=1)
     assert _layer(env, "sugar") == [0, 1, 2, 1, 2, 3, 2, 3, 3]
-    assert evaluate("$layer(sugar, [0, 1]) + $layer(scent, [2, 2])", env.world.scope()) == 1.0
-    assert evaluate("$layer(alive, [1, 1])", env.world.scope()) is False
+    assert evaluate("$layer(sugar, [0, 1]) + $layer(scent, [2, 2])", env.world.evaluation.scope()) == 1.0
+    assert evaluate("$layer(alive, [1, 1])", env.world.evaluation.scope()) is False
 
 
 def test_setting_one_cell_rolls_back_with_its_action():
@@ -152,4 +152,4 @@ def test_a_value_of_the_wrong_type_is_an_error_naming_the_layer():
 def test_reading_a_layer_badly_says_what_is_wrong(raw):
     env = fg_env.load(FIELD, seed=1)
     with pytest.raises(Exception, match="off the 3x3 grid|'nope' is not a declared layer"):
-        evaluate(raw, env.world.scope())
+        evaluate(raw, env.world.evaluation.scope())

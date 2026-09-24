@@ -399,7 +399,7 @@ def create_personal_cards(world: Any, deck: Deck, where: str) -> None:
     """Create every player's own copies of per-player card entries (once)."""
     entries = deck.config.deck if isinstance(deck.config.deck, list) else []
     players = list(world.entities_of(deck.who))
-    scope = world.scope()
+    scope = world.evaluation.scope()
     prefix = id_prefix(deck.name, len(decks(world)[0]))
     for entry in (e for e in entries if e.per_player):
         for player in players:
@@ -411,7 +411,7 @@ def create_personal_cards(world: Any, deck: Deck, where: str) -> None:
                     zone = _zone(deck, entry.zone, where)
                     props = {**entry.props, "rank": rank, "suit": suit, "zone": entry.zone,
                              "owner": player.id if zone.owned else "", "order": copy}
-                    world.create(deck.type, card_id, name, props, None, scope, where)
+                    world.evaluation.create(deck.type, card_id, name, props, None, scope, where)
 
 
 # ---------------------------------------------------------------------------

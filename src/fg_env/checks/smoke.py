@@ -125,7 +125,7 @@ def _default_rounds(env: Env) -> int:
     for event in env.contract.events:
         for text in scheduled_rounds(event.when):
             try:
-                at = compile_expr(text)(env.world.scope())
+                at = compile_expr(text)(env.world.evaluation.scope())
             except ExprError:
                 continue  # a bad `when` is the static check's to report
             for moment in at if isinstance(at, list) else [at]:

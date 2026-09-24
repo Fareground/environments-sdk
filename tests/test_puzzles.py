@@ -11,7 +11,7 @@ WORLD = {"name": "Puzzles", "clock": {"rounds": 1}, "types": {"solver": {"agent"
 
 def _eval(source, seed=1, **roots):
     env = fg_env.load(WORLD, seed=seed)
-    return compile_expr(source)(env.world.scope(**roots))
+    return compile_expr(source)(env.world.evaluation.scope(**roots))
 
 
 KNUTH = "{sets: {A: [1, 4, 7], B: [1, 4], C: [4, 5, 7], D: [3, 5, 6], E: [2, 3, 6, 7], F: [2, 7]}}"
@@ -91,4 +91,4 @@ def test_a_search_larger_than_the_work_budget_stops_with_an_error():
     env = fg_env.load(WORLD, seed=1)
     with pytest.raises(ExprError, match="work budget"):
         with shared_budget(2_000, "puzzle"):
-            compile_expr("$puzzle(sudoku)")(env.world.scope())
+            compile_expr("$puzzle(sudoku)")(env.world.evaluation.scope())

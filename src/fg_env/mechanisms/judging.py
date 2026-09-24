@@ -30,7 +30,8 @@ from ..host.hosts import hosts_for
 from ..host.protocols import HostError
 from ..host.tape import TAPE, consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from ..world.live import Abort, _plain
+from ..world.abort import Abort
+from ..world.values import plain_value
 from ._common import stage_event
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
@@ -190,8 +191,8 @@ def _judge_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     if "text" in effect or "entry" in effect:
         item = _given(runner, effect, vars, config, where)
         if "attach" in effect:
-            item.assets += [key for key in attached_ids(world, effect["attach"], world.scope(**vars), f"{where}.attach")
-                            if key not in item.assets]
+            attached = attached_ids(world, effect["attach"], world.evaluation.scope(**vars), f"{where}.attach")
+            item.assets += [key for key in attached if key not in item.assets]
         _judge(world, name, config, item, where)
     elif config.record is not None:
         for item in _unjudged(world, name, config):
@@ -511,13 +512,13 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
     if not isinstance(text, str):
         raise RunError(f"`text` must be text, got {format_value(text)}", where)
     rules = allowlist.resolve_rules(runner, config.allow, vars, f"mechanisms.{name}")
-    context = {key: _plain(runner.eval(expr, vars)) for key, expr in config.context.items()}
-    attached = (attached_ids(world, effect["attach"], world.scope(**vars), f"{where}.attach") if "attach" in effect
-                else [])
+    context = {key: plain_value(runner.eval(expr, vars)) for key, expr in config.context.items()}
+    attached = (attached_ids(world, effect["attach"], world.evaluation.scope(**vars), f"{where}.attach")
+                if "attach" in effect else [])
     files, hashes = _files(world, attached)
     request = plain({"game_master": name, "model": config.model, "rules": config.rules,
                      "actor": {"id": actor.id, "name": actor.name, "type": actor.entity_type,
-                               "props": _plain(dict(actor.properties))},
+                               "props": plain_value(dict(actor.properties))},
                      "attempt": text, "context": context, "allowed": allowlist.describe(rules),
                      "max_effects": config.max_effects, "time": world.clock_label(), **files})
     proposal = consult(world, service=config.host, method="resolve", site=f"mechanisms.{name}", actor=actor.id,

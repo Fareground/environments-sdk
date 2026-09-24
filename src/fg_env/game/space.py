@@ -28,7 +28,7 @@ from ..expr import ExprError, compile_expr, is_expr
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..runtime.session import END_TURN
-from ..world.live import _plain
+from ..world.values import plain_value
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -119,7 +119,7 @@ class ActionSpace:
             return None
         index = 0
         for name, universe in block.params:
-            position = _position(universe, _plain(args.get(name)))
+            position = _position(universe, plain_value(args.get(name)))
             if position is None:
                 return None
             index = index * len(universe) + position
@@ -155,8 +155,9 @@ def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int) 
             (None, "it names no entity type")
     if kind == "enum":
         if not isinstance(param.values, str):
-            return _unique(_plain(value) for value in param.values or []), ""
-        return _per_actor(world, param.values, actors, lambda value, out: out.extend(_plain(v) for v in value or []))
+            return _unique(plain_value(value) for value in param.values or []), ""
+        return _per_actor(world, param.values, actors,
+                          lambda value, out: out.extend(plain_value(v) for v in value or []))
     if kind in ("int", "number"):
         step = param.step if param.step is not None else (1 if kind == "int" else None)
         if step is None:
@@ -185,7 +186,7 @@ def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> tupl
     out = []
     for actor in actors:
         try:
-            add(expr(world.scope(actor=actor, viewer=actor)), out)
+            add(expr(world.evaluation.scope(actor=actor, viewer=actor)), out)
         except ExprError:
             return None, "its choices cannot be worked out at the start of the game"
     return _unique(out), ""
@@ -308,7 +309,7 @@ def choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, resol
     path = f"actions.{name}.params.{pname}"
 
     def scope() -> Any:  # built only for a domain that is an expression
-        return world.scope(actor=actor, viewer=actor, params=resolved)
+        return world.evaluation.scope(actor=actor, viewer=actor, params=resolved)
 
     try:
         if param.type == "bool":
@@ -317,7 +318,7 @@ def choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, resol
             return head + [choice.id for choice in book.choices(actor, name, pname, param, resolved)]
         if param.type == "enum":
             values = compile_expr(param.values)(scope()) if isinstance(param.values, str) else param.values
-            return head + [_plain(value) for value in values or []]
+            return head + [plain_value(value) for value in values or []]
         if param.type in ("int", "number"):
             step = param.step if param.step is not None else (1 if param.type == "int" else None)
             low = compile_expr(param.min)(scope()) if is_expr(param.min) else param.min

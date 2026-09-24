@@ -35,7 +35,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr.objects import Entity
 from ..registry import mechanism_config
-from ..world.live import Abort
+from ..world.abort import Abort
 from ..world.props import prop_type
 from ._common import entity_of, fmt, lot_floor
 from .book_rules import Venue, venue

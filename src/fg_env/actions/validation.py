@@ -13,7 +13,7 @@ from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..information.gate import render
-from ..world.live import _plain
+from ..world.values import plain_value
 from .params import (
     _LISTED_UNKNOWN,
     _STEP_TOLERANCE,
@@ -44,8 +44,8 @@ class ActionValidation:
         if not isinstance(args, dict):
             return self._validate(actor, name, args)
         with self.deciding():
-            params, problem = self.world.remembered(("valid", actor.id, name, repr(args)),
-                                                    lambda: self._validate(actor, name, args))
+            params, problem = self.world.evaluation.remembered(("valid", actor.id, name, repr(args)),
+                                                               lambda: self._validate(actor, name, args))
         return dict(params), problem
 
     def _validate(self: ActionBook, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any],  # type: ignore[misc]
@@ -72,7 +72,8 @@ class ActionValidation:
             if raw is None:
                 if param.default is not None:
                     try:
-                        raw = compile_expr(param.default)(self.world.scope(actor=actor, viewer=actor, params=params)) \
+                        raw = compile_expr(param.default)(
+                            self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
                             if is_expr(param.default) else param.default
                     except ExprError as exc:
                         if failed:
@@ -131,7 +132,7 @@ class ActionValidation:
                     continue
                 try:
                     if is_expr(bound):
-                        scope = scope or self.world.scope(actor=actor, viewer=actor, params=params)
+                        scope = scope or self.world.evaluation.scope(actor=actor, viewer=actor, params=params)
                         limit = compile_expr(bound)(scope)
                     else:
                         limit = bound
@@ -143,7 +144,8 @@ class ActionValidation:
                 if limit is not None and bad(value, limit):
                     return None, f"must be {label} {_preview(limit)} (got {_preview(value)})"
             if param.step is not None:
-                base = compile_expr(param.min)(scope or self.world.scope(actor=actor, viewer=actor, params=params)) \
+                base = compile_expr(param.min)(
+                    scope or self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
                     if is_expr(param.min) else param.min
                 offset = (value - (base or 0)) / param.step
                 if abs(offset - round(offset)) > _STEP_TOLERANCE:
@@ -206,13 +208,13 @@ class ActionValidation:
         values = param.values
         if isinstance(values, str):
             try:
-                values = compile_expr(values)(self.world.scope(actor=actor, viewer=actor, params=params))
+                values = compile_expr(values)(self.world.evaluation.scope(actor=actor, viewer=actor, params=params))
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
         if values is not None and not isinstance(values, (list, tuple)):
             raise RunError(f"values must give a list, got {format_value(values)}",
                            f"actions.{action}.params.{pname}.values")
-        return [_plain(v) for v in (values or [])]
+        return [plain_value(v) for v in (values or [])]
 
     def _chosen(self: ActionBook, actor: Entity, param: ParamSpec, raw: Any,  # type: ignore[misc]
                 params: dict[str, Any]) -> Entity | None:
@@ -231,7 +233,7 @@ class ActionValidation:
         if "i" in expr.roots or not nested_free():  # $i needs the full listing; nested work charges a budget
             return None
         try:  # it draws nothing: whether a call is allowed is decided without luck (see ActionBook.deciding)
-            here = self.world.scope(actor=actor, viewer=actor, params=params).child(it=entity)
+            here = self.world.evaluation.scope(actor=actor, viewer=actor, params=params).child(it=entity)
             holds = truthy(expr(here.child(**{REVEALS: entity}) if reveals(self.contract, expr, param.of) else here))
         except ExprError:
             holds = False  # the full listing reports it
@@ -252,7 +254,7 @@ class ActionValidation:
         def count(bound: Any, key: str) -> int | None:
             path = f"actions.{action}.params.{pname}.{key}"
             try:
-                value = compile_expr(bound)(self.world.scope(actor=actor, viewer=actor, params=params)) \
+                value = compile_expr(bound)(self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
                     if is_expr(bound) else bound
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
@@ -270,9 +272,9 @@ class ActionValidation:
             value, problem = self._value(actor, action, pname, item, element, params)
             if problem:
                 return None, f"item {index + 1} {problem}"
-            key = getattr(value, "id", None) or json.dumps(_plain(value), sort_keys=True, default=str)
+            key = getattr(value, "id", None) or json.dumps(plain_value(value), sort_keys=True, default=str)
             if param.unique and key in seen:
-                return None, f"lists {format_value(_plain(value))} more than once"
+                return None, f"lists {format_value(plain_value(value))} more than once"
             seen.add(key)
             values.append(value)
         return values, None

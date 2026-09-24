@@ -44,7 +44,7 @@ class Layers:
 
     def coerce(self, name: str, value: Any) -> Any:
         """``value`` as layer ``name`` stores it: its type enforced, and a number past its min or max refused
-        (:class:`~fg_env.world.live.OutOfBounds`), never clamped."""
+        (:class:`~fg_env.world.store.OutOfBounds`), never clamped."""
         spec = self.spec(name)
         if spec.type == "bool":
             if not isinstance(value, bool):
@@ -52,7 +52,7 @@ class Layers:
             return value
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise SpaceError(f"layer '{name}' holds finite numbers, got {value!r}")
-        from .live import within_bounds
+        from .abort import within_bounds
 
         within_bounds(spec, value, f"layer '{name}'")
         if spec.type == "int":

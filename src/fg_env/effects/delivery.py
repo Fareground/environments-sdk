@@ -15,19 +15,19 @@ from typing import TYPE_CHECKING, Any
 from ..errors import RunError
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["dropped", "send", "deliver"]
 
 
-def dropped(world: SdkWorld, chance: Any, where: str) -> bool:
+def dropped(world: World, chance: Any, where: str) -> bool:
     """Roll a message's ``drop`` chance: True when it is lost."""
     if isinstance(chance, bool) or not isinstance(chance, (int, float)) or not 0 <= chance <= 1:
         raise RunError(f"`drop` must be a chance from 0 to 1, got {chance!r}", where)
     return chance > 0 and world.rng.random() < chance
 
 
-def send(world: SdkWorld, delay: Any, payload: dict[str, Any], where: str) -> None:
+def send(world: World, delay: Any, payload: dict[str, Any], where: str) -> None:
     """Deliver ``payload`` now (no delay) or schedule it ``delay`` rounds later."""
     if delay is None:
         deliver(world, payload, where)
@@ -41,7 +41,7 @@ def send(world: SdkWorld, delay: Any, payload: dict[str, Any], where: str) -> No
     world.schedule(due, [], {}, where, delivery=payload)
 
 
-def deliver(world: SdkWorld, payload: Mapping[str, Any], where: str) -> None:
+def deliver(world: World, payload: Mapping[str, Any], where: str) -> None:
     if payload["kind"] == "post":
         world.post(payload["record"], dict(payload["fields"]), payload["author"], _ids(payload["to"]), where)
     else:

@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of
 from .econ_assets import balance, move_money
 from .econ_base import (
@@ -365,10 +365,12 @@ def _lend(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str)
     rate = amount(rate, where, "rate")
     currency = config.loans.currency or next(iter(config.currencies))
     move_money(world, currency, lender, borrower, principal, where, use_credit=False)
-    loan = world.create(f"{name}_loan", None, f"Loan {lender.name} → {borrower.name}",
-                        {"lender": lender.id, "borrower": borrower.id, "currency": currency, "principal": principal,
-                         "owed": principal, "rate": rate, "signed": world.round, "due": world.round + term}, None,
-                        world.scope(), where)
+    evaluation = world.evaluation
+    loan = evaluation.create(f"{name}_loan", None, f"Loan {lender.name} → {borrower.name}",
+                             {"lender": lender.id, "borrower": borrower.id, "currency": currency,
+                              "principal": principal, "owed": principal, "rate": rate, "signed": world.round,
+                              "due": world.round + term}, None,
+                             evaluation.scope(), where)
     _count(world, name, "made", principal)
     emit_to(world, f"{name}_loan",
             f"{borrower.name} borrowed {money(principal)} {currency} from {lender.name}, due in round "

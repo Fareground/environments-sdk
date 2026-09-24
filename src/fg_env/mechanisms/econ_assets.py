@@ -22,7 +22,7 @@ from typing import Any
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
-from ..world.live import Abort
+from ..world.abort import Abort
 from .econ_base import EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, maybe_entity, money, props, uses_of
 from .ledger import market_places
 
@@ -30,7 +30,7 @@ __all__ = ["Assets", "assets", "move_money", "mint_money", "burn_money", "held",
            "make_items", "destroy_items", "place_key", "is_holder", "inventory_prop", "balance", "credit_of",
            "UNPAID"]
 
-#: A payment refused for a balance hidden from the acting agent says only this (see SdkWorld.refusal).
+#: A payment refused for a balance hidden from the acting agent says only this (see World.refusal).
 UNPAID = "That payment cannot be made."
 
 
@@ -134,8 +134,8 @@ def move_money(world: Any, currency: str, source: Entity, target: Entity, value:
     limit = credit_of(world, source, currency) if use_credit else 0.0
     if have - value < -limit - EPS:
         extra = f" (credit {money(limit)})" if limit else ""
-        raise world.refusal(source, currency, f"{source.name} has only {money(have)} {currency}{extra}; "
-                                              f"{money(value)} is needed.", UNPAID)
+        raise world.evaluation.refusal(source, currency, f"{source.name} has only {money(have)} {currency}{extra}; "
+                                                         f"{money(value)} is needed.", UNPAID)
     paid = _next_balance(have, -value, currency, where)
     received = _next_balance(receiving, value, currency, where)
     world.set_prop(source, currency, paid)
@@ -161,8 +161,8 @@ def burn_money(world: Any, currency: str, holder: Entity, value: float, sink: st
     have = balance(world, holder, currency, where)
     limit = credit_of(world, holder, currency) if use_credit else 0.0
     if have - value < -limit - EPS:
-        raise world.refusal(holder, currency, f"{holder.name} has only {money(have)} {currency}; "
-                                              f"{money(value)} is needed.", UNPAID)
+        raise world.evaluation.refusal(holder, currency, f"{holder.name} has only {money(have)} {currency}; "
+                                                         f"{money(value)} is needed.", UNPAID)
     world.set_prop(holder, currency, _next_balance(have, -value, currency, where))
     bump(world, f"{name}_supply", currency, -value)
     bump(world, f"{name}_flows", currency, -value, group=sink)
@@ -259,8 +259,8 @@ def take_items(world: Any, entity: Entity, item: str, qty: int, where: str) -> l
     stock = dict(props(entity).get(prop) or {})
     have = stock.get(name, 0)
     if have < qty:
-        raise world.refusal(entity, prop, f"{entity.name} has only {have} {name}; {qty} are needed.",
-                            "Those items cannot be handed over.")
+        raise world.evaluation.refusal(entity, prop, f"{entity.name} has only {have} {name}; {qty} are needed.",
+                                       "Those items cannot be handed over.")
     stock[name] = have - qty  # a used-up item stays listed at 0, so `$it.goods.bread` still reads a count
     world.set_prop(entity, prop, stock)
     taken: list[list[int]] = []
@@ -326,7 +326,8 @@ def make_items(world: Any, item: Any, target: Entity, qty: int, source: str, whe
         _check_space(world, target, inventory, spec, qty)
         for _ in range(qty):
             values = {"owner": target.id, "made": world.round, **(props or {})}
-            made.append(world.create(name, None, None, values, None, runner_scope or world.scope(), where))
+            scope = runner_scope or world.evaluation.scope()
+            made.append(world.evaluation.create(name, None, None, values, None, scope, where))
     else:
         put_items(world, target, name, qty, where)
     bump(world, f"{inventory}_supply", name, qty)

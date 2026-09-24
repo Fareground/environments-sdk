@@ -23,7 +23,7 @@ from .stochastic import exact_transition
 from .stochastic_integration import integrate_noise
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["EntityDynamicsStep", "MATH_NAMES", "compile_math"]
 
@@ -43,7 +43,7 @@ def compile_math(source: str, path: str) -> _CompiledExpr:
 class EntityDynamicsStep:
     """One compiled ``physics.per.<type>`` entry."""
 
-    def __init__(self, world: SdkWorld, type_name: str, spec: EntityDynamics, params: dict[str, float]):
+    def __init__(self, world: World, type_name: str, spec: EntityDynamics, params: dict[str, float]):
         path = f"mechanisms.physics.per.{type_name}"
         self.type_name = type_name
         self.path = path
@@ -61,7 +61,7 @@ class EntityDynamicsStep:
         self.inputs = [name for name, prop in specs.items()
                        if prop_type(prop) in ("number", "int") and name not in spec.vars and name not in MATH_NAMES]
 
-    def step(self, world: SdkWorld, shared: dict[str, Any], dt: float, start: float, substeps: int) -> None:
+    def step(self, world: World, shared: dict[str, Any], dt: float, start: float, substeps: int) -> None:
         """Advance every matching living entity by ``dt`` from time ``start``."""
         members = world.entities_of(self.type_name)
         if not members or dt <= 0:
@@ -152,9 +152,9 @@ class EntityDynamicsStep:
         return y
 
     @staticmethod
-    def _eval(world: SdkWorld, expr: Any, entity: Entity, path: str) -> Any:
+    def _eval(world: World, expr: Any, entity: Entity, path: str) -> Any:
         try:
-            return expr(world.scope(it=entity))
+            return expr(world.evaluation.scope(it=entity))
         except ExprError as exc:
             raise RunError(f"{entity.id}: {exc}", path) from None
 
@@ -169,7 +169,7 @@ def _finite(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _bounds(world: SdkWorld, entity: Entity, prop: str) -> Bounds:
+def _bounds(world: World, entity: Entity, prop: str) -> Bounds:
     spec = world.prop_spec(entity, prop)  # a subtype may narrow the bounds
     return spec.min, spec.max
 

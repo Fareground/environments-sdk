@@ -81,7 +81,7 @@ def test_network_generators_and_metrics():
     degrees = sorted(len(env.world.adjacent["knows"].get(p.id, {})) for p in people)
     assert min(degrees) >= 2 and max(degrees) > 4  # hubs emerge under preferential attachment
     from fg_env.expr import compile_expr
-    scope = env.world.scope(a=people[0], b=people[-1])
+    scope = env.world.evaluation.scope(a=people[0], b=people[-1])
     assert compile_expr("$degree($a, knows)")(scope) == degrees[[p.id for p in people].index(people[0].id)] or True
     assert compile_expr("$hops($a, $b, knows)")(scope) >= 1
     assert len(compile_expr("$components(person, knows)")(scope)) == 1
@@ -99,7 +99,7 @@ def test_network_generators_and_metrics():
     env = fg_env.load(blocks, seed=1)
     assert env.world.relation("p_1", "p_2", "data") == 3
     assert env.world.relation("p_1", "p_3", "k") is not None and env.world.relation("p_2", "p_4", "k") is not None
-    scope = env.world.scope()
+    scope = env.world.evaluation.scope()
     assert len(compile_expr("$components(p, k)")(scope)) == 2
     assert compile_expr("$degree($entity(p_1), fan)")(scope) == 39
 

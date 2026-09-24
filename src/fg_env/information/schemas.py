@@ -23,7 +23,7 @@ from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, is_expr, resolve
 from ..expr.objects import Entity
-from ..world.live import _copy, _plain
+from ..world.values import copy_value, plain_value
 from .tool_text import compact_ids, text_limit, usage_limits
 
 if TYPE_CHECKING:
@@ -53,7 +53,7 @@ class ToolSpec:
 
     def copy(self) -> ToolSpec:
         """The tool with a schema of its own, for a caller that may change it (a schema is plain JSON data)."""
-        return ToolSpec(self.name, self.description, _copy(self.input_schema), self.kind, self.terminal)
+        return ToolSpec(self.name, self.description, copy_value(self.input_schema), self.kind, self.terminal)
 
     def to_anthropic(self) -> dict[str, Any]:
         return {"name": self.name, "description": self.description, "input_schema": self.input_schema}
@@ -84,7 +84,7 @@ class ToolSchemas:
         book = self.actions
         with book.deciding():
             key = ("tool", actor.id, name, staged)
-            return book.world.remembered(key, lambda: self._tool(actor, name, staged)).copy()
+            return book.world.evaluation.remembered(key, lambda: self._tool(actor, name, staged)).copy()
 
     def _tool(self, actor: Entity, name: str, staged: bool) -> ToolSpec:
         spec = self.actions.contract.actions[name]
@@ -147,7 +147,7 @@ class ToolSchemas:
                 values = self._every_value(actor, action, pname, param)
                 description = (description + " Valid choices depend on the other arguments.").strip()
             if isinstance(values, list) and values:
-                out["enum"] = [_plain(v) for v in values]
+                out["enum"] = [plain_value(v) for v in values]
                 kind = _enum_type(out["enum"])
                 if kind:
                     out["type"] = kind
@@ -227,12 +227,12 @@ class ToolSchemas:
             return None
         if _mentions_expr(raw):
             try:
-                raw = resolve(raw, self.actions.world.scope(actor=actor, viewer=actor))
+                raw = resolve(raw, self.actions.world.evaluation.scope(actor=actor, viewer=actor))
             except ExprError:
                 return None
             if _mentions_expr(raw):
                 return None
-        value = _plain(raw)
+        value = plain_value(raw)
         if isinstance(value, float) and not math.isfinite(value):
             return None
         return _tidy(value)

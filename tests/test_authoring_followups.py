@@ -36,7 +36,7 @@ def test_an_assignment_that_stores_a_placeholder_literally_is_warned_about():
 def test_reading_a_field_of_an_empty_map_says_the_map_is_empty():
     env = fg_env.load(_contract(world={"last": "", "best": 0, "result": {"type": "map", "default": {}}}), seed=1)
     try:
-        compile_expr("$world.result.winner")(env.world.scope())
+        compile_expr("$world.result.winner")(env.world.evaluation.scope())
     except Exception as exc:  # the message is the point of the test
         assert "no field 'winner': the map is empty (nothing has set it yet)" in str(exc)
     else:

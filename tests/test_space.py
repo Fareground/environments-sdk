@@ -23,7 +23,7 @@ def _grid(**grid):
 
 
 def _eval(env, text, **roots):
-    return evaluate(text, env.world.scope(**{k: env.world.entities[v] for k, v in roots.items()}))
+    return evaluate(text, env.world.evaluation.scope(**{k: env.world.entities[v] for k, v in roots.items()}))
 
 
 def test_grid_sizes_come_from_inputs():
@@ -101,7 +101,7 @@ def test_a_random_empty_cell_is_seeded_and_null_when_full():
     env = fg_env.load(contract, seed=3)
     assert _eval(env, "$random_empty()") == [1, 1]
     assert _eval(env, "$random_empty(walker)") in ([1, 0], [1, 1])
-    env.world.create("rock", "e", None, {}, [1, 1], env.world.scope(), "test")
+    env.world.evaluation.create("rock", "e", None, {}, [1, 1], env.world.evaluation.scope(), "test")
     assert _eval(env, "$random_empty()") is None
 
 

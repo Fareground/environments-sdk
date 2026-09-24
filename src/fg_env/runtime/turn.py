@@ -25,7 +25,7 @@ from ..information.schemas import ToolSpec
 from ..information.tool_text import cut_text, offer_text
 from ..sampling.seeds import copy_stream
 from ..world.build import whole_setting
-from ..world.live import _plain
+from ..world.values import plain_value
 from .facts import (
     APPLIED,
     CALLED,
@@ -404,7 +404,7 @@ class Turn:
                 self.note(REJECTED)
                 return self._refused(name, refusal, observed, _REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
-            self.ledger.submitted(name, dict(args or {}), {"action": name, **_plain(params)})
+            self.ledger.submitted(name, dict(args or {}), {"action": name, **plain_value(params)})
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
             return ToolResult(True, text, ended or self.ledger.actions_left <= 0), False, False
         outcome = rules.apply(self.actor, name, params)
@@ -413,7 +413,7 @@ class Turn:
             self.note(REJECTED)
             return self._refused(name, outcome.text, observed, _REJECTED), False, drew
         pending = self.ledger.pending
-        pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
+        pending.append({"action": name, **plain_value(params)})  # what the commit's rules read as $pending
         try:
             self.committed(f"actions.{name}")
             ended = env.actions.ends_turn(self.actor, name, params)
@@ -562,7 +562,7 @@ class Turn:
 
 def entity_dict(entity: Entity) -> dict[str, Any]:
     return {"id": entity.id, "name": entity.name, "type": entity.entity_type, "alive": entity.alive,
-            "at": entity.location_id, "props": _plain(dict(entity.properties))}
+            "at": entity.location_id, "props": plain_value(dict(entity.properties))}
 
 
 def _not_an_object(args: Any) -> str:

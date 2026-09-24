@@ -25,7 +25,7 @@ def post(env, who, value, to=None):
 def values(env, who):
     viewer = env.world.entities[who]
     rows = env.world.visible_records("notes", viewer)
-    expected = [r for r in env.world.records("notes") if env.world.entry_visible("notes", r, viewer)]
+    expected = [r for r in env.world.records("notes") if env.world.evaluation.entry_visible("notes", r, viewer)]
     assert rows == expected
     return [row["value"] for row in rows]
 
@@ -122,7 +122,7 @@ def test_indexed_reads_charge_accessible_work_and_still_bound_large_results():
     for i in range(50):
         post(env, "b", i)
     post(env, "a", 100)
-    scope = env.world.scope(viewer=env.world.entities["a"])
+    scope = env.world.evaluation.scope(viewer=env.world.entities["a"])
     with shared_budget(10, "private read"):
         assert [r["value"] for r in evaluate("$records(notes)", scope)] == [100]
     for i in range(20):

@@ -137,7 +137,7 @@ def _owned(env: Env, actor: Entity) -> set[str]:
             continue
         for item in world.alive_of(str(kind)):
             try:
-                if truthy(expr(world.scope(actor=actor, viewer=actor, it=item, **{REVEALS: item}))):
+                if truthy(expr(world.evaluation.scope(actor=actor, viewer=actor, it=item, **{REVEALS: item}))):
                     owned.add(item.id)
             except ExprError:
                 continue  # the view or tool reports it where it is shown

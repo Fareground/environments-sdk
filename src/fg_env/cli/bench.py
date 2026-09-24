@@ -134,8 +134,8 @@ def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any
     rules.check_changes = watch.wrap("events", rules.check_changes)  # type: ignore[method-assign]
     rules.check_invariants = watch.wrap("invariants", rules.check_invariants)  # type: ignore[method-assign]
     env.schedule.run_stage = watch.wrap_steps("stages", env.schedule.run_stage)  # type: ignore[method-assign, assignment]
-    env.world.step_physics = watch.wrap("physics", env.world.step_physics)  # type: ignore[method-assign]
-    sampler = _schedule.sample_metrics
+    physics, sampler = _schedule.step_physics, _schedule.sample_metrics
+    _schedule.step_physics = watch.wrap("physics", physics)  # type: ignore[assignment]
     _schedule.sample_metrics = watch.wrap("metrics", sampler)  # type: ignore[assignment]
     try:
         watch.enter("other")
@@ -144,7 +144,7 @@ def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any
         run_ms = (time.perf_counter() - started) * 1000
         watch.leave()
     finally:
-        _schedule.sample_metrics = sampler  # type: ignore[assignment]
+        _schedule.step_physics, _schedule.sample_metrics = physics, sampler  # type: ignore[assignment]
     played = max(1, result.rounds)
     name = Path(contract).stem if isinstance(contract, (str, Path)) else env.contract.name
     return BenchResult(name, result.rounds, result.status, build_ms, run_ms,

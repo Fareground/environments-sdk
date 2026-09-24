@@ -8,7 +8,7 @@ from typing import Any
 from ..errors import RunError
 from ..expr import is_expr
 from ..registry import family_action
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of
 from .econ_assets import (
     UNPAID,
@@ -140,8 +140,8 @@ def _pay(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) 
     have, limit = balance(world, source, currency, where), credit_of(world, source, currency)
     if have - need < -limit - EPS:
         extra = f" (credit {money(limit)})" if limit else ""
-        raise world.refusal(source, currency, f"{source.name} has only {money(have)} {currency}{extra}; "
-                                              f"{money(need)} is needed.", UNPAID)
+        raise world.evaluation.refusal(source, currency, f"{source.name} has only {money(have)} {currency}{extra}; "
+                                                         f"{money(need)} is needed.", UNPAID)
     # A payee tax is withheld from what the payee receives; a payer tax is added on top. The payer pays the levy.
     move_money(world, currency, source, target, value if tax.on == "payer" else value - levy, where)
     if tax.to:
@@ -195,7 +195,7 @@ def _make(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str)
     target = entity_of(world, runner.eval(effect["to"], vars), where, "a `to` entity")
     values = runner.eval(effect.get("props") or {}, vars)
     make_items(world, item, target, _qty(runner, effect, vars, where), _named(effect, "source", where), where, values,
-               world.scope(**vars))
+               world.evaluation.scope(**vars))
 
 
 @family_action("economy", ("inventory",), "use", keys=("item", "from", "qty", "sink"),

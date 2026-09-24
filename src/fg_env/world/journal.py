@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from . import links as _links
 
 if TYPE_CHECKING:
-    from .live import SdkWorld
+    from .store import World
 
 __all__ = ["Journal", "UNDO"]
 
@@ -33,7 +33,7 @@ _VERSIONS = itertools.count(1)
 class Journal:
     """The undo ops of ``world`` since the last commit (:meth:`clear`), and the world's version."""
 
-    def __init__(self, world: SdkWorld) -> None:
+    def __init__(self, world: World) -> None:
         self.world = world
         #: Each change's undo op, with the version it replaced.
         self._undo: list[tuple[Op, int]] = []
@@ -98,52 +98,52 @@ class Journal:
 # -- the undo of each kind of change ---------------------------------------------------------------------------------
 
 
-def _prop(world: SdkWorld, op: Op) -> None:
+def _prop(world: World, op: Op) -> None:
     _, entity_id, prop, old = op
     entity = world.entities[entity_id]
     entity.properties[prop] = old
-    world._touch_entity(entity)  # an undo can bring back values no invariant check has seen together
+    world.touch_entity(entity)  # an undo can bring back values no invariant check has seen together
 
 
-def _world_prop(world: SdkWorld, op: Op) -> None:
+def _world_prop(world: World, op: Op) -> None:
     _, prop, old = op
     world.props[prop] = old
 
 
-def _physics_variable(world: SdkWorld, op: Op) -> None:
+def _physics_variable(world: World, op: Op) -> None:
     _, name, old = op
     assert world.physics is not None
     world.physics.variables[name].value = old
 
 
-def _physics_param(world: SdkWorld, op: Op) -> None:
+def _physics_param(world: World, op: Op) -> None:
     _, name, old = op
     assert world.physics is not None
     world.physics.params[name] = old
 
 
-def _counter(world: SdkWorld, op: Op) -> None:
+def _counter(world: World, op: Op) -> None:
     _, type_name, old = op
     world.counters[type_name] = old
 
 
-def _create(world: SdkWorld, op: Op) -> None:
+def _create(world: World, op: Op) -> None:
     entity = world.entities.pop(op[1])
     world.types.uncreated(entity)
     if world.space is not None:
         world.space.positions.discard(entity)
 
 
-def _remove(world: SdkWorld, op: Op) -> None:
+def _remove(world: World, op: Op) -> None:
     entity = world.entities[op[1]]
     entity.alive = True
     world.types.changed(entity)
-    world._touch_entity(entity)
+    world.touch_entity(entity)
     if world.space is not None:
         world.space.positions.add(entity)
 
 
-def _move(world: SdkWorld, op: Op) -> None:
+def _move(world: World, op: Op) -> None:
     _, entity_id, old = op
     entity, space = world.entities[entity_id], world.space
     if space is None:
@@ -154,7 +154,7 @@ def _move(world: SdkWorld, op: Op) -> None:
     space.positions.add(entity)
 
 
-def _link(world: SdkWorld, op: Op) -> None:
+def _link(world: World, op: Op) -> None:
     _, kind, key, missing, old, had_fields, old_fields = op
     edges, table = world.links[kind], world.link_fields[kind]
     if missing:
@@ -168,12 +168,12 @@ def _link(world: SdkWorld, op: Op) -> None:
         table.pop(key, None)
 
 
-def _link_field(world: SdkWorld, op: Op) -> None:
+def _link_field(world: World, op: Op) -> None:
     _, kind, key, name, old = op
     world.link_fields[kind][key][name] = old
 
 
-def _unlink(world: SdkWorld, op: Op) -> None:
+def _unlink(world: World, op: Op) -> None:
     _, kind, key, old, old_fields = op
     world.links[kind][key] = old
     if old_fields is not None:
@@ -181,7 +181,7 @@ def _unlink(world: SdkWorld, op: Op) -> None:
     _links._adjust(world, kind, key, 1)
 
 
-def _post(world: SdkWorld, op: Op) -> None:
+def _post(world: World, op: Op) -> None:
     _, record, seq, dropped = op
     rows = world.records_store[record]
     for index in range(len(rows) - 1, -1, -1):  # a rolled-back entry sits near the end
@@ -198,7 +198,7 @@ def _post(world: SdkWorld, op: Op) -> None:
     world.record_seq -= 1
 
 
-def _emit(world: SdkWorld, op: Op) -> None:
+def _emit(world: World, op: Op) -> None:
     _, seq, record_key = op
     log = world.log
     for index in range(len(log) - 1, -1, -1):  # rolled-back events sit near the end
@@ -210,7 +210,7 @@ def _emit(world: SdkWorld, op: Op) -> None:
             break
 
 
-def _first(world: SdkWorld, op: Op) -> None:
+def _first(world: World, op: Op) -> None:
     _, index, since = op
     log = world.log
     log.append(log.pop(index))  # the announcement back at the end, and every event after ``since`` numbered as before
@@ -218,7 +218,7 @@ def _first(world: SdkWorld, op: Op) -> None:
         item.seq = since + 1 + offset
 
 
-def _schedule(world: SdkWorld, op: Op) -> None:
+def _schedule(world: World, op: Op) -> None:
     entry = op[1]
     if entry in world.scheduled:
         world.scheduled.remove(entry)
@@ -226,7 +226,7 @@ def _schedule(world: SdkWorld, op: Op) -> None:
     world.schedule_seq = entry[1] - 1  # the number it took
 
 
-def _reaction(world: SdkWorld, op: Op) -> None:
+def _reaction(world: World, op: Op) -> None:
     reactions = world.reactions
     for index in range(len(reactions) - 1, -1, -1):
         if reactions[index] == op[1]:
@@ -234,7 +234,7 @@ def _reaction(world: SdkWorld, op: Op) -> None:
             break
 
 
-def _wake(world: SdkWorld, op: Op) -> None:
+def _wake(world: World, op: Op) -> None:
     _, entity_id, had, old = op
     if had:
         world.wake_requests[entity_id] = old
@@ -242,11 +242,11 @@ def _wake(world: SdkWorld, op: Op) -> None:
         world.wake_requests.pop(entity_id, None)
 
 
-def _end(world: SdkWorld, op: Op) -> None:
+def _end(world: World, op: Op) -> None:
     world.end_request = None
 
 
-def _brief(world: SdkWorld, op: Op) -> None:
+def _brief(world: World, op: Op) -> None:
     _, entity_id, had, old = op
     if had:
         world.entity_briefs[entity_id] = old
@@ -254,23 +254,23 @@ def _brief(world: SdkWorld, op: Op) -> None:
         world.entity_briefs.pop(entity_id, None)
 
 
-def _cell(world: SdkWorld, op: Op) -> None:
+def _cell(world: World, op: Op) -> None:
     _, name, cell, old = op
     assert world.space is not None
     world.space.layers.values[name][cell] = old
 
 
-def _layer(world: SdkWorld, op: Op) -> None:
+def _layer(world: World, op: Op) -> None:
     _, name, old = op
     assert world.space is not None
     world.space.layers.values[name] = old
 
 
-def _fired(world: SdkWorld, op: Op) -> None:
+def _fired(world: World, op: Op) -> None:
     world.fired_once.discard(op[1])
 
 
-def _armed(world: SdkWorld, op: Op) -> None:
+def _armed(world: World, op: Op) -> None:
     _, index, old = op
     if old is None:
         world.armed.pop(index, None)
@@ -278,13 +278,13 @@ def _armed(world: SdkWorld, op: Op) -> None:
         world.armed[index] = old
 
 
-def _use(world: SdkWorld, op: Op) -> None:
+def _use(world: World, op: Op) -> None:
     _, actor_id, action = op
     world.used_round[actor_id][action] -= 1
 
 
 #: How each kind of op is undone: the complete list of what the journal can take back.
-UNDO: dict[str, Callable[[SdkWorld, Op], None]] = {
+UNDO: dict[str, Callable[[World, Op], None]] = {
     "prop": _prop, "world": _world_prop, "physics_variable": _physics_variable, "physics_param": _physics_param,
     "counter": _counter, "create": _create, "remove": _remove, "move": _move, "link": _link,
     "link_field": _link_field, "unlink": _unlink, "post": _post, "emit": _emit, "first": _first,

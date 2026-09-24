@@ -31,7 +31,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._social import cache, edges, eid, entity, named_use, props, require_type, seat_order
 
 __all__ = ["FeedConfig", "feed"]
@@ -424,7 +424,8 @@ def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str
 
 def _new_post(world: Any, name: str, author: Entity, kind: str, text: Any, parent: Entity | None, where: str) -> Entity:
     # Created empty, then filled: participant text must never be read as an expression.
-    post = world.create(f"{name}_post", None, f"post by {author.name}", {}, None, world.scope(), where)
+    evaluation = world.evaluation
+    post = evaluation.create(f"{name}_post", None, f"post by {author.name}", {}, None, evaluation.scope(), where)
     origin = props(parent).get("origin") or props(parent).get("author") if parent is not None else author.id
     for prop, value in (("author", author.id), ("text", text), ("kind", kind), ("parent", parent.id if parent else ""),
                         ("origin", origin), ("born", world.round)):

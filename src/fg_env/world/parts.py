@@ -10,7 +10,7 @@ from ..expr import ExprError
 
 if TYPE_CHECKING:
     from ..contract import Contract
-    from .live import SdkWorld
+    from .store import World
 
 __all__ = ["Entry", "LogEvent", "PhysicsView", "ClockView", "private_metrics"]
 
@@ -40,7 +40,7 @@ def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[st
 class Entry(dict):
     """One record entry. ``author`` reads as the authoring entity."""
 
-    world: SdkWorld
+    world: World
 
     def expr_attr(self, name: str, source: str | None) -> Any:
         if name == "author":
@@ -90,7 +90,7 @@ class LogEvent:
 class PhysicsView:
     """``$physics`` — current values of physics variables and params."""
 
-    def __init__(self, world: SdkWorld):
+    def __init__(self, world: World):
         self._world = world
 
     def expr_attr(self, name: str, source: str | None) -> Any:
@@ -105,7 +105,7 @@ class PhysicsView:
 
 
 class ClockView:
-    def __init__(self, world: SdkWorld):
+    def __init__(self, world: World):
         self._world = world
 
     def expr_attr(self, name: str, source: str | None) -> Any:

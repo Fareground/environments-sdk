@@ -5,12 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ..contract.base import TAPE
-from ..world.live import _plain
+from ..world.values import plain_value
 from .measure import shown
 
 if TYPE_CHECKING:
     from ..contract import Contract
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["end_state", "state_lines"]
 
@@ -24,7 +24,7 @@ LINE_WIDTH = 120
 TEXT_WIDTH = 24
 
 
-def end_state(contract: Contract, world: SdkWorld) -> dict[str, Any]:
+def end_state(contract: Contract, world: World) -> dict[str, Any]:
     """``{world: {prop: value}, types: {type: {alive, entities: [{id, props}]}}}``: every world property and, per
     type with living entities, how many there are and the first :data:`STATE_ROWS` with every property, private ones
     included."""
@@ -33,9 +33,10 @@ def end_state(contract: Contract, world: SdkWorld) -> dict[str, Any]:
         if entity.alive:
             alive.setdefault(entity.entity_type, []).append(entity)
     types = {kind: {"alive": len(alive[kind]),
-                    "entities": [{"id": e.id, "props": _plain(dict(e.properties))} for e in alive[kind][:STATE_ROWS]]}
+                    "entities": [{"id": e.id, "props": plain_value(dict(e.properties))}
+                                 for e in alive[kind][:STATE_ROWS]]}
              for kind in contract.types if kind in alive}
-    return {"world": _plain(dict(world.props)), "types": types}
+    return {"world": plain_value(dict(world.props)), "types": types}
 
 
 def state_lines(state: dict[str, Any], series: dict[str, list[Any]]) -> list[str]:

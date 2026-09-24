@@ -110,9 +110,9 @@ def test_modifiers_immunity_unless_and_cleanse():
     world = env.world
     from fg_env.expr import compile_expr
     ann = world.entities["ann"]
-    assert compile_expr("$effective($it, 'armor')")(world.scope(it=ann)) == 5
-    assert compile_expr("$effective($it, 'speed')")(world.scope(it=ann)) == 1.5
-    assert compile_expr("$status_rounds($it, 'shield')")(world.scope(it=ann)) == 2
+    assert compile_expr("$effective($it, 'armor')")(world.evaluation.scope(it=ann)) == 5
+    assert compile_expr("$effective($it, 'speed')")(world.evaluation.scope(it=ann)) == 1.5
+    assert compile_expr("$status_rounds($it, 'shield')")(world.evaluation.scope(it=ann)) == 2
     play = _script({("bob", 2): [("poison", {"target": "ann"})], ("ann", 3): [("purge", {})]})
     env.run(play, rounds=1)
     assert "poison" not in _props(env, "ann")["conditions"]  # the shield grants immunity

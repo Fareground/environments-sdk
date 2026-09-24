@@ -22,18 +22,20 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from ..expr.objects import Entity
 from ..information.gate import render
+from ..physics.world import build_physics
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import parse_moment
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
+from .abort import Abort
 from .defaults import default_order, world_reads
-from .live import Abort, SdkWorld
+from .store import World
 
 __all__ = ["build_world"]
 
 
 def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm: str | None = None,
-                assets: AssetStore | None = None) -> SdkWorld:
-    world = SdkWorld(contract, inputs, seeds, arm)
+                assets: AssetStore | None = None) -> World:
+    world = World(contract, inputs, seeds, arm)
     if assets is not None:
         world.assets = assets
     world.luck.main = seeds.rng("build")
@@ -51,14 +53,15 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
                 _generate(world, entity_id, named, generated, pending_briefs)
                 generated += 1
                 continue
-            world.create(named.type, entity_id, named.name or entity_id, named.props, _value(world, named.at, {}),
-                         world.scope(), f"entities.{entity_id}")
+            evaluation = world.evaluation
+            evaluation.create(named.type, entity_id, named.name or entity_id, named.props, _value(world, named.at, {}),
+                              evaluation.scope(), f"entities.{entity_id}")
             if named.brief:
                 pending_briefs.append((entity_id, named.brief, {}, f"entities.{entity_id}.brief"))
         for index, (relation, path, link) in enumerate(contract.starting_links()):
             _links(world, relation, link, path, index, seeds)
         _world_props(world, after_entities=True)
-        world.build_physics()
+        build_physics(world)
         world.series = {name: [] for name in contract.series_outputs()}
         world.metrics = {name: None for name in contract.series_outputs()}
         # Briefs render once the whole world exists, so they can count and read everything.
@@ -76,7 +79,7 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
     return world
 
 
-def _build_hooks(world: SdkWorld) -> None:
+def _build_hooks(world: World) -> None:
     """The events on ``create.<type>`` for every entity made at build — once the whole world exists, in creation order.
     Entities they create fire their own."""
     contract = world.contract
@@ -88,12 +91,12 @@ def _build_hooks(world: SdkWorld) -> None:
             runner.lifecycle("create", entity, f"entities.{entity.id}")
 
 
-def _value(world: SdkWorld, raw: Any, vars: dict[str, Any]) -> Any:
+def _value(world: World, raw: Any, vars: dict[str, Any]) -> Any:
     # Literal lists and maps are copied, so a run never shares (or mutates) the contract's objects.
-    return compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else copy.deepcopy(raw)
+    return compile_expr(raw)(world.evaluation.scope(**vars)) if is_expr(raw) else copy.deepcopy(raw)
 
 
-def _rounds(world: SdkWorld) -> int:
+def _rounds(world: World) -> int:
     clock = world.contract.clock
     rounds = _value(world, clock.rounds, {})
     if isinstance(rounds, float) and rounds.is_integer():
@@ -105,7 +108,7 @@ def _rounds(world: SdkWorld) -> int:
     return rounds
 
 
-def _clock_start(world: SdkWorld) -> str | None:
+def _clock_start(world: World) -> str | None:
     """``clock.start`` as a calendar date: as written, or read from ``$inputs`` (null leaves the run without dates)."""
     raw = world.contract.clock.start
     if raw is None or not is_expr(raw):
@@ -121,17 +124,17 @@ def _clock_start(world: SdkWorld) -> str | None:
 
 
 @overload
-def whole_setting(world: SdkWorld, raw: int | str, path: str, limit: int | None = None) -> int: ...
+def whole_setting(world: World, raw: int | str, path: str, limit: int | None = None) -> int: ...
 @overload
-def whole_setting(world: SdkWorld, raw: int | str | None, path: str, limit: int | None = None) -> int | None: ...
-def whole_setting(world: SdkWorld, raw: int | str | None, path: str, limit: int | None = None) -> int | None:
+def whole_setting(world: World, raw: int | str | None, path: str, limit: int | None = None) -> int | None: ...
+def whole_setting(world: World, raw: int | str | None, path: str, limit: int | None = None) -> int | None:
     """A count setting (a stage's `passes`, `max_actions` or `max_calls`, an event's `every`): a literal as written, or
     an expression over $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives
     the same number."""
     if not isinstance(raw, str):
         return raw
     try:
-        value = compile_expr(raw)(world.scope())
+        value = compile_expr(raw)(world.evaluation.scope())
     except ExprError as exc:
         raise RunError(str(exc), path) from None
     if isinstance(value, float) and value.is_integer():
@@ -143,7 +146,7 @@ def whole_setting(world: SdkWorld, raw: int | str | None, path: str, limit: int 
     return value
 
 
-def _count_settings(world: SdkWorld) -> None:
+def _count_settings(world: World) -> None:
     """Expression counts fail at load, not in the round that first reads them."""
     for stage in world.contract.stage_list():
         whole_setting(world, stage.passes, f"stages.{stage.name}.passes", MAX_STAGE_PASSES)
@@ -161,7 +164,7 @@ _ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "rela
                                "money_held"})
 
 
-def _needs_entities(world: SdkWorld, raw: Any) -> bool:
+def _needs_entities(world: World, raw: Any) -> bool:
     if not is_expr(raw):
         return False
     compiled = compile_expr(raw)
@@ -169,7 +172,7 @@ def _needs_entities(world: SdkWorld, raw: Any) -> bool:
         symbol in world.contract.types for _, symbol in compiled.calls if symbol)
 
 
-def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
+def _world_props(world: World, after_entities: bool = False) -> None:
     """World defaults are evaluated before entities exist, except those that read entities
     (`$sum(tier, ...)`, `$entity(x)`) or read a world property that does, which are evaluated once the world is
     populated. A default reading other world properties (`$world.rates`) is evaluated after them."""
@@ -190,7 +193,7 @@ def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
         world.props[name] = world.coerce(spec, value, f"world.{name}")
 
 
-def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,
+def _generate(world: World, key: str, spec: EntitySpec, ordinal: int,
               pending_briefs: list[tuple[str, str, dict[str, Any], str]]) -> None:
     """The entities a generator entry makes (``ordinal``: how many generators came before it, whose sampling stream
     it keeps)."""
@@ -212,7 +215,7 @@ def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,
     title = spec.type.replace("_", " ").title()
     for n, row in enumerate(rows, start=1):
         vars = {"i": n, "row": row}
-        scope = world.scope(**vars)
+        scope = world.evaluation.scope(**vars)
         if spec.id:  # generated ids and names are world data: the rules' own words
             entity_id = render(world, spec.id, vars, viewer=None)
         elif isinstance(row, dict) and isinstance(row.get("id"), str):
@@ -225,8 +228,8 @@ def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,
             name = row["name"]
         else:
             name = f"{title} {n}"
-        created = world.create(spec.type, entity_id, name, spec.props, _value(world, spec.at, vars), scope,
-                               f"{path}[{n}]")
+        created = world.evaluation.create(spec.type, entity_id, name, spec.props, _value(world, spec.at, vars), scope,
+                                          f"{path}[{n}]")
         if spec.brief:
             pending_briefs.append((created.id, spec.brief, vars, f"{path}.brief"))
 
@@ -237,7 +240,7 @@ def _whole(value: Any, where: str) -> float:
     return value
 
 
-def _sample(world: SdkWorld, rows: list[Any], spec: EntitySpec, count: int, path: str, ordinal: int) -> list[Any]:
+def _sample(world: World, rows: list[Any], spec: EntitySpec, count: int, path: str, ordinal: int) -> list[Any]:
     rng = world.seeds.rng("population", f"population[{ordinal}]")  # the stream generators have always drawn from
     weights = None
     if spec.weight:
@@ -267,7 +270,7 @@ def _sample(world: SdkWorld, rows: list[Any], spec: EntitySpec, count: int, path
     return [rows[i] for i in sorted(chosen)]
 
 
-def _links(world: SdkWorld, relation: str, spec: LinkSpec, path: str, index: int, seeds: SeedTree) -> None:
+def _links(world: World, relation: str, spec: LinkSpec, path: str, index: int, seeds: SeedTree) -> None:
     """The starting links one entry of ``relation`` makes (``index``: its place in the build, whose random stream
     it draws from)."""
     if spec.rows is not None:
@@ -406,15 +409,15 @@ def _links(world: SdkWorld, relation: str, spec: LinkSpec, path: str, index: int
                        _fields(world, spec, {"from": members[j], "to": members[i]}, path))
 
 
-def _pair_link(world: SdkWorld, relation: str, spec: LinkSpec, source: Entity, target: Entity, path: str) -> None:
+def _pair_link(world: World, relation: str, spec: LinkSpec, source: Entity, target: Entity, path: str) -> None:
     pair = {"from": source, "to": target}
     world.link(relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
 
 
-def _fields(world: SdkWorld, spec: LinkSpec, pair: dict[str, Any], path: str) -> dict[str, Any]:
+def _fields(world: World, spec: LinkSpec, pair: dict[str, Any], path: str) -> dict[str, Any]:
     """The link fields a `links` entry sets for one pair (values, templates or expressions over $from, $to, $row)."""
     try:
-        return {name: resolve(copy.deepcopy(raw), world.scope(**pair)) for name, raw in spec.props.items()}
+        return {name: resolve(copy.deepcopy(raw), world.evaluation.scope(**pair)) for name, raw in spec.props.items()}
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.props") from None
 
@@ -441,7 +444,7 @@ def _pair(a: int, b: int) -> tuple[int, int]:
     return (a, b) if a <= b else (b, a)
 
 
-def _endpoint(world: SdkWorld, raw: str, path: str) -> Entity:
+def _endpoint(world: World, raw: str, path: str) -> Entity:
     value = _value(world, raw, {})
     entity = world.entity(value)
     if entity is None:

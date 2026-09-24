@@ -11,7 +11,8 @@ from ..contract.inputs import check_value
 from ..errors import Issue, RunError
 from ..expr import ExprError, compile_expr
 from ..expr.template import apply_format
-from ..world.live import SdkWorld, _plain
+from ..world.store import World
+from ..world.values import plain_value
 
 __all__ = ["RunResult", "sample_metrics", "compute_outputs", "ending"]
 
@@ -170,14 +171,14 @@ def _readable(value: Any) -> Any:
 READABLE_DECIMALS = 4
 
 
-def sample_metrics(contract: Contract, world: SdkWorld) -> None:
+def sample_metrics(contract: Contract, world: World) -> None:
     """Sample every series output against the current world and append it to its series (``$outputs.x`` in the
     expressions reads the outputs sampled before it this round)."""
-    scope = world.scope()
+    scope = world.evaluation.scope()
     values: dict[str, Any] = {}
     for name, spec in contract.series_outputs().items():
         try:
-            value = _plain(compile_expr(spec.sampled)(scope.child(outputs=values)))
+            value = plain_value(compile_expr(spec.sampled)(scope.child(outputs=values)))
         except ExprError as exc:
             raise RunError(str(exc), f"outputs.{name}" + (".series" if isinstance(spec.series, str) else "")) from None
         values[name] = value
@@ -188,10 +189,10 @@ def sample_metrics(contract: Contract, world: SdkWorld) -> None:
     world.touch()
 
 
-def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[dict[str, Any], list[Issue]]:
+def compute_outputs(contract: Contract, world: World) -> tuple[dict[str, Any], list[Issue]]:
     from .returns import run_result
 
-    scope = world.scope(result=run_result(world))
+    scope = world.evaluation.scope(result=run_result(world))
     known = dict(world.metrics)  # what `$outputs` reads: series outputs' latest samples, and each output worked out
     outputs: dict[str, Any] = {}
     issues: list[Issue] = []
@@ -200,7 +201,7 @@ def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[dict[str, Any]
             value = world.metrics.get(name)
         else:
             try:
-                value = _plain(compile_expr(spec.expr)(scope.child(outputs=known)))
+                value = plain_value(compile_expr(spec.expr)(scope.child(outputs=known)))
             except ExprError as exc:
                 issues.append(Issue(f"outputs.{name}", exc.detail, "fix the expression or guard missing values"))
                 outputs[name] = known[name] = None

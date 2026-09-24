@@ -178,7 +178,7 @@ class PolicyAgent:
             acted = False
             for index, rule in enumerate(spec.rules):
                 path = f"{base}.rules[{index}]"
-                scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
+                scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=turn.actor)
                 if rule.each is None:
                     outcome = self._try(wake, spec, base, index, scope, rng)
                     if outcome == "passed":
@@ -271,7 +271,7 @@ class PolicyAgent:
         """Evaluate each rule after ``index`` whose action is legal now, as a turn would reach it — `when`, then
         `chance` and `with` if it holds — for the first of its `each` items. Nothing acts, and draws come from a stream
         of their own."""
-        scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
+        scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=turn.actor)
         with turn.env._lock:
             legal = set(turn._legal()) | {"pass"}
         with turn.env.world.luck.using(random.Random(0)):

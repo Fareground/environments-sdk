@@ -4,47 +4,45 @@ Everything the run changes is copied — entities and their properties, global p
 schedule of effects, counters, the rules' journaled bookkeeping, the open journal itself (its undo ops are data, so an
 atomic turn part-way through its changes copies too), luck, physics, the space and its layers, exposures, assets — and
 every index over it is rebuilt or copied. What only the contract and its build decide (types, what is private, compiled
-physics, pattern parameters) is shared: nothing changes it while a run plays. Caches start empty, and the callbacks the
-run wires into its world (its facts, its lifecycle and join hooks, a chance chooser) are left for the copy's run to set.
-
-What mechanisms cache on the world (``world.caches``) is left behind with the other caches.
-``tests/kernel/test_kernel_copies.py`` holds a copy to sharing nothing mutable with its original.
+physics, pattern parameters) is shared: nothing changes it while a run plays. Caches start empty — the copy's
+:class:`~fg_env.world.evaluation.EvalContext` is its own, and what mechanisms keep in ``world.caches`` stays behind —
+and the callbacks the run wires into its world (its facts, its lifecycle and join hooks, a chance chooser) are left for
+the copy's run to set. ``tests/kernel/test_kernel_copies.py`` holds a copy to sharing nothing mutable with its original.
 """
 from __future__ import annotations
 
 import dataclasses
 from typing import TYPE_CHECKING, Any
 
-from ..expr.objects import Entity, PropsView
+from ..expr.objects import Entity
+from .evaluation import EvalContext
 from .journal import Journal
 from .layers import Layers
-from .parts import ClockView, Entry, PhysicsView
+from .parts import Entry
 from .positions import PositionIndex
 from .space import Spatial
 from .type_index import TypeIndex
 
 if TYPE_CHECKING:
     from ..physics.model import PhysicsModel
-    from .live import SdkWorld
+    from .store import World
 
 __all__ = ["copy_world"]
 
 #: What the contract and the build decide, shared by a copy (never changed while a run plays).
 _SHARED = frozenset({
     "contract", "inputs", "arm", "physics_writes", "entity_dynamics", "start", "type_props", "hidden", "private_names",
-    "private_metrics", "_def_cache_on", "_subtypes"})
+    "private_metrics", "_subtypes"})
 #: Wired by the run, or caches: a copy starts without them.
-_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "caches": dict, "_def_cache": dict,
-          "_def_cache_state": None, "_remembered": dict, "_remembered_state": None}
+_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "caches": dict}
 #: Copied by what they are (below).
 _COPIED = frozenset({
     "luck", "entities", "props", "links", "link_fields", "adjacent", "records_store", "entry_by_seq", "entity_briefs",
     "log", "physics", "scheduled", "reactions", "end_request", "fired_once", "written", "touched", "journal", "types",
-    "exposures", "assets", "_props_view", "_physics_view", "_clock_view", "space", "record_authors", "record_events",
-    "patterns"})
+    "exposures", "assets", "evaluation", "space", "record_authors", "record_events", "patterns"})
 
 
-def copy_world(source: SdkWorld) -> SdkWorld:
+def copy_world(source: World) -> World:
     """A copy of ``source`` that shares nothing it changes (see the module docstring). Taken between blocks of
     logic: no sync loop is holding writes back and no sealed choices are committing."""
     assert source.buffer is None and source.watched_writes is None, "a world is copied between blocks of logic"
@@ -78,7 +76,8 @@ def copy_world(source: SdkWorld) -> SdkWorld:
         end_request=_plain_copy(source.end_request), fired_once=set(source.fired_once), written=set(source.written),
         touched=None if source.touched is None else dict(source.touched), journal=journal, types=types,
         exposures=None if source.exposures is None else source.exposures.copy(), assets=source.assets.copy())
-    world._props_view, world._physics_view, world._clock_view = PropsView(world), PhysicsView(world), ClockView(world)
+    world.evaluation = EvalContext(world)
+    world.evaluation.caching = source.evaluation.caching
     world.space = None if source.space is None else _copy_space(source.space, world)
     world.rebuild_record_index()
     world.rebuild_event_index()
@@ -103,7 +102,7 @@ def _copy_entity(source: Entity) -> Entity:
     return entity
 
 
-def _copy_records(source: SdkWorld, world: SdkWorld) -> tuple[dict[str, list[Entry]], dict[int, Entry]]:
+def _copy_records(source: World, world: World) -> tuple[dict[str, list[Entry]], dict[int, Entry]]:
     records: dict[str, list[Entry]] = {}
     by_seq: dict[int, Entry] = {}
     for name, rows in source.records_store.items():
@@ -129,7 +128,7 @@ def _copy_physics(source: PhysicsModel | None) -> PhysicsModel | None:
     return physics
 
 
-def _copy_space(source: Spatial, world: SdkWorld) -> Spatial:
+def _copy_space(source: Spatial, world: World) -> Spatial:
     """The space of ``world``: the same geometry and capacities, its own layer values and position index."""
     space = Spatial.__new__(Spatial)
     space.__dict__.update(source.__dict__)

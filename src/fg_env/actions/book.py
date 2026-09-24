@@ -33,8 +33,10 @@ from ..expr.template import format_value
 from ..information.announce import Redaction, notified_since
 from ..information.gate import render
 from ..information.schemas import _ENUM_CHOICES
-from ..world.live import Abort, SdkWorld, _plain
+from ..world.abort import Abort
 from ..world.randomness import LuckAhead
+from ..world.store import World
+from ..world.values import plain_value
 from .faults import fault_reason
 from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
 from .validation import ActionValidation
@@ -85,7 +87,7 @@ def announces(contract: Contract, stage: StageSpec) -> bool:
 
 
 class ActionBook(ActionValidation):
-    def __init__(self, contract: Contract, world: SdkWorld, effects: EffectRunner):
+    def __init__(self, contract: Contract, world: World, effects: EffectRunner):
         self.contract = contract
         self.world = world
         self.effects = effects
@@ -103,7 +105,8 @@ class ActionBook(ActionValidation):
         remembered."""
         key = ("blocked", actor.id, name, used_turn.get(name, 0), used_round.get(name, 0), offered)
         with self.deciding():
-            return self.world.remembered(key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
+            return self.world.evaluation.remembered(
+                key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
 
     def deciding(self) -> Any:
         """A block that decides whether a call is allowed or what its arguments may be: a random draw in it fails as a
@@ -148,7 +151,7 @@ class ActionBook(ActionValidation):
             if offered and self._reads_hidden(actor, compiled):
                 continue
             if scope is None:  # built for the first requirement evaluated
-                scope = self.world.scope(**vars)
+                scope = self.world.evaluation.scope(**vars)
             path = f"actions.{name}.when[{index}]"
             try:
                 if truthy(compiled(scope)):
@@ -165,7 +168,7 @@ class ActionBook(ActionValidation):
         if not self.world.private_names:
             return False
         try:
-            compiled(self.world.scope(actor=actor, viewer=actor))
+            compiled(self.world.evaluation.scope(actor=actor, viewer=actor))
         except PrivateRead:
             return True
         except ExprError:
@@ -190,7 +193,7 @@ class ActionBook(ActionValidation):
         if "params" in expr.roots:
             return None
         try:
-            return expr(self.world.scope(actor=actor, viewer=actor))
+            return expr(self.world.evaluation.scope(actor=actor, viewer=actor))
         except PrivateRead as exc:
             raise RunError(str(exc), where) from None
         except ExprError:
@@ -226,15 +229,16 @@ class ActionBook(ActionValidation):
                                                                  reveal)
         if first:
             return self._qualifying(actor, action, pname, expr, items, None, first, reveal)
-        return self.world.remembered(("choices", action, pname, actor.id, param.of, param.where),
-                                     lambda: self._qualifying(actor, action, pname, expr, items, None, False, reveal))
+        return self.world.evaluation.remembered(
+            ("choices", action, pname, actor.id, param.of, param.where),
+            lambda: self._qualifying(actor, action, pname, expr, items, None, False, reveal))
 
     def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: list[Entity],
                     params: dict[str, Any] | None, first: bool, reveal: bool) -> list[Entity]:
         """The ``items`` the `where` ``expr`` picks, read as the actor sees them; with ``reveal`` (see
         expr/hidden.py) it reads each item's private properties."""
         out = []
-        base = self.world.scope(actor=actor, viewer=actor, params=params or {})
+        base = self.world.evaluation.scope(actor=actor, viewer=actor, params=params or {})
         ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
         for position, item in enumerate(items):
             if ruled_out is not None and ruled_out(item):
@@ -324,7 +328,8 @@ class ActionBook(ActionValidation):
             self.effects.run(spec.do, vars, f"{path}.do")
             text = render(world, spec.outcome, vars, viewer=actor, path=f"{path}.outcome") if spec.outcome else \
                 "" if trial else self.default_outcome(name, params)
-            assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
+            assets = attached_ids(world, spec.attach, world.evaluation.scope(**vars), f"{path}.attach") \
+                if spec.attach else []
             announce = spec.announce
             if trial:
                 if isinstance(announce, str):
@@ -340,11 +345,11 @@ class ActionBook(ActionValidation):
                 # Public: every agent may learn of it; the actor's own announcement is
                 # filtered out of its news by perception.
                 announcement = world.emit("action", line, actor=actor.id, to=None,
-                                          data={"action": name, "params": _plain(public), "success": True})
+                                          data={"action": name, "params": plain_value(public), "success": True})
                 world.put_first(announcement, log_mark)
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),
-                           data={"action": name, "params": _plain(params), "success": True, "private": True})
+                           data={"action": name, "params": plain_value(params), "success": True, "private": True})
         except Abort as abort:
             world.rollback(mark)
             return Outcome(False, abort.reason, params)
@@ -361,7 +366,7 @@ class ActionBook(ActionValidation):
         if isinstance(terminal, bool):
             return terminal
         try:
-            return truthy(compile_expr(terminal)(self.world.scope(actor=actor, params=params)))
+            return truthy(compile_expr(terminal)(self.world.evaluation.scope(actor=actor, params=params)))
         except ExprError as exc:
             raise RunError(str(exc), f"actions.{name}.terminal") from None
 

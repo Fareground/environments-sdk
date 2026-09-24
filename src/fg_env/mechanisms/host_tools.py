@@ -22,7 +22,7 @@ from ..host.common import agents_of, clip, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, request_key
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 
 __all__ = ["HostToolConfig", "fetch", "prefetch"]
 

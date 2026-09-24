@@ -14,7 +14,7 @@ def issues(contract):
 
 
 def ev(env, source, **vars):
-    return compile_expr(source)(env.world.scope(**vars))
+    return compile_expr(source)(env.world.evaluation.scope(**vars))
 
 
 def do(env, actor, effects):

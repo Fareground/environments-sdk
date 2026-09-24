@@ -3,7 +3,7 @@ engine's ceiling before the run ends, and a run that reaches the ceiling fails t
 import pytest
 
 import fg_env
-import fg_env.world.live
+import fg_env.world.store
 
 
 def spawning(rounds):
@@ -39,7 +39,7 @@ def test_check_stays_quiet_when_the_growth_ends_well_below_the_ceiling():
 
 
 def test_a_run_that_reaches_the_ceiling_fails_there_saying_how_to_bound_it(monkeypatch):
-    monkeypatch.setattr(fg_env.world.live, "MAX_ENTITIES", 100)
+    monkeypatch.setattr(fg_env.world.store, "MAX_ENTITIES", 100)
     with pytest.raises(fg_env.RunError) as caught:
         fg_env.run(spawning(30), seed=1)
     message = str(caught.value)
@@ -49,7 +49,7 @@ def test_a_run_that_reaches_the_ceiling_fails_there_saying_how_to_bound_it(monke
 
 
 def test_removed_entities_do_not_count_toward_the_ceiling(monkeypatch):
-    monkeypatch.setattr(fg_env.world.live, "MAX_ENTITIES", 10)
+    monkeypatch.setattr(fg_env.world.store, "MAX_ENTITIES", 10)
     churn = making(40)
     churn["events"] = [{"phase": "end", "each": "widget", "do": [{"remove": "$it"}]}]
     assert fg_env.run(churn, seed=1).status == "completed"

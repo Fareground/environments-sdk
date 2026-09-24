@@ -42,7 +42,7 @@ from ..errors import RunError
 from ..expr import compile_expr, truthy
 from ..expr.objects import Entity
 from ..registry import mechanism_config
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of, fmt, number_of
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
@@ -176,7 +176,7 @@ def open_lot(world: Any, name: str) -> None:
     lot = world.props.get(f"{name}_lot") or {}
     if lot.get("open"):
         return
-    if cfg.when is not None and not truthy(compile_expr(cfg.when)(world.scope())):
+    if cfg.when is not None and not truthy(compile_expr(cfg.when)(world.evaluation.scope())):
         return
     units = 1
     if cfg.format != "double":

@@ -24,10 +24,12 @@ from ..contract.inputs import resolve_inputs
 from ..errors import ContractError, Issue, RunError, SnapshotError
 from ..expr import ExprError, compile_expr, is_expr
 from ..sampling.seeds import SeedTree
+from ..world.abort import Abort
 from ..world.build import _rounds
 from ..world.defaults import default_order
 from ..world.links import _fields as link_fields
-from ..world.live import Abort, SdkWorld, _copy
+from ..world.store import World
+from ..world.values import copy_value
 from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
 
 if TYPE_CHECKING:
@@ -158,7 +160,7 @@ def _inputs(unarmed: Contract, base: Contract, snapshot: Mapping[str, Any], old_
 def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> list[Issue]:
     """Everything in ``snapshot``'s state that ``new`` cannot hold, each with its fix."""
     issues: list[Issue] = []
-    probe = SdkWorld(new, decode(snapshot["inputs"]), SeedTree(0))
+    probe = World(new, decode(snapshot["inputs"]), SeedTree(0))
     missing_types: dict[str, list[str]] = {}
     for row in snapshot["entities"]:
         kind = row["type"]
@@ -223,7 +225,7 @@ def _pending(issues: list[Issue], old: Contract, new: Contract, snapshot: Mappin
 
 
 def _values(issues: list[Issue], specs: Mapping[str, PropSpec], values: Mapping[str, Any], path: str, owner: str,
-            probe: SdkWorld) -> None:
+            probe: World) -> None:
     for prop, value in values.items():
         spec = specs.get(prop)
         if spec is None:
@@ -236,7 +238,7 @@ def _values(issues: list[Issue], specs: Mapping[str, PropSpec], values: Mapping[
                                                   f"{problem}", "keep a declaration that accepts the current value"))
 
 
-def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> str | None:
+def _refused(probe: World, spec: PropSpec, value: Any) -> str | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if spec.min is not None and value < spec.min:
             return f"below the minimum {spec.min:g}"
@@ -281,7 +283,7 @@ def _physics(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any]) ->
                                 "keep the variable"))
 
 
-def _clock(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any], probe: SdkWorld) -> None:
+def _clock(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any], probe: World) -> None:
     try:
         rounds = _rounds(probe)
     except (RunError, ExprError) as exc:
@@ -344,10 +346,10 @@ def _fill(env: Env, new: Contract) -> None:
                 table[key] = {**(link_fields(world, kind, key[0], key[1], None, {}, f"relations.{kind}") or {}), **held}
 
 
-def _default(world: SdkWorld, spec: PropSpec, path: str, **vars: Any) -> Any:
+def _default(world: World, spec: PropSpec, path: str, **vars: Any) -> Any:
     raw = spec.default
     try:
-        value = compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else _copy(raw)
+        value = compile_expr(raw)(world.evaluation.scope(**vars)) if is_expr(raw) else copy_value(raw)
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.default") from None
     try:
@@ -361,7 +363,7 @@ def _physics_params(env: Env, old: Contract, new: Contract) -> None:
     model, spec = env.world.physics, new.physics
     if model is None or spec is None:
         return
-    scope = env.world.scope()
+    scope = env.world.evaluation.scope()
     before = old.physics.params if old.physics is not None else {}
     for name, raw in spec.params.items():
         if name in before and before[name] == raw and name in model.params:

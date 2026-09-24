@@ -27,9 +27,9 @@ def post(w, team, value, to=None):
 def read(w, who):
     viewer = w.entities[who]
     rows = w.visible_records('notes', viewer)
-    assert rows == [r for r in w.records('notes') if w.entry_visible('notes', r, viewer)]
+    assert rows == [r for r in w.records('notes') if w.evaluation.entry_visible('notes', r, viewer)]
     events = w.events('record', viewer)
-    assert events == [e for e in w.log if e.kind == 'record' and w.event_visible(e, viewer)]
+    assert events == [e for e in w.log if e.kind == 'record' and w.evaluation.event_visible(e, viewer)]
     return [r['value'] for r in rows], [e.data.get('fields', {}).get('value') for e in events]
 
 
@@ -166,7 +166,7 @@ def test_shared_reads_charge_matching_work_without_scanning_other_teams():
     for i in range(100):
         post(w, 1, i)
     post(w, 0, 101)
-    scope = w.scope(viewer=w.entities['a'])
+    scope = w.evaluation.scope(viewer=w.entities['a'])
     with shared_budget(10, 'shared read'):
         assert [r['value'] for r in evaluate('$records(notes)', scope)] == [101]
     with shared_budget(10, 'shared events'):

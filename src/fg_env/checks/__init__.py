@@ -31,7 +31,7 @@ from ..expr.template import compile_template, quoted_placeholders
 from ..host.common import raw_model_ids
 from ..patterns.check import check_pattern_call, check_patterns
 from ..runtime.returns import check_game
-from ..world.live import prop_type
+from ..world.props import prop_type
 from .actions import ActionChecks
 from .effects import EffectChecks
 from .inventory import check_inventory

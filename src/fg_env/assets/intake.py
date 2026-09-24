@@ -25,7 +25,7 @@ from .store import SUBMITTED, Asset, accepts
 if TYPE_CHECKING:
     from ..contract import ParamSpec
     from ..runtime.turn import Turn
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["intake", "upload", "file_schema", "file_value"]
 
@@ -173,7 +173,7 @@ def previewed(turn: Turn, name: Any, args: Any) -> Iterator[tuple[Any, str | Non
             store.assets.pop(key, None)
 
 
-def file_value(world: SdkWorld, param: ParamSpec, raw: Any) -> tuple[Any, str | None]:
+def file_value(world: World, param: ParamSpec, raw: Any) -> tuple[Any, str | None]:
     """A `file` argument as a submitted asset id, or what to fix."""
     if isinstance(raw, Mapping) and isinstance(raw.get("invalid"), str):
         return None, raw["invalid"]

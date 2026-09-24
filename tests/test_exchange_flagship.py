@@ -27,7 +27,7 @@ def run(inputs, seed=1, participants=None, arm=None):
 
 
 def bars(env):
-    return expr.evaluate("$records(demo_bars)", env.world.scope())
+    return expr.evaluate("$records(demo_bars)", env.world.evaluation.scope())
 
 
 def test_the_flagship_checks_clean_including_its_seed_history_file():

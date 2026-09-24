@@ -17,9 +17,10 @@ def test_participant_text_stored_by_a_native_op_is_never_evaluated():
         def _make(runner, effect, vars, where):
             world = runner.world
             text = runner.eval(effect["text"], vars)
-            world.create("note", None, None, {"text": text}, None, world.scope(**vars), where)
-            world.create("note", None, None, {"text": effect["plain"]}, None, world.scope(**vars), where,
-                         evaluate=False)
+            evaluation = world.evaluation
+            evaluation.create("note", None, None, {"text": text}, None, evaluation.scope(**vars), where)
+            evaluation.create("note", None, None, {"text": effect["plain"]}, None, evaluation.scope(**vars), where,
+                              evaluate=False)
 
         contract = {"name": "Notes", "clock": {"rounds": 1},
                     "world": {"secret": {"type": "text", "default": "the vault code is 4321"}},

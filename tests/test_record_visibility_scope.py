@@ -26,18 +26,18 @@ def test_permissions_match_full_scope_evaluation_for_each_reader(rule):
     w, entry = world(rule)
     expr = compile_expr(rule)
     for viewer in w.entities.values():
-        expected = truthy(expr(w.scope(viewer=viewer, it=entry)))
-        assert w.entry_visible("notes", entry, viewer) == expected
+        expected = truthy(expr(w.evaluation.scope(viewer=viewer, it=entry)))
+        assert w.evaluation.entry_visible("notes", entry, viewer) == expected
 
 
 def test_permission_does_not_cache_reader_or_world_changes():
     w, entry = world("$viewer.allowed")
     viewer = w.entities["a"]
-    assert w.entry_visible("notes", entry, viewer)
+    assert w.evaluation.entry_visible("notes", entry, viewer)
     w.set_prop(viewer, "allowed", False)
-    assert not w.entry_visible("notes", entry, viewer)
+    assert not w.evaluation.entry_visible("notes", entry, viewer)
     w.set_prop(viewer, "allowed", True)
-    assert w.entry_visible("notes", entry, viewer)
+    assert w.evaluation.entry_visible("notes", entry, viewer)
 
 
 def test_function_with_implicit_context_keeps_the_full_scope(monkeypatch):
@@ -46,41 +46,41 @@ def test_function_with_implicit_context_keeps_the_full_scope(monkeypatch):
         name, lambda call: call.scope.vars["round"] == 0 and call.scope.vars["world"].expr_attr("allow", None),
         f"{name}()", "Test implicit context", 0, 0))
     w, entry = world(f"${name}()")
-    assert w.entry_visible("notes", entry, w.entities["a"])
+    assert w.evaluation.entry_visible("notes", entry, w.entities["a"])
     w.set_world("allow", False)
-    assert not w.entry_visible("notes", entry, w.entities["a"])
+    assert not w.evaluation.entry_visible("notes", entry, w.entities["a"])
 
 
 def test_pure_permission_errors_keep_the_authored_field():
     w, entry = world("$it.text == hello")
     w.contract.records["notes"].visible = "$it.missing == hello"
     with pytest.raises(RunError, match=r"records.notes.visible.*record entry has no field 'missing'"):
-        w.entry_visible("notes", entry, w.entities["a"])
+        w.evaluation.entry_visible("notes", entry, w.entities["a"])
 
 
 def test_repeated_permission_evaluations_still_consume_the_shared_work_budget():
     w, entry = world("$viewer.id == $it.author")
     with shared_budget(4, "permission probe"):
         for _ in range(4):
-            assert _held(lambda: w.entry_visible("notes", entry, w.entities["a"]))
+            assert _held(lambda: w.evaluation.entry_visible("notes", entry, w.entities["a"]))
         with pytest.raises(RunError, match="work budget"):
-            _held(lambda: w.entry_visible("notes", entry, w.entities["a"]))
+            _held(lambda: w.evaluation.entry_visible("notes", entry, w.entities["a"]))
 
 
 @pytest.mark.parametrize("rule", ["$viewer.id == $it.author", "$it.author == $viewer.id"])
 def test_proven_foreign_authorship_is_rejected_without_spending_expression_work(rule):
     w, entry = world(rule)
     with shared_budget(0, "permission probe"):
-        assert not _held(lambda: w.entry_visible("notes", entry, w.entities["b"]))
+        assert not _held(lambda: w.evaluation.entry_visible("notes", entry, w.entities["b"]))
         with pytest.raises(RunError, match="work budget"):
-            _held(lambda: w.entry_visible("notes", entry, w.entities["a"]))
+            _held(lambda: w.evaluation.entry_visible("notes", entry, w.entities["a"]))
 
 
 def test_additional_permission_terms_cannot_be_short_circuited_by_the_author_guard():
     w, entry = world("$viewer.id == $it.author or $world.allow")
-    assert w.entry_visible("notes", entry, w.entities["b"])
+    assert w.evaluation.entry_visible("notes", entry, w.entities["b"])
     w.set_world("allow", False)
-    assert not w.entry_visible("notes", entry, w.entities["b"])
+    assert not w.evaluation.entry_visible("notes", entry, w.entities["b"])
 
 
 def test_a_def_reads_records_as_the_agent_its_view_renders_for_may_see_them():

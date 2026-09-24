@@ -160,7 +160,7 @@ def evaluate(world: Any, raw: Any, where: str, **roots: Any) -> Any:
     if not is_expr(raw):
         return raw
     try:
-        return compile_expr(raw)(world.scope(**roots))
+        return compile_expr(raw)(world.evaluation.scope(**roots))
     except ExprError as exc:
         raise RunError(str(exc), where) from None
 
@@ -168,7 +168,7 @@ def evaluate(world: Any, raw: Any, where: str, **roots: Any) -> Any:
 def condition(world: Any, raw: str, where: str, **roots: Any) -> bool:
     """A predicate is an expression, including constant expressions without $ references."""
     try:
-        return truthy(compile_expr(raw)(world.scope(**roots)))
+        return truthy(compile_expr(raw)(world.evaluation.scope(**roots)))
     except ExprError as exc:
         raise RunError(str(exc), where) from None
 

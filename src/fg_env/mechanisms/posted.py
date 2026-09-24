@@ -23,7 +23,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of, fmt
 from .econ_base import money_prop
 from .ledger import Account, clean, move

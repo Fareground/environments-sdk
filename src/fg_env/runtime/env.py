@@ -28,7 +28,8 @@ from ..information.core import Information
 from ..information.exposure import recording
 from ..sampling.seeds import SeedTree
 from ..world.build import build_world
-from ..world.live import SdkWorld, _plain
+from ..world.store import World
+from ..world.values import plain_value
 from .budget import Budget, is_seconds
 from .diagnostics import diagnose
 from .driving import Driver, run_on_worker
@@ -64,7 +65,7 @@ class Env:
     and :meth:`fork`."""
 
     # The run's parts (built around its state by _assemble).
-    world: SdkWorld
+    world: World
     effects: EffectRunner
     actions: ActionBook
     information: Information
@@ -89,7 +90,7 @@ class Env:
             raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown "
                              "to replay against it: drop one of them")
         world = build_world(contract, inputs, self.seeds, arm, assets)
-        world.enable_def_cache()
+        world.evaluation.cache_defs()
         world.exposures = Information.exposure_log(contract, exposures)
         #: Everything the run changes as it plays (see runtime/state.py). Results carry the event log unless
         #: ``events`` is false; then the run forgets what nothing can read (see forgetting.py).
@@ -301,12 +302,12 @@ class Env:
         participant-view concern; this host-level method returns the complete
         authoritative stream.
         """
-        return [_plain(dict(entry)) for entry in self.world.records(name)]
+        return [plain_value(dict(entry)) for entry in self.world.records(name)]
 
     @property
     def props(self) -> dict[str, Any]:
         """A copy of the world's global properties."""
-        return _plain(dict(self.world.props))
+        return plain_value(dict(self.world.props))
 
     def result(self) -> RunResult:
         count_host_tokens(self)

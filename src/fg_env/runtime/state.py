@@ -24,13 +24,14 @@ from ..assets.store import AssetStore
 from ..errors import RunError, SnapshotError
 from ..expr.objects import Entity
 from ..information.exposure import ExposureLog
+from ..world.abort import Abort
 from ..world.copies import copy_world
-from ..world.live import Abort, Entry, LogEvent
+from ..world.parts import Entry, LogEvent
 from .diagnosis import Diagnosis
 from .facts import Stats
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
     from .budget import Budget
     from .env import Env
     from .turn import Turn
@@ -113,7 +114,7 @@ class RunState:
     """Everything a run changes as it plays (see the module docstring). ``keep_events``: results carry the event
     log, whose rows are then converted once each (:meth:`event_rows`)."""
 
-    def __init__(self, world: SdkWorld, keep_events: bool = True):
+    def __init__(self, world: World, keep_events: bool = True):
         self.world = world
         self.keep_events = keep_events
         #: Turns numbered so far (numbers are assigned in a fixed order, before any turn runs concurrently).
@@ -320,7 +321,7 @@ class RunState:
         w.touch()  # the state was replaced wholesale: nothing cached before holds
 
 
-def _check_props(w: SdkWorld) -> None:
+def _check_props(w: World) -> None:
     """Every restored property as its declaration stores it — type, values and bounds."""
     def checked(spec: Any, value: Any, where: str, owner: str = "") -> Any:
         try:

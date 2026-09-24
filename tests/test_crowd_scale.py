@@ -6,7 +6,7 @@ import pytest
 import fg_env
 from fg_env import expr
 from fg_env.actions import book as actions
-from fg_env.world.live import SdkWorld
+from fg_env.world.store import World
 
 HERD = {
     "name": "Herd",
@@ -54,15 +54,15 @@ def test_a_split_run_ends_exactly_like_a_straight_run():
 
 def test_choice_and_count_of_a_type_read_the_type_without_listing_it(monkeypatch):
     env = fg_env.load(HERD, seed=2)
-    scope = env.world.scope()
+    scope = env.world.evaluation.scope()
     expected = [expr.evaluate("$choice($filter(animal, true)).id", scope) for _ in range(5)]
     env = fg_env.load(HERD, seed=2)
 
     def refuse(self, type_name):
         raise AssertionError("listed a whole type")
 
-    monkeypatch.setattr(SdkWorld, "entities_of", refuse)
-    scope = env.world.scope()
+    monkeypatch.setattr(World, "entities_of", refuse)
+    scope = env.world.evaluation.scope()
     assert [expr.evaluate("$choice(animal).id", scope) for _ in range(5)] == expected
     assert expr.evaluate("$count(animal)", scope) == 10
 

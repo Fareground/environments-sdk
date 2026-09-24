@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import condition, entity_of
 from .econ_assets import balance, burn_money, credit_of, destroy_items, held, is_holder, make_items
 from .econ_base import (
@@ -188,7 +188,7 @@ def skill_level(world: Any, config: ProductionConfig | None, agent: Entity, skil
 def _eval(world: Any, value: Any, agent: Entity, where: str) -> Any:
     if isinstance(value, str) and "$" in value:
         try:
-            return compile_expr(value)(world.scope(actor=agent))
+            return compile_expr(value)(world.evaluation.scope(actor=agent))
         except ExprError as exc:
             raise RunError(str(exc), where) from None
     return value
@@ -407,9 +407,9 @@ def _start_job(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where:
         text = _finish(runner, name, config, agent, recipe, times, where)
         emit_to(world, f"{name}_done", text, [agent.id])
         return
-    world.create(f"{name}_job", None, f"{recipe} for {agent.name}",
-                 {"owner": agent.id, "recipe": recipe, "qty": times, "started": world.round,
-                  "due": world.round + spec.rounds}, None, world.scope(), where)
+    world.evaluation.create(f"{name}_job", None, f"{recipe} for {agent.name}",
+                            {"owner": agent.id, "recipe": recipe, "qty": times, "started": world.round,
+                             "due": world.round + spec.rounds}, None, world.evaluation.scope(), where)
 
 
 @family_action("economy", ("production",), "tick", internal=True,

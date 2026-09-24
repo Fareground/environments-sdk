@@ -13,7 +13,8 @@ from typing import Any
 from ..contract import Contract, RecordSpec
 from ..effects.statements import compile_statement
 from ..expr import ExprError
-from ..world.live import SdkWorld, _plain
+from ..world.store import World
+from ..world.values import plain_value
 
 __all__ = ["Redaction", "notified_since"]
 
@@ -27,14 +28,14 @@ class Redaction:
         #: Per action, the arguments its effects write into a private property.
         self._kept_secrets: dict[str, frozenset[str]] = {}
 
-    def public_params(self, world: SdkWorld, name: str, params: dict[str, Any], record_mark: int) -> dict[str, Any]:
+    def public_params(self, world: World, name: str, params: dict[str, Any], record_mark: int) -> dict[str, Any]:
         """The arguments of action ``name`` its announcement may repeat, the entries it posted being those after
         ``record_mark``."""
         if self._sealed(world):
             return {}
         return _public_params(params, self._posted_since(world, record_mark), self._kept_secret(world, name))
 
-    def _posted_since(self, world: SdkWorld, record_mark: int) -> list[tuple[RecordSpec, dict[str, Any]]]:
+    def _posted_since(self, world: World, record_mark: int) -> list[tuple[RecordSpec, dict[str, Any]]]:
         """Entries posted after ``record_mark``, with their record's spec."""
         if world.record_seq == record_mark:
             return []
@@ -46,13 +47,13 @@ class Redaction:
                 posted.append((spec, entry))
         return posted
 
-    def _sealed(self, world: SdkWorld) -> bool:
+    def _sealed(self, world: World) -> bool:
         """Whether actions now commit as a simultaneous stage's sealed choices: announced without their arguments,
         so a losing sealed bid stays sealed unless the action's `announce` says otherwise."""
         stage = world.stage
         return any(spec.name == stage and spec.turns == "simultaneous" for spec in self.contract.stage_list())
 
-    def _kept_secret(self, world: SdkWorld, name: str) -> frozenset[str]:
+    def _kept_secret(self, world: World, name: str) -> frozenset[str]:
         """The arguments of action ``name`` that its effects write into a private property."""
         known = self._kept_secrets.get(name)
         if known is None:
@@ -73,7 +74,7 @@ def _public_params(params: dict[str, Any], posted: Sequence[tuple[RecordSpec, di
             for field in spec.fields]
     if not kept and not secret:
         return params
-    return {k: v for k, v in params.items() if k not in secret and not _carried(_plain(v), kept)}
+    return {k: v for k, v in params.items() if k not in secret and not _carried(plain_value(v), kept)}
 
 
 def _written_into(private: frozenset[str], effects: Any) -> Iterator[str]:
@@ -128,7 +129,7 @@ def _carried(value: Any, fields: Sequence[Any]) -> bool:
     return False
 
 
-def notified_since(world: SdkWorld, log_mark: int) -> bool:
+def notified_since(world: World, log_mark: int) -> bool:
     """True when a record entry was delivered as news after log position ``log_mark``."""
     for event in reversed(world.log):
         if event.seq <= log_mark:

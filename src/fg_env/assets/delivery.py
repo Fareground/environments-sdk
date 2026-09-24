@@ -19,7 +19,7 @@ from ..expr.template import format_value
 from .store import Asset, AssetStore
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["Attachment", "attached_ids", "entry_assets", "reference", "references"]
 
@@ -96,7 +96,7 @@ def references(store: AssetStore, ids: Sequence[str]) -> str:
     return " ".join(reference(asset) for asset in store.of(ids))
 
 
-def attached_ids(world: SdkWorld, source: str, scope: Any, path: str) -> list[str]:
+def attached_ids(world: World, source: str, scope: Any, path: str) -> list[str]:
     """The asset ids an `attach` expression gives: an id, a `$asset(...)` map, an entity's asset, a list, or null."""
     try:
         value = compile_expr(source)(scope)
@@ -124,7 +124,7 @@ def ids_of(store: AssetStore, value: Any, path: str) -> list[str]:
     return out
 
 
-def entry_assets(world: SdkWorld, record: str, entry: Mapping[str, Any]) -> list[str]:
+def entry_assets(world: World, record: str, entry: Mapping[str, Any]) -> list[str]:
     """The assets a record entry carries in its `asset` fields."""
     fields = world.contract.records[record].fields
     return [str.__str__(entry[name]) for name, kind in fields.items()

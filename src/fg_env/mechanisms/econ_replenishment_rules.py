@@ -15,7 +15,7 @@ from ..expr import Call, ExprError, compile_expr, function
 from ..expr.objects import Entity
 from ..patterns.runtime import key_text
 from ..registry import family_action
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of
 from .econ_assets import balance, burn_money, credit_of
 from .econ_base import DEMAND, REPLENISHMENT, config_of, props
@@ -363,7 +363,7 @@ def _item_value(world: Any, name: str, config: ReplenishmentConfig, demand: Dema
     if measure == "stock_value":
         assert demand.stock is not None
         cost = config.unit_cost if config.unit_cost is not None else demand.cost
-        unit = compile_expr(cost)(world.scope(it=item)) if isinstance(cost, str) else cost
+        unit = compile_expr(cost)(world.evaluation.scope(it=item)) if isinstance(cost, str) else cost
         return float(p[demand.stock]) * float(unit)
     return float(p[f"{name}_{_PROPS[measure]}"])
 
@@ -388,7 +388,7 @@ def _replenishment_totals(call: Call) -> Any:
     for item in world.entities_of(demand.items):
         if measure == "stock_value" and not item.alive:
             continue
-        key = None if by is None else item.id if by == "item" else str(group(world.scope(it=item)))  # type: ignore[misc]
+        key = None if by is None else item.id if by == "item" else str(group(world.evaluation.scope(it=item)))  # type: ignore[misc]
         out[key] = out.get(key, 0.0) + _item_value(world, name, config, demand, item, measure, call.source)
     rounded = {key: (int(value) if measure in ("orders", "units_ordered", "on_order") else round(value, 2))
                for key, value in out.items()}

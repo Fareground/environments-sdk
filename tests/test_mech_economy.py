@@ -816,7 +816,7 @@ def test_supply_chain_orders_travel_up_and_production_enters_the_producer_pipeli
 def _conserved_everywhere(env):
     uses = [name for name, use in env.contract.mechanisms.items() if use.get("mode") in ("ledger", "inventory")]
     assert uses
-    return {name: compile_expr(f"$conserved('{name}')")(env.world.scope()) for name in uses}
+    return {name: compile_expr(f"$conserved('{name}')")(env.world.evaluation.scope()) for name in uses}
 
 
 @pytest.mark.slow

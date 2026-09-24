@@ -43,7 +43,7 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..expr.values import _Everyone
 from ..information.gate import render
-from ..world.live import Abort
+from ..world.abort import Abort
 from . import _common as common
 from ._common import Config, Effects, stage_event
 from ._social import check_expr, require_type
@@ -219,7 +219,7 @@ def refusal(world: Any, name: str, cfg: StackConfig, kind: str, actor: Entity) -
         if actor.id not in _waiting(world, top):
             return f"You do not owe the {cfg.title(top['kind'])} [{top['id']}] an answer."
     if (spec.when is not None
-        and not truthy(compile_expr(spec.when)(world.scope(actor=actor, top=_view(world, cfg, top))))):
+        and not truthy(compile_expr(spec.when)(world.evaluation.scope(actor=actor, top=_view(world, cfg, top))))):
         return spec.why or f"You cannot push a {title} now."
     return None
 
@@ -248,7 +248,7 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     at = f"mechanisms.{name}.stack.kinds.{kind}"
     for player in common.carriers(world, cfg.player_types()):
         try:
-            owes = truthy(compile_expr(spec.responders)(world.scope(it=player, item=view)))
+            owes = truthy(compile_expr(spec.responders)(world.evaluation.scope(it=player, item=view)))
         except ExprError as exc:
             raise RunError(str(exc), f"{at}.responders") from None
         if owes:

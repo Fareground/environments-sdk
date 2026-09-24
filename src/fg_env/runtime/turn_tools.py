@@ -25,7 +25,7 @@ from ..host.tape import discard
 from ..information.schemas import ToolSpec
 from ..participants import resolve_participant
 from ..registry import config_data, use_key
-from ..world.live import Abort
+from ..world.abort import Abort
 from .driving import runs_concurrently
 from .facts import CALLED, FAULTED, INVALID, REJECTED
 from .session import ToolResult, Wake

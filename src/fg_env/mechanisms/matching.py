@@ -114,7 +114,7 @@ def _eligible(world: Any, name: str, config: MatchingConfig, proposer: Any, rank
     for receiver_id in ranking:
         receiver = world.entity(receiver_id)
         try:
-            if receiver is not None and truthy(test(world.scope(proposer=proposer, receiver=receiver))):
+            if receiver is not None and truthy(test(world.evaluation.scope(proposer=proposer, receiver=receiver))):
                 kept.append(receiver_id)
         except ExprError as exc:
             raise RunError(str(exc), where) from None

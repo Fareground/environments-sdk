@@ -18,7 +18,7 @@ from ..errors import RunError
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, mechanism_config, use_key
-from ..world.live import Abort
+from ..world.abort import Abort
 
 __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list",

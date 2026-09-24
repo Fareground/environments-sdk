@@ -42,7 +42,7 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..expr.objects import Entity
-from ..world.live import Entry, LogEvent
+from ..world.parts import Entry, LogEvent
 
 if TYPE_CHECKING:
     from ..contract import Contract
@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     from ..runtime.env import Env
     from ..runtime.session import ToolResult
     from ..runtime.turn import Turn
-    from ..world.live import SdkWorld
+    from ..world.store import World
     from .schemas import ToolSpec
 
 __all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "recording", "text_hash", "tokens"]
@@ -114,7 +114,7 @@ class Exposure:
         #: The record as appended to the log, once the turn has closed.
         self.logged: dict[str, Any] | None = None
 
-    def copy(self, log: ExposureLog, world: SdkWorld) -> Exposure:
+    def copy(self, log: ExposureLog, world: World) -> Exposure:
         """This record, still being filled in, for the same turn in a copy of the run: logging into ``log``, the
         copy's own, in the copy ``world``."""
         assert self.logged is None, "a closed turn's record is in the log"

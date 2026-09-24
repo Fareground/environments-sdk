@@ -123,7 +123,7 @@ def test_links_lists_outgoing_links_for_views_and_rules():
     world = env.world
     assert [str(link) for link in world.links_of("ben", "trusts")] == []  # directed: ana → ben is not ben's
     assert len(world.links_of("ben", "knows")) == 2
-    scope = world.scope()
+    scope = world.evaluation.scope()
     count = fg_env.expr.compile_expr("$count($links(ana, knows, $it.met != 'x'))")(scope)
     assert count == 2
 

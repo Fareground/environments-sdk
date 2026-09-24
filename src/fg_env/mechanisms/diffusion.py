@@ -309,8 +309,8 @@ def _cascade(runner: Any, name: str, config: DiffusionConfig, state: dict[str, A
             if target in state["adopted"] or target in state["rejected"] or target in convinced:
                 continue
             state["exposed"][target] = state["exposed"].get(target, 0) + 1
-            p = config.p if p_expr is None else p_expr(world.scope(**{"from": world.entities[source],
-                                                                      "to": world.entities[target], "item": item}))
+            p = config.p if p_expr is None else p_expr(world.evaluation.scope(
+                **{"from": world.entities[source], "to": world.entities[target], "item": item}))
             if world.rng.random() < _number(p, f"diffusion {name}: p", f"mechanisms.{name}.p"):
                 convinced[target] = source
     state["frontier"] = list(convinced)
@@ -367,7 +367,7 @@ def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: dict[st
         state["thresholds"][agent] = value
         return value
     if isinstance(config.threshold, str):
-        raw = compile_expr(config.threshold)(world.scope(it=world.entities[agent], item=item))
+        raw = compile_expr(config.threshold)(world.evaluation.scope(it=world.entities[agent], item=item))
         return _number(raw, f"diffusion {name}: threshold", f"mechanisms.{name}.threshold")
     return float(config.threshold)
 

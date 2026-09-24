@@ -86,7 +86,7 @@ def _open_cells(runner: Any, space: Any, name: str, effect: dict[str, Any], vars
     if "where" not in effect:
         return None
     condition, geometry, values = compile_expr(effect["where"]), space.geometry, space.layers.values[name]
-    base = runner.world.scope(**vars)
+    base = runner.world.evaluation.scope(**vars)
     return [truthy(condition(base.child(cell=geometry.position(cell), value=value)))
             for cell, value in enumerate(values)]
 
@@ -96,7 +96,7 @@ def _set(runner: Any, space: Any, name: str, effect: dict[str, Any], vars: dict[
     value = compile_expr(raw) if is_expr(raw) else None
     condition = compile_expr(effect["where"]) if "where" in effect else None
     values = layers.values[name]
-    base = runner.world.scope(**vars)
+    base = runner.world.evaluation.scope(**vars)
 
     def new_value(cell: int) -> Any:
         scope = base.child(cell=geometry.position(cell), value=values[cell])

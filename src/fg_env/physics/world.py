@@ -5,21 +5,22 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
+from ..world.abort import Abort
 from ..world.props import finite_number, shown_value
 from .entities import EntityDynamicsStep
 from .model import _CONSTS, _FUNCS, PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["build_physics", "step_physics"]
 
 
-def build_physics(world: SdkWorld) -> None:
+def build_physics(world: World) -> None:
     spec = world.contract.physics
     if spec is None:
         return
-    scope = world.scope()
+    scope = world.evaluation.scope()
     params: dict[str, float] = {}
     for name, raw in spec.params.items():
         params[name] = _constant(world, raw, f"mechanisms.physics.params.{name}")
@@ -46,8 +47,9 @@ def build_physics(world: SdkWorld) -> None:
     _refresh_reads(world)
 
 
-def step_physics(world: SdkWorld) -> list[dict[str, Any]]:
-    """Advance one round's physical interval atomically, including all writebacks."""
+def step_physics(world: World) -> list[dict[str, Any]]:
+    """Advance one round's physical interval atomically, including all writebacks. Integrated variables stay inside
+    their bounds; a formula written to a property past its bounds has nothing to refuse, so it fails."""
     spec, model = world.contract.physics, world.physics
     if spec is None or model is None:
         return []
@@ -72,10 +74,13 @@ def step_physics(world: SdkWorld) -> list[dict[str, Any]]:
         world.touch()
         if isinstance(exc, (ArithmeticError, ValueError)):
             raise RunError(f"dynamics broke down numerically ({exc})", "mechanisms.physics") from None
+        if isinstance(exc, Abort):
+            raise RunError(f"{exc.reason} Keep the formula in range, e.g. with clamp(x, low, high)",
+                           "mechanisms.physics") from None
         raise
 
 
-def advance_equations(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
+def advance_equations(world: World, dt: float) -> list[dict[str, Any]]:
     """Advance the equation subsystem; the caller owns interval atomicity."""
     spec, model = world.contract.physics, world.physics
     assert spec is not None and model is not None
@@ -103,11 +108,11 @@ def advance_equations(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
     return changes
 
 
-def _refresh_reads(world: SdkWorld) -> None:
+def _refresh_reads(world: World) -> None:
     spec = world.contract.physics
     if spec is None or world.physics is None:
         return
-    scope = world.scope()
+    scope = world.evaluation.scope()
     for name, src in spec.read.items():
         try:
             value = compile_expr(src)(scope)
@@ -116,9 +121,9 @@ def _refresh_reads(world: SdkWorld) -> None:
         world.physics.params[name] = _number(value, f"mechanisms.physics.read.{name}")
 
 
-def _constant(world: SdkWorld, raw: Any, where: str) -> float:
+def _constant(world: World, raw: Any, where: str) -> float:
     try:
-        value = compile_expr(raw)(world.scope()) if is_expr(raw) else raw
+        value = compile_expr(raw)(world.evaluation.scope()) if is_expr(raw) else raw
     except ExprError as exc:
         raise RunError(str(exc), where) from None
     return _number(value, where)

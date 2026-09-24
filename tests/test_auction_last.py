@@ -14,7 +14,7 @@ SALE = {
 
 
 def _read(env, expression):
-    return compile_expr(expression)(env.world.scope())
+    return compile_expr(expression)(env.world.evaluation.scope())
 
 
 def _bid(prices):

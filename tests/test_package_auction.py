@@ -68,7 +68,7 @@ def test_search_beyond_its_budget_is_an_error_not_a_worse_answer():
 def test_package_winners_function_reads_bids_as_data_and_explains_bad_ones():
     env = fg_env.load({"name": "x", "types": {"t": {}}, "clock": {"rounds": 1}})
     result = compile_expr("$package_winners([{bidder: a, items: [x, y], price: 10}, {bidder: b, items: [x], price: 6}, "
-                          "{bidder: c, items: [y], price: 6}], 1)")(env.world.scope())
+                          "{bidder: c, items: [y], price: 6}], 1)")(env.world.evaluation.scope())
     assert result == {"winners": [{"bidder": "b", "items": ["x"], "price": 6.0, "pays": 4.0},
                                   {"bidder": "c", "items": ["y"], "price": 6.0, "pays": 4.0}],
                       "surplus": 10.0, "revenue": 8.0}
@@ -77,7 +77,7 @@ def test_package_winners_function_reads_bids_as_data_and_explains_bad_ones():
                             ("$package_winners([{bidder: a, items: [x], price: 3}], 0, cheap)",
                              "payment must be one of")]:
         with pytest.raises(ExprError, match=message):
-            compile_expr(source)(env.world.scope())
+            compile_expr(source)(env.world.evaluation.scope())
 
 
 def spectrum(**config):
@@ -108,7 +108,7 @@ def test_combinatorial_lot_sells_packages_at_vcg_prices_refunds_escrow_and_keeps
     results = env.world.records("house_results")
     assert [(r["winner"], r["items"], r["price"]) for r in results] == [("b", ["north"], 30), ("c", ["south"], 25)]
     assert not auctions.audit(env.world, "house")
-    state = compile_expr("$auction(house)")(env.world.scope())
+    state = compile_expr("$auction(house)")(env.world.evaluation.scope())
     assert state["items"] == ["east"] and state["sold"] == 2
 
 

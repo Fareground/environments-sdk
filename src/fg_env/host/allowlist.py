@@ -20,7 +20,7 @@ from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..world.live import prop_type
+from ..world.props import prop_type
 
 __all__ = ["Rule", "Change", "Plan", "resolve_rules", "describe", "validate", "apply", "MAX_NARRATION"]
 

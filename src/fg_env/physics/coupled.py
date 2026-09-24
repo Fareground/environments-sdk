@@ -17,13 +17,13 @@ from .stochastic import exact_transition
 from .stochastic_integration import integrate_noise
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 #: Roots an entity's read may use and still be the same at every RK stage of an interval (nothing there evolves).
 _FIXED_ROOTS = frozenset({"world", "inputs", "round", "stage", "arm"})
 
 
-def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
+def integrate_coupled(world: World, dt: float) -> list[dict[str, Any]]:
     from .world import _number, _refresh_reads
 
     model = world.physics
@@ -95,7 +95,7 @@ def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
             return last_spaces
         publish(values, time)
         if dynamic_reads:
-            scope = world.scope()
+            scope = world.evaluation.scope()
             for name, expr in dynamic_reads:
                 model.params[name] = _number(expr(scope), f"mechanisms.physics.read.{name}")
         shared = {**_FUNCS, **_CONSTS, **model.params, **model.values, "t": time}

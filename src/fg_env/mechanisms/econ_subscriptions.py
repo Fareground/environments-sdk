@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import entity_of
 from .econ_assets import move_money
 from .econ_base import (
@@ -244,7 +244,8 @@ def _subscribe(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where:
     else:
         values.update(status="active", renews=world.round + int(props(plan)["period"]),
                       price=_charge(world, config, subscriber, plan, name, where))
-    world.create(f"{name}_sub", None, f"{subscriber.name}: {plan.name}", values, None, world.scope(), where)
+    evaluation = world.evaluation
+    evaluation.create(f"{name}_sub", None, f"{subscriber.name}: {plan.name}", values, None, evaluation.scope(), where)
     world.set_prop(plan, "subscribers", int(props(plan)["subscribers"]) + 1)
     _stat(world, name, "started", 1)
     emit_to(world, f"{name}_joined",

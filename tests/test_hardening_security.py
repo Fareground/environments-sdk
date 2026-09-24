@@ -542,7 +542,8 @@ def test_grammar_fuzz_never_crashes_or_hangs():
         try:
             with _time_limit(FUZZ_SECONDS):
                 try:
-                    scope = world.scope(actor=actor, params=params, it=rng.choice([actor, 3, params["s"], None]), i=0)
+                    it = rng.choice([actor, 3, params["s"], None])
+                    scope = world.evaluation.scope(actor=actor, params=params, it=it, i=0)
                     compile_expr(source)(scope)
                     render("{" + source + "}" + rng.choice(["", "|money", "|pct"]), scope, None)
                 except (ExprError, RunError):

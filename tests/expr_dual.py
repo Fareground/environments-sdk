@@ -72,11 +72,11 @@ def _capture(world: Any) -> dict[str, Any]:
         here = world.luck.here()
         site = here.rng
         if isinstance(site, DrawSite):  # a draw site opens at its first draw, counting it and journaling the count
-            state["site"] = (site, site.stream, dict(world.luck.firings), world.journal.mark())
+            state["site"] = (site, site.stream, dict(world.luck.firings), world.mark())
         state["counters"] = (here, here.draws, here.depth)
-        state["defs"] = (dict(world._def_cache), world._def_cache_state)
+        state["defs"] = (dict(world.evaluation._defs), world.evaluation._defs_state)
         # Caches that evaluate expressions or charge work when they miss: both evaluators start from the same ones.
-        social = world.__dict__.get("_social_cache")
+        social = world.caches.get("social")
         state["social"] = None if social is None else {k: dict(v) if isinstance(v, dict) else v
                                                         for k, v in social.items()}
         indexes = tables._INDEXES.get(world)
@@ -102,12 +102,12 @@ def _restore(world: Any, state: dict[str, Any]) -> None:
     if "counters" in state:
         here, draws, depth = state["counters"]
         here.draws, here.depth = draws, depth
-        world._def_cache, world._def_cache_state = dict(state["defs"][0]), state["defs"][1]
+        world.evaluation._defs, world.evaluation._defs_state = dict(state["defs"][0]), state["defs"][1]
         social = state["social"]
         if social is None:
-            world.__dict__.pop("_social_cache", None)
+            world.caches.pop("social", None)
         else:
-            world.__dict__["_social_cache"] = {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()}
+            world.caches["social"] = {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()}
         if state["indexes"] is None:
             tables._INDEXES.pop(world, None)
         else:

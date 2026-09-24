@@ -23,7 +23,7 @@ def post(w, author, value, record="notes", to=None):
 
 def read(w, who):
     actor = w.entities[who]
-    expected = [e for e in w.log if e.kind == "record" and w.event_visible(e, actor)]
+    expected = [e for e in w.log if e.kind == "record" and w.evaluation.event_visible(e, actor)]
     actual = w.events("record", actor)
     assert actual == expected
     assert w.events("record") == [e for e in w.log if e.kind == "record"]

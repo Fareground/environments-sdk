@@ -64,7 +64,7 @@ def _may_inspect_rule(info: Information, viewer: Entity, target: Entity, rule: A
     if isinstance(rule, bool):
         return rule
     try:
-        here = scope.child(it=target) if scope is not None else info.world.scope(viewer=viewer, it=target)
+        here = scope.child(it=target) if scope is not None else info.world.evaluation.scope(viewer=viewer, it=target)
         return truthy(compile_expr(rule)(here))
     except ExprError as exc:
         raise RunError(str(exc), f"types.{target.entity_type}.inspect") from None
@@ -73,7 +73,7 @@ def _may_inspect_rule(info: Information, viewer: Entity, target: Entity, rule: A
 def inspectable(info: Information, viewer: Entity) -> list[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
     rules = {kind: inspect_rule(info.contract, kind) for kind in info.contract.types}
-    scope = info.world.scope(viewer=viewer)
+    scope = info.world.evaluation.scope(viewer=viewer)
     return [entity for entity in _candidates(info, viewer, rules)
             if _may_inspect_rule(info, viewer, entity, rules[entity.entity_type], scope)]
 
@@ -95,7 +95,7 @@ def _candidates(info: Information, viewer: Entity, rules: dict[str, Any]) -> lis
 def _offered(info: Information, viewer: Entity) -> list[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
     rules = {kind: inspect_rule(info.contract, kind) for kind in info.contract.types}
-    scope = info.world.scope(viewer=viewer)
+    scope = info.world.evaluation.scope(viewer=viewer)
     return [entity for entity in _candidates(info, viewer, rules)
             if _may_inspect_rule(info, viewer, entity, rules[entity.entity_type], scope)
             and (entity.location_id is not None or any(True for _ in _shown(info, viewer, entity)))]
@@ -131,7 +131,7 @@ def inspect_tool(info: Information, viewer: Entity, allowance: int) -> ToolSpec 
     """The inspect tool ``viewer`` is offered, worked out once per world state: for every viewer of a type whose
     listing is the same for all (see :func:`_shares_listing`), else for each."""
     key = ("inspect", allowance) if _shares_listing(info, viewer) else ("inspect", allowance, viewer.id)
-    listed = info.world.remembered(key, lambda: _build_inspect_tool(info, viewer, allowance))
+    listed = info.world.evaluation.remembered(key, lambda: _build_inspect_tool(info, viewer, allowance))
     # A copy: callers may change the schema they are given (enums have at most 60 ids, so copying stays bounded).
     tool = listed.copy() if listed is not None else None
     if tool is not None and tool.input_schema["properties"]["id"].get("enum") == [viewer.id]:

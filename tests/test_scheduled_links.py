@@ -117,7 +117,7 @@ def test_a_refused_delayed_settlement_fails_the_run_and_rolls_back_link_mutation
     env = fg_env.load(c, seed=12)
     result = env.run()
     assert result.status == 'failed' and 'Settlement cancelled World logic cannot be refused' in result.error
-    assert compile_expr(c['outputs']['balance'])(env.world.scope()) == 140
+    assert compile_expr(c['outputs']['balance'])(env.world.evaluation.scope()) == 140
 
 
 def test_forked_relationship_references_belong_to_the_fork():

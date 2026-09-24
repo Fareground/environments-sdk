@@ -274,7 +274,7 @@ def _number(world: Any, raw: Any, path: str, index: int, low: float | None = Non
     value = raw
     if isinstance(raw, str):
         try:
-            value = compile_expr(raw)(world.scope(interval=index))
+            value = compile_expr(raw)(world.evaluation.scope(interval=index))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
     if (isinstance(value, bool) or not isinstance(value, (int, float)) or value != value

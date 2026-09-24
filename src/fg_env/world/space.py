@@ -15,13 +15,13 @@ from .layers import Layers
 from .positions import PositionIndex
 
 if TYPE_CHECKING:
-    from .live import SdkWorld
+    from .store import World
 
 __all__ = ["Spatial", "position_of"]
 
 
 class Spatial:
-    def __init__(self, world: SdkWorld, spec: Space):
+    def __init__(self, world: World, spec: Space):
         self._world = world
         try:
             self.geometry = Geometry(spec, self._resolve)
@@ -33,13 +33,13 @@ class Spatial:
 
     def _resolve(self, raw: Any, path: str) -> Any:
         try:
-            return compile_expr(raw)(self._world.scope()) if is_expr(raw) else raw
+            return compile_expr(raw)(self._world.evaluation.scope()) if is_expr(raw) else raw
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
     def _start(self, raw: str, position: Any) -> Any:
         try:
-            return compile_expr(raw)(self._world.scope(cell=position))
+            return compile_expr(raw)(self._world.evaluation.scope(cell=position))
         except ExprError as exc:
             raise RunError(str(exc), "space.layers") from None
 

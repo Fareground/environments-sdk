@@ -335,7 +335,7 @@ def _engine_errors() -> tuple[type[BaseException], ...]:
     global _ENGINE_ERRORS
     if not _ENGINE_ERRORS:
         from .expr import ExprError
-        from .world.live import Abort
+        from .world.abort import Abort
 
         _ENGINE_ERRORS = (Abort, RunError, ExprError, ArithmeticError)
     return _ENGINE_ERRORS

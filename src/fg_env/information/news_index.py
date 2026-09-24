@@ -12,7 +12,7 @@ from bisect import bisect_right
 from collections.abc import Iterator
 from itertools import islice
 
-from ..world.live import LogEvent
+from ..world.parts import LogEvent
 
 __all__ = ["NewsIndex"]
 

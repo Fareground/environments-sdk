@@ -365,7 +365,7 @@ def totals(world: Any, name: str, measure: str, by: str | None, where: str) -> A
     grouped: dict[Any, dict[str, float]] = {}
     group = compile_expr(config.group) if by == "group" and config.group else None
     for item in world.entities_of(config.items):
-        key = None if by is None else item.id if by == "item" else group(world.scope(it=item))  # type: ignore[misc]
+        key = None if by is None else item.id if by == "item" else group(world.evaluation.scope(it=item))  # type: ignore[misc]
         sums = grouped.setdefault(key, {m: 0.0 for m in _ITEM_TOTALS})
         for m in needed:
             sums[m] += float(props(item).get(f"{name}_{_ITEM_TOTALS[m]}") or 0)

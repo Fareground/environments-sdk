@@ -18,7 +18,8 @@ from ..expr import shared_budget
 from ..expr.objects import Entity
 from ..expr.template import entity_handles
 from ..expr.values import _Everyone
-from ..world.live import LogEvent, SdkWorld
+from ..world.parts import LogEvent
+from ..world.store import World
 from .exposure import ExposureLog, Shown, asks_seen
 from .gate import render
 from .perception import Perception, is_spectator
@@ -40,7 +41,7 @@ class Information:
     #: The spectator views (`"for": "spectator"`), by name.
     spectator: list[str]
 
-    def __init__(self, contract: Contract, world: SdkWorld, actions: ActionBook, state: RunState,
+    def __init__(self, contract: Contract, world: World, actions: ActionBook, state: RunState,
                  lock: threading.RLock, like: Information | None = None):
         self.contract = contract
         self.world = world

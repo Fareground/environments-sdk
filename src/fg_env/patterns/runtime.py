@@ -24,7 +24,7 @@ from .base import KINDS, MEMORY_STATE, KindSpec, PatternConfig
 from .timebase import calendar_of, moment, now, step_length
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["PatternRuntime", "Ctx", "PatternsView", "parsed_patterns", "key_text"]
 
@@ -67,7 +67,7 @@ class Ctx:
         self.spec: KindSpec = KINDS[self.cfg.kind]
 
     @property
-    def world(self) -> SdkWorld:
+    def world(self) -> World:
         return self.rt.world
 
     @property
@@ -161,7 +161,7 @@ class PatternsView:
 class PatternRuntime:
     """The declared patterns of one world."""
 
-    def __init__(self, world: SdkWorld):
+    def __init__(self, world: World):
         self.world = world
         self.configs = parsed_patterns(world.contract.patterns)
         self.view = PatternsView(self)
@@ -173,7 +173,7 @@ class PatternRuntime:
         self._paths: dict[tuple[str, str], list[Any]] = {}
         self._lock = threading.RLock()
 
-    def bound_to(self, world: SdkWorld) -> PatternRuntime:
+    def bound_to(self, world: World) -> PatternRuntime:
         """This runtime for a copy of its world (a clone of the same run: same contract, seed and inputs), sharing
         everything derived from them — parameters, rows, keys and random paths are the same values for both."""
         copy = PatternRuntime.__new__(PatternRuntime)
@@ -375,7 +375,7 @@ class PatternRuntime:
         if isinstance(cfg.keys, str) and cfg.keys in self.world.contract.types and ctx.key is not None:
             values["it"] = self.world.entities.get(ctx.key)
         try:
-            return compile_expr(str(getattr(cfg, "input")))(self.world.scope(**values))  # noqa: B009 — only some pattern kinds declare `input`
+            return compile_expr(str(getattr(cfg, "input")))(self.world.evaluation.scope(**values))  # noqa: B009 — only some pattern kinds declare `input`
         except ExprError as exc:
             raise ExprError(f"mechanisms.{ctx.name}.input: {exc.detail}", ctx.source) from None
 

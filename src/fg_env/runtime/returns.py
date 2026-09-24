@@ -29,7 +29,8 @@ def seat_ids(contract: Contract, world: Any) -> list[str]:
     key = compile_expr(spec.seat)
     path = f"{_scorer(contract, spec)}.seat"
     try:
-        keyed = [(key(world.scope(it=entity, i=position)), position, entity) for position, entity in enumerate(members)]
+        keyed = [(key(world.evaluation.scope(it=entity, i=position)), position, entity)
+                 for position, entity in enumerate(members)]
         keyed.sort(key=lambda item: (item[0], item[1]))
     except ExprError as exc:
         raise RunError(str(exc), path) from None
@@ -56,7 +57,7 @@ def seat_returns(contract: Contract, world: Any, seats: Sequence[str] | None = N
             raise RunError(f"seat '{seat}' is not an entity of a type with a score", "players")
         path = f"{_scorer(contract, spec)}.value"
         try:
-            value = compile_expr(spec.value)(world.scope(it=entity, result=result))
+            value = compile_expr(spec.value)(world.evaluation.scope(it=entity, result=result))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):

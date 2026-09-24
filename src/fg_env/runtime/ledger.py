@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from ..assets.delivery import Attachment
-    from ..world.live import SdkWorld
     from ..world.randomness import Observation
+    from ..world.store import World
 
 __all__ = ["AttemptLedger", "Pending", "attempt_cost"]
 
@@ -72,7 +72,7 @@ class AttemptLedger:
     """The accounting of one turn by ``actor_id`` in ``world``: ``max_actions`` actions and ``max_calls`` tool calls,
     and as many free reads; ``atomic`` turns play in parts."""
 
-    def __init__(self, world: SdkWorld, actor_id: str, max_actions: int, max_calls: int, atomic: bool):
+    def __init__(self, world: World, actor_id: str, max_actions: int, max_calls: int, atomic: bool):
         self.world = world
         self.actor_id = actor_id
         self.max_actions = max_actions
@@ -102,7 +102,7 @@ class AttemptLedger:
         if atomic:
             self.begin_part()
 
-    def copy(self, world: SdkWorld) -> AttemptLedger:
+    def copy(self, world: World) -> AttemptLedger:
         """This ledger, over the copy ``world`` of its world: an open part stays open there (the copy's journal holds
         what undoes it, at the same mark)."""
         copied = AttemptLedger.__new__(AttemptLedger)

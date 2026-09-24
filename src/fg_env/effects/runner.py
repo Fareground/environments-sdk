@@ -42,9 +42,10 @@ from ..expr.template import format_value
 from ..expr.values import _eq, _Everyone
 from ..information.gate import render
 from ..registry import OPS, OpSpec, family_action_hint
+from ..world.abort import Abort
 from ..world.links import Link
-from ..world.live import Abort, SdkWorld
 from ..world.parts import PhysicsView
+from ..world.store import World
 from .delivery import dropped, send
 from .statements import Statement, capture_roots, compile_statement, structured_capture_roots
 from .sync import run_synced
@@ -103,7 +104,7 @@ def _to_ids(value: Any, where: str) -> tuple[str, ...] | None:
     raise RunError(f"recipients must be entities or ids, got {value!r}", where)
 
 
-def _entity(value: Any, world: SdkWorld, where: str, what: str = "an entity") -> Entity:
+def _entity(value: Any, world: World, where: str, what: str = "an entity") -> Entity:
     if isinstance(value, str):
         found = world.entities.get(value)
         if found is not None:
@@ -113,7 +114,7 @@ def _entity(value: Any, world: SdkWorld, where: str, what: str = "an entity") ->
     raise RunError(f"expected {what}, got {value!r}", where)
 
 
-def each_items(value: Any, world: SdkWorld, where: str) -> list[Any]:
+def each_items(value: Any, world: World, where: str) -> list[Any]:
     """What an `each` (of an effect, an event or a policy rule) goes over: a type's entities, a list, one entity."""
     if isinstance(value, str) and world.is_type(value):
         return list(world.entities_of(value))
@@ -140,7 +141,7 @@ class EffectRunner:
     #: How deep create and remove events may set off further ones.
     HOOK_DEPTH = 16
 
-    def __init__(self, world: SdkWorld):
+    def __init__(self, world: World):
         self.world = world
         #: How deep create/remove events, and effect defs, are running inside one another (0 between blocks of logic).
         self._hook_depth = 0
@@ -203,7 +204,7 @@ class EffectRunner:
 
     def _statement(self, source: str, vars: dict[str, Any], path: str, index: int) -> None:
         stmt = compile_statement(source)
-        scope = self.world.scope(**vars)
+        scope = self.world.evaluation.scope(**vars)
         value = stmt.value(scope)
         if stmt.local is not None:
             if stmt.op != "=":
@@ -371,7 +372,7 @@ class EffectRunner:
 
     def eval(self, value: Any, vars: dict[str, Any]) -> Any:
         """Evaluate an expression (or a structure of them) with these locals."""
-        return resolve(value, self.world.scope(**vars))
+        return resolve(value, self.world.evaluation.scope(**vars))
 
     def text(self, template: str | None, vars: dict[str, Any], viewer: Entity | _Everyone | None) -> str:
         """Render a template with these locals for ``viewer``, the one agent it is shown to, :data:`EVERYONE` for text
@@ -391,7 +392,7 @@ class EffectRunner:
 
     def _condition(self, value: Any, vars: dict[str, Any]) -> bool:
         # These fields are checked as expressions, even without a $ reference.
-        return truthy(compile_expr(value)(self.world.scope(**vars)) if isinstance(value, str) else value)
+        return truthy(compile_expr(value)(self.world.evaluation.scope(**vars)) if isinstance(value, str) else value)
 
     def _op_if(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         branch = "then" if self._condition(effect["if"], vars) else "else"
@@ -444,8 +445,8 @@ class EffectRunner:
             entity_id = self._text(effect.get("id"), inner, None) or None  # the rules' own words: an id and a name
             name = self._text(effect.get("name"), inner, None) or None
             at = self._eval(effect.get("at"), inner)
-            made.append(self.world.create(effect["create"], entity_id, name, effect.get("props") or {},
-                                          at, self.world.scope(**inner), where))
+            made.append(self.world.evaluation.create(effect["create"], entity_id, name, effect.get("props") or {},
+                                                     at, self.world.evaluation.scope(**inner), where))
         if effect.get("as"):
             vars[effect["as"]] = made[0] if count == 1 else made
 
@@ -465,18 +466,19 @@ class EffectRunner:
         have = _amount_held(source, prop, where)
         held = _amount_held(target, into, where)
         # A transfer moves value; it never creates or destroys it. Limits that would clamp
-        # either side refuse the transfer instead, never telling an amount hidden from the actor (world.refusal).
+        # either side refuse the transfer instead, never telling an amount hidden from the actor (see
+        # EvalContext.refusal).
         low, high = self.world.prop_spec(source, prop).min, self.world.prop_spec(target, into).max
-        instead = "That transfer cannot be made."
+        refusal, instead = self.world.evaluation.refusal, "That transfer cannot be made."
         if have < amount:
-            raise self.world.refusal(source, prop, f"{source.name} has only {format_value(have)} {prop}; "
-                                                   f"{format_value(amount)} is needed.", instead)
+            raise refusal(source, prop, f"{source.name} has only {format_value(have)} {prop}; "
+                                        f"{format_value(amount)} is needed.", instead)
         if low is not None and have - amount < low:
-            raise self.world.refusal(source, prop, f"{source.name} cannot go below {format_value(low)} {prop}; "
-                                                   f"at most {format_value(have - low)} can be given.", instead)
+            raise refusal(source, prop, f"{source.name} cannot go below {format_value(low)} {prop}; "
+                                        f"at most {format_value(have - low)} can be given.", instead)
         if high is not None and held + amount > high:
-            raise self.world.refusal(target, into, f"{target.name} can hold at most {format_value(high)} {into}; "
-                                                   f"at most {format_value(max(0, high - held))} more fits.", instead)
+            raise refusal(target, into, f"{target.name} can hold at most {format_value(high)} {into}; "
+                                        f"at most {format_value(max(0, high - held))} more fits.", instead)
         self.world.set_prop(source, prop, have - amount)
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
 

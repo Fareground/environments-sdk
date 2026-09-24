@@ -21,11 +21,11 @@ from ..errors import RunError
 from ..expr import ExprError, Untrusted, compile_expr, resolve, truthy
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, request_key
-from ..world.live import Abort
+from ..world.abort import Abort
 from ..world.props import prop_type
 
 if TYPE_CHECKING:
-    from ..world.live import SdkWorld
+    from ..world.store import World
     from .rules import Rules
 
 __all__ = ["run_feeds", "feed_target"]
@@ -55,22 +55,22 @@ def run_feeds(rules: Rules) -> None:
             rules.commit(f"mechanisms.{name}")
 
 
-def _due(world: SdkWorld, name: str, spec: FeedSpec) -> bool:
+def _due(world: World, name: str, spec: FeedSpec) -> bool:
     if (world.round - 1) % spec.every != 0:
         return False
     if spec.when is None:
         return True
     try:
-        return truthy(compile_expr(spec.when)(world.scope()))
+        return truthy(compile_expr(spec.when)(world.evaluation.scope()))
     except ExprError as exc:
         raise RunError(str(exc), f"mechanisms.{name}.when") from None
 
 
-def _pull(world: SdkWorld, name: str, spec: FeedSpec) -> None:
+def _pull(world: World, name: str, spec: FeedSpec) -> None:
     path = f"mechanisms.{name}"
     owner, target = feed_target(spec)
     try:
-        query = plain(resolve(copy.deepcopy(spec.query), world.scope()))
+        query = plain(resolve(copy.deepcopy(spec.query), world.evaluation.scope()))
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.query") from None
     request = {"feed": name, "query": query, "into": spec.into, "expects": _expects(world, owner, target),
@@ -89,7 +89,7 @@ def _ask(request: dict[str, Any], adapter: Any) -> Any:
     return adapter.fetch(request)
 
 
-def _expects(world: SdkWorld, owner: str, target: str) -> Any:
+def _expects(world: World, owner: str, target: str) -> Any:
     if owner == "world":
         spec = world.contract.world[target]
         return {"type": prop_type(spec), **({"values": spec.values} if spec.values else {}),
@@ -98,15 +98,15 @@ def _expects(world: SdkWorld, owner: str, target: str) -> Any:
     return {"entries": dict(world.contract.records[target].fields)}
 
 
-def _fallback(world: SdkWorld, name: str, spec: FeedSpec) -> Any:
+def _fallback(world: World, name: str, spec: FeedSpec) -> Any:
     with world.luck.stream("feeds", name, world.round):
         try:
-            return plain(resolve(copy.deepcopy(spec.fallback), world.scope()))
+            return plain(resolve(copy.deepcopy(spec.fallback), world.evaluation.scope()))
         except ExprError as exc:
             raise RunError(str(exc), f"mechanisms.{name}.fallback") from None
 
 
-def _validate(world: SdkWorld, owner: str, target: str, answer: Any) -> Any:
+def _validate(world: World, owner: str, target: str, answer: Any) -> Any:
     """A host's answer in the shape its target takes, or :class:`HostError`."""
     if owner == "world":
         try:
@@ -136,7 +136,7 @@ def _entries(answer: Any) -> Any:
     return None
 
 
-def _write(world: SdkWorld, owner: str, target: str, answer: Any, path: str) -> None:
+def _write(world: World, owner: str, target: str, answer: Any, path: str) -> None:
     if owner == "world":
         world.set_world(target, answer)
         return

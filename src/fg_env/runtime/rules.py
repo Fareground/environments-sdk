@@ -28,13 +28,14 @@ from ..effects.runner import EffectRunner
 from ..errors import FatalRunError, InvariantViolation, RunError
 from ..expr import EVERYONE, ExprError, compile_expr, item_conditions, shared_budget, truthy
 from ..expr.objects import Entity
-from ..world.live import Abort, OutOfBounds, _plain
+from ..world.abort import Abort, OutOfBounds
+from ..world.values import plain_value
 from .events import Events
 from .facts import Faulted
 
 if TYPE_CHECKING:
     from ..information.core import Information
-    from ..world.live import SdkWorld
+    from ..world.store import World
     from .facts import Facts
     from .state import RunState
 
@@ -53,7 +54,7 @@ def _no_reactions(stage: StageSpec | None) -> None:
 class Rules:
     """The rules of one run over its world. ``lock`` is the run's lock: every change is made holding it."""
 
-    def __init__(self, contract: Contract, world: SdkWorld, effects: EffectRunner, actions: ActionBook,
+    def __init__(self, contract: Contract, world: World, effects: EffectRunner, actions: ActionBook,
                  information: Information, state: RunState, facts: Facts, lock: threading.RLock):
         self.contract = contract
         self.world = world
@@ -167,11 +168,11 @@ class Rules:
         if not self.contract.invariants:
             return
         world, held = self.world, self.state.invariant_held
-        scope = world.scope()
+        scope = world.evaluation.scope()
         for index, invariant in enumerate(self.contract.invariants):
             if moment not in _INVARIANT_MOMENTS[invariant.check]:
                 continue
-            state = world.state_version()
+            state = world.evaluation.state_version()
             if moment == "action" and held.get(index) == state:
                 continue
             observed = world.luck.observe()
@@ -188,7 +189,7 @@ class Rules:
                                               path=f"invariants[{index}].why") if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
                                          f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
-            held[index] = state if observed.pure(state, world.state_version()) else None
+            held[index] = state if observed.pure(state, world.evaluation.state_version()) else None
         if moment in _INVARIANT_MOMENTS["action"]:  # every action invariant was due, and holds
             world.touched = {}
 
@@ -206,7 +207,7 @@ class Rules:
             for entity_id in touched:
                 entity = world.entities.get(entity_id)
                 if entity is not None and entity.alive and entity.entity_type in kinds \
-                        and not truthy(condition(world.scope(it=entity))):
+                        and not truthy(condition(world.evaluation.scope(it=entity))):
                     return False
         return True
 
@@ -221,11 +222,11 @@ class Rules:
             if moment == "action" and end.check != "action":
                 continue
             path = f"end[{index}]"
-            scope = scope or world.scope()
+            scope = scope or world.evaluation.scope()
             try:
                 if not truthy(compile_expr(end.when)(scope)):
                     continue
-                winner = _plain(compile_expr(end.winner)(scope)) if end.winner else None
+                winner = plain_value(compile_expr(end.winner)(scope)) if end.winner else None
                 text = self.information.render(end.say, {}, viewer=EVERYONE) if end.say else ""  # the run's last news
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
@@ -270,7 +271,7 @@ class Rules:
         """Why ``actor``'s turn as played breaks ``stage``'s `valid` rules, or None when it meets them."""
         path = f"stages.{stage.name}.valid"
         vars = {"actor": actor}
-        scope = self.world.scope(**vars)
+        scope = self.world.evaluation.scope(**vars)
         with shared_budget(ACTION_BUDGET, path):
             for index, condition in enumerate(stage.valid):
                 try:

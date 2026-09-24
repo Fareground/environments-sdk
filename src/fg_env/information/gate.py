@@ -27,17 +27,17 @@ from ..expr.template import compile_template
 if TYPE_CHECKING:
     from ..expr.objects import Entity
     from ..expr.values import _Everyone
-    from ..world.live import SdkWorld
+    from ..world.store import World
 
 __all__ = ["render"]
 
 
-def render(world: SdkWorld, template: str, vars: Mapping[str, Any], *, viewer: Entity | _Everyone | None,
+def render(world: World, template: str, vars: Mapping[str, Any], *, viewer: Entity | _Everyone | None,
            subject: str | None = None, path: str | None = None) -> str:
     """``template`` rendered over ``world`` with the roots ``vars``, for ``viewer`` (see the module docstring).
     ``subject`` is the root a bare ``{field}`` reads; with ``path``, an expression error is a :class:`RunError` there.
     """
-    scope = world.scope(**vars) if viewer is None else world.scope(**{**vars, "viewer": viewer})
+    scope = world.evaluation.scope(**vars) if viewer is None else world.evaluation.scope(**{**vars, "viewer": viewer})
     if path is None:
         return compile_template(template, subject).render(scope)
     try:

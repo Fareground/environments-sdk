@@ -13,7 +13,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr.objects import Entity
-from ..world.live import SdkWorld
+from ..world.store import World
 
 __all__ = ["WriteBuffer", "run_synced"]
 
@@ -40,7 +40,7 @@ class WriteBuffer:
         self.item.clear()
 
 
-def run_synced(world: SdkWorld, items: Sequence[Any], run_item: Callable[[int, Any], bool], path: str) -> bool:
+def run_synced(world: World, items: Sequence[Any], run_item: Callable[[int, Any], bool], path: str) -> bool:
     """Run ``run_item(position, item)`` for every item with its writes held back, then land them all. ``run_item``
     returns False for an item it skipped. False when no item ran."""
     if world.buffer is not None:

@@ -37,7 +37,7 @@ from typing import Any
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..expr.objects import Entity
-from ..world.live import Abort
+from ..world.abort import Abort
 from ._common import lot_floor, number_of
 from .book_rules import venue
 from .ledger import Account, balance
@@ -296,7 +296,7 @@ def _fair_value(v: _View) -> float:
     if raw is None:
         return float(v.world.props[f"{v.name}_value"])
     try:
-        value = compile_expr(raw)(v.world.scope(actor=v.trader))
+        value = compile_expr(raw)(v.world.evaluation.scope(actor=v.trader))
     except ExprError as exc:
         raise RunError(str(exc), f"mechanisms.{v.name}.fair_value") from None
     if isinstance(value, bool) or not isinstance(value, (int, float)):

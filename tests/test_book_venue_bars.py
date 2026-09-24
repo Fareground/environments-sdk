@@ -25,14 +25,14 @@ def crowd_book(rounds=12, inputs=None, **config):
 
 
 def bars(env, name="acme_bars"):
-    return expr.evaluate(f"$records({name})", env.world.scope())
+    return expr.evaluate(f"$records({name})", env.world.evaluation.scope())
 
 
 def test_venue_rules_can_be_expressions_over_inputs_resolved_when_the_world_is_built():
     contract = crowd_book(tick_size="10 ** ($floor($log($inputs.price, 10)) - 4)", taker_fee_bps="$inputs.fee")
     for price, tick in ((50, 0.001), (1000, 0.1), (250.5, 0.01)):
         env = fg_env.load(contract, inputs={"price": price, "fee": 7}, seed=1)
-        book = expr.evaluate("$book(acme)", env.world.scope())
+        book = expr.evaluate("$book(acme)", env.world.evaluation.scope())
         assert (book["tick"], book["taker_fee_bps"]) == (pytest.approx(tick), 7)
         assert env.world.props["acme_rules"]["tick_size"] == pytest.approx(tick)
 
@@ -86,7 +86,7 @@ def test_bars_of_several_rounds_aggregate_exactly_the_rounds_they_span():
 def test_the_bar_in_progress_is_readable_mid_bar():
     env = fg_env.load(crowd_book(bar_rounds=4), seed=5)
     env.run(rounds=6)
-    running = expr.evaluate("$book(acme).bar", env.world.scope())
+    running = expr.evaluate("$book(acme).bar", env.world.evaluation.scope())
     per_round = fg_env.load(crowd_book(), seed=5)
     per_round.run(rounds=6)
     span = bars(per_round)[4:6]
