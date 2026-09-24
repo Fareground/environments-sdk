@@ -101,7 +101,8 @@ class InputSpec(_Model):
                 raise ValueError(f"field '{name}' conflicts with its column type")
         if self.items is not None and self.items.source is not None:
             raise ValueError("declare data sources on the containing input, not list items")
-        file_fields = [key for key in ("caption", "alt", "tags", "max_bytes", "describe") if key in self.model_fields_set]
+        file_fields = [key for key in ("caption", "alt", "tags", "max_bytes", "describe")
+                       if key in self.model_fields_set]
         if file_fields and self.type != "file":
             raise ValueError(f"{file_fields[0]} only applies to file inputs")
         if self.type == "file" and self.source is None:

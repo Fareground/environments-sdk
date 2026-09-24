@@ -1,5 +1,5 @@
 # fg-env playthrough: First-price sealed-bid auction
-Game: first_price_sealed_bid_auction@82dc09a6:a44fbc47
+Game: first_price_sealed_bid_auction@1c69591c:a44fbc47
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: explicit; information: imperfect; utility: general_sum

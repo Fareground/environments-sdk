@@ -74,7 +74,8 @@ def test_a_population_row_or_an_entity_filtering_an_input_table_is_told_to_use_l
     found = {issue.path: issue for issue in _scans(SHOP)}
     assert set(found) == {"entities.sku.props.base", "events[0].do[1]"}
     row = found["entities.sku.props.base"]
-    assert "$filter($inputs.sales, …) visits every row of $inputs.sales for each entity entities.sku generates" in row.message
+    assert ("$filter($inputs.sales, …) visits every row of $inputs.sales for each entity entities.sku generates"
+            in row.message)
     assert "$lookup($inputs.sales, field, value)" in row.fix
     assert "for each sku" in found["events[0].do[1]"].message
 

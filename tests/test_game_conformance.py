@@ -2,7 +2,6 @@
 
 A longer run over more playouts: FG_ENV_SLOW=1 pytest tests/test_game_conformance.py
 """
-import copy
 import os
 
 import pytest

@@ -419,6 +419,12 @@ def _lineage(types: dict[str, dict[str, Any]], name: str) -> list[str]:
     return chain
 
 
+def _section(data: dict[str, Any], key: str) -> dict[str, Any]:
+    """Section ``key`` when it is an object, else empty (the parser reports a malformed one)."""
+    value = data.get(key)
+    return value if isinstance(value, dict) else {}
+
+
 def _is_agent(types: dict[str, dict[str, Any]], name: str) -> bool:
     return any(types[kind].get("agent") is True for kind in _lineage(types, name))
 
@@ -428,7 +434,7 @@ def _is_agent(types: dict[str, dict[str, Any]], name: str) -> bool:
 
 def _takes(data: dict[str, Any], kind: str, action: Any) -> bool:
     """Whether agents of ``kind`` may take ``action`` (its `by` names the type or an ancestor)."""
-    actions = data.get("actions") if isinstance(data.get("actions"), dict) else {}
+    actions = _section(data, "actions")
     by = actions[action].get("by") if isinstance(actions.get(action), dict) else None
     allowed = [by] if isinstance(by, str) else by if isinstance(by, list) else []
     return any(parent in allowed for parent in _lineage(_types(data), kind))
@@ -462,7 +468,7 @@ def _own_copy(data: dict[str, Any], owner: str, spec: Any) -> Any:
     out = copy.deepcopy(spec)
     types = _types(data)
     players = [kind for kind in types if owner in _lineage(types, kind)]
-    actions = data.get("actions") if isinstance(data.get("actions"), dict) else {}
+    actions = _section(data, "actions")
 
     def playable(rule: Any) -> bool:
         action = rule.get("do") if isinstance(rule, dict) else None
@@ -626,8 +632,8 @@ def _calls(value: Any) -> tuple[Any, bool]:
         return value, False
     if isinstance(value.get("block"), str) and set(value) <= {"block", "with"}:
         return {("call" if key == "block" else key): item for key, item in value.items()}, True
-    items = {key: _calls(item) for key, item in value.items()}
-    return {key: item for key, (item, _) in items.items()}, any(changed for _, changed in items.values())
+    entries = {key: _calls(item) for key, item in value.items()}
+    return {key: item for key, (item, _) in entries.items()}, any(changed for _, changed in entries.values())
 
 
 @rule

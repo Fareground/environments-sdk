@@ -16,19 +16,17 @@ each. The core sections and functions are enough for most environments; the star
 |---|---|
 | `brief` | Static text every agent reads first: the situation, the rules, and per-type role text. |
 | `clock` | How long a run lasts (`rounds`, default 20) and what one round is called. |
-| `inputs` | Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables. |
+| `inputs` | Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables, and the files the environment carries (`type: file`; see guide('assets')). |
 | `world` | Global properties ($world.x). |
-| `types` | Kinds of entities and their properties; `agent: true` makes a type act. |
-| `entities` | Named entities (the name defaults to the id). |
-| `population` | Generated entities: a count, or one per data row, with sampled traits. |
+| `types` | Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its agents scores as a seat, for tournaments, game search and gyms. |
+| `entities` | Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row (`from`), with sampled traits; ids `<key>_<n>`. |
 | `records` | Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`. |
 | `actions` | What agents can do: each is one typed tool with requirements and atomic effects. |
 | `stages` | The steps of every round: who acts, how (sequential or sealed simultaneous), which actions. |
 | `views` | What agents read each turn: single lines or ranked, filtered lists. |
 | `events` | What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a condition holds, or by chance. |
 | `end` | Conditions that end the run early, with an optional winner ($result.winner in outputs). |
-| `metrics` | Values sampled every round ($metrics.x latest, $series.x every round). |
-| `outputs` | The typed results of a run. |
+| `outputs` | The typed results of a run; with `series: true` also sampled every round ($outputs.x latest, $series.x every round). |
 | `invariants` | Rules that must always hold. |
 
 Core functions: `$count` `$sum` `$avg` `$min` `$max` `$filter` `$map` `$dict` `$top` `$best` `$any` `$all` `$len` `$get` `$chance` `$randint` `$normal` `$choice` `$round` `$floor` `$clamp` `$entity`; every other function (`guide('functions')`) is extended.
@@ -39,20 +37,14 @@ Reach for one of these when the core cannot say it.
 
 | section | what it declares |
 |---|---|
-| `assets` | Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets'). |
 | `triggers` | What the world does the moment a condition becomes true (checked after every action and effect block), unlike an event, which runs at a set point of the round. |
 | `mechanisms` | Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms'). |
-| `game` | Seats and what each scores, for tournaments, game search and gyms. |
 | `space` | Positions: a grid, a graph of places or a plane, with values on cells. |
-| `relations` | Typed links between entities (trust, follows), with fields. |
-| `links` | Links made at build: listed, from data rows, or generated networks. |
+| `relations` | Typed links between entities (trust, follows), with fields, and the links made at build (`links`): listed, from data rows, or generated networks. |
 | `physics` | Continuous variables integrated every round (world-level and per entity). |
 | `feeds` | External data written into world props or records, answered by host adapters. |
-| `policies` | Coded participants as rules, for crowds and baselines (`policy:<name>`). |
 | `arms` | Experiment variants: input overrides or contract patches. |
-| `calibration` | Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a load that sets a fitted input skips it (each load costs budget × runs pilot sessions). |
-| `defs` | Reusable expressions, called like built-ins: $utility($actor, 3). |
-| `blocks` | Reusable effect lists, run with {"block": name, "with": {...}}. |
+| `defs` | Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with {"call": name, "with": {...}}. |
 | `imports` | Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others. |
 
 ## Mechanism, engine or template?
@@ -118,8 +110,7 @@ cloned, to copy and make your own (topic, roles, people, inputs, rules) rather t
 - `mechanisms` — what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)
 - `patterns` — seasons, trends, responses, random processes, draws and noise, and fitting them from data
 - `recipes` — data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds
-- `macros` — repeat structure from data with `for`/`make`
-- `assets` — files beside the contract (images, PDFs, text) delivered to agents
+- `assets` — files beside the contract (images, PDFs, text) delivered to agents: `file` inputs
 - `inspect` — debugging a run: summary, diagnostics, events, traces, replay
 - `running` — Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI
 - `optimise` — the best decision under constraints: objectives, methods, fresh-seed checks, Pareto frontiers

@@ -8,7 +8,7 @@ from pydantic import Field, StrictBool, model_validator
 from .base import OUTPUT_TYPES, Effects, TypeName, _ExprShorthand, _Model
 
 __all__ = ["OutputSpec", "EndSpec", "DefSpec", "ArmSpec", "INVARIANT_CHECKS", "END_CHECKS",
-           "InvariantSpec", "CalibrationSpec"]
+           "InvariantSpec"]
 # ---------------------------------------------------------------------------
 # Measurement, ending, experiment, invariants
 # ---------------------------------------------------------------------------

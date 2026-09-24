@@ -54,24 +54,22 @@ $metrics $series $arm):
 | records.show | $it (entry: its fields directly, $it.text, plus author, round, seq, stage, to) |
 | events.where/do (with each) | $it $i (or the `as` name) |
 | triggers.when/do/say | — |
-| population.where/weight | $row |
-| population.props/id/name | $row $i ($i counts from 1) |
-| population.brief | $actor $row $i |
-| entities.brief | $actor |
+| entities.brief | $actor (generated: $row $i too) |
+| entities.where/weight (generated) | $row |
+| entities.props/id/name (generated) | $row $i ($i counts from 1) |
 | types.inspect | $viewer $it |
 | types.on_create/on_remove | $it (the entity) + locals |
+| types.policies.*.rules.* | $actor ($it $i with `each`) |
 | relations.props.*.default | $from $to |
-| links.props | $from $to (+ $row with `rows`) |
+| relations.links.*.props | $from $to (+ $row with `rows`) |
 | physics.per.*.read/where | $it |
 | feeds.query/when/fallback | — |
 | defs.expr | the def's args |
-| blocks.do | the block's args + locals |
-| policies.rules.* | $actor ($it $i with `each`) |
-| metrics.* | — |
-| outputs.* | $outputs (earlier outputs) $result (winner, ended_by) |
+| defs.do | the def's args + locals |
+| outputs.* | $outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result (winner, ended_by; not in a sampled one) |
 | end.when/winner/say | — |
-| game.seat | $it $i |
-| game.returns/rewards | $actor $result (winner, ended_by) |
+| types.score.seat | $it $i |
+| types.score.value | $it (the seat) $result (winner, ended_by) |
 | invariants.* | — |
 
 `$clock` fields: round rounds left unit date label. `$metrics.x` = latest value; `$series.x` = list per round.

@@ -1,5 +1,5 @@
 # fg-env playthrough: Kuhn poker
-Game: kuhn_poker@4bfc08d3:4642e142
+Game: kuhn_poker@b0c2c05f:4642e142
 Seed: 1
 Seats: 0 p0, 1 p1
 Dynamics: sequential; chance: explicit; information: imperfect; utility: zero_sum

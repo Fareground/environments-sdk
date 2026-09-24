@@ -54,8 +54,8 @@ MAX_IMPORTS = 64
 
 
 def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> Any:
-    """``data`` in the current form with its ``imports`` merged in (each file's earlier-release macros expanded before it
-    is merged)."""
+    """``data`` in the current form with its ``imports`` merged in (each file's earlier-release macros expanded before
+    it is merged)."""
     data = expand_macros(data)
     if isinstance(data, Mapping) and "imports" in data:
         data = _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")

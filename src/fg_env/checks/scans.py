@@ -124,7 +124,7 @@ class _Scans:
                         self.report(leaf, leaf_path, around)
             called = effect.get("call")
             body = self._effect_def(called)
-            if work is not None and body is not None and called not in seen:
+            if work is not None and body is not None and isinstance(called, str) and called not in seen:
                 self.effects(body, f"defs.{called}.do", work, seen | {called})
 
     def _effect_def(self, name: Any) -> Any:

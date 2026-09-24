@@ -134,8 +134,9 @@
   {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}], "on_remove":
   [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}}` — every firm, however it
   was created, is counted and connected; closing one lays off its jobs.
-* Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
-  `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
+* Reusable logic: `defs` — a formula (`"utility": {"args": ["side", "offer"], "expr": "..."}`, read as
+  `$utility(...)`) or an effect list (`"match": {"args": ["order"], "do": [...]}`, run with
+  `{"call": "match", "with": {"order": "$made"}}`).
 * Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
   those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
   the agent itself: show an agent's own state in a view).

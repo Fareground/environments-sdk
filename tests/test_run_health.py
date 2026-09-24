@@ -226,7 +226,8 @@ def test_a_repeating_policy_stopped_by_a_refusal_says_so():
     result = fg_env.run(contract, "policy:all", seed=1)
     assert result.outputs["hits"] == 1
     [found] = [d for d in result.diagnostics if d["code"] == "policy_repeat_refused"]
-    assert found["path"] == "types.p.policies.all.rules[0]" and "acted 1 time(s) and was refused 1 time(s)" in found["message"]
+    assert found["path"] == "types.p.policies.all.rules[0]"
+    assert "acted 1 time(s) and was refused 1 time(s)" in found["message"]
 
 
 def test_auto_skips_sealed_turns_with_nothing_legal():
