@@ -45,9 +45,11 @@ def tally(method: str, ballots: Any, options: Sequence[Any] | None = None, thres
     defeats the first.
 
     Returns ``winner`` (None when nobody wins), ``decided`` (there is a winner), ``passed`` (the
-    first option won: list a motion's "yes" first), ``counts``, ``ranking``, ``votes``, ``turnout``,
-    ``tie``, ``tied``, ``vetoed`` (the voters whose veto defeated it) and, for ranked, the
-    elimination ``rounds``.
+    first option won: list a motion's "yes" first), ``counts``, ``ranking`` (the winner first),
+    ``votes``, ``turnout``, ``tie`` (a tie-break decided the winner or, in a ranked count, an
+    elimination), ``tied`` (the options it chose among), ``vetoed`` (the voters whose veto defeated
+    it) and, for ranked, the elimination ``rounds``. ``ties="first"`` favours the first-declared
+    option in every method: it wins a tie at the top and survives a tie for last.
     """
     if method not in METHODS:
         raise ValueError(f"method must be one of {', '.join(METHODS)}, got {method!r}")
@@ -168,6 +170,20 @@ def _break_tie(tied: list[str], ties: str, rng: Any) -> str | None:
     return tied[rng.randrange(len(tied))]
 
 
+def _drop(tied: list[str], ties: str, rng: Any) -> str:
+    """The option eliminated from a tie for last: the mirror of ``_break_tie``, so ``first`` keeps the first-declared."""
+    if ties == "first":
+        return tied[-1]
+    if rng is None:
+        raise ValueError("breaking a tie at random needs randomness")
+    return tied[rng.randrange(len(tied))]
+
+
+def _lead(ranking: list[str], winner: str | None) -> list[str]:
+    """The ranking with the winner first (a tie-break may have picked one listed after it)."""
+    return ranking if winner is None else [winner, *(o for o in ranking if o != winner)]
+
+
 def _decide(result: dict[str, Any], scores: dict[str, float], method: str, threshold: float | None,
             base: float | None, ties: str, rng: Any) -> dict[str, Any]:
     ranking = sorted(scores, key=lambda o: -scores[o])  # stable: declared order breaks equal scores
@@ -194,7 +210,7 @@ def _decide(result: dict[str, Any], scores: dict[str, float], method: str, thres
         if len(tied) > 1 and ties != "first":  # a threshold is met by one option, not by a draw between several
             result["reason"] = f"{' and '.join(tied)} tied at {share:.0%}"
             return result
-    result["winner"] = winner
+    result["winner"], result["ranking"] = winner, _lead(ranking, winner)
     return result
 
 
@@ -202,6 +218,7 @@ def _instant_runoff(result: dict[str, Any], order: list[str], ballots: list[tupl
                     rng: Any) -> dict[str, Any]:
     remaining = list(dict.fromkeys(order + [o for b, _ in ballots for o in b if o != ABSTAIN]))
     rounds: list[dict[str, Any]] = []
+    broken: list[str] = []  # the last tie a tie-break decided, if any
     while remaining:
         counts: dict[str, float] = {o: 0 for o in remaining}
         active: float = 0
@@ -212,26 +229,24 @@ def _instant_runoff(result: dict[str, Any], order: list[str], ballots: list[tupl
                 active += weight
         rounds.append({"counts": {o: _clean(c) for o, c in counts.items()}, "active": _clean(active)})
         leader = max(counts.values()) if counts else 0
-        if active and (leader * 2 > active or len(remaining) == 1):
+        low = min(counts.values()) if counts else 0
+        losers = [o for o in remaining if counts[o] == low]
+        finished = active and (leader * 2 > active or len(remaining) == 1)
+        if finished or (active and len(losers) == len(remaining)):  # a majority, or everyone tied: decide among them
             tied = [o for o in remaining if counts[o] == leader]
-            result.update(counts=rounds[0]["counts"], rounds=rounds,
-                          ranking=sorted(remaining, key=lambda o: -counts[o]),
-                          tie=len(tied) > 1, tied=tied if len(tied) > 1 else [])
-            result["winner"] = _break_tie(tied, ties, rng)
+            winner = _break_tie(tied, ties, rng)
+            broken = tied if len(tied) > 1 else broken
+            result.update(counts=rounds[0]["counts"], rounds=rounds, winner=winner, tie=bool(broken), tied=broken,
+                          ranking=_lead(sorted(remaining, key=lambda o: -counts[o]), winner))
             return result
         if not active:
             break
-        low = min(counts.values())
-        losers = [o for o in remaining if counts[o] == low]
-        if len(losers) == len(remaining):  # everyone tied: decide among them
-            result.update(counts=rounds[0]["counts"], rounds=rounds, ranking=list(remaining), tie=True, tied=losers)
-            result["winner"] = _break_tie(losers, ties, rng)
-            return result
         if ties == "none":  # no draw: every option tied for last is eliminated together
             remaining = [o for o in remaining if o not in losers]
             continue
-        out = losers[0] if len(losers) == 1 or ties == "first" or rng is None else losers[rng.randrange(len(losers))]
-        remaining.remove(out)
+        if len(losers) > 1:
+            broken = losers
+        remaining.remove(_drop(losers, ties, rng))
     result.update(counts=rounds[0]["counts"] if rounds else {}, rounds=rounds)
     return result
 
@@ -320,8 +335,9 @@ class BallotConfig(BaseModel):
     private: bool = Field(True, description="Ballots stay private; only the result is announced.")
     ties: Literal["random", "none", "first"] = Field("random",
                                                      description="How a tie is decided (random uses the run's seed; "
-                                                                 "none leaves it undecided, and in a ranked count "
-                                                                 "eliminates every option tied for last together). A "
+                                                                 "first favours the first-declared option; none leaves "
+                                                                 "it undecided, and in a ranked count eliminates every "
+                                                                 "option tied for last together). A "
                                                                  "majority or supermajority tied at the top fails "
                                                                  "unless ties is first (a casting vote for the first "
                                                                  "option).")
