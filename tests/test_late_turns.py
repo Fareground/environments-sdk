@@ -1,4 +1,4 @@
-"""What arrives after a turn ran out of time: a host answer stays off the tape; reported usage still counts."""
+"""What arrives after a turn is over: a host answer stays off the tape; reported usage still counts; nothing else does."""
 import json
 import threading
 import time
@@ -84,3 +84,29 @@ def test_a_replay_adds_usage_reported_after_the_deadline_as_that_turn_ends():
     replayed = fg_env.analysis.trace(result).replay(GAME)
     assert replayed.ok, replayed.message
     assert replayed.result.stats["input_tokens"] == result.stats["input_tokens"] == 500
+
+
+def test_what_a_participant_does_with_its_finished_turns_counts_nothing():
+    """A turn's numbers join the run's when the engine is done with it: reading its brief, calling and its deadline
+    passing afterwards, from a later turn, change neither the run's numbers nor its agent's (they still add up)."""
+    c = {"name": "Pokes", "clock": {"rounds": 3}, "types": {"p": {"agent": True}},
+         "entities": {"ann": {"type": "p"}, "bo": {"type": "p"}}, "actions": {"poke": {"by": "p", "do": []}},
+         "stages": [{"name": "act", "actions": ["poke"]}], "outputs": {"n": "$count(p)"}}
+    kept = []
+
+    def participant(wake):
+        if (wake.round, wake.entity_id) == (3, "ann"):
+            time.sleep(LIMIT)  # this turn runs out of time; so has every earlier turn's clock by now
+            return
+        for old in kept:
+            assert old.brief and not old.call("poke", {}).ok
+        assert wake.call("poke", {}).ok
+        kept.append(wake)
+
+    result = fg_env.load(c, seed=1).run(participant, time_limit=LIMIT / 2)
+    assert result.status == "completed", result.error
+    stats = result.stats
+    assert (stats["wakes"], stats["calls"], stats["actions"], stats["timeouts"]) == (6, 5, 5, 1)
+    assert (stats["brief_reads"], stats["invalid_calls"]) == (0, 0)
+    for field in ("wakes", "calls", "brief_reads", "timeouts"):
+        assert sum(agent[field] for agent in result.agent_stats.values()) == stats[field]

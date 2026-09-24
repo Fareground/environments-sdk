@@ -61,7 +61,8 @@ feature with the core of the contract language marked apart from the rest.
   card reveal's `say`, a pot's showdown `label`, a ballot's `announce` — and a `chance` branch's `label` were rendered
   in the true state and could quote another agent's private value; now a read of one is refused like in every other
   such text, and `check` reports the reads it can see (a private world value, the actor's or carrier's own where
-  several read the text).
+  several read the text). A finished turn's participant can no longer change its numbers: reading its brief, calling or
+  running out of time after the turn is over counts nothing anywhere.
 - **Runs report their health.** A degraded run is not `ok` and `fg-env run` exits 3: a seat that never acts or whose
   turns mostly fail, an output that raises (the diagnostic `output_failed`; `check` reports it as an error), a run its
   budget cut short or handed to idle agents (`budget_cut`), and stand-in host answers (`host_fallback`) all degrade

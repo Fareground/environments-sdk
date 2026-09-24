@@ -8,8 +8,10 @@ count, and every judgment about a turn — that its attempts went wrong, that it
 is made once, in the fold.
 
 A fact about a turn folds into the turn's own numbers, which join the run's totals and its agent's when the turn
-finishes. What comes after that counts toward the run only when it is the engine's doing with the turn's choices or
-usage its participant reports late (:data:`LATE`); anything else a finished turn does is noted on the turn alone.
+finishes. What comes after that is decided once, by :data:`LATE`: the engine's doing with the turn's choices and the
+usage its participant reports late count — toward the turn, its agent, the run and the diagnosis alike; anything else
+a finished turn's participant does (reading its brief, a call, the clock running out on it) changes nothing, so a
+turn's numbers are the ones that joined the totals and never depend on when a participant got round to it.
 """
 from __future__ import annotations
 
@@ -331,8 +333,9 @@ def _commit_refused(stats: Stats, fact: CommitRefused) -> None:
 _COUNTS: dict[type, Callable[[Stats, Any], None]] = {
     Woke: _woke, Read: _read, Offered: _offered, Called: _called, Refused: _refused, Applied: _applied,
     Undone: _undone, TimedOut: _timed_out, Usage: _usage, Committed: _applied, CommitRefused: _commit_refused}
-#: The facts about a finished turn that still count toward the run: the engine's doing with its sealed choices, and
-#: usage its participant reports after the turn is over.
+#: The facts about a finished turn that still count: the engine's doing with its sealed choices, and usage its
+#: participant reports after the turn is over. The one decision of what a finished turn's facts count (see the module
+#: docstring): its brief read late, a refused call, a deadline that passes after it finished count nothing.
 LATE = frozenset({Committed, CommitRefused, Undone, Usage})
 
 
@@ -357,11 +360,14 @@ class Facts:
             turn.tallied = True
         elif turn is None:
             state.stats.fold(fact)
-        else:
+        elif not turn.tallied:
             turn.stats.fold(fact)
-            if turn.tallied and kind in LATE:
-                state.stats.fold(fact)
-                self._agent(turn).fold(fact)
+        elif kind in LATE:
+            turn.stats.fold(fact)
+            state.stats.fold(fact)
+            self._agent(turn).fold(fact)
+        else:
+            return
         state.diagnosis.fold(fact, turn)
 
     def _agent(self, turn: Turn) -> Stats:
