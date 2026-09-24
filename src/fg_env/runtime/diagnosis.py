@@ -164,7 +164,7 @@ class Diagnosis:
             entry["able"] += 1
             return
         env, actor = turn.env, turn.actor
-        used_round = env._used_round.get(actor.id, {})
+        used_round = env.state.used_round.get(actor.id, {})
         for name in stage_actions(env.contract, turn.stage, actor.entity_type):
             why = env.actions.blocked(actor, name, turn.used, used_round, offered=True)
             if why:
@@ -217,7 +217,7 @@ def usable(turn: Turn, name: str) -> bool | None:
     env, actor = turn.env, turn.actor
     if turn.actions_left <= 0 or name not in stage_actions(env.contract, turn.stage, actor.entity_type):
         return None
-    if env.actions.blocked(actor, name, turn.used, env._used_round.get(actor.id, {})) is not None:
+    if env.actions.blocked(actor, name, turn.used, env.state.used_round.get(actor.id, {})) is not None:
         return None
     found = _axes(env.actions.tool(actor, name, turn.staged).input_schema)
     if found is None:

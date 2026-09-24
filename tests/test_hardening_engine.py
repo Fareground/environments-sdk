@@ -126,7 +126,7 @@ def test_stopping_mid_round_resumes_exactly():
 
     env = _load(seed=4)
     first = env.run(_talker, stop=stop_on_fourth_point)
-    assert first.status == "stopped" and env._in_round
+    assert first.status == "stopped" and env.state.in_round
     saved = json.loads(json.dumps(env.snapshot()))
     resumed = env.run(_talker)
     assert resumed.to_dict() == straight.to_dict()
@@ -138,7 +138,7 @@ def test_a_stopped_round_counts_as_one_of_rounds():
     env.run(_talker, stop=lambda e: e.round == 2 and e.world.stage is not None)
     assert env.status == "stopped" and env.round == 2
     env.run(_talker, rounds=1)
-    assert env.round == 2 and not env._in_round and env.status == "running"
+    assert env.round == 2 and not env.state.in_round and env.status == "running"
 
 
 def test_snapshot_round_trip_keeps_provenance_and_continues_identically():
@@ -193,9 +193,9 @@ def test_preview_changes_nothing_and_shows_earlier_seats():
             f"«{SAMPLE_TEXT}»") in preview["update"]  # member_1's round-2 post, made on the copy before member_3's turn
     assert json.dumps(env.snapshot(), sort_keys=True) == before
     env.run(_talker, stop=lambda e: e.world.stage is not None)
-    count = env._turn_count
+    count = env.state.turn_count
     env.preview("member_2")
-    assert env._turn_count == count  # mid-round previews take no turn number
+    assert env.state.turn_count == count  # mid-round previews take no turn number
 
 
 def test_preview_prefers_a_stage_that_runs():

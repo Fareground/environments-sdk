@@ -341,7 +341,7 @@ class Stepper:
     def _pick(self, node: ChanceNode) -> int:
         env = self._run()
         if not self._chosen:
-            raise _ChanceWanted(node, env.origin.tape.copy(), env._turn_count, self._prefetch_now(env))
+            raise _ChanceWanted(node, env.origin.tape.copy(), env.state.turn_count, self._prefetch_now(env))
         index = self._chosen.pop(0)
         env.origin.tape.pick(index)
         return int(index)

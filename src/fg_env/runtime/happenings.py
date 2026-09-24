@@ -93,7 +93,7 @@ class Happenings:
         $timed_out) and drawing as ``owner``. It stops once the run ends, or once ``owner`` is gone."""
         env, world = self.env, self.env.world
         for index, event in env.contract.events_on(anchor):
-            if event.once and index in env._fired_once:
+            if event.once and index in env.state.fired_once:
                 continue
             path = f"events[{index}]"
             when, do = self._streams[index]
@@ -101,7 +101,7 @@ class Happenings:
                 if event.when is not None and not self._holds(event.when, vars or {}, f"{path}.when"):
                     continue
                 if event.once:
-                    env._fired_once.add(index)
+                    env.state.fired_once.add(index)
                 loop = _loop(event)
                 if loop is not None:
                     self._each(loop, path, when, do)
@@ -207,17 +207,17 @@ class Happenings:
         self._change_depth += 1
         try:
             for index, event in events:
-                if event.once and index in env._fired_once:
+                if event.once and index in env.state.fired_once:
                     continue
                 when, do = self._streams[index]
                 with world.drawing_at(when):
                     holds = self._holds(event.when or "true", {}, f"events[{index}].when")
-                was = env._armed.get(index, False)
-                env._armed[index] = holds
+                was = env.state.armed.get(index, False)
+                env.state.armed[index] = holds
                 if not holds or was:
                     continue
                 if event.once:
-                    env._fired_once.add(index)
+                    env.state.fired_once.add(index)
                 env._check_invariants(path)  # a change event never acts on a broken world (an `each` item checks late)
                 env._atomic(event.do, {}, f"events[{index}].do", luck=do)
                 self._say(index, event)
@@ -254,6 +254,6 @@ class Happenings:
                 env._timed_out(turn)
             finally:
                 self._reaction_depth -= 1
-            memory = env._memory(actor.id)
+            memory = env.state.memory(actor.id)
             memory.cursor = world.log[-1].seq if world.log else 0
             memory.turns += 1

@@ -236,7 +236,7 @@ LATCH = {
 
 
 @pytest.mark.xfail(strict=True, reason=(
-    "guarded(env, work, mark) undoes the world back to `mark` but restores env._armed and env._fired_once only to "
+    "guarded(env, work, mark) undoes the world back to `mark` but restores env.state.armed and fired_once only to "
     "their values when `work` began (actions/faults.py): a `change` event armed, or a `once` event fired, by a commit "
     "between `mark` and `work` stays armed or fired while that commit's changes are gone, so the event never fires "
     "again when its `when` next becomes true. Latent today: no caller commits between the mark it passes and the work "

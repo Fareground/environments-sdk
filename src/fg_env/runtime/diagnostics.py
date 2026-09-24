@@ -88,7 +88,7 @@ def _budget_cut(env: Env) -> list[dict[str, str]]:
 
 
 def _forfeits(env: Env) -> list[dict[str, str]]:
-    lost = {agent: stats.forfeits for agent, stats in sorted(env.agent_stats.items()) if stats.forfeits}
+    lost = {agent: stats.forfeits for agent, stats in sorted(env.state.agent_stats.items()) if stats.forfeits}
     if not lost:
         return []
     return [_finding("turns_forfeited", "participants",
@@ -99,7 +99,7 @@ def _forfeits(env: Env) -> list[dict[str, str]]:
 
 
 def _out_of_steps(env: Env) -> list[dict[str, str]]:
-    cut = {agent: stats.out_of_steps for agent, stats in sorted(env.agent_stats.items()) if stats.out_of_steps}
+    cut = {agent: stats.out_of_steps for agent, stats in sorted(env.state.agent_stats.items()) if stats.out_of_steps}
     if not cut:
         return []
     return [_finding("out_of_steps", "participants",
@@ -121,9 +121,9 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
     if not env.finished:
         return []
     never_able = {kind for kind, entry in sorted(env.diagnosis.agents.items()) if not entry["able"]}
-    nobody_acted = not env.stats.actions
+    nobody_acted = not env.state.stats.actions
     never, failing, some = [], [], []
-    for agent, stats in sorted(env.agent_stats.items()):
+    for agent, stats in sorted(env.state.agent_stats.items()):
         entity = env.world.entities.get(agent)
         if not stats.wakes or (entity is not None and entity.entity_type in never_able):
             continue
@@ -272,8 +272,8 @@ def _actions(env: Env) -> list[dict[str, str]]:
                                 f"refused with: {_most_common(entry['stuck'])}",
                                 "hide it while it cannot work: put the requirement in `when` over $actor, or bound its "
                                 "parameters (min, max, where) so the tool only offers choices that can succeed"))
-        elif (env.stats.llm_calls and entry["calls"] >= MIN_CALLS and entry["refused"] >= REFUSED_SHARE * entry["calls"]
-              and entry["reasons"]):
+        elif (env.state.stats.llm_calls and entry["calls"] >= MIN_CALLS
+              and entry["refused"] >= REFUSED_SHARE * entry["calls"] and entry["reasons"]):
             out.append(_finding("action_mostly_refused", f"actions.{name}",
                                 f"refused {entry['refused']} of {entry['calls']} calls; most often: "
                                 f"{_most_common(entry['reasons'])}",

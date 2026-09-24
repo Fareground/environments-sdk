@@ -42,7 +42,7 @@ class RunChecks:
             if moment not in _INVARIANT_MOMENTS[invariant.check]:
                 continue
             state = world.state_version()
-            if moment == "action" and self._invariant_held.get(index) == state:
+            if moment == "action" and self.state.invariant_held.get(index) == state:
                 continue
             drawn = world.draws()
             try:
@@ -56,7 +56,7 @@ class RunChecks:
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
                                          f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
             fresh = world.draws() == drawn and world.state_version() == state
-            self._invariant_held[index] = state if fresh else None
+            self.state.invariant_held[index] = state if fresh else None
         if moment in _INVARIANT_MOMENTS["action"]:  # every action invariant was due, and holds
             world.touched = {}
 

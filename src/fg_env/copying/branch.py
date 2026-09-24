@@ -123,9 +123,9 @@ class Branch:
         if participants is not None:
             pilot.read(lambda: env.driver.bind(participants))
         if rounds is not None:
-            start, mid = pilot.read(lambda: (env.world.round, env._in_round))
+            start, mid = pilot.read(lambda: (env.world.round, env.state.in_round))
             target = start + rounds - (1 if mid else 0)
-            pilot.stop = lambda e: not e._in_round and e.world.round >= target
+            pilot.stop = lambda e: not e.state.in_round and e.world.round >= target
         else:
             pilot.stop = None
         if pilot.running:
@@ -142,8 +142,8 @@ class Branch:
         pilot = self._pilot
         env = pilot.env
         origin = env.origin
-        tape, count, base, where = pilot.read(lambda: (origin.tape.copy(), env._turn_count, origin.base,
-                                                       (env.world.round, env._in_round, origin.tape.points)))
+        tape, count, base, where = pilot.read(lambda: (origin.tape.copy(), env.state.turn_count, origin.base,
+                                                       (env.world.round, env.state.in_round, origin.tape.points)))
         copy = copy_pilot(env, tape, count, base, controlled=pilot.controlled, explicit=pilot.explicit,
                           checkpoints=pilot.checkpoints)
         if pilot.pause is None and not env.finished:
@@ -234,7 +234,7 @@ def fresh_copy(source: Env, base: Mapping[str, Any] | None, participants: Any, k
         seed = source.build_seed if isinstance(source, PilotedEnv) else source.seed
         env = kind(source.contract, source.inputs, seed, source.arm, parallel=1,
                    exposures=source.world.exposures is not None, assets=source.world.assets.catalog(),
-                   events=source._keep_events)
+                   events=source.state.keep_events)
     else:
         env = restore_state(kind, source.contract, base, parallel=1)
     env.origin.base, env.origin.unarmed = dict(base) if base is not None else None, source.origin.unarmed
@@ -254,7 +254,7 @@ def clone_turn(turn: Turn, *, participants: Any = None, seed: int | None = None,
     if turn.peek or turn.done:
         raise RuntimeError("this turn is over; clone the run while the turn is in progress")
     with source._lock:
-        tape, count, base = source.origin.tape.copy(), source._turn_count, source.origin.base
+        tape, count, base = source.origin.tape.copy(), source.state.turn_count, source.origin.base
     source.origin.checkpoint_due = True  # later copies of this run replay from its next round, not from its base
     pilot = copy_pilot(source, tape, count, base, controlled={turn.actor.id} | set(controlled or ()), explicit=False,
                        participants=participants)
@@ -277,7 +277,7 @@ def clone_env(source: Env) -> Env:
     """A copy of ``source`` between rounds, or stopped at the same safe point part-way through a round."""
     from ..host.hosts import bind, hosts_for
 
-    if not source._in_round:
+    if not source.state.in_round:
         snapshot = take_snapshot(source)
         copy = restore_state(type(source), source.contract, snapshot, source.parallel)
         copy.origin.base, copy.origin.unarmed = snapshot, source.origin.unarmed
@@ -291,7 +291,7 @@ def clone_env(source: Env) -> Env:
     if source.status != "stopped":
         raise SnapshotError("a round is being played right now; clone a turn from inside it with wake.clone(), "
                             "or stop the run first (env.run(stop=...))")
-    pilot = copy_pilot(source, source.origin.tape.copy(), source._turn_count, source.origin.base, controlled=set(),
+    pilot = copy_pilot(source, source.origin.tape.copy(), source.state.turn_count, source.origin.base, controlled=set(),
                        explicit=False)
     env = pilot.env
     pilot.stop = _at_point(source.world.round, True, source.origin.tape.points)
@@ -309,7 +309,7 @@ def clone_env(source: Env) -> Env:
 
 def _at_point(round_: int, in_round: bool, points: int) -> Callable[[Env], bool]:
     """A stop condition for the safe point a run is stopped at."""
-    return lambda env: env.world.round == round_ and env._in_round == in_round and \
+    return lambda env: env.world.round == round_ and env.state.in_round == in_round and \
         (not in_round or env.origin.tape.points >= points)
 
 

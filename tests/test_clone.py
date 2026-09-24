@@ -101,7 +101,7 @@ def test_env_clone_between_rounds_and_mid_round_continues_identically():
 
         stopped = fg_env.load(contract, seed=6)
         stopped.run("random", stop=stop)
-        assert stopped.status == "stopped" and stopped._in_round
+        assert stopped.status == "stopped" and stopped.state.in_round
         twin = stopped.clone()
         assert twin.status == "stopped"
         assert twin.run("random").events == stopped.run("random").events

@@ -54,7 +54,7 @@ def _nth(point):
 
 
 def _rounds_left(env, rounds):
-    return None if rounds is None else rounds - env.round + (1 if env._in_round else 0)
+    return None if rounds is None else rounds - env.round + (1 if env.state.in_round else 0)
 
 
 def _copies_at_safe_points_continue_exactly(subject, seed, points, rounds=ROUNDS):
@@ -119,7 +119,7 @@ def _seen(run):
     pause = run.pause
 
     def read(env):
-        out = {"state": undoable_state(env), "turns": env._turn_count, "firings": dict(env.world.firings),
+        out = {"state": undoable_state(env), "turns": env.state.turn_count, "firings": dict(env.world.firings),
                "status": env.status}
         if pause is not None:
             wake = pause.wake

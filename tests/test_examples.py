@@ -99,7 +99,7 @@ def test_example_resumes_exactly(path: Path) -> None:
     env = fg_env.load(path, seed=11)
     env.run(rounds=ROUNDS, stop=stop_part_way)
     if env.status == "stopped":
-        env.run(rounds=ROUNDS - env.round + (1 if env._in_round else 0))
+        env.run(rounds=ROUNDS - env.round + (1 if env.state.in_round else 0))
     assert env.result().to_dict() == straight
 
 

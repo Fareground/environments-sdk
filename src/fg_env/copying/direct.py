@@ -3,7 +3,7 @@
 The copy gets its own world — entities, properties, links, records, log, schedule, counters, random stream, exposures,
 the asset index — its own bookkeeping — statistics, memories, fired events, tape — its own copies of the turns in
 progress with their random streams, and a round that resumes where the original's is
-(:class:`~fg_env.runtime.rounds._Where`).
+(:class:`~fg_env.runtime.state.Where`).
 Nothing mutable is shared, so the two runs continue independently and each exactly as the original would. Immutable
 things are shared: the contract, logged events, scheduled items, snapshots.
 
@@ -27,8 +27,8 @@ from ..runtime.diagnosis import Diagnosis
 from ..runtime.diagnosis import _copy as _copy_counts
 from ..runtime.exposure import Exposure, ExposureLog
 from ..runtime.measure import Stats
-from ..runtime.rounds import _Where
-from ..runtime.turn import Memory, Turn
+from ..runtime.state import Memory, RunState, Where
+from ..runtime.turn import Turn
 from ..world.live import SdkWorld, _copy
 from ..world.parts import ClockView, Entry, Journal, PhysicsView
 from ..world.type_index import TypeIndex
@@ -43,12 +43,13 @@ class NotCopyable(Exception):
 
 
 _ENV_FIELDS = frozenset({
-    "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "perception", "stats",
-    "agent_stats", "status", "ended_by", "error", "_memories", "_briefs", "_used_round", "_fired_once", "_lock",
-    "_signal", "_running", "driver", "time_limit", "budget", "happenings", "previews", "_on_event", "_emitted",
-    "_turn_count", "_cursor", "_where", "_armed", "_in_round", "origin", "_inspectable",
-    "_invariant_held", "pilot", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets",
-    "_rows", "_rows_last", "_keep_events", "_reads_log"})
+    "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "perception", "state",
+    "status", "ended_by", "error", "_lock", "_signal", "_running", "driver", "time_limit", "budget", "happenings",
+    "previews", "_on_event", "_emitted", "_cursor", "origin", "_inspectable", "pilot", "build_seed", "stepper",
+    "diagnosis", "_end_on_action", "_reads_log"})
+_STATE_FIELDS = frozenset({
+    "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "fired_once", "armed", "used_round",
+    "in_round", "where", "stats", "agent_stats", "invariant_held", "rows", "rows_last"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
@@ -90,18 +91,10 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
 
     env.__dict__.update(
         contract=source.contract, inputs=source.inputs, seed=source.seed, arm=source.arm, parallel=source.parallel,
-        seeds=source.seeds, world=world, status=source.status, ended_by=source.ended_by, error=source.error,
-        time_limit=source.time_limit, budget=None, _on_event=None, _emitted=source._emitted,
-        _turn_count=source._turn_count, _in_round=source._in_round, _inspectable=source._inspectable,
-        _end_on_action=source._end_on_action, pilot=None,
-        build_seed=source.build_seed, stepper=None, _invariant_held={}, _briefs=dict(source._briefs),
-        _rows=list(source._rows), _rows_last=source._rows_last, _keep_events=source._keep_events,
-        _reads_log=source._reads_log,
-        _brief_assets={key: list(ids) for key, ids in source._brief_assets.items()},
-        _fired_once=set(source._fired_once), _armed=dict(source._armed),
-        _used_round={actor: dict(used) for actor, used in source._used_round.items()},
-        stats=_copy_stats(source.stats), agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
-        _memories={key: _copy_memory(memory) for key, memory in source._memories.items()})
+        seeds=source.seeds, world=world, state=_copy_state(source.state, world), status=source.status,
+        ended_by=source.ended_by, error=source.error, time_limit=source.time_limit, budget=None, _on_event=None,
+        _emitted=source._emitted, _inspectable=source._inspectable, _end_on_action=source._end_on_action, pilot=None,
+        build_seed=source.build_seed, stepper=None, _reads_log=source._reads_log)
     env._lock = threading.RLock()
     env._signal = threading.Condition(env._lock)
     env._running = threading.Lock()
@@ -121,10 +114,10 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     origin.staged, origin.unarmed = [turn_of(turn) for turn in kept.staged], kept.unarmed
     env.origin = origin
     copied = None if waiting is None else _copy_waiting(waiting, turn_of(waiting.wake._turn))
-    env._where, env._cursor = _Where(), None
+    env._cursor = None
     if source._cursor is not None:
         assert copied is not None
-        env._where = _copy_where(source, env, copied)
+        env.state.where = _copy_where(source, env, copied)
         env._cursor = env._round(resumed=True)
     return env, copied
 
@@ -132,7 +125,7 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
 def _refuse(source: SteppedEnv, waiting: Waiting | None) -> None:
     world = source.world
     why = None
-    unknown = set(vars(source)) - _ENV_FIELDS
+    unknown = (set(vars(source)) - _ENV_FIELDS) | (set(vars(source.state)) - _STATE_FIELDS)
     if unknown:
         why = f"the run has attributes a copy does not carry: {sorted(unknown)}"
     elif source.budget is not None or source._on_event is not None or source.pilot is not None:
@@ -148,13 +141,28 @@ def _refuse(source: SteppedEnv, waiting: Waiting | None) -> None:
 
 
 def _stage_kind(source: SteppedEnv) -> str:
-    return source.contract.stage_list()[source._where.stage].turns
+    return source.contract.stage_list()[source.state.where.stage].turns
 
 
-def _copy_where(source: SteppedEnv, env: SteppedEnv, waiting: Waiting) -> _Where:
-    kept, entities = source._where, env.world.entities
+def _copy_state(source: RunState, world: SdkWorld) -> RunState:
+    """The run's bookkeeping for the copy, whose world is ``world``; the round in progress is placed by the caller
+    (:func:`_copy_where`), and the invariant cache starts empty."""
+    state = RunState(world, source.keep_events)
+    state.__dict__.update(
+        turn_count=source.turn_count, in_round=source.in_round, briefs=dict(source.briefs),
+        brief_assets={key: list(ids) for key, ids in source.brief_assets.items()},
+        fired_once=set(source.fired_once), armed=dict(source.armed),
+        used_round={actor: dict(used) for actor, used in source.used_round.items()},
+        stats=_copy_stats(source.stats), agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
+        memories={key: _copy_memory(memory) for key, memory in source.memories.items()},
+        rows=list(source.rows), rows_last=source.rows_last)
+    return state
+
+
+def _copy_where(source: SteppedEnv, env: SteppedEnv, waiting: Waiting) -> Where:
+    kept, entities = source.state.where, env.world.entities
     turn = waiting.wake._turn
-    where = _Where(kept.stage, kept.pass_index, [entities[agent.id] for agent in kept.agents], kept.position)
+    where = Where(kept.stage, kept.pass_index, [entities[agent.id] for agent in kept.agents], kept.position)
     if _stage_kind(source) == "simultaneous":
         where.position = env.origin.staged.index(turn)
     else:

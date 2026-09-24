@@ -37,12 +37,13 @@ from .end_state import end_state
 from .exposure import ExposureLog, asks_seen, recording
 from .forgetting import forget, reads_log
 from .happenings import Happenings
-from .measure import RunResult, Stats
+from .measure import RunResult
 from .perception import Perception
 from .returns import measured
-from .rounds import RunRounds, _Steps, _Where
+from .rounds import RunRounds, _Steps
 from .stages import RunStages
-from .turn import Memory, entity_dict
+from .state import Memory, RunState
+from .turn import entity_dict
 
 __all__ = ["Env", "SNAPSHOT_VERSION"]
 
@@ -60,7 +61,6 @@ class Env(RunChecks, RunRounds, RunStages):
     previews: Previews
     _lock: threading.RLock
     _signal: threading.Condition
-    _turn_count: int
     _emitted: int
     _inspectable: bool
     _end_on_action: bool
@@ -79,20 +79,15 @@ class Env(RunChecks, RunRounds, RunStages):
         self.world.joined = self._joined
         self.actions = ActionBook(contract, self.world, self.effects)
         self.perception = Perception(contract, self.world)
-        self.stats = Stats()
-        #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
-        self.agent_stats: dict[str, Stats] = {}
+        if exposures and not events:
+            raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown "
+                             "to replay against it: drop one of them")
+        #: Everything the run changes as it plays (see runtime/state.py). Results carry the event log unless
+        #: ``events`` is false; then the run forgets what nothing can read (see forgetting.py).
+        self.state = RunState(self.world, keep_events=events)
         self.status = "ready"
         self.ended_by: str | None = None
         self.error: str | None = None
-        self._memories: dict[str, Memory] = {}
-        self._briefs: dict[str, str] = {}
-        #: The assets each agent's brief attaches (fixed with the brief text).
-        self._brief_assets: dict[str, list[str]] = {}
-        self._used_round: dict[str, dict[str, int]] = {}
-        #: Events with `once` that fired, by index; and the last truth value of each `change` event's `when`.
-        self._fired_once: set[int] = set()
-        self._armed: dict[int, bool] = {}
         self._lock = threading.RLock()
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
@@ -103,30 +98,17 @@ class Env(RunChecks, RunRounds, RunStages):
         self.budget: Budget | None = None
         #: Recorded when asked, or when the contract's rules ask `$seen`.
         self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
-        if exposures and not events:
-            raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown "
-                             "to replay against it: drop one of them")
-        #: Whether results carry the event log; without it the run forgets what nothing can read (see forgetting.py).
-        self._keep_events = events
         self._reads_log = reads_log(contract) if not events else True
         self.happenings = Happenings(self)
         self.previews = Previews(self)
         self._on_event: Callable[[dict[str, Any]], None] | None = None
         self._emitted = 0
-        self._turn_count = 0
-        #: The round in progress while a run is stopped inside it, and where in it the run is.
+        #: The round in progress while a run is stopped inside it (where in it the run is: ``state.where``).
         self._cursor: _Steps | None = None
-        self._where = _Where()
-        self._in_round = False
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
         #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
-        #: The state each invariant was last found to hold in (see _check_invariants).
-        self._invariant_held: dict[int, Any] = {}
         self._end_on_action = any(end.check == "action" for end in contract.end)
-        #: The log as plain data for results, converted once per event (see _event_rows).
-        self._rows: list[dict[str, Any]] = []
-        self._rows_last: Any = None
         self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
 
@@ -262,9 +244,9 @@ class Env(RunChecks, RunRounds, RunStages):
             status=self.status, ended_by=self.ended_by, rounds=self.world.round, seed=self.seed, arm=self.arm,
             inputs=self.inputs, outputs=outputs, metrics=dict(self.world.metrics),
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
-            error=self.error, output_issues=issues, stats=self.stats.to_dict(),
-            agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
-            events=self._event_rows() if self._keep_events else [],
+            error=self.error, output_issues=issues, stats=self.state.stats.to_dict(),
+            agent_stats={key: agent.to_dict() for key, agent in sorted(self.state.agent_stats.items())},
+            events=self.state.event_rows() if self.state.keep_events else [],
             exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
@@ -356,7 +338,7 @@ class Env(RunChecks, RunRounds, RunStages):
                 if stop is not None and stop(self):
                     self.status = "stopped"
                     return
-                if not self._keep_events:
+                if not self.state.keep_events:
                     forget(self)
                 self.origin.round_start(self)
                 self._cursor = self._round()
@@ -389,36 +371,18 @@ class Env(RunChecks, RunRounds, RunStages):
     def _joined(self, entity: Entity) -> None:
         """An entity created during the run: an agent's news starts from its arrival."""
         if self.contract.is_agent(entity.entity_type):
-            memory = self._memories[entity.id] = Memory()
+            memory = self.state.memories[entity.id] = Memory()
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
 
-    def _memory(self, entity_id: str) -> Memory:
-        memory = self._memories.get(entity_id)
-        if memory is None:
-            memory = self._memories[entity_id] = Memory()
-        return memory
-
     def _brief(self, actor: Entity) -> str:
-        brief = self._briefs.get(actor.id)
+        state = self.state
+        brief = state.briefs.get(actor.id)
         if brief is None:
             attached: list[str] = []
-            brief = self._briefs[actor.id] = self.perception.brief(actor, attached)
+            brief = state.briefs[actor.id] = self.perception.brief(actor, attached)
             if attached:
-                self._brief_assets[actor.id] = attached
+                state.brief_assets[actor.id] = attached
         return brief
-
-    def _event_rows(self) -> list[dict[str, Any]]:
-        """The log as plain data, each event converted once, so a result costs the same late in a run as early.
-        Results share the converted events; the log only grows at its end or loses events a rollback undid, so the
-        rows are rebuilt only when their last event is no longer where it was."""
-        log, rows = self.world.log, self._rows
-        if not self._keep_events:  # a snapshot's rows: converted for it alone, never kept
-            return [event.to_dict() for event in log]
-        if rows and (len(rows) > len(log) or log[len(rows) - 1] is not self._rows_last):
-            rows.clear()
-        rows.extend(event.to_dict() for event in log[len(rows):])
-        self._rows_last = log[-1] if log else None
-        return list(rows)
 
     def _flush_events(self) -> None:
         if self._on_event is None:

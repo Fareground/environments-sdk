@@ -37,22 +37,13 @@ from ..world.build import whole_setting
 from ..world.live import _plain
 from .measure import Stats
 from .session import END_TURN, ToolResult
+from .state import Memory
 
 if TYPE_CHECKING:
     from .env import Env
     from .exposure import Exposure
 
-__all__ = ["Memory", "Turn", "entity_dict"]
-
-
-class Memory:
-    """What the engine remembers per agent between turns."""
-
-    __slots__ = ("cursor", "turns")
-
-    def __init__(self) -> None:
-        self.cursor = 0
-        self.turns = 0
+__all__ = ["Turn", "entity_dict"]
 
 
 _INVALID = {"error": "invalid"}
@@ -81,7 +72,7 @@ class Turn:
         self.staged = staged
         self.peek = peek
         self.round = env.world.round
-        memory = env._memories.get(actor.id) if peek else env._memory(actor.id)
+        memory = env.state.memories.get(actor.id) if peek else env.state.memory(actor.id)
         memory = memory or Memory()
         self._since = memory.cursor
         self._brief: str | None = None
@@ -133,10 +124,10 @@ class Turn:
         if self.atomic:
             self._begin_part()
         if peek:
-            self.number = env._turn_count + 1
+            self.number = env.state.turn_count + 1
         else:
-            env._turn_count += 1
-            self.number = env._turn_count  # assigned in deterministic order, before any concurrency
+            env.state.turn_count += 1
+            self.number = env.state.turn_count  # assigned in deterministic order, before any concurrency
             env.origin.tape.opened(self.number)
         exposures = env.world.exposures
         self.exposure: Exposure | None = exposures.open(self, kind) if exposures is not None and not peek else None
@@ -183,7 +174,7 @@ class Turn:
                     self._brief = self.env._brief(self.actor)
                 self.stats.brief_chars = len(self._brief)
                 self.stats.brief_reads = 1
-                self._deliver(self.env._brief_assets.get(self.actor.id, []), "brief")
+                self._deliver(self.env.state.brief_assets.get(self.actor.id, []), "brief")
                 if self.exposure is not None:
                     self.exposure.read_brief(self._brief)
             return self._brief
@@ -244,7 +235,7 @@ class Turn:
             return []
         env = self.env
         names = stage_actions(env.contract, self.stage, self.actor.entity_type)
-        used_round = env._used_round.get(self.actor.id, {})
+        used_round = env.state.used_round.get(self.actor.id, {})
         return [n for n in names if env.actions.blocked(self.actor, n, self.used, used_round, offered=True) is None]
 
     def _allows(self, name: str) -> bool:
@@ -252,7 +243,7 @@ class Turn:
         if self.actions_left <= 0:
             return False
         env = self.env
-        used_round = env._used_round.get(self.actor.id, {})
+        used_round = env.state.used_round.get(self.actor.id, {})
         return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
             env.actions.blocked(self.actor, name, self.used, used_round, offered=True) is None
 
@@ -431,7 +422,7 @@ class Turn:
     def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
         env = self.env
         before = self._tally()
-        blocked = env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}))
+        blocked = env.actions.blocked(self.actor, name, self.used, env.state.used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
             return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", before, _INVALID),
@@ -487,7 +478,7 @@ class Turn:
 
     def _count(self, name: str) -> None:
         self.used[name] = self.used.get(name, 0) + 1
-        per_round = self.env._used_round.setdefault(self.actor.id, {})
+        per_round = self.env.state.used_round.setdefault(self.actor.id, {})
         per_round[name] = per_round.get(name, 0) + 1
         self.actions_left -= 1
         if self.atomic:
@@ -568,7 +559,7 @@ class Turn:
         actions_left, used, pending, actions = self._part
         assert self._mark is not None
         env.world.journal.rollback(self._mark)
-        per_round = env._used_round.get(self.actor.id, {})
+        per_round = env.state.used_round.get(self.actor.id, {})
         for name in self._counted:
             per_round[name] = per_round.get(name, 1) - 1
         self._counted.clear()

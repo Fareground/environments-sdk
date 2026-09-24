@@ -163,7 +163,7 @@ def test_changes_part_way_through_a_round_are_refused_but_a_plain_fork_is_a_clon
 
     env = fg_env.load(PRICES, seed=1, arm="control")
     env.run(_sell, stop=stop)
-    assert env._in_round
+    assert env.state.in_round
     with pytest.raises(RunError, match="between rounds"):
         env.fork(arm="discount")
     twin = env.fork()

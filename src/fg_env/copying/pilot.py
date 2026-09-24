@@ -252,7 +252,7 @@ class Pilot:
 
     def stop_here(self, env: Env) -> bool:
         """The stop condition the copy runs with: the session's ``stop``, and round-start checkpoints."""
-        if self.checkpoints and not env._in_round:
+        if self.checkpoints and not env.state.in_round:
             env.origin.checkpoint_due = True  # copies of this state start from this round, not from the beginning
         return self.stop is not None and self.stop(env)
 

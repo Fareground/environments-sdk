@@ -70,7 +70,7 @@ def fork_env(env: Env, *, arm: Any = KEEP_ARM, inputs: Mapping[str, Any] | None 
 
     if arm is KEEP_ARM and not (inputs or patch or contract is not None or seed is not None or effects):
         return env.clone()  # nothing changes: the run as it is, continuing exactly
-    if env._in_round:
+    if env.state.in_round:
         raise RunError("changes apply between rounds: finish the round first (env.run(rounds=1)), or copy the run "
                        "as it is with env.clone()", "fork")
     forked = _fork(Env, env.contract, take_snapshot(env), arm=arm, inputs=inputs, patch=patch, to=contract,

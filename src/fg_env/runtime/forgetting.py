@@ -40,7 +40,7 @@ def forget(env: Env) -> None:
     if env._reads_log:
         return
     world = env.world
-    memories = env._memories
+    memories = env.state.memories
     horizon = min((memories[agent.id].cursor if agent.id in memories else 0
                    for kind in env.contract.agent_types() for agent in world.alive_of(kind)),
                   default=world.log[-1].seq if world.log else 0)

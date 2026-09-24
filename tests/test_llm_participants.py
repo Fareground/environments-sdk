@@ -168,7 +168,7 @@ def test_usage_survives_snapshots_and_resumes():
     env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
     env.run(agent, rounds=1)
     restored = fg_env.Env.restore(env.contract, env.snapshot())
-    assert restored.stats.llm_calls == 1 and restored.stats.input_tokens == 100
+    assert restored.state.stats.llm_calls == 1 and restored.state.stats.input_tokens == 100
 
 
 def test_a_provider_and_model_name_an_llm_participant_on_the_official_client(tmp_path, monkeypatch, capsys):

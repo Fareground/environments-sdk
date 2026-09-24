@@ -15,17 +15,12 @@ import json
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
-from ..assets.store import AssetStore
 from ..contract import Contract
 from ..contract.base import TAPE
-from ..errors import ContractError, RunError, SnapshotError
+from ..errors import ContractError, SnapshotError
 from ..expr import Untrusted
-from ..expr.objects import Entity
 from ..runtime.budget import Budget
-from ..runtime.exposure import ExposureLog
-from ..runtime.measure import Stats
 from ..runtime.turn_tools import wrap
-from ..world.live import Abort, Entry, LogEvent
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -101,7 +96,7 @@ def _key(value: Any) -> Any:
 
 def take_snapshot(env: Env) -> dict[str, Any]:
     w = env.world
-    if env._in_round:
+    if env.state.in_round:
         if env.status == "failed":
             raise SnapshotError(f"the run failed during round {w.round}, so its state is incomplete; "
                                 "use a snapshot taken before the failure")
@@ -109,43 +104,15 @@ def take_snapshot(env: Env) -> dict[str, Any]:
             raise SnapshotError(f"round {w.round} is being played right now; stop the run at a safe point first "
                                 "(env.run(stop=...)), or take the snapshot between rounds")
         return _part_way(env)
-    state = w.rng.getstate()
     return {
         **_identity(env),
         "status": env.status, "ended_by": env.ended_by, "error": env.error,
-        "round": w.round, "rounds": w.rounds,
-        "entities": [{"id": e.id, "type": e.entity_type, "name": e.name, "props": encode(e.properties),
-                      "alive": e.alive, "at": e.location_id} for e in w.entities.values()],
-        "entity_briefs": encode(w.entity_briefs),
-        "briefs": encode(env._briefs),
-        "props": encode(w.props),
-        "links": {kind: [[a, b, v, encode(w.link_fields[kind][(a, b)])] if (a, b) in w.link_fields[kind] else [a, b, v]
-                         for (a, b), v in edges.items()] for kind, edges in w.links.items()},
-        "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
-        "record_seq": w._record_seq,
-        "log": [encode(row) for row in env._event_rows()], "seq": w._seq,
-        "physics": w.physics.to_dict() if w.physics else None,
-        "metrics": encode(w.metrics), "series": encode(w.series),
-        "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
-        "schedule_seq": w._schedule_seq,
-        "wake_requests": encode(w.wake_requests),
-        "counters": dict(w.counters), "firings": dict(w.firings), "end_request": encode(w.end_request),
-        "fired_once": sorted(env._fired_once),
-        "turn_count": env._turn_count,
-        "armed": {str(k): v for k, v in env._armed.items()},
-        "memory": {k: {"cursor": m.cursor, "turns": m.turns}
-                   for k, m in env._memories.items()},
-        "rng": [state[0], list(state[1]), state[2]],
-        "stats": env.stats.to_dict(),
-        "agent_stats": {key: env.agent_stats[key].to_dict() for key in sorted(env.agent_stats)},
-        "exposures": w.exposures.to_dict() if w.exposures is not None else None,
-        "layers": w.space.state() if w.space is not None else {},
+        **env.state.encode(),
         "frames": encode(env.previews.frames),
         "budget": env.budget.to_dict(env) if env.budget is not None else None,
         "start": env.origin.start,
         "diagnosis": env.diagnosis.to_dict(),
-        **({} if env._keep_events else {"events": False}),
-        **({"assets": {**w.assets.to_dict(), "briefs": dict(env._brief_assets)}} if len(w.assets) else {}),
+        **({} if env.state.keep_events else {"events": False}),
     }
 
 
@@ -173,7 +140,7 @@ def _part_way(env: Env) -> dict[str, Any]:
     if hosts is not None:
         base = {**base, "props": {**base["props"], TAPE: encode(hosts)}}
     return {**_identity(env), "status": "stopped", "round": env.world.round,
-            "part_way": {"base": base, "turns": env._turn_count, "points": tape.points,
+            "part_way": {"base": base, "turns": env.state.turn_count, "points": tape.points,
                          "tape": [[number, actor, [encode(list(entry)) for entry in entries]]
                                   for number, (actor, entries) in sorted(tape.turns.items())]}}
 
@@ -192,7 +159,7 @@ def _replay_part_way(env: Env, held: Mapping[str, Any], round_: int) -> None:
         playback.play(wake)
 
     env.run(wrap(env, replay),
-            stop=lambda e: e._in_round and e.world.round == round_ and e.origin.tape.points >= tape.points)
+            stop=lambda e: e.state.in_round and e.world.round == round_ and e.origin.tape.points >= tape.points)
     env.driver.bind({})
     if env.status != "stopped" or env.world.round != round_ or env.origin.tape.points != tape.points:
         why = f" ({env.error})" if env.error else ""
@@ -299,29 +266,6 @@ def restore_env(cls: type[_E], contract: Any, snapshot: Mapping[str, Any], paral
     return env
 
 
-def _check_props(w: Any) -> None:
-    """Every restored property as its declaration stores it — type, values and bounds — so a snapshot edited by hand
-    or damaged is refused here, not wherever the run next reads it."""
-    def checked(spec: Any, value: Any, where: str, owner: str = "") -> Any:
-        try:
-            return w._coerce(spec, value, where, owner)
-        except RunError as exc:
-            problem = str(exc)
-        except Abort as exc:  # out of bounds
-            problem = f"{where}: {exc.reason.rstrip('.')}"
-        raise SnapshotError(f"the snapshot holds a value its contract does not allow ({problem}); restore an unedited "
-                            "snapshot")
-
-    for entity in w.entities.values():
-        for prop, spec in w._type_props.get(entity.entity_type, {}).items():
-            if prop in entity.properties:
-                entity.properties[prop] = checked(spec, entity.properties[prop], f"entities.{entity.id}.props.{prop}",
-                                                  entity.name)
-    for prop, spec in w.contract.world.items():
-        if prop in w.props:
-            w.props[prop] = checked(spec, w.props[prop], f"world.{prop}")
-
-
 def restore_state(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
     """A run rebuilt from a snapshot into ``contract``, which the caller has matched to it."""
     try:
@@ -333,88 +277,16 @@ def restore_state(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any]
 
 
 def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int) -> _E:
-    from ..physics.model import PhysicsModel
-
     env = cls(contract, decode(snapshot["inputs"]), int(snapshot["seed"]), snapshot.get("arm"), parallel,
               events=snapshot.get("events", True) is not False)
-    w = env.world
-    w.entities = {}
-    for row in snapshot["entities"]:
-        w.entities[row["id"]] = Entity(id=row["id"], name=row["name"], entity_type=row["type"],
-                                       properties=decode(row["props"]), location_id=row.get("at"),
-                                       alive=row["alive"])
-    w.rebuild_index()
-    if w.space is not None:
-        w.space.restore(snapshot.get("layers") or {})
-    w.props = decode(snapshot["props"])
-    w.entity_briefs = decode(snapshot["entity_briefs"])
-    env._briefs = decode(snapshot["briefs"])
-    w.links = {kind: {(row[0], row[1]): row[2] for row in edges} for kind, edges in snapshot["links"].items()}
-    w.link_fields = {kind: {(row[0], row[1]): decode(row[3]) for row in edges if len(row) > 3}
-                     for kind, edges in snapshot["links"].items()}
-    w.rebuild_adjacency()
-    w.records_store = {}
-    w.entry_by_seq = {}
-    for name, rows in snapshot["records"].items():
-        entries = []
-        for row in rows:
-            entry = Entry(decode(row))
-            entry.world = w
-            entries.append(entry)
-            w.entry_by_seq[entry["seq"]] = entry
-        w.records_store[name] = entries
-    w.rebuild_record_index()
-    w._record_seq = snapshot["record_seq"]
-    w.log = []
-    for raw in snapshot["log"]:
-        e = decode(raw)
-        w.log.append(LogEvent(e["seq"], e["round"], e["kind"], e.get("text", ""), e.get("actor"),
-                              tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}), e.get("stage")))
-    w.rebuild_event_index()
-    w._seq = snapshot["seq"]
-    if snapshot.get("physics") and w.physics is not None:
-        restored = PhysicsModel.from_dict(snapshot["physics"])
-        w.physics.params, w.physics.time = restored.params, restored.time
-        for name, var in restored.variables.items():
-            w.physics.variables[name].value = var.value
-    w.metrics = decode(snapshot["metrics"])
-    w.series = decode(snapshot["series"])
-    w.scheduled = [(due, order, decode(item)) for due, order, item in snapshot["scheduled"]]
-    w._schedule_seq = snapshot["schedule_seq"]
-    w.wake_requests = decode(snapshot["wake_requests"])
-    w.reactions = []  # snapshots are taken between rounds, when no reaction is pending
-    w.counters = dict(snapshot["counters"])
-    w.firings = {str(k): int(v) for k, v in snapshot["firings"].items()}
-    w.end_request = decode(snapshot.get("end_request"))
-    w.round, w.rounds = snapshot["round"], snapshot["rounds"]
-    w.stage = None
-    state = snapshot["rng"]
-    w.rng.setstate((state[0], tuple(state[1]), state[2]))
-    env._fired_once = set(snapshot["fired_once"])
-    env._turn_count = int(snapshot["turn_count"])
-    env._armed = {int(k): bool(v) for k, v in snapshot["armed"].items()}
-    for key, m in snapshot["memory"].items():
-        memory = env._memory(key)
-        memory.cursor, memory.turns = m["cursor"], m["turns"]
+    env.state.decode(snapshot)
     status = snapshot["status"]
-    env.status = status if status != "stopped" else ("running" if w.round else "ready")
+    env.status = status if status != "stopped" else ("running" if env.world.round else "ready")
     env.ended_by, env.error = snapshot.get("ended_by"), snapshot.get("error")
-    for name in Stats.__dataclass_fields__:
-        setattr(env.stats, name, snapshot["stats"].get(name, 0))
-    env.agent_stats = {key: Stats(**{name: counts.get(name, 0) for name in Stats.__dataclass_fields__})
-                       for key, counts in snapshot.get("agent_stats", {}).items()}
-    if snapshot.get("exposures") is not None:
-        w.exposures = ExposureLog.from_dict(snapshot["exposures"])
     env.previews.frames = decode(snapshot.get("frames") or [])
     env.origin.start = snapshot.get("start")
-    if snapshot.get("assets"):
-        w.assets = AssetStore.from_dict(snapshot["assets"])
-        env._brief_assets = {key: list(ids) for key, ids in (snapshot["assets"].get("briefs") or {}).items()}
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])
     env.diagnosis.load(snapshot.get("diagnosis"))
-    _check_props(w)
-    w.journal.clear()
-    w.touch()  # the state was replaced wholesale: nothing cached before holds
-    env._emitted = len(w.log)
+    env._emitted = len(env.world.log)
     return env

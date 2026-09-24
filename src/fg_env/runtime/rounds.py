@@ -11,11 +11,10 @@ from ..actions.faults import world_logic_refused
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import shared_budget
-from ..expr.objects import Entity
 from ..world.live import Abort, OutOfBounds
 from .feeds import run_feeds
 from .measure import sample_metrics
-from .turn import Turn
+from .state import Where
 
 if TYPE_CHECKING:
     from .env import Env
@@ -31,21 +30,6 @@ class _Point:
     reasons: dict[str, str] = field(default_factory=dict)
 
 
-@dataclass
-class _Where:
-    """Where the round in progress is, kept current as it plays, so a copy of the run taken while a turn waits for a
-    decision continues that round from the same place (see :mod:`fg_env.copying.stepping`)."""
-
-    stage: int = 0
-    pass_index: int = 0
-    #: The agents of the pass being played, in turn order.
-    agents: list[Entity] = field(default_factory=list)
-    #: The waiting turn's place: in ``agents`` (sequential), or among the stage's sealed turns (simultaneous).
-    position: int = 0
-    #: The waiting turn itself (set on a copy only).
-    turn: Turn | None = None
-
-
 #: A round's steps: its safe points (:class:`_Point`), and ``WAITING`` while a turn waits for a decision.
 _Steps = Generator[Any, None, None]
 
@@ -58,13 +42,13 @@ class RunRounds:
     def _begin_round(self: Env) -> bool:  # type: ignore[misc]
         """Start the next round: scheduled effects, feeds, `round.start` events, physics. False if the run ended."""
         world = self.world
-        self._in_round = True
+        self.state.in_round = True
         if self.status in ("ready", "stopped"):
             self.status = "running"
         world.round += 1
         world.firings.clear()
         world.stage = None
-        self._used_round.clear()
+        self.state.used_round.clear()
         self.happenings.run_scheduled()
         run_feeds(self)
         self.happenings.fire("round.start")
@@ -84,20 +68,20 @@ class RunRounds:
 
     def _round(self: Env, resumed: bool = False) -> _Steps:  # type: ignore[misc]
         """A round, from its start — or, ``resumed``, from the waiting turn a copy of the run was taken in (see
-        :class:`_Where`)."""
+        :class:`~fg_env.runtime.state.Where`)."""
         world = self.world
         if not resumed:
             if not self._begin_round():
                 return
-            self._where = _Where()
+            self.state.where = Where()
         stages = self.contract.stage_list()
-        for index in range(self._where.stage, len(stages)):
+        for index in range(self.state.where.stage, len(stages)):
             stage = stages[index]
             if resumed:
                 resumed = False
                 yield from self._run_stage(stage, resumed=True)
             else:
-                self._where.stage = index
+                self.state.where.stage = index
                 yield _Point(stage)
                 yield from self._run_stage(stage)
             self._check_end()
@@ -115,7 +99,7 @@ class RunRounds:
         if self._ended():
             self._finish()
             return
-        self._in_round = False
+        self.state.in_round = False
         if world.round >= world.rounds:
             self.ended_by = "rounds"
             self.status = "completed"
@@ -134,7 +118,7 @@ class RunRounds:
         end = world.end_request or {}
         self.ended_by = end.get("name") or "end"
         self.status = "ended"
-        self._in_round = False
+        self.state.in_round = False
         self._final_event()
 
     def _final_event(self: Env) -> None:  # type: ignore[misc]

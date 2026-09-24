@@ -6,7 +6,7 @@ over more seeds. Nothing here is cached across tests: every test builds the runs
 
 :func:`undoable_state` is the one definition of "the world is as it was" the tests hold the engine to: every piece
 of run state an undo must bring back, and nothing that is spent for good (luck: the main stream and ``firings``) or
-only a cache or a diagnostic count. The kernel rebuild's ``RunState.encode`` replaces it (step 1).
+only a cache or a diagnostic count: the run's canonical state (``RunState.encode``) as far as an undo brings it back.
 """
 import hashlib
 import json
@@ -19,8 +19,8 @@ from _leaks import EXAMPLES, SMALL
 
 import fg_env
 from fg_env.contract.base import TAPE
-from fg_env.copying.snapshot import encode
 from fg_env.participants import RandomAgent
+from fg_env.runtime.state import UNDONE
 
 #: Seeds the default run plays each property with, and the slow variants.
 SEEDS_FAST = (1,)
@@ -70,39 +70,22 @@ def events_sha256(result: fg_env.RunResult) -> str:
 
 
 def undoable_state(env: fg_env.Env) -> dict[str, Any]:
-    """Everything an undo must restore, as plain data: the world's store, its indexes, and the run's undoable
-    bookkeeping (fired and armed events, per-round action counts). The journal's version is left out: versions are
-    unique across runs, so only the undo tests compare it (with the same run's)."""
-    w = env.world
-    return {
-        "round": w.round, "stage": w.stage,
-        "entities": [[e.id, e.entity_type, e.name, e.alive, e.location_id, encode(dict(e.properties))]
-                     for e in w.entities.values()],
+    """Everything an undo must restore, as plain data: the parts of the run's canonical state an undo brings back
+    (``RunState.encode`` restricted to ``runtime.state.UNDONE``), and the world's indexes, which must agree with the
+    store. The journal's version is left out: versions are unique across runs, so only the undo tests compare it (with
+    the same run's)."""
+    w, encoded = env.world, env.state.encode()
+    state = {key: encoded[key] for key in sorted(UNDONE)}
+    state["counters"] = {kind: count for kind, count in state["counters"].items() if count}  # a count of 0 is no count
+    state["used_round"] = {actor: {name: n for name, n in used.items() if n}  # a use undone to 0 is no use
+                           for actor, used in sorted(state["used_round"].items()) if any(used.values())}
+    state.update({
         "alive": {kind: [e.id for e in w.alive_of(kind)] for kind in env.contract.types},
-        "props": encode(dict(w.props)),
-        "links": {kind: sorted([list(pair), value] for pair, value in edges.items())
-                  for kind, edges in w.links.items()},
-        "link_fields": {kind: sorted([list(pair), encode(fields)] for pair, fields in edges.items())
-                        for kind, edges in w.link_fields.items()},
         "adjacent": {kind: {a: dict(linked) for a, linked in pairs.items() if linked}  # no edges is no entry
                      for kind, pairs in w.adjacent.items()},
-        "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
         "entry_seqs": sorted(w.entry_by_seq),
-        "record_seq": w._record_seq,
-        "log": [event.to_dict() for event in w.log], "seq": w._seq,
-        "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
-        "schedule_seq": w._schedule_seq,
-        "wake_requests": encode(w.wake_requests),
-        "reactions": encode(w.reactions),
-        "counters": {kind: count for kind, count in w.counters.items() if count},  # a count of 0 is no count
-        "end_request": encode(w.end_request),
-        "layers": w.space.state() if w.space is not None else None,
-        "physics": w.physics.to_dict() if w.physics is not None else None,
-        "fired_once": sorted(env._fired_once),
-        "armed": sorted(env._armed.items()),
-        "used_round": {actor: {name: n for name, n in used.items() if n}  # a use undone to 0 is no use
-                       for actor, used in sorted(env._used_round.items()) if any(used.values())},
-    }
+    })
+    return state
 
 
 #: Undoable state an undo (or a rolled-back trial) leaves changed today: see the strict xfail

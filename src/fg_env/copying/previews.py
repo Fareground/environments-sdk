@@ -66,7 +66,7 @@ class Previews:
         stages = [s.name for s in env.contract.stage_list()]
         if stage is not None and stage not in stages:
             _refuse("stage", f"no stage '{stage}'", stage, stages, "stages")
-        if env.finished or env._in_round:
+        if env.finished or env.state.in_round:
             return self.now(entity_id, stage)
         snapshot = env.snapshot()
         probe = self.probe(snapshot, participants)

@@ -120,7 +120,7 @@ class Budget:
     def used(self, env: Env) -> dict[str, float]:
         tape = env.world.props.get(TAPE)
         entries = tape.values() if isinstance(tape, Mapping) else ()
-        return {"tokens": tokens_of(env.stats), "calls": env.stats.calls,
+        return {"tokens": tokens_of(env.state.stats), "calls": env.state.stats.calls,
                 "host_calls": sum(1 for entry in entries if isinstance(entry, Mapping) and not entry.get("fallback")),
                 "seconds": round(self.seconds, 3)}
 
@@ -136,7 +136,7 @@ class Budget:
         if limit is None:
             return math.inf
         playing = {id(t): t for t in (*env.origin.staged, turn) if not t.tallied}
-        return limit - tokens_of(env.stats) - sum(tokens_of(t.stats) for t in playing.values())
+        return limit - tokens_of(env.state.stats) - sum(tokens_of(t.stats) for t in playing.values())
 
     def reserve(self, env: Env, turn: Turn, tokens: float) -> float | None:
         """Hold ``tokens`` of the token limit (what a model call ``turn`` is about to make is expected to spend),

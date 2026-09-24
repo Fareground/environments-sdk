@@ -299,7 +299,7 @@ class Driver:
                     turn.did_not_act = had_to and not turn.timed_out  # a timeout is reported as one
             elif stats.refusals or stats.truncated:
                 stats.failed_turns += 1  # the provider refused or cut off a reply: the model's play was not its own
-            env._tally(turn.actor.id, turn.stats)
+            env.state.tally(turn.actor.id, turn.stats)
             turn.tallied = True
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit
                 turn.exposure.close(turn)

@@ -221,7 +221,7 @@ class Wake:
         shown = {name: value for name, value in reported.items() if name in _SHOWN_USAGE}
         with turn.env._lock:
             if turn.tallied:  # the turn is over and counted: add to the run's totals; the participant still cannot act
-                turn.env._tally(turn.actor.id, Stats(**reported))
+                turn.env.state.tally(turn.actor.id, Stats(**reported))
                 if turn.exposure is not None:
                     turn.exposure.used(shown, late=True)
                 return

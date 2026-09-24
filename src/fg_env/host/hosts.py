@@ -123,7 +123,7 @@ def count_host_tokens(env: Env) -> None:
         from ..runtime.measure import Stats
 
         with env._lock:
-            env.stats.add(Stats(**dict(zip(_TOKENS, taken))))
+            env.state.stats.add(Stats(**dict(zip(_TOKENS, taken))))
 
 
 @contextmanager

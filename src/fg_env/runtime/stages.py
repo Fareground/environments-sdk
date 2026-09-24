@@ -27,7 +27,7 @@ class RunStages:
     """Stage and turn running of a run (mixed into :class:`~fg_env.runtime.env.Env`)."""
 
     def _run_stage(self: Env, stage: StageSpec, resumed: bool = False) -> _Steps:  # type: ignore[misc]
-        world, where = self.world, self._where
+        world, where = self.world, self.state.where
         path = f"stages.{stage.name}"
         if not resumed:
             runs = self._stage_runs(stage)
@@ -136,7 +136,7 @@ class RunStages:
 
     def _reason(self: Env, actor: Entity, stage: StageSpec, pass_index: int) -> str | None:  # type: ignore[misc]
         requested = self.world.wake_requests.pop(actor.id, None)
-        memory = self._memory(actor.id)
+        memory = self.state.memory(actor.id)
         if stage.quiet == "skip" and requested is None and pass_index > 0:
             if not self.perception.news(actor, memory.cursor, 1)[0]:
                 return None
@@ -157,7 +157,7 @@ class RunStages:
 
     def _sequential(self: Env, stage: StageSpec, agents: list[Entity], pass_index: int,  # type: ignore[misc]
                     resumed: bool = False) -> _Steps:
-        where = self._where
+        where = self.state.where
         for position in range(where.position if resumed else 0, len(agents)):
             actor = agents[position]
             if resumed:
@@ -177,7 +177,7 @@ class RunStages:
                 turn = Turn(self, actor, stage, reason, staged=False)
                 yield from self.driver.drive_steps([turn])
             self._after_turn(stage, turn, turn.stats.actions > 0)
-            memory = self._memory(actor.id)
+            memory = self.state.memory(actor.id)
             memory.cursor = self.world.log[-1].seq if self.world.log else 0
             memory.turns += 1
             self._flush_events()
@@ -213,7 +213,7 @@ class RunStages:
                       resumed: bool = False) -> _Steps:
         if resumed:
             turns = list(self.origin.staged)
-            yield from self.driver.drive_steps(turns, together=True, resume=self._where.position)
+            yield from self.driver.drive_steps(turns, together=True, resume=self.state.where.position)
         else:
             reasons: dict[str, str] = {}
             for actor in agents:
@@ -226,7 +226,7 @@ class RunStages:
                      if actor.id in reasons]
             cursor = self.world.log[-1].seq if self.world.log else 0
             for turn in turns:
-                memory = self._memory(turn.actor.id)
+                memory = self.state.memory(turn.actor.id)
                 memory.cursor = cursor
                 memory.turns += 1
             yield from self.driver.drive_steps(turns, together=True)
@@ -266,11 +266,6 @@ class RunStages:
             self.world.watched_writes = None
         yield from ()
 
-    def _tally(self: Env, actor_id: str, stats: Stats) -> None:  # type: ignore[misc]
-        """Add numbers to the run's totals and to the agent's own (callers hold the lock)."""
-        self.stats.add(stats)
-        self.agent_stats.setdefault(actor_id, Stats()).add(stats)
-
     def _settle_choices(self: Env, turn: Turn, mark: int, applied: int) -> bool:  # type: ignore[misc]
         """An atomic simultaneous stage: keep one agent's committed choices when they meet `valid`, else undo
         them all and tell the agent why — also when a rule fails or an invariant breaks as they commit. True when
@@ -295,7 +290,7 @@ class RunStages:
             world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
                        data={"ok": False, "undone": True})
             world.journal.clear()
-            self._tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1,
+            self.state.tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1,
                                              faulted_actions=int(fault is not None)))
             turn.stats.undone_turns = 1
         return False
@@ -314,7 +309,7 @@ class RunStages:
                 self.diagnosis.refused_at_commit(name, fault)
                 if not deferred:
                     world.journal.clear()
-                self._tally(actor.id, Stats(rejected_actions=1, faulted_actions=1))
+                self.state.tally(actor.id, Stats(rejected_actions=1, faulted_actions=1))
                 return 0
             if applied and not deferred:
                 self.happenings.react(turn.stage)
@@ -332,7 +327,7 @@ class RunStages:
             self.diagnosis.refused_at_commit(name, str(problem))
             if not deferred:
                 world.journal.clear()
-            self._tally(actor.id, Stats(rejected_actions=1))
+            self.state.tally(actor.id, Stats(rejected_actions=1))
             return 0
         outcome = self.actions.apply(actor, name, params)
         text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
@@ -340,12 +335,12 @@ class RunStages:
         world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
         if not outcome.ok:
             self.diagnosis.refused_at_commit(name, outcome.text)
-            self._tally(actor.id, Stats(rejected_actions=1))
+            self.state.tally(actor.id, Stats(rejected_actions=1))
             if not deferred:
                 world.journal.clear()
             return 0
         if not deferred:
             self._after_commit(f"actions.{name}")
         self.diagnosis.committed(name)
-        self._tally(actor.id, Stats(actions=1))
+        self.state.tally(actor.id, Stats(actions=1))
         return 1
