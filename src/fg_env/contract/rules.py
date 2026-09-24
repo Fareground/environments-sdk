@@ -170,7 +170,7 @@ class StageSpec(_Model):
                                           "it, so it may read no agent's private property. Default: seat; a "
                                           "simultaneous stage's choices then commit in a random order drawn anew each "
                                           "time, so no seat always wins a contested item.")
-    who: str | None = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
+    who: str | None = Field(None, description="Which agents are woken ($it); e.g. $it.alive and $chance(0.3).")
     until: str | None = Field(None, description="Repeat turns within the round until true.")
     passes: int | str | None = Field(None,
                                      description="Max passes through the agents (default 1, or 10 with until): a "
