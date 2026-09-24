@@ -1,5 +1,6 @@
 """The bundled engines report what actually happened: no fabricated winners, ties as ties, every player paid,
 advertised inputs that move outcomes, and verdicts that agree with the evidence they are measured against."""
+import json
 import statistics
 from importlib.resources import files
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 import pytest
 
 import fg_env
+from fg_env.host.stubs import StubEvaluator
 
 SEEDS = range(6)
 
@@ -26,6 +28,14 @@ def test_contest_without_a_judge_is_decided_by_skill_and_luck_and_says_so():
 
     even = [{"id": k, "name": k, "approach": "", "skill": 0.5} for k in ("c1", "c2")]
     assert run("contest", inputs={"participants": even, "luck": 0}).outputs["winner"] is None  # a true tie stays one
+
+
+def test_contest_knows_it_was_judged_from_the_verdicts_not_the_host_tape():
+    assert "host_tape" not in json.dumps(fg_env.engines.get("contest").source())
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("contest").path)))
+    judged = fg_env.host.load(path, hosts={"judge": StubEvaluator()}, seed=1).run()
+    assert judged.outputs["judged"] is True and judged.outputs["winning_score"] is not None
+    assert run("contest").outputs["judged"] is False
 
 
 def _players(**strategies):

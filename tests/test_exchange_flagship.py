@@ -149,7 +149,7 @@ FACT_BOUNDS = {
 def realism_facts(result):
     assert result.status == "completed", result.error
     out = result.outputs
-    stats, calibration = out["stats"], out["calibration"]
+    stats, calibration = out["bar_stats"], out["calibration"]
     assert out["depth_avg"] > 0
     return {"realism_score": out["realism_score"], "kurtosis": stats["kurtosis"], "acf_abs": stats["acf_abs"],
             "abs_acf1": abs(stats["acf1"]), "sigma_ratio": stats["sigma"] / calibration["target_sigma"],

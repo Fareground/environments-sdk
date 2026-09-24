@@ -105,7 +105,8 @@ class _Item:
            "A rubric judge answered by a host evaluator: the `judge` action (`text` and `subject`) in any "
            "effect list (or every new entry of `record`) scores the text per criterion, alone or as a panel, "
            "optionally blind. Each verdict is posted to the record <name> (subject, scores, total, rationale "
-           "«quoted») and added to $world.<name>_totals and the `into` property, recorded for replay.",
+           "«quoted», stand_in: true when the midpoint fallback scored it, not an evaluator) and added to "
+           "$world.<name>_totals and the `into` property, recorded for replay.",
            example={"record": "speeches", "who": "debater", "into": "score",
                     "criteria": {"logic": {"weight": 2}, "evidence": {"scale": [1, 5]}},
                     "instructions": "Judge each debate speech on its merits."})
@@ -122,7 +123,7 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
         "world": {"host_tape": tape_prop(), f"{name}_totals": {"type": "map", "default": {}}},
         "records": {name: {
             "fields": {"subject": "text", "name": "text", "target": "int", "scores": "map", "total": "number",
-                       "rationale": "text", "judges": "list"},
+                       "rationale": "text", "judges": "list", "stand_in": "bool"},
             "show": "Judged {name}: {total|1}/" + f"{config.out_of:g}" + " — {rationale}",
             "visible": config.visible, "notify": config.notify, "description": f"Verdicts of the judge '{name}'."}},
     }
@@ -254,7 +255,8 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
                           else " | ".join(f"{seat}: {a['rationale']}" for seat, a in answers))
     world.post(name, {"subject": subject_id, "name": item.subject.name if item.subject is not None else None,
                       "target": item.target, "scores": scores, "total": total, "rationale": rationale,
-                      "judges": [seat for seat, _ in answers]}, None, None, where)
+                      "judges": [seat for seat, _ in answers],
+                      "stand_in": any(bool(a.get("stand_in")) for _, a in answers)}, None, None, where)
     if item.subject is not None:
         totals = dict(world.props.get(f"{name}_totals") or {})
         totals[item.subject.id] = round(float(totals.get(item.subject.id, 0)) + total, 6)
@@ -309,7 +311,8 @@ def _verdict(answer: Any, config: JudgeConfig) -> Dict[str, Any]:
 
 def _midpoint(config: JudgeConfig) -> Dict[str, Any]:
     return {"scores": {key: (c.scale[0] + c.scale[1]) / 2 for key, c in config.criteria.items()},
-            "rationale": "No evaluator was available; every criterion was scored at its midpoint."}
+            "rationale": "No evaluator was available; every criterion was scored at its midpoint.",
+            "stand_in": True}  # a live verdict never carries it: validation allows only scores and rationale
 
 
 def _aggregate(values: List[float], how: str) -> float:
