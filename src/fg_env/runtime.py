@@ -24,6 +24,7 @@ from .effects import EffectRunner
 from .end_state import end_state
 from .errors import RunError
 from .exposure import ExposureLog, asks_seen, recording
+from .forgetting import forget, reads_log
 from .expr import ExprError
 from .happenings import Happenings
 from .host.hosts import count_host_tokens
@@ -65,7 +66,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
     _end_on_action: bool
 
     def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
-                 parallel: int = 8, exposures: bool = False, assets: Optional[AssetStore] = None):
+                 parallel: int = 8, exposures: bool = False, assets: Optional[AssetStore] = None, events: bool = True):
         self.contract = contract
         self.inputs = inputs
         self.seed = seed
@@ -102,6 +103,12 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         self.budget: Optional[Budget] = None
         #: Recorded when asked, or when the contract's rules ask `$seen`.
         self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
+        if exposures and not events:
+            raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown to "
+                             "replay against it: drop one of them")
+        #: Whether results carry the event log; without it the run forgets what nothing can read (see forgetting.py).
+        self._keep_events = events
+        self._reads_log = reads_log(contract) if not events else True
         self.happenings = Happenings(self)
         self.previews = Previews(self)
         self._on_event: Optional[Callable[[Dict[str, Any]], None]] = None
@@ -260,7 +267,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
-            events=self._event_rows(), time=self.world.time if self.world.continuous else None,
+            events=self._event_rows() if self._keep_events else [], time=self.world.time if self.world.continuous else None,
             exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
@@ -326,6 +333,8 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
                 if stop is not None and stop(self):
                     self.status = "stopped"
                     return
+                if not self._keep_events:
+                    forget(self)
                 self.origin.round_start(self)
                 self._cursor = self._round()
             elif self.status == "stopped":
@@ -374,6 +383,8 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         Results share the converted events; the log only grows at its end or loses events a rollback undid, so the
         rows are rebuilt only when their last event is no longer where it was."""
         log, rows = self.world.log, self._rows
+        if not self._keep_events:  # a snapshot's rows: converted for it alone, never kept
+            return [event.to_dict() for event in log]
         if rows and (len(rows) > len(log) or log[len(rows) - 1] is not self._rows_last):
             rows.clear()
         rows.extend(event.to_dict() for event in log[len(rows):])

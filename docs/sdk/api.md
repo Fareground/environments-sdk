@@ -7,7 +7,7 @@ Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and
 ## `load`
 
 ```pyi
-load(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, strict: 'bool' = False, parallel: 'int' = 8, data_dir: 'DataDir' = None, hosts: 'Any' = None, exposures: 'bool' = False, chance: 'Any' = None, calibrate: 'bool' = True) -> 'Env'
+load(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, strict: 'bool' = False, parallel: 'int' = 8, data_dir: 'DataDir' = None, hosts: 'Any' = None, exposures: 'bool' = False, chance: 'Any' = None, calibrate: 'bool' = True, events: 'bool' = True) -> 'Env'
 ```
 
 Check a contract and build a runnable :class:`Env`.
@@ -24,11 +24,14 @@ default: drawn from the seeded stream) or a callable given each :class:`~fg_env.
 that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
 enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
 (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
+``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
+still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
+flat however long it plays; everything the run does is the same (a contract that reads `$events` keeps its log).
 
 ## `run`
 
 ```pyi
-run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, on_event: 'Any' = None, strict: 'bool' = False, data_dir: 'DataDir' = None, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, exposures: 'bool' = False, budget: 'Optional[Mapping[str, Any]]' = None) -> 'RunResult'
+run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, on_event: 'Any' = None, strict: 'bool' = False, data_dir: 'DataDir' = None, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, exposures: 'bool' = False, budget: 'Optional[Mapping[str, Any]]' = None, events: 'bool' = True) -> 'RunResult'
 ```
 
 Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
@@ -186,7 +189,7 @@ retried with backoff; a provider error that persists or that retrying cannot fix
 ## `Env`
 
 ```pyi
-Env(contract: 'Contract', inputs: 'Dict[str, Any]', seed: 'int', arm: 'Optional[str]' = None, parallel: 'int' = 8, exposures: 'bool' = False, assets: 'Optional[AssetStore]' = None)
+Env(contract: 'Contract', inputs: 'Dict[str, Any]', seed: 'int', arm: 'Optional[str]' = None, parallel: 'int' = 8, exposures: 'bool' = False, assets: 'Optional[AssetStore]' = None, events: 'bool' = True)
 ```
 
 A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
