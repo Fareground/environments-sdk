@@ -31,9 +31,10 @@ def _check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, s
     if len(modes) != 1:
         issues.append((path, "a `layer` effect does exactly one of set, diffuse, decay", "keep one of them"))
     elif modes[0] != "set":
-        for key in ("at", "where"):
-            if key in effect:
-                issues.append((f"{path}.{key}", f"`{key}` goes with `set`, not `{modes[0]}`", "remove it"))
+        if "at" in effect:
+            issues.append((f"{path}.at", f"`at` goes with `set`, not `{modes[0]}`", "remove it"))
+        if "where" in effect and modes[0] != "diffuse":
+            issues.append((f"{path}.where", f"`where` goes with `set` or `diffuse`, not `{modes[0]}`", "remove it"))
         if name in layers and layers[name].type != "number":
             issues.append((f"{path}.{modes[0]}", f"`{modes[0]}` needs a number layer; '{name}' is {layers[name].type}",
                            "use set, or make the layer a number"))
@@ -50,7 +51,8 @@ def _check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, s
 @effect_op("layer", ("set", "at", "where", "diffuse", "decay"),
            '{"layer": "sugar", "set": "$min($value + 1, 4)"}  (every cell: `$cell` is its position, `$value` its '
            'value, all reading the old values; `"at": "$it.at"` sets one cell, `"where"` limits which) · '
-           '{"layer": "scent", "diffuse": 0.1} (each cell hands that share out to its neighbours) · '
+           '{"layer": "scent", "diffuse": 0.1} (each cell hands that share out to its neighbours; with `"where"` only '
+           'the cells it holds for take part, the others are walls that keep what would cross them) · '
            '{"layer": "scent", "decay": 0.05}',
            literal=("set", "where"), check=_check)
 def _layer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
@@ -70,9 +72,23 @@ def _layer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str
         if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate <= 1:
             raise RunError(f"`{modes[0]}` is a share from 0 to 1, got {rate!r}", where)
         layers = space.layers
-        space.replace(name, layers.diffused(name, rate) if modes[0] == "diffuse" else layers.decayed(name, rate))
+        if modes[0] == "decay":
+            space.replace(name, layers.decayed(name, rate))
+        else:
+            space.replace(name, layers.diffused(name, rate, _open_cells(runner, space, name, effect, vars)))
     except SpaceError as exc:
         raise RunError(str(exc), where) from None
+
+
+def _open_cells(runner: Any, space: Any, name: str, effect: dict[str, Any], vars: dict[str, Any]
+                ) -> list[bool] | None:
+    """Which cells a diffusion reaches: those `where` holds for ($cell, $value), or every cell without one."""
+    if "where" not in effect:
+        return None
+    condition, geometry, values = compile_expr(effect["where"]), space.geometry, space.layers.values[name]
+    base = runner.world.scope(**vars)
+    return [truthy(condition(base.child(cell=geometry.position(cell), value=value)))
+            for cell, value in enumerate(values)]
 
 
 def _set(runner: Any, space: Any, name: str, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:

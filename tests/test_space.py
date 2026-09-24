@@ -40,6 +40,20 @@ def test_each_neighborhood_has_its_neighbours_and_distance(neighborhood, count, 
     assert _eval(env, "$distance($c, $d)", c="c", d="d") == far
 
 
+def test_path_distance_walks_round_what_blocks_the_way():
+    contract = _grid()
+    contract["space"]["layers"] = {"wall": {"type": "bool", "default": "$cell[1] == 3 and $cell[0] < 4"}}
+    env = fg_env.load(contract, seed=1)
+    assert _eval(env, "$distance([0, 0], [0, 4])") == 4.0  # straight through the wall
+    assert _eval(env, "$path_distance([0, 0], [0, 4], not $layer(wall, $it))") == 12  # down, through the gap, up
+    assert _eval(env, "$path_distance($a, [0, 4], not $layer(wall, $it))", a="a") == 8
+    assert _eval(env, "$path_distance([0, 0], [0, 4], $it[1] != 3)") is None  # no way round
+    assert _eval(env, "$path_distance([0, 0], [2, 2])") == 4  # nothing blocks: every cell is open
+    assert _eval(env, "$path_distance($c, $c, false)", c="c") == 0  # the start and the goal are always open
+    with pytest.raises(ExprError, match="needs a grid"):
+        _eval(fg_env.load(GRAPH, seed=1), "$path_distance(a, d)")
+
+
 def test_hex_cells_use_axial_neighbours():
     env = fg_env.load(_grid(neighborhood="hex"), seed=1)
     assert _eval(env, "$cells([2, 2])") == [[1, 2], [1, 3], [2, 1], [2, 3], [3, 1], [3, 2]]
