@@ -11,7 +11,7 @@ from fg_env.mechanisms.card_scoring import blackjack, follow_suit, poker_rank, r
 from fg_env.mechanisms.cards import card_visible
 from fg_env.mechanisms.pot import side_pots
 from fg_env.mechanisms.roles import known_role
-from fg_env.participants import sample_args
+from fg_env.participants.builtin import sample_args
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 NAMES = ["Ana", "Ben", "Cleo", "Dev", "Eli", "Fay"]

@@ -15,7 +15,7 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Tuple
 
-from ..effects.runner import statement_parts
+from ..effects.statements import statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 
 if TYPE_CHECKING:

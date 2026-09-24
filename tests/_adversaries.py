@@ -5,7 +5,7 @@ Each is deterministic (its choices follow from the turn it is in) and stops when
 import random
 from typing import Any, Dict
 
-from fg_env.participants import sample_args
+from fg_env.participants.builtin import sample_args
 
 HUGE = "x" * 100_000
 

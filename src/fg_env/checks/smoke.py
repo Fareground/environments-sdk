@@ -14,7 +14,7 @@ from ..contract import MAX_ENTITIES, Contract
 from ..runtime.diagnostics import MIN_CALLS
 from ..errors import Issue
 from ..runtime.measure import RunResult
-from ..participants import PolicyAgent, RandomAgent, _fill_dependent, _seed_for, sample_args
+from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _seed_for, sample_args
 
 if TYPE_CHECKING:
     from ..runtime.env import Env

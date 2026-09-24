@@ -44,7 +44,7 @@ def test_a_token_budget_far_from_its_limit_keeps_parallel_turns_parallel():
 
 def test_a_preview_plays_earlier_turns_without_calling_a_model(monkeypatch):
     client = FakeAnthropic([[("buy", {"offer": "espresso", "qty": 1}), ("end_turn", {})]] * 20)
-    monkeypatch.setattr(participants, "official_client", lambda provider, model: client)
+    monkeypatch.setattr("fg_env.participants.llm.official_client", lambda provider, model: client)
     env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 3})
     env.run({"*": "anthropic:claude-x"}, rounds=1)
     calls = len(client.requests)

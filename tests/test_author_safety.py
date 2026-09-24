@@ -32,7 +32,7 @@ WITH_POLICY = {**WORKING, "policies": {"greedy": {"rules": [{"do": "take", "with
                                  "minimax", "greedy"])
 def test_the_run_tool_plays_only_the_contracts_own_agents(monkeypatch, who):
     made = []
-    monkeypatch.setattr("fg_env.participants.official_client", lambda *a: made.append(a))
+    monkeypatch.setattr("fg_env.participants.llm.official_client", lambda *a: made.append(a))
     monkeypatch.setattr("fg_env.game.algorithms.participants.algorithm_participant", lambda *a: made.append(a))
     client = FakeOpenAI([write(WITH_POLICY)], [call("run", participants={"*": who})], [])
 
@@ -70,7 +70,7 @@ def test_it_works_only_when_every_test_run_plays(contract, problem):
 
 
 def test_a_contract_longer_than_the_test_budget_works_with_its_untested_rounds_named(tmp_path, monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.author.TEST_SECONDS", 0.2)
+    monkeypatch.setattr("fg_env.authoring.testing.TEST_SECONDS", 0.2)
     long = game("Long", clock={"rounds": 100_000})
     client = FakeOpenAI([write(long)], [])
 
@@ -84,7 +84,7 @@ def test_a_contract_longer_than_the_test_budget_works_with_its_untested_rounds_n
 
 
 def test_a_crash_within_the_rounds_the_test_budget_reaches_still_counts(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.author.TEST_SECONDS", 5)
+    monkeypatch.setattr("fg_env.authoring.testing.TEST_SECONDS", 5)
     late = game("Late", clock={"rounds": 100_000}, world={"table": {"type": "map", "default": {"a": 1}}, "x": 0},
                 events=[{"at": 20, "do": ["$world.x = $world.table['b']"]}])
 
@@ -170,12 +170,16 @@ def test_an_empty_reply_is_retried_and_one_that_persists_stops_the_session(monke
 @pytest.mark.parametrize("broken", ["check", "load"])
 def test_whatever_a_models_contract_raises_is_its_problem_not_a_crash(monkeypatch, tmp_path, broken):
     # What the test process does with a saved contract, run here so the engine can be broken on purpose.
-    from fg_env.authoring.author import _test, _tool
+    from fg_env.authoring import testing, workbench
+    from fg_env.authoring.testing import _test
+    from fg_env.authoring.workbench import _tool
 
     def boom(*args, **kwargs):
         raise TypeError("'int' object is not iterable")
 
-    monkeypatch.setattr(f"fg_env.authoring.author.{broken}", boom)
+    for module in (testing, workbench):
+        if hasattr(module, broken):
+            monkeypatch.setattr(module, broken, boom)
     path = tmp_path / "env.json"
     path.write_text(json.dumps(WORKING))
 

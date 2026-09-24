@@ -9,7 +9,7 @@ from ..sampling.probability import check_literal_probability
 from .roots import BASE
 from .space import check_event_order
 from ..contract import Contract
-from ..effects.runner import RESERVED_ROOTS
+from ..effects.statements import RESERVED_ROOTS
 from ..expr import FUNCTIONS, ExprError, compile_expr
 from ..expr.template import FORMATS, compile_template
 

@@ -17,7 +17,8 @@ from .schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
 from .validation import ActionValidation
 from ..assets.delivery import attached_ids
 from ..contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
-from ..effects.runner import EffectRunner, compile_statement
+from ..effects.runner import EffectRunner
+from ..effects.statements import compile_statement
 from ..errors import RunError
 from ..sampling.probability import is_probability
 from ..expr import EVAL_BUDGET, EVERYONE, Expr, ExprError, PrivateRead, Scope, compile_expr, is_expr, shared_budget, truthy

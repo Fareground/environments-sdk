@@ -6,7 +6,7 @@ previewing a saved contract run in a child Python process that is killed when a 
 for the next call), so the author's session always goes on and says which step was too slow::
 
     with Sandbox() as box:
-        text = box.call("fg_env.authoring.author:_tool", {"name": "check", "path": "contract.json", "args": {}}, seconds=60)
+        text = box.call("fg_env.authoring.workbench:_tool", {"name": "check", "path": "contract.json", "args": {}}, seconds=60)
 
 The function runs in the child with ``kwargs`` and returns plain JSON data; :func:`step` names what it is doing, which
 is what :class:`TooSlow` reports.

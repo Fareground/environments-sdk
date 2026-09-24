@@ -11,7 +11,8 @@ from ..effects.chance import check_chance
 from .params import check_entity_literals
 from .roots import merge_types
 from .state import check_delivery, check_link_fields
-from ..effects.runner import POST_KEYS, REPEAT_CEILING, RESERVED_ROOTS, all_ops, registered_op, select_ops, statement_parts
+from ..effects.runner import POST_KEYS, REPEAT_CEILING, all_ops, registered_op, select_ops
+from ..effects.statements import RESERVED_ROOTS, statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
 

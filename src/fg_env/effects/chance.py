@@ -24,6 +24,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
 from ..world.entity import Entity
 from ..errors import RunError
 from ..expr.template import format_value
+from .statements import RESERVED_ROOTS
 
 if TYPE_CHECKING:
     from .runner import EffectRunner
@@ -146,7 +147,6 @@ def _label(item: Any) -> str:
 def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: Set[str], types: Dict[str, Set[str]],
                  params: Optional[Mapping[str, Any]]) -> Set[str]:
     """Check a `chance` effect; returns the names it makes available afterwards."""
-    from .runner import RESERVED_ROOTS
     from ..checks.roots import merge_types
 
     bound: Set[str] = set()

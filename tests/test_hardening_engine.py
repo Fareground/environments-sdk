@@ -6,7 +6,7 @@ import pytest
 import fg_env
 from fg_env.errors import SnapshotError
 from fg_env.expr import Untrusted
-from fg_env.participants import SAMPLE_TEXT
+from fg_env.participants.builtin import SAMPLE_TEXT
 
 TALK = {
     "name": "Talk",

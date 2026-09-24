@@ -13,7 +13,7 @@ from collections import defaultdict
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import fg_env
-from fg_env.participants import sample_args
+from fg_env.participants.builtin import sample_args
 
 SEEDS = (1, 2, 3)
 #: Wall-clock cap for one run, so a runaway contract cannot stall the benchmark.

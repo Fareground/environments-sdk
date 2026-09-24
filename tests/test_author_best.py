@@ -116,7 +116,7 @@ def test_a_game_mastered_contract_that_breaks_on_any_effect_is_not_working():
 def test_the_summary_names_the_stub_hosts_the_check_warnings_and_partial_testing(monkeypatch):
     game_master, _ = authored(TAVERN)
     warned, _ = authored(lemonade(actions={"set_price": {**LEMONADE["actions"]["set_price"], "do": []}}))
-    monkeypatch.setattr("fg_env.authoring.author.TEST_SECONDS", 1)
+    monkeypatch.setattr("fg_env.authoring.testing.TEST_SECONDS", 1)
     long_run = lemonade(clock={"rounds": 100_000, "unit": "hour"})
     partly, _ = authored(long_run)
 

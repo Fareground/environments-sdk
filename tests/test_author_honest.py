@@ -75,8 +75,8 @@ def test_a_contract_that_consults_a_host_is_tested_with_the_stand_in_stubs(examp
 
 def test_a_contract_too_slow_to_test_is_reported_and_never_hangs_the_session(monkeypatch):
     # Every one of a thousand sellers reads a view listing every seller: check alone takes many seconds.
-    monkeypatch.setattr("fg_env.authoring.author.TEST_SECONDS", 0.5)
-    monkeypatch.setattr("fg_env.authoring.author.RUN_SECONDS", 0.5)
+    monkeypatch.setattr("fg_env.authoring.testing.TEST_SECONDS", 0.5)
+    monkeypatch.setattr("fg_env.authoring.workbench.RUN_SECONDS", 0.5)
     monkeypatch.setattr("fg_env.authoring.sandbox.GRACE_SECONDS", 1)
     crowded = lemonade(entities={}, population=[{"type": "seller", "count": 1000}])
     client = FakeOpenAI([write(crowded)], [call("check")], [])
@@ -146,7 +146,7 @@ def test_a_refusal_after_a_working_revision_is_not_done():
 
 
 def test_the_revision_limit_names_the_revision_kept_and_ends_the_session(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 2)
+    monkeypatch.setattr("fg_env.authoring.workbench.MAX_REVISIONS", 2)
     client = FakeOpenAI([write(WORKING)], [write({**WORKING, "bogus": 1}), write(WORKING)], [call("check")])
 
     result = fg_env.author("A game.", "openai:m", client=client)

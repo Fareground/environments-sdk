@@ -283,7 +283,7 @@ def test_a_dropped_last_revision_is_named_in_the_reply_and_the_summary():
 
 
 def test_a_write_cut_off_at_the_output_limit_is_named_and_does_not_use_a_revision(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 1)
+    monkeypatch.setattr("fg_env.authoring.workbench.MAX_REVISIONS", 1)
     client = FakeOpenAI(Cut([call("check"), write(WORKING)]), [], [write(WORKING)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -383,7 +383,7 @@ def test_cost_is_reported_only_when_the_provider_reports_it():
 
 
 def test_invalid_writes_do_not_use_up_the_revisions(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 2)
+    monkeypatch.setattr("fg_env.authoring.workbench.MAX_REVISIONS", 2)
     client = FakeOpenAI([write("{no")], [write("{no")], [write("{no")], [write(BROKEN)], [write(WORKING)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -392,7 +392,7 @@ def test_invalid_writes_do_not_use_up_the_revisions(monkeypatch):
 
 
 def test_running_out_of_revisions_without_a_working_contract_stops(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 2)
+    monkeypatch.setattr("fg_env.authoring.workbench.MAX_REVISIONS", 2)
     client = FakeOpenAI([write(BROKEN)], [write(BROKEN)], [call("check")])
 
     result = fg_env.author("A game.", "openai:m", client=client)

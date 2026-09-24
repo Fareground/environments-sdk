@@ -104,7 +104,7 @@ class _Provider:
     def _retrying(self, request: Callable[[], Any]) -> Any:
         """The provider's response. A failure is never a :class:`HostError`, which would ask the model again with a
         correction: nothing was wrong with its answer, there was none."""
-        from ..participants import _backoff, _retryable, provider_failure
+        from ..participants.llm import _backoff, _retryable, provider_failure
 
         for attempt in range(self.retries + 1):
             try:

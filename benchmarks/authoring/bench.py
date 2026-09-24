@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import fg_env
-from fg_env.authoring.author import contract_problem
+from fg_env.authoring.testing import contract_problem
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
