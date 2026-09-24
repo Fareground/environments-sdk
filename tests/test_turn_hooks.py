@@ -43,7 +43,7 @@ def test_a_simultaneous_turn_event_runs_after_the_choices_are_committed():
 def upkeep():
     with scratch_family("test_upkeep"):
         mode("test_upkeep", "end", Nothing, "Adds an upkeep after each turn.")(
-            lambda name, cfg, contract: {"stage_hooks": {"play": {"on_turn_end": ["$actor.ends += 10"]}}})
+            lambda name, cfg, contract: {"events": [{"on": "stage.play.turn", "do": ["$actor.ends += 10"]}]})
         yield
 
 

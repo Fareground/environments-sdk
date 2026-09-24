@@ -132,9 +132,20 @@ def _parts(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 def _acts(part: Any) -> bool:
     """Whether ``part`` is a rule with an effect (in its `do`) that changes something: not ``$x += 0``."""
-    effects = part.get("do") if isinstance(part, dict) else None
-    effects = [effects] if isinstance(effects, str) else effects or []
-    return any(not (isinstance(e, str) and _IDENTITY.fullmatch(e)) for e in effects)
+    return _changes(part.get("do") if isinstance(part, dict) else None)
+
+
+def _changes(effects: Any) -> bool:
+    """Whether ``effects`` change anything: a statement that is not an identity (``$x += 0``), or a block (`each`,
+    `if`) whose own effects do; any other operation (a transfer, a post) changes something."""
+    if isinstance(effects, str):
+        return not _IDENTITY.fullmatch(effects)
+    if isinstance(effects, list):
+        return any(_changes(effect) for effect in effects)
+    if isinstance(effects, dict):
+        blocks = [effects[key] for key in ("do", "then", "else") if key in effects]
+        return any(_changes(block) for block in blocks) if blocks else True
+    return False
 
 
 def _tool(name: str, path: str, args: dict[str, Any]) -> str:

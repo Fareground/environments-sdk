@@ -97,7 +97,7 @@ def test_a_ballot_names_the_winner_and_counts_turnout_among_players_still_in_the
 
 
 def test_the_ballot_guide_says_it_counts_after_the_stage_on_exit():
-    assert "after that stage's own on_exit effects" in fg_env.guide("decision.ballot")
+    assert "after the contract's own events on its end" in fg_env.guide("decision.ballot")
 
 
 def test_a_sealed_bid_receipt_names_the_item_without_a_count_for_one_unit():

@@ -267,7 +267,7 @@ class _Batch:
     events: bool
     budget: Mapping[str, Any] | None
     exposures: bool
-    time_limit: float | None
+    time_limit: float | None = None
 
 
 def _run_chunk(batch: _Batch, chunk: Sequence[tuple[Job, Any]]) -> tuple[list[RunResult], float]:
