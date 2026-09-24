@@ -1235,7 +1235,7 @@
           "do": "cancel_all"
         },
         {
-          "when": "$world.last_price < $actor.private_value * 0.98 and not $any(order, $it.owner == $actor.id and $it.side == buy) and $actor.cash > $actor.private_value * 16",
+          "when": "$actor.type == value and $world.last_price < $actor.private_value * 0.98 and not $any(order, $it.owner == $actor.id and $it.side == buy) and $actor.cash > $actor.private_value * 16",
           "do": "place_order",
           "with": {
             "side": "buy",
@@ -1244,7 +1244,7 @@
           }
         },
         {
-          "when": "$world.last_price > $actor.private_value * 1.02 and not $any(order, $it.owner == $actor.id and $it.side == sell) and $actor.shares >= 15",
+          "when": "$actor.type == value and $world.last_price > $actor.private_value * 1.02 and not $any(order, $it.owner == $actor.id and $it.side == sell) and $actor.shares >= 15",
           "do": "place_order",
           "with": {
             "side": "sell",

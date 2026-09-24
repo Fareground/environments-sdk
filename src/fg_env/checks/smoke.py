@@ -1,7 +1,8 @@
 """The smoke play of :func:`fg_env.check`: the contract built and played with random agents, then with agents that
 choose boundary values (a parameter's least value, zero, its greatest), then with agents that never act, then once
-per declared policy, so problems that only appear with real values — in a later round, at an edge of what a tool
-allows, in a policy's own rules, on a missed turn — are reported like the static ones."""
+per declared policy playing every agent type (as ``run --agent policy:<name>`` may play it), so problems that only
+appear with real values — in a later round, at an edge of what a tool allows, in a policy's own rules, on a missed
+turn — are reported like the static ones."""
 from __future__ import annotations
 
 import math
@@ -39,12 +40,12 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
                  seed: int) -> tuple[list[Issue], list[Issue]]:
     """``(errors, warnings)`` from playing the contract built by ``build``: first with random agents that read
     everything they are shown, then with agents that choose boundary values, then with every agent idle (as when a
-    model times out or refuses), then with each policy playing the agent types whose default it is, or else the types
-    that can take every action it takes (every other agent plays as in a plain run: its type's policy, or random).
+    model times out or refuses), then with each policy playing every agent type (its rules for actions a type cannot
+    take are skipped for that type).
     ``rounds`` None plays up to :data:`SMOKE_ROUNDS` rounds within a few seconds in all; a number plays exactly that
     many rounds. An action that was called in these plays and never once succeeded is reported too."""
-    policies = [(name, _players(contract, name)) for name in contract.policies]
-    policies = [(name, players) for name, players in policies if players]
+    agents = contract.agent_types()
+    policies = [(name, agents) for name in contract.policies] if agents else []
     seconds = _SMOKE_SECONDS / (3 + len(policies)) if rounds is None else None
     errors: list[Issue] = []
     warnings: list[Issue] = []
@@ -157,19 +158,6 @@ def run_issue(message: str) -> Issue:
         if " " not in head:
             path, message = head, rest
     return Issue(path or "(run)", message, "fix the rule at this path (found by a smoke run)")
-
-
-def _players(contract: Contract, policy: str) -> list[str]:
-    """The agent types a policy plays in the smoke run: those whose default it is, or else those that can take every
-    action it takes."""
-    agents = contract.agent_types()
-    defaults = [kind for kind in agents if contract.types[kind].policy == policy]
-    if defaults:
-        return defaults
-    actions = [contract.actions[rule.do] for rule in contract.policies[policy].rules if rule.do in contract.actions]
-    return [kind for kind in agents if actions and all(
-        any(contract.is_a(kind, by) for by in ([action.by] if isinstance(action.by, str) else action.by))
-        for action in actions)]
 
 
 def _play(env: Env, participants: Any, rounds: int | None, seconds: float | None,

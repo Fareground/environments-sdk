@@ -72,15 +72,7 @@ def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> list[
                 break
     else:
         names = []
-    out = []
-    for name in names:
-        action = contract.actions.get(name)
-        if action is None:
-            continue
-        by = [action.by] if isinstance(action.by, str) else action.by
-        if any(contract.is_a(type_name, allowed) for allowed in by):
-            out.append(name)
-    return out
+    return [name for name in names if contract.can_take(type_name, name)]
 
 
 class ActionBook(ActionSchemas, ActionValidation):

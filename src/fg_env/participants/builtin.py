@@ -225,6 +225,8 @@ class PolicyAgent:
                 rng: Any) -> None | str | tuple[dict[str, Any], str | None]:
         """Whether a rule applies now: None (it does not), "passed", or its arguments and why they are invalid."""
         turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
+        if rule.do != "pass" and not turn.env.contract.can_take(turn.actor.entity_type, rule.do):
+            return None  # a rule for another agent type: its `when` may read what this type does not have
         try:
             if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
                 return None
