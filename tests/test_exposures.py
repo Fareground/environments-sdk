@@ -48,7 +48,7 @@ def test_each_wake_records_what_the_agent_read_offered_and_did():
     assert "3 citizens" not in texts[first["update"]["hash"]] and "2 citizens" in texts[first["update"]["hash"]]
     assert [(v["name"], v.get("look", False)) for v in first["views"]] == [("square", False), ("board", True)]
     assert texts[first["views"][1]["hash"]] == "Board:\nNothing yet."
-    assert first["tools"] == ["say", "look", "inspect", "end_turn"]
+    assert first["tools"] == ["say", "look", "end_turn"]
     assert [json.loads(texts[h])[0]["name"] for h in first["tool_sets"]] == ["say"]
     look, say = first["calls"]
     assert look == {"tool": "look", "args": {"view": "board"}, "ok": True, "ended": False, "result": look["result"]}

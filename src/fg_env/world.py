@@ -37,11 +37,13 @@ __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "LuckAhead", "prop_type"]
 
 
 class _TurnLocal:
-    """Per-turn state (a turn's random stream, its ``$pending``, draw and def-depth counters, whether it may draw)."""
+    """Per-turn state (a turn's random stream, its ``$pending``, its deadline, draw and def-depth counters, whether it
+    may draw)."""
 
-    __slots__ = ("rng", "pending", "draws", "depth", "luckless")
+    __slots__ = ("rng", "pending", "deadline", "draws", "depth", "luckless")
     rng: Any
     pending: Optional[List[Dict[str, Any]]]
+    deadline: Optional[float]
     draws: int
     depth: int
     luckless: Optional[str]
@@ -191,16 +193,22 @@ class SdkWorld(World):
     def rng(self, value: Any) -> None:
         self._rng = value
 
+    def turn_deadline(self) -> Optional[float]:
+        """When the turn running in this thread or task must end (``time.monotonic()``), or None."""
+        return getattr(self._here(), "deadline", None)
+
     def draws(self) -> int:
         """How many times this thread has used a random stream: equal counts mean nothing random was drawn."""
         return getattr(self._here(), "draws", 0)
 
     @contextmanager
-    def turn_context(self, rng: Any, pending: Optional[List[Dict[str, Any]]]) -> Iterator[None]:
-        """Inside the block — in this thread or asyncio task only — random draws use ``rng`` and
-        ``$pending`` is ``pending``. Blocks nest (a reaction inside a turn) and restore on exit."""
+    def turn_context(self, rng: Any, pending: Optional[List[Dict[str, Any]]],
+                     deadline: Optional[float] = None) -> Iterator[None]:
+        """Inside the block — in this thread or asyncio task only — random draws use ``rng``, ``$pending`` is
+        ``pending`` and the turn ends at ``deadline`` (``time.monotonic()``; None: no limit), which host calls made in
+        it respect. Blocks nest (a reaction inside a turn) and restore on exit."""
         local = _TurnLocal()
-        local.rng, local.pending = rng, pending
+        local.rng, local.pending, local.deadline = rng, pending, deadline
         token = _TURN.set((self, local))
         try:
             yield

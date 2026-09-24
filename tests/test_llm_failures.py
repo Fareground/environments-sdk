@@ -124,7 +124,7 @@ def test_malformed_openai_arguments_count_as_invalid_calls():
     result = fg_env.run(AUCTION, {"ann": participants.openai(client, "m"), "bo": "idle", "cy": "idle"}, seed=1)
     assert result.agent_stats["ann"]["invalid_calls"] == 1 and result.outputs["price"] == 30
     [reply] = [m for m in client.requests[1]["messages"] if m["role"] == "tool"]
-    assert "a JSON object" in reply["content"]
+    assert "not valid JSON" in reply["content"]
 
 
 def test_openai_sends_max_completion_tokens_and_both_pass_extra_request_fields():

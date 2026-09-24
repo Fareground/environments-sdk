@@ -7,9 +7,10 @@ for a loop that only reads. The same read twice in a turn answers that it is unc
 The rules depend on nothing but the calls made, so runs stay deterministic.
 
 `inspect` offers the ids of entities with something to show (a property with a value, or a place), as an enum when
-they are few and a compact listing otherwise; it finds an entity by its name as well as its id, and a refusal suggests
-the closest id. Its result leaves out properties without a value. Entities an agent may inspect show their id next to
-their name in what that agent reads (``Moderator [chair]``), so the handle to pass is always in view.
+they are few and a compact listing otherwise, and is not offered when its only choice is the agent itself; it finds an
+entity by its name as well as its id, and a refusal suggests the closest id. Its result leaves out properties without a
+value. Entities an agent may inspect show their id next to their name in what that agent reads (``Moderator [chair]``),
+so the handle to pass is always in view.
 """
 from __future__ import annotations
 
@@ -137,13 +138,17 @@ def inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpe
                 shared.add(kind)
         cache = env._inspect_cache = InspectCache(env.world.journal.version, allowance, shared)
     if viewer.entity_type not in cache.shared_viewers:
-        return _build_inspect_tool(env, viewer, allowance)
-    if not cache.ready:
-        cache.tool = _build_inspect_tool(env, viewer, allowance)
-        cache.ready = True
-    # ToolSpec is frozen but its schema is mutable. Never share that schema
-    # across callers; enums have at most 60 ids, so copying stays bounded.
-    return cache.tool.copy() if cache.tool is not None else None
+        tool = _build_inspect_tool(env, viewer, allowance)
+    else:
+        if not cache.ready:
+            cache.tool = _build_inspect_tool(env, viewer, allowance)
+            cache.ready = True
+        # ToolSpec is frozen but its schema is mutable. Never share that schema
+        # across callers; enums have at most 60 ids, so copying stays bounded.
+        tool = cache.tool.copy() if cache.tool is not None else None
+    if tool is not None and tool.input_schema["properties"]["id"].get("enum") == [viewer.id]:
+        return None  # its only choice is the agent itself: its views are where it reads its own state
+    return tool
 
 
 def _build_inspect_tool(env: "Env", viewer: Entity, allowance: int) -> Optional[ToolSpec]:

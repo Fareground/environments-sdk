@@ -357,7 +357,7 @@ class Driver:
         rng = self._rng(turn)
         if is_async(participant):
             try:
-                with self.env.world.turn_context(rng, turn.pending):
+                with self.env.world.turn_context(rng, turn.pending, turn.deadline):
                     answer = participant(Wake(turn))  # an async def runs nothing until awaited
             except BaseException as exc:
                 self._land(flight, exc)
@@ -371,7 +371,7 @@ class Driver:
     def _thread(self, flight: _Flight, participant: Participant, rng: Any) -> None:
         turn = flight.turn
         try:
-            with self.env.world.turn_context(rng, turn.pending):
+            with self.env.world.turn_context(rng, turn.pending, turn.deadline):
                 answer = participant(Wake(turn))
         except BaseException as exc:  # handed to the engine's thread, which reports it
             self._land(flight, exc)
@@ -397,7 +397,7 @@ class Driver:
             return
 
         async def play() -> None:
-            with world.turn_context(rng, turn.pending):
+            with world.turn_context(rng, turn.pending, turn.deadline):
                 await answer
 
         coroutine = play()

@@ -6,6 +6,7 @@ and invariants wait, and a turn that breaks the stage's `valid` rules is undone 
 """
 from __future__ import annotations
 
+import json
 import time
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple
@@ -192,13 +193,20 @@ class Turn:
                         self._views_luck("update"):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
                                                               self._views, self.time_limit, shown, attached,
-                                                              self.calls_left if self.call_limit else None)
+                                                              self.calls_left if self.call_limit else None,
+                                                              self.call_limit and self._offers_reads())
                 self.stats.update_chars = len(self._update)
                 self.stats.update_reads = 1
                 self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
                     self.exposure.read_update(self._update, shown)
             return self._update
+
+    def _offers_reads(self) -> bool:
+        """Whether the turn offers a read (a look view, or someone to inspect)."""
+        env = self.env
+        return bool(env.perception.look_views(self.actor, self.stage)) or \
+            inspect_tool(env, self.actor, self.max_calls) is not None
 
     def _views_luck(self, *site: str) -> Any:
         """A block that renders what the agent reads, drawing from a stream of this turn's own: looking again shows the
@@ -327,8 +335,7 @@ class Turn:
                                           data=_INVALID))
         if args is not None and not isinstance(args, Mapping):
             self.stats.invalid_calls += 1
-            return self._after(ToolResult(False, f"{name} was not done: arguments must be a JSON object of named "
-                                                 f"values, got {type(args).__name__}.", data=_INVALID))
+            return self._after(ToolResult(False, f"{name} was not done: {_not_an_object(args)}", data=_INVALID))
         if name == END_TURN:
             if self._must_act():
                 self.stats.invalid_calls += 1
@@ -655,6 +662,18 @@ def _shown() -> Any:
 def entity_dict(entity: Entity) -> Dict[str, Any]:
     return {"id": entity.id, "name": entity.name, "type": entity.entity_type, "alive": entity.alive,
             "at": entity.location_id, "props": _plain(dict(entity.properties))}
+
+
+def _not_an_object(args: Any) -> str:
+    """Why arguments that are not a JSON object were refused: text that is not valid JSON (a model's broken arguments)
+    says where it broke."""
+    if isinstance(args, str):
+        try:
+            json.loads(args)
+        except ValueError as exc:
+            return (f"its arguments are not valid JSON ({exc}). Call again with the arguments as one JSON object of "
+                    "named values.")
+    return f"arguments must be a JSON object of named values, got {type(args).__name__}."
 
 
 def _cut(params: Mapping[str, Any], args: Any) -> Tuple[Any, str]:

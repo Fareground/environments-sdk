@@ -343,11 +343,13 @@ anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
 
-Two prompt-cache breakpoints: the system prompt (``system`` and the brief), and the latest message, so each model
-call of a turn reads the one before it from the cache. Anthropic caches the tools ahead of both, and the tools are
-the actions legal right now with their live choices, so a call reads the cache only when the agent is offered the
-same tools as in the earlier call. A prompt shorter than the model's minimum is simply not cached (no charge).
-When the agent has no action it could take, the model is not called and the turn ends.
+The model is shown one tool list for the whole turn: the tools legal when the turn starts. A call to one that is no
+longer legal is refused with the reason, each tool result names the offered tools not available any more, and a
+tool that becomes legal during the turn is added. So every call of a turn sends the same prefix, and two
+prompt-cache breakpoints — the system prompt (``system`` and the brief, cached after the tools) and the latest
+message — let each call read the one before it from the cache. A breakpoint is placed only once its prefix is long
+enough for any model to cache (about 512 tokens). When the agent has no action it could take, the model is not
+called and the turn ends.
 
 Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
 sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
@@ -383,11 +385,12 @@ An LLM participant using an ``openai.OpenAI()``-compatible client (chat completi
 
 ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
 ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
-the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it
-(OpenRouter sends one now and then) is retried like an overload. Retries, failures, refusals (a
+the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it, or
+with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries, failures, refusals (a
 ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
-(``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
-JSON object are refused and counted as invalid calls. Files are sent as
+(``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for :func:`anthropic`;
+arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and counted as invalid
+calls. Files are sent as
 ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
 for text only); files from tool results follow the tool messages in one user message.
 
@@ -1274,9 +1277,11 @@ What the agent would receive on its next turn: brief, update, tools and time lim
 
 Between rounds this plays the next round on a copy up to the agent's turn — scheduled
 effects, start events, physics and the turns of agents before it — so the preview shows the
-turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns;
-by default the run's built-in and named participants do (your own callables are never called).
-A turn an `auto` stage plays without waking the agent is skipped, as the run skips it.
+turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns; by default
+the run's own participants do. Only free ones play: random, idle, a policy, or a callable you pass here. A
+named LLM or search algorithm is never called — its agent plays its default (its type's policy, else random)
+— and a run's own callables are not called either. A turn an `auto` stage plays without waking the agent is
+skipped, as the run skips it.
 
 ### `Env.run`
 

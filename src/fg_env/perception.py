@@ -100,9 +100,9 @@ class Perception:
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
                memory: Dict[str, str], time_limit: Optional[float] = None, shown: Optional["Shown"] = None,
-               attached: Optional[List[str]] = None, calls: Optional[int] = None) -> str:
+               attached: Optional[List[str]] = None, calls: Optional[int] = None, reads: bool = False) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
-        calls the turn has, shown when the stage limits them."""
+        calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect."""
         lines: List[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if stage.brief:
             lines.append(self._render(stage.brief, actor, f"stages.{stage.name}.brief"))
@@ -111,8 +111,8 @@ class Perception:
         if time_limit is not None:
             lines.append(f"You have {format_value(time_limit)} seconds for this turn; after that it ends.")
         if calls is not None:
-            lines.append(f"You have {calls} tool calls this turn, and up to {calls} free reads (look and inspect) that do "
-                         "not use them.")
+            free = f", and up to {calls} free reads (look and inspect) that do not use them" if reads else ""
+            lines.append(f"You have {calls} tool calls this turn{free}.")
         news, hidden = self.news(actor, since, DELTA_LIMIT, shown, attached)
         if news or hidden:
             lines += ["", "Since your last turn:" if since else "So far:"]

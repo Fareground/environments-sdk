@@ -16,6 +16,7 @@ import time
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional, Tuple, Union
 
+from .action_schemas import ToolSpec
 from .assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from .budget import tokens_of
 from .effects import each_items
@@ -392,6 +393,54 @@ _TRUNCATED = ("Your reply was cut off at the output limit before it called a too
               "keep your reasoning short.")
 #: What a leftover call in a reply gets once the turn has ended (it is not sent to the engine).
 _NOT_RUN = "Not done: your turn was already over."
+#: The shortest prompt prefix worth a cache breakpoint, in tokens: no Anthropic model caches a shorter one (the
+#: minimum is 512 tokens on the newest models, up to 4096 on others). A breakpoint below a model's own minimum costs
+#: nothing — the prefix is simply not cached — so the bar is the lowest minimum, never a higher one that would give up
+#: reads on the models that cache from 512.
+_CACHE_MIN_TOKENS = 512
+
+
+def _tokens(*parts: Any) -> int:
+    """A rough token count of request parts' text (about four characters a token; files' encoded bytes are left out):
+    enough to tell whether a prefix can be cached, and what a call about to be made will cost."""
+    return _chars(parts) // 4
+
+
+def _chars(value: Any) -> int:
+    if isinstance(value, Mapping):
+        return sum(len(str(key)) + _chars(item) for key, item in value.items() if key not in ("data", "file_data", "url"))
+    if isinstance(value, (list, tuple)):
+        return sum(_chars(item) for item in value)
+    return len(str(value))
+
+
+class _TurnTools:
+    """The tools a model is shown for a whole turn: the ones legal when the turn starts, in the engine's order, so every
+    call of the turn sends the same prompt prefix and reads the one before it from the prompt cache. The engine still
+    checks every call and refuses one that is no longer legal with the reason. A tool that becomes legal during the turn
+    is added; the result of each call names the offered tools that are not legal any more."""
+
+    def __init__(self, wake: Wake, provider: str):
+        self._convert = ToolSpec.to_anthropic if provider == "anthropic" else ToolSpec.to_openai
+        self.names: List[str] = []
+        self.definitions: List[Dict[str, Any]] = []
+        self._add(wake.tools)
+
+    def _add(self, tools: List[ToolSpec]) -> None:
+        for tool in tools:
+            if tool.name not in self.names:
+                self.names.append(tool.name)
+                self.definitions.append(self._convert(tool))
+
+    def changes(self, wake: Wake) -> str:
+        """What changed in the legal tools since the turn started, to add to a tool result ("" when nothing did)."""
+        if wake.done:
+            return ""
+        tools = wake.tools
+        self._add(tools)
+        legal = {tool.name for tool in tools}
+        gone = [name for name in self.names if name not in legal]
+        return f" (Not available now: {', '.join(gone)}.)" if gone else ""
 
 
 def _nudge(wake: Wake) -> str:
@@ -423,6 +472,18 @@ def _retryable(exc: BaseException) -> bool:
     if isinstance(status, int):
         return status in _RETRY_STATUSES
     return any(part in type(exc).__name__ for part in _RETRY_NAMES)
+
+
+def provider_failure(exc: BaseException, call: str, client: str, model: str, retries: int = 0) -> str:
+    """What a failed provider call (``call`` on a ``client``) says: the error, and how to fix it — for an error retrying
+    could fix that still failed after ``retries``, to try again later."""
+    status = getattr(exc, "status_code", None)
+    shown = f"{type(exc).__name__} (HTTP {status})" if isinstance(status, int) else type(exc).__name__
+    if _retryable(exc):
+        again = f" after {retries} retr{'y' if retries == 1 else 'ies'}" if retries else ""
+        return (f"{call} still failed{again} with {shown}: {exc}. The provider is down, overloaded or limiting your "
+                "rate: try again later, or allow more retries.")
+    return f"{call} failed with {shown}: {exc}. {_permanent_fix(exc, client, model)}"
 
 
 def _permanent_fix(exc: BaseException, client: str, model: str) -> str:
@@ -469,7 +530,8 @@ class _Over(Exception):
 
 
 class _EmptyReply(Exception):
-    """The provider answered with no reply in it (OpenRouter does this now and then): retried like an overload."""
+    """The provider answered with no reply in it, or one it says failed (OpenRouter does both now and then): retried
+    like an overload."""
 
 
 def _over(wake: Wake) -> bool:
@@ -520,7 +582,7 @@ class _LLMParticipant:
         self.usage = _LLMUsage()
         self._usage_lock = threading.Lock()
         #: The budget tokens this participant's latest model call spent: what the next call reserves of a token budget
-        #: (0 before its first).
+        #: (0 before its first, which reserves the size of its prompt).
         self._last_cost = 0
 
     def __call__(self, wake: Wake) -> None:
@@ -564,16 +626,17 @@ class _LLMParticipant:
             return None
         return wake.call(name, args)
 
-    def _create(self, wake: Wake, request: Callable[[], Any]) -> Any:
-        """One provider call, its usage counted. Rate limits, timeouts, overload, server errors and empty replies are
-        retried while the turn lasts, never sleeping past its deadline; when the retries run out the turn is forfeited.
+    def _create(self, wake: Wake, request: Callable[[], Any], prompt: int) -> Any:
+        """One provider call (``prompt``: its rough input tokens), its usage counted. Rate limits, timeouts, overload,
+        server errors and empty replies are retried while the turn lasts, never sleeping past its deadline; when the
+        retries run out the turn is forfeited.
         Any other error fails the run: retrying would send the same request again. Once the turn is over no call is
         made (:class:`_Over`)."""
         for attempt in range(self.retries + 1):
             if _over(wake):
                 raise _Over()
             try:
-                return self._call(wake, request)
+                return self._call(wake, request, prompt)
             except (RunError, _Over):
                 raise
             except Exception as exc:
@@ -586,13 +649,13 @@ class _LLMParticipant:
                 time.sleep(_backoff(attempt, exc) if left is None else min(_backoff(attempt, exc), left))
         raise AssertionError("unreachable")
 
-    def _call(self, wake: Wake, request: Callable[[], Any]) -> Any:
+    def _call(self, wake: Wake, request: Callable[[], Any], prompt: int) -> Any:
         """Make one model call and count its usage. Under a token budget the call first reserves what the previous call
-        spent (the first, of unknown cost, all that is left), waiting while the calls under way may spend what is left,
-        so parallel turns do not all overshoot it."""
+        spent (the first, the size of its prompt), waiting while the calls under way may spend what is left, so
+        parallel turns do not all overshoot it."""
         turn = wake._turn
         budget = turn.env.budget
-        held = budget.reserve(turn.env, turn, self._last_cost or None) if budget is not None else 0
+        held = budget.reserve(turn.env, turn, self._last_cost or prompt) if budget is not None else 0
         if held is None:
             raise _Over()
         try:
@@ -616,14 +679,12 @@ class _LLMParticipant:
 
     @staticmethod
     def _empty(response: Any) -> bool:
-        """Whether a response holds no reply at all (retried like an overload)."""
+        """Whether a response holds no usable reply: none at all, or one the provider says failed (retried like an
+        overload)."""
         return False
 
     def _failure(self, wake: Wake, exc: BaseException) -> RunError:
-        status = getattr(exc, "status_code", None)
-        shown = f"{type(exc).__name__} (HTTP {status})" if isinstance(status, int) else type(exc).__name__
-        return RunError(f"{self.CALL} failed with {shown}: {exc}. {_permanent_fix(exc, self.CLIENT, self.model)}",
-                        f"participant:{wake.entity_id}")
+        return RunError(provider_failure(exc, self.CALL, self.CLIENT, self.model), f"participant:{wake.entity_id}")
 
     def _record(self, wake: Wake, **counts: int) -> None:
         if counts.get("llm_calls"):
@@ -651,19 +712,25 @@ class _Anthropic(_LLMParticipant):
         self.max_tokens = max_tokens
 
     def _turn(self, wake: Wake) -> None:
-        system = [{"type": "text", "text": (self.system + "\n\n" if self.system else "") + wake.brief,
-                   "cache_control": {"type": "ephemeral"}}]
+        text = (self.system + "\n\n" if self.system else "") + wake.brief
         parts = anthropic_parts(wake.attachments, self.media) if self.media else []
         opening: Any = [{"type": "text", "text": wake.update}, *parts] if parts else wake.update
         messages: List[Dict[str, Any]] = [{"role": "user", "content": opening}]
+        offered = _TurnTools(wake, "anthropic")
         asked = False
         for _ in range(self.max_steps):
             if wake.done:
                 return
-            tools, sent = wake.tools_for("anthropic"), _cached(messages)
+            tools = offered.definitions
+            head = _tokens(tools, text)
+            system: List[Dict[str, Any]] = [{"type": "text", "text": text}]
+            if head >= _CACHE_MIN_TOKENS:
+                system[0]["cache_control"] = {"type": "ephemeral"}
+            prompt = head + _tokens(messages)
+            sent = _cached(messages) if prompt >= _CACHE_MIN_TOKENS else messages
             response = self._create(wake, lambda: self.client.messages.create(
                 model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=sent,  # noqa: B023 — called within this iteration
-                **self.extra))
+                **self.extra), prompt)
             if getattr(response, "stop_reason", None) == "refusal":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
@@ -694,6 +761,7 @@ class _Anthropic(_LLMParticipant):
                 reply: Any = [{"type": "text", "text": result.text}, *files] if files else result.text
                 results.append({"type": "tool_result", "tool_use_id": block.get("id"), "content": reply,
                                 "is_error": not result.ok})
+            _add_changes(results[-1], offered.changes(wake))
             messages.append({"role": "user", "content": results})
         self._out_of_steps(wake)
 
@@ -705,6 +773,17 @@ class _Anthropic(_LLMParticipant):
         self._record(wake, llm_calls=1, input_tokens=number("input_tokens"), output_tokens=number("output_tokens"),
                      cache_read_tokens=number("cache_read_input_tokens"),
                      cache_write_tokens=number("cache_creation_input_tokens"))
+
+
+def _add_changes(result: Dict[str, Any], changes: str) -> None:
+    """Add what changed in the legal tools to the text of a tool result."""
+    if not changes:
+        return
+    content = result["content"]
+    if isinstance(content, str):
+        result["content"] = content + changes
+    else:
+        result["content"] = [{**content[0], "text": content[0]["text"] + changes}, *content[1:]]
 
 
 def _cached(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -747,11 +826,13 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
               extra: Optional[Mapping[str, Any]] = None) -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client.
 
-    Two prompt-cache breakpoints: the system prompt (``system`` and the brief), and the latest message, so each model
-    call of a turn reads the one before it from the cache. Anthropic caches the tools ahead of both, and the tools are
-    the actions legal right now with their live choices, so a call reads the cache only when the agent is offered the
-    same tools as in the earlier call. A prompt shorter than the model's minimum is simply not cached (no charge).
-    When the agent has no action it could take, the model is not called and the turn ends.
+    The model is shown one tool list for the whole turn: the tools legal when the turn starts. A call to one that is no
+    longer legal is refused with the reason, each tool result names the offered tools not available any more, and a
+    tool that becomes legal during the turn is added. So every call of a turn sends the same prefix, and two
+    prompt-cache breakpoints — the system prompt (``system`` and the brief, cached after the tools) and the latest
+    message — let each call read the one before it from the cache. A breakpoint is placed only once its prefix is long
+    enough for any model to cache (about 512 tokens). When the agent has no action it could take, the model is not
+    called and the turn ends.
 
     Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
     sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's
@@ -805,13 +886,15 @@ class _OpenAI(_LLMParticipant):
             {"role": "system", "content": (self.system + "\n\n" if self.system else "") + wake.brief},
             {"role": "user", "content": [{"type": "text", "text": wake.update}, *parts] if parts else wake.update},
         ]
+        offered = _TurnTools(wake, "openai")
         asked = False
         for _ in range(self.max_steps):
             if wake.done:
                 return
-            tools = wake.tools_for("openai")
+            tools = offered.definitions
             response = self._create(wake, lambda: self.client.chat.completions.create(
-                model=self.model, messages=messages, tools=tools, **self.options, **self.extra))  # noqa: B023 — called within this iteration
+                model=self.model, messages=messages, tools=tools, **self.options, **self.extra),  # noqa: B023 — called within this iteration
+                _tokens(tools, messages))
             choice = response.choices[0]
             finish = getattr(choice, "finish_reason", None)
             message = choice.message
@@ -839,12 +922,13 @@ class _OpenAI(_LLMParticipant):
                 try:
                     args = json.loads(c.function.arguments or "{}")
                 except (json.JSONDecodeError, TypeError):
-                    args = c.function.arguments  # not JSON: the engine refuses it and counts it invalid
+                    args = c.function.arguments  # not JSON: the engine refuses it, saying so, and counts it invalid
                 result = self._dispatch(wake, c.function.name, args)
                 text = _NOT_RUN if result is None else result.text
                 if result is not None and self.media and result.attachments:
                     files += openai_parts(result.attachments, self.media)
                 messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
+            messages[-1]["content"] += offered.changes(wake)
             if files:  # tool messages carry text only: the files follow in one user message
                 messages.append({"role": "user", "content": [{"type": "text", "text": "Files from the tool results above:"},
                                                              *files]})
@@ -861,7 +945,8 @@ class _OpenAI(_LLMParticipant):
 
     @staticmethod
     def _empty(response: Any) -> bool:
-        return not getattr(response, "choices", None)
+        choices = getattr(response, "choices", None)
+        return not choices or getattr(choices[0], "finish_reason", None) == "error"
 
 
 def openai(client: Any, model: str, *, max_tokens: Optional[int] = None, reasoning_effort: Optional[str] = None,
@@ -871,11 +956,12 @@ def openai(client: Any, model: str, *, max_tokens: Optional[int] = None, reasoni
 
     ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
     ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
-    the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it
-    (OpenRouter sends one now and then) is retried like an overload. Retries, failures, refusals (a
+    the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it, or
+    with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries, failures, refusals (a
     ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
-    (``finish_reason`` ``length``) and ``retry_truncated`` work as for :func:`anthropic`; arguments that are not a
-    JSON object are refused and counted as invalid calls. Files are sent as
+    (``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for :func:`anthropic`;
+    arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and counted as invalid
+    calls. Files are sent as
     ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
     for text only); files from tool results follow the tool messages in one user message.
     """

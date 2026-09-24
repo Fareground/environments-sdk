@@ -287,9 +287,11 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
 
         Between rounds this plays the next round on a copy up to the agent's turn — scheduled
         effects, start events, physics and the turns of agents before it — so the preview shows the
-        turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns;
-        by default the run's built-in and named participants do (your own callables are never called).
-        A turn an `auto` stage plays without waking the agent is skipped, as the run skips it.
+        turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns; by default
+        the run's own participants do. Only free ones play: random, idle, a policy, or a callable you pass here. A
+        named LLM or search algorithm is never called — its agent plays its default (its type's policy, else random)
+        — and a run's own callables are not called either. A turn an `auto` stage plays without waking the agent is
+        skipped, as the run skips it.
         """
         return self.previews.preview(entity_id, stage, participants)
 

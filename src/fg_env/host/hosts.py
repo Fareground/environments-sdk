@@ -13,6 +13,7 @@ own is counted by how much its ``usage`` counters (``input_tokens``, ``output_to
 from __future__ import annotations
 
 import threading
+import time
 import weakref
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
@@ -20,7 +21,8 @@ from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, 
 if TYPE_CHECKING:
     from ..runtime import Env
 
-__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens"]
+__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens",
+           "time_left"]
 
 #: The counters of a host's ``usage`` that are model tokens.
 _TOKENS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
@@ -128,13 +130,13 @@ def counting(world: Any, adapter: Any) -> Iterator[None]:
     """Count the model tokens a host call made inside the block spends toward the run of ``world``: what the adapter
     reports with :func:`credit_tokens` while the block runs on this thread, else how much its ``usage`` grew."""
     before = _tokens(adapter)
-    outer = getattr(_CALL, "reported", None)
+    outer, outer_deadline = getattr(_CALL, "reported", None), getattr(_CALL, "deadline", None)
     reported: Dict[str, int] = {}
-    _CALL.reported = reported
+    _CALL.reported, _CALL.deadline = reported, world.turn_deadline()
     try:
         yield
     finally:
-        _CALL.reported = outer
+        _CALL.reported, _CALL.deadline = outer, outer_deadline
         if reported:
             spent = [reported.get(key, 0) for key in _TOKENS]
         else:
@@ -143,6 +145,13 @@ def counting(world: Any, adapter: Any) -> Iterator[None]:
             with _PENDING_LOCK:
                 pending = _PENDING.setdefault(world, [0] * len(_TOKENS))
                 pending[:] = [total + more for total, more in zip(pending, spent)]
+
+
+def time_left() -> Optional[float]:
+    """Seconds left before the turn that made the host call in progress on this thread must end (None: no limit), so an
+    adapter never waits past it (the reference adapters stop retrying instead)."""
+    deadline = getattr(_CALL, "deadline", None)
+    return None if deadline is None else max(0.0, deadline - time.monotonic())
 
 
 def credit_tokens(input_tokens: int = 0, output_tokens: int = 0, cache_read_tokens: int = 0,
