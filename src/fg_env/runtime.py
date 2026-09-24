@@ -286,9 +286,10 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         """What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
 
         Between rounds this plays the next round on a copy up to the agent's turn — scheduled
-        effects, start events, physics and the turns of agents before it (with their built-in
-        or named participants; your own callables are never called) — so the preview shows the
-        turn as the agent will get it.
+        effects, start events, physics and the turns of agents before it — so the preview shows the
+        turn as the agent will get it. Those turns are played only by the free built-in participants
+        (random, idle, a policy): an LLM, a search algorithm or your own callable is never called, and
+        its agent plays its default (its type's policy, else random) instead.
         """
         return self.previews.preview(entity_id, stage)
 

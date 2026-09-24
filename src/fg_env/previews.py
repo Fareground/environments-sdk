@@ -80,7 +80,7 @@ class Previews:
         """A restored copy of the run to play a preview on (hosts bind their copies here)."""
         env = self.env
         probe = restore_env(type(env), env.contract, snapshot, parallel=1)
-        probe.driver.spec = {k: v for k, v in env.driver.spec.items() if isinstance(v, str)}
+        probe.driver.spec = {k: v for k, v in env.driver.spec.items() if _plays_free(v, env.contract.policies)}
         probe.time_limit = env.time_limit
         return probe
 
@@ -119,6 +119,15 @@ class Previews:
                 "time_limit": turn.time_limit,
                 "tokens": {"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
                            "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
+
+
+def _plays_free(participant: Any, policies: Mapping[str, Any]) -> bool:
+    """Whether a participant plays the earlier turns of a preview: only the built-in ones that cost nothing and answer at
+    once (random, idle, a contract policy). An LLM, a search algorithm or your own callable is replaced by the agent's
+    default (its type's policy, else random): a preview never makes a paid or slow call."""
+    if not isinstance(participant, str):
+        return False
+    return participant in ("random", "idle") or participant.removeprefix("policy:") in policies
 
 
 def _refuse(path: str, message: str, name: str, known: List[str], kind: str) -> NoReturn:
