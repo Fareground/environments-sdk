@@ -312,12 +312,14 @@ def _stages(env: Env, rules: _Rules) -> list[dict[str, str]]:
     out = []
     for stage in env.contract.stage_list():
         reached, ran, woke, capped = env.diagnosis.stages.get(stage.name, [0, 0, 0, 0])
-        if capped and capped == ran and stage.until:
-            out.append(_finding("stage_until_never_held", f"stages.{stage.name}.until",
-                                f"never held: all {ran} time(s) the stage ran, it played every pass it allows and "
-                                f"stopped there with `{stage.until}` still false",
-                                "make an action or event set what `until` reads, or set `passes` to the number of "
-                                "passes the stage should always play"))
+        if capped and stage.until:
+            times = f"all {ran} time(s)" if capped == ran else f"{capped} of the {ran} time(s)"
+            out.append(_finding("stage_until_capped", f"stages.{stage.name}.until",
+                                f"did not hold in {times} the stage ran: it played every pass it allows and stopped "
+                                f"there with `{stage.until}` still false, so what `until` waits for (an agreement, a "
+                                "settled state) had not happened",
+                                "make an action or event set what `until` reads, allow more `passes`, or set `passes` "
+                                "to the number of passes the stage should always play"))
         if reached and not ran and stage.when:
             cause = rules.frozen(stage.when)
             if cause:

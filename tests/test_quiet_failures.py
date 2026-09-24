@@ -33,10 +33,20 @@ def test_a_requirements_why_is_a_template():
 
 def test_a_stage_whose_until_never_holds_is_reported():
     result = fg_env.run(CAPPED, lambda wake: wake.call("go", {"n": 1}), seed=1)
-    finding = next(d for d in result.diagnostics if d["code"] == "stage_until_never_held")
+    finding = next(d for d in result.diagnostics if d["code"] == "stage_until_capped")
     assert finding["path"] == "stages.talk.until" and "all 2 time(s)" in finding["message"]
     agreed = fg_env.run(CAPPED, lambda wake: wake.call("agree"), seed=1)
-    assert not any(d["code"] == "stage_until_never_held" for d in agreed.diagnostics)
+    assert not any(d["code"] == "stage_until_capped" for d in agreed.diagnostics)
+
+
+def test_a_stage_whose_until_gave_up_in_only_one_round_is_reported():
+    contract = {"name": "Talks", "clock": {"rounds": 10}, "world": {"offers": 0},
+                "types": {"p": {"agent": True}}, "entities": {"ann": {"type": "p"}},
+                "stages": [{"name": "talk", "until": "$round < 10", "actions": ["offer"]}],
+                "actions": {"offer": {"by": "p", "do": "$world.offers += 1"}}}
+    result = fg_env.run(contract, seed=1)
+    finding = next(d for d in result.diagnostics if d["code"] == "stage_until_capped")
+    assert "1 of the 10 time(s)" in finding["message"]
 
 
 @pytest.mark.parametrize("value, problem",
