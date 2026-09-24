@@ -313,7 +313,6 @@ class ActionBook(ActionSchemas, ActionValidation):
             if trial:
                 if isinstance(announce, str):
                     self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
-                world.touch()  # the announcement would have changed the state version
             elif announce is not False:
                 public = {} if self._sealed() else \
                     self._public_params(params, self._posted_since(record_mark), self._kept_secret(name))

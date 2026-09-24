@@ -2,6 +2,7 @@
 expressions read (the `$world` view is :class:`fg_env.expr.objects.PropsView`)."""
 from __future__ import annotations
 
+import itertools
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
@@ -129,11 +130,21 @@ class ClockView:
         raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label)", source)
 
 
+#: Every journal's versions come from one count, so no two different states anywhere share a version.
+_VERSIONS = itertools.count(1)
+
+
 class Journal:
     def __init__(self) -> None:
-        self._undo: list[Callable[[], object]] = []
-        #: Bumped by every change and every undo: equal versions mean an unchanged world.
+        #: Each change's undo, with the version it replaced.
+        self._undo: list[tuple[Callable[[], object], int]] = []
+        #: The world's version: a change moves it to one never used before, and undoing a change brings back the one it
+        #: replaced (a tried call rolled back leaves the world, and every cache of it, as it was). Equal versions mean
+        #: an equal world.
         self.version = 0
+        #: Changes below this position were followed by a change outside the journal (:meth:`bump`): undoing them does
+        #: not bring back the world of their version.
+        self._settled = 0
         #: Open :meth:`held` blocks, and whether a :meth:`clear` inside them waits for them to finish.
         self.holding = 0
         self._clear_due = False
@@ -142,19 +153,27 @@ class Journal:
         return len(self._undo)
 
     def push(self, undo: Callable[[], object]) -> None:
-        self._undo.append(undo)
-        self.version += 1
+        self._undo.append((undo, self.version))
+        self.version = next(_VERSIONS)
+
+    def bump(self) -> None:
+        """Record a change made outside the journal (metrics sampling, physics): no earlier version comes back."""
+        self.version = next(_VERSIONS)
+        self._settled = len(self._undo)
 
     def rollback(self, mark: int) -> None:
         while len(self._undo) > mark:
-            self._undo.pop()()
-            self.version += 1
+            undo, before = self._undo.pop()
+            undo()
+            self.version = before if len(self._undo) >= self._settled else next(_VERSIONS)
+        self._settled = min(self._settled, len(self._undo))
 
     def clear(self) -> None:
         if self.holding:
             self._clear_due = True
             return
         self._undo.clear()
+        self._settled = 0
         self._clear_due = False
 
     @contextmanager

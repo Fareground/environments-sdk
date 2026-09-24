@@ -476,7 +476,7 @@ class SdkWorld(World):
 
     def touch(self) -> None:
         """Record a change made outside the journal (metrics sampling, physics), so cached reads refresh."""
-        self.journal.version += 1
+        self.journal.bump()
 
     def state_version(self) -> Any:
         """Equal values mean nothing a read could see has changed (for caches of derived values)."""

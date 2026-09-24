@@ -48,7 +48,7 @@ _ENV_FIELDS = frozenset({
     "_signal", "_running", "driver", "time_limit", "budget", "happenings", "previews", "_on_event", "_emitted",
     "_turn_count", "_cursor", "_where", "_armed", "_in_round", "origin", "_inspectable",
     "_invariant_held", "pilot", "build_seed", "stepper", "diagnosis", "_end_on_action", "_brief_assets",
-    "_inspect_cache", "_rows", "_rows_last", "_keep_events", "_reads_log"})
+    "_rows", "_rows_last", "_keep_events", "_reads_log"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
@@ -93,7 +93,7 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
         seeds=source.seeds, world=world, status=source.status, ended_by=source.ended_by, error=source.error,
         time_limit=source.time_limit, budget=None, _on_event=None, _emitted=source._emitted,
         _turn_count=source._turn_count, _in_round=source._in_round, _inspectable=source._inspectable,
-        _end_on_action=source._end_on_action, pilot=None, _inspect_cache=None,
+        _end_on_action=source._end_on_action, pilot=None,
         build_seed=source.build_seed, stepper=None, _invariant_held={}, _briefs=dict(source._briefs),
         _rows=list(source._rows), _rows_last=source._rows_last, _keep_events=source._keep_events,
         _reads_log=source._reads_log,
