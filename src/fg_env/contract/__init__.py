@@ -40,7 +40,6 @@ from .measure import (
     END_CHECKS,
     INVARIANT_CHECKS,
     ArmSpec,
-    BlockSpec,
     CalibrationSpec,
     DefSpec,
     EndSpec,
@@ -120,7 +119,6 @@ __all__ = [
     "ScoreSpec",
     "UTILITIES",
     "DefSpec",
-    "BlockSpec",
     "InvariantSpec",
     "INPUT_TYPES",
     "INVARIANT_CHECKS",
@@ -188,9 +186,9 @@ class Contract(_Model):
                                                 description="Inputs fitted by short pilot sessions whenever the "
                                                             "contract loads.")
     invariants: list[InvariantSpec] = Field(default_factory=list)
-    defs: dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
-    blocks: dict[str, BlockSpec] = Field(default_factory=dict,
-                                         description="Reusable effect lists, run with {\"block\": name}.")
+    defs: dict[str, DefSpec] = Field(default_factory=dict,
+                                     description="Reusable expressions, called as $name(args), and effect lists, run "
+                                                 "with {\"call\": name, \"with\": {...}}.")
     mechanisms: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
         description="Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms "
@@ -281,6 +279,10 @@ class Contract(_Model):
     def scoring(self) -> ScoreSpec | None:
         """The first declared score (its seat order and utility are the game's), or None when no type scores."""
         return next((spec.score for spec in self.types.values() if spec.score is not None), None)
+
+    def expr_defs(self) -> dict[str, DefSpec]:
+        """The defs that are expressions (``expr``), called as ``$name(...)``."""
+        return {name: spec for name, spec in self.defs.items() if spec.expr is not None}
 
     def named_entities(self) -> dict[str, EntitySpec]:
         """The entities declared one by one (the key is the id), without the generator entries."""

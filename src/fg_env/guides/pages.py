@@ -55,7 +55,7 @@ ROOTS: list[tuple[str, str, str]] = [
     ("physics", "per.*.read/where", "$it"),
     ("feeds", "query/when/fallback", "—"),
     ("defs", "expr", "the def's args"),
-    ("blocks", "do", "the block's args + locals"),
+    ("defs", "do", "the def's args + locals"),
     ("outputs", "*", "$outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result "
                      "(winner, ended_by; not in a sampled one)"),
     ("end", "when/winner/say", "—"),
@@ -121,9 +121,8 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a "
      "load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
     ("defs", [C.DefSpec], "{name: expr | DefSpec}",
-     "Reusable expressions, called like built-ins: $utility($actor, 3)."),
-    ("blocks", [C.BlockSpec], "{name: BlockSpec}",
-     "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
+     "Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with "
+     "{\"call\": name, \"with\": {...}}."),
     ("imports", [], "[path]",
      "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and "
      "imported files may import others."),

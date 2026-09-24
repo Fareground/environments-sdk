@@ -540,10 +540,9 @@ def test_last_standing_team_cooperative_stable_eliminate_objectives():
     assert fg_env.run(goals, seed=1).winner == "r3"
 
 
-def test_victory_fills_the_game_section_with_seats_and_returns():
+def test_victory_gives_the_seats_a_score():
     race = _race([{"first_to": 6, "score": "$it.score"}])
-    game = fg_env.parse(race).game
-    assert game.players == "runner" and game.returns == "$won($actor, 'win')"
+    assert fg_env.parse(race).types["runner"].score.value == "$won($it, 'win')"
     assert fg_env.run(race, seed=1).returns == {"r1": 0, "r2": 0, "r3": 1}
     tied = fg_env.run(_race([{"first_to": 1, "score": "$it.hp"}]), seed=1)
     assert tied.returns == pytest.approx({"r1": 1 / 3, "r2": 1 / 3, "r3": 1 / 3})
@@ -554,10 +553,9 @@ def test_victory_fills_the_game_section_with_seats_and_returns():
     assert fg_env.run(nobody, seed=1).returns == {"r1": 0, "r2": 0, "r3": 0}
     own = _race([{"last_standing": True}])
     own["game"] = {"returns": "$actor.score", "utility": "general_sum"}
-    declared = fg_env.parse(own).game
-    assert declared.returns == "$actor.score" and declared.players == "runner"  # the author's entries win
+    assert fg_env.parse(own).types["runner"].score.value == "$it.score"  # the author's entries win
     unseated = _race([{"eliminate": "monster"}], who="monster")
-    assert fg_env.parse(unseated).game is None  # a non-agent type has no seats
+    assert fg_env.parse(unseated).scoring() is None  # a non-agent type has no seats
 
 
 def test_flow_kinds_fields_and_actions_say_what_to_fix():

@@ -7,6 +7,7 @@
 * ``links`` → ``relations.<r>.links`` (each entry without its ``relation``).
 * ``game`` → ``types.<player>.score`` (``returns`` over $actor → ``value`` over $it; the claims, which describe and
   check derive, and ``total`` are dropped; ``rewards`` is refused).
+* ``blocks`` → ``defs`` with ``do``; the ``{"block": b, "with": ...}`` effect → ``{"call": b, "with": ...}``.
 * Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
@@ -307,6 +308,45 @@ def game_into_scores(data: dict[str, Any]) -> list[str]:
                 own.setdefault(key, value)
     del data["game"]
     return ["game: now the score of " + ", ".join(f"types.{kind}" for kind in listed)]
+
+
+# -- blocks → defs with do; the block effect → call -----------------------------------------------------------------
+
+
+def _calls(value: Any) -> tuple[Any, bool]:
+    """``value`` with every ``{"block": b, "with": ...}`` effect written ``{"call": b, "with": ...}``."""
+    if isinstance(value, list):
+        items = [_calls(item) for item in value]
+        return [item for item, _ in items], any(changed for _, changed in items)
+    if not isinstance(value, dict):
+        return value, False
+    if isinstance(value.get("block"), str) and set(value) <= {"block", "with"}:
+        return {("call" if key == "block" else key): item for key, item in value.items()}, True
+    items = {key: _calls(item) for key, item in value.items()}
+    return {key: item for key, (item, _) in items.items()}, any(changed for _, changed in items.values())
+
+
+@rule
+def blocks_into_defs(data: dict[str, Any]) -> list[str]:
+    """``blocks: {b: {args, do}}`` → ``defs: {b: {args, do}}``, and each block effect → a call."""
+    notes = []
+    blocks = data.get("blocks")
+    if isinstance(blocks, dict):
+        defs = data.setdefault("defs", {})
+        clashes = [name for name in blocks if isinstance(defs, dict) and name in defs]
+        if not isinstance(defs, dict) or clashes:
+            raise ContractError([Issue(f"blocks.{name}", f"'{name}' is also a def",
+                                       "rename the block or the def: blocks become defs now") for name in clashes]
+                                or [Issue("defs", "must be an object of {name: def}")])
+        defs.update(blocks)
+        del data["blocks"]
+        notes += [f"blocks.{name}: now defs.{name}" for name in blocks]
+    rewritten, changed = _calls(data)
+    if changed:
+        data.clear()
+        data.update(rewritten)
+        notes.append('{"block": b}: now {"call": b}')
+    return notes
 
 
 # -- arm patches ----------------------------------------------------------------------------------------------------

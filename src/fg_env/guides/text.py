@@ -275,8 +275,8 @@ EFFECT_EXAMPLES = {
             '"drop": 0.2 — the wake may be lost)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; '
               'derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
-    "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from '
-             '`blocks`)',
+    "call": '{"call": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a def\'s `do` effects with '
+            'those arguments)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": '
               '[...]}], "as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": '
               '"card", "do": [...]}  (picks one outcome from the listed distribution, logged as a `chance` event; '
@@ -418,8 +418,9 @@ RECIPES = """\
   {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}], "on_remove":
   [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}}` — every firm, however it
   was created, is counted and connected; closing one lays off its jobs.
-* Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
-  `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
+* Reusable logic: `defs` — a formula (`"utility": {"args": ["side", "offer"], "expr": "..."}`, read as
+  `$utility(...)`) or an effect list (`"match": {"args": ["order"], "do": [...]}`, run with
+  `{"call": "match", "with": {"order": "$made"}}`).
 * Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
   those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
   the agent itself: show an agent's own state in a view).

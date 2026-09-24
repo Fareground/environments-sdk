@@ -247,15 +247,19 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
               params: Mapping[str, C.ParamSpec]) -> None:
         # An unknown callee may be the collection function that binds $it, $i and $outer (a misspelled $max): report
         # the name to repair, not those roots. Independent errors are kept.
+        exprs = self.c.expr_defs()
+        for name in sorted(name for name in compiled.functions if name in self.c.defs and name not in exprs):
+            self.error(path, f"${name}: def '{name}' runs effects, so it is not read as a value",
+                       f"run it as an effect: {{\"call\": \"{name}\", \"with\": {{...}}}} — in `{compiled.source}`")
         unknown = sorted(name for name in compiled.functions if name not in FUNCTIONS and name not in self.c.defs)
         for name in unknown:
-            hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
+            hint = suggest_function(name, list(FUNCTIONS) + list(exprs))
             self.error(path, f"unknown function ${name}",
                        (f"did you mean {hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for root in compiled.roots:
             if unknown and root in _ITEM_ROOTS:
                 continue
-            if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
+            if root not in roots and not (root in exprs and not exprs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
                 self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
         if not (compiled.roots or compiled.functions or compiled.methods):
@@ -466,7 +470,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self._measure()
         self._arms()
         self._calibration()
-        self._defs_and_blocks()
+        self._defs()
         check_game(self)
         check_scans(self)
         check_assets(self, BASE)

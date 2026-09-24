@@ -20,7 +20,7 @@ An effect list mixes assignment statements and keyed operations::
     {"after": 3, "do": [...]}
     {"wake": "$params.who", "why": "{$actor.name} asked you a question."}
     {"repeat": 1000, "while": "$best_bid.price >= $best_ask.price", "do": [...]}
-    {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
+    {"call": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}
     {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails"}], "as": "coin"}
 
 Everything an action does is atomic: ``fail`` (or any error) rolls every change back.
@@ -66,7 +66,7 @@ EFFECT_OPS: dict[str, tuple[str, ...]] = {
     "after": ("after", "do"),
     "wake": ("wake", "why", "in", "now", "actions", "drop"),
     "repeat": ("repeat", "while", "do"),
-    "block": ("block", "with"),
+    "call": ("call", "with"),
     "chance": ("chance", "outcomes", "weight", "as", "do"),
 }
 
@@ -564,22 +564,23 @@ class EffectRunner:
             if world.continuous:
                 world.set_wake_at(entity_id, advance_time(world.time, delay, where))
 
-    def _op_block(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-        name = effect["block"]
-        spec = self.world.contract.blocks.get(name)
-        if spec is None:
-            raise RunError(f"'{name}' is not a declared block (blocks: "
-                           f"{', '.join(self.world.contract.blocks) or 'none'})", where)
+    def _op_call(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
+        name = effect["call"]
+        defs = self.world.contract.defs
+        spec = defs.get(name)
+        if spec is None or spec.do is None:
+            raise RunError(f"'{name}' is not a def with `do` (effect defs: "
+                           f"{', '.join(n for n, d in defs.items() if d.do is not None) or 'none'})", where)
         given = effect.get("with") or {}
         if set(given) != set(spec.args):
-            raise RunError(f"block '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
+            raise RunError(f"def '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
         depth = getattr(self, "_depth", 0)
         if depth >= 16:
-            raise RunError(f"block '{name}' runs blocks too deeply (recursion?)", where)
+            raise RunError(f"def '{name}' calls defs too deeply (recursion?)", where)
         inner = {key: self._eval(value, vars) for key, value in given.items()}
         self._depth = depth + 1
         try:
-            self.run(spec.do, inner, f"blocks.{name}.do")
+            self.run(spec.do, inner, f"defs.{name}.do")
         finally:
             self._depth = depth
 

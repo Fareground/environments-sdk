@@ -28,7 +28,7 @@ def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[st
         return frozenset()
     sampled = {name: spec.sampled or "" for name, spec in contract.series_outputs().items()}
     texts = dict(sampled)
-    texts.update({name: spec.expr for name, spec in contract.defs.items() if name not in texts})
+    texts.update({name: spec.expr or "" for name, spec in contract.expr_defs().items() if name not in texts})
     names = {name: set(_NAME.findall(text)) for name, text in texts.items()}
     hidden = {name for name, found in names.items() if found & private}
     grown = True

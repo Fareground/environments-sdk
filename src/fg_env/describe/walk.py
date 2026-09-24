@@ -19,7 +19,7 @@ _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
 #: Sections that build the world before round 1.
 _SETUP = frozenset({"world", "types", "entities", "relations", "space"})
 #: Sections whose expressions change or steer the world during play.
-_RULES = frozenset({"actions", "events", "triggers", "stages", "end", "defs", "blocks", "physics", "invariants",
+_RULES = frozenset({"actions", "events", "triggers", "stages", "end", "defs", "physics", "invariants",
                     "feeds"})
 #: Fields whose text an agent reads: briefs, descriptions, news, outcomes, entries, titles, refusal reasons.
 _TEXT_FIELDS = frozenset({"brief", "description", "outcome", "announce", "say", "show", "why", "title", "empty",
@@ -138,8 +138,8 @@ def draws(contract: Contract, texts: Sequence[str]) -> bool:
             return True
         for name in called - seen:
             seen.add(name)
-            if name in contract.defs:
-                pending.append(contract.defs[name].expr)
+            if name in contract.expr_defs():
+                pending.append(contract.defs[name].expr or "")
     return False
 
 

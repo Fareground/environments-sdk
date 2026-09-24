@@ -1,4 +1,4 @@
-"""Checking events, triggers, policies, measures, defs and blocks, arms, and calibration."""
+"""Checking events, triggers, policies, measures, defs, arms, and calibration."""
 from __future__ import annotations
 
 import re
@@ -160,17 +160,20 @@ class RuleChecks:
         if not self.c.outputs:
             self.warn("outputs", "no outputs declared", "declare the typed results this environment produces")
 
-    def _defs_and_blocks(self: _Checker) -> None:  # type: ignore[misc]
+    def _defs(self: _Checker) -> None:  # type: ignore[misc]
         for name, spec in self.c.defs.items():
             path = f"defs.{name}"
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
                 self.error(path, "def names are letters, digits and underscores")
-            if name in FUNCTIONS:
-                self.warn(path, f"'{name}' shadows the built-in ${name}; this contract's def is used",
-                          "rename it if you meant the built-in")
             for arg in spec.args:
                 if arg in BASE or arg in RESERVED_ROOTS:
                     self.error(f"{path}.args", f"'{arg}' is a built-in root", "choose another argument name")
+            if spec.do is not None:
+                self.effects(spec.do, f"{path}.do", set(BASE) | set(spec.args), {})
+                continue
+            if name in FUNCTIONS:
+                self.warn(path, f"'{name}' shadows the built-in ${name}; this contract's def is used",
+                          "rename it if you meant the built-in")
             self.expr(spec.expr, f"{path}.expr", BASE | set(spec.args))
             bare: set[str] = set()
             try:
@@ -180,12 +183,6 @@ class RuleChecks:
             for arg in sorted(bare):
                 self.error(f"{path}.expr", f"argument '{arg}' is written without $, so it is the text '{arg}'",
                            f"write ${arg}")
-        for name, block in self.c.blocks.items():
-            path = f"blocks.{name}"
-            for arg in block.args:
-                if arg in BASE or arg in RESERVED_ROOTS:
-                    self.error(f"{path}.args", f"'{arg}' is a built-in root", "choose another argument name")
-            self.effects(block.do, f"{path}.do", set(BASE) | set(block.args), {})
 
     def _arms(self: _Checker) -> None:  # type: ignore[misc]
         for name, arm in self.c.arms.items():

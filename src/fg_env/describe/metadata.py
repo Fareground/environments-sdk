@@ -59,8 +59,9 @@ class _Scan:
         rules = [text for _, text, where in self.texts if "rules" in where]
         sampled = contract.series_outputs()
         measured = {name for text in shown for name in _MEASURE_REF.findall(text) if name in sampled}
-        called = {name for text in shown for name in walk.calls(text) if name in contract.defs}
-        shown += [sampled[name].sampled or "" for name in measured] + [contract.defs[name].expr for name in called]
+        exprs = contract.expr_defs()
+        called = {name for text in shown for name in walk.calls(text) if name in exprs}
+        shown += [sampled[name].sampled or "" for name in measured] + [exprs[name].expr or "" for name in called]
         self.shown_world: set[str] = set().union(*(walk.world_reads(text) for text in shown))
         self.rule_world: set[str] = set().union(*(walk.world_reads(text) for text in rules))
         self.shows_physics = any("$physics." in text for text in shown)

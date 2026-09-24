@@ -295,10 +295,11 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
     lines += _dynamics(contract)
     lines += _patterns(contract)
     for name, formula in contract.defs.items():
+        if formula.do is not None:
+            lines += [f"### Effects `{name}({', '.join(formula.args)})`", ""] + _code(formula.do)
+            continue
         lines += [f"### Formula `${name}({', '.join(formula.args)})`", ""] \
             + ([formula.description, ""] if formula.description else []) + _code([formula.expr])
-    for name, block in contract.blocks.items():
-        lines += [f"### Effect block `{name}({', '.join(block.args)})`", ""] + _code(block.do)
     for name, config in contract.mechanisms.items():
         key = use_key(config) or ""
         family, _, mode = key.partition(".")

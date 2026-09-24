@@ -290,7 +290,7 @@ def run_hook(runner: Any, block: str, args: dict[str, Any], path: str) -> None:
     world = runner.world
     mark = world.journal.mark()
     try:
-        runner.run([{"block": block, "with": {key: f"${key}" for key in args}}], dict(args), path)
+        runner.run([{"call": block, "with": {key: f"${key}" for key in args}}], dict(args), path)
     except Abort as exc:
         world.journal.rollback(mark)
         world.emit("mechanism_refused", f"{block} was refused: {exc.reason}", to=[],

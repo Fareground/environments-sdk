@@ -7,7 +7,7 @@ from pydantic import Field, StrictBool, model_validator
 
 from .base import OUTPUT_TYPES, Effects, TypeName, _ExprShorthand, _Model
 
-__all__ = ["OutputSpec", "EndSpec", "DefSpec", "BlockSpec", "ArmSpec", "INVARIANT_CHECKS", "END_CHECKS",
+__all__ = ["OutputSpec", "EndSpec", "DefSpec", "ArmSpec", "INVARIANT_CHECKS", "END_CHECKS",
            "InvariantSpec", "CalibrationSpec"]
 # ---------------------------------------------------------------------------
 # Measurement, ending, experiment, invariants
@@ -54,11 +54,14 @@ class EndSpec(_Model):
 
 
 class DefSpec(_Model):
-    """A named, reusable expression called like a built-in: ``$utility($actor, $params.offer)``.
-    Shorthand: the expression text (no arguments)."""
+    """A named, reusable piece of the rules. With ``expr`` it is an expression called like a built-in:
+    ``$utility($actor, $params.offer)`` (shorthand: the expression text, no arguments). With ``do`` it is an effect
+    list run by the ``call`` effect: ``{"call": "settle", "with": {"buyer": "$actor"}}``; its effects see only the
+    arguments (plus $inputs, $world, $round …), never the caller's locals."""
 
     args: list[str] = Field(default_factory=list, description="Argument names; the body reads them as roots ($side).")
-    expr: str
+    expr: str | None = Field(None, description="The expression it gives.")
+    do: Effects | None = Field(None, description="The effects it runs, when called with {\"call\": name}.")
     description: str = ""
 
     @model_validator(mode="before")
@@ -66,14 +69,12 @@ class DefSpec(_Model):
     def _expand(cls, data: Any) -> Any:
         return data if isinstance(data, dict) else {"expr": data}
 
-
-class BlockSpec(_Model):
-    """A named, reusable effect list: ``{"block": "settle", "with": {"buyer": "$actor"}}``.
-    The effects see only the arguments (plus $inputs, $world, $round …), never the caller's locals."""
-
-    args: list[str] = Field(default_factory=list)
-    do: Effects
-    description: str = ""
+    @model_validator(mode="after")
+    def _one_body(self) -> DefSpec:
+        if (self.expr is None) == (self.do is None):
+            raise ValueError("give `expr` (an expression, called as $name(...)) or `do` (effects, run with "
+                             "{\"call\": name}), not both")
+        return self
 
 
 class ArmSpec(_Model):
