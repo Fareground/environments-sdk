@@ -283,6 +283,16 @@ def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):
         env.world.assets.data(asset)
 
 
+def test_editing_one_copy_of_a_file_never_breaks_another_contract_holding_the_original(tmp_path):
+    first, second = trial(tmp_path / "first"), trial(tmp_path / "second")
+    (tmp_path / "first" / "files" / "report.md").write_text(f"Only here: {tmp_path}", encoding="utf-8")
+    (tmp_path / "second" / "files" / "report.md").write_text(f"Only here: {tmp_path}", encoding="utf-8")
+    fg_env.load(first, seed=1)
+    env = fg_env.load(second, seed=1)
+    (tmp_path / "first" / "files" / "report.md").write_text("edited", encoding="utf-8")
+    assert env.world.assets.data(env.world.assets.get("report")) == f"Only here: {tmp_path}".encode()
+
+
 def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, monkeypatch):
     from fg_env.copying.stepping import Stepper
     from fg_env.game import apply_step, game
