@@ -235,9 +235,6 @@ def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,
             entity_id = row["id"]
         else:
             entity_id = f"{key}_{n}"
-        if entity_id in world.entities:
-            raise RunError(f"generates the id '{entity_id}', which another entity already has",
-                           f"{path} → rename one of them, or give the generator an `id` template")
         if name_template is not None:
             name = name_template.render(scope)
         elif isinstance(row, dict) and isinstance(row.get("name"), str):

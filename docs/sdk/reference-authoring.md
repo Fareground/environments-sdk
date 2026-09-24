@@ -104,21 +104,21 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `clock` | `{rounds: 20, unit: "round"}` |
 | `inputs` | `{name: {type, default, min, max, values, fields}}` — set at load, read as `$inputs.name` |
 | `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` |
-| `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends, policies, score}}` — `policies`: coded participants for baselines (`policy:<name>`); `score`: what each seat scores |
-| `entities` | `{id: {type, name, props}}`, or a generator `{key: {type, count, from, name: "Buyer {$i}", props}}` — ids `<key>_<n>`; `from` makes one entity per input row (`$row`) |
+| `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends, policies, score}}` — `policies`: coded participants (`policy:<name>`) |
+| `entities` | `{id: {type, name, props}}`; `count` or `from` (one per input row, `$row`) generates `<id>_1` … |
 | `records` | `{log: {fields, show, visible}}` — logs (chat, bids) written by `post` |
 | `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce, private}}` |
 | `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
 | `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor`; a list includes the viewer unless `where: "$it.id != $actor.id"` |
 | `events` | `[{phase: start or end, at, every, when, each, do, say}]` |
 | `end` | `[{when, winner, say, check: stage or action}]` |
-| `outputs` | `{name: expr}` or `{name: {expr, type, series}}`; `series: true` also samples it every round (`$outputs.name`, `$series.name`); `format` (money, pct, 2 …) shapes summaries |
+| `outputs` | `{name: expr}` or `{name: {expr, type, series}}`; `series: true` samples it every round (`$outputs.x`, `$series.x`); `format` shapes summaries |
 | `invariants` | `[expr or {expr, why}]` — must always hold |
 | `patterns` | `{name: {kind, …}}` — trends, seasons, random paths, draws; read `$pattern.name` |
 | `mechanisms` | `{name: {kind, mode, ...}}` — markets, auctions, ballots, hidden roles, queues …; `guide('mechanisms')` |
 
-Also: `triggers`, `space`, `relations` (with their starting `links`), `physics`, `feeds`, `arms`, `defs`
-(formulas and effect lists), `imports`; files are inputs of `type: file` (`guide('assets')`). Property types: number int bool text enum list map any. Without `type` the default
+Also: `triggers`, `space`, `relations` (and their `links`), `physics`, `feeds`, `arms`, `defs`, `imports`; files
+are inputs of `type: file`. Property types: number int bool text enum list map any. Without `type` the default
 decides: a number → `number` (fractions too; `"type": "int"` for whole numbers), true/false → `bool`, text → `text`
 (`enum` with `values`), a list or object → `list`/`map`, an expression → `any`. Inputs also take `table` (rows with
 `fields`). Parameter types: number int bool text enum entity list file; an
