@@ -17,6 +17,7 @@ from .pages import (SECTIONS, effects_page, expressions_page, family_page, funct
                     functions_page, mechanisms_page, mode_page, section_page)
 from ..analysis.optimise_guide import OPTIMISE
 from ..assets.guide import ASSETS
+from ..engines import list_engines
 from .text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
 from ..patterns.guide import patterns_page
 from ..patterns.schema import patterns_definitions, patterns_field_schema
@@ -57,6 +58,13 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 
 FAMILIES
 
+## Engines
+
+Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
+`fg-env new --engine <id> my_env.json` (`fg_env.clone_engine`); `fg-env engines` lists them.
+
+ENGINES
+
 ## Every other part
 
 `fg_env.guide('<part>')` or `fg-env guide <part>`:
@@ -92,8 +100,9 @@ def _core() -> str:
     families = ["| kind | modes | for |", "|---|---|---|"]
     families += [f"| `{name}` | {', '.join(family.modes) or '—'} | {family.doc} |" for name, family in FAMILIES.items()]
     parts = "\n".join(f"- `{name}` — {about}" for name, about in _PARTS_MAP)
+    engines = "\n".join(f"- `{engine.id}` — {engine.summary}" for engine in list_engines(available=True))
     return (_MAP.replace("SECTIONS", "\n".join(sections)).replace("FAMILIES", "\n".join(families))
-            .replace("PARTS", parts))
+            .replace("ENGINES", engines).replace("PARTS", parts))
 
 
 def _game_page() -> str:

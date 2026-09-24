@@ -425,9 +425,11 @@ def _metric_key(outcome: str) -> str:
 @mode("market", "prediction", PredictionMarketConfig,
            "A market on which of several outcomes happens, priced by an automated market maker (lmsr or cpmm). Tools "
            "`<name>_buy` and `<name>_sell` trade one outcome by shares or by money; each winning share pays 1 when the market "
-           "resolves (at `resolve_at`, when `resolve_when` holds, or with the op {\"market\": name, \"action\": \"resolve\", "
-           "\"outcome\": ...}). Read it with $amm(name), $amm_outcomes(name, viewer) and $amm_cost(name, outcome, shares); "
-           "metrics <name>_p_<outcome> track prices.",
+           "resolves; each trader holds its shares in `<name>_shares` ({outcome: shares}). The market maker's vault starts with "
+           "seed money (lmsr: liquidity × ln(outcomes), its worst-case loss; cpmm: liquidity), which a ledger counts in "
+           "its starting supply, not in its flows. It resolves at `resolve_at`, "
+           "when `resolve_when` holds, or with the op {\"market\": name, \"action\": \"resolve\", \"outcome\": ...}. "
+           "Read it with $amm(name), $amm_outcomes(name, viewer) and $amm_cost(name, outcome, shares); metrics <name>_p_<outcome> track prices.",
            example={"who": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr", "liquidity": 50,
                     "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"})
 def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:

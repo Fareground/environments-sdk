@@ -1,7 +1,7 @@
 # host / judge
 
 ### `host.judge`
-A rubric judge answered by a host evaluator: the `judge` action (`text` and `subject`) in any effect list (or every new entry of `record`) scores the text per criterion, alone or as a panel, optionally blind. Each verdict is posted to the record <name> (subject, scores, total, rationale «quoted») and added to $world.<name>_totals and the `into` property, recorded for replay.
+A rubric judge answered by a host evaluator: the `judge` action (`text` and `subject`) in any effect list (or every new entry of `record`) scores the text per criterion, alone or as a panel, optionally blind. Each verdict is posted to the record <name> (subject, scores, total, rationale «quoted», stand_in: true when the midpoint fallback scored it, not an evaluator) and added to $world.<name>_totals and the `into` property, recorded for replay.
 
 Config:
 - `criteria` (required): {criterion: {description, weight, scale}}.

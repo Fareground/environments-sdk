@@ -5,6 +5,7 @@
     {
       "id": "market",
       "title": "Market",
+      "summary": "households choose whether and where to buy while sellers set prices",
       "description": "Simulates households choosing each day whether to buy (against making coffee at home, so total demand answers to price) and at which café, while sellers set prices, promotions and subscriptions (coded cafés reprice toward more profit); the sampled households (at least 80) stand for the whole city, so capacities scale with the sample and a bigger sample is a finer estimate of the same market.",
       "status": "native",
       "path": "starters/coffee_market.json"
@@ -12,6 +13,7 @@
     {
       "id": "council",
       "title": "Council",
+      "summary": "a panel forecasts a yes/no question, deliberates and forecasts again (Brier-scored)",
       "description": "Simulates a panel (a table input) giving sealed probability forecasts on a yes/no question, deliberating and forecasting again; scores the final forecasts (Brier) once the outcome is supplied and measures consensus by their spread; coded panelists forecast from their prior with private noise and, having heard everyone, move part of the way toward the others by a personal openness.",
       "status": "native",
       "path": "starters/forecast_council.json"
@@ -19,6 +21,7 @@
     {
       "id": "dispute",
       "title": "Dispute",
+      "summary": "a civil trial: evidence, objections and cross-examination before a judge, then a jury verdict",
       "description": "Simulates two sides offering (coded counsel lead with their strongest exhibits and now and then risk a flawed one), objecting to and cross-examining evidence before a judge; the parties, case, jury and exhibits are inputs; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
       "status": "native",
       "path": "starters/civil_trial.json"
@@ -26,7 +29,8 @@
     {
       "id": "exchange",
       "title": "Exchange",
-      "description": "Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental.",
+      "summary": "a calibrated trader crowd on a limit order book, with a few trader seats",
+      "description": "Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental (by default a scripted guidance cut at bar 30 knocks 8% off it, so a default session ends lower).",
       "status": "native",
       "path": "starters/exchange_flagship.json",
       "resources": [
@@ -38,6 +42,7 @@
     {
       "id": "legislature",
       "title": "Legislature",
+      "summary": "members move, second, amend, debate and vote on a measure",
       "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each member's view blends their starting stance with the floor speeches so far, their own party's counting more, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
@@ -45,6 +50,7 @@
     {
       "id": "contest",
       "title": "Contest",
+      "summary": "participants submit each round and a host judge scores them on a rubric",
       "description": "Simulates participants submitting each round while a host judge scores them on a weighted rubric; the single top scorer wins, a rubric tie goes to the stronger hidden performance (skill plus luck), and without a judge skill and luck decide and the run says so (judged is false).",
       "status": "native",
       "path": "starters/contest.json"
@@ -52,6 +58,7 @@
     {
       "id": "deliberation",
       "title": "Deliberation",
+      "summary": "people exchange reasons, propose a conclusion and vote on it",
       "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each member's view blends their starting stance with the speeches so far, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
       "status": "native",
       "path": "starters/open_deliberation.json"
@@ -59,13 +66,15 @@
     {
       "id": "negotiation",
       "title": "Negotiation",
-      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears, the issues they care least about first.",
+      "summary": "two parties trade multi-issue offers and counteroffers before a deadline",
+      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears, each at a pace drawn every run, the issues they care least about first.",
       "status": "native",
       "path": "starters/multi_issue_negotiation.json"
     },
     {
       "id": "population",
       "title": "Population",
+      "summary": "sampled people each respond to one situation; the responses are aggregated",
       "description": "Runs sampled people through a shared situation: each responds independently from their inclination, blurred by their uncertainty, and the responses are aggregated.",
       "status": "native",
       "path": "starters/population_response.json"
@@ -73,6 +82,7 @@
     {
       "id": "network",
       "title": "Network",
+      "summary": "an idea spreads over trust ties from its first adopters",
       "description": "Simulates an idea spreading over explicit ties from the initial adopters (inputs.seeds): each round every adopter may convince each contact with a chance of trust times receptivity, so trust and time drive adoption; people may also take up or turn down what they heard, or recommend it; adopters, the seed included, stay committed.",
       "status": "native",
       "path": "starters/influence_network.json"
@@ -80,6 +90,7 @@
     {
       "id": "matching",
       "title": "Matching",
+      "summary": "applicants and selectors rank each other; a stable match within capacity",
       "description": "Simulates two-sided matching: applicants and selectors privately rank each other and deferred acceptance makes a stable match within each selector's capacity.",
       "status": "native",
       "path": "starters/capacity_matching.json"
@@ -87,7 +98,8 @@
     {
       "id": "strategy",
       "title": "Strategy",
-      "description": "Simulates repeated cooperate-or-compete choices among any number of players under a configurable payoff matrix; coded players follow classic strategies (tit for tat, grim trigger, always cooperate or compete, random) with occasional mistakes, and a tie names no winner.",
+      "summary": "repeated cooperate-or-compete choices among players under a payoff matrix",
+      "description": "Simulates repeated cooperate-or-compete choices among any number of players under a configurable payoff matrix; coded players follow classic strategies (tit for tat, grim trigger, always cooperate or compete, random), which ignore the payoffs, or look forward and weigh the payoffs against the rounds left, with occasional mistakes, and a tie names no winner.",
       "status": "native",
       "path": "starters/repeated_strategy.json"
     }

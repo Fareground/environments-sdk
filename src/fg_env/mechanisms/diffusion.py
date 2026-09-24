@@ -110,8 +110,8 @@ def _reach_fn(call: Call) -> int:
     return len(set(state["adopted"]) | set(state["exposed"]) | set(state["rejected"]))
 
 
-@function("adopters(item)", "How many agents currently hold an item (adopted, not rejected).", min_args=1, max_args=1)
-def _adopters_fn(call: Call) -> int:
+@function("adopter_count(item)", "How many agents currently hold an item (adopted, not rejected).", min_args=1, max_args=1)
+def _adopter_count_fn(call: Call) -> int:
     state = _find(call.scope.world, _item_key(call.arg(0), call.source))
     return len(state["adopted"]) if state is not None else 0
 
@@ -356,7 +356,7 @@ def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: Dict[st
            "Items (rumors, ideas, products) spreading over a relation by independent cascade or linear threshold, with "
            "per-agent states (unaware, exposed, adopted, rejected) and exposure counts in the world prop `<name>`. Steps "
            "every round (in `phase`) or on demand with the `step` action; `on_adopt` effects run per adopter. Read it with "
-           "$reach(item), $adopters(item), $spread_state(agent, item), $exposures(agent, item), $heard(agent).",
+           "$reach(item), $adopter_count(item), $spread_state(agent, item), $exposures(agent, item), $heard(agent).",
            example={"who": "account", "over": "follows", "flow": "against", "model": "cascade", "p": 0.1,
                     "seeds": {"rumor": ["u1"]}})
 def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:

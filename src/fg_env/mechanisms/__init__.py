@@ -33,7 +33,7 @@ from ..errors import Issue
 from ..parse_errors import shape_issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 
-__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "FAMILIES"]
+__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -200,6 +200,76 @@ def separate_turns(data: Mapping[str, Any]) -> List[Issue]:
             for kind, names in staged.items() if len(names) > 1]
 
 
+def authored_slips(data: Mapping[str, Any]) -> List[Issue]:
+    """Warnings for parts the author wrote that a mechanism will not see: an action declared under a generated action's
+    name without the effects the mechanism gave it (the author's action replaces the generated one whole, so a ballot
+    whose vote no longer records the vote counts nothing, on every seed), and a bare holdings property (`shares`,
+    `units`) on a type whose goods the mechanism keeps in `<name>_shares` / `<name>_units`."""
+    uses = data.get("mechanisms")
+    if not isinstance(uses, Mapping) or expand_mechanisms(data)[1]:
+        return []
+    issues: List[Issue] = []
+    for name, use in uses.items():
+        found = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
+        if not isinstance(found, tuple):
+            continue
+        spec = found[0]
+        try:  # alone, without what the other mechanisms generate, a mechanism may not expand: nothing to compare then
+            fragment = spec.expand(name, spec.config.model_validate(config_data(use)), copy.deepcopy(dict(data)))
+        except MechanismError:
+            continue
+        issues.extend(_dropped_effects(str(name), fragment, data))
+        issues.extend(_lookalike_holdings(str(name), fragment, data))
+    return issues
+
+
+def _dropped_effects(name: str, fragment: Mapping[str, Any], data: Mapping[str, Any]) -> List[Issue]:
+    issues = []
+    actions = _mapping(data.get("actions"))
+    for key, generated in _mapping(fragment.get("actions")).items():
+        mine = actions.get(key)
+        if not isinstance(mine, Mapping) or not isinstance(generated, Mapping):
+            continue
+        kept = {_canonical(effect) for effect in _effects(mine)}
+        dropped = [effect for effect in _effects(generated) if _canonical(effect) not in kept]
+        if dropped:
+            issues.append(Issue(f"actions.{key}", f"your '{key}' replaces the action mechanism '{name}' generates and "
+                                f"leaves out what it does: {_canonical(dropped)}",
+                                "keep those effects in its `do` (fg-env expand --mechanisms shows the generated action), "
+                                "or delete your version to use the generated one", "warning"))
+    return issues
+
+
+#: Goods a mechanism keeps in `<name>_<word>` props, which an author may write bare.
+_HOLDINGS = ("shares", "units")
+
+
+def _lookalike_holdings(name: str, fragment: Mapping[str, Any], data: Mapping[str, Any]) -> List[Issue]:
+    issues = []
+    entities = _mapping(data.get("entities"))
+    for type_name, generated in _mapping(fragment.get("types")).items():
+        held = [word for word in _HOLDINGS if f"{name}_{word}" in _mapping(_mapping(generated).get("props"))]
+        declared = [(f"types.{type_name}.props", _mapping(_mapping(data.get("types")).get(type_name)).get("props"))]
+        declared += [(f"entities.{eid}.props", _mapping(e).get("props")) for eid, e in entities.items()
+                     if _mapping(e).get("type") == type_name]
+        for path, props in declared:
+            for word in held:
+                if isinstance(props, Mapping) and word in props and f"{name}_{word}" not in props:
+                    issues.append(Issue(f"{path}.{word}", f"mechanism '{name}' does not read `{word}`: it keeps each "
+                                        f"{type_name}'s {word} in `{name}_{word}`",
+                                        f"rename it to `{name}_{word}`", "warning"))
+    return issues
+
+
+def _mapping(value: Any) -> Mapping[str, Any]:
+    return value if isinstance(value, Mapping) else {}
+
+
+def _effects(action: Mapping[str, Any]) -> List[Any]:
+    effects = action.get("do") or []
+    return [effects] if isinstance(effects, (str, Mapping)) else list(effects)
+
+
 def _listed(names: Sequence[str]) -> str:
     return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
@@ -330,7 +400,7 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
     if error["type"] == "extra_forbidden":
         field = str(loc[-1])
         fields = _fields_at(model, loc[:-1])
-        hint = get_close_matches(field, fields, n=1) or (["who"] if "who" in fields and field in _ACTOR_WORDS else [])
+        hint = ["who"] if "who" in fields and field in _ACTOR_WORDS else get_close_matches(field, fields, n=1)
         owner = label if len(loc) == 1 else f"`{'.'.join(str(p) for p in loc[:-1])}`"
         fix = (f"did you mean '{hint[0]}'? " if hint else "") + (f"{owner} takes: {', '.join(fields)}" if fields else "")
         return Issue(at, f"`{field}` is not a field of {owner}", fix.strip() or None)

@@ -107,7 +107,8 @@ def _money_left(currency: str, spec: CurrencySpec) -> str:
       "allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, `<name>_repay` "
       "and `<name>_set_rate` with per-round interest, due dates and default. The invariant `$conserved(<name>)` "
       "proves balances equal $world.<name>_supply, counting the money markets hold for their traders (reserves, escrow, "
-      "vaults, fees), so markets trade in the ledger's currency; $world.<name>_flows totals every source and sink.",
+      "vaults, fees), so markets trade in the ledger's currency. The supply starts as all the money held when the "
+      "world is built (a prediction market's seed money included); $world.<name>_flows totals every source and sink since.",
       example={"who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}},
                "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}},
                "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}})

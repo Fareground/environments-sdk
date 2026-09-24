@@ -105,10 +105,10 @@ def test_matching_engine_keeps_selector_thresholds_private():
     env = fg_env.engines.load("matching", seed=5)
     applicant = json.dumps(env.preview("a1"))
     selector = json.dumps(env.preview("s1"))
-    assert "Selector 1: appeal 0.80" in applicant and "minimum quality" not in applicant
-    assert "private minimum quality is 0.60" in selector and "private minimum quality is 0.50" not in selector
+    assert "Selector 1: appeal 0.77" in applicant and "minimum quality" not in applicant
+    assert "private minimum quality is 0.52" in selector and "private minimum quality is 0.57" not in selector
     result = env.run()
-    assert result.outputs["placement_matched"] + result.outputs["unmatched_applicants"] == 5
+    assert result.outputs["placement_matched"] + result.outputs["unmatched_applicants"] == len(env.entities("applicant"))
 
 
 def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
@@ -193,3 +193,26 @@ def test_examples_that_mirror_an_engine_starter_stay_identical_to_it(name):
     starter = root / "src" / "fg_env" / "engines" / "starters" / name
     assert (root / "examples" / "contracts" / name).read_text() == starter.read_text(), (
         f"examples/contracts/{name} drifted from its engine starter: copy the starter over it")
+
+
+def test_the_cli_lists_the_engines_and_new_clones_one_that_checks(tmp_path, capsys):
+    from fg_env.__main__ import main
+
+    assert main(["engines"]) == 0
+    listing = capsys.readouterr().out
+    assert all(engine_id in listing for engine_id in ENGINE_IDS) and "fg-env new --engine" in listing
+    assert fg_env.engines.get("network").summary in listing
+    path = tmp_path / "votes.json"
+    assert main(["new", "--engine", "legislature", str(path)]) == 0
+    assert "fg-env check" in capsys.readouterr().out
+    assert json.loads(path.read_text())["name"] == "Votes"
+    assert main(["check", str(path)]) == 0
+    assert main(["new", "--engine", "legislature", str(path)]) == 1
+    assert "--force" in capsys.readouterr().err
+    assert main(["new", "--engine", "legislatur", str(tmp_path / "x.json")]) == 1
+    assert "did you mean 'legislature'" in capsys.readouterr().err
+
+
+def test_the_guide_map_lists_every_engine_with_how_to_start_from_it():
+    page = fg_env.guide()
+    assert "fg-env new --engine" in page and all(f"`{engine_id}`" in page for engine_id in ENGINE_IDS)

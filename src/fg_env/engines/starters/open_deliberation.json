@@ -11,9 +11,16 @@
       "default": [
         {"id": "m1", "name": "Member 1", "stance": 0.7, "perspective": "Focuses on expected benefits."},
         {"id": "m2", "name": "Member 2", "stance": -0.6, "perspective": "Focuses on risks and safeguards."},
-        {"id": "m3", "name": "Member 3", "stance": 0.2, "perspective": "Looks for a workable compromise."},
-        {"id": "m4", "name": "Member 4", "stance": -0.15, "perspective": "Worries about the cost and who bears it."},
-        {"id": "m5", "name": "Member 5", "stance": -0.05, "perspective": "Undecided; wants to hear the arguments first."}
+        {"id": "m3", "name": "Member 3", "stance": 0.04, "perspective": "Looks for a workable compromise."},
+        {"id": "m4", "name": "Member 4", "stance": -0.3, "perspective": "Worries about the cost and who bears it."},
+        {"id": "m5", "name": "Member 5", "stance": -0.01, "perspective": "Undecided; wants to hear the arguments first."},
+        {"id": "m6", "name": "Member 6", "stance": 0.1, "perspective": "Asks what the evidence shows."},
+        {"id": "m7", "name": "Member 7", "stance": 0.35, "perspective": "Speaks for those most affected."},
+        {"id": "m8", "name": "Member 8", "stance": 0.2, "perspective": "Weighs the long-term consequences."},
+        {"id": "m9", "name": "Member 9", "stance": -0.1, "perspective": "Cares about fairness of the process."},
+        {"id": "m10", "name": "Member 10", "stance": -0.2, "perspective": "Wants a simple, practical answer."},
+        {"id": "m11", "name": "Member 11", "stance": -0.45, "perspective": "Doubts it will work in practice."},
+        {"id": "m12", "name": "Member 12", "stance": 0.5, "perspective": "Sees it as overdue."}
       ]
     }
   },

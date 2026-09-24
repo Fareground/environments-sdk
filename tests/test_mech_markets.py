@@ -541,6 +541,29 @@ def test_double_auction_clears_at_the_middle_of_the_market_clearing_range(bids, 
     assert not auctions.audit(env.world, "sale")
 
 
+@pytest.mark.parametrize("fmt", ["english", "first_price", "second_price"])
+def test_a_policy_that_bids_the_reported_min_bid_is_always_legal(fmt):
+    contract = house(fmt, reserve=0, stock=1)
+    contract["policies"] = {"floor": {"rules": [{"when": "$auction(house).open and $auction(house).leader != $actor.id and $auction(house).min_bid < 3",
+                                                 "do": "house_bid", "with": {"price": "$auction(house).min_bid"}}]}}
+    contract["types"]["bidder"]["policy"] = "floor"
+    result = fg_env.run(contract, None, seed=1)
+    assert result.outputs["house_sold"] == 1 and result.outputs["house_prices"][0] > 0
+
+
+def test_the_guide_names_where_each_market_keeps_its_goods_and_check_warns_on_a_bare_lookalike():
+    assert "`<name>_units`" in fg_env.guide("market.auction") and "`<name>_shares`" in fg_env.guide("market.order_book")
+    assert "`<name>_shares`" in fg_env.guide("market.prediction")
+    contract = {"name": "Call", "clock": {"rounds": 1},
+                "types": {"buyer": {"agent": True, "props": {"cash": 100}}, "seller": {"agent": True, "props": {"units": 3}}},
+                "entities": {"b": {"type": "buyer"}, "s": {"type": "seller"}},
+                "mechanisms": {"auc": {"kind": "market", "mode": "auction", "format": "double", "who": "buyer", "sellers": "seller"}}}
+    warned = [i for i in fg_env.check(contract) if i.path == "types.seller.props.units"]
+    assert len(warned) == 1 and warned[0].severity == "warning" and warned[0].fix == "rename it to `auc_units`"
+    contract["types"]["seller"]["props"] = {"auc_units": 3}
+    assert not [i for i in fg_env.check(contract) if i.path.endswith(".units")]
+
+
 def tender(fmt, budget=1000, **config):
     """A city buying road contracts from builders (their `quality` feeds a scored award)."""
     contract = house(fmt, reverse=True, house="city", item="a road contract", reserve=80, **config)
@@ -555,7 +578,8 @@ def test_reverse_auction_awards_the_lowest_offer_and_pays_by_format(fmt, paid):
     env, replies = play(tender(fmt), {(1, "a"): [("house_bid", {"price": 90})], (1, "b"): [("house_bid", {"price": 50})],
                                       (1, "c"): [("house_bid", {"price": 60})]})
     assert not replies_of(replies, "a")[0].ok  # above the most the house pays
-    assert props(env, "b")["cash"] == paid and props(env, "b")["house_units"] == 1 and props(env, "c")["cash"] == 0
+    assert props(env, "b")["cash"] == paid and props(env, "b")["house_won"] == 1 and props(env, "c")["cash"] == 0
+    assert props(env, "b")["house_units"] == 0 and props(env, "city")["house_units"] == 1  # the winner delivers to the buyer
     assert props(env, "city")["cash"] == 1000 - paid and env.props["house_stock"] == 1
     result = env.world.records("house_results")[-1]
     assert (result["winner"], result["price"]) == ("b", paid)

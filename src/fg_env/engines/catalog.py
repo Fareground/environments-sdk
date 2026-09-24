@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 from dataclasses import dataclass
+from difflib import get_close_matches
 from importlib.resources import files
 from pathlib import Path
 from typing import Any, Dict, Iterator, Mapping, Optional, Tuple, Union
@@ -23,6 +24,7 @@ class EngineSpec:
 
     id: str
     title: str
+    summary: str
     description: str
     status: str
     path: Optional[str] = None
@@ -37,8 +39,8 @@ class EngineSpec:
         """Read this engine's reusable starter contract."""
         if self.path is None:
             raise EngineUnavailable(
-                f"engine {self.id!r} is planned for Phase 1 completion and has no reusable "
-                "implementation in this SDK version"
+                f"engine {self.id!r} has no starter contract in this SDK version; "
+                "list the ones that do with fg_env.list_engines(available=True) (fg-env engines)"
             )
         resource = files("fg_env.engines").joinpath(self.path)
         return json.loads(resource.read_text(encoding="utf-8"))
@@ -64,6 +66,7 @@ class EngineSpec:
         return {
             "id": self.id,
             "title": self.title,
+            "summary": self.summary,
             "description": self.description,
             "status": self.status,
             "available": self.available,
@@ -89,8 +92,9 @@ class EngineCatalog:
         try:
             return self._by_id[engine_id]
         except KeyError:
-            choices = ", ".join(self._by_id)
-            raise EngineNotFound(f"unknown engine {engine_id!r}; choose: {choices}") from None
+            hint = get_close_matches(str(engine_id), list(self._by_id), n=1)
+            fix = f"did you mean {hint[0]!r}? " if hint else ""
+            raise EngineNotFound(f"unknown engine {engine_id!r}; {fix}engines: {', '.join(self._by_id)}") from None
 
     def list(self, *, available: Optional[bool] = None) -> list[EngineSpec]:
         engines = list(self._engines)
@@ -110,6 +114,7 @@ def _engine(raw: Mapping[str, Any]) -> EngineSpec:
     return EngineSpec(
         id=str(raw["id"]),
         title=str(raw.get("title") or raw["id"]),
+        summary=str(raw.get("summary") or ""),
         description=str(raw.get("description") or ""),
         status=str(raw.get("status") or "planned"),
         path=str(raw["path"]) if raw.get("path") else None,

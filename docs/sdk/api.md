@@ -1170,7 +1170,7 @@ An engine is defined but its reusable implementation is not shipped yet.
 ### `engines.EngineSpec`
 
 ```pyi
-EngineSpec(id: 'str', title: 'str', description: 'str', status: 'str', path: 'Optional[str]' = None, resources: 'Tuple[str, ...]' = ()) -> None
+EngineSpec(id: 'str', title: 'str', summary: 'str', description: 'str', status: 'str', path: 'Optional[str]' = None, resources: 'Tuple[str, ...]' = ()) -> None
 ```
 
 One reusable human-interaction engine.

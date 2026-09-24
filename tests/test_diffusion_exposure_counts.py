@@ -24,7 +24,7 @@ CONTRACT = {
     },
     "stages": [{"name": "round", "turns": "sequential", "max_actions": 5, "max_calls": 8}],
     "outputs": {"reach": "$reach(product)", "exposures": "$exposures(audience, product)",
-                "state": "$spread_state(audience, product)", "adopters": "$adopters(product)"},
+                "state": "$spread_state(audience, product)", "adopters": "$adopter_count(product)"},
 }
 
 

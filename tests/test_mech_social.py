@@ -510,28 +510,28 @@ def _with(contract, **config):
 def test_independent_cascade_spreads_one_hop_per_step():
     env = fg_env.load(LINE, seed=1)
     env.run("idle", rounds=1)
-    assert ev(env, "$adopters(moon)") == 2 and ev(env, "$spread_state(p3, moon)") == "unaware"
+    assert ev(env, "$adopter_count(moon)") == 2 and ev(env, "$spread_state(p3, moon)") == "unaware"
     env.run("idle", rounds=3)
-    assert ev(env, "$adopters(moon)") == 5 and ev(env, "$reach(moon)") == 5
+    assert ev(env, "$adopter_count(moon)") == 5 and ev(env, "$reach(moon)") == 5
     assert [e.properties["heard"] for e in env.world.entities_of("person")] == [0, 1, 1, 1, 1]
     assert ev(env, "$exposures(p2, moon)") == 1
     assert ev(env, "$heard(p2)") == [{"item": "moon", "state": "adopted", "exposures": 1}]
     assert do(env, None, [{"social": "rumor", "action": "reject", "item": "moon", "who": "p2"}])
-    assert ev(env, "$spread_state(p2, moon)") == "rejected" and ev(env, "$adopters(moon)") == 4
+    assert ev(env, "$spread_state(p2, moon)") == "rejected" and ev(env, "$adopter_count(moon)") == 4
     assert ev(env, "$reach(moon)") == 5
 
 
 def test_cascade_with_no_chance_only_exposes_and_flow_follows_direction():
     env = fg_env.load(_with(LINE, p=0), seed=1)
     env.run("idle", rounds=3)
-    assert ev(env, "$adopters(moon)") == 1 and ev(env, "$reach(moon)") == 2
+    assert ev(env, "$adopter_count(moon)") == 1 and ev(env, "$reach(moon)") == 2
     assert ev(env, "$spread_state(p2, moon)") == "exposed"
     against = fg_env.load({**_with(LINE, flow="against"), "relations": {"knows": {}}}, seed=1)
     against.run("idle", rounds=3)
     assert ev(against, "$reach(moon)") == 1  # p1 only tells those who link to it; nobody does
     along = fg_env.load({**_with(LINE, flow="along"), "relations": {"knows": {}}}, seed=1)
     along.run("idle", rounds=3)
-    assert ev(along, "$adopters(moon)") == 4
+    assert ev(along, "$adopter_count(moon)") == 4
 
 
 def test_linear_threshold_adopts_when_enough_neighbours_have():
@@ -543,7 +543,7 @@ def test_linear_threshold_adopts_when_enough_neighbours_have():
     assert ev(env, "$spread_state(p1, moon)") == "adopted" and ev(env, "$exposures(p1, moon)") == 2
     assert ev(env, "$spread_state(p4, moon)") == "unaware"
     env.run("idle", rounds=1)
-    assert ev(env, "$adopters(moon)") == 5
+    assert ev(env, "$adopter_count(moon)") == 5
 
 
 def test_random_diffusion_is_seeded_resumes_and_checks_its_expressions():
@@ -778,7 +778,7 @@ def _star_cascade(persistent, rounds):
                 "mechanisms": {"word": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows",
                                         "model": "cascade", "p": 0.3, "persistent": persistent,
                                         "seeds": {"idea": ["person_1"]}}},
-                "outputs": {"reach": "$adopters('idea')"}}
+                "outputs": {"reach": "$adopter_count('idea')"}}
     return fg_env.run(contract, None, seed=1).outputs["reach"]
 
 

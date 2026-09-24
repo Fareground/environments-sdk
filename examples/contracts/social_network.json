@@ -288,7 +288,7 @@
       "description": "Accounts the rumor has reached."
     },
     "believers": {
-      "expr": "$adopters(dam)"
+      "expr": "$adopter_count(dam)"
     },
     "rumor_posts": "$count(net_post, $is_rumor($it))",
     "insularity": {

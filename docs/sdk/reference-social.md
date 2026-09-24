@@ -15,7 +15,7 @@ Modes (`"kind": "social", "mode": ...`; read one with `guide('social.<mode>')`):
 - `feed`: A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, blocks and mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view per account, trending, reputation moved by engagement, and moderator labels that downrank posts.
 
 Functions:
-- `$adopters(item)` — How many agents currently hold an item (adopted, not rejected).
+- `$adopter_count(item)` — How many agents currently hold an item (adopted, not rejected).
 - `$channel_log(agent, channel, n?, mechanism?)` — The latest n messages of a channel as the agent reads them (default: the read limit).
 - `$channels(agent, mechanism?)` — Rooms and groups an agent may post in (social channels mechanism).
 - `$exposures(agent, item)` — How many times an agent was exposed to an item.

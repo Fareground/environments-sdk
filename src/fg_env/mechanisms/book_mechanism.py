@@ -145,7 +145,8 @@ def _views(name: str, cfg: OrderBookConfig) -> Dict[str, Any]:
            "order_ttl, max_orders, bar_rounds) may be expressions over $inputs (like world defaults), resolved once when the world is "
            "built into $world.<name>_rules, so they can follow the price level and be swept or calibrated. Tools "
            "`<name>_buy` / `<name>_sell` (limit with a price, market without), `<name>_cancel`, `<name>_cancel_all` and "
-           "`<name>_algo` (coded strategy). Resting orders reserve cash or shares; trades settle with conserved transfers "
+           "`<name>_algo` (coded strategy). Each `who` trader holds the instrument in `<name>_shares` and money in `currency` "
+           "(give traders their starting position there, e.g. \"acme_shares\": 100). Resting orders reserve cash or shares; trades settle with conserved transfers "
            "and fees go to $world.<name>_fees. Read the book with $book(name), $book_depth(name, levels, viewer), "
            "$book_orders(name, trader), $book_account(name, trader); trades are in the `<name>_tape` record and OHLCV bars "
            "{bar, open, high, low, close, volume, vwap, trades, halted, flow} in `<name>_bars`; $book(name).bar is the bar in "
@@ -233,7 +234,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
             f"{name}_halts": {"expr": f"$world.{name}_halts", "type": "int", "description": "Circuit-breaker halts."},
             f"{name}_fees": {"expr": f"$round($world.{name}_fees, 4)", "type": "number", "description": "Fees collected."},
             f"{name}_volatility": {"expr": f"$market_stats($series.{name}_price).sigma", "type": "number",
-                                   "description": "Standard deviation of per-round log returns."},
+                                   "description": "Volatility per round: the standard deviation of per-round log returns."},
         },
     }
     names: List[str] = list(fragment["actions"])

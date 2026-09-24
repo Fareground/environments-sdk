@@ -1,7 +1,7 @@
 # economy / ledger
 
 ### `economy.ledger`
-Money: each currency is a number property of every holder (`$actor.cash`) with an optional credit limit. `pay` moves money (never creating it), `mint`/`burn` name their source or sink, scheduled `sources` pay UBI or allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, `<name>_repay` and `<name>_set_rate` with per-round interest, due dates and default. The invariant `$conserved(<name>)` proves balances equal $world.<name>_supply, counting the money markets hold for their traders (reserves, escrow, vaults, fees), so markets trade in the ledger's currency; $world.<name>_flows totals every source and sink.
+Money: each currency is a number property of every holder (`$actor.cash`) with an optional credit limit. `pay` moves money (never creating it), `mint`/`burn` name their source or sink, scheduled `sources` pay UBI or allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, `<name>_repay` and `<name>_set_rate` with per-round interest, due dates and default. The invariant `$conserved(<name>)` proves balances equal $world.<name>_supply, counting the money markets hold for their traders (reserves, escrow, vaults, fees), so markets trade in the ledger's currency. The supply starts as all the money held when the world is built (a prediction market's seed money included); $world.<name>_flows totals every source and sink since.
 
 Config:
 - `who` (required): Type(s) holding money (subtypes included).

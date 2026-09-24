@@ -1,7 +1,7 @@
 # social / diffusion
 
 ### `social.diffusion`
-Items (rumors, ideas, products) spreading over a relation by independent cascade or linear threshold, with per-agent states (unaware, exposed, adopted, rejected) and exposure counts in the world prop `<name>`. Steps every round (in `phase`) or on demand with the `step` action; `on_adopt` effects run per adopter. Read it with $reach(item), $adopters(item), $spread_state(agent, item), $exposures(agent, item), $heard(agent).
+Items (rumors, ideas, products) spreading over a relation by independent cascade or linear threshold, with per-agent states (unaware, exposed, adopted, rejected) and exposure counts in the world prop `<name>`. Steps every round (in `phase`) or on demand with the `step` action; `on_adopt` effects run per adopter. Read it with $reach(item), $adopter_count(item), $spread_state(agent, item), $exposures(agent, item), $heard(agent).
 
 Config:
 - `who` (required): Entity type the items spread among (subtypes included).
