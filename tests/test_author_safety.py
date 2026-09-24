@@ -78,8 +78,8 @@ def test_a_contract_longer_than_the_test_budget_works_with_its_untested_rounds_n
 
     assert result.ok and result.stop == "done"
     note = tool_replies(client)[0]
-    assert note.startswith("Saved revision 1: it works — it checks clean, and runs without a problem on 3 seeds")
-    assert " of 100,000 rounds in every test run within the 0.2s test budget; longer runs untested." in note
+    assert note.startswith("Saved revision 1: it works — it checks") and "runs without a problem on 3 seeds" in note
+    assert " of 100,000 rounds in every test run within the 0.2s test budget; longer runs untested;" in note
     assert result.tested.untested in note and f"PARTLY TESTED: {result.tested.untested}" in result.summary()
 
 

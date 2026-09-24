@@ -180,11 +180,13 @@ Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an enviro
 
 ``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
 end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
-(input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
-model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official
-client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and
-server errors are retried with backoff; a provider error that persists or that retrying cannot fix does not raise:
-the loop stops (``result.stop`` says why) and keeps what already works.
+(input, output and cache writes in full, a cache read counting :data:`CACHED_WEIGHT` of one, as a run's token
+budget counts them), model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`; the model is
+told these limits, the revision limit and the test time of a save up front. ``client`` replaces the official client
+made from the environment; ``progress`` is called with one line per model call. Rate limits, overload, server
+errors and empty replies are retried with backoff, never waiting past the ``seconds`` budget; a provider error that
+persists or that retrying cannot fix does not raise: the loop stops (``result.stop`` says why) and keeps what
+already works.
 
 ## `Env`
 
