@@ -151,24 +151,12 @@ def link(world: SdkWorld, kind: str, a: Any, b: Any, value: Any, where: str,
     had_fields = key in table
     old_fields = table.get(key)
     new_fields = _fields(world, kind, a, b, old_fields if not missing else None, fields or {}, where)
+    world.journal.push(("link", kind, key, missing, old, had_fields, old_fields))
     edges[key] = value
     if missing:
         _adjust(world, kind, key, 1)
     if new_fields is not None:
         table[key] = new_fields
-
-    def undo() -> None:
-        if missing:
-            edges.pop(key, None)
-            _adjust(world, kind, key, -1)
-        else:
-            edges[key] = old  # type: ignore[assignment]
-        if had_fields:
-            table[key] = old_fields  # type: ignore[assignment]
-        else:
-            table.pop(key, None)
-
-    world.journal.push(undo)
 
 
 def _fields(world: SdkWorld, kind: str, a: Any, b: Any, current: dict[str, Any] | None,
@@ -218,9 +206,8 @@ def set_link_field(world: SdkWorld, view: Link, name: str, value: Any, where: st
     from .live import _plain
 
     new = world._coerce(declared[name], _plain(value), f"{where}.{name}")
-    old = fields.get(name)
+    world.journal.push(("link_field", kind, key, name, fields.get(name)))
     fields[name] = new
-    world.journal.push(lambda: fields.__setitem__(name, old))
 
 
 def unlink(world: SdkWorld, kind: str, a: Any, b: Any, where: str) -> None:
@@ -229,17 +216,9 @@ def unlink(world: SdkWorld, kind: str, a: Any, b: Any, where: str) -> None:
     if key not in edges:
         return
     old = edges.pop(key)
-    table = world.link_fields[kind]
-    old_fields = table.pop(key, None)
+    old_fields = world.link_fields[kind].pop(key, None)
     _adjust(world, kind, key, -1)
-
-    def undo() -> None:
-        edges[key] = old
-        if old_fields is not None:
-            table[key] = old_fields
-        _adjust(world, kind, key, 1)
-
-    world.journal.push(undo)
+    world.journal.push(("unlink", kind, key, old, old_fields))
 
 
 def _name(world: SdkWorld, entity: str) -> str:

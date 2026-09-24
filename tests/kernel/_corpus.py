@@ -88,15 +88,10 @@ def undoable_state(env: fg_env.Env) -> dict[str, Any]:
     return state
 
 
-#: Undoable state an undo (or a rolled-back trial) leaves changed today: see the strict xfail
-#: ``test_undoing_a_scheduled_effect_restores_the_schedule_count``. Kernel step 2 empties it.
-NOT_RESTORED = ("schedule_seq",)
-
-
 def restored_state(env: fg_env.Env) -> dict[str, Any]:
-    """:func:`undoable_state` as an undo must bring it back: without what it is known not to restore yet, and without
-    the host answers the run recorded (``host_tape``), which like luck are kept once asked for (see host/tape.py)."""
-    state = {key: value for key, value in undoable_state(env).items() if key not in NOT_RESTORED}
+    """:func:`undoable_state` as an undo must bring it back: without the host answers the run recorded
+    (``host_tape``), which like luck are kept once asked for (see host/tape.py)."""
+    state = undoable_state(env)
     state["props"] = {key: value for key, value in state["props"].items() if key != TAPE}
     return state
 

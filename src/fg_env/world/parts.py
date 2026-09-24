@@ -1,11 +1,8 @@
-"""The world's small parts: record entries, log events, the journal, and the `$physics` and `$clock` views
+"""The world's small parts: record entries, log events, and the `$physics` and `$clock` views
 expressions read (the `$world` view is :class:`fg_env.expr.objects.PropsView`)."""
 from __future__ import annotations
 
-import itertools
 import re
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
@@ -15,7 +12,7 @@ if TYPE_CHECKING:
     from ..contract import Contract
     from .live import SdkWorld
 
-__all__ = ["Entry", "LogEvent", "Journal", "PhysicsView", "ClockView", "private_metrics"]
+__all__ = ["Entry", "LogEvent", "PhysicsView", "ClockView", "private_metrics"]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
@@ -128,67 +125,3 @@ class ClockView:
         if name == "label":
             return w.clock_label()
         raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label)", source)
-
-
-#: Every journal's versions come from one count, so no two different states anywhere share a version.
-_VERSIONS = itertools.count(1)
-
-
-class Journal:
-    def __init__(self) -> None:
-        #: Each change's undo, with the version it replaced.
-        self._undo: list[tuple[Callable[[], object], int]] = []
-        #: The world's version: a change moves it to one never used before, and undoing a change brings back the one it
-        #: replaced (a tried call rolled back leaves the world, and every cache of it, as it was). Equal versions mean
-        #: an equal world.
-        self.version = 0
-        #: Changes below this position were followed by a change outside the journal (:meth:`bump`): undoing them does
-        #: not bring back the world of their version.
-        self._settled = 0
-        #: Open :meth:`held` blocks, and whether a :meth:`clear` inside them waits for them to finish.
-        self.holding = 0
-        self._clear_due = False
-
-    def mark(self) -> int:
-        return len(self._undo)
-
-    def push(self, undo: Callable[[], object]) -> None:
-        self._undo.append((undo, self.version))
-        self.version = next(_VERSIONS)
-
-    def bump(self) -> None:
-        """Record a change made outside the journal (metrics sampling, physics): no earlier version comes back."""
-        self.version = next(_VERSIONS)
-        self._settled = len(self._undo)
-
-    def rollback(self, mark: int) -> None:
-        while len(self._undo) > mark:
-            undo, before = self._undo.pop()
-            undo()
-            self.version = before if len(self._undo) >= self._settled else next(_VERSIONS)
-        self._settled = min(self._settled, len(self._undo))
-
-    def clear(self) -> None:
-        if self.holding:
-            self._clear_due = True
-            return
-        self._undo.clear()
-        self._settled = 0
-        self._clear_due = False
-
-    @contextmanager
-    def held(self) -> Iterator[None]:
-        """Keep every change made inside the block undoable until it ends: commits inside it (an agent's action and
-        the events it sets off) clear the journal only once the block finishes without an error, so a failure
-        anywhere in it can still undo all of it."""
-        self.holding += 1
-        try:
-            yield
-        except BaseException:
-            self.holding -= 1
-            if not self.holding:
-                self._clear_due = False  # the caller undoes the block instead
-            raise
-        self.holding -= 1
-        if not self.holding and self._clear_due:
-            self.clear()

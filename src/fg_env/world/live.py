@@ -25,8 +25,9 @@ from ..sampling.seeds import DrawSite, SeedTree
 from ..stdlib.dates import calendar_date
 from . import links as _links
 from .defaults import default_order
+from .journal import Journal
 from .links import Link
-from .parts import ClockView, Entry, Journal, LogEvent, PhysicsView, private_metrics
+from .parts import ClockView, Entry, LogEvent, PhysicsView, private_metrics
 from .props import finite_number as _finite_number
 from .props import prop_type
 from .props import shown_value as _shown_value
@@ -136,7 +137,7 @@ class SdkWorld(World):
         #: effects/chance.py).
         self.chance_picker: Callable[[Any], int] | None = None
         self.counters: dict[str, int] = {}
-        self.journal = Journal()
+        self.journal = Journal(self)
         #: Called as ``lifecycle(kind, entity, where)`` (create / remove) after every creation and removal (set by the
         #: effect runner).
         self.lifecycle: Callable[[str, Entity, str], None] | None = None
@@ -604,15 +605,9 @@ class SdkWorld(World):
         if self.buffer is not None:
             self.buffer.write(("prop", entity.id, prop), new, lambda: self.set_prop(entity, prop, new), where)
             return
-        old = entity.properties.get(prop)
+        self.journal.push(("prop", entity.id, prop, entity.properties.get(prop)))
         entity.properties[prop] = new
         self._touch_entity(entity)
-
-        def undo() -> None:
-            entity.properties[prop] = old
-            self._touch_entity(entity)  # an undo can bring back values no invariant check has seen together
-
-        self.journal.push(undo)
 
     def _touch_entity(self, entity: Entity) -> None:
         if self.touched is not None:
@@ -630,9 +625,8 @@ class SdkWorld(World):
         if self.buffer is not None:
             self.buffer.write(("world", prop), new, lambda: self.set_world(prop, new), f"world.{prop}")
             return
-        old = self.props.get(prop)
+        self.journal.push(("world", prop, self.props.get(prop)))
         self.props[prop] = new
-        self.journal.push(lambda: self.props.__setitem__(prop, old))
 
     def set_physics(self, name: str, value: Any) -> None:
         model = self.physics
@@ -643,18 +637,16 @@ class SdkWorld(World):
                            f"mechanisms.physics.{name}")
         if name in model.variables:
             var = model.variables[name]
-            old = var.value
             clamped = float(value)
             if var.min is not None:
                 clamped = max(var.min, clamped)
             if var.max is not None:
                 clamped = min(var.max, clamped)
+            self.journal.push(("physics_variable", name, var.value))
             var.value = clamped
-            self.journal.push(lambda: setattr(var, "value", old))
         elif name in model.params:
-            old_param = model.params[name]
+            self.journal.push(("physics_param", name, model.params[name]))
             model.params[name] = float(value)
-            self.journal.push(lambda: model.params.__setitem__(name, old_param))
         else:
             raise RunError(f"physics has no variable or param '{name}'", f"mechanisms.physics.{name}")
 
@@ -665,9 +657,8 @@ class SdkWorld(World):
             candidate = f"{type_name}_{n}"
             if candidate not in self.entities:
                 break
-        old = self.counters.get(type_name, 0)
+        self.journal.push(("counter", type_name, self.counters.get(type_name, 0)))
         self.counters[type_name] = n
-        self.journal.push(lambda: self.counters.__setitem__(type_name, old))
         return candidate
 
     def create(self, type_name: str, entity_id: str | None, name: str | None,
@@ -718,14 +709,7 @@ class SdkWorld(World):
         self._touch_entity(entity)
         if space is not None:
             space.positions.add(entity)
-
-        def undo_create() -> None:
-            self.entities.pop(eid, None)
-            self.types.uncreated(entity)
-            if space is not None:
-                space.positions.discard(entity)
-
-        self.journal.push(undo_create)
+        self.journal.push(("create", eid))
         if self.lifecycle is not None:
             self.lifecycle("create", entity, where)
         if self.joined is not None and self.round:
@@ -749,38 +733,22 @@ class SdkWorld(World):
             return
         entity.alive = False
         self.types.changed(entity)
-        space = self.space
-        if space is not None:
-            space.positions.discard(entity)
-
-        def undo_remove() -> None:
-            entity.alive = True
-            self.types.changed(entity)
-            self._touch_entity(entity)
-            if space is not None:
-                space.positions.add(entity)
-
-        self.journal.push(undo_remove)
+        if self.space is not None:
+            self.space.positions.discard(entity)
+        self.journal.push(("remove", entity.id))
         if self.lifecycle is not None:
             self.lifecycle("remove", entity, where)
 
     def move(self, entity: Entity, at: Any, where: str) -> None:
         location = self._check_location(at, where)
         space = self.space
-        old = entity.location_id
-        if space is None:
-            entity.location_id = location
-            self.journal.push(lambda: setattr(entity, "location_id", old))
-            return
-        self._make_room(entity, location, "cannot move there")
-
-        def place(position: Any) -> None:
+        if space is not None:
+            self._make_room(entity, location, "cannot move there")
             space.positions.discard(entity)
-            entity.location_id = position
+        self.journal.push(("move", entity.id, entity.location_id))
+        entity.location_id = location
+        if space is not None:
             space.positions.add(entity)
-
-        place(location)
-        self.journal.push(lambda: place(old))
 
     def _make_room(self, entity: Entity, position: Any, what: str) -> None:
         """Refuse (roll back) putting ``entity`` at ``position`` when the cell is full."""
@@ -834,22 +802,7 @@ class SdkWorld(World):
             for old in dropped:
                 self.entry_by_seq.pop(old["seq"], None)
                 self.record_authors.remove(record, old)
-
-        def undo() -> None:
-            for index in range(len(rows) - 1, -1, -1):
-                if rows[index] is entry:
-                    del rows[index]
-                    break
-            self.entry_by_seq.pop(entry["seq"], None)
-            self.record_authors.remove(record, entry)
-            rows[:0] = dropped
-            for old in dropped:
-                self.entry_by_seq[old["seq"]] = old
-            for old in reversed(dropped):
-                self.record_authors.add(record, old, first=True)
-            self._record_seq -= 1
-
-        self.journal.push(undo)
+        self.journal.push(("post", record, entry["seq"], dropped))
         if spec.notify:
             self.emit("record", "", actor=author, to=to, data={
                 "record": record, "entry": entry["seq"], "fields": {name: entry[name] for name in spec.fields}})
@@ -862,18 +815,23 @@ class SdkWorld(World):
                          tuple(to) if to is not None else None, dict(data or {}), self.stage)
         self.log.append(event)
         record_key = self.record_events.add(event, self.entry_by_seq) if kind == "record" else None
-
-        def undo() -> None:
-            for index in range(len(self.log) - 1, -1, -1):  # rolled-back events sit near the end
-                if self.log[index] is event:
-                    del self.log[index]
-                    if record_key is not None:
-                        self.record_events.remove(event, record_key)
-                    self._seq -= 1
-                    break
-
-        self.journal.push(undo)
+        self.journal.push(("emit", event.seq, record_key))
         return event
+
+    def put_first(self, event: LogEvent, since: int) -> None:
+        """Move ``event``, the log's last, ahead of the other events logged after sequence number ``since`` (an action's
+        announcement ahead of the news its own effects produced), numbering them again in their new order."""
+        log = self.log
+        index = len(log) - 1
+        while index > 0 and log[index - 1].seq > since:
+            index -= 1
+        if log[index] is event:
+            return
+        log.pop()
+        log.insert(index, event)
+        for offset, item in enumerate(log[index:]):
+            item.seq = since + 1 + offset
+        self.journal.push(("first", index, since))
 
     def schedule(self, due_round: int, effects: list[Any], vars: dict[str, Any], path: str,
                  delivery: dict[str, Any] | None = None) -> None:
@@ -886,43 +844,21 @@ class SdkWorld(World):
         self._schedule_seq += 1
         entry = (due_round, self._schedule_seq, item)
         heapq.heappush(self.scheduled, entry)
-
-        def undo() -> None:
-            if entry in self.scheduled:
-                self.scheduled.remove(entry)
-                heapq.heapify(self.scheduled)
-
-        self.journal.push(undo)
+        self.journal.push(("schedule", entry))
 
     def request_reaction(self, entity_id: str, why: str, actions: list[str] | None = None) -> None:
         entry = (entity_id, why, actions)
         self.reactions.append(entry)
-
-        def undo() -> None:
-            for index in range(len(self.reactions) - 1, -1, -1):
-                if self.reactions[index] is entry:
-                    del self.reactions[index]
-                    break
-
-        self.journal.push(undo)
+        self.journal.push(("reaction", entry))
 
     def request_wake(self, entity_id: str, why: str) -> None:
-        missing = entity_id not in self.wake_requests
-        old = self.wake_requests.get(entity_id)
+        self.journal.push(("wake", entity_id, entity_id in self.wake_requests, self.wake_requests.get(entity_id)))
         self.wake_requests[entity_id] = why
-
-        def undo() -> None:
-            if missing:
-                self.wake_requests.pop(entity_id, None)
-            else:
-                self.wake_requests[entity_id] = old  # type: ignore[assignment]
-
-        self.journal.push(undo)
 
     def request_end(self, name: str, winner: Any, text: str) -> None:
         if self.end_request is None:
             self.end_request = {"name": name, "winner": winner, "text": text}
-            self.journal.push(lambda: setattr(self, "end_request", None))
+            self.journal.push(("end",))
 
     def thaw(self, vars: dict[str, Any], *, version: int = 0) -> dict[str, Any]:
         return {k: thaw(v, self, version=version) for k, v in vars.items()}

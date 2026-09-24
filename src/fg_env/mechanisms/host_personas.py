@@ -111,17 +111,9 @@ def _persona(answer: Any, limit: int) -> str:
 
 
 def _add_to_brief(world: Any, entity_id: str, line: str) -> None:
-    had = entity_id in world.entity_briefs
     old = world.entity_briefs.get(entity_id)
+    world.journal.push(("brief", entity_id, entity_id in world.entity_briefs, old))
     world.entity_briefs[entity_id] = f"{old}\n{line}" if old else line
-
-    def undo() -> None:
-        if had:
-            world.entity_briefs[entity_id] = old
-        else:
-            world.entity_briefs.pop(entity_id, None)
-
-    world.journal.push(undo)
 
 
 @family_action("host", ("personas",), "write",

@@ -256,11 +256,6 @@ def test_undoing_back_to_a_mark_restores_armed_and_fired_events_as_they_were_the
     assert world.props["rang"] == 1 and world.props["once"] == 1  # the events should fire as the first time
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "an undone `after` leaves its number counted: SdkWorld.schedule's undo removes the scheduled item but not "
-    "world._schedule_seq (world/live.py). Harmless for ordering (items keep their relative order), but the undone "
-    "world's encoded state — its snapshot's `schedule_seq` — is not the world's before the block. Kernel step 2's "
-    "typed journal restores it; then empty _corpus.NOT_RESTORED."))
 def test_undoing_a_scheduled_effect_restores_the_schedule_count():
     env = fg_env.load(LATCH, seed=1)
     before = undoable_state(env)

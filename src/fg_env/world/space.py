@@ -101,16 +101,13 @@ class Spatial:
             world.buffer.write(("layer", name, cell), new, lambda: self.write(name, cell, new, where), where)
             return
         values = self.layers.values[name]
-        old = values[cell]
+        world.journal.push(("cell", name, cell, values[cell]))
         values[cell] = new
-        world.journal.push(lambda: values.__setitem__(cell, old))
 
     def replace(self, name: str, values: list[Any]) -> None:
         """Swap in a whole layer's new values as one journaled change."""
-        store = self.layers.values
-        old = store[name]
-        store[name] = values
-        self._world.journal.push(lambda: store.__setitem__(name, old))
+        self._world.journal.push(("layer", name, self.layers.values[name]))
+        self.layers.values[name] = values
 
     def state(self) -> dict[str, list[Any]]:
         return {name: list(values) for name, values in self.layers.values.items()}

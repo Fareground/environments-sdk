@@ -326,7 +326,7 @@ class ActionBook(ActionSchemas, ActionValidation):
                 # filtered out of its news by perception.
                 announcement = world.emit("action", line, actor=actor.id, to=None,
                                           data={"action": name, "params": _plain(public), "success": True})
-                _first_in_order(world, log_mark, announcement)
+                world.put_first(announcement, log_mark)
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),
                            data={"action": name, "params": _plain(params), "success": True, "private": True})
@@ -516,16 +516,3 @@ def _notified_since(world: SdkWorld, log_mark: int) -> bool:
             return True
     return False
 
-
-def _first_in_order(world: SdkWorld, log_mark: int, event: Any) -> None:
-    """Move an action's announcement ahead of the news its own effects produced."""
-    log = world.log
-    index = len(log) - 1
-    while index > 0 and log[index - 1].seq > log_mark:
-        index -= 1
-    if log[index] is event:
-        return
-    log.remove(event)
-    log.insert(index, event)
-    for offset, item in enumerate(log[index:]):
-        item.seq = log_mark + 1 + offset

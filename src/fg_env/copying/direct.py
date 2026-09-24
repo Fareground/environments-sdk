@@ -29,8 +29,9 @@ from ..runtime.exposure import Exposure, ExposureLog
 from ..runtime.measure import Stats
 from ..runtime.state import Memory, RunState, Where
 from ..runtime.turn import Turn
+from ..world.journal import Journal
 from ..world.live import SdkWorld, _copy
-from ..world.parts import ClockView, Entry, Journal, PhysicsView
+from ..world.parts import ClockView, Entry, PhysicsView
 from ..world.type_index import TypeIndex
 from .replay import Origin
 from .stepping import SteppedEnv, Waiting
@@ -188,7 +189,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
             if source.entry_by_seq.get(row["seq"]) is row:
                 by_seq[row["seq"]] = entry
         records[name] = copies
-    journal = Journal()
+    journal = Journal(world)
     journal.version = source.journal.version
     types = TypeIndex.__new__(TypeIndex)
     types.__dict__.update(_kinds=source.types._kinds, _queries=source.types._queries, _members=source.types._members)
