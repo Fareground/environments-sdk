@@ -47,7 +47,8 @@ GAME_MASTER = "host.game_master"
           "tape (a replay, or a restored run). Branch on it to use a host's judgment only when there is one, e.g. a "
           "judge's reading of a speech, and a coded stand-in otherwise.", min_args=1, max_args=1)
 def _host_bound_function(call: Call) -> bool:
-    name, world = call.arg(0), call.scope.world
+    world: Any = call.scope.world
+    name = call.arg(0)
     if not isinstance(name, str):
         raise ExprError(f"$host_bound: name must be a host's name, got {format_value(name)}", call.source)
     hosts = hosts_for(world)
