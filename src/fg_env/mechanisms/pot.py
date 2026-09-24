@@ -24,6 +24,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
 from ..world.live import Abort
+from ._common import stage_event
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 from .econ_base import lineage
@@ -610,14 +611,16 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
         raise MechanismError("at least one street (betting round) is needed", '{"betting": []}', "streets")
     live = f"$len($pot_live('{name}')) > 1"
     players = config.who
-    stages = []
+    stages, betting = [], []
     for index, (street, effects) in enumerate(config.streets.items()):
         opening = [] if index == 0 and config.blinds else [{"game": name, "action": "open_betting"}]
+        if effects or opening:
+            betting.append(stage_event(street, "start", list(effects) + opening))
+        betting.append(stage_event(street, "turn", [{"game": name, "action": "timeout"}], when="not $acted"))
         stages.append({
             "name": street, "when": live, "turns": "sequential", "actions": [f"{name}_{move}" for move in ACTIONS],
             "who": f"$it.id == $world.{name}_to_act", "until": f"$world.{name}_to_act == ''", "passes": 1000,
             "max_actions": 1, "max_calls": config.max_calls, "must_act": True,
-            "on_idle": [{"game": name, "action": "timeout"}], "on_enter": list(effects) + opening,
             "brief": f"{street.replace('_', ' ').capitalize()} betting. The pot is {{$pot_total('{name}')}}; "
                      f"you need {{$pot_options('{name}', $actor).call_amount}} more chips to call.",
         })
@@ -653,7 +656,7 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
         "stages": stages,
         "events": [{"name": f"{name}_hand", "phase": "start", "do": start},
                    {"name": f"{name}_showdown", "phase": "end",
-                    "do": showdown_effects + [{"game": name, "action": "showdown"}]}],
+                    "do": showdown_effects + [{"game": name, "action": "showdown"}]}, *betting],
     }
     if config.conserve:
         world_props[f"{name}_chips"] = {"type": "int", "default": f"$sum({players}, $it.stack)",

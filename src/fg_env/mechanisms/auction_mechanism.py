@@ -8,7 +8,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ._common import entity_of, fmt
+from ._common import entity_of, fmt, stage_event
 from ._social import check_expr
 from .auctions import FORMATS, MIN_PRICE, SEALED, AuctionConfig, bid, close_sealed, open_lot, tick
 from .econ_base import money_prop
@@ -302,16 +302,16 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                                  "when": f"$auction({name}).open", "brief": f"{rules}"}
         if not sealed:
             stage["order"] = "random"
-        if sealed:
-            stage["on_exit"] = [{"market": name, "action": "close"}]
         if packaged:
             stage.update(max_actions=cfg.packages, max_calls=cfg.packages + 4)
         fragment["stages"] = [stage]
     else:
-        hook: dict[str, Any] = {"actions": names, "on_exit": [{"market": name, "action": "close"}] if sealed else []}
+        hook: dict[str, Any] = {"actions": names}
         if packaged:
             hook["max_actions"] = cfg.packages
         fragment["stage_hooks"] = {cfg.stage: hook}
+    if sealed:
+        fragment["events"].append(stage_event(cfg.stage or name, "end", [{"market": name, "action": "close"}]))
     if cfg.conserve:
         fragment["invariants"] = [{"expr": f"$auction_ok({name})",
                                    "why": f"The {name} auction's escrow matches its open bids and every item is held "

@@ -13,7 +13,7 @@ Named the same in every mode:
 - `views`: generate the mechanism's views
 
 Modes (`"kind": "decision", "mode": ...`; read one with `guide('decision.<mode>')`):
-- `ballot`: A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit effects, so read the result in a later stage, event or on_enter, not in the vote stage's on_exit.
+- `ballot`: A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or supermajority with an optional quorum when the vote's stage ends — after the contract's own events on its end, so read the result in a later stage or event, not in an event on the vote stage's end.
 - `deliberation`: A deliberating body: a discussion stage `<name>` that repeats passes until every member is ready (or the pass cap), optional chair with floor control (raise hand, recognize, speaker limits), motions with seconds, amendments, calling the question, and a vote stage `<name>_vote` counted by majority or supermajority.
 - `procedure`: Rules of order.
 

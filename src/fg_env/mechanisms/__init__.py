@@ -12,7 +12,8 @@ determinism) therefore applies to it unchanged. Anything the author declares und
 or end entry too), so generated parts can be overridden (world properties excepted: they are the mechanism's
 state), while two mechanisms generating different entries under one name is an error naming both; types the author
 declares gain the mechanism's properties without losing their own. A mechanism may extend declared actions
-(``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms. A declared stage that offers only
+(``action_hooks``) and stages (``stage_hooks``: tools and turn settings; what it runs when a stage starts or ends, or
+after each turn, is an event on the stage's anchor), and generate other mechanisms. A declared stage that offers only
 mechanisms' actions and sets no ``max_actions`` allows, per turn, what each mechanism attached to it allows (a hook's
 ``max_actions``, default 1). A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
 which each type using it already acts.
@@ -44,12 +45,8 @@ _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "polici
           "outputs", "defs", "blocks", "arms")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
 _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "brief")
-#: Effects a mechanism may run around a declared stage: each becomes an event on the stage's anchor (a point of it, and
-#: the condition it runs under).
-_HOOK_EFFECTS = {"on_enter": ("start", None), "on_exit": ("end", None), "on_idle": ("turn", "not $acted"),
-                 "on_turn_end": ("turn", None)}
 #: ``max_actions`` in a hook is the mechanism's share of the stage's turn (see :func:`_share_turns`).
-_HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
+_HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
 _LISTED = ("population", "links", "events", "end", "invariants")
 #: Listed sections whose items may have a `name`: a declared item of that name replaces the generated one.
@@ -579,8 +576,8 @@ def _fill(declared: dict[str, Any], generated: Mapping[str, Any]) -> None:
 
 
 def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
-    """Add actions to stages the author declared, and effects around them as events on their anchors (an identical
-    event is added once)."""
+    """Add actions and turn settings to stages the author declared (what a mechanism runs around one is an event on
+    the stage's anchors, generated like any other)."""
     stages: dict[Any, dict[str, Any]] = {s.get("name"): s for s in data.get("stages", []) if isinstance(s, dict)}
     for stage_name, hook in hooks.items():
         stage = stages.get(stage_name)
@@ -601,13 +598,6 @@ def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
         for key in _HOOK_SETTINGS:  # turn settings the author left unset
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
-        events = data.setdefault("events", [])
-        for key, (point, when) in _HOOK_EFFECTS.items():
-            if hook.get(key):
-                event = {"on": f"stage.{stage_name}.{point}", **({"when": when} if when else {}),
-                         "do": copy.deepcopy(list(hook[key]))}
-                if _canonical(event) not in {_canonical(e) for e in events}:
-                    events.append(event)
 
 
 def _hook_actions(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:

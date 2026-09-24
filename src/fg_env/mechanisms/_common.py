@@ -29,7 +29,7 @@ __all__ = [
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
-    "is_agent_type",
+    "is_agent_type", "stage_event",
 ]
 
 
@@ -50,6 +50,12 @@ class ModifierSpec(Config):
 
     add: Number = Field(0.0, description="Added to the property (number or expression over $it).")
     mul: Number = Field(1.0, description="Multiplies the property (number or expression over $it).")
+
+
+def stage_event(stage: str, point: str, do: Effects, when: str | None = None) -> dict[str, Any]:
+    """An event that runs ``do`` at ``point`` of stage ``stage``: its start, its end, or after each agent's turn
+    (``turn``), under ``when``."""
+    return {"on": f"stage.{stage}.{point}", **({"when": when} if when else {}), "do": list(do)}
 
 
 def uses(contract: Any, kind: str) -> list[tuple[str, Mapping[str, Any]]]:

@@ -31,6 +31,7 @@ from ..host.protocols import HostError
 from ..host.tape import TAPE, consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort, _plain
+from ._common import stage_event
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
 
@@ -168,7 +169,8 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
         raise MechanismError(f"record '{config.record}' has no field '{config.field}'", None, "field")
     fragment["world"][f"{name}_cursor"] = {"type": "int", "default": 0}
     if config.stage is not None:
-        fragment["stage_hooks"] = {config.stage: {"on_exit": [{"host": name, "action": "judge"}]}}
+        fragment["stage_hooks"] = {config.stage: {}}  # it must be a stage there is
+        fragment["events"] = [stage_event(config.stage, "end", [{"host": name, "action": "judge"}])]
     else:
         fragment["events"] = [{"name": f"{name}_judging", "phase": "end", "do": [{"host": name, "action": "judge"}]}]
     return fragment

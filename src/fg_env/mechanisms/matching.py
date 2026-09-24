@@ -2,8 +2,8 @@
 
 Both sides rank the other in ``<name>_prefs`` (a private list of ids, best first; anyone left off is unacceptable).
 Agents submit their ranking with the generated ``<name>_rank`` tool; coded entities carry it as a prop the author
-sets; ``eligible`` restricts both to the partners a pair rule allows. When the matching stage ends (after its own
-``on_exit`` effects), deferred acceptance (Gale–Shapley) runs with ``who`` proposing: each proposer
+sets; ``eligible`` restricts both to the partners a pair rule allows. When the matching stage ends (after the
+contract's own events on its end), deferred acceptance (Gale–Shapley) runs with ``who`` proposing: each proposer
 applies down its list, each receiver holds its best ``seats`` applicants so far and rejects the rest. The result is
 stable (no proposer and receiver both prefer each other to what they got) and the best stable result for every
 proposer. It is written to ``<name>_match`` (a proposer's receiver id, or '') and ``<name>_matches`` (a receiver's
@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from ._common import is_agent_type, number_of
+from ._common import is_agent_type, number_of, stage_event
 from ._social import check_expr, props, require_type
 
 __all__ = ["MatchingConfig", "stable_match"]
@@ -40,7 +40,7 @@ class MatchingConfig(BaseModel):
                                                    "e.g. \"$receiver.id in $proposer.applied\". Rank tools offer only "
                                                    "eligible partners, and rankings are cut to them before matching.")
     stage: str | None = Field(None, description="Rank during this declared stage and match when it ends, after the "
-                                                "stage's own on_exit effects (every time); default: a stage named "
+                                                "contract's own events on its end (every time); default: a stage named "
                                                 "after the mechanism, once.")
 
 
@@ -148,9 +148,9 @@ def _rank_action(name: str, by: str, other: str, where: str | None) -> dict[str,
       "to `seats`. Both sides rank the other in the private list prop `<name>_prefs` (ids, best first; unlisted = "
       "unacceptable): agent types get a `<name>_rank` tool (`<name>_rank_<type>` when both sides are agents), coded "
       "entities carry the prop. `eligible` (over $proposer and $receiver, e.g. applications) limits the rank tools "
-      "and cuts every ranking to eligible partners. When the stage ends (after its own on_exit effects) the match is "
-      "stable and the best stable one for every proposer; read it as $it.<name>_match (a proposer's receiver id, '' "
-      "when unmatched) and $it.<name>_matches (a receiver's proposer ids). Output `<name>_matched`.",
+      "and cuts every ranking to eligible partners. When the stage ends (after the contract's own events on its end) "
+      "the match is stable and the best stable one for every proposer; read it as $it.<name>_match (a proposer's "
+      "receiver id, '' when unmatched) and $it.<name>_matches (a receiver's proposer ids). Output `<name>_matched`.",
       example={"who": "student", "to": "school", "seats": "$it.capacity"})
 def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who")
@@ -184,12 +184,14 @@ def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, A
     }
     clearing = [{"groups": name, "action": "clear"}]
     if config.stage is not None:
-        fragment["stage_hooks"] = {config.stage: {"actions": list(actions), "on_exit": clearing}}
+        fragment["stage_hooks"] = {config.stage: {"actions": list(actions)}}
+        fragment["events"] = [stage_event(config.stage, "end", clearing)]
     elif actions:
         fragment["stages"] = [{"name": name, "turns": "simultaneous", "actions": list(actions),
-                               "when": f"not $world.{name}_cleared", "on_exit": clearing,
+                               "when": f"not $world.{name}_cleared",
                                "brief": "Rank who you would accept, best first. When everyone has ranked, deferred "
                                         "acceptance makes a stable match."}]
+        fragment["events"] = [stage_event(name, "end", clearing)]
     else:
         fragment["events"] = [{"name": f"{name}_clear", "at": 1, "do": clearing}]
     return fragment

@@ -43,7 +43,7 @@ from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
 from ..world.live import Abort
 from . import _common as common
-from ._common import Config, Effects
+from ._common import Config, Effects, stage_event
 from ._social import check_expr, require_type
 
 __all__ = ["StackConfig", "StackKind", "expand_stack", "run_step", "check_push", "check_stack_rules", "read_stack"]
@@ -479,21 +479,22 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> di
                   "why": "Nothing on the stack is waiting for your answer."}],
         "do": [{**op, "action": "pass"}], "outcome": "You let it stand.", "private": True, "terminal": True,
     }
-    window: dict[str, Any] = {"on_exit": [{**op, "action": "close"}]}
+    stage = cfg.stage or f"{name}_stack"
+    events = [stage_event(stage, "end", [{**op, "action": "close"}])]
     if cfg.silence == "pass":
-        window["on_idle"] = [{**op, "action": "idle"}]
+        events.append(stage_event(stage, "turn", [{**op, "action": "idle"}], when="not $acted"))
     fragment: dict[str, Any] = {
         "world": {f"{name}_stack": {"type": "map", "default": {"items": [], "next": 1},
                                     "description": "The stack: its items, bottom first."}},
-        "actions": actions,
+        "actions": actions, "events": events,
     }
     if cfg.stage is None:
-        fragment["stages"] = [{"name": f"{name}_stack", "turns": "sequential", "actions": list(actions),
+        fragment["stages"] = [{"name": stage, "turns": "sequential", "actions": list(actions),
                                "who": f"$stack({name}, waiting, $it)", "until": f"$stack({name}, top) == null",
                                "when": f"$stack({name}, top) != null", "passes": cfg.passes,
-                               "brief": "Answer the item on top of the stack, or let it stand.", **window}]
+                               "brief": "Answer the item on top of the stack, or let it stand."}]
     else:
-        fragment["stage_hooks"] = {cfg.stage: {"actions": list(actions), **window}}
+        fragment["stage_hooks"] = {cfg.stage: {"actions": list(actions)}}
     if cfg.views:
         fragment["views"] = {f"{name}_stack": {"for": players, "title": "The stack",
                                                "when": f"$stack({name}, top) != null",

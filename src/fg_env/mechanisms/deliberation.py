@@ -37,6 +37,7 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
+from ._common import stage_event
 from ._social import check_expr, entity, named_use, props, require_type
 from .voting import tally
 
@@ -248,7 +249,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
         else:
             actor = vars.get("actor")
             if not isinstance(actor, Entity):
-                raise RunError(f"`{action}` runs inside an action or on_idle ($actor)", where)
+                raise RunError(f"`{action}` runs inside an action or after a turn ($actor)", where)
             value: dict[str, Any] = {key: runner.eval(effect[key], vars) for key in ("text", "who", "choice")
                                      if key in effect}
             _member_act(world, name, config, state, actor, action, value, where)
@@ -618,12 +619,13 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         "name": name, "turns": "sequential", "actions": talk_names, "quiet": "skip", "passes": config.passes,
         "until": f"$discussion_over('{name}')", "max_actions": 2,
         "brief": "Discuss. Anything said clears everyone's readiness; end your turn (or say you are ready) when you "
-                 "have nothing to add.",
-        "on_enter": [{"decision": name, "action": "open"}], "on_exit": [{"decision": name, "action": "close"}]}
+                 "have nothing to add."}
+    events = [stage_event(name, "start", [{"decision": name, "action": "open"}]),
+              stage_event(name, "end", [{"decision": name, "action": "close"}])]
     if chair:
         discussion["order"] = f"0 if $is($it, {chair}) else 1"
     if config.ready_when_silent:
-        discussion["on_idle"] = [{"decision": name, "action": "idle"}]
+        events.append(stage_event(name, "turn", [{"decision": name, "action": "idle"}], when="not $acted"))
     if config.when:
         discussion["when"] = config.when
     viewers = [members] + ([chair] if chair else [])
@@ -638,7 +640,7 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         "stages": [discussion,
                    {"name": f"{name}_vote", "turns": "simultaneous", "actions": vote_names,
                     "when": f"$world.{name}.phase == 'voting'",
-                    "brief": "Vote yes, no or abstain on the question before the body.",
-                    "on_exit": [{"decision": name, "action": "tally"}]}],
+                    "brief": "Vote yes, no or abstain on the question before the body."}],
+        "events": [*events, stage_event(f"{name}_vote", "end", [{"decision": name, "action": "tally"}])],
         "views": {f"{name}_house": {"for": viewers, "title": "The floor", "show": f"{{$house($actor, '{name}')}}"}},
     }
