@@ -48,7 +48,7 @@ def forget(env: Env) -> None:
     dropped = bisect.bisect_left(world.log, horizon, key=lambda event: event.seq)
     if dropped:
         del world.log[:dropped]
-        env._emitted = max(0, env._emitted - dropped)
+        env.state.emitted = max(0, env.state.emitted - dropped)
         world.rebuild_event_index()
     if len(env.origin.tape.turns) > max(world.types.living, _LEAST_TAPE):
         env.origin.checkpoint_due = True

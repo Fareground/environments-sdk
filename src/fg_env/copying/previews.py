@@ -70,11 +70,11 @@ class Previews:
             return self.now(entity_id, stage)
         snapshot = env.snapshot()
         probe = self.probe(snapshot, participants)
-        for point in probe._round():
+        for point in probe.schedule.steps():
             if point.stage is not None and entity_id in point.reasons and stage in (None, point.stage.name):
                 return probe.previews.turn(entity_id, point.stage, point.reasons[entity_id])
         start = self.probe(snapshot, participants)  # not woken this round: show the round as it opens
-        start._begin_round()
+        start.schedule.begin_round()
         return start.previews.now(entity_id, stage)
 
     def probe(self, snapshot: Mapping[str, Any], participants: Any = None) -> Env:
@@ -102,13 +102,13 @@ class Previews:
         if stage is not None:
             spec = next(s for s in stages if s.name == stage)
         else:
-            running = [s for s in acting if env._stage_runs(s)]
-            spec = next((s for s in running if actor in env._eligible(s, ordered=False)), None) \
+            running = [s for s in acting if env.schedule.stage_runs(s)]
+            spec = next((s for s in running if actor in env.schedule.eligible(s, ordered=False)), None) \
                 or next(iter(running or acting or stages))
         reason = "Everyone chooses at the same time." if spec.turns == "simultaneous" else "It is your turn."
-        if not env._stage_runs(spec):
+        if not env.schedule.stage_runs(spec):
             reason = f"(Preview only: stage {spec.name} does not run now.)"
-        elif actor not in env._eligible(spec, ordered=False):
+        elif actor not in env.schedule.eligible(spec, ordered=False):
             reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
         return self.turn(entity_id, spec, reason)
 

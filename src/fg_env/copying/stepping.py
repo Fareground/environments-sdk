@@ -101,11 +101,8 @@ class _RoundFailed(BaseException):
 def _end_round(env: SteppedEnv) -> None:
     """End the round ``env`` waits in, on this thread, now: its waiting turns are closed and counted. (Closing the
     round's generator instead discards it without closing anything, as garbage collection does.)"""
-    cursor = env._cursor
-    if cursor is None:
-        return
     try:
-        cursor.throw(_RoundFailed())
+        env.schedule.throw(_RoundFailed())
     except (_RoundFailed, StopIteration):
         pass
 
@@ -311,7 +308,7 @@ class Stepper:
         """Play on until a turn waits for a decision, or the run ends."""
         env = self._run()
         try:
-            env._play(None, None)
+            env.schedule.play(None, None)
         except (RunError, ExprError) as exc:
             self._fail(str(exc))
             return
@@ -319,7 +316,7 @@ class Stepper:
             raise
         except BaseException as exc:  # an engine defect or a participant's BaseException: surfaced
             self._waiting = None
-            env._fail(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
+            env.schedule.fail(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
             raise
         if self._waiting is None:
             self._ended()
@@ -328,13 +325,13 @@ class Stepper:
         env = self._run()
         self._waiting = None
         _end_round(env)
-        env._fail(message)
+        env.schedule.fail(message)
         self._ended()
 
     def _ended(self) -> None:
         """What a run's session does when it ends."""
         env = self._run()
-        env._flush_events()
+        env.schedule.flush()
         if self.settles:
             env.result()
 

@@ -358,7 +358,7 @@ class Turn:
             self.ledger.begin_part()
         if applied:
             if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
-                env.happenings.react(self.stage)
+                env.rules.react(self.stage)
             if result.ended or env.world.end_request is not None:
                 result.ended = True
                 why = self.settle()
@@ -462,7 +462,7 @@ class Turn:
             self._undo()
             return why
         ledger.commit_part()
-        self.env.happenings.react(self.stage)
+        self.env.rules.react(self.stage)
         return None
 
     def _commit_turn(self) -> str | None:

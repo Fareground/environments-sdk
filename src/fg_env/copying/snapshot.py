@@ -288,5 +288,5 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     if snapshot.get("budget") is not None:
         env.budget = Budget.from_dict(snapshot["budget"])
     env.diagnosis.load(snapshot.get("diagnosis"))
-    env._emitted = len(env.world.log)
+    env.state.emitted = len(env.world.log)
     return env

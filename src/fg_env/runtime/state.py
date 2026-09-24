@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from ..world.live import SdkWorld
     from .turn import Turn
 
-__all__ = ["Memory", "RunState", "UNDONE", "Where"]
+__all__ = ["Cursor", "Memory", "RunState", "UNDONE"]
 
 #: The parts of :meth:`RunState.encode` an undo (a refused action, an atomic turn that is not allowed, a rolled-back
 #: trial) brings back as they were. The rest is spent for good or only records the run.
@@ -48,9 +48,10 @@ class Memory:
 
 
 @dataclass
-class Where:
-    """Where the round in progress is, kept current as it plays, so a copy of the run taken while a turn waits for a
-    decision continues that round from the same place (see :mod:`fg_env.copying.stepping`)."""
+class Cursor:
+    """Where the round in progress is, kept current as the schedule plays it, so a copy of the run taken while a turn
+    waits for a decision continues that round from the same place (see :mod:`fg_env.runtime.schedule` and
+    :mod:`fg_env.copying.stepping`)."""
 
     stage: int = 0
     pass_index: int = 0
@@ -77,7 +78,9 @@ class RunState:
         self.brief_assets: dict[str, list[str]] = {}
         #: Whether a round is being played, and where in it the run is.
         self.in_round = False
-        self.where = Where()
+        self.cursor = Cursor()
+        #: How many of the log's events have been handed to the run's ``on_event`` callback.
+        self.emitted = 0
         self.stats = Stats()
         #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
         self.agent_stats: dict[str, Stats] = {}
@@ -115,7 +118,7 @@ class RunState:
     # -- the canonical form --------------------------------------------------------------------------------------
 
     def encode(self) -> dict[str, Any]:
-        """The state as JSON-safe data. The round in progress is not in it (:attr:`where` holds live turns): a run
+        """The state as JSON-safe data. The round in progress is not in it (:attr:`cursor` holds live turns): a run
         stopped part-way through a round is saved as the snapshot it replays from (see copying/snapshot.py)."""
         from ..copying.snapshot import encode
 

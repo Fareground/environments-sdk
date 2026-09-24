@@ -130,11 +130,11 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     world.emit("fork", "", to=(), data={"arm": new_arm, "inputs": sorted(inputs or {}), "patch": sorted(patch or {}),
                                         "contract": to is not None, "seed": seed, "effects": len(effects or [])})
     world.journal.clear()
-    env._emitted = len(world.log)
+    env.state.emitted = len(world.log)
     if effects:
         env.rules.run_block(list(effects), {}, "fork.effects")
     env.rules.check_invariants("fork")
-    env._emitted = len(world.log)
+    env.state.emitted = len(world.log)
     env.origin.base = take_snapshot(env)
     # The fork's changes are not in its build, so a recording of it replays from here.
     env.origin.start = recording_start(env.origin.base) if world.exposures is not None else None

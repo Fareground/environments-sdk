@@ -1,9 +1,9 @@
-"""The engine: rounds, stages, turns, events and ending.
+"""A loaded environment: the run's public face, which owns its state and its lock and wires its parts together.
 
-A round advances through safe points — before each stage, each pass and each sequential
-turn — so a run can stop at any of them and continue exactly where it left off.
-
-The round loop lives in :mod:`.rounds` and stage and turn running in :mod:`.stages`.
+What the run changes as it plays is one value, :class:`~fg_env.runtime.state.RunState`. The parts are services over
+it: :class:`~fg_env.runtime.rules.Rules` evaluates and commits world logic, :class:`~fg_env.runtime.schedule.Schedule`
+says when everything happens and who acts in what order, the :class:`~fg_env.runtime.driving.Driver` plays each turn's
+participant, and :class:`~fg_env.runtime.perception.Perception` renders what an agent reads.
 """
 from __future__ import annotations
 
@@ -31,39 +31,24 @@ from ..world.live import _plain
 from .budget import Budget, is_seconds
 from .diagnosis import Diagnosis
 from .diagnostics import diagnose
-from .driving import WAITING, Driver, run_on_worker
+from .driving import Driver, run_on_worker
 from .end_state import end_state
 from .exposure import ExposureLog, asks_seen, recording
-from .forgetting import forget, reads_log
-from .happenings import Happenings
+from .forgetting import reads_log
 from .measure import RunResult
 from .perception import Perception
 from .returns import measured
-from .rounds import RunRounds, _Steps
 from .rules import Rules
-from .stages import RunStages
+from .schedule import Schedule
 from .state import Memory, RunState
 from .turn import entity_dict
 
 __all__ = ["Env", "SNAPSHOT_VERSION"]
 
 
-class Env(RunRounds, RunStages):
+class Env:
     """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
     and :meth:`fork`."""
-
-    #: Declared here because the round and stage mixins are type-checked before ``__init__`` is.
-    status: str
-    origin: Origin
-    diagnosis: Diagnosis
-    rules: Rules
-    happenings: Happenings
-    driver: Driver
-    previews: Previews
-    _lock: threading.RLock
-    _signal: threading.Condition
-    _emitted: int
-    _inspectable: bool
 
     def __init__(self, contract: Contract, inputs: dict[str, Any], seed: int, arm: str | None = None,
                  parallel: int = 8, exposures: bool = False, assets: AssetStore | None = None, events: bool = True):
@@ -101,16 +86,12 @@ class Env(RunRounds, RunStages):
         #: Recorded when asked, or when the contract's rules ask `$seen`.
         self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
         self._reads_log = reads_log(contract) if not events else True
-        self.happenings = Happenings(self)
-        self.rules.react = self.happenings.react
         self.previews = Previews(self)
-        self._on_event: Callable[[dict[str, Any]], None] | None = None
-        self._emitted = 0
-        #: The round in progress while a run is stopped inside it (where in it the run is: ``state.where``).
-        self._cursor: _Steps | None = None
+        self.schedule = Schedule(self)
+        self.rules.react = self.schedule.react
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
         #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
-        self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
+        self._inspectable = any(inspect_rule(contract, kind) is not False for kind in contract.types)
         self.rules.check_invariants("build", "build")
 
     # -- public API ----------------------------------------------------------------
@@ -182,22 +163,22 @@ class Env(RunRounds, RunStages):
                 self.time_limit = float(time_limit)
             self.budget = Budget.begin(budget, self.budget)
             self.driver.loop = loop
-            self._on_event = on_event
+            self.schedule.on_event = on_event
             try:
-                self._play(rounds, stop)
+                self.schedule.play(rounds, stop)
             except (RunError, ExprError) as exc:
-                self._fail(str(exc))
+                self.schedule.fail(str(exc))
                 if raise_errors:
-                    self._flush_events()
+                    self.schedule.flush()
                     raise
             except BaseException as exc:
                 # A participant callback, stop/on_event callback or engine defect: surfaced, never swallowed.
-                self._fail(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
+                self.schedule.fail(f"{type(exc).__name__}: {exc}" if str(exc) else type(exc).__name__)
                 raise
-            self._flush_events()
+            self.schedule.flush()
             return self.result()
         finally:
-            self._on_event = None
+            self.schedule.on_event = None
             self.driver.loop = None
             self._running.release()
 
@@ -327,46 +308,6 @@ class Env(RunRounds, RunStages):
 
         return fork_env(self, **changes)
 
-    # -- driving -----------------------------------------------------------------------
-
-    def _play(self, rounds: int | None, stop: Callable[[Env], bool] | None) -> None:
-        completed = 0
-        while not self.finished:
-            if self._cursor is None:
-                if (rounds is not None and completed >= rounds) or (
-                        self.budget is not None and self.budget.enforce(self)):
-                    return
-                if stop is not None and stop(self):
-                    self.status = "stopped"
-                    return
-                if not self.state.keep_events:
-                    forget(self)
-                self.origin.round_start(self)
-                self._cursor = self._round()
-            elif self.status == "stopped":
-                self.status = "running"
-            for point in self._cursor:
-                if point is WAITING:  # a turn waits for a decision: the run pauses here, its round kept
-                    return
-                self.origin.tape.points += 1
-                if (self.budget is not None and self.budget.enforce(self)) or (stop is not None and stop(self)):
-                    self.status = self.status if self.finished else "stopped"
-                    return
-            self._cursor = None
-            completed += 1
-
-    def _fail(self, message: str) -> None:
-        if self._cursor is not None:
-            self._cursor.close()
-            self._cursor = None
-        self.status, self.error = "failed", message
-
-    # -- checks --------------------------------------------------------------------------------
-
-    def _inspect_rule(self, type_name: str) -> Any:
-        """The inspect rule for a type, inherited through `extends`."""
-        return inspect_rule(self.contract, type_name)
-
     # -- helpers --------------------------------------------------------------------------------
 
     def _joined(self, entity: Entity) -> None:
@@ -384,12 +325,3 @@ class Env(RunRounds, RunStages):
             if attached:
                 state.brief_assets[actor.id] = attached
         return brief
-
-    def _flush_events(self) -> None:
-        if self._on_event is None:
-            self._emitted = len(self.world.log)
-            return
-        while self._emitted < len(self.world.log):
-            event = self.world.log[self._emitted]
-            self._emitted += 1
-            self._on_event(event.to_dict())

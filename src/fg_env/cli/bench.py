@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from ..api import load, parse
-from ..runtime import rounds as _run_rounds
+from ..runtime import schedule as _schedule
 
 __all__ = ["REFERENCE_MODELS", "PHASES", "BenchResult", "bench", "bench_table"]
 
@@ -133,10 +133,10 @@ def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any
     rules.run_scheduled = watch.wrap("events", rules.run_scheduled)  # type: ignore[method-assign]
     rules.check_changes = watch.wrap("events", rules.check_changes)  # type: ignore[method-assign]
     rules.check_invariants = watch.wrap("invariants", rules.check_invariants)  # type: ignore[method-assign]
-    env._run_stage = watch.wrap_steps("stages", env._run_stage)  # type: ignore[method-assign, assignment]
+    env.schedule.run_stage = watch.wrap_steps("stages", env.schedule.run_stage)  # type: ignore[method-assign, assignment]
     env.world.step_physics = watch.wrap("physics", env.world.step_physics)  # type: ignore[method-assign]
-    sampler = _run_rounds.sample_metrics
-    _run_rounds.sample_metrics = watch.wrap("metrics", sampler)  # type: ignore[assignment]
+    sampler = _schedule.sample_metrics
+    _schedule.sample_metrics = watch.wrap("metrics", sampler)  # type: ignore[assignment]
     try:
         watch.enter("other")
         started = time.perf_counter()
@@ -144,7 +144,7 @@ def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any
         run_ms = (time.perf_counter() - started) * 1000
         watch.leave()
     finally:
-        _run_rounds.sample_metrics = sampler  # type: ignore[assignment]
+        _schedule.sample_metrics = sampler  # type: ignore[assignment]
     played = max(1, result.rounds)
     name = Path(contract).stem if isinstance(contract, (str, Path)) else env.contract.name
     return BenchResult(name, result.rounds, result.status, build_ms, run_ms,

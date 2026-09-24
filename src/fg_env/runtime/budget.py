@@ -190,13 +190,11 @@ class Budget:
             with env._lock:
                 env.world.emit("budget", self.message(env), data=self.to_dict(env))
                 env.world.journal.clear()
-            env._flush_events()
+            env.schedule.flush()
             return False
-        if env._cursor is not None:
-            env._cursor.close()
-            env._cursor = None
+        env.schedule.abandon()
         env.world.request_end("budget", None, self.message(env))
-        env._finish()
+        env.schedule.finish()
         return True
 
     def message(self, env: Env) -> str:
