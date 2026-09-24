@@ -474,3 +474,28 @@ def test_forward_looking_players_compete_more_as_the_temptation_grows():
 
 def test_coded_negotiators_strike_different_deals_on_different_seeds():
     assert len({json.dumps(run("negotiation", seed=seed).outputs["surplus"]) for seed in range(8)}) > 2
+
+
+def _mean_output(engine_id, output, inputs, seeds):
+    values = [run(engine_id, seed=s, inputs=inputs).outputs[output] for s in seeds]
+    return statistics.fmean((v == "werewolves") if isinstance(v, str) else float(v) for v in values)  # a win rate
+
+
+#: Each promoted scenario engine moves its headline output the way the real system does: (engine, output, the
+#: input change, whether the output rises).
+DIRECTIONS = [
+    ("supply_chain", "bullwhip_ratio", ({"share_demand": False}, {"share_demand": True}), False),
+    ("supply_chain", "total_cost", ({"shipping_delay": 1}, {"shipping_delay": 4}), True),
+    ("auction", "house_revenue", ({"collectors": 3}, {"collectors": 20}), True),
+    ("contact_centre", "centre_service_level", ({"staffing": [8] * 24}, {"staffing": [25] * 24}), True),
+    ("ride_hailing", "cancellation_rate", ({"drivers": 10}, {"drivers": 60}), False),
+    ("epidemic", "ever_infected_share", ({"transmissibility": 0.1}, {"transmissibility": 0.4}), True),
+    ("hidden_roles", "winning_side", ({"werewolves": 1}, {"werewolves": 3}), True),
+]
+
+
+@pytest.mark.parametrize("engine_id, output, change, rises", DIRECTIONS)
+def test_promoted_engines_move_their_outputs_the_way_the_real_system_does(engine_id, output, change, rises):
+    seeds = range(2) if engine_id in ("ride_hailing", "epidemic") else range(6)
+    low, high = (_mean_output(engine_id, output, inputs, seeds) for inputs in change)
+    assert (high > low) if rises else (high < low), (low, high)
