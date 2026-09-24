@@ -690,7 +690,3 @@ def _flatten(call: Call) -> List[Any]:
     charge(len(out), call.source)
     return out
 
-
-from .. import stdlib as _stdlib  # noqa: E402,F401  (registers the standard library)
-from . import space as _space_functions  # noqa: E402,F401  (registers the space functions)
-from . import assets as _asset_functions  # noqa: E402,F401  (registers $asset)

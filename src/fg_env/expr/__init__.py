@@ -91,6 +91,3 @@ def resolve(value: Any, scope: Scope) -> Any:
         return {key: resolve(item, scope) for key, item in value.items()}
     return value
 
-
-# Built-in functions register themselves on import.
-from ..stdlib import core as _functions  # noqa: E402,F401

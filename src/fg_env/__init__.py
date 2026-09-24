@@ -26,6 +26,7 @@ try:
 except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
     __version__ = "0+unknown"
 
+from . import stdlib  # noqa: F401  (registers every built-in expression function before anything runs one)
 from .api import check, expand, load, parse, run
 from .authoring.author import author
 from .copying.branch import Branch

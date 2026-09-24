@@ -114,7 +114,7 @@ def _inlined() -> Dict[Any, str]:
     """The implementations whose per-item loop is compiled inline, by the loop they run."""
     global _INLINED
     if _INLINED is None:
-        from ..stdlib import core as functions  # functions import the language: looked up on first compile
+        from ..stdlib import core as functions  # the functions import the language: looked up on first compile
 
         _INLINED = {functions._any: "any", functions._all: "all", functions._count: "count",
                     functions._filter: "filter", functions._pick: "pick",
