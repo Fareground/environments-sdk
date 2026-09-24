@@ -15,9 +15,9 @@ property (``$actor.goods.bread``), unique items are entities of a type named aft
 from __future__ import annotations
 
 import math
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TypeVar
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
@@ -26,11 +26,13 @@ from ..world.abort import Abort
 from .econ_base import EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, maybe_entity, money, props, uses_of
 from .ledger import market_places
 
+T = TypeVar("T")
+
 __all__ = ["Assets", "assets", "move_money", "mint_money", "burn_money", "held", "put_items", "take_items",
            "make_items", "destroy_items", "place_key", "is_holder", "inventory_prop", "balance", "credit_of",
            "UNPAID"]
 
-#: A payment refused for a balance hidden from the acting agent says only this (see World.refusal).
+#: A payment refused for a balance hidden from the acting agent says only this (see EvalContext.refusal).
 UNPAID = "That payment cannot be made."
 
 
@@ -64,7 +66,7 @@ def assets(world: Any) -> Assets:
             out.pipes.setdefault(chain.item, []).append(f"{name}_pipes")
         return out
 
-    return cached(world, "assets", build)  # type: ignore[no-any-return]
+    return cached(world, "assets", build)
 
 
 def _item(world: Any, item: Any, where: str) -> tuple[str, str, Any]:
@@ -402,7 +404,7 @@ def loose_total(world: Any, inventory: str, item: str, where: str) -> int:
 
 def _holder_types(world: Any, prop: str) -> frozenset:
     """Entity types that declare ``prop`` (cached per contract)."""
-    return cached(world, ("holders", prop),  # type: ignore[no-any-return]
+    return cached(world, ("holders", prop),
                   lambda: frozenset(t for t, specs in world.type_props.items() if prop in specs))
 
 
@@ -412,7 +414,7 @@ def _number_or_zero(value: Any) -> float:
 
 def _market_places(world: Any, currency: str) -> tuple[list[str], list[str]]:
     """Where the contract's markets hold ``currency`` for their traders (cached per contract)."""
-    return cached(world, ("markets", currency),  # type: ignore[no-any-return]
+    return cached(world, ("markets", currency),
                   lambda: market_places(world.contract.mechanisms, currency))
 
 
@@ -501,7 +503,7 @@ def _agent(call: Call, index: int = 0) -> Entity:
     return found
 
 
-def _guard(call: Call, run: Any) -> Any:
+def _guard(call: Call, run: Callable[[], T]) -> T:
     try:
         return run()
     except RunError as exc:
@@ -515,8 +517,8 @@ def _guard(call: Call, run: Any) -> Any:
 def _has(call: Call) -> bool:
     world, agent, asset, qty = call.scope.world, _agent(call), call.arg(1), call.number(2, 1)
     if isinstance(asset, str) and asset in assets(world).currencies:
-        return _guard(call, lambda: balance(world, agent, asset, call.source) + EPS >= qty)  # type: ignore[no-any-return]
-    return _guard(call, lambda: held(world, agent, asset, call.source) >= qty)  # type: ignore[no-any-return]
+        return _guard(call, lambda: balance(world, agent, asset, call.source) + EPS >= qty)
+    return _guard(call, lambda: held(world, agent, asset, call.source) >= qty)
 
 
 @function("count_items(agent, item?)",
@@ -525,7 +527,7 @@ def _has(call: Call) -> bool:
 def _count_items(call: Call) -> int:
     world, agent = call.scope.world, _agent(call)
     if len(call) > 1:
-        return _guard(call, lambda: held(world, agent, call.arg(1), call.source))  # type: ignore[no-any-return]
+        return _guard(call, lambda: held(world, agent, call.arg(1), call.source))
     return sum(held(world, agent, item) for item in assets(world).items)
 
 
@@ -551,7 +553,7 @@ def owned(world: Any, agent: Entity, inventory: str | None, where: str) -> list[
           min_args=1, max_args=2, family="economy")
 def _owned_items(call: Call) -> list[str]:
     world = call.scope.world
-    return _guard(call, lambda: owned(world, _agent(call), call.arg(1), call.source))  # type: ignore[no-any-return]
+    return _guard(call, lambda: owned(world, _agent(call), call.arg(1), call.source))
 
 
 def items_text(world: Any, agent: Entity, inventory: str | None, where: str) -> str:
@@ -574,7 +576,7 @@ def items_text(world: Any, agent: Entity, inventory: str | None, where: str) -> 
           min_args=1, max_args=2, family="economy")
 def _items_text(call: Call) -> str:
     world = call.scope.world
-    return _guard(call, lambda: items_text(world, _agent(call), call.arg(1), call.source))  # type: ignore[no-any-return]
+    return _guard(call, lambda: items_text(world, _agent(call), call.arg(1), call.source))
 
 
 @function("space_left(agent, inventory)", "Capacity the agent has left in an inventory, or null when unlimited.",
@@ -623,7 +625,7 @@ def _net_worth(call: Call) -> float:
 def _total_held(call: Call) -> float:
     members = call.collection(0)
     world = call.scope.world
-    return _guard(call, lambda: total_of(world, members, str(call.arg(1)), call.source))  # type: ignore[no-any-return]
+    return _guard(call, lambda: total_of(world, members, str(call.arg(1)), call.source))
 
 
 @function("money_held(ledger)", "Each currency of a ledger as held now, {currency: total}: every holder's balance and "
@@ -641,7 +643,7 @@ def _money_held(call: Call) -> dict[str, float]:
           min_args=2, max_args=2, family="economy")
 def _loose_total(call: Call) -> int:
     world = call.scope.world
-    return _guard(call, lambda: loose_total(world, str(call.arg(0)), str(call.arg(1)), call.source))  # type: ignore[no-any-return]
+    return _guard(call, lambda: loose_total(world, str(call.arg(0)), str(call.arg(1)), call.source))
 
 
 @function("ground_items(inventory, place)", "Stackable items lying at a place: {item: qty}.", min_args=2, max_args=2,

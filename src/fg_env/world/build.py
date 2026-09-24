@@ -74,7 +74,7 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
         raise RunError(str(exc), "build") from None
     except Abort as refusal:  # nothing to roll back to while building: a full cell is a contract error
         raise RunError(refusal.reason, "build") from None
-    world.journal.clear()
+    world.commit()
     world.luck.main = seeds.rng("run")
     return world
 

@@ -135,7 +135,7 @@ def plan(world: Any, name: str, config: DemandConfig) -> list[_Segment]:
                                 noise_keyed, index == 0))
         return out
 
-    return cached(world, ("demand-plan", name), build)  # type: ignore[no-any-return]
+    return cached(world, ("demand-plan", name), build)
 
 
 def read_term(runner: Any, term: _Term, item: Entity, vars: dict[str, Any], prices: dict[str, float],

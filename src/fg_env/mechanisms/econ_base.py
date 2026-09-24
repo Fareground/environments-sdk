@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Mapping, Sequence
-from typing import Any, cast
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel, ValidationError
 
@@ -19,6 +19,8 @@ from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, mechanism_config, use_key
 from ..world.abort import Abort
+
+T = TypeVar("T")
 
 __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list",
@@ -88,11 +90,13 @@ def checked_config(checker: Any, effect: Mapping[str, Any], family: str) -> Any:
         return None
 
 
-def cached(world: Any, key: Any, build: Any) -> Any:
+def cached(world: Any, key: Any, build: Callable[[], T]) -> T:
+    """``build()``, worked out once per contract under ``key``."""
     cache = _cache(world)
     if key not in cache:
         cache[key] = build()
-    return cache[key]
+    value: T = cache[key]
+    return value
 
 
 # ---------------------------------------------------------------------------
