@@ -107,6 +107,7 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     env._running = threading.Lock()
     env.effects = _rebound(source.effects, world=world)
     world.lifecycle = env.effects.lifecycle
+    world.joined = env._joined
     env.actions = _rebound(source.actions, world=world, effects=env.effects)
     env.perception = _rebound(source.perception, world=world)
     env.happenings = _rebound(source.happenings, env=env)
