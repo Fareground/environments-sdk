@@ -142,11 +142,6 @@ VAULT = {
 }
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "a refusal spent because it read a hidden value is refunded when its atomic part is undone: Turn._undo restores "
-    "actions_left and used from the part's start (runtime/turn.py), so an agent in a `valid` stage guesses a hidden "
-    "value again and again within one turn — guess (spent), wait (the turn settles and is undone), guess again. The "
-    "kernel design (section 2) keeps this verbatim through the rebuild and flags it for its own reviewed change."))
 def test_a_refusal_spent_on_a_hidden_value_stays_spent_when_its_atomic_turn_is_undone():
     guesses = []
 
@@ -162,7 +157,7 @@ def test_a_refusal_spent_on_a_hidden_value_stays_spent_when_its_atomic_turn_is_u
 
     fg_env.run(copy.deepcopy(VAULT), play, seed=1)
     assert all(spent for _, ok, spent in guesses if not ok)  # each wrong guess read the hidden code
-    assert len(guesses) <= VAULT["stages"][0]["max_actions"], guesses  # today: 0..6, the code found in one turn
+    assert len(guesses) <= VAULT["stages"][0]["max_actions"], guesses  # was 0..6: the code found in one turn
 
 
 @pytest.mark.xfail(strict=True, reason=(

@@ -175,7 +175,9 @@ feature with the core of the contract language marked apart from the rest.
 - **Correctness.** Diagnostics no longer depend on the order concurrent sealed turns ran in, and quote the same
   refusal whichever sealed agent was refused first. Announcements hide an argument that reaches a private property
   through a local. Created properties are worked out in the order they read each other. An event `each` over a number
-  is a clear error instead of a raw exception.
+  is a clear error instead of a raw exception. A refusal that drew luck or read a hidden value stays spent when its
+  turn in a `valid` stage is undone: before, undoing the turn gave the attempt back, so an agent could guess a hidden
+  value again and again within one turn.
 - **Examples.** The canonical lake example shares simultaneous catches, so identical choices give identical outcomes;
   the labor negotiation and epidemic examples play to their end on every seed; the five matrix games and matching
   pennies state a missed-move rule.

@@ -411,12 +411,13 @@ class Turn:
     def _refused(self, name: str, text: str, before: tuple[int, int], free: dict[str, Any]) -> ToolResult:
         """The result of a refused call to ``name``, the one place that decides what a refusal costs. Since ``before``
         (:meth:`_tally`), did working it out draw luck or read a value hidden from the actor (see expr/hidden.py)?
-        Then the action is spent — a free retry would let an agent reroll its luck, or probe the hidden value again
-        and again. Otherwise it is free (its ``free`` data: an invalid call or a rejected one)."""
+        Then the action is spent, for good — a free retry would let an agent reroll its luck, or probe the hidden value
+        again and again, and so would undoing its atomic turn's part. Otherwise it is free (its ``free`` data: an
+        invalid call or a rejected one)."""
         draws, hidden = self._tally()
         if (draws, hidden) == before:
             return ToolResult(False, text, data=free)
-        self._count(name)
+        self._count(name, spent=True)
         return ToolResult(False, text, self.actions_left <= 0, dict(_SPENT))
 
     def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
@@ -476,13 +477,17 @@ class Turn:
         """What the agent can call now."""
         return offer_text(self._legal())
 
-    def _count(self, name: str) -> None:
+    def _count(self, name: str, spent: bool = False) -> None:
         """Count one use of ``name``: this turn's and, in the world, this round's. An atomic turn's uses are undone with
-        the part of the turn they were made in; elsewhere a use stands once counted (its change has committed, or it
-        is a sealed choice)."""
+        the part of the turn they were made in, but for a ``spent`` one (a refusal that drew luck or read a hidden
+        value: :meth:`_refused`), which the part's checkpoint takes in, so undoing the part keeps it. Elsewhere a use
+        stands once counted (its change has committed, or it is a sealed choice)."""
         self.used[name] = self.used.get(name, 0) + 1
-        self.env.world.count_use(self.actor.id, name, undoable=self.atomic)
+        self.env.world.count_use(self.actor.id, name, undoable=self.atomic and not spent)
         self.actions_left -= 1
+        if spent and self._mark is not None:
+            actions_left, used, pending, actions = self._part
+            self._part = (actions_left - 1, {**used, name: used.get(name, 0) + 1}, pending, actions)
         if self.atomic:
             self._counted.append(name)
 
