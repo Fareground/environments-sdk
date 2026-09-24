@@ -41,7 +41,7 @@ _MAP = """\
 Start with `guide('authoring')` (`fg-env guide authoring`): one page with a complete worked contract, the
 write → check → preview → run loop and the core language. It is enough for a first environment; read the parts
 below only when you need them. To have a model do the loop for you: `fg-env author brief.md --model
-anthropic:<model>` (`fg_env.author`); it keeps the latest contract that checks without errors and plays soundly.
+anthropic:<model>` (`fg_env.author`); it keeps the best contract that checks without errors and plays soundly.
 
 ## Sections
 

@@ -51,7 +51,12 @@ class StubEvaluator(_Recording):
 
 
 class StubGameMaster(_Recording):
-    """Resolves attempts with ``resolve(request)``; by default nothing happens."""
+    """Resolves attempts with ``resolve(request)``; by default it applies every allowed effect once, within its
+    bounds, so what the effects set off is played: on the actor when the rule allows it (else its first target), a
+    number moved by the rule's greatest change (up, or down at the top of its range), a flag flipped, the first listed
+    value unlike the current one, one unit transferred (the rule's amount when that is less), a move to the first
+    destination, news of the attempt. A rule it cannot fill with a value it knows to fit — no target, or a change from
+    a number the request does not show — it leaves out."""
 
     def __init__(self, resolve: Optional[Callable[[Mapping[str, Any]], Mapping[str, Any]]] = None):
         super().__init__()
@@ -61,7 +66,61 @@ class StubGameMaster(_Recording):
         self.calls.append(request)
         if self._resolve is not None:
             return self._resolve(request)
-        return {"narration": "Nothing much happens.", "effects": []}
+        effects: List[Dict[str, Any]] = []
+        changed = set()
+        for rule in request.get("allowed") or []:
+            effect = _effect(rule, request)
+            key = (effect["effect"], effect.get("target"), effect.get("prop")) if effect else None
+            if effect and (effect["effect"] == "transfer" or key not in changed):  # one change to each thing
+                changed.add(key)
+                effects.append(effect)
+        return {"narration": "The stub game master lets it happen.", "effects": effects[:request.get("max_effects")]}
+
+
+def _effect(rule: Mapping[str, Any], request: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    """The effect ``rule`` allows, filled with values that fit it, or None."""
+    actor = request.get("actor") or {}
+    kind = rule.get("effect")
+    if kind == "news":
+        return {"effect": "news", "text": f"News: {request.get('attempt', '')}"[:rule.get("max_chars", 200)]}
+    if kind == "transfer":
+        giver = _pick(rule.get("from") or [], actor.get("id"))
+        receiver = next((party for party in rule.get("to") or [] if party != giver), None)
+        return (None if giver is None or receiver is None else
+                {"effect": "transfer", "prop": rule["prop"], "from": giver, "to": receiver,
+                 "amount": min(1, rule["max_amount"])})
+    if kind == "set_world":
+        value = _value(rule, None)
+        return None if value is None else {"effect": "set_world", "prop": rule["prop"], "value": value}
+    target = _pick(rule.get("targets") or [], actor.get("id"))
+    if target is None:
+        return None
+    if kind == "move":
+        places = (rule.get("destinations") or {}).get(target) or []
+        return {"effect": "move", "target": target, "to": places[0]} if places else None
+    value = _value(rule, (actor.get("props") or {}).get(rule["prop"]) if target == actor.get("id") else None)
+    return None if value is None else {"effect": "set", "target": target, "prop": rule["prop"], "value": value}
+
+
+def _pick(ids: Sequence[str], actor: Any) -> Optional[str]:
+    return actor if actor in ids else (ids[0] if ids else None)
+
+
+def _value(rule: Mapping[str, Any], current: Any) -> Any:
+    """A new value for ``rule``'s property (``current`` when the request shows it) that fits the rule, or None."""
+    if rule.get("values"):
+        return next((value for value in rule["values"] if value != current), rule["values"][0])
+    if isinstance(current, bool):
+        return not current
+    low, high, change = rule.get("min"), rule.get("max"), rule.get("max_change")
+    if isinstance(current, (int, float)):
+        step = change if change is not None else 1
+        within = [min(max(value, low if low is not None else value), high if high is not None else value)
+                  for value in (current + step, current - step)]
+        return next((value for value in within if value != current), None)
+    if change is not None or (low is None and high is None):
+        return None
+    return low if low is not None else high
 
 
 class StubTools(_Recording):

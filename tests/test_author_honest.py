@@ -65,19 +65,6 @@ def test_check_warnings_reach_the_model_and_only_a_clean_check_is_called_clean()
     assert "Check warnings:\n[warning] actions.wait.do[1]: stores `{$...}` literally" in replies[0]
 
 
-def test_what_a_working_revision_removed_since_the_first_is_named_to_the_model_and_in_the_summary():
-    fewer = {k: v for k, v in WORKING.items() if k != "views"}
-    fewer["actions"] = {"take": {**WORKING["actions"]["take"], "announce": "Taken."}}
-    client = FakeOpenAI([write(WORKING)], [write(fewer)], [])
-
-    result = fg_env.author("A game.", "openai:m", client=client)
-
-    assert result.ok and result.working == [1, 2]
-    assert "Since revision 1, the first that worked, this removed: views.pile. Put back what the brief asks for." \
-        in tool_replies(client)[1]
-    assert "REMOVED since revision 1, the first that worked: views.pile — check the brief is still met" in result.summary()
-
-
 @pytest.mark.parametrize("example, host", [("debate_judged", "judge"), ("tavern_gm", "game_master")])
 def test_a_contract_that_consults_a_host_is_tested_with_the_stand_in_stubs(example, host):
     result, replies = authored(json.loads((EXAMPLES / "host" / f"{example}.json").read_text()))
@@ -165,7 +152,7 @@ def test_the_revision_limit_names_the_revision_kept_and_ends_the_session(monkeyp
     result = fg_env.author("A game.", "openai:m", client=client)
 
     replies = [m["content"] for m in result.messages if m["role"] == "tool"]
-    assert replies[2] == "Revision limit reached (2): nothing more is saved; revision 1, the latest that works, is kept."
+    assert replies[2] == "Revision limit reached (2): nothing more is saved; revision 1, the best that works, is kept."
     assert (result.ok, result.stop, result.usage["calls"], result.contract) == (True, "revisions", 2, WORKING)
 
 

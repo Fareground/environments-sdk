@@ -54,7 +54,7 @@ class FakeOpenAI:
         if calls == EMPTY:
             return SimpleNamespace(choices=[], usage=None)
         arguments = [c.get("raw") or json.dumps(c["args"]) for c in calls]
-        if isinstance(calls, Cut):
+        if isinstance(calls, Cut) and arguments:
             arguments[-1] = arguments[-1][:len(arguments[-1]) // 2]
         tool_calls = [SimpleNamespace(id=f"c{len(self.sent)}-{n}", function=SimpleNamespace(
             name=c["name"], arguments=text)) for n, (c, text) in enumerate(zip(calls, arguments))]
@@ -202,8 +202,8 @@ def test_bad_model_names_say_how_to_fix_them(model, message):
 
 
 def test_bad_budget_says_how_to_fix_it():
-    with pytest.raises(ValueError, match="use tokens and calls"):
-        fg_env.author("A game.", "openai:m", client=FakeOpenAI(), budget={"seconds": 5})
+    with pytest.raises(ValueError, match="use tokens, calls and seconds"):
+        fg_env.author("A game.", "openai:m", client=FakeOpenAI(), budget={"minutes": 5})
 
 
 def test_cli_refuses_to_overwrite_and_needs_a_key(tmp_path, monkeypatch, capsys):
@@ -318,7 +318,7 @@ def test_anthropic_max_tokens_mid_write_is_a_cut_off_write():
 
 def test_edit_contract_changes_parts_of_the_saved_contract():
     client = FakeOpenAI([edit(("name", "x"))], [write(WORKING)],
-                        [edit(("name", "Pile"), ("entities.east", {"type": "player"}), ("views", ...),
+                        [edit(("name", "Pile"), ("entities.east", {"type": "player"}), ("brief.rules", ...),
                               ("actions.take.do[3]", "$world.stones -= 0"))],
                         [edit(("clock.nope.deeper", 1))], [edit(("actions.take.do[9]", 1))], [])
 
@@ -330,15 +330,17 @@ def test_edit_contract_changes_parts_of_the_saved_contract():
     assert replies[3] == "edits[0]: clock.nope.deeper: the contract has no clock.nope. Nothing saved."
     assert replies[4].startswith("edits[0]: actions.take.do[9]: actions.take.do has 4 item(s): use an index below 4, or 4 to add one. Nothing saved.")
     kept = result.contract
-    assert kept["name"] == "Pile" and "east" in kept["entities"] and "views" not in kept
+    assert kept["name"] == "Pile" and "east" in kept["entities"] and "rules" not in kept["brief"]
     assert kept["actions"]["take"]["do"][-1] == "$world.stones -= 0" and WORKING["name"] == "Take the last stone"
 
 
 def test_the_summary_says_when_the_kept_revision_changed_what_the_environment_is():
     renamed = {**WORKING, "name": "Stones", "outputs": {"score": "1"}}
-    result = fg_env.author("A game.", "openai:m", client=FakeOpenAI([write(WORKING)], [write(renamed)], []))
+    client = FakeOpenAI([write(WORKING)], [write(renamed)], [write(renamed)], [])
 
-    assert result.working == [1, 2]
+    result = fg_env.author("A game.", "openai:m", client=client)
+
+    assert result.working == [1, 2, 3] and result.kept == 3
     assert ("changed since revision 1, the first that worked: name 'Take the last stone' → 'Stones'; "
             "outputs -winner +score") in result.summary()
 

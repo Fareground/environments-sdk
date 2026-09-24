@@ -3,19 +3,21 @@
     result = fg_env.author("A corner shop orders stock every week ...", "anthropic:claude-sonnet-4-5", out="shop.json")
     print(result.summary())
 
-The model starts from ``guide("authoring")`` and works with six tools — ``write_contract``, ``edit_contract``,
-``check``, ``run``, ``preview`` and ``guide`` — until it says it is done or the budget runs out. Every contract it
-saves is tested (:func:`tested`: checked, then run with random, idle and edge-value agents within a time budget — a
-long run that budget cuts short counts for the rounds it reached, and the result says so), in a child process killed
-when that budget is spent (:mod:`fg_env.author_sandbox`), so a contract too slow to test is reported, never hangs the
-session. Its host calls are answered by the SDK's stand-in stubs (:mod:`fg_env.host.stubs`). The result keeps the
-latest one that works, so a later revision that breaks it never replaces it; what that revision removed from the first
-one that worked is named to the model and in the summary. ``out`` is written each time a new one works, so an
-interrupted session keeps it; a session where nothing worked writes its latest contract beside ``out`` as
+The model starts from ``guide("authoring")`` and the list of engine starters, and works with seven tools —
+``write_contract``, ``edit_contract``, ``start_from`` (an engine starter as its contract), ``check``, ``run``,
+``preview`` and ``guide`` — until it says it is done or the budget runs out. Every contract it saves is tested
+(:func:`tested`: checked, then run with random, idle and edge-value agents that read every view they may look at,
+within a time budget — a long run that budget cuts short counts for the rounds it reached, and the result says so), in
+a child process killed when that budget is spent (:mod:`fg_env.author_sandbox`), so a contract too slow to test is
+reported, never hangs the session. Its host calls are answered by the SDK's stand-in stubs (:mod:`fg_env.host.stubs`).
+The result keeps the best revision that works: the latest one that removes nothing the kept one has. A working
+revision that removes parts (an action, a view, an output, an event, an entity ...) is named to the model and kept
+only once the model saves that removal again. ``out`` is written each time a new one is kept, so an interrupted
+session keeps it; a session where nothing worked writes its latest contract beside ``out`` as
 ``<name>.not-working.json`` instead. A model that stops before any saved contract works is sent back, with the
-problem, a couple of times; one that stops on a broken revision after an earlier one worked is sent back once. A
-reply cut off at the output limit is named to the model as such, and rate limits, overload and empty replies are
-retried with backoff.
+problem, a couple of times; one that stops with something unsettled after one worked — its last revision broken, a
+removal not confirmed, its reply cut off at the output limit — is sent back once. Rate limits, overload and empty
+replies are retried with backoff.
 
 ``model`` is ``"anthropic:<model>"`` or ``"openai:<model>"``, on the official client made from ``ANTHROPIC_API_KEY``
 or ``OPENAI_API_KEY``. Any OpenAI-compatible server (OpenRouter, a local server) works through ``openai:``: the
@@ -37,9 +39,10 @@ from typing import Any, Callable, Dict, List, Mapping, NamedTuple, Optional, Set
 
 from .api import ContractLike, check, contract_source, load, parse
 from .author_sandbox import Sandbox, TooSlow, step
-from .budget import CACHED_WEIGHT
+from .budget import CACHED_WEIGHT, is_seconds
 from .contract import Contract
 from .diagnostics import DEGRADING
+from .engines import get as engine_spec, list_engines
 from .guides import guide
 from .host.hosts import Hosts
 from .host.stubs import StubDescriber, StubEvaluator, StubFeed, StubGameMaster, StubRanker, StubTools, StubWriter
@@ -51,8 +54,12 @@ from .session import Wake
 __all__ = ["author", "AuthorResult"]
 
 #: What a brief may spend unless ``budget`` says otherwise: model tokens (input + output, cache reads weighted by
-#: :data:`~fg_env.budget.CACHED_WEIGHT`, as in a run's token budget) and model calls.
-DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30}
+#: :data:`~fg_env.budget.CACHED_WEIGHT` and cache writes by :data:`CACHE_WRITE_WEIGHT`), model calls, and wall-clock
+#: seconds (checked before each model call, so the session ends at most one step past them).
+DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30, "seconds": 1800}
+#: What an input token written to the provider's prompt cache counts for in the budget: providers bill it at a quarter
+#: more than a fresh one.
+CACHE_WRITE_WEIGHT = 1.25
 #: Most contract revisions the model may save (a write that saves nothing, such as invalid JSON, is not one).
 MAX_REVISIONS = 8
 #: Seeds every saved contract is run on, with random agents and with idle ones.
@@ -88,6 +95,10 @@ TOOLS: List[Dict[str, Any]] = [
          "type": "object", "properties": {"path": {"type": "string"},
                                           "value": {"type": "string", "description": "The new value as JSON text."}},
          "required": ["path"]}}}, "required": ["edits"]}},
+    {"name": "start_from", "description": "Save an engine starter as your contract (a new revision, tested like any "
+     "other), to adapt to the brief with edit_contract. The reply shows the whole contract.",
+     "parameters": {"type": "object", "properties": {"engine": {
+         "type": "string", "enum": [spec.id for spec in list_engines(available=True)]}}, "required": ["engine"]}},
     {"name": "check", "description": "Check the saved contract: every problem with its path and a fix.",
      "parameters": {"type": "object", "properties": {}}},
     {"name": "run", "description": "Run the saved contract once and return its summary and outputs.",
@@ -108,7 +119,13 @@ INSTRUCTION = ("\n\nBuild this environment. Save it with write_contract, revise 
                "tools as you see fit. The guide's steps name fg-env commands; here your tools do them: write_contract or "
                "edit_contract saves the file, `fg-env check` is check, `fg-env preview <file> <id>` is preview(agent), "
                "`fg-env run <file> --seed N` is run(seed) and `fg-env guide <part>` is guide(part). "
-               "Reply without calling a tool when you are done.")
+               "Reply without calling a tool when you are done.\n\nEngine starters: working environments to adapt. When "
+               "one is close to this brief, start from it with start_from and change what the brief needs; otherwise "
+               "write your own.\n")
+#: What a model that stops after a working revision that removed parts of the kept one is told once.
+UNKEPT = ("Revision {latest} works, but it removed {removed}, which revision {kept} has, so revision {kept} is kept. Put "
+          "back what the brief asks for; if the brief does not need them, save it again to confirm the removal. "
+          "Stopping now keeps revision {kept}.")
 NUDGE = "No contract is saved yet. Save it with write_contract (keep replies short; put the contract in the tool call)."
 NOT_WORKING = "Nothing you saved works yet: {problem}\nFix it and save it again."
 #: What a model that stops on a broken revision, after an earlier one worked, is told once.
@@ -130,48 +147,56 @@ class EmptyReply(Exception):
 
 @dataclass
 class AuthorResult:
-    """What :func:`author` built. ``contract`` is the latest saved contract that works (``ok``), else the latest one
+    """What :func:`author` built. ``contract`` is the kept revision, the best that works (``ok``), else the latest one
     saved (``problem`` says what is wrong), else None."""
 
     contract: Optional[Dict[str, Any]]
     ok: bool
-    #: What is wrong with the model's last write, when that is not the contract kept ("" when it is).
+    #: What is wrong with the model's last write, or why it was not kept, when that is not the contract kept ("" when
+    #: it is).
     problem: str
     #: Why the loop ended: "done"; "gave_up" (the model stopped with nothing working); "revisions" (it saved every
-    #: revision it may: ``ok`` says whether one works); "refused" (the provider refused to go on); "tokens" or "calls"
-    #: (the budget); or "error: <the provider's error>".
+    #: revision it may: ``ok`` says whether one works); "refused" (the provider refused to go on); "tokens", "calls" or
+    #: "seconds" (the budget); or "error: <the provider's error>".
     stop: str
     #: Every write, in order: the contract saved, or the text of one that saved nothing (not valid JSON, cut off).
     writes: List[Any]
     #: The whole conversation, in OpenAI chat format.
     messages: List[Message]
-    #: input_tokens (fresh ones), cached_tokens (read from the provider's prompt cache), output_tokens, calls,
-    #: truncated (replies cut off at the output limit), and cost when the provider reports it (OpenRouter does).
+    #: input_tokens (fresh ones), cached_tokens (read from the provider's prompt cache), cache_write_tokens (written to
+    #: it), output_tokens, calls, truncated (replies cut off at the output limit), and cost when the provider reports it
+    #: (OpenRouter does).
     usage: Dict[str, Any]
     seconds: float
     #: Where ``contract`` was written: ``out``, or beside it as ``<name>.not-working.json`` when nothing worked.
     path: Optional[str] = None
     #: The revisions that worked, numbered from 1 in the order they were saved.
     working: List[int] = field(default_factory=list)
-    #: How far the kept contract's test runs got when the time budget ended them ("" when every run finished).
-    untested: str = ""
+    #: The number of the kept revision, ``contract`` (None when none works).
+    kept: Optional[int] = None
+    #: What testing the kept revision found: how far its runs got when test time ran out (``untested``), its check's
+    #: warnings, and the hosts the SDK's stand-in stubs answered (None when none works).
+    tested: Optional["Tested"] = None
 
     def summary(self) -> str:
         """What it built — name, agent types, actions, stages, outputs — what changed along the way, what it used, and
         what to do next."""
         revisions = [w for w in self.writes if isinstance(w, dict)]
-        kept = self.working[-1] if self.ok else len(revisions)
+        kept = self.kept if self.ok and self.kept else len(revisions)
+        untested = self.tested.untested if self.tested else ""
         if self.contract is None:
             lines = [f"no contract saved (stopped: {self.stop})"]
         else:
-            lines = [f"{'built' if self.ok else 'NOT WORKING'}: {self.contract.get('name') or '(unnamed)'} — revision "
-                     f"{kept} of {len(revisions)}, stopped: {self.stop}"]
-        if self.untested:
-            lines.append(f"  {self.untested}")
+            status = ("built, PARTLY TESTED" if untested else "built") if self.ok else "NOT WORKING"
+            lines = [f"{status}: {self.contract.get('name') or '(unnamed)'} — revision {kept} of {len(revisions)}, "
+                     f"stopped: {self.stop}"]
+        if untested:
+            lines.append(f"  PARTLY TESTED: {untested}")
         if self.problem and not self.ok:
             lines.append(f"  problem: {self.problem}")
         elif self.problem:
-            last = f"revision {len(revisions)} did not work" if self.writes[-1] is revisions[-1] else "the last write"
+            last = ("the last write" if self.writes[-1] is not revisions[-1] else f"revision {len(revisions)} was not kept"
+                    if len(revisions) in self.working else f"revision {len(revisions)} did not work")
             lines.append(f"  kept revision {kept} of {len(revisions)}; {last}: {self.problem}")
         first = revisions[self.working[0] - 1] if self.ok and self.contract else None
         changed = _changes(first, self.contract) if first is not None and self.contract else ""
@@ -182,13 +207,18 @@ class AuthorResult:
             lines.append(f"  REMOVED since revision {self.working[0]}, the first that worked: {', '.join(removed)} — "
                          "check the brief is still met")
         agent = self._describe(lines)
+        if self.tested and self.tested.hosts:
+            lines.append(f"  hosts: {', '.join(self.tested.hosts)} answered by the SDK's stand-in stubs in testing, not a "
+                         "model: bind real hosts to run it for real")
+        if self.tested and self.tested.warnings:
+            lines += ["  check warnings:", *(f"    {warning}" for warning in self.tested.warnings)]
         said = next((m["content"] for m in reversed(self.messages) if m["role"] == "assistant"), "").strip()
         if said:
             lines.append("  the model's last words: " + said.replace("\n", "\n    "))
         cost = f", ${self.usage['cost']:.2f}" if "cost" in self.usage else ""
         cached = f" (+{self.usage['cached_tokens']:,} cached)" if self.usage.get("cached_tokens") else ""
-        lines.append(f"  used: {self.usage['calls']} model calls, "
-                     f"{self.usage['input_tokens'] + self.usage['output_tokens']:,} tokens{cached}{cost}, "
+        fresh = self.usage["input_tokens"] + self.usage.get("cache_write_tokens", 0) + self.usage["output_tokens"]
+        lines.append(f"  used: {self.usage['calls']} model calls, {fresh:,} tokens{cached}{cost}, "
                      f"{self.seconds:.0f}s")
         if self.path:
             lines.append(f"next: fg-env preview {self.path} {agent} · fg-env run {self.path} --seed 1"
@@ -230,12 +260,15 @@ def _removed(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
     return [path for path in gone if not any(path.startswith(other + ".") for other in gone)]  # an action, not its params
 
 
-#: The contract sections whose parts make up what an environment is.
-_SECTIONS = ("types", "actions", "stages", "views", "outputs", "mechanisms", "inputs")
+#: The contract sections made of parts: together, what an environment is.
+_SECTIONS = ("inputs", "assets", "world", "types", "entities", "population", "relations", "links", "feeds", "patterns",
+             "records", "actions", "stages", "views", "events", "triggers", "policies", "metrics", "outputs", "end",
+             "arms", "invariants", "defs", "blocks", "mechanisms")
 
 
 def _parts(contract: Dict[str, Any]) -> Dict[str, Set[str]]:
-    """The names of the parts of each of :data:`_SECTIONS` (a stage by its name), and of each action's params."""
+    """The names of the parts of each of :data:`_SECTIONS` (a list's item by its name, else its position), and of each
+    action's params."""
     parts: Dict[str, Set[str]] = {}
     for key in _SECTIONS:
         value = contract.get(key) or {}
@@ -248,14 +281,14 @@ def _parts(contract: Dict[str, Any]) -> Dict[str, Set[str]]:
 
 
 def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = None,
-           budget: Optional[Mapping[str, int]] = None, progress: Optional[Callable[[str], None]] = None) -> AuthorResult:
+           budget: Optional[Mapping[str, float]] = None, progress: Optional[Callable[[str], None]] = None) -> AuthorResult:
     """Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
     :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
-    ``out`` is where the contract is written (nothing is written when None): each time a revision works, and at the
+    ``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
     end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
-    (input + output, a cache read counting :data:`CACHED_WEIGHT` of one) and model ``calls``, by default 600,000 and
-    30. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
+    (input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
+    model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
     retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
     (``result.stop`` says why) and keeps what already works."""
     provider, name = _model(model)
@@ -265,10 +298,12 @@ def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = N
         raise ValueError(f"out {out!r}: the folder {str(Path(out).parent)!r} does not exist")
     bench, started = _Workbench(), time.time()
     messages: List[Message] = [{"role": "system", "content": guide("authoring")},
-                               {"role": "user", "content": brief + INSTRUCTION}]
-    usage: Dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "output_tokens": 0, "calls": 0, "truncated": 0}
+                               {"role": "user", "content": brief + INSTRUCTION + _starters()}]
+    usage: Dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
+                             "calls": 0, "truncated": 0}
     try:
-        stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress, out)
+        stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress, out,
+                         started + limits["seconds"])
     finally:
         bench.box.close()
         shutil.rmtree(bench.path.parent, ignore_errors=True)
@@ -277,8 +312,13 @@ def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = N
     if path and contract is not None:
         _write(path, contract)
     return AuthorResult(contract, bench.best is not None, bench.problem, stop, bench.writes, messages, usage,
-                        round(time.time() - started, 1), path, bench.working,
-                        bench.untested.get(bench.working[-1], "") if bench.working else "")
+                        round(time.time() - started, 1), path, bench.working, bench.kept,
+                        bench.tests.get(bench.kept) if bench.kept else None)
+
+
+def _starters() -> str:
+    """The engine starters, one line each: its id and what it simulates."""
+    return "".join(f"- {spec.id}: {spec.description.split('; ')[0]}\n" for spec in list_engines(available=True))
 
 
 def _not_working(out: str) -> str:
@@ -287,15 +327,18 @@ def _not_working(out: str) -> str:
     return str(path.with_name(f"{path.stem}.not-working{path.suffix or '.json'}"))
 
 
-def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dict[str, Any], limits: Dict[str, int],
-              progress: Optional[Callable[[str], None]], out: Optional[str]) -> str:
-    """The tool loop; returns why it stopped. Each revision that works is written to ``out`` at once."""
-    nudges, regressed = 0, False
+def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dict[str, Any], limits: Dict[str, float],
+              progress: Optional[Callable[[str], None]], out: Optional[str], deadline: float) -> str:
+    """The tool loop, until ``deadline`` (a ``time.time()``); returns why it stopped. Each revision kept is written to
+    ``out`` at once."""
+    nudges, sent_back = 0, False
     while True:
         if usage["calls"] >= limits["calls"]:
             return "calls"
         if _spent(usage) >= limits["tokens"]:
             return "tokens"
+        if time.time() >= deadline:
+            return "seconds"
         try:
             message, used = ask(messages)
         except Exception as exc:  # the provider's error ends the loop; what already works is kept
@@ -313,18 +356,19 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
         if not calls and refused:
             return "refused"
         if not calls:
-            if bench.best is not None and bench.problem and not regressed:
-                regressed = True  # stopped on a broken revision after an earlier one worked: send it back once
-                messages.append({"role": "user", "content": _regressed(bench)})
+            if bench.best is None:
+                if nudges >= MAX_NUDGES:
+                    return "gave_up"
+                nudges += 1  # stopped (or was cut off) before any saved contract works: send it back once more
+                messages.append({"role": "user", "content": CUT_REPLY if used["truncated"] else
+                                 NOT_WORKING.format(problem=bench.problem) if bench.writes else NUDGE})
                 continue
-            if bench.best is not None:
-                return "done"
-            if nudges >= MAX_NUDGES:
-                return "gave_up"
-            nudges += 1  # stopped (or was cut off) before any saved contract works: send it back once more
-            messages.append({"role": "user", "content": CUT_REPLY if used["truncated"] else
-                             NOT_WORKING.format(problem=bench.problem) if bench.writes else NUDGE})
-            continue
+            unsettled = CUT_REPLY if used["truncated"] else _unsettled(bench)
+            if unsettled and not sent_back:
+                sent_back = True  # stopped with something unsettled after one worked: send it back once
+                messages.append({"role": "user", "content": unsettled})
+                continue
+            return "done"
         best = bench.best
         messages += _answer(calls, bool(used["truncated"]), bench)
         if out and bench.best is not None and bench.best is not best:
@@ -335,12 +379,19 @@ def _converse(ask: Ask, messages: List[Message], bench: "_Workbench", usage: Dic
 
 def _spent(usage: Dict[str, Any]) -> float:
     """The tokens ``usage`` counts against the budget."""
-    return usage["input_tokens"] + usage["output_tokens"] + usage["cached_tokens"] * CACHED_WEIGHT
+    return (usage["input_tokens"] + usage["output_tokens"] + usage["cached_tokens"] * CACHED_WEIGHT
+            + usage["cache_write_tokens"] * CACHE_WRITE_WEIGHT)
 
 
-def _regressed(bench: "_Workbench") -> str:
-    latest = f"Revision {len(bench.revisions)}" if bench.writes[-1] is bench.latest else "Your last write"
-    return REGRESSED.format(latest=latest, problem=bench.problem, kept=bench.working[-1])
+def _unsettled(bench: "_Workbench") -> str:
+    """What a model that stops is sent back once with: its last write broken or not kept; "" when it is the kept one."""
+    if not bench.problem:
+        return ""
+    latest = len(bench.revisions)
+    if bench.writes[-1] is bench.latest and latest in bench.working:
+        return UNKEPT.format(latest=latest, removed=", ".join(bench.unconfirmed), kept=bench.kept)
+    return REGRESSED.format(latest=f"Revision {latest}" if bench.writes[-1] is bench.latest else "Your last write",
+                            problem=bench.problem, kept=bench.kept)
 
 
 def _write(out: str, contract: Dict[str, Any]) -> None:
@@ -395,12 +446,15 @@ def _model(model: str) -> Tuple[str, str]:
     return provider, name
 
 
-def _budget(budget: Optional[Mapping[str, int]]) -> Dict[str, int]:
-    limits = {**DEFAULT_BUDGET, **(budget or {})}
+def _budget(budget: Optional[Mapping[str, float]]) -> Dict[str, float]:
+    limits: Dict[str, float] = {**DEFAULT_BUDGET, **(budget or {})}
     for key, value in limits.items():
         if key not in DEFAULT_BUDGET:
-            raise ValueError(f"budget has no {key!r}: use tokens and calls, e.g. {DEFAULT_BUDGET}")
-        if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+            raise ValueError(f"budget has no {key!r}: use tokens, calls and seconds, e.g. {DEFAULT_BUDGET}")
+        if key == "seconds":
+            if not is_seconds(value):
+                raise ValueError(f"budget seconds must be a number of seconds above 0, got {value!r}")
+        elif isinstance(value, bool) or not isinstance(value, int) or value < 1:
             raise ValueError(f"budget {key} must be a whole number ≥ 1, got {value!r}")
     return limits
 
@@ -431,9 +485,10 @@ def tested(source: ContractLike, box: Optional[Sandbox] = None) -> Tested:
     of :data:`TEST_SEEDS` with random agents and with idle ones (agents that never act), once with agents that choose
     each tool's edge values, then with random agents on more seeds, up to :data:`MOST_SEEDS`, while test time is left —
     that fails, has an output that fails, does not show how the environment plays (``RunResult.degraded``; for idle
-    and edge-value agents, beyond their not acting) or in which an agent's choice breaks a rule. Every test agent reads
-    its brief and update each turn, as a model does, so a view that breaks on a state play reaches is found. Anything
-    evaluating the contract raises is its problem too.
+    and edge-value agents, beyond their not acting — so random agents, who write a real sentence for free text, must
+    get some action through) or in which an agent's choice breaks a rule. Every test agent reads its brief and update
+    each turn, and looks at every view and inspects an entity while its free reads last, as a model does, so a view
+    that breaks on a state play reaches is found. Anything evaluating the contract raises is its problem too.
 
     It all runs in a child process within :data:`TEST_SECONDS`: the check first, then the runs, each taking an even
     share of what is left. A run still going when its share ends has passed the rounds it reached, and ``untested``
@@ -506,10 +561,9 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
            most: int) -> Tuple[str, str, int]:
     """``(problem, untested, random seeds)`` from :func:`tested`'s runs, within ``deadline`` (the end of the
     ``seconds`` of the test budget)."""
-    random_exempt = _random_exempt(contract)
     plays: List[Tuple[Any, str, int, frozenset]] = [
         (_Reading(RandomAgent(seed)) if agents == "random" else _Reading(Idle()), f"{agents} agents", seed,
-         random_exempt if agents == "random" else _NOT_ACTING)
+         frozenset() if agents == "random" else _NOT_ACTING)
         for seed in seeds for agents in ("random", "idle")]
     plays.append((_Reading(EdgeAgent(1)), "agents choosing edge values", 1, _NOT_ACTING))
     reached, total = [], 0
@@ -528,11 +582,10 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
         of = f" of {total:,}" if contract.clock.mode == "rounds" else ""
         return "", (f"tested at least {min(reached):,}{of} rounds in every test run within the {seconds:g}s test "
                     "budget; longer runs untested"), len(seeds)
-    return _more_seeds(source, hosts, deadline, seeds, most, random_exempt)
+    return _more_seeds(source, hosts, deadline, seeds, most)
 
 
-def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: List[int], most: int,
-                exempt: frozenset) -> Tuple[str, str, int]:
+def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: List[int], most: int) -> Tuple[str, str, int]:
     """Random agents on further seeds, up to ``most`` in all, while each run is likely to finish before ``deadline``:
     ``(problem, "", seeds played)``."""
     played, seed, took = len(seeds), max(seeds), 0.0
@@ -542,7 +595,7 @@ def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: List[int], mo
         began = time.monotonic()
         result = load(source, seed=seed, hosts=hosts).run({"*": _Reading(RandomAgent(seed))},
                                                           budget={"seconds": deadline - began})
-        problem = _run_problem(result, f"random agents (seed {seed})", exempt)
+        problem = _run_problem(result, f"random agents (seed {seed})", frozenset())
         if problem:
             return problem, "", played
         if result.budget.get("exhausted") == "seconds":
@@ -568,21 +621,16 @@ def _run_problem(result: RunResult, who: str, exempt: frozenset) -> str:
 
 #: Findings that an agent's choice broke a rule as its action applied (the action was refused and undone).
 _FAULTS = frozenset({"action_rule_failed", "action_broke_invariant"})
-#: What says nothing about a contract when its test agents mean not to act, or act only on the edges.
-_NOT_ACTING = frozenset({"agents_never_acted"})
+#: What says nothing about a contract when its test agents mean not to act, or act only on the edges: that they never
+#: acted, and that agents waiting on them (a chair with no raised hand to recognise) never could.
+_NOT_ACTING = frozenset({"agents_never_acted", "agents_never_able_to_act"})
 
-
-def _random_exempt(contract: Contract) -> frozenset:
-    """The findings a run with random agents is not judged by. Random agents write placeholder text, so when an action
-    takes free text, their calls all being refused says nothing about the contract."""
-    writes_text = any(param.type == "text" and not param.values
-                      for action in contract.actions.values() for param in action.params.values())
-    return _NOT_ACTING if writes_text else frozenset()
 
 
 class _Reading:
-    """``agent``, reading its brief and update first each turn, as a model does: a view or template that fails on a
-    state play reaches fails the run."""
+    """``agent``, reading first each turn, as a model does — its brief and update, then every view it may look at and
+    one entity it may inspect, while the turn's free reads last: a view or template that fails on a state play reaches
+    fails the run."""
 
     def __init__(self, agent: Any) -> None:
         self.agent = agent
@@ -590,7 +638,21 @@ class _Reading:
     def __call__(self, wake: Wake) -> None:
         wake.brief
         wake.update
+        for name, args in _reads(wake)[:wake.calls_left]:  # a turn has as many free reads as calls
+            wake.call(name, args)
         self.agent(wake)
+
+
+def _reads(wake: Wake) -> List[Tuple[str, Dict[str, Any]]]:
+    """A ``look`` at every view ``wake`` offers, then an ``inspect`` of one entity (a different one each round)."""
+    reads: List[Tuple[str, Dict[str, Any]]] = []
+    tools = {tool.name: tool.input_schema for tool in wake.tools}
+    if "look" in tools:
+        reads += [("look", {"view": view}) for view in tools["look"]["properties"]["view"]["enum"]]
+    if "inspect" in tools:
+        ids = tools["inspect"]["properties"]["id"].get("enum") or [wake.entity_id]
+        reads.append(("inspect", {"id": ids[wake.round % len(ids)]}))
+    return reads
 
 
 class _StubHosts(Hosts):
@@ -660,8 +722,9 @@ _CHILD_TOOLS: Dict[str, Callable[..., str]] = {"check": _check_tool, "run": _run
 
 class _Workbench:
     """The author's tools, backed by one contract file in a scratch folder. Every saved revision is tested with
-    :func:`tested`; ``best`` is the latest that works, ``latest`` the latest saved and ``problem`` what is wrong with
-    the last write ("" when it works)."""
+    :func:`tested`; ``best`` is the kept one — the latest that works and removes nothing the kept one had, unless it
+    was saved again to confirm the removal — ``latest`` the latest saved and ``problem`` what is wrong with the last
+    write, or why it was not kept ("" when it is kept)."""
 
     def __init__(self) -> None:
         self.path = Path(tempfile.mkdtemp(prefix="fg-author-")) / "contract.json"
@@ -671,13 +734,17 @@ class _Workbench:
         self.writes: List[Any] = []
         self.revisions: List[Dict[str, Any]] = []
         self.working: List[int] = []
-        #: Per working revision, how far its test runs got when the time budget ended them ("" when all finished).
-        self.untested: Dict[int, str] = {}
+        #: The number of the kept revision.
+        self.kept: Optional[int] = None
+        #: What testing found, per working revision.
+        self.tests: Dict[int, Tested] = {}
+        #: What the latest working revision not kept removed from the kept one: saving that removal again confirms it.
+        self.unconfirmed: List[str] = []
         self.problem = ""
 
     @property
     def best(self) -> Optional[Dict[str, Any]]:
-        return self.revisions[self.working[-1] - 1] if self.working else None
+        return self.revisions[self.kept - 1] if self.kept else None
 
     @property
     def latest(self) -> Optional[Dict[str, Any]]:
@@ -698,7 +765,7 @@ class _Workbench:
             text = str(getattr(self, "tool_" + name)(**args))
         except Exception as exc:  # the SDK's own errors are what the author reads
             text = f"{type(exc).__name__}: {exc}"
-        if len(text) <= MAX_RESULT:
+        if len(text) <= MAX_RESULT or name == "start_from":  # a starter is adapted from the whole of it
             return text
         more = (f": read on with guide({args['part']!r}, start={int(args.get('start') or 0) + MAX_RESULT})"
                 if name == "guide" else "")
@@ -737,9 +804,13 @@ class _Workbench:
                 return f"edits[{n}]: {wrong}. Nothing saved."
         return self._save(data)
 
+    def tool_start_from(self, engine: str) -> str:
+        source = engine_spec(engine).materialized_source()
+        return self._save(source) + "\n\nThe contract:\n" + json.dumps(source, ensure_ascii=False)
+
     def _save(self, data: Dict[str, Any]) -> str:
         if self.out_of_revisions:
-            kept = f"revision {self.working[-1]}, the latest that works, is kept" if self.working else "none works"
+            kept = f"revision {self.kept}, the best that works, is kept" if self.kept else "none works"
             return f"Revision limit reached ({MAX_REVISIONS}): nothing more is saved; {kept}."
         self.writes.append(data)
         self.revisions.append(data)
@@ -749,12 +820,18 @@ class _Workbench:
         if self.problem:
             return f"Saved revision {number}, but it does not work yet: {self.problem}" + _notes(found)
         self.working.append(number)
-        self.untested[number] = found.untested
-        first = self.working[0]
-        removed = _removed(self.revisions[first - 1], data) if number != first else []
-        gutted = (f"\nSince revision {first}, the first that worked, this removed: {', '.join(removed)}. Put back what "
-                  "the brief asks for.") if removed else ""
-        return f"Saved revision {number}: it works — {_verdict(found)}.{gutted}" + _notes(found)
+        self.tests[number] = found
+        saved = f"Saved revision {number}: it works — {_verdict(found)}."
+        removed = _removed(self.best, data) if self.best is not None else []
+        if removed and removed != self.unconfirmed:
+            self.unconfirmed = removed
+            self.problem = (f"it removed {', '.join(removed)}, which revision {self.kept} has; saving it again keeps it "
+                            "instead")
+            return (f"{saved}\nBut it removed {', '.join(removed)}, which revision {self.kept} has, so revision "
+                    f"{self.kept} stays kept: put back what the brief asks for, or save it again to confirm the "
+                    "removal." + _notes(found))
+        self.kept, self.unconfirmed = number, []
+        return saved + _notes(found)
 
     def tool_check(self) -> str:
         return self._in_child("check")
@@ -920,8 +997,9 @@ def _anthropic(client: Any, model: str) -> Ask:
         if calls:
             message["tool_calls"] = calls
         used = response.usage
-        return message, {"input_tokens": used.input_tokens + (getattr(used, "cache_creation_input_tokens", 0) or 0),
+        return message, {"input_tokens": used.input_tokens,
                          "cached_tokens": getattr(used, "cache_read_input_tokens", 0) or 0,
+                         "cache_write_tokens": getattr(used, "cache_creation_input_tokens", 0) or 0,
                          "output_tokens": used.output_tokens,
                          "truncated": int(getattr(response, "stop_reason", None) == "max_tokens"),
                          "refused": int(getattr(response, "stop_reason", None) == "refusal")}
@@ -930,7 +1008,8 @@ def _anthropic(client: Any, model: str) -> Ask:
 
 
 def _to_anthropic(messages: List[Message]) -> List[Message]:
-    """The OpenAI-format conversation (after the system message) as Anthropic messages."""
+    """The OpenAI-format conversation (after the system message) as Anthropic messages, without whitespace-only text
+    (the API refuses it)."""
     out: List[Message] = []
     for m in messages:
         if m["role"] == "tool":
@@ -940,7 +1019,7 @@ def _to_anthropic(messages: List[Message]) -> List[Message]:
             else:
                 out.append({"role": "user", "content": [block]})
         elif m["role"] == "assistant":
-            blocks: List[Dict[str, Any]] = [{"type": "text", "text": m["content"]}] if m["content"] else []
+            blocks: List[Dict[str, Any]] = [{"type": "text", "text": m["content"]}] if m["content"].strip() else []
             blocks += [{"type": "tool_use", "id": c["id"], "name": c["function"]["name"],
                         "input": json.loads(c["function"]["arguments"] or "{}")} for c in m.get("tool_calls", [])]
             out.append({"role": "assistant", "content": blocks or [{"type": "text", "text": "(no reply)"}]})
