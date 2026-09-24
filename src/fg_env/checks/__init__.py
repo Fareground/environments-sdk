@@ -363,7 +363,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                   params: Mapping[str, C.ParamSpec]) -> tuple[Any, str] | None:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
         root = chain[0]
-        named = self.c.entities.get(root[len("entity("):-1]) if root.startswith("entity(") else None
+        named = self.c.named_entities().get(root[len("entity("):-1]) if root.startswith("entity(") else None
         if named is not None and named.type in self.c.types and len(chain) == 2 \
                 and chain[1] in self.c.props_of(named.type):
             spec = self.c.props_of(named.type)[chain[1]]

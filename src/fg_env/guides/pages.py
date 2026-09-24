@@ -44,10 +44,9 @@ ROOTS: list[tuple[str, str, str]] = [
     ("records", "show", "$it (entry: its fields directly, $it.text, plus author, round, seq, stage, to)"),
     ("events", "where/do (with each)", "$it $i (or the `as` name)"),
     ("triggers", "when/do/say", "—"),
-    ("population", "where/weight", "$row"),
-    ("population", "props/id/name", "$row $i ($i counts from 1)"),
-    ("population", "brief", "$actor $row $i"),
-    ("entities", "brief", "$actor"),
+    ("entities", "brief", "$actor (generated: $row $i too)"),
+    ("entities", "where/weight (generated)", "$row"),
+    ("entities", "props/id/name (generated)", "$row $i ($i counts from 1)"),
     ("types", "inspect", "$viewer $it"),
     ("types", "on_create/on_remove", "$it (the entity) + locals"),
     ("types", "policies.*.rules.*", "$actor ($it $i with `each`)"),
@@ -79,9 +78,9 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
     ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule], "{type: TypeSpec}",
      "Kinds of entities and their properties; `agent: true` makes a type act, and its `policies` are coded "
      "participants for its agents, for crowds and baselines (`policy:<name>`)."),
-    ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
-    ("population", [C.PopulationSpec], "[PopulationSpec]",
-     "Generated entities: a count, or one per data row, with sampled traits."),
+    ("entities", [C.EntitySpec], "{id: EntitySpec}",
+     "Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row "
+     "(`from`), with sampled traits; ids `<key>_<n>`."),
     ("records", [C.RecordSpec], "{record: RecordSpec}",
      "Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`."),
     ("actions", [C.ActionSpec, C.ParamSpec, C.Condition], "{action: ActionSpec}",
@@ -132,7 +131,7 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
 
 #: The core language: the sections and functions the start page (``guide('authoring')``) teaches, enough for most
 #: environments. Every other section and function is extended: reach for one when the core cannot say it.
-CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "population", "records", "actions", "stages",
+CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "records", "actions", "stages",
                  "views", "events", "end", "outputs", "invariants")
 CORE_FUNCTIONS = ("count", "sum", "avg", "min", "max", "filter", "map", "dict", "top", "best", "any", "all", "len",
                   "get", "chance", "randint", "normal", "choice", "round", "floor", "clamp", "entity")

@@ -216,11 +216,9 @@ def _concepts(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
               + _bullets(interaction, "No action names another entity directly."))
     lines += ([f"**Stochasticity.** {metadata.get('chance_mode', 'unknown')}.", ""]
               + _bullets(evidence.get("chance_mode", []), ""))
-    mixes = [f"population of `{p.type}` mixes " + ", ".join(m.name for m in p.mix) for p in contract.population
-             if p.mix]
     networks = [f"relation `{name}`" for name in contract.relations]
-    if mixes or networks:
-        lines += ["**Collectives.**", ""] + _bullets(mixes + networks, "")
+    if networks:
+        lines += ["**Collectives.**", ""] + _bullets(networks, "")
     lines += ["**Observation.** Measured through the metrics and outputs listed in section 1.", ""]
     return lines
 
@@ -229,15 +227,17 @@ def _initialisation(contract: C.Contract, metadata: Mapping[str, Any]) -> list[s
     lines = ["## 5. Initialisation", "",
              "Every run has one seed; each random stream is derived from it, so a seed replays the run exactly.", ""]
     lines += _table(["entity", "type", "name", "starting values"], [
-        [eid, spec.type, spec.name or "", spec.props] for eid, spec in contract.entities.items()])
+        [eid, spec.type, spec.name or "", spec.props] for eid, spec in contract.named_entities().items()])
     groups = []
-    for p in contract.population:
+    for key, p in contract.entities.items():
+        if not p.generates:
+            continue
         how = f"from `{p.from_}`" if p.from_ else ""
         how += f" count {p.count}" if p.count is not None else ""
         how += f", where `{p.where}`" if p.where else ""
         how += f", weighted by `{p.weight}`" if p.weight else ""
-        groups.append([p.type, how.strip(", "), p.props, ", ".join(m.name for m in p.mix)])
-    lines += _table(["generated type", "how many", "values", "archetypes"], groups)
+        groups.append([key, p.type, how.strip(", "), p.props])
+    lines += _table(["generated", "type", "how many", "values"], groups)
     links = [[spec.relation, spec.graph or "explicit", spec.among or f"{spec.from_} → {spec.to}",
               spec.p or spec.degree or ""]
              for spec in contract.links]

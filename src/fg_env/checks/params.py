@@ -56,22 +56,22 @@ def check_param_bounds(checker: Any, path: str, spec: C.ActionSpec) -> None:
 def check_entity_literals(checker: Any, op: str, effect: dict[str, Any], path: str) -> None:
     """A plain id (no `$`) where an effect names an entity must be one that can exist."""
     contract: C.Contract = checker.c
-    if any(group.id is not None for group in contract.population):
+    if any(spec.id is not None for spec in contract.entities.values()):
         return  # ids come from templates: any text may be one
-    generated = (re.compile(r"(?:" + "|".join(re.escape(t) for t in contract.types) + r")_\d+") if contract.types
-                 else None)
+    stems = [*contract.types, *(key for key, spec in contract.entities.items() if spec.generates)]
+    generated = re.compile(r"(?:" + "|".join(re.escape(t) for t in stems) + r")_\d+") if stems else None
     for key in ENTITY_KEYS.get(op, ()):
         raw = effect.get(key)
         if not isinstance(raw, str) or is_expr(raw) or "{" in raw or not raw.strip():
             continue
-        if raw in contract.entities or (generated is not None and generated.fullmatch(raw)):
+        if raw in contract.named_entities() or (generated is not None and generated.fullmatch(raw)):
             continue
         checker.error(f"{path}.{key}", f"'{raw}' is not an entity id", _entity_fix(contract, raw))
 
 
 def _entity_fix(contract: C.Contract, raw: str) -> str | None:
-    hint = get_close_matches(raw, list(contract.entities), n=1)
+    hint = get_close_matches(raw, list(contract.named_entities()), n=1)
     if hint:
         return f"did you mean '{hint[0]}'?"
-    listed = ", ".join(list(contract.entities)[:_LISTED])
+    listed = ", ".join(list(contract.named_entities())[:_LISTED])
     return (f"entity ids: {listed}; " if listed else "") + "or name one with an expression like $params.target"

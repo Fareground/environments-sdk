@@ -1,5 +1,5 @@
-"""Build the starting world from a contract: global properties, named entities, the
-sampled population, starting links and physics."""
+"""Build the starting world from a contract: global properties, named and generated entities, starting links and
+physics."""
 from __future__ import annotations
 
 import copy
@@ -14,8 +14,8 @@ from ..contract import (
     MAX_TURN_ACTIONS,
     MAX_TURN_CALLS,
     Contract,
+    EntitySpec,
     LinkSpec,
-    PopulationSpec,
 )
 from ..effects.runner import EffectRunner
 from ..errors import RunError
@@ -45,13 +45,16 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
         world.round = 0
         world.build_space()
         _world_props(world)
+        generated = 0
         for entity_id, named in contract.entities.items():
+            if named.generates:
+                _generate(world, entity_id, named, generated, pending_briefs)
+                generated += 1
+                continue
             world.create(named.type, entity_id, named.name or entity_id, named.props, _value(world, named.at, {}),
                          world.scope(), f"entities.{entity_id}")
             if named.brief:
                 pending_briefs.append((entity_id, named.brief, {}, f"entities.{entity_id}.brief"))
-        for index, group in enumerate(contract.population):
-            _population(world, group, index, pending_briefs)
         for index, link in enumerate(contract.links):
             _links(world, link, index, seeds)
         _world_props(world, after_entities=True)
@@ -201,9 +204,11 @@ def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
         world.props[name] = world._coerce(spec, value, f"world.{name}")
 
 
-def _population(world: SdkWorld, spec: PopulationSpec, index: int,
-                pending_briefs: list[tuple[str, str, dict[str, Any], str]]) -> None:
-    path = f"population[{index}]"
+def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,
+              pending_briefs: list[tuple[str, str, dict[str, Any], str]]) -> None:
+    """The entities a generator entry makes (``ordinal``: how many generators came before it, whose sampling stream
+    it keeps)."""
+    path = f"entities.{key}"
     rows: list[Any]
     if spec.from_ is not None:
         rows = _value(world, spec.from_, {})
@@ -213,47 +218,36 @@ def _population(world: SdkWorld, spec: PopulationSpec, index: int,
             rows = [row for row in rows if truthy(_value(world, spec.where, {"row": row}))]
         count = _value(world, spec.count, {}) if spec.count is not None else None
         if count is not None:
-            rows = _sample(world, rows, spec, _capped(int(_whole(count, f"{path}.count")), f"{path}.count"), path)
-        elif spec.raking is not None:
-            raise RunError("raking reweights rows for sampling; give a `count` to draw", f"{path}.raking")
+            rows = _sample(world, rows, spec, _capped(int(_whole(count, f"{path}.count")), f"{path}.count"), path,
+                           ordinal)
     else:
-        if spec.count is None:
-            raise RunError("give `count`, `from`, or both", path)
         count = _capped(int(_whole(_value(world, spec.count, {}), f"{path}.count")), f"{path}.count")
         rows = [None] * count
     id_template = compile_template(spec.id, None) if spec.id else None
     name_template = compile_template(spec.name, None) if spec.name else None
     title = spec.type.replace("_", " ").title()
-    archetypes = _archetypes(world, spec, len(rows), path)
-    declared = world.contract.props_of(spec.type)
     for n, row in enumerate(rows, start=1):
         vars = {"i": n, "row": row}
         scope = world.scope(**vars)
         if id_template is not None:
             entity_id = id_template.render(scope)
-        elif isinstance(row, dict) and isinstance(row.get("id"), str) and row["id"] not in world.entities:
+        elif isinstance(row, dict) and isinstance(row.get("id"), str):
             entity_id = row["id"]
         else:
-            entity_id = None
+            entity_id = f"{key}_{n}"
+        if entity_id in world.entities:
+            raise RunError(f"generates the id '{entity_id}', which another entity already has",
+                           f"{path} → rename one of them, or give the generator an `id` template")
         if name_template is not None:
             name = name_template.render(scope)
         elif isinstance(row, dict) and isinstance(row.get("name"), str):
             name = row["name"]
         else:
             name = f"{title} {n}"
-        at = _value(world, spec.at, vars)
-        props = dict(spec.props)
-        archetype = archetypes[n - 1] if archetypes else None
-        if archetype is not None:
-            props.update(archetype.props)
-            if "archetype" in declared:
-                props["archetype"] = archetype.name
-        created = world.create(spec.type, entity_id, name, props, at, scope, f"{path}[{n}]")
-        brief = "\n".join(text for text in (spec.brief, archetype.brief if archetype else None) if text)
-        if brief:
-            pending_briefs.append((created.id, brief, {"i": n, "row": row}, f"{path}.brief"))
-        for m_index, members in enumerate(spec.members):
-            _members(world, members, created, row, f"{path}.members[{m_index}]", pending_briefs)
+        created = world.create(spec.type, entity_id, name, spec.props, _value(world, spec.at, vars), scope,
+                               f"{path}[{n}]")
+        if spec.brief:
+            pending_briefs.append((created.id, spec.brief, vars, f"{path}.brief"))
 
 
 def _whole(value: Any, where: str) -> float:
@@ -262,8 +256,8 @@ def _whole(value: Any, where: str) -> float:
     return value
 
 
-def _sample(world: SdkWorld, rows: list[Any], spec: PopulationSpec, count: int, path: str) -> list[Any]:
-    rng = world.seeds.rng("population", path)
+def _sample(world: SdkWorld, rows: list[Any], spec: EntitySpec, count: int, path: str, ordinal: int) -> list[Any]:
+    rng = world.seeds.rng("population", f"population[{ordinal}]")  # the stream generators have always drawn from
     weights = None
     if spec.weight:
         weights = []
@@ -272,9 +266,6 @@ def _sample(world: SdkWorld, rows: list[Any], spec: PopulationSpec, count: int, 
             if isinstance(w, bool) or not isinstance(w, (int, float)) or w < 0 or not math.isfinite(w):
                 raise RunError(f"row weight must be a number ≥ 0, got {w!r}", f"{path}.weight")
             weights.append(float(w))
-    if spec.raking is not None:
-        weights = rake(rows, weights, spec.raking.margins, spec.raking.iterations, spec.raking.tolerance,
-                       f"{path}.raking")
     if spec.replace:
         if not rows:
             raise RunError("no rows to sample from", path)
@@ -444,88 +435,6 @@ def _fields(world: SdkWorld, spec: LinkSpec, pair: dict[str, Any], path: str) ->
         return {name: resolve(copy.deepcopy(raw), world.scope(**pair)) for name, raw in spec.props.items()}
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.props") from None
-
-
-def _archetypes(world: SdkWorld, spec: PopulationSpec, count: int, path: str) -> list[Any]:
-    """The archetype of each generated entity, in order: exact shares (largest remainder, then shuffled)
-    or independent weighted draws."""
-    if not spec.mix:
-        return []
-    weights = []
-    for position, archetype in enumerate(spec.mix):
-        weight = _value(world, archetype.weight, {})
-        if isinstance(weight, bool) or not isinstance(weight, (int, float)) or weight < 0 or not math.isfinite(weight):
-            raise RunError(f"weight must be a number ≥ 0, got {weight!r}", f"{path}.mix[{position}].weight")
-        weights.append(float(weight))
-    total = sum(weights)
-    if total <= 0:
-        raise RunError("every archetype weight is zero", f"{path}.mix")
-    rng = world.seeds.rng("population", path, "mix")
-    if not spec.quota:
-        return rng.choices(list(spec.mix), weights=weights, k=count)
-    exact = [count * w / total for w in weights]
-    counts = [int(math.floor(x)) for x in exact]
-    for position in sorted(range(len(exact)), key=lambda k: (-(exact[k] - counts[k]), k))[: count - sum(counts)]:
-        counts[position] += 1
-    assigned = [archetype for archetype, k in zip(spec.mix, counts) for _ in range(k)]
-    rng.shuffle(assigned)
-    return assigned
-
-
-def _members(world: SdkWorld, spec: Any, parent: Entity, row: Any, path: str,
-             pending_briefs: list[tuple[str, str, dict[str, Any], str]]) -> None:
-    count = _value(world, spec.count, {"parent": parent, "row": row})
-    count = _capped(int(_whole(count, f"{path}.count")), f"{path}.count")
-    name_template = compile_template(spec.name, None) if spec.name else None
-    title = spec.type.replace("_", " ").title()
-    for n in range(1, count + 1):
-        vars = {"parent": parent, "row": row, "i": n}
-        scope = world.scope(**vars)
-        name = name_template.render(scope) if name_template is not None else f"{parent.name} {title} {n}"
-        props = dict(spec.props)
-        if spec.parent_prop:
-            props[spec.parent_prop] = parent.id
-        member = world.create(spec.type, None, name, props, parent.location_id, scope, f"{path}[{n}]")
-        if spec.link:
-            world.link(spec.link, member, parent, 1, path)
-        if spec.brief:
-            pending_briefs.append((member.id, spec.brief, vars, f"{path}.brief"))
-
-
-def rake(rows: list[Any], base: list[float] | None, margins: dict[str, dict[str, float]], iterations: int,
-         tolerance: float, path: str) -> list[float]:
-    """Iterative proportional fitting: weights whose weighted shares match every margin."""
-    weights = list(base) if base is not None else [1.0] * len(rows)
-    for column, targets in margins.items():
-        total = sum(targets.values())
-        if not math.isclose(total, 1.0, abs_tol=1e-6):
-            raise RunError(f"target shares for '{column}' sum to {total:.6g}, not 1", f"{path}.margins.{column}")
-        present = {str(row.get(column)) for row in rows if isinstance(row, dict)}
-        missing = [value for value, share in targets.items() if share > 0 and value not in present]
-        if missing:
-            raise RunError(f"no rows have {column} = {', '.join(missing)}", f"{path}.margins.{column}")
-    for _ in range(iterations):
-        worst = 0.0
-        for column, targets in margins.items():
-            totals: dict[str, float] = {}
-            for row, weight in zip(rows, weights):
-                key = str(row.get(column)) if isinstance(row, dict) else ""
-                totals[key] = totals.get(key, 0.0) + weight
-            grand = sum(totals.values())
-            if grand <= 0:
-                raise RunError("all row weights are zero", path)
-            for position, row in enumerate(rows):
-                key = str(row.get(column)) if isinstance(row, dict) else ""
-                target = targets.get(key)
-                if target is None or totals.get(key, 0) <= 0:
-                    weights[position] = 0.0 if target is None else weights[position]
-                    continue
-                factor = target * grand / totals[key]
-                worst = max(worst, abs(factor - 1))
-                weights[position] *= factor
-        if worst < tolerance:
-            break
-    return weights
 
 
 def _preferential(n: int, m: int, rng: Any) -> set[tuple[int, int]]:

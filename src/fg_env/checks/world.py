@@ -1,5 +1,5 @@
-"""Checking the world model: inputs, brief, clock and space, types and world properties, entities and
-populations, links, physics and records."""
+"""Checking the world model: inputs, brief, clock and space, types and world properties, named and generated
+entities, links, physics and records."""
 from __future__ import annotations
 
 import datetime as _dt
@@ -137,7 +137,7 @@ class WorldChecks:
                 self.error(f"types.{name}", "type names are letters, digits and underscores")
             for prop, prop_spec in spec.props.items():
                 if prop in ENTITY_FIELDS:
-                    fix = ("remove name from props; set name on the entity or population entry, outside props"
+                    fix = ("remove name from props; set name on the entity entry, outside props"
                            if prop == "name" else "choose another property name; built-in entity fields already exist")
                     self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", fix)
                 self._prop_spec(prop_spec, f"types.{name}.props.{prop}",
@@ -169,69 +169,42 @@ class WorldChecks:
                        "give one of them a literal default and set it in an opening event")
 
     def _entities(self: _Checker) -> None:  # type: ignore[misc]
+        self._generated_ids()
         for eid, spec in self.c.entities.items():
             path = f"entities.{eid}"
-            if self._type(spec.type, f"{path}.type"):
-                for prop, raw in spec.props.items():
-                    if prop not in self.type_props[spec.type]:
-                        self.error(f"{path}.props.{prop}", f"'{spec.type}' has no property '{prop}'",
-                                   self._suggest(prop, self.type_props[spec.type]))
-                    self.value(raw, f"{path}.props.{prop}", BASE)
-            if spec.type in self.c.types:
-                self.template(spec.brief, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": {spec.type}})
-        for index, group in enumerate(self.c.population):
-            path = f"population[{index}]"
-            if not self._type(group.type, f"{path}.type"):
+            if not self._type(spec.type, f"{path}.type"):
                 continue
-            if group.count is None and group.from_ is None:
-                self.error(path, "give `count`, `from`, or both")
-            self.value(group.count, f"{path}.count", BASE)
-            self.expr(group.from_, f"{path}.from", BASE)
-            self.condition(group.where, f"{path}.where", BASE | {"row"})
-            self.expr(group.weight, f"{path}.weight", BASE | {"row"})
+            generated = spec.generates
+            roots = BASE | {"row", "i", "it"} if generated else BASE
+            for prop, raw in spec.props.items():
+                if prop not in self.type_props[spec.type]:
+                    self.error(f"{path}.props.{prop}", f"'{spec.type}' has no property '{prop}'",
+                               self._suggest(prop, self.type_props[spec.type]))
+                self.value(raw, f"{path}.props.{prop}", roots, {"it": {spec.type}} if generated else None)
+            if not generated:
+                self.template(spec.brief, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": {spec.type}})
+                continue
+            self.value(spec.count, f"{path}.count", BASE)
+            self.expr(spec.from_, f"{path}.from", BASE)
+            self.condition(spec.where, f"{path}.where", BASE | {"row"})
+            self.expr(spec.weight, f"{path}.weight", BASE | {"row"})
             for key in ("id", "name"):
-                self.template(getattr(group, key), f"{path}.{key}", None, BASE | {"row", "i"})
-            self.template(group.brief, f"{path}.brief", "actor", BASE | {"row", "i", "actor"}, {"actor": {group.type}})
-            it_types: Types = {"it": {group.type}}
-            for prop, raw in group.props.items():
-                if prop not in self.type_props[group.type]:
-                    self.error(f"{path}.props.{prop}", f"'{group.type}' has no property '{prop}'",
-                               self._suggest(prop, self.type_props[group.type]))
-                self.value(raw, f"{path}.props.{prop}", BASE | {"row", "i", "it"}, it_types)
-            names: set[str] = set()
-            for m_index, archetype in enumerate(group.mix):
-                mpath = f"{path}.mix[{m_index}]"
-                if archetype.name in names:
-                    self.error(f"{mpath}.name", f"archetype '{archetype.name}' is declared twice")
-                names.add(archetype.name)
-                self.value(archetype.weight, f"{mpath}.weight", {"inputs"})
-                for prop, raw in archetype.props.items():
-                    if prop not in self.type_props[group.type]:
-                        self.error(f"{mpath}.props.{prop}", f"'{group.type}' has no property '{prop}'",
-                                   self._suggest(prop, self.type_props[group.type]))
-                    self.value(raw, f"{mpath}.props.{prop}", BASE | {"row", "i", "it"}, it_types)
-                self.template(archetype.brief, f"{mpath}.brief", "actor", BASE | {"row", "i", "actor"},
-                              {"actor": {group.type}})
-            if group.raking is not None and (group.from_ is None or group.count is None):
-                self.error(f"{path}.raking", "raking reweights `from` rows for sampling; give `from` and `count`")
-            for m_index, members in enumerate(group.members):
-                mpath = f"{path}.members[{m_index}]"
-                if not self._type(members.type, f"{mpath}.type"):
-                    continue
-                parent = {"parent": {group.type}, "it": {members.type}}
-                self.value(members.count, f"{mpath}.count", BASE | {"parent", "row"}, parent)
-                for prop, raw in members.props.items():
-                    if prop not in self.type_props[members.type]:
-                        self.error(f"{mpath}.props.{prop}", f"'{members.type}' has no property '{prop}'",
-                                   self._suggest(prop, self.type_props[members.type]))
-                    self.value(raw, f"{mpath}.props.{prop}", BASE | {"parent", "row", "i", "it"}, parent)
-                if members.parent_prop is not None and members.parent_prop not in self.type_props[members.type]:
-                    self.error(f"{mpath}.parent_prop", f"'{members.type}' has no property '{members.parent_prop}'")
-                if members.link is not None and members.link not in self.c.relations:
-                    self.error(f"{mpath}.link", f"'{members.link}' is not a declared relation",
-                               self._suggest(members.link, self.c.relations))
-                self.template(members.name, f"{mpath}.name", None, BASE | {"parent", "row", "i"}, parent)
-                self.template(members.brief, f"{mpath}.brief", None, BASE | {"parent", "row", "i"}, parent)
+                self.template(getattr(spec, key), f"{path}.{key}", None, BASE | {"row", "i"})
+            self.template(spec.brief, f"{path}.brief", "actor", BASE | {"row", "i", "actor"}, {"actor": {spec.type}})
+
+    def _generated_ids(self: _Checker) -> None:  # type: ignore[misc]
+        """A generator with a literal count and default ids makes `<key>_<n>`: none may be a named entity's id."""
+        named = list(self.c.named_entities())
+        for key, spec in self.c.entities.items():
+            if not spec.generates or spec.id is not None or spec.from_ is not None or not isinstance(spec.count, int):
+                continue
+            made = re.compile(re.escape(key) + r"_([1-9]\d*)")
+            for eid in named:
+                found = made.fullmatch(eid)
+                if found and int(found.group(1)) <= spec.count:
+                    self.error(f"entities.{key}", f"generates the id '{eid}', which entities.{eid} already has",
+                               "rename one of them, or give the generator an `id` template")
+                    break
 
     def _relations(self: _Checker) -> None:  # type: ignore[misc]
         for index, link in enumerate(self.c.links):
@@ -269,7 +242,7 @@ class WorldChecks:
                 self.error(path, "give `from` and `to`, or `among` with a `graph`")
             else:
                 for key, raw in (("from", link.from_), ("to", link.to)):
-                    if not is_expr(raw) and raw not in self.c.entities:
+                    if not is_expr(raw) and raw not in self.c.named_entities():
                         self.warn(f"{path}.{key}", f"'{raw}' is not a named entity",
                                   "use an id from `entities` or an expression")
 

@@ -55,14 +55,3 @@ def _check_one(checker: _Checker, name: str, config: Mapping[str, Any]) -> None:
     for entity_id, entity in contract.entities.items():
         if applies(entity.type) and prop in entity.props:
             value(entity.props[prop], f"entities.{entity_id}.props.{prop}")
-    for index, group in enumerate(contract.population):
-        path = f"population[{index}]"
-        if applies(group.type):
-            if prop in group.props:
-                value(group.props[prop], f"{path}.props.{prop}")
-            for mix_index, archetype in enumerate(group.mix):
-                if prop in archetype.props:
-                    value(archetype.props[prop], f"{path}.mix[{mix_index}].props.{prop}")
-        for member_index, member in enumerate(group.members):
-            if applies(member.type) and prop in member.props:
-                value(member.props[prop], f"{path}.members[{member_index}].props.{prop}")

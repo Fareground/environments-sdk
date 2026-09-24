@@ -72,14 +72,10 @@ from .world import (
     InputSpec,
     LayerSpec,
     LinkSpec,
-    MembersSpec,
-    MixSpec,
     PhysicsSpec,
     PhysicsVar,
     PlaneSpace,
-    PopulationSpec,
     PropSpec,
-    RakingSpec,
     RelationSpec,
     Space,
     TypeSpec,
@@ -99,10 +95,6 @@ __all__ = [
     "PropSpec",
     "TypeSpec",
     "EntitySpec",
-    "PopulationSpec",
-    "MixSpec",
-    "MembersSpec",
-    "RakingSpec",
     "RelationSpec",
     "LinkSpec",
     "PhysicsSpec",
@@ -173,7 +165,6 @@ class Contract(_Model):
     world: dict[str, PropSpec] = Field(default_factory=dict, description="Global properties ($world.x).")
     types: dict[str, TypeSpec]
     entities: dict[str, EntitySpec] = Field(default_factory=dict)
-    population: list[PopulationSpec] = Field(default_factory=list)
     relations: dict[str, RelationSpec] = Field(default_factory=dict)
     links: list[LinkSpec] = Field(default_factory=list)
     physics: PhysicsSpec | None = None
@@ -278,6 +269,10 @@ class Contract(_Model):
             if "on_create_at_build" in self.types[name].model_fields_set:
                 return self.types[name].on_create_at_build
         return True
+
+    def named_entities(self) -> dict[str, EntitySpec]:
+        """The entities declared one by one (the key is the id), without the generator entries."""
+        return {key: spec for key, spec in self.entities.items() if not spec.generates}
 
     def series_outputs(self) -> dict[str, OutputSpec]:
         """The outputs sampled every round (``series``), in declaration order."""

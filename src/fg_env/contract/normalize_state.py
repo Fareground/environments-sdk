@@ -2,6 +2,8 @@
 
 * ``metrics`` → ``outputs`` with ``series``; ``$metrics.x`` → ``$outputs.x``.
 * ``policies`` → ``types.<t>.policies`` (a policy several types play is copied to each).
+* ``population`` → generator entries of ``entities`` (keyed by type; ``mix``, ``quota``, ``members`` and ``raking``
+  are refused with how to say them now).
 * Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
@@ -11,6 +13,7 @@ import re
 from collections.abc import Callable
 from typing import Any
 
+from ..errors import ContractError, Issue
 from .normalize import normalize, rule
 
 __all__: list[str] = []
@@ -177,6 +180,54 @@ def policies_under_types(data: dict[str, Any]) -> list[str]:
         for owner in owners:
             data["types"][owner].setdefault("policies", {}).setdefault(name, _own_copy(data, owner, spec))
         notes.append(f"policies.{name}: now under " + ", ".join(f"types.{owner}.policies" for owner in owners))
+    return notes
+
+
+# -- population → entities generators -------------------------------------------------------------------------------
+
+#: What each dropped population field is now, as the refusal's fix.
+_POPULATION_EXTRAS = {
+    "mix": "give each entity its archetype with a prop and a brief that read it, e.g. \"props\": {\"archetype\": "
+           "\"$get(['a', 'b'], ($i - 1) % 2)\"}, or label table rows before load with fg_env.personas.assign_labels "
+           "and generate `from` them",
+    "quota": "archetype shares are labels now: fg_env.personas.assign_labels gives exact shares",
+    "members": "declare a second generator `from` a table of the members, each row naming its parent",
+    "raking": "reweight the rows before load with fg_env.personas.rake and sample with \"weight\": \"$row.weight\"",
+}
+
+
+def _free_key(entities: dict[str, Any], base: str) -> str:
+    if base not in entities:
+        return base
+    n = 2
+    while f"{base}_{n}" in entities:
+        n += 1
+    return f"{base}_{n}"
+
+
+@rule
+def population_into_entities(data: dict[str, Any]) -> list[str]:
+    """``population: [{type: t, count: n, ...}]`` → ``entities: {t: {type: t, count: n, ...}}``, after the named ones
+    (the build order), each keyed by its type (``t_2`` when the key is taken)."""
+    population = data.get("population")
+    entities = data.get("entities", {})
+    if not isinstance(population, list) or not isinstance(entities, dict):
+        return []
+    issues = [Issue(f"population[{index}].{key}", "is no longer part of the contract", fix)
+              for index, group in enumerate(population) if isinstance(group, dict)
+              for key, fix in _POPULATION_EXTRAS.items() if key in group]
+    issues += [Issue(f"population[{index}]", "gives neither `count` nor `from`", "give `count`, `from`, or both")
+               for index, group in enumerate(population)
+               if isinstance(group, dict) and group.get("count") is None and group.get("from") is None]
+    if issues:
+        raise ContractError(issues, title="population cannot be rewritten as entities")
+    del data["population"]
+    data["entities"] = entities
+    notes = []
+    for index, group in enumerate(population):
+        key = _free_key(entities, str(group.get("type")) if isinstance(group, dict) else "population")
+        entities[key] = group
+        notes.append(f"population[{index}]: now entities.{key}")
     return notes
 
 

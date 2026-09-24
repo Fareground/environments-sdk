@@ -1,4 +1,4 @@
-"""Contract sections of the world model: inputs, brief, clock and space; types, entities, populations and
+"""Contract sections of the world model: inputs, brief, clock and space; types, entities (named or generated) and
 relations; physics; and feeds."""
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .base import (
 from .rules import PolicySpec
 
 __all__ = ["InputSpec", "Brief", "Clock", "LAYER_TYPES", "GridSpace", "GraphSpace", "PlaneSpace", "LayerSpec", "Space",
-           "PropSpec", "TypeSpec", "EntitySpec", "MixSpec", "MembersSpec", "RakingSpec", "PopulationSpec",
+           "PropSpec", "TypeSpec", "EntitySpec",
            "RelationSpec", "LinkSpec", "PhysicsVar", "EntityVar", "EntityDynamics", "PhysicsSpec", "FeedSpec"]
 # ---------------------------------------------------------------------------
 # Inputs, brief, clock, space
@@ -273,80 +273,46 @@ class TypeSpec(_Model):
 
 
 class EntitySpec(_Model):
-    """A named starting entity."""
+    """A starting entity, whose id is its key. With ``count`` or ``from`` it generates many instead (households from
+    a table, a crowd of traders): their ids are ``<key>_<n>`` (a row's own ``id``, or the ``id`` template, when given),
+    and an id already taken is an error. Entities are built in the order they are declared."""
 
     type: str
-    name: str | None = None
-    props: dict[str, Any] = Field(default_factory=dict)
-    at: Any = None
-    brief: str | None = Field(None, description="Private text added to this entity's own brief (template).")
-
-
-class MixSpec(_Model):
-    """One archetype (segment) of a population mix."""
-
-    name: str
-    weight: float | str = Field(1.0,
-                                description="Share of the population (relative; number or expression over $inputs).")
+    name: str | None = Field(None, description="Its name (default: the id). Generated: a template over $row and $i "
+                                               "(default: the type's title and the number).")
     props: dict[str, Any] = Field(default_factory=dict,
-                                  description="Trait values or expressions for this archetype (over $row, $i, $it).")
-    brief: str | None = Field(None, description="Extra private brief text for members of this archetype.")
-
-
-class MembersSpec(_Model):
-    """Entities generated inside each generated entity (people in a household, staff in a firm)."""
-
-    type: str
-    count: int | str = Field(..., description="How many per parent (number or expression over $parent, $row).")
-    props: dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($parent, $row, $i, $it).")
-    link: str | None = Field(None, description="Relation linking each member to its parent (member → parent).")
-    parent_prop: str | None = Field(None, description="A member property set to the parent's id.")
-    name: str | None = Field(None, description="Name template ({$parent.name}, {$i}).")
-    brief: str | None = Field(None, description="Private brief template for each member.")
-
-
-class RakingSpec(_Model):
-    """Reweight rows so weighted shares match known margins (iterative proportional fitting)."""
-
-    margins: dict[str, dict[str, float]] = Field(...,
-                                                 description="{column: {value: target share}}; shares per column sum "
-                                                             "to 1.")
-    iterations: int = Field(50, ge=1, le=1000)
-    tolerance: float = Field(1e-6, gt=0)
-
-
-class PopulationSpec(_Model):
-    """Entities generated at load: a count, one per table row, or a weighted sample of rows."""
-
-    type: str
-    count: int | str | None = Field(None,
-                                    description="How many (number or expression). Omit with `from` = one per row.")
-    from_: str | None = Field(None, alias="from", description="Expression giving rows (e.g. $inputs.households).")
-    where: str | None = Field(None, description="Row filter ($row).")
-    weight: str | None = Field(None, description="Row sampling weight ($row); sampled without replacement.")
-    replace: bool = Field(False, description="Sample rows with replacement.")
-    id: str | None = Field(None, description="Id template ({$i}, {$row.x}); default <type>_<n>.")
-    name: str | None = Field(None, description="Name template.")
-    props: dict[str, Any] = Field(default_factory=dict, description="Values or expressions ($row, $i, $normal(...)).")
+                                  description="Values or expressions ($row, $i, $normal(...) when generated).")
     at: Any = None
-    brief: str | None = Field(None,
-                              description="Private text added to each generated entity's brief (template over $row, "
-                                          "$i).")
-    mix: list[MixSpec] = Field(default_factory=list,
-                               description="Archetypes: each entity belongs to one, with its own traits and brief; the "
-                                           "type's `archetype` prop (if declared) records which.")
-    quota: bool = Field(True,
-                        description="Mix counts are exact shares (largest remainder) instead of independent draws.")
-    members: list[MembersSpec] = Field(default_factory=list,
-                                       description="Entities generated inside each one (households → people).")
-    raking: RakingSpec | None = Field(None,
-                                      description="Reweight `from` rows to match margins before sampling (uses "
-                                                  "`weight` as the base weight).")
+    brief: str | None = Field(None, description="Private text added to this entity's own brief (template; over $row "
+                                                "and $i when generated).")
+    count: int | str | None = Field(None,
+                                    description="Generate this many (number or expression). Omit with `from` = one "
+                                                "per row.")
+    from_: str | None = Field(None, alias="from", description="Generate from rows: an expression giving them "
+                                                              "(e.g. $inputs.households).")
+    where: str | None = Field(None, description="Generated: row filter ($row).")
+    weight: str | None = Field(None, description="Generated: row sampling weight ($row); sampled without "
+                                                 "replacement.")
+    replace: bool = Field(False, description="Generated: sample rows with replacement.")
+    id: str | None = Field(None, description="Generated: id template ({$i}, {$row.x}); default <key>_<n>.")
 
     @field_validator("count")
     @classmethod
     def _count_ceiling(cls, value: Any) -> Any:
         return _ceiling(value, MAX_POPULATION, "generate fewer entities; this many is almost certainly a typo")
+
+    @model_validator(mode="after")
+    def _generator_fields(self) -> EntitySpec:
+        if self.count is None and self.from_ is None:
+            used = [key for key in ("where", "weight", "replace", "id") if key in self.model_fields_set]
+            if used:
+                raise ValueError(f"`{used[0]}` applies to generated entities: add `count` or `from`, or remove it")
+        return self
+
+    @property
+    def generates(self) -> bool:
+        """Whether this entry generates entities (``count`` or ``from``) rather than naming one."""
+        return self.count is not None or self.from_ is not None
 
 
 class RelationSpec(_Model):

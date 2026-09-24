@@ -159,15 +159,14 @@ class _Scans:
         for name in self.recurring_blocks():
             self.effects(c.blocks[name].do, f"blocks.{name}.do",
                          _Work(f"each run of block {name} (it schedules itself again)", types=True), {name})
-        for index, group in enumerate(c.population):
-            path, work = f"population[{index}]", _Work(f"each row of population[{index}]")
-            for key in ("where", "weight"):
-                self.report(getattr(group, key), f"{path}.{key}", work)
+        for key, group in c.entities.items():
+            if not group.generates:
+                continue
+            path, work = f"entities.{key}", _Work(f"each entity entities.{key} generates")
+            for field in ("where", "weight"):
+                self.report(getattr(group, field), f"{path}.{field}", work)
             for leaf_path, leaf in _leaves(group.props, f"{path}.props"):
                 self.report(leaf, leaf_path, work)
-            for member_index, members in enumerate(group.members):
-                for leaf_path, leaf in _leaves(members.props, f"{path}.members[{member_index}].props"):
-                    self.report(leaf, leaf_path, _Work(f"each member of population[{index}]"))
 
 
 def _leaves(raw: Any, path: str) -> Iterable[tuple[str, Any]]:

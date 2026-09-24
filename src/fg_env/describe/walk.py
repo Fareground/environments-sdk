@@ -17,7 +17,7 @@ __all__ = ["dumped", "texts", "effect_nodes", "in_effects", "roles", "calls", "w
 _CALL = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
 #: Sections that build the world before round 1.
-_SETUP = frozenset({"world", "types", "entities", "population", "links", "relations", "space"})
+_SETUP = frozenset({"world", "types", "entities", "links", "relations", "space"})
 #: Sections whose expressions change or steer the world during play.
 _RULES = frozenset({"actions", "events", "triggers", "stages", "end", "defs", "blocks", "physics", "invariants",
                     "feeds"})
