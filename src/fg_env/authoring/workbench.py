@@ -16,6 +16,7 @@ from ..engines import get as engine_spec
 from ..engines import list_engines
 from ..guides import guide
 from ..host.hosts import Hosts
+from ..participants.builtin import policy_names
 from .sandbox import Sandbox, TooSlow
 from .testing import TEST_SEEDS, StubHosts, Tested, tested
 
@@ -150,7 +151,7 @@ def _check_tool(path: str, hosts: Hosts) -> str:
 def _run_tool(path: str, hosts: Hosts, seconds: float, seed: int = 1,
               participants: dict[str, str] | None = None) -> str:
     env = load(path, seed=seed, hosts=hosts)
-    wrong = _unplayable(participants, list(env.contract.policies))
+    wrong = _unplayable(participants, policy_names(env.contract))
     if wrong:
         return f"Bad tool call: run: {wrong}. Nothing was run."
     result = env.run(participants, budget={"seconds": seconds})

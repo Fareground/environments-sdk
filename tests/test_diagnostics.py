@@ -141,9 +141,9 @@ def test_a_policy_rule_refused_every_time_it_was_tried_is_reported_by_the_run_qu
     contract["types"]["buyer"]["policy"] = "greedy"
     found = [d for d in fg_env.run(contract, seed=1).diagnostics if d["code"] == "policy_rule_never_acted"]
     assert [(d["path"], d["message"]) for d in found] == [
-        ("policies.greedy.rules[0]", "was tried 6 time(s) and refused every time: You cannot afford that")]
+        ("types.buyer.policies.greedy.rules[0]", "was tried 6 time(s) and refused every time: You cannot afford that")]
     assert "`with`" in found[0]["fix"]
-    warned = [i for i in fg_env.check(contract) if i.path == "policies.greedy.rules[0]"]
+    warned = [i for i in fg_env.check(contract) if i.path == "types.buyer.policies.greedy.rules[0]"]
     assert len(warned) == 1 and warned[0].severity == "warning"
     assert warned[0].message.startswith("was tried 6 time(s) and refused every time: You cannot afford that (smoke run")
 

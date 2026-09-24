@@ -48,15 +48,16 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
                  seed: int) -> tuple[list[Issue], list[Issue]]:
     """``(errors, warnings)`` from playing the contract built by ``build``: first with random agents that read
     everything they are shown, then with agents that choose boundary values, then with every agent idle (as when a
-    model times out or refuses), then with each policy playing every agent type (its rules for actions a type cannot
-    take are skipped for that type).
+    model times out or refuses), then with each policy played by the agents of the type that declares it (its
+    subtypes too; its rules for actions a subtype cannot take are skipped for it).
     ``rounds`` None plays :data:`SMOKE_ROUNDS` rounds, or up to the last round a one-off event (`at`, a market's
     resolution) is scheduled for, so each such event is played (the boundary-value and idle plays last only the first
     few rounds); a wall-clock guard stops a play too slow to finish, and
     says so. A number plays exactly that many rounds. An action that was called in these plays and never once succeeded
     is reported too."""
     agents = contract.agent_types()
-    policies = [(name, agents) for name in contract.policies] if agents else []
+    policies = [(owner, name, [kind for kind in contract.subtypes(owner) if kind in agents])
+                for owner, spec in contract.types.items() for name in spec.policies]
     seconds = _GUARD_SECONDS / (3 + len(policies)) if rounds is None else None
     errors: list[Issue] = []
     warnings: list[Issue] = []
@@ -93,14 +94,17 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
         prober = Prober(seed)
         _play(build(), {"*": prober}, 1, None)
         errors.extend(prober.found.values())
-    for name, players in policies:
+    for owner, name, players in policies:
+        if not players:
+            continue  # the static check reports a policy no agent plays
         agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
         result = _play(_kept(build(), played), {kind: agent for kind in players}, rounds, seconds)
         _failure(result, who, errors)
+        prefix = f"types.{owner}.policies.{name}."
         warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {result.rounds} round(s), {who})",
                               found["fix"], "warning")
                         for found in result.diagnostics
-                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(f"policies.{name}."))
+                        if found["code"] == "policy_rule_never_acted" and found["path"].startswith(prefix))
     reported = {issue.path for issue in errors + warnings}
     warnings.extend(issue for issue in _never_succeeded(contract, played) if issue.path not in reported)
     cut = [env for env in played + [idle_env] if env.status == "stopped"]

@@ -190,7 +190,7 @@ def _concepts(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
     roles = [f"`{name}`: {text.strip()}" for name, text in contract.brief.roles.items()]
     lines += (["**Objectives.** What each agent type is told it wants:", ""]
               + _bullets(roles, "No role objectives are stated."))
-    policies = ", ".join(f"`{name}`" for name in contract.policies)
+    policies = ", ".join(f"`{name}` ({kind})" for kind, spec in contract.types.items() for name in spec.policies)
     lines += ["**Adaptation and learning.** Decisions come from the participants attached at run time. "
               + (f"The contract declares coded policies: {policies}." if policies else "The contract declares no coded "
                                                                                        "policies."), ""]

@@ -6,9 +6,10 @@ import fg_env
 
 def contract(surface, probability, dynamic=False):
     c = {'name': 'Campaign conversion', 'clock': {'rounds': 1},
-         'types': {'worker': {'agent': True, 'policy': 'p'}}, 'entities': {'a': {'type': 'worker'}},
+         'types': {'worker': {'agent': True, 'policy': 'p', 'policies': {'p': {'rules': [{'do': 'attempt'}]}}}},
+         'entities': {'a': {'type': 'worker'}},
          'world': {'converted': 0}, 'actions': {'attempt': {'by': 'worker', 'do': '$world.converted += 1'}},
-         'policies': {'p': {'rules': [{'do': 'attempt'}]}}, 'outputs': {'converted': '$world.converted'}}
+         'outputs': {'converted': '$world.converted'}}
     value = probability
     if dynamic:
         c['inputs'] = {'p': {'type': 'bool' if isinstance(probability, bool) else 'number', 'default': probability}}
@@ -16,7 +17,7 @@ def contract(surface, probability, dynamic=False):
     if surface == 'action':
         c['actions']['attempt']['chance'] = value
     elif surface == 'policy':
-        c['policies']['p']['rules'][0]['chance'] = value
+        c['types']['worker']['policies']['p']['rules'][0]['chance'] = value
     elif surface == 'expression':
         c['actions']['attempt']['do'] = []
         c['events'] = [{'do': [{'if': f'$chance({value})', 'then': ['$world.converted += 1']}]}]
@@ -24,7 +25,7 @@ def contract(surface, probability, dynamic=False):
 
 
 @pytest.mark.parametrize('surface,path',
-                         [('action', 'actions.attempt.chance'), ('policy', 'policies.p.rules[0].chance')])
+                         [('action', 'actions.attempt.chance'), ('policy', 'types.worker.policies.p.rules[0].chance')])
 @pytest.mark.parametrize('value', [-0.1, 1.1, 80, float('inf'), float('nan'), True])
 def test_invalid_literal_probabilities_are_rejected_at_the_authored_field(surface, path, value):
     issues = [i for i in fg_env.check(contract(surface, value), rounds=0) if i.severity == 'error']

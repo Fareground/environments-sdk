@@ -151,9 +151,10 @@ class WorldChecks:
             if isinstance(spec.inspect, str):
                 self.condition(spec.inspect, f"types.{name}.inspect", BASE | {"viewer", "it"},
                           {"viewer": set(self.agents), "it": set(self.c.subtypes(name))})
-            if spec.policy is not None and spec.policy not in self.c.policies:
-                self.error(f"types.{name}.policy", f"'{spec.policy}' is not a declared policy",
-                           self._suggest(spec.policy, self.c.policies))
+            if spec.policy is not None and spec.policy not in self.c.policies_of(name):
+                self.error(f"types.{name}.policy", f"'{spec.policy}' is not a policy of {name}",
+                           self._suggest(spec.policy, self.c.policies_of(name))
+                           or f"declare it under types.{name}.policies")
             if self.c.is_agent(name) and not any(
                 any(self.c.is_a(name, b) for b in ([a.by] if isinstance(a.by, str) else a.by))
                 for a in self.c.actions.values()

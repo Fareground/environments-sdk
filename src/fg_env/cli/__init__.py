@@ -142,7 +142,7 @@ def _checked(path: str, rounds: int | None) -> str:
         played = " (static checks only)"
     else:
         length = f"{SMOKE_ROUNDS} rounds (or to the last scheduled event)" if rounds is None else f"{rounds} round(s)"
-        policies = " and with each policy" if contract.policies else ""
+        policies = " and with each policy" if any(spec.policies for spec in contract.types.values()) else ""
         played = f" and played {length} with random agents, with idle agents{policies}"
     clock = contract.clock
     note = "" if clock.mode == "continuous" or "rounds" in clock.model_fields_set else \

@@ -1,14 +1,17 @@
 """Normalization rules for state, outcomes and reuse: earlier sections rewritten into their current homes.
 
 * ``metrics`` → ``outputs`` with ``series``; ``$metrics.x`` → ``$outputs.x``.
+* ``policies`` → ``types.<t>.policies`` (a policy several types play is copied to each).
+* Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
 
+import copy
 import re
 from collections.abc import Callable
 from typing import Any
 
-from .normalize import rule
+from .normalize import normalize, rule
 
 __all__: list[str] = []
 
@@ -83,4 +86,113 @@ def metrics_into_outputs(data: dict[str, Any]) -> list[str]:
         data["metrics"] = metrics  # malformed: left for the parser
     if _replace_all(data, _METRICS_ROOT, "$outputs"):
         notes.append("$metrics.x: now $outputs.x (a series output's latest sample)")
+    return notes
+
+
+# -- shared: the types of a document not yet parsed --------------------------------------------------------------------
+
+
+def _types(data: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    types = data.get("types")
+    return {name: spec for name, spec in types.items() if isinstance(spec, dict)} if isinstance(types, dict) else {}
+
+
+def _lineage(types: dict[str, dict[str, Any]], name: str) -> list[str]:
+    """``name`` and its ancestors, nearest first (stops at unknown types and cycles)."""
+    chain: list[str] = []
+    current: Any = name
+    while isinstance(current, str) and current in types and current not in chain:
+        chain.append(current)
+        current = types[current].get("extends")
+    return chain
+
+
+def _is_agent(types: dict[str, dict[str, Any]], name: str) -> bool:
+    return any(types[kind].get("agent") is True for kind in _lineage(types, name))
+
+
+# -- policies → types.<t>.policies ----------------------------------------------------------------------------------
+
+
+def _takes(data: dict[str, Any], kind: str, action: Any) -> bool:
+    """Whether agents of ``kind`` may take ``action`` (its `by` names the type or an ancestor)."""
+    actions = data.get("actions") if isinstance(data.get("actions"), dict) else {}
+    by = actions[action].get("by") if isinstance(actions.get(action), dict) else None
+    allowed = [by] if isinstance(by, str) else by if isinstance(by, list) else []
+    return any(parent in allowed for parent in _lineage(_types(data), kind))
+
+
+def _rules_of(spec: Any) -> list[Any]:
+    return spec["rules"] if isinstance(spec, dict) and isinstance(spec.get("rules"), list) else []
+
+
+def _policy_owners(data: dict[str, Any], name: str, spec: Any) -> list[str]:
+    """The types a top-level policy belongs to: those that name it as their `policy`, else the agent types that may
+    take the actions its rules call (the most general of them), else every agent type."""
+    types = _types(data)
+    users = [kind for kind, type_spec in types.items() if type_spec.get("policy") == name]
+    if users:
+        return users
+    called = {rule.get("do") for rule in _rules_of(spec) if isinstance(rule, dict)} - {"pass", None}
+
+    def takes(kind: str, action: Any) -> bool:
+        return _takes(data, kind, action)
+
+    agents = [kind for kind in types if _is_agent(types, kind)]
+    fit = ([kind for kind in agents if called and all(takes(kind, a) for a in called)]
+           or [kind for kind in agents if any(takes(kind, a) for a in called)] or agents)
+    return [kind for kind in fit if not any(parent in fit for parent in _lineage(types, kind)[1:])]
+
+
+def _own_copy(data: dict[str, Any], owner: str, spec: Any) -> Any:
+    """``spec`` for agents of ``owner``: without the rules for declared actions none of them may take (a policy
+    several types shared skipped those for each; they never acted)."""
+    out = copy.deepcopy(spec)
+    types = _types(data)
+    players = [kind for kind in types if owner in _lineage(types, kind)]
+    actions = data.get("actions") if isinstance(data.get("actions"), dict) else {}
+
+    def playable(rule: Any) -> bool:
+        action = rule.get("do") if isinstance(rule, dict) else None
+        return action not in actions or any(_takes(data, kind, action) for kind in players)
+
+    if _rules_of(out):
+        out["rules"] = [rule for rule in out["rules"] if playable(rule)]
+    return out
+
+
+@rule
+def policies_under_types(data: dict[str, Any]) -> list[str]:
+    """``policies: {p: spec}`` → ``types.<t>.policies.p`` for each type that plays it."""
+    policies = data.get("policies")
+    if not isinstance(policies, dict) or not _types(data):
+        return []  # nothing to move, or nowhere to move it: the parser reports what is wrong
+    del data["policies"]
+    notes = []
+    for name, spec in policies.items():
+        owners = _policy_owners(data, name, spec)
+        if not owners:  # no agent type to play it: the parser reports the section
+            data.setdefault("policies", {})[name] = spec
+            continue
+        for owner in owners:
+            data["types"][owner].setdefault("policies", {}).setdefault(name, _own_copy(data, owner, spec))
+        notes.append(f"policies.{name}: now under " + ", ".join(f"types.{owner}.policies" for owner in owners))
+    return notes
+
+
+# -- arm patches ----------------------------------------------------------------------------------------------------
+
+
+@rule
+def arm_patches(data: dict[str, Any]) -> list[str]:
+    """Every rule, applied to each arm's patch on its own (the patch is merged into the rewritten contract)."""
+    arms = data.get("arms")
+    if not isinstance(arms, dict):
+        return []
+    notes = []
+    for name, arm in arms.items():
+        patch = arm.get("patch") if isinstance(arm, dict) else None
+        if isinstance(patch, dict) and patch:
+            arm["patch"], found = normalize(patch)
+            notes += [f"arms.{name}.patch.{note}" for note in found]
     return notes

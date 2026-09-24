@@ -27,11 +27,10 @@ def normalize(data: Any) -> tuple[Any, list[str]]:
     is (the parser reports it)."""
     if not isinstance(data, Mapping):
         return data, []
+    from . import normalize_state  # noqa: F401  (registers its rules on first use: they import this module)
+
     out: dict[str, Any] = copy.deepcopy(dict(data))
     notes: list[str] = []
     for fn in RULES:
         notes.extend(fn(out))
     return out, notes
-
-
-from . import normalize_state  # noqa: E402,F401  (registers its rules)

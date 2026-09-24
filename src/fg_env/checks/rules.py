@@ -83,31 +83,46 @@ class RuleChecks:
                 self.warn(path, "does nothing", "add `do` or `say`")
 
     def _policies(self: _Checker) -> None:  # type: ignore[misc]
-        for name, policy in self.c.policies.items():
-            for index, rule in enumerate(policy.rules):
-                path = f"policies.{name}.rules[{index}]"
-                action = self.c.actions.get(rule.do)
-                if rule.do != "pass" and action is None:
-                    self.error(f"{path}.do", f"'{rule.do}' is not a declared action",
-                               self._hint(rule.do, self.c.actions, "actions"))
-                actor_types: Types = {"actor": set(self.agents)}
-                if action is not None:
-                    actor_types = {"actor": set([action.by] if isinstance(action.by, str) else action.by)}
-                    for key in rule.with_:
-                        if key not in action.params:
-                            self.error(f"{path}.with.{key}", f"'{rule.do}' has no parameter '{key}'",
-                                       self._suggest(key, action.params))
-                rule_roots = BASE | {"actor"}
-                if rule.each is not None:
-                    if rule.each not in self.c.types:
-                        self.expr(rule.each, f"{path}.each", BASE | {"actor"}, actor_types)
-                    else:
-                        actor_types = {**actor_types, "it": set(self.c.subtypes(rule.each))}
-                    rule_roots = rule_roots | {"it", "i"}
-                self.condition(rule.when, f"{path}.when", rule_roots, actor_types)
-                self.value(rule.chance, f"{path}.chance", rule_roots, actor_types)
-                check_literal_probability(self, rule.chance, f"{path}.chance")
-                self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
+        for owner, spec in self.c.types.items():
+            players = [kind for kind in self.c.subtypes(owner) if kind in self.agents]
+            for name, policy in spec.policies.items():
+                self._policy(f"types.{owner}.policies.{name}", policy, owner, players)
+
+    def _policy(self: _Checker, base: str, policy: C.PolicySpec, owner: str,  # type: ignore[misc]
+                players: list[str]) -> None:
+        if not players:
+            self.error(base, f"'{owner}' is not an agent type, so no agent plays this policy",
+                       "declare it under an agent type's `policies`")
+        for index, rule in enumerate(policy.rules):
+            path = f"{base}.rules[{index}]"
+            action = self.c.actions.get(rule.do)
+            if rule.do != "pass" and action is None:
+                self.error(f"{path}.do", f"'{rule.do}' is not a declared action",
+                           self._hint(rule.do, self.c.actions, "actions"))
+            actor_types: Types = {"actor": set(players)}
+            if action is not None:
+                takers = {kind for kind in players if self.c.can_take(kind, rule.do)}
+                if players and not takers:
+                    by = action.by if isinstance(action.by, str) else (action.by or [owner])[0]
+                    self.error(f"{path}.do", f"no {owner} agent can take '{rule.do}' (it is taken by {by})",
+                               f"declare the policy under types.{by}.policies, or call an action {owner} agents "
+                               "take")
+                actor_types = {"actor": takers or set(players)}
+                for key in rule.with_:
+                    if key not in action.params:
+                        self.error(f"{path}.with.{key}", f"'{rule.do}' has no parameter '{key}'",
+                                   self._suggest(key, action.params))
+            rule_roots = BASE | {"actor"}
+            if rule.each is not None:
+                if rule.each not in self.c.types:
+                    self.expr(rule.each, f"{path}.each", BASE | {"actor"}, actor_types)
+                else:
+                    actor_types = {**actor_types, "it": set(self.c.subtypes(rule.each))}
+                rule_roots = rule_roots | {"it", "i"}
+            self.condition(rule.when, f"{path}.when", rule_roots, actor_types)
+            self.value(rule.chance, f"{path}.chance", rule_roots, actor_types)
+            check_literal_probability(self, rule.chance, f"{path}.chance")
+            self.value(rule.with_, f"{path}.with", rule_roots, actor_types)
 
     def _measure(self: _Checker) -> None:  # type: ignore[misc]
         for name, output in self.c.outputs.items():

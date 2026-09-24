@@ -61,7 +61,7 @@ _MOVING = re.compile(
     r"\$(round|clock|time|stage|outputs|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
 _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 #: Sections whose effects and settings can write properties, post to records or name a winner.
-_RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics", "policies")
+_RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics")
 
 
 def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]] = ()) -> list[dict[str, str]]:
@@ -282,6 +282,12 @@ def _actions(env: Env) -> list[dict[str, str]]:
     return out
 
 
+def _policy_at(env: Env, path: str) -> Any:
+    """The policy a rule path (``types.<type>.policies.<name>.rules[i]``) is in."""
+    _, owner, _, name = path.split(".")[:4]
+    return env.contract.types[owner].policies[name]
+
+
 def _policy_rules(env: Env) -> list[dict[str, str]]:
     out = []
     for path, (acted, refused, refusal) in sorted(env.diagnosis.policy_rules.items()):
@@ -290,7 +296,7 @@ def _policy_rules(env: Env) -> list[dict[str, str]]:
                                 f"was tried {refused} time(s) and refused every time: {refusal}",
                                 "fix its `with` so the arguments are valid, or its `when` so it is tried only when "
                                 "they are"))
-        elif refused and env.contract.policies[path.split(".")[1]].repeat:
+        elif refused and _policy_at(env, path).repeat:
             out.append(_finding("policy_repeat_refused", path,
                                 f"acted {acted} time(s) and was refused {refused} time(s), most recently: {refusal}; "
                                 "the `repeat` policy then moved to its next rule, and its turn ended when no rule "
@@ -436,7 +442,7 @@ class _Rules:
             for section in _RULE_SECTIONS:
                 _walk(data.get(section), names, winner)
             for spec in data.get("types", {}).values():
-                _walk({key: spec.get(key) for key in ("on_create", "on_remove")}, names, winner)
+                _walk({key: spec.get(key) for key in ("on_create", "on_remove", "policies")}, names, winner)
             names |= _mechanism_owned(contract)
             self._scanned = (names, winner[0])
         return self._scanned

@@ -55,14 +55,28 @@ TRIAGE = {
 
 
 def test_check_reports_a_broken_rule_an_earlier_rule_always_shadows():
+    rules = [{"do": "treat"}, {"when": "$world.treated / $world.zero > 0", "do": "treat"}]
+    shadowed = {**TRIAGE, "world": {"treated": 0, "zero": 0},
+                "types": {"doctor": {**TRIAGE["types"]["doctor"], "policies": {"priority": {"rules": rules}}},
+                          "nurse": TRIAGE["types"]["nurse"]}}
+    del shadowed["policies"]
+    issues = [issue for issue in fg_env.check(shadowed) if issue.severity == "error"]
+    assert [issue.path for issue in issues] == ["types.doctor.policies.priority.rules[1]"]
+    assert "division by zero" in issues[0].message
+
+
+def test_a_shared_policy_is_checked_for_each_type_that_plays_it():
+    """Each type that plays a shared policy gets its own copy, checked against its own properties."""
     issues = [issue for issue in fg_env.check(TRIAGE) if issue.severity == "error"]
-    assert [issue.path for issue in issues] == ["policies.priority.rules[1]"]
-    assert "no property 'busy'" in issues[0].message
+    assert "types.nurse.policies.priority.rules[1].when" in [issue.path for issue in issues]
 
 
 def test_a_guarded_shadowed_rule_is_not_reported_and_runs_are_unchanged():
-    rules = [{"do": "treat"}, {"when": "$actor.type == doctor and $actor.busy == false", "do": "treat"}]
-    guarded = {**TRIAGE, "policies": {"priority": {"rules": rules}}}
+    rules = [{"do": "treat"}, {"when": "$actor.busy == false", "do": "treat"}]
+    guarded = {**TRIAGE, "types": {"doctor": {**TRIAGE["types"]["doctor"], "policies": {"priority": {"rules": rules}}},
+                                   "nurse": {**TRIAGE["types"]["nurse"],
+                                             "policies": {"priority": {"rules": [{"do": "treat"}]}}}}}
+    del guarded["policies"]
     assert not [issue for issue in fg_env.check(guarded) if issue.severity == "error"]
-    result = fg_env.run(TRIAGE, participants={"doctor": "policy:priority", "nurse": "policy:priority"}, seed=1)
+    result = fg_env.run(guarded, participants={"doctor": "policy:priority", "nurse": "policy:priority"}, seed=1)
     assert result.ok and result.outputs["treated"] == 6

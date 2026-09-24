@@ -191,7 +191,6 @@ class Contract(_Model):
     events: list[EventSpec] = Field(default_factory=list)
     triggers: list[TriggerSpec] = Field(default_factory=list,
                                         description="Reactions that fire the moment a condition becomes true.")
-    policies: dict[str, PolicySpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec] = Field(default_factory=dict)
     end: list[EndSpec] = Field(default_factory=list)
     arms: dict[str, ArmSpec] = Field(default_factory=dict)
@@ -261,6 +260,12 @@ class Contract(_Model):
                 props[prop] = spec if inherited is None else inherited.model_copy(
                     update={key: getattr(spec, key) for key in spec.model_fields_set})
         return props
+
+    def policies_of(self, type_name: str) -> dict[str, tuple[str, PolicySpec]]:
+        """``{policy: (declaring type, spec)}`` for the policies agents of ``type_name`` may play: its own and its
+        ancestors' (the nearest declaration of a name wins)."""
+        return {name: (kind, spec) for kind in self.lineage(type_name)
+                for name, spec in self.types[kind].policies.items()}
 
     def hooks_of(self, type_name: str, hook: str) -> list[Any]:
         """``(type, effects)`` for every type in the lineage (root first) that declares lifecycle ``hook``."""

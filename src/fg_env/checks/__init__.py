@@ -110,7 +110,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self.type_props: dict[str, set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
         self.agents = contract.agent_types()
         words: set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
-        words |= ({s.name for s in contract.stage_list()} | set(contract.outputs) | set(contract.policies)
+        words |= ({s.name for s in contract.stage_list()} | set(contract.outputs)
+                  | {name for spec in contract.types.values() for name in spec.policies}
                   | set(contract.arms))
         for kind in contract.types:
             for spec in contract.props_of(kind).values():

@@ -86,7 +86,7 @@ def test_a_declared_policy_that_crashes_is_reported_with_its_name():
     broken = shop(policies={"steady": {"rules": [{"do": "order",
                                                   "with": {"qty": "$actor.stock / ($actor.stock - 10)"}}]}})
     found = errors(fg_env.check(broken))
-    assert [i.path for i in found] == ["policies.steady.rules[0]"]
+    assert [i.path for i in found] == ["types.retailer.policies.steady.rules[0]"]
     assert "division by zero" in found[0].message
     assert "policy 'steady'" in found[0].message
 
@@ -96,12 +96,12 @@ def test_a_type_default_policy_that_crashes_is_reported():
                                                   "with": {"qty": "$actor.stock / ($actor.stock - 10)"}}]}})
     broken["types"]["retailer"]["policy"] = "steady"
     found = errors(fg_env.check(broken))
-    assert [i.path for i in found] == ["policies.steady.rules[0]"]
+    assert [i.path for i in found] == ["types.retailer.policies.steady.rules[0]"]
 
 
 def test_a_policy_whose_rule_is_always_refused_is_warned_about():
     greedy = shop(policies={"greedy": {"rules": [{"do": "order", "with": {"qty": 50}}]}})
-    warned = [i for i in fg_env.check(greedy) if i.path == "policies.greedy.rules[0]"]
+    warned = [i for i in fg_env.check(greedy) if i.path == "types.retailer.policies.greedy.rules[0]"]
     assert len(warned) == 1 and warned[0].severity == "warning"
     assert "policy 'greedy'" in warned[0].message and "at most 20" in warned[0].message
 

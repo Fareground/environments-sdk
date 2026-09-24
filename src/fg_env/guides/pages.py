@@ -50,13 +50,13 @@ ROOTS: list[tuple[str, str, str]] = [
     ("entities", "brief", "$actor"),
     ("types", "inspect", "$viewer $it"),
     ("types", "on_create/on_remove", "$it (the entity) + locals"),
+    ("types", "policies.*.rules.*", "$actor ($it $i with `each`)"),
     ("relations", "props.*.default", "$from $to"),
     ("links", "props", "$from $to (+ $row with `rows`)"),
     ("physics", "per.*.read/where", "$it"),
     ("feeds", "query/when/fallback", "—"),
     ("defs", "expr", "the def's args"),
     ("blocks", "do", "the block's args + locals"),
-    ("policies", "rules.*", "$actor ($it $i with `each`)"),
     ("outputs", "*", "$outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result "
                      "(winner, ended_by; not in a sampled one)"),
     ("end", "when/winner/say", "—"),
@@ -76,8 +76,9 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
     ("assets", [C.AssetSpec], "{asset: AssetSpec}",
      "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see "
      "guide('assets')."),
-    ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}",
-     "Kinds of entities and their properties; `agent: true` makes a type act."),
+    ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule], "{type: TypeSpec}",
+     "Kinds of entities and their properties; `agent: true` makes a type act, and its `policies` are coded "
+     "participants for its agents, for crowds and baselines (`policy:<name>`)."),
     ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
     ("population", [C.PopulationSpec], "[PopulationSpec]",
      "Generated entities: a count, or one per data row, with sampled traits."),
@@ -116,8 +117,6 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Continuous variables integrated every round (world-level and per entity)."),
     ("feeds", [C.FeedSpec], "{feed: FeedSpec}",
      "External data written into world props or records, answered by host adapters."),
-    ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}",
-     "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
     ("calibration", [C.CalibrationSpec], "CalibrationSpec",
      "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a "

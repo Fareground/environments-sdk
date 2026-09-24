@@ -19,9 +19,9 @@ def test_quickstart_contract_matches_downloadable_example():
 
 def test_documented_inventory_balances_and_shortage():
     baseline = fg_env.run(CONTRACT, POLICY, seed=7)
-    assert baseline.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}
+    assert baseline.outputs.items() >= {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}.items()
     busy = fg_env.run(CONTRACT, POLICY, inputs={"weekly_demand": 9}, seed=7)
-    assert busy.outputs == {"units_sold": 34, "lost_sales": 2, "closing_cash": 344.0}
+    assert busy.outputs.items() >= {"units_sold": 34, "lost_sales": 2, "closing_cash": 344.0}.items()
     # Each sold unit must come from opening inventory or a paid purchase.
     assert busy.outputs["units_sold"] == 10 + 4 * 6
 

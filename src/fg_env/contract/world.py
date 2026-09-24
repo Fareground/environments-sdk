@@ -18,6 +18,7 @@ from .base import (
     _ceiling,
     _Model,
 )
+from .rules import PolicySpec
 
 __all__ = ["InputSpec", "Brief", "Clock", "LAYER_TYPES", "GridSpace", "GraphSpace", "PlaneSpace", "LayerSpec", "Space",
            "PropSpec", "TypeSpec", "EntitySpec", "MixSpec", "MembersSpec", "RakingSpec", "PopulationSpec",
@@ -249,7 +250,10 @@ class TypeSpec(_Model):
     extends: str | None = Field(None, description="Parent type whose props and role this type inherits.")
     description: str = ""
     props: dict[str, PropSpec] = Field(default_factory=dict)
-    policy: str | None = Field(None, description="Default coded policy for agents of this type.")
+    policies: dict[str, PolicySpec] = Field(default_factory=dict,
+                                            description="Coded participants for agents of this type (and its "
+                                                        "subtypes), played as `policy:<name>`: crowds and baselines.")
+    policy: str | None = Field(None, description="The policy agents of this type play when a run names none.")
     inspect: bool | str = Field(False,
                                 description="Whether agents may inspect these entities (each agent may always inspect "
                                             "itself): false (default), true, or an expression over $viewer and $it. "
