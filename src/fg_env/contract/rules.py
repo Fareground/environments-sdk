@@ -117,7 +117,9 @@ class ActionSpec(_Model):
                                                          "failure.")
     do: Effects = Field(default_factory=list, description="Effects applied atomically.")
     otherwise: Effects = Field(default_factory=list, description="Effects when the chance roll fails.")
-    outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params).")
+    outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params); with "
+                                                  "`chance`, when the roll succeeds (a failed roll is told that the "
+                                                  "action did not succeed).")
     announce: str | None = Field(None, description="What everyone else is told (template).")
     private: bool = Field(False, description="Nobody else learns this action happened.")
     terminal: bool | str = Field(False,

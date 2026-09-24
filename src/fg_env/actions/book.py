@@ -315,7 +315,9 @@ class ActionBook(ActionSchemas, ActionValidation):
                     raise RunError(f"chance must be a number from 0 to 1, got {probability!r}", f"{path}.chance")
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
-            text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
+            # `outcome` tells the action succeeding: a failed `chance` roll is told as such, never as a success
+            told = spec.outcome if success else None
+            text = self._render(told, {**vars, "viewer": actor}, f"{path}.outcome") if told else \
                 "" if trial else self.default_outcome(name, params, success)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
