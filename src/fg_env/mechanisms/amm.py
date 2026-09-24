@@ -28,10 +28,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..expr.objects import Entity
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
-from .common import config_of, entity_of, fmt
+from ._common import ToolsSetting, entity_of, fmt, tools_field
 from .econ_base import money_prop
 from .ledger import EPS, Account, balance, clean, move
 
@@ -167,7 +166,7 @@ class PredictionMarketConfig(BaseModel):
 
 
 def market_config(world: Any, name: Any) -> PredictionMarketConfig:
-    return config_of(world, name, KEY, PredictionMarketConfig)
+    return mechanism_config(world, name, KEY, PredictionMarketConfig)
 
 
 def _state(world: Any, name: str, cfg: PredictionMarketConfig) -> list[float]:

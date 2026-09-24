@@ -17,8 +17,8 @@ from pydantic import Field
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..registry import MechanismError, family_action, mode
-from ._common import Config, Number, parsed, suggest
+from ..registry import MechanismError, family_action, mode, parsed
+from ._common import Config, Number, suggest
 from .econ_base import compiles, valid_name
 from .ops_engine import Channel, Duration, Pool, empty_state, run_interval
 from .ops_stats import empty_totals, latest, merge_counts, record_for, updated_totals

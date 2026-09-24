@@ -20,18 +20,22 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from difflib import get_close_matches
-from typing import Any
+from typing import Any, TypeVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
+
+from .errors import RunError
 
 __all__ = [
     "OpSpec", "ModeSpec", "FamilySpec", "MechanismError", "OPS", "FAMILIES",
-    "effect_op", "family", "mode", "family_action", "use_key", "config_data", "uses_of", "describe",
+    "effect_op", "family", "mode", "family_action", "use_key", "config_data", "uses_of", "describe", "parsed",
+    "mechanism_config",
     "family_of_mode", "family_action_hint", "Issue3",
 ]
 
 #: ``(path suffix, message, fix)`` — a problem an op selection or check reports.
 Issue3 = tuple[str, str, str | None]
+M = TypeVar("M", bound=BaseModel)
 
 
 @dataclass(frozen=True)
@@ -140,6 +144,40 @@ def describe(key: str) -> str:
     """``key`` in words for messages: ``market (auction)``."""
     family_name, _, mode = key.partition(".")
     return f"{family_name} ({mode})" if mode else key
+
+
+_PARSED: dict[tuple[int, str], tuple[Any, Any]] = {}
+_PARSED_LIMIT = 1_024
+
+
+def parsed(raw: Mapping[str, Any], model: type[M]) -> M:
+    """``raw`` (a contract's mechanism entry) validated as ``model``; parsed once per entry object."""
+    key = (id(raw), model.__name__)
+    hit = _PARSED.get(key)
+    if hit is not None and hit[0] is raw:
+        return hit[1]  # type: ignore[no-any-return]
+    value = model.model_validate(config_data(raw))
+    if len(_PARSED) >= _PARSED_LIMIT:
+        _PARSED.clear()
+    _PARSED[key] = (raw, value)
+    return value
+
+
+def mechanism_config(world: Any, name: Any, kind: str, model: type[M], where: str | None = None) -> M:
+    """The validated config of the mechanism ``name`` of ``kind`` (``family.mode``) in the running contract: the one
+    lookup every mechanism, host and report uses at run time."""
+    raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
+    where = where or f"mechanisms.{name}"
+    if not isinstance(raw, Mapping) or use_key(raw) != kind:
+        declared = [n for n, use in world.contract.mechanisms.items() if use_key(use) == kind]
+        hint = get_close_matches(str(name), declared, n=1)
+        raise RunError(f"{name!r} is not a declared {describe(kind)} mechanism"
+                       + (f" — did you mean '{hint[0]}'?" if hint else "")
+                       + f" ({describe(kind)} mechanisms: {', '.join(declared) or 'none declared'})", where)
+    try:
+        return parsed(raw, model)
+    except ValidationError as exc:  # expansion validated it already; only a patched contract lands here
+        raise RunError(f"mechanism '{name}' has an invalid config: {exc.errors()[0]['msg']}", where) from None
 
 
 # ---------------------------------------------------------------------------
@@ -296,7 +334,6 @@ def _engine_errors() -> tuple[type[BaseException], ...]:
     because the modules defining them import this registry."""
     global _ENGINE_ERRORS
     if not _ENGINE_ERRORS:
-        from .errors import RunError
         from .expr import ExprError
         from .world.live import Abort
 

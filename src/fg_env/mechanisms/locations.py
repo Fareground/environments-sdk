@@ -23,7 +23,7 @@ from ..contract import Condition
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
 from ..expr.objects import Entity
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
@@ -199,7 +199,7 @@ def place_at(cfg: TerrainConfig, position: Any) -> str | None:
 def _layers(world: Any, entity: Entity | None = None) -> Iterable[tuple[str, TerrainConfig]]:
     """Terrain mechanisms (only those whose occupants include ``entity``'s type when given)."""
     for mech, raw in common.uses(world.contract, KEY):
-        cfg = common.parsed(raw, TerrainConfig)
+        cfg = parsed(raw, TerrainConfig)
         if entity is not None and not any(world.is_a(entity.entity_type, t) for t in _occupant_types(cfg)):
             continue
         yield mech, cfg
@@ -240,7 +240,7 @@ def _enter_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
 
 def _check_tick(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     name = effect["conditions"]
-    cfg = common.parsed(checker.c.mechanisms[name], TerrainConfig)
+    cfg = parsed(checker.c.mechanisms[name], TerrainConfig)
     occupants = {t for t in _occupant_types(cfg) if t in checker.c.types}
     base = set(common.base_roots())
     roots, types = base | {"it"}, {"it": occupants}
@@ -280,7 +280,7 @@ def _on_grid(world: Any, mech: str, cfg: TerrainConfig) -> None:
 def _tick_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, KEY, TerrainConfig, where)
+    cfg = mechanism_config(world, mech, KEY, TerrainConfig, where)
     _on_grid(world, mech, cfg)
     if not any(spec.tick for spec in cfg.places.values()):
         return

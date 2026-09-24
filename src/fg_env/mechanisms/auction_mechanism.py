@@ -8,9 +8,9 @@ from typing import Any
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
+from ._common import entity_of, fmt
 from ._social import check_expr
 from .auctions import FORMATS, MIN_PRICE, SEALED, AuctionConfig, bid, close_sealed, open_lot, tick
-from .common import entity_of, fmt
 from .econ_base import money_prop
 from .package_auction import MAX_PACKAGE_ITEMS
 

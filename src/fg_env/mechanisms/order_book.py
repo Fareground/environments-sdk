@@ -34,11 +34,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr.objects import Entity
+from ..registry import mechanism_config
 from ..world.live import Abort
 from ..world.props import prop_type
-from ._common import ToolsSetting, tools_field
+from ._common import ToolsSetting, entity_of, fmt, lot_floor, tools_field
 from .book_rules import Venue, venue
-from .common import config_of, entity_of, fmt, lot_floor
 from .ledger import EPS, Account, balance, clean, move
 
 __all__ = ["OrderBookConfig", "CrowdSpec", "STRATEGIES", "book_config", "place", "cancel", "cancel_all", "quote",
@@ -174,7 +174,7 @@ def book_config(world: Any, name: Any) -> OrderBookConfig:
     hit = _CONFIGS.get((id(contract), name)) if isinstance(name, str) else None
     if hit is not None and hit[0] is contract:
         return hit[1]
-    config = config_of(world, name, KEY, OrderBookConfig)
+    config = mechanism_config(world, name, KEY, OrderBookConfig)
     if len(_CONFIGS) >= 256:
         _CONFIGS.clear()
     _CONFIGS[(id(contract), name)] = (contract, config)

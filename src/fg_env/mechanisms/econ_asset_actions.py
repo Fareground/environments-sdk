@@ -9,6 +9,7 @@ from ..errors import RunError
 from ..expr import is_expr
 from ..registry import family_action
 from ..world.live import Abort
+from ._common import entity_of
 from .econ_assets import (
     _item,
     _ledger,
@@ -25,7 +26,7 @@ from .econ_assets import (
     put_items,
     take_items,
 )
-from .econ_base import EPS, amount, checked_config, entity_of, money, whole
+from .econ_base import EPS, amount, checked_config, money, whole
 
 
 def _qty(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> int:

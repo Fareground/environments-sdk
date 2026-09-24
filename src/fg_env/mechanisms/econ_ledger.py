@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
+from ._common import ToolsSetting, entity_of, tools_field
 from .econ_assets import balance, move_money
 from .econ_base import (
     INVENTORY,
@@ -21,7 +21,6 @@ from .econ_base import (
     config_of,
     declared_names,
     emit_to,
-    entity_of,
     guarded,
     lineage,
     money,

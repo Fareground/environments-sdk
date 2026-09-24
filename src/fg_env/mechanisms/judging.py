@@ -25,10 +25,10 @@ from ..expr import Untrusted
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host import allowlist
-from ..host.common import NAME, clip, config_of, prop_of, type_list
+from ..host.common import NAME, clip, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort, _plain
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
@@ -165,7 +165,7 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
 def _judge_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, JUDGE, JudgeConfig, where)
+    config = mechanism_config(world, name, JUDGE, JudgeConfig, where)
     if "text" in effect and "entry" in effect:
         raise RunError("give `text` or `entry`, not both", where)
     if "text" in effect or "entry" in effect:
@@ -484,7 +484,7 @@ def _absent() -> dict[str, Any]:
 def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, GAME_MASTER, GameMasterConfig, where)
+    config = mechanism_config(world, name, GAME_MASTER, GameMasterConfig, where)
     actor = vars.get("actor")
     if not isinstance(actor, Entity):
         raise RunError("`resolve` runs inside an action (it needs $actor)", where)

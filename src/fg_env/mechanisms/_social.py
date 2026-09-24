@@ -1,4 +1,4 @@
-"""Plumbing shared by the social mechanisms: config lookup, ids, and state-versioned caches.
+"""Plumbing shared by the social mechanisms: ids, named uses, and state-versioned caches.
 
 Nothing here holds run state. Caches hang off the world and are keyed by its journal version and
 round, so any change (including a rollback) invalidates them, and a restored run starts empty.
@@ -7,22 +7,19 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
-from typing import Any, TypeVar
-
-from pydantic import BaseModel
+from typing import Any
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..expr.objects import Entity
-from ..registry import MechanismError, config_data, describe, use_key
+from ..registry import MechanismError, describe, use_key
 
-__all__ = ["NAME", "props", "cache", "config_of", "uses_of", "named_use", "eid", "ids", "entity",
+__all__ = ["NAME", "props", "cache", "uses_of", "named_use", "eid", "ids", "entity",
            "require_type", "check_expr", "edges", "seat_order"]
 
 #: A generated identifier (room, group, faction, item): letters, digits and _, starting with a letter.
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
-_M = TypeVar("_M", bound=BaseModel)
 
 #: Roots every expression may read, wherever it runs.
 GLOBAL_ROOTS = frozenset({"inputs", "world", "physics", "clock", "round", "stage", "metrics", "series", "arm",
@@ -42,22 +39,6 @@ def cache(world: Any, namespace: str) -> dict[Any, Any]:
         store.clear()
         store["$stamp"] = stamp
     return store.setdefault(namespace, {})
-
-
-def config_of(world: Any, name: str, kind: str, model: type[_M]) -> _M:
-    """The validated config of mechanism ``name`` (which must be of ``kind``), parsed once per contract."""
-    parsed: dict[Any, Any] = world.__dict__.setdefault("_social_configs", {})
-    key = (id(world.contract), name, kind)
-    found = parsed.get(key)
-    if found is None:
-        raw = world.contract.mechanisms.get(name)
-        if not isinstance(raw, Mapping) or use_key(raw) != kind:
-            declared = ", ".join(uses_of(world.contract.mechanisms, kind)) or "none declared"
-            raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism ({describe(kind)} mechanisms: "
-                           f"{declared})",
-                           f"mechanisms.{name}")
-        found = parsed[key] = model.model_validate(config_data(raw))
-    return found  # type: ignore[no-any-return]
 
 
 def uses_of(mechanisms: Mapping[str, Any], kind: str) -> list[str]:

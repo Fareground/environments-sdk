@@ -18,8 +18,8 @@ from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import compile_template, format_value
-from ..registry import MechanismError, family_action, mode
-from .common import NAME, agents_of, clip, config_of, type_list
+from ..registry import MechanismError, family_action, mechanism_config, mode
+from .common import NAME, agents_of, clip, type_list
 from .protocols import HostError
 from .tape import consult, plain
 
@@ -71,7 +71,7 @@ def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, An
 
 def generate(world: Any, name: str, where: str) -> int:
     """Write every missing persona of the mechanism ``name``; returns how many were written."""
-    config = config_of(world, name, KEY, PersonaConfig, where)
+    config = mechanism_config(world, name, KEY, PersonaConfig, where)
     written = 0
     for entity in agents_of(world, config.who):
         if entity.properties.get(config.prop):

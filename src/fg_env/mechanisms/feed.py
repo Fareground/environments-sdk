@@ -30,10 +30,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import cache, config_of, edges, eid, entity, named_use, props, require_type, seat_order
+from ._social import cache, edges, eid, entity, named_use, props, require_type, seat_order
 
 __all__ = ["FeedConfig", "feed"]
 
@@ -116,7 +116,7 @@ class FeedConfig(BaseModel):
 
 def _use(call: Call, index: int) -> tuple[str, FeedConfig]:
     name = named_use(call, KIND, index)
-    return name, config_of(call.scope.world, name, KIND, FeedConfig)
+    return name, mechanism_config(call.scope.world, name, KIND, FeedConfig)
 
 
 def _out(world: Any, relation: str, account: str) -> list[str]:
@@ -337,7 +337,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
     def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["social"]
-        config = config_of(world, name, KIND, FeedConfig)
+        config = mechanism_config(world, name, KIND, FeedConfig)
         raw = runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor")
         if raw is None:
             raise RunError(f"`{action}` needs an account: run it in an action ($actor) or give `who`", where)

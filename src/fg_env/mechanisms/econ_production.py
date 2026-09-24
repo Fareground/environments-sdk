@@ -12,7 +12,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import condition
+from ._common import condition, entity_of
 from .econ_assets import balance, burn_money, credit_of, destroy_items, held, is_holder, make_items
 from .econ_base import (
     INVENTORY,
@@ -23,7 +23,6 @@ from .econ_base import (
     declared_names,
     declared_use,
     emit_to,
-    entity_of,
     guarded,
     maybe_entity,
     money,

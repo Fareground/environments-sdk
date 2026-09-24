@@ -30,10 +30,10 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
-from ..registry import MechanismError, config_data, family_action, mode
+from ..registry import MechanismError, config_data, family_action, mechanism_config, mode
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import NAME, check_expr, config_of, eid, entity, named_use, require_type, seat_order
+from ._social import NAME, check_expr, eid, entity, named_use, require_type, seat_order
 
 __all__ = ["RelationshipsConfig", "FactionsConfig"]
 
@@ -145,7 +145,7 @@ def _relate_check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple
 def _relate_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name, relation = effect["groups"], effect["relation"]
-    config = config_of(world, name, RELATIONSHIPS, RelationshipsConfig)
+    config = mechanism_config(world, name, RELATIONSHIPS, RelationshipsConfig)
     spec = config.relations.get(relation)
     if spec is None:
         raise RunError(f"'{relation}' is not a relation of {name} (relations: {', '.join(config.relations)})",
@@ -173,7 +173,7 @@ def _relate_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where:
 def _tick_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["groups"]
-    config = config_of(world, name, RELATIONSHIPS, RelationshipsConfig)
+    config = mechanism_config(world, name, RELATIONSHIPS, RelationshipsConfig)
     order = seat_order(world)
     for relation, spec in config.relations.items():
         pairs = sorted(world.links.get(relation, {}), key=lambda k: (order.get(k[0], 0), order.get(k[1], 0)))
@@ -294,7 +294,7 @@ def _factions_fn(call: Call) -> list[dict[str, Any]]:
 def _joinable_fn(call: Call) -> list[str]:
     world: Any = call.scope.world
     name = named_use(call, FACTIONS, 1)
-    config = config_of(world, name, FACTIONS, FactionsConfig)
+    config = mechanism_config(world, name, FACTIONS, FactionsConfig)
     agent = eid(call.arg(0), call.source)
     factions = _factions(world, name)
     if config.one and _mine(factions, agent):
@@ -327,7 +327,7 @@ def _faction_runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any
     def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["groups"]
-        config = config_of(world, name, FACTIONS, FactionsConfig)
+        config = mechanism_config(world, name, FACTIONS, FactionsConfig)
         who = entity(world, runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor"), where,
                      config.who)
         factions = {f: {**spec, "members": list(spec["members"]), "invited": list(spec["invited"]),

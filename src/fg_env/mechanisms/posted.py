@@ -22,10 +22,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
-from .common import config_of, entity_of, fmt
+from ._common import ToolsSetting, entity_of, fmt, tools_field
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -87,7 +86,7 @@ class PostedMarketConfig(BaseModel):
 
 
 def posted_config(world: Any, name: Any) -> PostedMarketConfig:
-    return config_of(world, name, KEY, PostedMarketConfig)
+    return mechanism_config(world, name, KEY, PostedMarketConfig)
 
 
 def _prop(entity: Entity, key: str, default: Any = None) -> Any:

@@ -35,8 +35,8 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..expr.objects import Entity
 from ..world.live import Abort
+from ._common import lot_floor, number_of
 from .book_rules import venue
-from .common import lot_floor, number
 from .ledger import Account, balance
 from .market_stats import log_returns, stdev
 from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, short_room, top
@@ -143,7 +143,7 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
     rng = world.rng
     if "p" not in state:
         where = f"mechanisms.{name}.crowd.{strategy}.params"
-        overrides = {key: number(world, raw, f"{where}.{key}", actor=trader)
+        overrides = {key: number_of(world, raw, f"{where}.{key}", actor=trader)
                      for key, raw in _overrides(cfg, strategy).items()}
         params = {**DEFAULTS[strategy], **overrides}
         for key, (low, high) in _DISPERSION[strategy].items():
@@ -169,7 +169,7 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
 
 def _setting(world: Any, name: str, field: str, raw: Any, trader: Entity, default: float) -> float:
     """A book setting that is a number or an expression read now (``$actor`` is the trader)."""
-    return default if raw is None else number(world, raw, f"mechanisms.{name}.{field}", actor=trader)
+    return default if raw is None else number_of(world, raw, f"mechanisms.{name}.{field}", actor=trader)
 
 
 def _stopped_out(v: _View, p: dict[str, float]) -> bool:

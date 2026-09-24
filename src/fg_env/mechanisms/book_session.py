@@ -10,8 +10,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+from ._common import fmt, number_of
 from .book_rules import CLOSES_WINDOW, Venue, venue
-from .common import fmt, number
 from .ledger import clean
 from .order_book import KEY, OrderBookConfig, account, book_config, merge_flow, props_for, release, traders, trip
 
@@ -19,7 +19,7 @@ __all__ = ["open_round", "close_round", "start_price"]
 
 
 def start_price(world: Any, name: str) -> float:
-    return number(world, book_config(world, name).start_price, f"mechanisms.{name}.start_price")
+    return number_of(world, book_config(world, name).start_price, f"mechanisms.{name}.start_price")
 
 
 def open_round(world: Any, name: str) -> None:
@@ -63,7 +63,7 @@ def open_round(world: Any, name: str) -> None:
 def _walk_value(world: Any, name: str, cfg: OrderBookConfig) -> None:
     """The default fair value: a driftless random walk at the book's per-round ``volatility``, so fundamentalists
     anchor to a value that moves like a real one instead of pinning the price to where it started."""
-    sigma = number(world, cfg.volatility, f"mechanisms.{name}.volatility")
+    sigma = number_of(world, cfg.volatility, f"mechanisms.{name}.volatility")
     value = float(world.props.get(f"{name}_value") or start_price(world, name))
     world.set_world(f"{name}_value", value * math.exp(world.rng.gauss(0.0, sigma) - sigma * sigma / 2))
 

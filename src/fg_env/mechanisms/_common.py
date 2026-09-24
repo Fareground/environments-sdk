@@ -1,6 +1,5 @@
 """Shared plumbing for the native mechanism families.
 
-* Config lookup: a mechanism's validated config, parsed once per contract.
 * Action hooks: families attach extra ``when`` conditions and effects to actions the contract
   already declares (a status that blocks ``attack``, a cooldown on ``fireball``) by returning an
   ``action_hooks`` section, which the spine's merge applies.
@@ -15,11 +14,7 @@ import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from difflib import get_close_matches
-from typing import (
-    Any,
-    Literal,
-    TypeVar,
-)
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -27,16 +22,16 @@ from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..expr.objects import Entity
-from ..registry import MechanismError, config_data, describe, use_key
+from ..registry import MechanismError, use_key
 
 __all__ = [
-    "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
-    "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "whole", "entities_of",
+    "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
+    "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
+    "entities_of", "lot_floor", "fmt",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
     "is_agent_type",
 ]
 
-M = TypeVar("M", bound=BaseModel)
 
 #: A number, or an expression giving one.
 Number = float | str
@@ -68,43 +63,11 @@ class ModifierSpec(Config):
     mul: Number = Field(1.0, description="Multiplies the property (number or expression over $it).")
 
 
-# ---------------------------------------------------------------------------
-# Config lookup
-# ---------------------------------------------------------------------------
-
-_CACHE: dict[tuple[int, str], tuple[Any, Any]] = {}
-_CACHE_LIMIT = 1_024
-
-
-def parsed(raw: Mapping[str, Any], model: type[M]) -> M:
-    """``raw`` (a contract's mechanism entry) validated as ``model``; parsed once per entry object."""
-    key = (id(raw), model.__name__)
-    hit = _CACHE.get(key)
-    if hit is not None and hit[0] is raw:
-        return hit[1]  # type: ignore[no-any-return]
-    value = model.model_validate(config_data(raw))
-    if len(_CACHE) >= _CACHE_LIMIT:
-        _CACHE.clear()
-    _CACHE[key] = (raw, value)
-    return value
-
-
 def uses(contract: Any, kind: str) -> list[tuple[str, Mapping[str, Any]]]:
     """``(name, raw config)`` of every mechanism of ``kind`` in a parsed contract or contract data."""
     mechanisms = contract.get("mechanisms") if isinstance(contract, Mapping) else contract.mechanisms
     return [(name, raw) for name, raw in (mechanisms or {}).items()
             if use_key(raw) == kind]
-
-
-def config(world: Any, name: str, kind: str, model: type[M], where: str) -> M:
-    """The config of the mechanism ``name`` of ``kind`` at run time."""
-    raw = world.contract.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or use_key(raw) != kind:
-        declared = [n for n, _ in uses(world.contract, kind)]
-        hint = get_close_matches(str(name), declared, n=1)
-        raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism"
-                       + (f" — did you mean '{hint[0]}'?" if hint else ""), where)
-    return parsed(raw, model)
 
 
 # ---------------------------------------------------------------------------
@@ -221,12 +184,25 @@ def number(value: Any, where: str, what: str = "a number") -> float:
     return value
 
 
+def number_of(world: Any, raw: Any, where: str, **roots: Any) -> float:
+    """A config value that is a number or an expression giving one (evaluated with ``roots``)."""
+    return float(number(evaluate(world, raw, where, **roots), where))
+
+
 def whole(value: Any, where: str, low: int = 1) -> int:
     if isinstance(value, float) and value.is_integer():
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int) or value < low:
         raise RunError(f"must be a whole number ≥ {low}, got {value!r}", where)
     return value
+
+
+def entity_of(world: Any, value: Any, where: str, what: str = "an entity") -> Entity:
+    """The alive entity ``value`` (an entity or an id) names."""
+    found = world.entity(value)
+    if found is None or not found.alive:
+        raise RunError(f"expected {what}, got {value!r}", where)
+    return found  # type: ignore[no-any-return]
 
 
 def entities_of(world: Any, value: Any, where: str) -> list[Entity]:
@@ -241,6 +217,20 @@ def entities_of(world: Any, value: Any, where: str) -> list[Entity]:
             raise RunError(f"expected an entity or an entity id, got {item!r}", where)
         out.append(found)
     return out
+
+
+def lot_floor(qty: float, lot: float) -> float:
+    """``qty`` rounded down to a whole number of lots."""
+    if lot <= 0:
+        return max(0.0, qty)
+    lots = int(qty / lot + 1e-9)
+    return round(lots * lot, 10)
+
+
+def fmt(value: float, digits: int = 2) -> str:
+    """A compact number: no trailing zeros."""
+    text = f"{value:,.{digits}f}"
+    return text.rstrip("0").rstrip(".") if "." in text else text
 
 
 def carriers(world: Any, type_names: Sequence[str]) -> list[Entity]:

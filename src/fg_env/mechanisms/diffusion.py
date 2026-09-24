@@ -34,8 +34,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, tainted
 from ..expr.objects import Entity
-from ..registry import MechanismError, family_action, mode
-from ._social import NAME, check_expr, config_of, edges, eid, ids, require_type, seat_order, uses_of
+from ..registry import MechanismError, family_action, mechanism_config, mode
+from ._social import NAME, check_expr, edges, eid, ids, require_type, seat_order, uses_of
 
 __all__ = ["DiffusionConfig"]
 
@@ -176,7 +176,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
     def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["social"]
-        config = config_of(world, name, KIND, DiffusionConfig)
+        config = mechanism_config(world, name, KIND, DiffusionConfig)
         if world.contract.relations.get(config.over) is None:
             raise RunError(f"diffusion {name}: '{config.over}' is not a declared relation", f"mechanisms.{name}.over")
         items = {k: _copy(v) for k, v in _items(world, name).items()}

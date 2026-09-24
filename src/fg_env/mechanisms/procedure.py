@@ -37,7 +37,7 @@ from pydantic import Field, ValidationError, model_validator
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config, Effects, ToolsSetting, tools_field
 from .procedure_stack import StackConfig, check_push, check_stack_rules, expand_stack, read_stack, run_step
@@ -319,7 +319,7 @@ _ACTIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...], bool, str, str, str]
 def _check(action: str, needs: str) -> Callable[[Any, dict[str, Any], str], list[tuple[str, str, str | None]]]:
     def check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
         name = effect["flow"]
-        cfg = common.parsed(checker.c.mechanisms[name], ProcedureConfig)
+        cfg = parsed(checker.c.mechanisms[name], ProcedureConfig)
         problems: list[tuple[str, str, str | None]] = []
         if needs == "phases" and not cfg.phases:
             problems.append((f"{path}.action", f"the {name} procedure has no phases", None))
@@ -366,7 +366,7 @@ def _check_shared_completion(checker: Any, name: str, transition: Transition, pa
         for owner, raw in checker.c.mechanisms.items():
             if raw.get("kind") != "flow" or raw.get("mode") != "procedure":
                 continue
-            cfg = common.parsed(raw, ProcedureConfig)
+            cfg = parsed(raw, ProcedureConfig)
             for phase in cfg.phases.values():
                 for step in phase.transitions():
                     if step.all_did is not None:
@@ -409,7 +409,7 @@ def _check_completion_scope(checker: Any, transition: Transition, path: str) -> 
 def _runner(action: str, needs: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str], None]:
     def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         mech = effect["flow"]
-        cfg = common.config(runner.world, mech, KEY, ProcedureConfig, where)
+        cfg = mechanism_config(runner.world, mech, KEY, ProcedureConfig, where)
         if needs == "stack":
             if cfg.stack is None:
                 raise RunError(f"the {mech} procedure has no stack", f"{where}.action")
@@ -448,7 +448,7 @@ def _stack_function(call: Call) -> Any:
     if not isinstance(name, str):
         raise ExprError(f"$stack: the first argument is a procedure's name, got {name!r}", call.source)
     try:
-        cfg = common.config(world, name, KEY, ProcedureConfig, "mechanisms")
+        cfg = mechanism_config(world, name, KEY, ProcedureConfig, "mechanisms")
     except RunError as exc:
         raise ExprError(f"$stack: {exc}", call.source) from None
     if cfg.stack is None:

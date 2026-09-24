@@ -29,7 +29,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..expr.template import compile_template
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
 
@@ -151,7 +151,7 @@ def _index(contract: Any) -> dict[str, tuple[str, StatusConfig]]:
     """status name → (mechanism name, config), over every status mechanism."""
     out: dict[str, tuple[str, StatusConfig]] = {}
     for mech, raw in common.uses(contract, KEY):
-        cfg = common.parsed(raw, StatusConfig)
+        cfg = parsed(raw, StatusConfig)
         for status in cfg.statuses:
             out.setdefault(status, (mech, cfg))
     return out
@@ -243,7 +243,7 @@ def _status_names(value: Any) -> list[str]:
 
 
 def _declared(checker: Any, effect: Mapping[str, Any]) -> StatusConfig:
-    return common.parsed(checker.c.mechanisms[effect["conditions"]], StatusConfig)
+    return parsed(checker.c.mechanisms[effect["conditions"]], StatusConfig)
 
 
 def _unknown_statuses(cfg: StatusConfig, mech: str, names: list[str], path: str,
@@ -266,7 +266,7 @@ def _check_apply(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[
 def _apply_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, KEY, StatusConfig, where)
+    cfg = mechanism_config(world, mech, KEY, StatusConfig, where)
     status = effect["status"]
     if status not in cfg.statuses:
         raise RunError(f"'{status}' is not a status of {mech} ({common.suggest(str(status), cfg.statuses)})",
@@ -292,7 +292,7 @@ def _check_cleanse(checker: Any, effect: dict[str, Any], path: str) -> list[tupl
 def _cleanse_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, KEY, StatusConfig, where)
+    cfg = mechanism_config(world, mech, KEY, StatusConfig, where)
     wanted = effect["status"]
     names = _status_names(wanted)
     for status in names:
@@ -338,7 +338,7 @@ def _check_rules(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[
 def _tick_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, KEY, StatusConfig, where)
+    cfg = mechanism_config(world, mech, KEY, StatusConfig, where)
     for carrier in common.carriers(world, _carrier_types(cfg)):
         for status, spec in cfg.statuses.items():
             if not carrier.alive:
@@ -360,7 +360,7 @@ def _tick_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: s
 def _expire_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, KEY, StatusConfig, where)
+    cfg = mechanism_config(world, mech, KEY, StatusConfig, where)
     now = world.round
     for carrier in common.carriers(world, _carrier_types(cfg)):
         state = _state(carrier, mech)
@@ -467,7 +467,7 @@ def _modifiers(world: Any, entity: Entity, prop: str) -> Iterable[tuple[float, f
         state = entity.properties.get(mech)
         if not isinstance(state, Mapping) or not state:
             continue
-        cfg = common.parsed(raw, StatusConfig)
+        cfg = parsed(raw, StatusConfig)
         for status, entry in state.items():
             spec = cfg.statuses.get(status)
             if spec is None or prop not in spec.modifiers:

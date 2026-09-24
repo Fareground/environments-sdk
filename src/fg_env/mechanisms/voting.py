@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function, truthy
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from . import _common
 from ._common import ToolsSetting, tools_field
 
@@ -349,7 +349,7 @@ def _options(runner: Any, config: BallotConfig, vars: dict[str, Any]) -> list[An
 def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     name = effect["decision"]
     world = runner.world
-    config = _common.config(world, name, KEY, BallotConfig, where)
+    config = mechanism_config(world, name, KEY, BallotConfig, where)
     ballots = dict(world.props.get(f"{name}_ballots") or {})
     voters = _voters_in_game(world, config.who)
     weights = ({v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters}

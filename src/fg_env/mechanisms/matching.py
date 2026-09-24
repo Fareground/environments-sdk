@@ -18,10 +18,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
-from ..registry import MechanismError, family_action, mode
-from ._common import is_agent_type
-from ._social import check_expr, config_of, props, require_type
-from .common import number
+from ..registry import MechanismError, family_action, mechanism_config, mode
+from ._common import is_agent_type, number_of
+from ._social import check_expr, props, require_type
 
 __all__ = ["MatchingConfig", "stable_match"]
 
@@ -82,13 +81,13 @@ def _ranking(value: Any) -> list[str]:
 
 
 def clear(world: Any, name: str) -> None:
-    config = config_of(world, name, KEY, MatchingConfig)
+    config = mechanism_config(world, name, KEY, MatchingConfig)
     proposers = list(world.entities_of(config.who))
     receivers = list(world.entities_of(config.to))
     where = f"mechanisms.{name}.seats"
     seats: dict[str, int] = {}
     for receiver in receivers:
-        count = number(world, config.seats, where, it=receiver)
+        count = number_of(world, config.seats, where, it=receiver)
         if count < 0 or count != int(count):
             raise RunError(f"{receiver.id} has {count!r} seats; seats must be a whole number ≥ 0", where)
         seats[receiver.id] = int(count)

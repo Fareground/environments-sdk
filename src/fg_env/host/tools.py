@@ -18,9 +18,9 @@ from ..errors import RunError
 from ..expr import Untrusted
 from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..registry import MechanismError, family_action, mode
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from .common import agents_of, clip, config_of, prop_of, type_list
+from .common import agents_of, clip, prop_of, type_list
 from .protocols import HostError
 from .tape import consult, plain, request_key
 
@@ -110,7 +110,7 @@ def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> s
 
     Returns the tape key of an answer this call added (None when it was on the tape already, or the host was not
     asked), so a turn that ran out of time while the host answered can take it off again."""
-    config = config_of(env.world, name, KEY, HostToolConfig, f"mechanisms.{name}")
+    config = mechanism_config(env.world, name, KEY, HostToolConfig, f"mechanisms.{name}")
     arguments = plain({key: value for key, value in params.items() if value is not None})
     with env._lock:
         calls = prop_of(actor, f"{name}_calls", 0)
@@ -134,7 +134,7 @@ def _result(answer: Any, limit: int) -> str:
 def _host_tool_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, KEY, HostToolConfig, where)
+    config = mechanism_config(world, name, KEY, HostToolConfig, where)
     actor = vars.get("actor")
     if not isinstance(actor, Entity):
         raise RunError("`call` runs inside an action (it needs $actor)", where)
@@ -159,7 +159,7 @@ def _host_tool_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], whe
 def _publish_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, KEY, HostToolConfig, where)
+    config = mechanism_config(world, name, KEY, HostToolConfig, where)
     if config.private:
         return
     for agent in agents_of(world, config.who):

@@ -10,8 +10,8 @@ from typing import Any
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
+from ._common import fmt
 from .auctions import _item_reserves, _reserve, auction_config, audit, min_bid
-from .common import fmt
 
 __all__ = ["describe", "last_result"]
 

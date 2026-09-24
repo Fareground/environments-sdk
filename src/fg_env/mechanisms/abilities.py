@@ -27,7 +27,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..expr.template import compile_template
-from ..registry import MechanismError, family_action, mode, use_key
+from ..registry import MechanismError, family_action, mechanism_config, mode, parsed, use_key
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects
@@ -117,7 +117,7 @@ def _unique_actions(name: str, key: str, actions: Mapping[str, Any], contract: M
 def _index(contract: Any, key: str, model: Any) -> dict[str, tuple[str, Any]]:
     out: dict[str, tuple[str, Any]] = {}
     for mech, raw in common.uses(contract, key):
-        cfg = common.parsed(raw, model)
+        cfg = parsed(raw, model)
         for action in cfg.actions:
             out.setdefault(action, (mech, cfg))
     return out
@@ -214,7 +214,7 @@ def _ability_text(call: Call) -> str:
     if use_key(raw) != COOLDOWNS:
         raise ExprError(f"$ability_text: '{call.arg(1)}' is not a declared conditions (cooldowns) mechanism",
                         call.source)
-    cfg = common.parsed(raw, CooldownConfig)
+    cfg = parsed(raw, CooldownConfig)
     parts = []
     for action, spec in cfg.actions.items():
         if not any(world.is_a(entity.entity_type, t) for t in common.by_types(world.contract.actions[action])):
@@ -252,7 +252,7 @@ def _check_abilities(key: str, model: Any, allow_all: bool) -> Any:
 
     def check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
         mech = effect[key.split(".")[0]]
-        listed = common.parsed(checker.c.mechanisms[mech], model).actions
+        listed = parsed(checker.c.mechanisms[mech], model).actions
         value = effect.get("ability")
         if not allow_all and not isinstance(value, str):
             return [(f"{path}.ability", "`ability` names one action", None)]
@@ -276,7 +276,7 @@ def _listed(world: Any, mech: str, cfg: Any, names: list[str], where: str) -> No
 def _start_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, COOLDOWNS, CooldownConfig, where)
+    cfg = mechanism_config(world, mech, COOLDOWNS, CooldownConfig, where)
     action = effect["ability"]
     _listed(world, mech, cfg, [action], where)
     spec = cfg.actions[action]
@@ -301,7 +301,7 @@ def _start_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
 def _reset_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, COOLDOWNS, CooldownConfig, where)
+    cfg = mechanism_config(world, mech, COOLDOWNS, CooldownConfig, where)
     names = None if effect["ability"] == "all" else _abilities(effect)
     _listed(world, mech, cfg, names or [], where)
     for entity in _who(runner, effect, vars, where):
@@ -421,7 +421,7 @@ def _channeling(call: Call) -> dict[str, Any] | None:
 def _channel_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
+    cfg = mechanism_config(world, mech, CHANNELING, ChannelConfig, where)
     action = effect["ability"]
     _listed(world, mech, cfg, [action], where)
     actor = vars.get("actor")
@@ -441,7 +441,7 @@ def _channel_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
 def _interrupt_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
+    cfg = mechanism_config(world, mech, CHANNELING, ChannelConfig, where)
     for entity in common.entities_of(world, runner.eval(effect["who"], vars), f"{where}.who"):
         state = entity.properties.get(mech)
         if isinstance(state, Mapping) and state:
@@ -476,7 +476,7 @@ def _news(runner: Any, mech: str, template: str, vars: dict[str, Any], where: st
 
 def _check_step(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     name = effect["conditions"]
-    cfg = common.parsed(checker.c.mechanisms[name], ChannelConfig)
+    cfg = parsed(checker.c.mechanisms[name], ChannelConfig)
     base = set(common.base_roots())
     for action, spec in cfg.actions.items():
         declared = checker.c.actions.get(action)
@@ -500,7 +500,7 @@ def _check_step(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[s
 def _step_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
-    cfg = common.config(world, mech, CHANNELING, ChannelConfig, where)
+    cfg = mechanism_config(world, mech, CHANNELING, ChannelConfig, where)
     casters = sorted({t for a in cfg.actions if a in world.contract.actions
                       for t in common.by_types(world.contract.actions[a])})
     for entity in common.carriers(world, casters):

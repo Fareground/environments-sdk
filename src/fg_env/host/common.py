@@ -1,42 +1,19 @@
-"""Shared plumbing for host mechanisms: config lookup at run time, type checks, agent lists."""
+"""Shared plumbing for host mechanisms: type checks, agent lists, clipping."""
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping, Sequence
-from functools import lru_cache
-from typing import Any, TypeVar, cast
+from typing import Any
 
-from pydantic import BaseModel
-
-from ..errors import RunError
 from ..expr import Untrusted
 from ..expr.objects import Entity
-from ..registry import MechanismError, config_data, describe, use_key
+from ..registry import MechanismError
 
-__all__ = ["NAME", "config_of", "type_list", "agents_of", "clip", "ellipsis"]
+__all__ = ["NAME", "type_list", "agents_of", "clip", "ellipsis"]
 
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
-M = TypeVar("M", bound=BaseModel)
 
 ellipsis = "…"
-
-
-def config_of(world: Any, name: str, kind: str, model: type[M], where: str) -> M:
-    """The validated config of the mechanism ``name`` of ``kind`` declared in the run's contract."""
-    raw = world.contract.mechanisms.get(name)
-    if not isinstance(raw, Mapping) or use_key(raw) != kind:
-        raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism", where)
-    return cast(M, _parse(model, _frozen(raw)))
-
-
-@lru_cache(maxsize=512)
-def _parse(model: type[BaseModel], frozen: tuple[tuple[str, str], ...]) -> BaseModel:
-    return model.model_validate(config_data({key: json.loads(value) for key, value in frozen}))
-
-
-def _frozen(raw: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
-    return tuple(sorted((key, json.dumps(value, sort_keys=True, default=str)) for key, value in raw.items()))
 
 
 def type_list(contract: Mapping[str, Any], value: str | Sequence[str], field: str) -> list[str]:

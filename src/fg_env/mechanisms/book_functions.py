@@ -9,8 +9,8 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import family_action
+from ._common import entity_of
 from .book_session import close_round, open_round
-from .common import entity_of
 from .order_book import account, audit, book_config, cancel, cancel_all, depth, place, quote
 
 __all__: list[str] = []

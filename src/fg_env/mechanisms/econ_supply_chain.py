@@ -12,6 +12,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
+from ._common import entity_of
 from .econ_assets import destroy_items, held, put_items, take_items
 from .econ_base import (
     INVENTORY,
@@ -21,7 +22,6 @@ from .econ_base import (
     compiles,
     config_of,
     declared_use,
-    entity_of,
     maybe_entity,
     props,
     register_config,

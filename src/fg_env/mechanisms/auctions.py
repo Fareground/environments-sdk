@@ -41,9 +41,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import compile_expr, truthy
 from ..expr.objects import Entity
+from ..registry import mechanism_config
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
-from .common import config_of, entity_of, fmt, number
+from ._common import ToolsSetting, entity_of, fmt, number_of, tools_field
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
 
@@ -113,7 +113,7 @@ class AuctionConfig(BaseModel):
 
 
 def auction_config(world: Any, name: Any) -> AuctionConfig:
-    return config_of(world, name, KEY, AuctionConfig)
+    return mechanism_config(world, name, KEY, AuctionConfig)
 
 
 def _lot(world: Any, name: str) -> dict[str, Any]:
@@ -148,7 +148,7 @@ def _house_stock(cfg: AuctionConfig) -> bool:
 
 
 def _reserve(world: Any, name: str, cfg: AuctionConfig) -> float:
-    return number(world, cfg.reserve, f"mechanisms.{name}.reserve")
+    return number_of(world, cfg.reserve, f"mechanisms.{name}.reserve")
 
 
 def min_bid(world: Any, name: str) -> float:
@@ -186,7 +186,7 @@ def open_lot(world: Any, name: str) -> None:
             units = min(cfg.units, left)  # the last lot sells what is left
     price = 0.0
     if cfg.format == "dutch":
-        price = number(world, cfg.start_price, f"mechanisms.{name}.start_price")
+        price = number_of(world, cfg.start_price, f"mechanisms.{name}.start_price")
     elif cfg.format == "english":
         price = _reserve(world, name, cfg)
     world.set_world(f"{name}_lot", {"open": True, "number": int(lot.get("number", 0)) + 1, "opened": world.round,
@@ -378,7 +378,7 @@ def _merit(world: Any, name: str, cfg: AuctionConfig) -> Callable[[dict[str, Any
     """How sealed bids rank, best first: by `score`, else the highest price (the lowest in a tender)."""
     if cfg.score is not None:
         score = cfg.score
-        return lambda b: number(world, score, f"mechanisms.{name}.score", price=b["price"],
+        return lambda b: number_of(world, score, f"mechanisms.{name}.score", price=b["price"],
                                 it=entity_of(world, b["bidder"], f"mechanisms.{name}", "a bidder"))
     return (lambda b: -b["price"]) if cfg.reverse else (lambda b: b["price"])
 
@@ -446,7 +446,7 @@ def _clear_double(world: Any, name: str, cfg: AuctionConfig, lot: dict[str, Any]
 
 
 def _item_reserves(world: Any, name: str, cfg: AuctionConfig) -> dict[str, float]:
-    return {item: number(world, cfg.reserves.get(item, cfg.reserve), f"mechanisms.{name}.reserves.{item}")
+    return {item: number_of(world, cfg.reserves.get(item, cfg.reserve), f"mechanisms.{name}.reserves.{item}")
             for item in cfg.items}
 
 
