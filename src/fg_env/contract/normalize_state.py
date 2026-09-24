@@ -8,6 +8,8 @@
 * ``game`` → ``types.<player>.score`` (``returns`` over $actor → ``value`` over $it; the claims, which describe and
   check derive, and ``total`` are dropped; ``rewards`` is refused).
 * ``blocks`` → ``defs`` with ``do``; the ``{"block": b, "with": ...}`` effect → ``{"call": b, "with": ...}``.
+* ``assets`` → ``inputs`` of ``type: file`` (``file`` or ``folder`` → ``source``; the kind filter ``type`` goes:
+  a file's kind is its extension).
 * Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
@@ -347,6 +349,33 @@ def blocks_into_defs(data: dict[str, Any]) -> list[str]:
         data.update(rewritten)
         notes.append('{"block": b}: now {"call": b}')
     return notes
+
+
+# -- assets → file inputs -------------------------------------------------------------------------------------------
+
+#: Asset fields a file input keeps as they are.
+_FILE_FIELDS = ("caption", "alt", "tags", "max_bytes", "describe", "description")
+
+
+@rule
+def assets_into_file_inputs(data: dict[str, Any]) -> list[str]:
+    """``assets: {x: {file | folder, caption, ...}}`` → ``inputs: {x: {type: file, source, caption, ...}}``."""
+    assets = data.get("assets")
+    inputs = data.get("inputs", {})
+    if not isinstance(assets, dict) or not isinstance(inputs, dict):
+        return []
+    clashes = [Issue(f"assets.{name}", f"'{name}' is also an input", "rename the asset or the input: files are "
+                     "inputs now") for name in assets if name in inputs]
+    if clashes:
+        raise ContractError(clashes, title="assets cannot be rewritten as file inputs")
+    for name, spec in assets.items():
+        spec = spec if isinstance(spec, dict) else {}
+        source = spec.get("file") if spec.get("file") is not None else spec.get("folder")
+        inputs[name] = {"type": "file", **({"source": source} if source is not None else {}),
+                        **{key: spec[key] for key in _FILE_FIELDS if key in spec}}
+    del data["assets"]
+    data["inputs"] = inputs
+    return [f"assets.{name}: now inputs.{name} (type file)" for name in assets]
 
 
 # -- arm patches ----------------------------------------------------------------------------------------------------

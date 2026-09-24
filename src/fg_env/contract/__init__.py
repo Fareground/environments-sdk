@@ -14,7 +14,6 @@ from typing import Any
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from .assets import AssetSpec
 from .base import (
     CONTRACT_VERSION,
     INPUT_TYPES,
@@ -115,7 +114,6 @@ __all__ = [
     "EndSpec",
     "ArmSpec",
     "CalibrationSpec",
-    "AssetSpec",
     "ScoreSpec",
     "UTILITIES",
     "DefSpec",
@@ -154,9 +152,6 @@ class Contract(_Model):
                                            "its folder); this contract's own entries win. Imported files may import "
                                            "others.")
     brief: Brief = Field(default_factory=Brief)
-    assets: dict[str, AssetSpec] = Field(default_factory=dict,
-                                         description="Files beside the contract (images, PDFs, text, audio) by id; see "
-                                                     "guide('assets').")
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     clock: Clock = Field(default_factory=Clock)
     space: Space | None = None
@@ -202,10 +197,10 @@ class Contract(_Model):
     @model_validator(mode="before")
     @classmethod
     def _feed_tape(cls, data: Any) -> Any:
-        """Feeds and described assets record their answers on the host tape, so such a contract declares it."""
+        """Feeds and described files record their answers on the host tape, so such a contract declares it."""
         world = data.get("world") if isinstance(data, dict) else None
-        assets = data.get("assets") if isinstance(data, dict) else None
-        described = isinstance(assets, dict) and any(isinstance(a, dict) and a.get("describe") for a in assets.values())
+        inputs = data.get("inputs") if isinstance(data, dict) else None
+        described = isinstance(inputs, dict) and any(isinstance(i, dict) and i.get("describe") for i in inputs.values())
         if (isinstance(data, dict) and (data.get("feeds") or described) and isinstance(world or {}, dict)
             and TAPE not in (world or {})):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}

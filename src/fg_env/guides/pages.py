@@ -70,11 +70,9 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Static text every agent reads first: the situation, the rules, and per-type role text."),
     ("clock", [C.Clock], "Clock", "How long a run lasts (`rounds`, default 20) and what one round is called."),
     ("inputs", [C.InputSpec], "{name: InputSpec}",
-     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
+     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables, and the files the "
+     "environment carries (`type: file`; see guide('assets'))."),
     ("world", [C.PropSpec], "{prop: default | PropSpec}", "Global properties ($world.x)."),
-    ("assets", [C.AssetSpec], "{asset: AssetSpec}",
-     "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see "
-     "guide('assets')."),
     ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule, C.ScoreSpec], "{type: TypeSpec}",
      "Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded "
      "participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its "

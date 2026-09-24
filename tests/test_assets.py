@@ -57,8 +57,8 @@ def test_a_data_column_of_type_asset_names_files_by_path(tmp_path):
 
 
 @pytest.mark.parametrize("file, message", [
-    ("../outside.png", "must be a path inside the contract's folder"),
-    ("/etc/passwd", "must be a path inside the contract's folder"),
+    ("../outside.png", "must be a file name inside the data directory"),
+    ("/etc/passwd", "must be a file name inside the data directory"),
     (".secret/key.png", "hidden file"),
     ("files/missing.png", "file not found"),
 ])
@@ -66,7 +66,7 @@ def test_paths_outside_the_contract_folder_are_refused_with_the_path_to_fix(tmp_
     contract = patched(assets={"agreement": {"file": file}})
     with pytest.raises(ContractError, match=message) as info:
         _load(tmp_path / "c", contract)
-    assert info.value.issues[0].path == "assets.agreement.file"
+    assert info.value.issues[0].path == "inputs.agreement.source"
 
 
 def test_a_link_that_leads_outside_the_folder_is_refused(tmp_path):
@@ -103,7 +103,7 @@ def test_check_reports_undeclared_asset_ids_and_file_parameter_mistakes():
                                 "submit": {"by": "attorney", "params": {"doc": {"type": "file", "kinds": ["video"]},
                                                                         "n": {"type": "int", "kinds": ["image"]}}}})
     messages = {(issue.path, issue.message) for issue in fg_env.check(contract, rounds=0)}
-    assert ("entities.p1.props.file", "'reprot' is not a declared asset") in messages
+    assert ("entities.p1.props.file", "'reprot' is not a declared file") in messages
     assert ("actions.submit.params.doc.kinds", "unknown asset type 'video'") in messages
     assert ("actions.submit.params.n", "kinds and max_bytes apply to file parameters") in messages
 
@@ -352,7 +352,7 @@ def test_a_describe_host_captions_a_file_once_and_every_copy_reads_the_recorded_
 
 def test_guide_documents_assets_in_the_core_guide_and_its_own_part():
     core = fg_env.guide()
-    assert "`assets`" in core and "asset" in core and len(core) // 4 < 6_000
+    assert "guide('assets')" in core and "asset" in core and len(core) // 4 < 6_000
     part = fg_env.guide("assets")
     for needle in ("wake.attachments", "`file`", "describe", "run.assets/", "`$asset(ref)`", "media=()"):
         assert needle in part or needle in fg_env.guide("all"), needle

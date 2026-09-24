@@ -1,4 +1,4 @@
-"""Reading a contract's catalog: the files its `assets` section and its data inputs name.
+"""Reading a contract's catalog: the files its `file` inputs and its data inputs' asset columns name.
 
 Only files inside the contract's folder (or ``data_dir=``) are read. Absolute paths, `..`, links that lead
 outside it, hidden files, files whose content does not match their extension, oversized files and folders with
@@ -15,9 +15,7 @@ from typing import TYPE_CHECKING, Any, Union
 from ..errors import ContractError, Issue
 from . import blobs
 from .kinds import (
-    EXTENSIONS,
     HARD_MAX_BYTES,
-    KINDS,
     MAX_BYTES,
     MAX_CATALOG_BYTES,
     MAX_FOLDER_FILES,
@@ -29,7 +27,7 @@ from .store import Asset, AssetStore
 if TYPE_CHECKING:
     from ..contract import Contract
 
-__all__ = ["resolve_assets", "asset_columns", "locate"]
+__all__ = ["resolve_assets", "asset_columns", "file_inputs", "locate"]
 
 Folder = Union[str, "os.PathLike[str]", None]
 
@@ -46,26 +44,35 @@ def asset_columns(contract: Contract) -> list[tuple[str, str]]:
             for column, kind in (spec.columns or {}).items() if kind == "asset"]
 
 
+def file_inputs(contract: Contract) -> dict[str, Any]:
+    """The contract's `file` inputs, by name (each one's id in the catalog)."""
+    return {name: spec for name, spec in contract.inputs.items() if spec.type == "file"}
+
+
 def resolve_assets(contract: Contract, inputs: Mapping[str, Any], folder: Folder) -> AssetStore:
-    """The run's catalog. Raises :class:`ContractError` listing every problem with its path."""
+    """The run's catalog: each `file` input's file — the one at the path it resolved to (its `source`, or the path
+    supplied at load), or every file of that folder as ``<input>/<file name>`` — and the files table cells name.
+    Raises :class:`ContractError` listing every problem with its path."""
     columns = asset_columns(contract)
+    files = file_inputs(contract)
     store = AssetStore(resolved=True)
-    if not contract.assets and not columns:
+    if not files and not columns:
         return store
     if folder is None:
-        raise ContractError([Issue("assets", "the contract's files need a folder to be read from",
+        raise ContractError([Issue("inputs", "the contract's files need a folder to be read from",
                                    "load the contract from its file (its folder is used) or pass data_dir=")])
     base = Path(folder).resolve()
     issues: list[Issue] = []
     total = [0]
-    for name, spec in contract.assets.items():
-        path = f"assets.{name}"
+    for name, spec in files.items():
+        path = f"inputs.{name}.source"
         try:
-            if spec.folder is not None:
-                for asset in _folder(base, name, spec, path, total):
+            relative = _relative(inputs.get(name), path)
+            if _inside(base, relative, path).is_dir():
+                for asset in _folder(base, name, relative, spec, path, total):
                     _add(store, asset, path, issues)
             else:
-                _add(store, _file(base, name, str(spec.file), spec, f"{path}.file", total), path, issues)
+                _add(store, _file(base, name, relative, spec, path, total), path, issues)
         except _Problem as problem:
             issues.append(problem.issue)
     for input_name, column in columns:
@@ -113,26 +120,12 @@ def _inside(base: Path, relative: str, path: str) -> Path:
     return target
 
 
-def _kind(spec_type: str | None, name: str, path: str) -> tuple[str, str]:
-    declared = kind_of_name(name)
-    if spec_type is None:
-        return declared
-    if spec_type not in KINDS:
-        raise _Problem(f"{path}.type", f"unknown asset type '{spec_type}'", f"use one of: {', '.join(KINDS)}")
-    if spec_type == "file":
-        return "file", declared[1]
-    if declared[0] != spec_type:
-        extensions = ", ".join(ext for ext, (kind, _) in EXTENSIONS.items() if kind == spec_type)
-        raise _Problem(path, f"'{name}' is not a {spec_type} file name", f"a {spec_type} file ends in {extensions}")
-    return declared
-
-
 def _file(base: Path, asset_id: str, raw: str, spec: Any, path: str, total: list[int]) -> Asset:
     relative = _relative(raw, path)
     target = _inside(base, relative, path)
     if not target.is_file():
         raise _Problem(path, f"file not found: '{relative}' in {base}", "check the path and the contract's folder")
-    kind, media_type = _kind(getattr(spec, "type", None), relative, path)
+    kind, media_type = kind_of_name(relative)
     limit = min(getattr(spec, "max_bytes", None) or MAX_BYTES[kind], HARD_MAX_BYTES)
     size = target.stat().st_size
     if size > limit:
@@ -161,21 +154,15 @@ def _file(base: Path, asset_id: str, raw: str, spec: Any, path: str, total: list
                  path=relative, describe=spec.describe if spec is not None else None)
 
 
-def _folder(base: Path, name: str, spec: Any, path: str, total: list[int]) -> list[Asset]:
-    relative = _relative(spec.folder, f"{path}.folder")
-    target = _inside(base, relative, f"{path}.folder")
-    if not target.is_dir():
-        raise _Problem(f"{path}.folder", f"folder not found: '{relative}' in {base}", "check the path")
+def _folder(base: Path, name: str, relative: str, spec: Any, path: str, total: list[int]) -> list[Asset]:
+    target = _inside(base, relative, path)
     files = sorted(entry.name for entry in target.iterdir() if entry.is_file() and not entry.name.startswith("."))
-    if spec.type is not None and spec.type != "file":
-        files = [file for file in files if kind_of_name(file)[0] == spec.type]
     if len(files) > MAX_FOLDER_FILES:
-        raise _Problem(f"{path}.folder", f"'{relative}' holds {len(files):,} files; the limit is {MAX_FOLDER_FILES:,}",
-                       "split it into several assets")
+        raise _Problem(path, f"'{relative}' holds {len(files):,} files; the limit is {MAX_FOLDER_FILES:,}",
+                       "split it into several inputs")
     if not files:
-        raise _Problem(f"{path}.folder", f"'{relative}' holds no {spec.type + ' ' if spec.type else ''}files",
-                       "add files, or fix `type`")
-    return [_file(base, f"{name}/{file}", f"{relative}/{file}", spec, f"{path}.folder", total) for file in files]
+        raise _Problem(path, f"'{relative}' holds no files", "add files, or name another folder")
+    return [_file(base, f"{name}/{file}", f"{relative}/{file}", spec, path, total) for file in files]
 
 
 

@@ -46,7 +46,8 @@ class InputSpec(_Model):
     source: str | None = Field(None,
                                description="Load the value from a data file (.csv → table, .json, .jsonl) inside the "
                                            "data directory: the contract file's folder, or `data_dir=` at load. "
-                                           "Undeclared CSV columns stay text.")
+                                           "Undeclared CSV columns stay text. A `file` input carries the file (an "
+                                           "image, PDF, text, audio) or every file of the folder named here.")
     description: str = ""
     unit: str = ""
     label: str = Field("", description="Human-readable input label; defaults to the input name in a host UI.")
@@ -60,6 +61,19 @@ class InputSpec(_Model):
                                                 description="Typed configurable fields of a map object or each table "
                                                             "row; supports nested objects, defaults and control hints.")
     items: InputSpec | None = Field(None, description="Typed elements of a list input.")
+    caption: str = Field("", description="file: what the file shows, as agents read it next to the file ({name} is "
+                                         "the file name).")
+    alt: str = Field("", description="file: a longer description for readers that cannot see the file (text-only "
+                                     "models read it).")
+    tags: list[str] = Field(default_factory=list,
+                            description="file: labels for expressions: `'exhibit' in $asset(id).tags`.")
+    max_bytes: int | None = Field(None, ge=1,
+                                  description="file: the largest file accepted (default: by kind — image 10 MB, pdf "
+                                              "32 MB, text 2 MB, audio 25 MB, other 32 MB).")
+    describe: str | None = Field(None,
+                                 description="file: a host (a Describer) that writes a caption and extracted text for "
+                                             "the file when the world is built, recorded on the host tape: "
+                                             "`$asset(id).caption` and `.text` read it.")
 
     @model_validator(mode="after")
     def _input_presentation(self) -> InputSpec:
@@ -87,6 +101,11 @@ class InputSpec(_Model):
                 raise ValueError(f"field '{name}' conflicts with its column type")
         if self.items is not None and self.items.source is not None:
             raise ValueError("declare data sources on the containing input, not list items")
+        file_fields = [key for key in ("caption", "alt", "tags", "max_bytes", "describe") if key in self.model_fields_set]
+        if file_fields and self.type != "file":
+            raise ValueError(f"{file_fields[0]} only applies to file inputs")
+        if self.type == "file" and self.source is None:
+            raise ValueError("a file input needs `source`: the path of its file (or folder) beside the contract")
         return self
 
 

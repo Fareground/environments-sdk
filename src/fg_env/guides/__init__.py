@@ -115,7 +115,7 @@ _PARTS_MAP = [
     ("patterns", "seasons, trends, responses, random processes, draws and noise, and fitting them from data"),
     ("recipes", "data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds"),
     ("macros", "repeat structure from data with `for`/`make`"),
-    ("assets", "files beside the contract (images, PDFs, text) delivered to agents"),
+    ("assets", "files beside the contract (images, PDFs, text) delivered to agents: `file` inputs"),
     ("inspect", "debugging a run: summary, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
     ("optimise", "the best decision under constraints: objectives, methods, fresh-seed checks, Pareto frontiers"),
@@ -158,7 +158,7 @@ _TOPICS: dict[str, Callable[[], str]] = {
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
     "optimise": lambda: OPTIMISE,
-    "assets": lambda: section_page("assets") + "\n\n" + ASSETS,
+    "assets": lambda: ASSETS,
     "checklist": lambda: CHECKLIST,
 }
 

@@ -40,13 +40,15 @@ class WorldChecks:
                 self.error(path, "an enum input needs `values`")
             if spec.type == "table":
                 for column, kind in (spec.columns or {}).items():
-                    if (kind not in C.INPUT_TYPES and kind != "asset") or kind in ("table",):
+                    if (kind not in C.INPUT_TYPES and kind != "asset") or kind in ("table", "file"):
                         self.error(f"{path}.columns.{column}", f"unknown column type '{kind}'")
             if spec.source is not None:
                 source = PurePath(spec.source)
                 if source.is_absolute() or ".." in source.parts or not spec.source.strip():
                     self.error(f"{path}.source", f"'{spec.source}' must be a file name inside the data directory",
                                "use a relative path without '..'")
+                elif spec.type == "file":
+                    pass  # any file (or folder) the contract carries: its kind is checked when it is read
                 elif source.suffix.lower() not in DATA_SUFFIXES:
                     self.error(f"{path}.source", f"'{spec.source}' is not a supported data file",
                                f"use one of: {', '.join(DATA_SUFFIXES)}")

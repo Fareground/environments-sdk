@@ -1,10 +1,11 @@
-"""Static checks for assets: the `assets` section, asset properties and record fields, `attach` rules and `file`
+"""Static checks for assets: `file` inputs, asset properties and record fields, `attach` rules and `file`
 parameters. Whether the files exist and match is checked when the contract is loaded from its folder."""
 from __future__ import annotations
 
 import re
 from typing import Any
 
+from .catalog import file_inputs
 from .kinds import HARD_MAX_BYTES, KINDS
 
 __all__ = ["check_assets"]
@@ -14,14 +15,10 @@ _ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 
 def check_assets(checker: Any, base: frozenset[str]) -> None:
     contract = checker.c
-    for name, spec in contract.assets.items():
-        path = f"assets.{name}"
+    for name, spec in file_inputs(contract).items():
+        path = f"inputs.{name}"
         if not _ID.match(name):
-            checker.error(path, "asset names are letters, digits, _, - and .", "rename it")
-        if (spec.file is None) == (spec.folder is None):
-            checker.error(path, "give exactly one of `file` or `folder`", 'e.g. "file": "evidence/contract.pdf"')
-        if spec.type is not None and spec.type not in KINDS:
-            checker.error(f"{path}.type", f"unknown asset type '{spec.type}'", f"use one of: {', '.join(KINDS)}")
+            checker.error(path, "a file input's name is its file's id: letters, digits, _, - and .", "rename it")
         if spec.max_bytes is not None and spec.max_bytes > HARD_MAX_BYTES:
             checker.error(f"{path}.max_bytes", f"is above the ceiling of {HARD_MAX_BYTES:,} bytes")
         if spec.describe is not None and not spec.describe.strip():
@@ -58,17 +55,17 @@ def check_assets(checker: Any, base: frozenset[str]) -> None:
 def _literal_assets(checker: Any) -> None:
     """Asset properties whose literal value names no declared asset (data-file assets are checked at load)."""
     contract = checker.c
-    declared = set(contract.assets)
-    folders = {name for name, spec in contract.assets.items() if spec.folder is not None}
+    declared = set(file_inputs(contract))
     columns = any(kind == "asset" for spec in contract.inputs.values() for kind in (spec.columns or {}).values())
 
     def check(value: Any, path: str) -> None:
         if not isinstance(value, str) or "$" in value or "{" in value or columns:
             return
-        if value in declared or value.split("/", 1)[0] in folders:
+        if value in declared or value.split("/", 1)[0] in declared:  # a file input, or a file of a folder input
             return
         hint = checker._suggest(value, declared)
-        checker.error(path, f"'{value}' is not a declared asset", hint or f"assets: {', '.join(declared) or 'none'}")
+        checker.error(path, f"'{value}' is not a declared file",
+                      hint or f"file inputs: {', '.join(declared) or 'none'}")
 
     for type_name, spec in contract.types.items():
         for prop, prop_spec in spec.props.items():
