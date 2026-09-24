@@ -165,7 +165,7 @@ def test_a_seat_woken_to_react_inside_a_call_goes_on_as_a_piloted_run():
 def test_contracts_that_need_a_thread_of_their_own_are_piloted():
     atomic = load_game("tic_tac_toe")
     atomic["stages"][0]["valid"] = "true"
-    assert not game(atomic)._stepped
+    assert game(atomic)._stepped  # an atomic turn part-way is copied like any other state
     assert not game(TIC_TAC_TOE, players=["x"], others=lambda wake: wake.end())._stepped
     assert game(TIC_TAC_TOE)._stepped
 

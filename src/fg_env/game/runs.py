@@ -2,11 +2,10 @@
 
 Both drive the same engine through the same turns, calls and chance nodes, and a state reads and decides
 through either in the same way (:class:`Run`), and a clone of either is a copy of its run's state. Stepping
-(:mod:`fg_env.copying.stepping`) is the fast path: no thread hand-offs. A game is stepped
-unless its contract needs what only a piloted run carries — hosts, a budget, time limits, atomic or scheduled
-stages, physics, a space, in-turn host tools, or callable participants for the other agents. A stepped state
-that meets such a need later (a seat woken to react inside another agent's call) goes on as a piloted run rebuilt
-from its decisions, and the game's later states start piloted.
+(:mod:`fg_env.copying.stepping`) is the fast path: no thread hand-offs. A game is stepped unless its contract needs
+what only a piloted run carries — time limits, in-turn host tools, or callable participants for the other agents. A
+stepped state that meets such a need later (a seat woken to react inside another agent's call) goes on as a piloted
+run rebuilt from its decisions, and the game's later states start piloted.
 """
 from __future__ import annotations
 
@@ -15,7 +14,6 @@ from typing import TYPE_CHECKING, Any, Protocol
 
 from ..copying.branch import Branch
 from ..copying.pilot import Pause
-from ..host.hosts import hosts_for
 from ..runtime.session import ToolResult
 
 if TYPE_CHECKING:
@@ -89,12 +87,10 @@ class ThreadedRun:
 
 def can_step(game: Game) -> bool:
     """Whether the game's states can be stepped (see the module docs)."""
-    root, contract, others = game._root, game.contract, game._others
+    root, others = game._root, game._others
     named = others is None or isinstance(others, str) or (
         isinstance(others, Mapping) and all(isinstance(value, str) for value in others.values()))
-    stages_step = not any(stage.valid for stage in contract.stage_list())
-    return (named and stages_step and hosts_for(root.world) is None and root.budget is None and root.time_limit is None
-            and contract.physics is None and contract.space is None and not root.driver.turn_tool_specs())
+    return named and root.time_limit is None and not root.driver.turn_tool_specs()
 
 
 def replayed(game: Game, history: Sequence[Mapping[str, Any]]) -> ThreadedRun:

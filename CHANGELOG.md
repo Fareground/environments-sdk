@@ -58,7 +58,8 @@ feature with the core of the contract language marked apart from the rest.
 - **One copy mechanism.** Every copy of a run — `env.clone()`, `wake.clone()`, `Branch.clone()`, previews, game
   states, gym episodes — is a copy of its state with the run's parts built around it, and a round in progress resumes
   where it is: a copy costs the same at any depth (no replay of the run so far), and runs with physics, a space, hosts,
-  a budget or an atomic turn part-way copy like any other. A snapshot taken part-way through a round holds where the round is instead of a replay
+  a budget or an atomic turn part-way copy like any other (games with atomic stages, physics, a space, hosts or a
+  budget are now stepped). A snapshot taken part-way through a round holds where the round is instead of a replay
   tape: **snapshot version 5**; version-4 snapshots are still read (for one more minor release), and a copy steered
   through chance outcomes may now be saved part-way. `wake.clone()` in a reaction turn (inside another agent's call)
   is refused: clone the turn it reacts to.
