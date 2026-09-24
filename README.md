@@ -163,7 +163,8 @@ fg_env.run(contract, {"ann": cautious, "bob": claude}, seed=1)
 
 ## Reusable engines
 
-To model people interacting at scale, clone a versioned engine's starter and customize the contract:
+To model people interacting at scale, clone a versioned engine's starter and customize the contract
+(`fg-env engines` lists them, `fg-env new --engine <id> file.json` clones one):
 
 ```python
 import fg_env
@@ -232,6 +233,8 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 <!-- not run: shop.json stands for your own contract -->
 ```bash
 fg-env new market shop.json               # a ready-to-run start: blank, game, market, simulation or social
+fg-env engines                            # the engines: complete scenarios with coded participants to start from
+fg-env new --engine legislature vote.json # a copy of one to edit
 fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections
 fg-env preview shop.json shopper_1        # exactly what that agent reads, its tools, token estimates

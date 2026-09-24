@@ -41,6 +41,9 @@ those primitives, not entries in this behavioral engine catalog.
 
 ## Discover, clone, and customize
 
+From the command line, `fg-env engines` lists every engine with a one-line summary and
+`fg-env new --engine <id> my_env.json` clones one (bundled files included). In Python:
+
 ```python
 import fg_env
 
