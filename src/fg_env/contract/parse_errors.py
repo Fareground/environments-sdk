@@ -124,7 +124,10 @@ def validation_issues(exc: ValidationError) -> list[Issue]:
                 fix: str | None = f"'{key}' belongs to another part of the contract; remove it here"
             else:
                 fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
-            if len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
+            if len(loc) == 1 and key == "links":
+                fix = ("starting links belong to their relation, and this one's relation is not declared: declare "
+                       "it under `relations` and write the links as relations.<relation>.links")
+            elif len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
                 fix = 'Use at for scheduled rounds (at=2 or at=[2, 4]); use every for an interval (every=2)'
             elif len(loc) == 3 and loc[0] == "events" and key == "chance":
                 fix = ('an event fires at random through its when: "when": '

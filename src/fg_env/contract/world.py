@@ -315,28 +315,10 @@ class EntitySpec(_Model):
         return self.count is not None or self.from_ is not None
 
 
-class RelationSpec(_Model):
-    """A kind of link between entities (follows, trusts, owns …). Every link carries a number
-    (``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``)."""
-
-    symmetric: bool = False
-    default: float | None = Field(None, description="Value of a link made without one (default 1).")
-    min: float | None = Field(None,
-                              description="Lowest allowed link value: a write below it is refused, never clamped "
-                                          "(saturate with $clamp).")
-    max: float | None = Field(None,
-                              description="Highest allowed link value: a write above it is refused, never clamped "
-                                          "(saturate with $clamp).")
-    props: dict[str, PropSpec] = Field(default_factory=dict,
-                                       description="Typed fields every link carries, read as $link(a, b, kind).field; "
-                                                   "defaults may be expressions over $from and $to.")
-    description: str = ""
-
-
 class LinkSpec(_Model):
-    """Starting links: one explicit link, or a generated network among a type."""
+    """Starting links of a relation: one explicit link, links from data rows, or a generated network among a
+    type."""
 
-    relation: str
     from_: str | None = Field(None, alias="from")
     to: str | None = None
     value: Any = 1
@@ -363,6 +345,26 @@ class LinkSpec(_Model):
                                   description="Link field values or expressions over $from and $to ($row too with "
                                               "`rows`, whose columns named like a field fill it).")
     where: str | None = None
+
+
+class RelationSpec(_Model):
+    """A kind of link between entities (follows, trusts, owns …). Every link carries a number
+    (``value``) and, with ``props``, typed fields of its own (``since``, ``channel``, ``strength``)."""
+
+    symmetric: bool = False
+    default: float | None = Field(None, description="Value of a link made without one (default 1).")
+    min: float | None = Field(None,
+                              description="Lowest allowed link value: a write below it is refused, never clamped "
+                                          "(saturate with $clamp).")
+    max: float | None = Field(None,
+                              description="Highest allowed link value: a write above it is refused, never clamped "
+                                          "(saturate with $clamp).")
+    props: dict[str, PropSpec] = Field(default_factory=dict,
+                                       description="Typed fields every link carries, read as $link(a, b, kind).field; "
+                                                   "defaults may be expressions over $from and $to.")
+    links: list[LinkSpec] = Field(default_factory=list,
+                                  description="Links made when the world is built, after the entities.")
+    description: str = ""
 
 
 # ---------------------------------------------------------------------------

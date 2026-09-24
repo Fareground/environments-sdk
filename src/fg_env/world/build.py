@@ -55,8 +55,8 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
                          world.scope(), f"entities.{entity_id}")
             if named.brief:
                 pending_briefs.append((entity_id, named.brief, {}, f"entities.{entity_id}.brief"))
-        for index, link in enumerate(contract.links):
-            _links(world, link, index, seeds)
+        for index, (relation, path, link) in enumerate(contract.starting_links()):
+            _links(world, relation, link, path, index, seeds)
         _world_props(world, after_entities=True)
         world.build_physics()
         world.series = {name: [] for name in contract.series_outputs()}
@@ -286,8 +286,9 @@ def _sample(world: SdkWorld, rows: list[Any], spec: EntitySpec, count: int, path
     return [rows[i] for i in sorted(chosen)]
 
 
-def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None:
-    path = f"links[{index}]"
+def _links(world: SdkWorld, relation: str, spec: LinkSpec, path: str, index: int, seeds: SeedTree) -> None:
+    """The starting links one entry of ``relation`` makes (``index``: its place in the build, whose random stream
+    it draws from)."""
     if spec.rows is not None:
         rows = _value(world, spec.rows, {})
         if not isinstance(rows, list):
@@ -302,16 +303,16 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
                     raise RunError(f"edge {position + 1}: no entity '{row[key]}'", f"{path}.rows")
                 ends.append(entity)
             pair = {"from": ends[0], "to": ends[1], "row": row}
-            fields = {name: row[name] for name in world.contract.relations[spec.relation].props if name in row}
+            fields = {name: row[name] for name in world.contract.relations[relation].props if name in row}
             fields.update(_fields(world, spec, pair, path))
-            world.link(spec.relation, ends[0], ends[1], row.get("value", _value(world, spec.value, pair)), path, fields)
+            world.link(relation, ends[0], ends[1], row.get("value", _value(world, spec.value, pair)), path, fields)
         return
     if spec.among is None:
         if spec.from_ is None or spec.to is None:
             raise RunError("give `from` and `to`, or `among` with a `graph`", path)
         source, target = _endpoint(world, spec.from_, path), _endpoint(world, spec.to, path)
         pair = {"from": source, "to": target}
-        world.link(spec.relation, source, target, _value(world, spec.value, pair), path,
+        world.link(relation, source, target, _value(world, spec.value, pair), path,
                    _fields(world, spec, pair, path))
         return
     members: list[Entity] = world.entities_of(spec.among)
@@ -328,7 +329,7 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
                                 <= 1):
         raise RunError(f"p must be a number from 0 to 1, got {p_value!r}", f"{path}.p")
     degree = int(degree) if degree is not None else None
-    directed = not world.contract.relations[spec.relation].symmetric
+    directed = not world.contract.relations[relation].symmetric
 
     def probability(i: int, j: int, default: float) -> float:
         if not per_pair:
@@ -356,7 +357,7 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
             one_way = [(i, j) for i in range(n) for j in range(n) if i != j and rng.random()
                        < probability(i, j, default)]
             for i, j in one_way:
-                _pair_link(world, spec, members[i], members[j], path)
+                _pair_link(world, relation, spec, members[i], members[j], path)
             return
         pairs = {(i, j) for i in range(n) for j in range(i + 1, n) if rng.random() < probability(i, j, default)}
     elif graph == "small_world":
@@ -410,23 +411,23 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         for member in members:
             for other in others:
                 if member is not other and rng.random() < chance:
-                    _pair_link(world, spec, member, other, path)
+                    _pair_link(world, relation, spec, member, other, path)
         return
     else:
         raise RunError(f"unknown graph '{graph}' (complete, ring, random, small_world, scale_free, blocks, lattice, "
                        "star, bipartite)", f"{path}.graph")
     for i, j in sorted(pairs):
         value = _value(world, spec.value, {})
-        world.link(spec.relation, members[i], members[j], value, path,
+        world.link(relation, members[i], members[j], value, path,
                    _fields(world, spec, {"from": members[i], "to": members[j]}, path))
-        if not world.contract.relations[spec.relation].symmetric:
-            world.link(spec.relation, members[j], members[i], value, path,
+        if not world.contract.relations[relation].symmetric:
+            world.link(relation, members[j], members[i], value, path,
                        _fields(world, spec, {"from": members[j], "to": members[i]}, path))
 
 
-def _pair_link(world: SdkWorld, spec: LinkSpec, source: Entity, target: Entity, path: str) -> None:
+def _pair_link(world: SdkWorld, relation: str, spec: LinkSpec, source: Entity, target: Entity, path: str) -> None:
     pair = {"from": source, "to": target}
-    world.link(spec.relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
+    world.link(relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
 
 
 def _fields(world: SdkWorld, spec: LinkSpec, pair: dict[str, Any], path: str) -> dict[str, Any]:

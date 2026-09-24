@@ -166,7 +166,6 @@ class Contract(_Model):
     types: dict[str, TypeSpec]
     entities: dict[str, EntitySpec] = Field(default_factory=dict)
     relations: dict[str, RelationSpec] = Field(default_factory=dict)
-    links: list[LinkSpec] = Field(default_factory=list)
     physics: PhysicsSpec | None = None
     feeds: dict[str, FeedSpec] = Field(default_factory=dict,
                                        description="External data written into world props or records, answered by "
@@ -269,6 +268,11 @@ class Contract(_Model):
             if "on_create_at_build" in self.types[name].model_fields_set:
                 return self.types[name].on_create_at_build
         return True
+
+    def starting_links(self) -> list[tuple[str, str, LinkSpec]]:
+        """``(relation, path, spec)`` for every starting link entry, in build order (relation by relation)."""
+        return [(kind, f"relations.{kind}.links[{index}]", link) for kind, spec in self.relations.items()
+                for index, link in enumerate(spec.links)]
 
     def named_entities(self) -> dict[str, EntitySpec]:
         """The entities declared one by one (the key is the id), without the generator entries."""

@@ -207,11 +207,7 @@ class WorldChecks:
                     break
 
     def _relations(self: _Checker) -> None:  # type: ignore[misc]
-        for index, link in enumerate(self.c.links):
-            path = f"links[{index}]"
-            if link.relation not in self.c.relations:
-                self.error(f"{path}.relation", f"'{link.relation}' is not a declared relation",
-                           self._suggest(link.relation, self.c.relations) or "declare it under `relations`")
+        for _, path, link in self.c.starting_links():
             if not is_expr(link.value) and (isinstance(link.value, bool) or not isinstance(link.value, (int, float))):
                 self.error(f"{path}.value",
                            f"a link value must be a number, got {json.dumps(link.value, default=str)[:60]}",

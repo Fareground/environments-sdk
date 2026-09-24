@@ -155,9 +155,9 @@ def _chance(contract: Contract, scan: _Scan) -> tuple[str, list[str], list[str]]
         play += [f"physics.per.{kind}.vars.{name}.noise is a random term"
                  for kind, dynamics in contract.physics.per.items()
                  for name, var in dynamics.vars.items() if var.noise]
-    for i, link in enumerate(contract.links):
+    for _, path, link in contract.starting_links():
         if link.graph in _RANDOM_GRAPHS or (link.graph is not None and link.p is not None):
-            setup.append(f"links[{i}] draws a {link.graph} network")
+            setup.append(f"{path} draws a {link.graph} network")
     for key, group in contract.entities.items():
         if group.weight or (group.from_ is not None and group.count is not None):
             setup.append(f"entities.{key} samples rows")

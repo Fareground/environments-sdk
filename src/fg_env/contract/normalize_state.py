@@ -4,11 +4,13 @@
 * ``policies`` → ``types.<t>.policies`` (a policy several types play is copied to each).
 * ``population`` → generator entries of ``entities`` (keyed by type; ``mix``, ``quota``, ``members`` and ``raking``
   are refused with how to say them now).
+* ``links`` → ``relations.<r>.links`` (each entry without its ``relation``).
 * Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
 
 import copy
+import difflib
 import re
 from collections.abc import Callable
 from typing import Any
@@ -228,6 +230,38 @@ def population_into_entities(data: dict[str, Any]) -> list[str]:
         key = _free_key(entities, str(group.get("type")) if isinstance(group, dict) else "population")
         entities[key] = group
         notes.append(f"population[{index}]: now entities.{key}")
+    return notes
+
+
+# -- links → relations.<r>.links -------------------------------------------------------------------------------------
+
+
+@rule
+def links_under_relations(data: dict[str, Any]) -> list[str]:
+    """``links: [{relation: r, ...}]`` → ``relations.r.links: [{...}]``, in the order written. A link whose relation
+    a mechanism declares waits until the mechanisms are expanded."""
+    links = data.get("links")
+    relations = data.get("relations", {})
+    if not isinstance(links, list) or not isinstance(relations, dict):
+        return []
+    undeclared = [(index, link.get("relation") if isinstance(link, dict) else None) for index, link in enumerate(links)
+                  if not isinstance(link, dict) or not isinstance(relations.get(link.get("relation")), dict)]
+    if undeclared:
+        if data.get("mechanisms"):
+            return []  # they may declare it; what is still undeclared once they have is reported by the parser
+        issues = [Issue(f"links[{index}].relation", f"'{kind}' is not a declared relation",
+                        f"did you mean '{close[0]}'?" if (close := difflib.get_close_matches(
+                            str(kind), [str(k) for k in relations], n=1)) else "declare it under `relations`")
+                  for index, kind in undeclared]
+        raise ContractError(issues, title="links cannot be moved under their relations")
+    del data["links"]
+    data["relations"] = relations
+    notes = []
+    for index, link in enumerate(links):
+        entry = {key: value for key, value in link.items() if key != "relation"}
+        target = relations[link["relation"]].setdefault("links", [])
+        target.append(entry)
+        notes.append(f"links[{index}]: now relations.{link['relation']}.links[{len(target) - 1}]")
     return notes
 
 

@@ -238,9 +238,9 @@ def _initialisation(contract: C.Contract, metadata: Mapping[str, Any]) -> list[s
         how += f", weighted by `{p.weight}`" if p.weight else ""
         groups.append([key, p.type, how.strip(", "), p.props])
     lines += _table(["generated", "type", "how many", "values"], groups)
-    links = [[spec.relation, spec.graph or "explicit", spec.among or f"{spec.from_} → {spec.to}",
+    links = [[relation, spec.graph or "explicit", spec.among or f"{spec.from_} → {spec.to}",
               spec.p or spec.degree or ""]
-             for spec in contract.links]
+             for relation, _, spec in contract.starting_links()]
     lines += _table(["relation", "network", "among", "parameter"], links)
     return lines
 

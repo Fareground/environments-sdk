@@ -45,13 +45,13 @@ def test_list_items_and_named_entries_are_generated_with_placeholders_keeping_ty
 
 def test_ranges_fields_offsets_nested_loops_and_a_macro_under_a_plain_key():
     data = fg_env.expand({"name": "x",
-                          "links": {"for": {"range": [1, 7, 3]}, "as": "n", "make": {"from": "p{n}", "to": "p{n+1}"}},
+                          "pairs": {"for": {"range": [1, 7, 3]}, "as": "n", "make": {"from": "p{n}", "to": "p{n+1}"}},
                           "cells": [{"for": [{"row": "a", "cols": [1, 2]}, {"row": "b", "cols": [3]}], "as": "r",
                                      "make": {"for": "{r.cols}", "as": "c", "make": "{r.row}{c}:{r.cols.0}"}}],
                           "grid": {"c_{x}_{y}": {"for": {"range": 2}, "as": "x",
                                     "make": {"for": {"range": 2}, "as": "y",
                                               "make": "{x}{y}"}}}})
-    assert data["links"] == [{"from": "p1", "to": "p2"}, {"from": "p4", "to": "p5"}]
+    assert data["pairs"] == [{"from": "p1", "to": "p2"}, {"from": "p4", "to": "p5"}]
     assert data["cells"] == ["a1:1", "a2:1", "b3:3"]
     assert data["grid"] == {"c_0_0": "00", "c_0_1": "01", "c_1_0": "10", "c_1_1": "11"}
 

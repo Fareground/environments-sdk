@@ -97,7 +97,7 @@ def check_hooks(checker: _Checker, base: frozenset[str]) -> None:
 
 
 def check_relation_fields(checker: _Checker, base: frozenset[str]) -> None:
-    """Declared link fields, and the fields each `links` entry sets."""
+    """Declared link fields, and the fields each starting link entry sets."""
     every_type = set(checker.c.types)
     for kind, spec in checker.c.relations.items():
         for name, prop in spec.props.items():
@@ -115,9 +115,9 @@ def check_relation_fields(checker: _Checker, base: frozenset[str]) -> None:
                                                  "so nothing would hide it",
                               "keep the hidden value in a private property of the entity it belongs to, or drop "
                               "`private`")
-    for index, entry in enumerate(checker.c.links):
+    for relation, path, entry in checker.c.starting_links():
         roots = base | {"from", "to"} | ({"row"} if entry.rows is not None else set())
-        check_link_fields(checker, entry.relation, entry.props, f"links[{index}].props", roots)
+        check_link_fields(checker, relation, entry.props, f"{path}.props", roots)
 
 
 def check_link_fields(checker: _Checker, relation: Any, fields: Any, path: str, roots: Iterable[str],
