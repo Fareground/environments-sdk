@@ -74,7 +74,8 @@ def _replayed_to_decision(root, run, agents):
     """The oracle of ``run`` waiting for a decision: a piloted run rebuilt from the build, its recorded steps played
     back, paused where ``run`` waits."""
     tape, count = run.read(lambda env: (_tape(env), env.state.turn_count))
-    env = PilotedEnv(root.contract, root.inputs, root.seed, root.arm, parallel=1, exposures=True)
+    env = PilotedEnv(root.contract, root.inputs, root.seed, root.arm, parallel=1, exposures=True,
+                     assets=root.world.assets.catalog())
     pilot = Pilot(env, playback=Playback(tape, count), controlled=set(agents))
     pilot.start()
     return _Oracle(Branch(pilot), None)
