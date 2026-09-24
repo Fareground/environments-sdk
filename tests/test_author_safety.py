@@ -86,7 +86,7 @@ def test_a_contract_longer_than_the_test_budget_works_with_its_untested_rounds_n
 def test_a_crash_within_the_rounds_the_test_budget_reaches_still_counts(monkeypatch):
     monkeypatch.setattr("fg_env.authoring.testing.TEST_SECONDS", 5)
     late = game("Late", clock={"rounds": 100_000}, world={"table": {"type": "map", "default": {"a": 1}}, "x": 0},
-                events=[{"at": 20, "do": ["$world.x = $world.table['b']"]}])
+                events=[{"when": "$round == 20", "do": ["$world.x = $world.table['b']"]}])
 
     result = fg_env.author("A game.", "openai:m", client=FakeOpenAI([write(late)], [], [], []))
 

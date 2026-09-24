@@ -71,13 +71,13 @@ def test_items_that_agree_may_write_the_same_property():
     assert env.props["flag"] is True and [e["props"]["x"] for e in env.entities("box")] == [2, 3, 4, 5]
 
 
-def test_a_refused_item_drops_only_its_own_writes():
+def test_a_refused_item_fails_the_run_like_any_refused_world_logic():
     env = fg_env.load(_row({"sync": True,
                             "do": ["$it.x *= 10", {"if": "$it.x == 2", "then": [{"fail": "Not this one."}]}]}),
                       seed=1)
     result = env.run()
-    assert [e["props"]["x"] for e in env.entities("box")] == [10, 2, 30, 40]
-    assert any(e["kind"] == "refused" and "Not this one" in e["text"] for e in result.events)
+    assert result.status == "failed" and "Not this one. World logic cannot be refused" in result.error
+    assert [e["props"]["x"] for e in env.entities("box")] == [1, 2, 3, 4]
 
 
 def test_a_sync_event_that_changes_the_world_directly_is_reported():

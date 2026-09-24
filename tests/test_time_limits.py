@@ -45,7 +45,7 @@ def test_a_hung_participant_times_out_and_the_run_goes_on():
         release.set()
     assert time.monotonic() - start < 3
     assert result.status == "completed", result.error
-    assert result.degraded == ["agents_mostly_failed"]  # every one of ann's turns ran out of time
+    assert result.degraded == ["agents_often_failed"]  # every one of ann's turns ran out of time
     assert env.entity("ann")["props"] == {"score": 0, "strikes": 2}
     assert env.entity("bo")["props"]["score"] == 4
     assert env.props["idle"] == 0  # on_timeout ran instead of on_idle
@@ -87,7 +87,7 @@ def test_an_async_participant_past_its_deadline_is_cancelled():
 
     result = fg_env.load(_with_stage(time_limit=0.1), seed=1).run({"ann": dawdles, "bo": "idle"})
     assert result.status == "completed", result.error
-    assert result.degraded == ["agents_mostly_failed"]  # every one of ann's turns ran out of time
+    assert result.degraded == ["agents_often_failed"]  # every one of ann's turns ran out of time
     assert result.stats["timeouts"] == 2
     assert cancelled.wait(2)
 

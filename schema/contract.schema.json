@@ -98,7 +98,7 @@
             }
           ],
           "default": null,
-          "description": "What the actor is told (template over $actor, $params).",
+          "description": "What the actor is told (template over $actor, $params); with `chance`, when the roll succeeds (a failed roll is told that the action did not succeed).",
           "title": "Outcome"
         },
         "announce": {

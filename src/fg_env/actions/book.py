@@ -74,15 +74,7 @@ def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> list[
                 break
     else:
         names = []
-    out = []
-    for name in names:
-        action = contract.actions.get(name)
-        if action is None:
-            continue
-        by = [action.by] if isinstance(action.by, str) else action.by
-        if any(contract.is_a(type_name, allowed) for allowed in by):
-            out.append(name)
-    return out
+    return [name for name in names if contract.can_take(type_name, name)]
 
 
 def announces(contract: Contract, stage: StageSpec) -> bool:
@@ -328,7 +320,9 @@ class ActionBook(ActionSchemas, ActionValidation):
                     raise RunError(f"chance must be a number from 0 to 1, got {probability!r}", f"{path}.chance")
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
-            text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
+            # `outcome` tells the action succeeding: a failed `chance` roll is told as such, never as a success
+            told = spec.outcome if success else None
+            text = self._render(told, {**vars, "viewer": actor}, f"{path}.outcome") if told else \
                 "" if trial else self.default_outcome(name, params, success)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce

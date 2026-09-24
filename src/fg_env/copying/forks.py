@@ -131,8 +131,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
                                         "contract": to is not None, "seed": seed, "effects": len(effects or [])})
     world.journal.clear()
     env._emitted = len(world.log)
-    if effects and not env._atomic(list(effects), {}, "fork.effects"):
-        raise RunError(f"the fork's effects were refused: {world.log[-1].data.get('reason')}", "fork.effects")
+    if effects:
+        env._atomic(list(effects), {}, "fork.effects")
     env._check_invariants("fork")
     env._emitted = len(world.log)
     env.origin.base = take_snapshot(env)

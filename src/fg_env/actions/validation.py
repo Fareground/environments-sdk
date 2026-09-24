@@ -263,7 +263,7 @@ class ActionValidation:
         low, high = _list_bounds(param, count)
         if len(raw) < low:
             return None, f"needs at least {low} item(s), got {len(raw)}"
-        if len(raw) > high:
+        if high is not None and len(raw) > high:
             return None, f"allows at most {high} item(s), got {len(raw)}"
         item = _item_spec(param)
         values: list[Any] = []

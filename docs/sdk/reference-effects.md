@@ -21,13 +21,13 @@ Operation objects (exactly one operation key each):
 - `each`: {"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)
 - `create`: {"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: "double": "$it.base * 2"; inside a loop, name the loop's item with `as` to read it there)
 - `remove`: {"remove": "$params.target"}
-- `transfer`: {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)
+- `transfer`: {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short; in world logic, the run)
 - `link`: {"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation's `default`; `props` sets link fields, a new link starting from their defaults)
 - `unlink`: {"unlink": "follows", "from": "$actor", "to": "$params.who"}
 - `move`: {"move": "$actor", "to": "$params.place"}
 - `post`: {"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` chance)
 - `emit`: {"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}, "delay": 1}  (optional `delay` and `drop`, as for post)
-- `fail`: {"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)
+- `fail`: {"fail": "You cannot afford that."}  (roll back the action; text goes to the actor; in world logic it fails the run)
 - `end`: {"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}
 - `after`: {"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)
 - `wake`: {"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues, offered the actions named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)

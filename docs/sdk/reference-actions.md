@@ -20,7 +20,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `chance`: any | text — Probability of success; `do` on success, `otherwise` on failure.
 - `do`: effects — Effects applied atomically.
 - `otherwise`: effects — Effects when the chance roll fails.
-- `outcome`: text — What the actor is told (template over $actor, $params).
+- `outcome`: text — What the actor is told (template over $actor, $params); with `chance`, when the roll succeeds (a failed roll is told that the action did not succeed).
 - `announce`: text — What everyone else is told (template).
 - `private`: bool = false — Nobody else learns this action happened.
 - `terminal`: bool | text = false — Taking it ends the agent's turn: true, or an expression checked after it applies ($actor, $params).

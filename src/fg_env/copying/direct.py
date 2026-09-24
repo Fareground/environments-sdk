@@ -55,6 +55,7 @@ _WORLD_FIELDS = frozenset({
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "time", "horizon", "start",
     "wake_at",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
+    "joined",
     "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
     "_physics_view", "_clock_view",
     "_type_props", "hidden", "private_names", "private_metrics", "_def_cache",
@@ -107,6 +108,7 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     env._running = threading.Lock()
     env.effects = _rebound(source.effects, world=world)
     world.lifecycle = env.effects.lifecycle
+    world.joined = env._joined
     env.actions = _rebound(source.actions, world=world, effects=env.effects)
     env.perception = _rebound(source.perception, world=world)
     env.happenings = _rebound(source.happenings, env=env)

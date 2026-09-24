@@ -55,6 +55,27 @@ def test_a_failure_in_a_later_round_is_found():
     assert "division by zero" in found[0].message
 
 
+def test_a_one_off_event_scheduled_after_the_default_rounds_is_played():
+    late = shop(clock={"rounds": 30}, events=[{"at": 20, "do": ["$world.rate = 10 / ($round - 20)"]}])
+    found = errors(fg_env.check(late))
+    assert [i.path for i in found] == ["events[0].do[0]"] and "(smoke run of 20 round(s)" in found[0].message
+
+
+def test_a_machine_too_slow_to_play_every_round_never_passes_the_check_silently(monkeypatch):
+    clock = iter(range(0, 10**6, 100))  # every reading of the clock is 100 s later
+    monkeypatch.setattr("fg_env.checks.smoke.time.monotonic", lambda: next(clock))
+    late = shop(events=[{"phase": "end", "do": ["$world.rate = 10 / (4 - $round)"]}])
+    found = fg_env.check(late)
+    assert errors(found) == []  # round 4 was never reached …
+    assert any(i.path == "(check)" and "cut short by the time guard" in i.message for i in found)
+
+
+def test_a_play_the_time_guard_cuts_short_is_reported(monkeypatch):
+    monkeypatch.setattr("fg_env.checks.smoke._GUARD_SECONDS", 0.0)
+    warnings = [i for i in fg_env.check(shop()) if i.path == "(check)"]
+    assert len(warnings) == 1 and "in round 2 of 8" in warnings[0].message
+
+
 def test_explicit_rounds_play_exactly_that_many():
     late = shop(events=[{"phase": "end", "do": ["$world.rate = 10 / (4 - $round)"]}])
     assert errors(fg_env.check(late, rounds=3)) == []

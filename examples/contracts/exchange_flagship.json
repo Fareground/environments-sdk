@@ -105,8 +105,10 @@
             "$half = $round(0.6 * $tick_sigma) + 1",
             "$step = $max(1, $round(0.4 * $tick_sigma))",
             "$size = $max(1, $round($world.base_qty * $uniform(0.2, 0.5) * (1 + 0.1 * $level)))",
-            {"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$round(($world.start_price - ($half + $level * $step) * $tick) / $tick) * $tick"},
-            {"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$round(($world.start_price + ($half + $level * $step) * $tick) / $tick) * $tick"}]},
+            "$bid = $round(($world.start_price - ($half + $level * $step) * $tick) / $tick) * $tick",
+            "$ask = $round(($world.start_price + ($half + $level * $step) * $tick) / $tick) * $tick",
+            {"if": "$bid >= $book(demo).band_low", "then": [{"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$bid"}]},
+            {"if": "$ask <= $book(demo).band_high", "then": [{"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$ask"}]}]},
     {"name": "value_gap", "phase": "start", "do": "$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)"},
     {"name": "pass_closes_before_the_controllers_read_the_bar", "phase": "end", "do": {"market": "demo", "action": "close"}}
   ],

@@ -76,9 +76,38 @@ def test_a_seat_whose_turns_mostly_fail_degrades_the_run():
     result = fg_env.run(CONNECT_FOUR, {"red": _player(_first_legal), "yellow": _player(sometimes)}, seed=1)
     assert result.agent_stats["yellow"]["actions"] > 0
     assert result.agent_stats["yellow"]["failed_turns"] > result.agent_stats["yellow"]["wakes"] / 2
-    assert result.degraded == ["agents_mostly_failed"] and not result.ok
-    [found] = [d for d in result.diagnostics if d["code"] == "agents_mostly_failed"]
+    assert result.degraded == ["agents_often_failed"] and not result.ok
+    [found] = [d for d in result.diagnostics if d["code"] == "agents_often_failed"]
     assert "yellow" in found["message"] and "red" not in found["message"]
+
+
+def test_a_model_seat_that_fails_a_small_share_of_its_turns_degrades_the_run():
+    def mostly(request, client):  # the first two turns only err; every later turn acts
+        early = sum(1 for r in client.requests if len(r["messages"]) == 1) <= 2
+        return client.tool("drop_disc", {}) if early else _first_legal(request, client)
+
+    result = fg_env.run(CONNECT_FOUR, {"red": _player(_first_legal), "yellow": _player(mostly)}, seed=1)
+    stats = result.agent_stats["yellow"]
+    assert stats["failed_turns"] == 2 and stats["failed_turns"] < stats["wakes"] / 2
+    assert result.degraded == ["agents_often_failed"] and not result.ok
+
+
+def test_a_turn_whose_model_reply_was_refused_counts_as_failed_though_it_acted():
+    def file_then_refuse(request, client):  # each turn files once, then the provider refuses the next reply
+        return _response([], "refusal") if len(request["messages"]) > 1 else client.tool("file", {"n": 1})
+
+    ledger = {**LEDGER, "stages": [{"name": "s", "max_actions": 2}]}
+    result = fg_env.run(ledger, participants.anthropic(Scripted(file_then_refuse), "m"), seed=1)
+    stats = result.agent_stats["ann"]
+    assert stats["actions"] == 3 and stats["refusals"] == 3 and stats["failed_turns"] == 3
+    assert "agents_often_failed" in result.degraded
+
+
+def test_a_model_that_passes_where_passing_is_allowed_made_a_move():
+    passes = participants.anthropic(Scripted(lambda request, client: client.tool("end_turn", {})), "m")
+    result = fg_env.run(LEDGER, passes, seed=1)
+    assert result.stats["actions"] == 0 and result.ok and result.degraded == []
+    assert not [d for d in result.diagnostics if d["code"] == "agents_never_acted"]
 
 
 def test_sound_runs_exit_zero_and_degraded_runs_exit_three(tmp_path, capsys):

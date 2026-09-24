@@ -56,6 +56,7 @@ def test_an_entity_that_starts_with_some_goods_still_reads_the_others_as_zero():
     contract["entities"] = {"s": {"type": "shop", "props": {"stock": {"beer": 3}}}}
     contract["population"] = [{"type": "shop", "count": 1, "id": "t", "props": {"stock": {"wine": 1}}}]
     contract["outputs"]["t"] = {"type": "map", "expr": "$entity(t).stock"}
+    contract["events"][0]["where"] = "$has($it, beer)"  # t has none to use: world logic may not be refused
     result = fg_env.run(contract, seed=1)
     assert result.outputs["beer"] == 2 and result.outputs["wine"] == 0
     assert result.outputs["t"] == {"beer": 0, "wine": 1}

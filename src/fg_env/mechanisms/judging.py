@@ -25,7 +25,7 @@ from ..expr import Untrusted
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host import allowlist
-from ..host.common import NAME, clip, prop_of, type_list
+from ..host.common import MODEL_HINT, NAME, clip, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode
@@ -66,7 +66,7 @@ class Seat(BaseModel):
 
     name: str = Field(..., description="The judge's name (it is asked as this judge).")
     host: str | None = Field(None, description="Host answering for this judge (default: the mechanism's host).")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
 
 
 class JudgeConfig(BaseModel):
@@ -77,7 +77,7 @@ class JudgeConfig(BaseModel):
     criteria: dict[str, Criterion] = Field(..., min_length=1, description="{criterion: {description, weight, scale}}.")
     instructions: str = Field("", description="What the judge is judging and how (plain text).")
     host: str = Field("judge", description="Host evaluator name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     panel: list[Seat] = Field(default_factory=list, description="Several judges; scores are aggregated per criterion.")
     aggregate: Literal["mean", "median", "trimmed_mean"] = Field("mean", description="How a panel's scores combine "
                                                                                      "(trimmed_mean drops the highest "
@@ -411,7 +411,7 @@ class GameMasterConfig(BaseModel):
     who: str | list[str] = Field(..., description="Agent type(s) that may attempt things.")
     allow: list[AllowRule] = Field(..., min_length=1, description="Every change the game master may make.")
     host: str = Field("game_master", description="Host game master name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     tool: str = Field("attempt", description="Name of the free-text tool.")
     description: str = Field("", description="Tool description (default explains the tool).")
     max_chars: int = Field(500, ge=1, le=4000, description="Longest attempt text, in characters.")

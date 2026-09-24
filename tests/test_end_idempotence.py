@@ -71,7 +71,7 @@ def test_timeout_is_not_reported_as_successful_cleanup():
         assert not w.end().ok
     result = fg_env.run(contract(), play)
     assert result.status == 'completed' and result.outputs['dispatched'] == 0
-    assert result.stats['timeouts'] == 1 and result.degraded == ['agents_mostly_failed']  # its one turn ran out of time
+    assert result.stats['timeouts'] == 1 and result.degraded == ['agents_often_failed']  # its one turn ran out of time
 
 
 def test_externally_closed_turn_retains_its_refusal():

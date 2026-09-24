@@ -2,8 +2,8 @@
 event, and all their writes land together — cellular automata, simultaneous imitation, diffusion.
 
 While an item runs, property and layer-cell writes wait in a buffer instead of changing the world, so
-later items still read the old values. An item that is refused (``fail``) drops its writes. When every
-item has run, the writes commit as one atomic change. Two items writing different values to the same
+later items still read the old values. When every item has run, the writes commit as one atomic change. An item
+that is refused (``fail``) fails the run, like any refused world logic. Two items writing different values to the same
 property is an error naming both; anything else that changes the world directly is an error too.
 """
 from __future__ import annotations
@@ -12,6 +12,7 @@ from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET
+from ..actions.faults import world_logic_refused
 from ..contract import EventSpec
 from ..errors import RunError
 from ..expr import compile_expr, shared_budget, truthy
@@ -49,7 +50,6 @@ class WriteBuffer:
 def run_sync(env: Env, event: EventSpec, items: Sequence[Any], name: str, path: str) -> None:
     world = env.world
     buffer = WriteBuffer()
-    refusals: list[str] = []
     ran = False
     with env._lock:
         for position, item in enumerate(items):
@@ -65,8 +65,8 @@ def run_sync(env: Env, event: EventSpec, items: Sequence[Any], name: str, path: 
                 with shared_budget(ACTION_BUDGET, f"{path}.do"), world.drawing_for(f"{path}.do", item):
                     env.effects.run(event.do, dict(inner), f"{path}.do")
             except Abort as refusal:
-                buffer.item.clear()
-                refusals.append(refusal.reason)
+                world.journal.rollback(mark)
+                raise RunError(world_logic_refused(refusal.reason), f"{path}.do") from None
             except BaseException:
                 world.journal.rollback(mark)
                 raise
@@ -86,9 +86,6 @@ def run_sync(env: Env, event: EventSpec, items: Sequence[Any], name: str, path: 
         except BaseException:
             world.journal.rollback(mark)
             raise
-        for reason in refusals:
-            world.emit("refused", f"{path}.do was refused: {reason}", to=[],
-                       data={"path": f"{path}.do", "reason": reason})
         env._after_commit(f"{path}.do")
         env.happenings.react(env._stage_spec())
 

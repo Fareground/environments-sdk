@@ -109,9 +109,10 @@ an action that posts to a record announces nothing extra (the entry is the news)
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. A refusal that rolled luck or whose rules read a value hidden from the actor
-(a `when`, a `fail`, an error, a transfer) spends the action (a wrong guess at a hidden code is a guess); any other
-refusal — a taken cell, bad arguments — costs nothing. Contract errors (bad expression at run time) stop
+is rolled back and the agent is told why. World logic (events, stage hooks, triggers) has no one to refuse: the same
+failure there fails the run at its path, so guard such a block with an `if`. A refusal that rolled luck or whose rules
+read a value hidden from the actor (a `when`, a `fail`, an error, a transfer) spends the action (a wrong guess at a
+hidden code is a guess); any other refusal — a taken cell, bad arguments — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
 """  # noqa: E501 — guide text: each line is shown as written
 
@@ -147,6 +148,9 @@ Any string containing `$name` is an expression; other strings are literal text.
   `$events` as its caller does: in a view or an agent's choices, only what that agent may see.
 * Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
 * Strict: unknown props, missing roots and type errors are errors, never silent zeros.
+* Ties: `$best` breaks one at random (seeded; `ties: "none"` gives null, `"all"` every tied item). `$sort` puts tied
+  items in their order (for a type, creation order) and `$top`, which is `$sort` reversed, the other way round; give
+  a list of keys (`[$it.score, $it.age]`) to decide ties yourself.
 
 Roots available by location (plus everywhere: $inputs $world $physics $clock $round $stage
 $metrics $series $arm):
@@ -247,7 +251,7 @@ EFFECT_EXAMPLES = {
               '"double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
     "remove": '{"remove": "$params.target"}',
     "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if '
-                'short)',
+                'short; in world logic, the run)',
     "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": '
             '"$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets '
             'the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
@@ -258,7 +262,8 @@ EFFECT_EXAMPLES = {
             'chance)',
     "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": '
             '{}, "delay": 1}  (optional `delay` and `drop`, as for post)',
-    "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
+    "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor; in world logic it '
+            'fails the run)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time '
              'units later)',
@@ -571,11 +576,14 @@ Every truncated reply wastes its whole output: for frequent decisions use `reaso
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
-take ends without a model call. Retries never wait past the turn's time limit, and a token budget counts cache writes
+take ends without a model call. Retries never wait past the turn's time limit, each request times out with the turn
+(at most 10 minutes), and a token budget counts cache writes
 in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
 `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,
-and `out_of_steps`: turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run;
+and `out_of_steps`: turns that used all `max_steps` model calls); a model seat more than a tenth of whose turns fail
+(a turn whose reply the provider refused or cut off counts as failed) degrades the run — passing with `end_turn` where
+the stage allows it is a move, not a failure;
 your own participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
@@ -584,7 +592,7 @@ Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N
 `record` (data: record, entry, fields), `news` (event `say`), any `emit` name, or `end` (data: ended_by, winner).
 `result.winner` is set by `end` conditions or effects that give `winner`.
 
-CLI: `fg-env check file.json` (static check, then up to 12 rounds with random agents and with each policy; `--rounds 0` for static only),
+CLI: `fg-env check file.json` (static check, then 12 rounds — or up to the last scheduled one-off event — with random agents and with each policy; `--rounds 0` for static only),
 `fg-env preview file.json agent_id --rounds 5 --agent trader=policy:quote` (see a mid-run turn),
 `fg-env bench [files] --rounds 20` (ms per round, rounds per second and time per phase; no files: the
 reference agent-based models), `fg-env check|run|preview|experiment|tournament|evaluate|trace|guide|schema` (`fg-env run file.json --seed 1
@@ -609,23 +617,28 @@ the first few entities of each type with every prop (`result.state`), so you can
 * an agent type that never had an action it could take;
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
-* agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
-  `agents_mostly_failed`), any turns of a model participant (or any participant out of time) that ended so, with
-  their rate (`some_turns_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
+* agents all of whose attempts went wrong, or too many of whose turns failed — more than a tenth for a model
+  participant, half for others (`agents_never_acted`, `agents_often_failed`, both degrading), any other failed turns of
+  a model participant (or any participant out of time), with their rate (`some_turns_failed`), and turns an LLM
+  participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
   budget cut short (`budget_cut`) — both degrade the run;
-* with model participants, an action that was mostly refused.
+* with model participants, an action that was mostly refused; an action a model or coded policy chose several times
+  and was refused every time (`action_never_succeeded`, degrading: what it does, and any mechanism it feeds, never ran
+  — a policy's arguments the tool does not accept count as refused calls; random agents' blind calls do not count).
 
-`fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
-reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's always-refused
-rules) as warnings. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
+`fg-env check` plays 12 rounds (fewer when the run is shorter; more to reach the last round a one-off event, `at` or
+a market's resolution, is scheduled for) with random agents and again with each policy on every agent type, and reports
+what those plays reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's
+always-refused rules) as warnings. Every check plays the same rounds; a time guard stops only a contract too slow to
+play, and says so. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
 is reported even when an earlier one always wins. A population that grows fast enough (agents creating agents) to pass
 the engine's ceiling of 1,000,000 living entities before the run ends is a warning: a run fails when it reaches it.
 `--rounds 30` plays exactly that many for more evidence.
 
 `result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,
-`outcome` (a sealed choice's result), `record`, `news`, `refused`, `timeout` and `end`. For example:
+`outcome` (a sealed choice's result), `record`, `news`, `timeout` and `end`. For example:
 `[e.get("text") for e in result.events if e["round"] == 3]` (keys without a value are left out).
 
 What agents saw:

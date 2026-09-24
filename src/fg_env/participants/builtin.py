@@ -212,19 +212,22 @@ class PolicyAgent:
             wake.end()
             return choice
         args, problem = choice
-        if problem is None:
-            result = wake.call(rule.do, args)
-            if result.ok:
-                turn.env.diagnosis.policy_rule(path)
-                return "acted"
-            problem = result.text
-        turn.env.diagnosis.policy_rule(path, problem)
+        if problem is not None:  # arguments the action does not accept: the call is never made, but it was refused
+            turn.env.diagnosis.policy_rule(path, rule.do, problem, sent=False)
+            return "skipped"
+        result = wake.call(rule.do, args)
+        if result.ok:
+            turn.env.diagnosis.policy_rule(path, rule.do)
+            return "acted"
+        turn.env.diagnosis.policy_rule(path, rule.do, result.text)
         return "skipped"  # this rule does not fit right now; try the next one
 
     def _choose(self, wake: Wake, index: int, scope: Any,
                 rng: Any) -> None | str | tuple[dict[str, Any], str | None]:
         """Whether a rule applies now: None (it does not), "passed", or its arguments and why they are invalid."""
         turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
+        if rule.do != "pass" and not turn.env.contract.can_take(turn.actor.entity_type, rule.do):
+            return None  # a rule for another agent type: its `when` may read what this type does not have
         try:
             if rule.when is not None and not truthy(compile_expr(rule.when)(scope)):
                 return None

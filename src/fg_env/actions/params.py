@@ -10,7 +10,7 @@ from typing import Any
 from ..contract import MAX_LIST_ITEMS, ParamSpec
 from ..errors import RunError
 
-__all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT", "MAX_ARG_DEPTH", "REFUSED_ARGS", "unbounded"]
+__all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT", "MAX_ARG_DEPTH", "REFUSED_ARGS", "unbounded", "choice_list"]
 
 #: Longest text a participant may pass to a text parameter that declares no `max_len`.
 TEXT_MAX_LEN = 4_000
@@ -77,12 +77,21 @@ def _item_spec(param: ParamSpec) -> ParamSpec:
     return ParamSpec(type="text", max_len=param.max_len)
 
 
-def _list_bounds(param: ParamSpec, count: Callable[[Any, str], int | None]) -> tuple[int, int]:
-    """A list parameter's fewest and most elements. ``count(raw, key)`` resolves a bound (a number or an expression;
-    None when it cannot be known yet)."""
+def _list_bounds(param: ParamSpec, count: Callable[[Any, str], int | None]) -> tuple[int, int | None]:
+    """A list parameter's fewest and most elements (None: no more than its candidates). ``count(raw, key)`` resolves a
+    bound (a number or an expression; None when it cannot be known yet). A list of distinct choices (entities or listed
+    values, `unique`) can never hold more than there are candidates, so only its own `max_items` caps it — a ranking of
+    every applicant must fit however many apply; any other list is capped at :data:`MAX_LIST_ITEMS`."""
     low = count(param.min_items, "min_items") if param.min_items is not None else None
     high = count(param.max_items, "max_items") if param.max_items is not None else None
+    if choice_list(param):
+        return low or 0, high
     return low or 0, min(high if high is not None else MAX_LIST_ITEMS, MAX_LIST_ITEMS)
+
+
+def choice_list(param: ParamSpec) -> bool:
+    """Whether a list parameter holds distinct choices: entities or listed values, each at most once."""
+    return param.unique and _item_spec(param).type in ("entity", "enum")
 
 
 def _item_count(value: Any, path: str) -> int | None:

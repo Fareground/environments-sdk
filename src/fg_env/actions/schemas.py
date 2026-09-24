@@ -233,7 +233,8 @@ class ActionSchemas:
                                                                          f"{where}.{key}"))
             if low:
                 out["minItems"] = low
-            out["maxItems"] = high
+            if high is not None:
+                out["maxItems"] = high
             if param.unique:
                 out["uniqueItems"] = True
             if item_description and item_description != description:

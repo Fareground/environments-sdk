@@ -7,7 +7,7 @@ Config:
 - `who` (required): Type whose entities get a persona.
 - `prompt` (required): What to write, as a template over $it (the entity and its props).
 - `host` (default "personas"): Host writer name.
-- `model` (default null): Model hint passed to the host.
+- `model` (default null): A name for the kind of model wanted (e.g. "strong"), which the host maps to one of its own models (LLMHost(..., models={...})); a host that does not map it uses its own model.
 - `prop` (default "persona"): Text property that holds the persona.
 - `brief` (default true): Add the persona to the entity's brief.
 - `fallback` (default null): Template over $it used when no host is bound (default: stop with an error).

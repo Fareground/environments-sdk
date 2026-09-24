@@ -4,6 +4,7 @@ import json
 import pytest
 
 import fg_env
+from fg_env.expr import compile_expr
 
 
 def contract(body, *, symmetric=False):
@@ -111,9 +112,12 @@ def test_old_literal_captures_do_not_become_new_reference_tags(data):
     assert fg_env.Env.restore(c, snapshot).run().outputs['seen'] == data
 
 
-def test_refused_delayed_settlement_rolls_back_link_mutations():
+def test_a_refused_delayed_settlement_fails_the_run_and_rolls_back_link_mutations():
     c = contract(['$account.balance -= 20', {'fail': 'Settlement cancelled'}])
-    assert run_restored(c).outputs == {'seen': 0, 'balance': 140}
+    env = fg_env.load(c, seed=12)
+    result = env.run()
+    assert result.status == 'failed' and 'Settlement cancelled World logic cannot be refused' in result.error
+    assert compile_expr(c['outputs']['balance'])(env.world.scope()) == 140
 
 
 def test_forked_relationship_references_belong_to_the_fork():

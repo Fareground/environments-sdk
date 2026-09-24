@@ -57,6 +57,17 @@ def test_a_loop_that_reads_its_target_or_writes_each_item_is_not_reported():
     assert fg_env.run(contract, seed=1).diagnostics == []
 
 
+def test_a_loop_that_adds_to_a_map_entry_it_reads_is_not_reported():
+    tally = {"name": "Tally", "clock": {"rounds": 2},
+             "types": {"p": {"agent": True, "props": {"tally": {"type": "map", "default": {}}}}},
+             "population": [{"type": "p", "count": 3}], "actions": {"noop": {"by": "p", "do": []}},
+             "events": [{"phase": "end", "do": [{"each": "$range(4)", "as": "k", "do": [
+                 "$who = $choice($map(p, $it))", "$who.tally[x] = $get($who.tally, x, 0) + 1"]}]}],
+             "outputs": {"total": "$sum(p, $get($it.tally, x, 0))"}}
+    result = fg_env.run(tally, seed=1)
+    assert result.outputs["total"] == 8 and result.diagnostics == []
+
+
 BALLOT = {
     "name": "Exile",
     "clock": {"rounds": 1},

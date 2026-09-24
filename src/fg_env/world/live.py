@@ -143,6 +143,9 @@ class SdkWorld(World):
         self.journal = Journal()
         #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).
         self.lifecycle: Callable[[str, Entity, str], None] | None = None
+        #: Called with every entity created once the run has begun (set by the run: an agent that joins then hears the
+        #: news from its arrival on, not the backlog of everything before it).
+        self.joined: Callable[[Entity], None] | None = None
         #: What each agent was shown (an :class:`~fg_env.runtime.exposure.ExposureLog`), when the run records it.
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see runtime/diagnosis.py).
@@ -751,6 +754,8 @@ class SdkWorld(World):
         self.journal.push(undo_create)
         if self.lifecycle is not None:
             self.lifecycle("on_create", entity, where)
+        if self.joined is not None and self.round:
+            self.joined(entity)
         return entity
 
     @staticmethod
