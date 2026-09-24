@@ -2,8 +2,7 @@
 submit after the agent's own earlier choices in the stage, and choices that must be resolved together (auctions,
 pro-rata fills) are recorded by the action and resolved in the stage's `on_exit`."""
 import threading
-import time
-from collections import Counter
+from collections import Counter, defaultdict
 
 import fg_env
 
@@ -147,7 +146,23 @@ def test_orders_larger_than_the_stock_are_filled_pro_rata():
     assert (result.outputs["a"], result.outputs["b"], result.outputs["left"]) == (15, 45, 0)
 
 
-def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
+def _second(who, then):
+    """Concurrent sealed turns where ``who`` acts only after the other agent has done ``then`` this round, whatever
+    the machine's load (a clock would only make that likely)."""
+    done = defaultdict(threading.Event)
+
+    def play(wake):
+        if wake.entity_id == who:
+            assert done[wake.round].wait(10)
+        then(wake)
+        if wake.entity_id != who:
+            done[wake.round].set()
+        wake.end()
+    play.concurrent = True
+    return play
+
+
+def test_the_same_choices_give_the_same_result_whichever_agent_reads_its_tools_first():
     c = {"name": "Stuck", "clock": {"rounds": 3},
          "types": {"a": {"agent": True, "props": {"x": 0}}, "b": {"agent": True, "props": {"x": 0}}},
          "entities": {"a1": {"type": "a"}, "b1": {"type": "b"}},
@@ -155,15 +170,10 @@ def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
                      "run": {"by": "b", "when": "$actor.x > 0", "do": []}},
          "stages": [{"name": "s", "turns": "simultaneous"}]}
 
-    def slow(who):
-        def play(wake):
-            if wake.entity_id == who:
-                time.sleep(0.05)  # the other agent reads its tools first
-            wake.tools
-            wake.end()
-        return play
+    def read(wake):
+        wake.tools
 
-    assert fg_env.run(c, slow("a1"), seed=1).to_dict() == fg_env.run(c, slow("b1"), seed=1).to_dict()
+    assert fg_env.run(c, _second("a1", read), seed=1).to_dict() == fg_env.run(c, _second("b1", read), seed=1).to_dict()
 
 
 def test_the_refusal_a_diagnostic_quotes_does_not_depend_on_which_agent_was_refused_first():
@@ -173,15 +183,11 @@ def test_the_refusal_a_diagnostic_quotes_does_not_depend_on_which_agent_was_refu
          "actions": {"spend": {"by": "p", "do": ["$actor.cash -= 1"]}},
          "stages": [{"name": "s", "turns": "simultaneous"}]}
 
-    def late(who):
-        def play(wake):
-            if wake.entity_id == who:
-                time.sleep(0.05)  # the other agent is refused first
-            wake.call("spend", {})
-            wake.end()
-        return play
+    def spend(wake):
+        wake.call("spend", {})
 
-    assert fg_env.run(c, late("p0"), seed=1).diagnostics == fg_env.run(c, late("p1"), seed=1).diagnostics
+    assert fg_env.run(c, _second("p0", spend), seed=1).diagnostics == fg_env.run(c, _second("p1", spend),
+                                                                                seed=1).diagnostics
 
 
 def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():

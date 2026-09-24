@@ -27,8 +27,8 @@ from pydantic import Field, ValidationError
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
-from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
+from ..expr.objects import Entity
+from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config
 
@@ -159,7 +159,7 @@ _ORDERS: weakref.WeakKeyDictionary[Any, dict[str, tuple[Any, list[str]]]] = weak
 
 def ordered(world: Any, name: str, where: str) -> list[Entity]:
     """This round's order for the order mechanism ``name`` (skipped agents left out)."""
-    cfg = common.config(world, name, KEY, OrderConfig, where)
+    cfg = mechanism_config(world, name, KEY, OrderConfig, where)
     state = (world.journal.version, world.round, world.stage)
     cached = _ORDERS.setdefault(world, {}).get(name)
     if cached is not None and cached[0] == state:
@@ -219,7 +219,7 @@ def _turn_order(call: Call) -> list[Entity]:
 
 def _check_extra(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     name = effect["flow"]
-    if not common.parsed(checker.c.mechanisms[name], OrderConfig).extra_turns:
+    if not parsed(checker.c.mechanisms[name], OrderConfig).extra_turns:
         return [(f"{path}.flow", f"turn order '{name}' does not allow extra turns",
                  f"set mechanisms.{name}.extra_turns: true")]
     return []
@@ -231,7 +231,7 @@ def _check_extra(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[
 def _extra_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["flow"]
-    cfg = common.config(world, name, KEY, OrderConfig, where)
+    cfg = mechanism_config(world, name, KEY, OrderConfig, where)
     if not cfg.extra_turns:
         raise RunError(f"turn order '{name}' does not allow extra turns", where)
     counter = f"{name}_extra"

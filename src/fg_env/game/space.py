@@ -25,9 +25,9 @@ from typing import TYPE_CHECKING, Any
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..runtime.session import END_TURN
-from ..world.entity import Entity
 from ..world.live import _plain
 
 if TYPE_CHECKING:

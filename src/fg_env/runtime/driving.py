@@ -28,8 +28,8 @@ from typing import TYPE_CHECKING, Any
 
 from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..participants import Idle, Participant, resolve_participant
-from ..world.entity import Entity
 from .session import END_TURN, Wake
 
 if TYPE_CHECKING:
@@ -201,7 +201,7 @@ class Driver:
         """The contract's in-turn host tools (recall, note, host services), by name."""
         tools = self.__dict__.get("_turn_tools")
         if tools is None:
-            from ..host.turn_tools import turn_tools
+            from .turn_tools import turn_tools
 
             tools = self.__dict__["_turn_tools"] = turn_tools(self.env.contract)
         return tools
@@ -210,7 +210,7 @@ class Driver:
         tools = self.turn_tool_specs()
         if not tools:
             return participant
-        from ..host.turn_tools import offer
+        from .turn_tools import offer
 
         return offer(participant, tools)
 
@@ -283,8 +283,8 @@ class Driver:
         with env._lock:
             turn.done = True
             env.origin.tape.closed(turn.number)
-            if turn.stats.actions == 0 and not turn.intents:
-                stats = turn.stats
+            stats = turn.stats
+            if stats.actions == 0 and not turn.intents:
                 stats.idle_turns += 1
                 went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
                                   or stats.out_of_steps or stats.no_tool_replies)
@@ -292,6 +292,8 @@ class Driver:
                 if (went_wrong or had_to or turn.timed_out) and turn.actor.alive and turn._legal():
                     stats.failed_turns += went_wrong or turn.timed_out  # an action was there to take
                     turn.did_not_act = had_to and not turn.timed_out  # a timeout is reported as one
+            elif stats.refusals or stats.truncated:
+                stats.failed_turns += 1  # the provider refused or cut off a reply: the model's play was not its own
             env._tally(turn.actor.id, turn.stats)
             turn.tallied = True
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit

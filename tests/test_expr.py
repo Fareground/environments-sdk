@@ -3,8 +3,8 @@ import random
 import pytest
 
 from fg_env.expr import ExprError, Scope, World, compile_expr, evaluate, is_expr, resolve
+from fg_env.expr.objects import Entity
 from fg_env.expr.template import render
-from fg_env.world.entity import Entity
 
 
 class _World(World):
@@ -79,8 +79,10 @@ def test_strict_errors_name_the_fix():
         evaluate("$cuont(offer)", s)  # unknown names may be contract `defs`, so this is a run-time error
     with pytest.raises(ExprError, match="division by zero"):
         evaluate("$actor.cash / 0", s)
-    with pytest.raises(ExprError, match="expected a number"):
+    with pytest.raises(ExprError, match=r"write \$text\(<number>\) to join a number to text"):
         evaluate("$actor.status + 1", s)
+    with pytest.raises(ExprError, match="expected a number"):
+        evaluate("$actor.status * 1", s)
     with pytest.raises(ExprError, match="not an entity type"):
         evaluate("$count(ofer)", s)
 

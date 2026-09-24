@@ -16,10 +16,11 @@ from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from ..contract import FeedSpec
+from ..contract.base import TAPE
 from ..errors import RunError
 from ..expr import ExprError, Untrusted, compile_expr, resolve, truthy
 from ..host.protocols import HostError
-from ..host.tape import TAPE, consult, plain, request_key
+from ..host.tape import consult, plain, request_key
 from ..world.live import Abort
 from ..world.props import prop_type
 

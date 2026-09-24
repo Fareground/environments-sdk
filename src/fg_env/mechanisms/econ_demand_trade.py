@@ -13,14 +13,14 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..patterns.base import KINDS
 from ..patterns.observe import count_quantile
 from ..registry import family_action
-from ..world.entity import Entity
 from ..world.live import Abort
-from ._common import condition
+from ._common import condition, entity_of
 from .econ_assets import burn_money, mint_money
-from .econ_base import DEMAND, bump, cached, config_of, entity_of, props, whole
+from .econ_base import DEMAND, bump, cached, config_of, props, whole
 from .econ_demand import SEGMENT_TOTALS, DemandConfig, FactorRef, SegmentSpec, segments_of
 
 __all__ = ["number_of", "read_term", "plan", "binomial", "stream", "stock_in", "stock_out"]

@@ -31,6 +31,7 @@ from typing import Any
 
 from .base import _BUDGET, ExprError
 from .calls import FUNCTIONS, Call, EqualityGuard, Evaluator
+from .objects import PropsView
 from .scope import Scope
 from .values import _BINARY, _COMPARE, _ENTITY_FIELDS, _add, _Entity, _eq, _in, _index, _mul, _number, _pow, attr
 
@@ -94,8 +95,6 @@ def _plus(value: Any, source: str) -> Any:
 
 def _helpers() -> dict[str, Any]:
     """Everything compiled code may name besides its own constants and functions."""
-    from ..world.parts import PropsView  # the world's parts import the language: bound on first compile
-
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
         "_enumerate": enumerate, "_sum": sum, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope,
@@ -134,7 +133,7 @@ class _Function:
         self.lines: list[str] = []
         self.temps = 0
         self.reads_roots = False
-        #: Property name constant → the local that says whether some agent keeps that property private.
+        #: Property name constant → the local that says whether some type or the world declares that property private.
         self.hidden: dict[str, str] = {}
 
     def hides(self, key: str) -> str:
@@ -351,7 +350,7 @@ class Codegen:
         hidden = self._fn.hides(key)  # a private property is read through _attr, which checks who may see it
         self._line(f"if _type({base}) is _Entity and {key} in {base}.properties and not {hidden}:")
         self._line(f"    {value} = {base}.properties[{key}]")
-        self._line(f"elif _type({base}) is _PropsView and {key} in {base}._world.props:")
+        self._line(f"elif _type({base}) is _PropsView and {key} in {base}._world.props and not {hidden}:")
         self._line(f"    {value} = {base}._world.props[{key}]")
         self._line("else:")
         self._line(f"    {value} = _attr({base}, {key}, {source}, scope)")

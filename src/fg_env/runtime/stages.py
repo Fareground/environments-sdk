@@ -5,15 +5,15 @@ from __future__ import annotations
 import bisect
 from typing import TYPE_CHECKING, Any
 
-from ..actions.book import stage_actions
+from ..actions.book import announces, stage_actions
 from ..actions.faults import guarded
 from ..contract import MAX_STAGE_PASSES, StageSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
+from ..expr.objects import Entity
 from ..world.build import whole_setting
-from ..world.entity import Entity
+from ..world.clock_math import advance_time
 from .budget import is_seconds
-from .clock_math import advance_time
 from .diagnosis import SealedWrites
 from .measure import Stats
 from .rounds import _Point, _Steps
@@ -91,6 +91,13 @@ class RunStages:
         try:
             if stage.who is not None:
                 agents = self._woken(stage, agents, pass_index)
+        except PrivateRead as exc:
+            raise RunError(f"{exc.detail.partition(', and ')[0]}, and every agent learns who acts in {stage.name} (its "
+                           "actions are announced), so waking by it would reveal it: wake by what is not private, or "
+                           "make the stage's actions `private`", f"{path}.who") from None
+        except ExprError as exc:
+            raise RunError(str(exc), path) from None
+        try:
             if not ordered:
                 return agents
             if stage.order == "random":
@@ -115,11 +122,13 @@ class RunStages:
         """The ``agents`` that the stage's `who` wakes. Each is decided with luck of its own (the stage, round, pass and
         agent), so who else is alive never shifts it, and asking again (a preview) gives the same answer."""
         world, who = self.world, compile_expr(stage.who)
+        # When the stage's actions are announced, everyone learns who was woken: `who` reads what everyone may know.
+        shown = {"viewer": EVERYONE} if announces(self.contract, stage) else {}
         woken = []
         for i, agent in enumerate(agents):
             luck = world.seeds.lazy_rng("who", stage.name, world.round, pass_index, agent.id)
             with world.drawing_from(luck):
-                if truthy(who(world.scope(it=agent, i=i))):
+                if truthy(who(world.scope(it=agent, i=i, **shown))):
                     woken.append(agent)
         return woken
 

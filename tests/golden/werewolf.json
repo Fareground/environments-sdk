@@ -1,24 +1,24 @@
 {
-  "actions": 135,
-  "events": 239,
-  "events_sha256": "e07e692713a77d5982153c11962a04693d7202aca2ce94da074e6be0e23f81ee",
+  "actions": 47,
+  "events": 79,
+  "events_sha256": "470bc8dfb765fbdaa97a8d09ecddba6400fbc924f488a2aa9819c2dbcce7bb08",
   "first_events": [
-    "r1 record p3: {\"entry\": 1, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"den\"}",
-    "r1 action p3: {\"action\": \"whisper\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"private\": true, \"success\": true}",
-    "r1 record p8: {\"entry\": 2, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"den\"}",
-    "r1 action p8: {\"action\": \"whisper\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"private\": true, \"success\": true}",
-    "r1 record p3: {\"entry\": 3, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"den\"}",
-    "r1 action p3: {\"action\": \"whisper\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"private\": true, \"success\": true}",
-    "r1 record p8: {\"entry\": 4, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"den\"}",
-    "r1 action p8: {\"action\": \"whisper\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"private\": true, \"success\": true}",
-    "r1 record p3: {\"entry\": 5, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"den\"}",
-    "r1 action p3: {\"action\": \"whisper\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"private\": true, \"success\": true}"
+    "r1 action p3: {\"action\": \"choose_victim\", \"params\": {\"target\": \"p1\"}, \"private\": true, \"success\": true}",
+    "r1 action p8: {\"action\": \"choose_victim\", \"params\": {\"target\": \"p1\"}, \"private\": true, \"success\": true}",
+    "r1 action p2: {\"action\": \"inspect_player\", \"params\": {\"target\": \"p6\"}, \"private\": true, \"success\": true}",
+    "r1 outcome p2: Your vision is clear: Finn is not a werewolf.",
+    "r1 action p5: {\"action\": \"protect\", \"params\": {\"target\": \"p6\"}, \"private\": true, \"success\": true}",
+    "r1 outcome p5: You will watch over Finn tonight.",
+    "r1 eliminated: Dawn of round 1: Ada was killed during the night. They were a villager.",
+    "r1 action p2: {\"action\": \"done_talking\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action p3: {\"action\": \"done_talking\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r1 action p4: {\"action\": \"done_talking\", \"params\": {}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
     "living": 4,
-    "living_wolves": 1
+    "living_wolves": 2
   },
-  "rounds": 4,
-  "status": "running",
-  "wakes": 135
+  "rounds": 3,
+  "status": "ended",
+  "wakes": 47
 }

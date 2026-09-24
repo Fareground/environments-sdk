@@ -44,7 +44,7 @@ def attach(env: Env, hosts: HostsLike) -> Env:
 
 def build(env: Env) -> None:
     """Write everything hosts contribute when the world is built (personas). Idempotent."""
-    from .personas import KEY, generate
+    from ..mechanisms.host_personas import KEY, generate
 
     names = [name for name, raw in env.contract.mechanisms.items() if use_key(raw) == KEY]
     if not names or env.world.round:
@@ -73,6 +73,6 @@ def run(env: Env, participants: Any = None, **kwargs: Any) -> RunResult:
 
 def wrap(env: Env, participants: Any = None) -> Any:
     """Participants whose wakes offer the contract's in-turn host tools (for ``env.run``)."""
-    from .turn_tools import wrap as wrap_participants
+    from ..runtime.turn_tools import wrap as wrap_participants
 
     return wrap_participants(env, participants)

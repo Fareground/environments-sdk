@@ -2,7 +2,7 @@
 
 ## Separate three questions
 
-1. **Is the contract valid?** `fg_env.check` finds structural and semantic issues, then plays the contract: up to 12 rounds with random agents, and again with each declared policy, played by the agent types whose default it is (or else those that can take every action it takes). A crash names the rule's path and the play that found it; a policy rule refused every time it was tried is a warning. So is a population that grows fast enough (agents creating agents) to pass the ceiling of 1,000,000 living entities before the run ends; a run that reaches it fails there. `--rounds N` plays exactly N rounds (0 = static only).
+1. **Is the contract valid?** `fg_env.check` finds structural and semantic issues, then plays the contract: 12 rounds (more to reach the last round a one-off event is scheduled for) with random agents, and again with each declared policy played by every agent type. Every check plays the same rounds; a time guard stops only a contract too slow to play, and reports it. A crash names the rule's path and the play that found it; a policy rule refused every time it was tried is a warning. So is a population that grows fast enough (agents creating agents) to pass the ceiling of 1,000,000 living entities before the run ends; a run that reaches it fails there. `--rounds N` plays exactly N rounds (0 = static only).
 2. **Does it implement the brief?** Known-answer and boundary tests verify timing, balances, information and causal behavior.
 3. **Does it predict the real system?** Calibration and held-out validation test against observations.
 

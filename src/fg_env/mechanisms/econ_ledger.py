@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
+from ._common import ToolsSetting, entity_of, tools_field
 from .econ_assets import balance, move_money
 from .econ_base import (
     INVENTORY,
@@ -21,7 +21,6 @@ from .econ_base import (
     config_of,
     declared_names,
     emit_to,
-    entity_of,
     guarded,
     lineage,
     money,
@@ -140,7 +139,8 @@ def _money_left(currency: str, spec: CurrencySpec) -> str:
       "Money: each currency is a number property of every holder (`$actor.cash`) with an optional credit limit. `pay` "
       "moves money (never creating it), `mint`/`burn` name their source or sink, scheduled `sources` pay UBI or "
       "allowances, `taxes` withhold a share of payments that name them, and `loans` add `<name>_borrow`, "
-      "`<name>_repay` and `<name>_set_rate` with per-round interest, due dates and default. The invariant "
+      "`<name>_repay` and `<name>_set_rate` with per-round interest, due dates and default (each tool joins the first "
+      "stage its users act in, unless a stage lists it). The invariant "
       "`$conserved(<name>)` proves balances equal $world.<name>_supply, counting the money markets hold for their "
       "traders (reserves, escrow, vaults, fees), so markets trade in the ledger's currency. The supply starts as all "
       "the money held when the world is built (a prediction market's seed money included); $world.<name>_flows totals "

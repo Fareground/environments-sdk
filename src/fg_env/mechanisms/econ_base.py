@@ -16,15 +16,15 @@ from pydantic import BaseModel, ValidationError
 
 from ..errors import RunError
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
-from ..registry import MechanismError, config_data, describe, use_key
-from ..world.entity import Entity
+from ..expr.objects import Entity
+from ..registry import MechanismError, config_data, describe, mechanism_config, use_key
 from ..world.live import Abort
 
 __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list",
     "require_types",
     "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param",
-    "entity_of", "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
+    "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
     "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION", "LABOR",
     "SUBSCRIPTIONS", "BOOKINGS",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
@@ -63,20 +63,8 @@ def _cache(world: Any) -> dict[Any, Any]:
 
 
 def config_of(world: Any, name: str, kind: str, where: str = "") -> Any:
-    """The parsed config of the declared mechanism ``name`` of ``kind`` (cached per contract)."""
-    cache = _cache(world)
-    key = ("use", name)
-    if key not in cache:
-        raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
-        if not isinstance(raw, Mapping) or use_key(raw) != kind:
-            declared = [n for n, u in world.contract.mechanisms.items() if use_key(u) == kind]
-            raise RunError(f"'{name}' is not a declared {describe(kind)} (declared: {', '.join(declared) or 'none'})",
-                           where)
-        try:
-            cache[key] = CONFIG_MODELS[kind].model_validate(config_data(raw))
-        except ValidationError as exc:  # expansion validated it already; only a patched contract lands here
-            raise RunError(f"mechanism '{name}' has an invalid config: {exc.errors()[0]['msg']}", where) from None
-    return cache[key]
+    """The parsed config of the declared mechanism ``name`` of ``kind`` (its model registered by its module)."""
+    return mechanism_config(world, name, kind, CONFIG_MODELS[kind], where or None)
 
 
 def uses_of(world: Any, kind: str) -> dict[str, Any]:
@@ -222,13 +210,6 @@ def choice_param(types: Sequence[str], where: str, description: str) -> tuple[di
 # ---------------------------------------------------------------------------
 # Run-time helpers
 # ---------------------------------------------------------------------------
-
-
-def entity_of(world: Any, value: Any, where: str, what: str = "an entity") -> Entity:
-    found = maybe_entity(world, value)
-    if found is None or not found.alive:
-        raise RunError(f"expected {what}, got {value!r}", where)
-    return found
 
 
 def props(entity: Entity) -> dict[str, Any]:

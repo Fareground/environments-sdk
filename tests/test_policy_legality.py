@@ -71,3 +71,25 @@ def test_a_policy_rule_naming_a_parameter_the_action_lacks_is_an_error_with_the_
     found = [i for i in fg_env.check(c) if i.path == "policies.stingy.rules[0].with.amt"]
     assert found and found[0].severity == "error" and "'give' has no parameter 'amt'" in found[0].message
     assert "amount" in found[0].fix
+
+
+TWO_ROLES = {"name": "Two roles", "clock": {"rounds": 2},
+             "types": {"a": {"agent": True, "props": {"x": 0}}, "b": {"agent": True, "props": {"y": 0}}},
+             "entities": {"a1": {"type": "a"}, "b1": {"type": "b"}},
+             "actions": {"inc_x": {"by": "a", "do": "$actor.x += 1"}, "inc_y": {"by": "b", "do": "$actor.y += 1"}},
+             "policies": {"both": {"rules": [{"when": "$actor.x < 5", "do": "inc_x"},
+                                             {"when": "$actor.y < 5", "do": "inc_y"}]}}}
+
+
+def test_a_policy_skips_rules_for_actions_its_agent_type_cannot_take():
+    env = fg_env.load(TWO_ROLES, seed=1)
+    result = env.run("policy:both")
+    assert result.status == "completed", result.error
+    assert env.entity("a1")["props"]["x"] == 2 and env.entity("b1")["props"]["y"] == 2
+
+
+def test_check_plays_every_policy_on_every_agent_type():
+    contract = {**TWO_ROLES, "actions": {**TWO_ROLES["actions"], "inc_x": {"by": ["a", "b"], "do": []}},
+                "types": {**TWO_ROLES["types"], "a": {"agent": True, "policy": "both", "props": {"x": 0}}}}
+    errors = [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert any(i.path == "policies.both.rules[0]" and "b1" in i.message for i in errors), errors

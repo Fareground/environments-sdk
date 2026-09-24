@@ -20,7 +20,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `interval`: number | text — Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).
 - `first_wake`: number | text — Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).
 - `order`: text — seat | random | expression over $it (lowest first): the order agents take turns in, and a simultaneous stage's choices commit in. Every agent sees it, so it may read no agent's private property. Default: seat; a simultaneous stage's choices then commit in a random order drawn anew each time, so no seat always wins a contested item.
-- `who`: text — Which agents are woken ($it); e.g. $it.alive && $chance(0.3).
+- `who`: text — Which agents are woken ($it); e.g. $it.alive and $chance(0.3).
 - `until`: text — Repeat turns within the round until true.
 - `passes`: int | text — Max passes through the agents (default 1, or 10 with until): a number ≥ 1 or an expression over $inputs.
 - `quiet`: text = "wake" — wake | skip — skip agents with nothing new since their last turn.

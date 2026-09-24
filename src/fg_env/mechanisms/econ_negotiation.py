@@ -13,7 +13,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
+from ._common import ToolsSetting, entity_of, tools_field
 from .econ_assets import assets, balance, move_items, move_money
 from .econ_base import (
     INVENTORY,
@@ -25,7 +25,6 @@ from .econ_base import (
     config_of,
     declared_names,
     emit_to,
-    entity_of,
     money,
     props,
     register_config,

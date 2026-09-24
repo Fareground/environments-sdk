@@ -7,10 +7,10 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..registry import family_action
-from ..world.entity import Entity
+from ._common import entity_of
 from .book_session import close_round, open_round
-from .common import entity_of
 from .order_book import account, audit, book_config, cancel, cancel_all, depth, place, quote
 
 __all__: list[str] = []
@@ -36,8 +36,10 @@ def _trader(call: Call, index: int) -> Entity:
 @function("book(name)", "Top of an order book: {last, bid, ask, mid, spread, bid_qty, ask_qty, ref, halted, "
           "halt_until, open, high, low, round_volume, round_trades, volume, vwap, trades, fees, halts, orders, flow, "
           "liquidations, bar, bar_rounds, tick, lot, maker_fee_bps, taker_fee_bps, short_limit, halt_pct, band_low, "
-          "band_high}; flow is the last round's aggressive {buy, sell} quantity by trader kind; bar is the bar in "
-          "progress {bar, open, high, low, close, volume, vwap, trades, halted, flow, ends}.", min_args=1, max_args=1)
+          "band_high, heat}; flow is the last round's aggressive {buy, sell} quantity by trader kind; bar is the bar "
+          "in progress {bar, open, high, low, close, volume, vwap, trades, halted, flow, ends}; heat is recent "
+          "volatility against the usual (1 = as usual, 0.5–2), which coded traders other than market makers multiply "
+          "their activity by.", min_args=1, max_args=1)
 def _book_function(call: Call) -> dict[str, Any]:
     return quote(call.scope.world, _name(call))
 

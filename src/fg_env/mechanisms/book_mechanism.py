@@ -14,8 +14,8 @@ from typing import Any
 
 from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
+from ._common import fmt
 from .book_rules import rules_default
-from .common import fmt
 from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
 

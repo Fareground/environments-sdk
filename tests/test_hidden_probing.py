@@ -1,8 +1,8 @@
 """Hidden values cannot be read out by probing.
 
-A call refused after its action rolled luck or read a private property of another entity is played (the action is
+A call refused after its action rolled luck or its rules read a value hidden from the actor is played (the action is
 spent), so an agent cannot guess a hidden value again and again for free; a refusal that could tell it nothing hidden
-(a taken cell, a bad argument, an unmet `when`) stays free, and a `when` that reads another agent's private state is a
+(a taken cell, a bad argument, a `when` over public state) stays free, and a `when` that reads a hidden value is a
 check warning. Entries posted to a record everyone reads, and the names of sealed choices announced
 to everyone, may not carry what is private either.
 """

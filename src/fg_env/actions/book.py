@@ -28,16 +28,18 @@ from ..expr import (
     shared_budget,
     truthy,
 )
+from ..expr.hidden import REVEALS, reveals
+from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
 from ..sampling.probability import is_probability
-from ..world.entity import Entity
 from ..world.live import Abort, LuckAhead, SdkWorld, _plain
 from .faults import fault_reason
 from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
 from .schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
 from .validation import ActionValidation
 
-__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
+__all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions",
+           "announces"]
 
 #: Work one action application may do in total (all its conditions, effects and templates).
 ACTION_BUDGET = 5 * EVAL_BUDGET
@@ -72,15 +74,14 @@ def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> list[
                 break
     else:
         names = []
-    out = []
-    for name in names:
-        action = contract.actions.get(name)
-        if action is None:
-            continue
-        by = [action.by] if isinstance(action.by, str) else action.by
-        if any(contract.is_a(type_name, allowed) for allowed in by):
-            out.append(name)
-    return out
+    return [name for name in names if contract.can_take(type_name, name)]
+
+
+def announces(contract: Contract, stage: StageSpec) -> bool:
+    """Whether some agent's action in ``stage`` is announced to everyone (not `private`): then everyone learns who
+    acts in it."""
+    return any(not contract.actions[name].private
+               for kind in contract.agent_types() for name in stage_actions(contract, stage, kind))
 
 
 class ActionBook(ActionSchemas, ActionValidation):
@@ -88,8 +89,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         self.contract = contract
         self.world = world
         self.effects = effects
-        #: Every property name some type keeps private, and per action the arguments its effects write into one.
-        self._private_props = frozenset(p for t in contract.types for p, s in contract.props_of(t).items() if s.private)
+        #: Per action, the arguments its effects write into a private property.
         self._kept_secrets: dict[str, frozenset[str]] = {}
         #: Shared tool name → the actions offered inside it, in declaration order.
         self.groups: dict[str, list[str]] = {}
@@ -212,15 +212,19 @@ class ActionBook(ActionSchemas, ActionValidation):
         if param.where is None:
             return items
         expr = compile_expr(param.where)
+        reveal = reveals(self.contract, expr, param.of)
         if "params" in expr.roots:
-            return items if params is None else self._qualifying(actor, action, pname, expr, items, params, first)
+            return items if params is None else self._qualifying(actor, action, pname, expr, items, params, first,
+                                                                 reveal)
         if first:
-            return self._qualifying(actor, action, pname, expr, items, None, first)
+            return self._qualifying(actor, action, pname, expr, items, None, first, reveal)
         return self.world.remembered(("choices", action, pname, actor.id, param.of, param.where),
-                                     lambda: self._qualifying(actor, action, pname, expr, items, None, False))
+                                     lambda: self._qualifying(actor, action, pname, expr, items, None, False, reveal))
 
     def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: list[Entity],
-                    params: dict[str, Any] | None, first: bool) -> list[Entity]:
+                    params: dict[str, Any] | None, first: bool, reveal: bool) -> list[Entity]:
+        """The ``items`` the `where` ``expr`` picks, read as the actor sees them; with ``reveal`` (see
+        expr/hidden.py) it reads each item's private properties."""
         out = []
         base = self.world.scope(actor=actor, viewer=actor, params=params or {})
         ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
@@ -232,8 +236,9 @@ class ActionBook(ActionSchemas, ActionValidation):
                 if first:
                     break
                 continue
+            here = base.child(it=item, i=position, **{REVEALS: item}) if reveal else base.child(it=item, i=position)
             try:
-                if truthy(expr(base.child(it=item, i=position))):
+                if truthy(expr(here)):
                     out.append(item)
                     if first:
                         break
@@ -295,7 +300,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         the announcement and its event: they cannot fail or draw, and a rollback would undo them unseen. The action
         draws from its actor's own stream, so it never shifts another agent's luck or the world's; a refusal keeps
         what it drew spent, so retrying rolls fresh luck (see :class:`~fg_env.sampling.seeds.DrawSite`)."""
-        with self.world.drawing_at(f"actions.{name}@{actor.id}"):
+        with self.world.drawing_at(f"actions.{name}@{actor.id}"), self.world.acting_as(actor):
             return self._apply_drawn(actor, name, params, trial)
 
     def _apply_drawn(self, actor: Entity, name: str, params: dict[str, Any], trial: bool) -> Outcome:
@@ -315,7 +320,9 @@ class ActionBook(ActionSchemas, ActionValidation):
                     raise RunError(f"chance must be a number from 0 to 1, got {probability!r}", f"{path}.chance")
                 success = world.rng.random() < probability
             self.effects.run(spec.do if success else spec.otherwise, vars, f"{path}.{'do' if success else 'otherwise'}")
-            text = self._render(spec.outcome, {**vars, "viewer": actor}, f"{path}.outcome") if spec.outcome else \
+            # `outcome` tells the action succeeding: a failed `chance` roll is told as such, never as a success
+            told = spec.outcome if success else None
+            text = self._render(told, {**vars, "viewer": actor}, f"{path}.outcome") if told else \
                 "" if trial else self.default_outcome(name, params, success)
             assets = attached_ids(world, spec.attach, world.scope(**vars), f"{path}.attach") if spec.attach else []
             announce = spec.announce
@@ -442,7 +449,8 @@ class ActionBook(ActionSchemas, ActionValidation):
         known = self._kept_secrets.get(name)
         if known is None:
             spec = self.contract.actions[name]
-            known = self._kept_secrets[name] = frozenset(_written_into(self._private_props, [spec.do, spec.otherwise]))
+            known = frozenset(_written_into(self.world.private_names, [spec.do, spec.otherwise]))
+            self._kept_secrets[name] = known
         return known
 
     @staticmethod

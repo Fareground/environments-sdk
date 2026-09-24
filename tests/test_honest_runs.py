@@ -89,3 +89,20 @@ def test_the_same_host_counted_by_two_runs_counts_each_token_once():
     first = host.load(PITCH, hosts=hosts, seed=1).run(pitcher)
     second = host.load(copy.deepcopy(PITCH), hosts=hosts, seed=2).run(pitcher)
     assert first.stats["input_tokens"] == second.stats["input_tokens"] == 800
+
+
+def test_an_action_no_call_ever_got_through_degrades_the_run():
+    contract = {"name": "Draft", "clock": {"rounds": 4},
+                "types": {"team": {"agent": True, "policy": "picky", "props": {"picks": 0, "waits": 0}}},
+                "entities": {"a": {"type": "team"}},
+                "actions": {"pick": {"by": "team", "params": {"n": {"type": "int", "min": 1, "max": 3}},
+                                     "do": ["$actor.picks += $params.n"]},
+                            "wait": {"by": "team", "do": ["$actor.waits += 1"]}},
+                "stages": [{"name": "s", "max_actions": 2}],
+                "policies": {"picky": {"rules": [{"do": "pick", "with": {"n": 9}}, {"do": "wait"}]}},
+                "outputs": {"picks": "$entity(a).picks"}}
+    result = fg_env.run(contract, seed=1)
+    finding = next(d for d in result.diagnostics if d["code"] == "action_never_succeeded")
+    assert finding["path"] == "actions.pick"
+    assert "all 4 call(s) a model or coded policy made were refused" in finding["message"]
+    assert "action_never_succeeded" in result.degraded and not result.ok

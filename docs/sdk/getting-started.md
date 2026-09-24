@@ -1,10 +1,9 @@
-# Build your first environment
+# Business walkthrough: weekly inventory
 
-Run a retailer for four weeks. Each week, the retailer orders stock, customers buy what is available, and the engine records cash and inventory. This example requires no API key.
+New to fg-env? Start with `fg-env guide authoring`: one page with a complete worked contract and the write → check →
+preview → run loop. This page is a longer business example with exact expected outputs.
 
-For a compact example with editable objects and multiple entities, use
-`fg-env guide authoring` after installing. Its known-answer test checks the
-actual output, and the [authoring workflow](authoring.md) explains how to adapt it.
+Run a retailer for four weeks. Each week, the retailer orders stock, customers buy what is available, and the engine records cash and inventory. This example requires no API key. The [authoring principles](authoring.md) explain how to adapt it.
 
 Prefer to describe it? `fg-env author brief.md --model anthropic:<model>` has a model write, check, preview and
 run the contract for you with the SDK's own tools, and saves the best version that checks without errors and runs

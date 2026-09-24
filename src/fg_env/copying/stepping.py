@@ -25,10 +25,10 @@ from typing import TYPE_CHECKING, Any
 from ..effects.chance import ChanceNode
 from ..errors import RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..participants import Participant
 from ..runtime.driving import WAITING, Driver
 from ..runtime.session import ToolResult, Wake
-from ..world.entity import Entity
 from .pilot import Pause, PilotedEnv
 from .replay import Tape
 

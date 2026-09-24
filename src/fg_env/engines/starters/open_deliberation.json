@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Deliberation Engine",
-  "description": "A reusable deliberation engine in which people exchange reasons, revise views, propose a conclusion, and vote. Each member's view blends where they started with the average stance of the speeches made so far, so views move during the debate and the vote can go either way without the group being talked into unanimity.",
+  "description": "A reusable deliberation engine in which people exchange reasons, revise views, propose a conclusion, and vote. Each member's view blends where they started with the average stance of the speeches made so far, so views move during the debate and the vote can go either way without the group being talked into unanimity. A speech's stance is what a bound judge host ('judge') reads in its words (direction times strength); without one, coded listeners react to the speaker's own stance, not to what is said.",
   "inputs": {
     "question": {"type": "text", "default": "Should the group adopt the proposed course of action?"},
     "persuasion": {"type": "number", "default": 0.3, "min": 0, "max": 0.5, "description": "Average share of a member's view that comes from the speeches made rather than their starting stance (each member draws between 0 and twice this); 0 = nobody changes their mind."},
@@ -38,7 +38,11 @@
     "spoke_on": {"type": "int", "default": null, "private": true, "description": "The motion this member last spoke on (null before their first speech on a motion)."}
   }}},
   "population": [{"type": "member", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"stance": "$row.stance", "perspective": "$row.perspective", "initial_stance": "$row.stance", "openness": "$uniform(0, 2 * $inputs.persuasion)"}}],
-  "mechanisms": {"forum": {
+  "mechanisms": {"speech_judge": {"kind": "host", "mode": "judge", "host": "judge", "visible": "false", "notify": false,
+    "instructions": "Read one speech made in a debate on the question given with it. Score which way it argues and how persuasive it is to a thoughtful listener, on its words alone.",
+    "criteria": {"direction": {"description": "Which way the speech argues on the question: -1 firmly against, 0 neutral or mixed, 1 firmly for.", "scale": [-1, 1]},
+                 "strength": {"description": "How persuasive the speech is: 0 not at all, 1 compelling.", "scale": [0, 1]}}},
+  "forum": {
     "kind": "decision", "mode": "deliberation", "who": "member", "question": "$inputs.question",
     "passes": 4, "method": "majority", "floor": false, "motions": true,
     "second": true, "amendments": true, "min_debate": 1, "private": true, "backstop": "vote", "end": "decision"
@@ -47,17 +51,20 @@
   "views": {"private_view": {"for": "member", "show": "Your current stance is {stance|2}. Your perspective: {perspective}"}},
   "world": {
     "heard": {"type": "int", "default": 0, "description": "Entries of the forum record whose persuasion has been applied."},
-    "said": {"type": "number", "default": 0, "description": "Sum of the speakers' stances over every speech made."},
+    "said": {"type": "number", "default": 0, "description": "Sum of the speeches' stances over every speech made."},
     "speeches": {"type": "int", "default": 0, "description": "Speeches made."}
   },
   "defs": {
     "open_motion": "$pending_motion() != null and $pending_motion().status == 'open'",
-    "speeches": "$filter($records(forum), $it.says == says)"
+    "speeches": "$filter($records(forum), $it.says == says)",
+    "speech_stance": {"args": ["speech"], "expr": "$last($records(speech_judge)).scores.direction * $last($records(speech_judge)).scores.strength if $host_bound('judge') else $speech.author.stance", "description": "Where a speech pulls its listeners: the bound judge's reading of its words, else the speaker's own stance."}
   },
   "triggers": [{"name": "persuasion", "when": "$len($records(forum)) > $world.heard", "do": [
     "$world.heard = $len($records(forum))", "$speech = $last($records(forum))",
     {"if": "$speech.says == says", "then": [
-      "$speech.author.spoke_on = $speech.motion", "$world.said += $speech.author.stance", "$world.speeches += 1",
+      "$speech.author.spoke_on = $speech.motion",
+      {"if": "$host_bound('judge')", "then": {"host": "speech_judge", "action": "judge", "text": "$'Question: ' + $inputs.question + ' Speech: ' + $speech.text", "subject": "$speech.author"}},
+      "$world.said += $speech_stance($speech)", "$world.speeches += 1",
       {"each": "member", "do": ["$it.stance = (1 - $it.openness) * $it.initial_stance + $it.openness * $world.said / $world.speeches"]}
     ]}
   ]}],

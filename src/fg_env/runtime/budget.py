@@ -31,6 +31,7 @@ import time
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from ..contract.base import TAPE
 from ..host.hosts import count_host_tokens
 
 if TYPE_CHECKING:
@@ -117,8 +118,6 @@ class Budget:
         return env.budget.to_dict(env) if env.budget is not None else {}
 
     def used(self, env: Env) -> dict[str, float]:
-        from ..host.tape import TAPE
-
         tape = env.world.props.get(TAPE)
         entries = tape.values() if isinstance(tape, Mapping) else ()
         return {"tokens": tokens_of(env.stats), "calls": env.stats.calls,

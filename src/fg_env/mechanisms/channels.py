@@ -26,12 +26,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import NAME, cache, config_of, eid, entity, ids, named_use, props, require_type
+from ._social import NAME, cache, eid, entity, ids, named_use, props, require_type
 
 __all__ = ["ChannelsConfig", "MAX_MENTIONS"]
 
@@ -92,7 +92,7 @@ class ChannelsConfig(BaseModel):
 
 def _use(call: Call, index: int) -> tuple[str, ChannelsConfig]:
     name = named_use(call, KIND, index)
-    return name, config_of(call.scope.world, name, KIND, ChannelsConfig)
+    return name, mechanism_config(call.scope.world, name, KIND, ChannelsConfig)
 
 
 def _groups(world: Any, name: str) -> dict[str, dict[str, Any]]:
@@ -313,7 +313,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
     def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["social"]
-        config = config_of(world, name, KIND, ChannelsConfig)
+        config = mechanism_config(world, name, KIND, ChannelsConfig)
         raw_author = runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor")
         if raw_author is None:
             raise RunError(f"`{action}` needs a sender: run it in an action ($actor) or give `who`", where)

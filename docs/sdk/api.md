@@ -52,13 +52,14 @@ A contract without errors is also built and played, so problems that only appear
 rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
 everything they are shown, once with agents that choose boundary values (a parameter's least value, zero, its
 greatest), once with every agent idle (a turn that passes without an action, as when a model times out or refuses,
-must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
-those that can take every action it takes). An action called in these plays that never once succeeded is reported
-too. By default each play lasts up to 12 rounds (fewer when the run ends sooner) and all of them share a few
-seconds; ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a ``source`` are
-read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract asks of a host
-during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied inputs are
-validated even with ``rounds=0``, and the plays exercise them.
+must not break the rules), then once per declared policy, played by every agent type (a rule whose action a type
+cannot take is skipped for it). An action called in these plays that never once succeeded is reported too. By
+default each play lasts 12 rounds (fewer when the run ends sooner; more to reach the last round a one-off event is
+scheduled for), the same on every machine: a time guard stops only a contract too slow to play, and is reported
+when it does. ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a
+``source`` are read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract
+asks of a host during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied
+inputs are validated even with ``rounds=0``, and the plays exercise them.
 
 ## `parse`
 
@@ -180,11 +181,13 @@ Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an enviro
 
 ``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
 end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
-(input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
-model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official
-client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and
-server errors are retried with backoff; a provider error that persists or that retrying cannot fix does not raise:
-the loop stops (``result.stop`` says why) and keeps what already works.
+(input, output and cache writes in full, a cache read counting :data:`CACHED_WEIGHT` of one, as a run's token
+budget counts them), model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`; the model is
+told these limits, the revision limit and the test time of a save up front. ``client`` replaces the official client
+made from the environment; ``progress`` is called with one line per model call. Rate limits, overload, server
+errors and empty replies are retried with backoff, never waiting past the ``seconds`` budget; a provider error that
+persists or that retrying cannot fix does not raise: the loop stops (``result.stop`` says why) and keeps what
+already works.
 
 ## `Env`
 
@@ -198,7 +201,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```pyi
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: list[fg_env.contract.world.PopulationSpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: list[fg_env.contract.world.LinkSpec] = <factory>, physics: fg_env.contract.world.PhysicsSpec | None = None, feeds: dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: dict[str, dict[str, typing.Any]] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, triggers: list[fg_env.contract.rules.TriggerSpec] = <factory>, policies: dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: fg_env.contract.measure.CalibrationSpec | None = None, game: fg_env.contract.game.GameSpec | None = None, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
+Contract(*, fg_env: str = '1', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: dict[str, fg_env.contract.assets.AssetSpec] = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: list[fg_env.contract.world.PopulationSpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: list[fg_env.contract.world.LinkSpec] = <factory>, physics: fg_env.contract.world.PhysicsSpec | None = None, feeds: dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: dict[str, dict[str, typing.Any]] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, triggers: list[fg_env.contract.rules.TriggerSpec] = <factory>, policies: dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: fg_env.contract.measure.CalibrationSpec | None = None, game: fg_env.contract.game.GameSpec | None = None, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.
@@ -290,22 +293,6 @@ inside an agent's action, it fails the run wherever it happens.
 
 A snapshot cannot be restored into this contract.
 
-## `list_engines`
-
-```pyi
-list_engines(*, available: 'bool | None' = None) -> 'list[EngineSpec]'
-```
-
-List behavioral engines, optionally filtered by implementation availability.
-
-## `clone_engine`
-
-```pyi
-clone_engine(engine_id: 'str', destination: 'str | Path', *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'Path'
-```
-
-Clone a reusable engine contract into a project-owned JSON file.
-
 ## `fg_env.participants`
 
 Participants: whoever takes the turns. Anything callable with a :class:`~fg_env.Wake` works.
@@ -361,6 +348,7 @@ reference — its caption and alt text — in the text only). See :mod:`fg_env.a
 ``extra`` holds more request fields sent with every call, such as ``{"temperature": 0}``. Pass the sync
 client: an async client fails the run saying so.
 
+Each request is sent with a ``timeout`` of the time left in the turn (at most 10 minutes), so none outlives it.
 Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
 ``retry-after``, never past the turn's time limit: once the turn is over no call is made); if a call still fails,
 the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
@@ -1151,11 +1139,11 @@ pairs, ``focal``, ``baseline`` and ``difference`` (focal − baseline) estimates
 
 ## `fg_env.engines`
 
-Versioned, reusable behavioral engines bundled with :mod:`fg_env`.
+The engine catalog: versioned, runnable starters bundled with :mod:`fg_env`.
 
-This package deliberately contains engines, not finished environments, scenario
-presets, or Arena games.  A builder clones an available engine and supplies the
-roles, population, subject matter, and rules for its custom scenario.
+An engine is a runnable starter for one kind of human interaction (a market, a negotiation, a vote …): a complete
+contract with coded participants that runs as cloned. A builder clones one and makes it their own — its topic, roles,
+people, inputs and rules.
 
 ### `engines.EngineCatalog`
 

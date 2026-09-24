@@ -112,14 +112,12 @@ def test_independent_reviews_keep_their_own_responders_and_share_costs():
     assert env.props["second_stack"]["items"] == []
 
 
-def test_failed_resolution_rolls_back_the_item_and_earlier_effects():
+def test_a_refused_resolution_fails_the_run_and_commits_nothing():
     c = contract()
     c["mechanisms"]["review"]["stack"]["kinds"]["purchase"]["resolve"] += [{"fail": "blocked"}]
     env = fg_env.load(c)
     result = env.run(participant())
-    assert result.status == "completed", result.error
+    assert result.status == "failed" and "on_exit: blocked World logic cannot be refused" in result.error
     assert env.props["spent"] == 0
     assert len(env.props["review_stack"]["items"]) == 1
     assert not resolutions(env)
-    refused = [e for e in env.world.log if e.kind == "refused" and e.data.get("reason") == "blocked"]
-    assert len(refused) == 3  # Each window retries; no partial resolution commits.

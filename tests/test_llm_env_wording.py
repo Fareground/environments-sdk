@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 
 import fg_env
-from fg_env.mechanisms._social import config_of
 from fg_env.mechanisms.card_scoring import poker_hand
 from fg_env.mechanisms.deliberation import KIND, DeliberationConfig, _house
+from fg_env.registry import mechanism_config
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 
@@ -140,7 +140,7 @@ def test_a_refused_tool_name_points_to_the_shared_tool_form_and_to_end_turn_when
 def test_the_house_view_shows_the_ballot_count_only_while_voting_is_open():
     env = fg_env.load(_example("town_hall.json"), seed=1, inputs={"residents": 3})
     world = env.world
-    config = config_of(world, "hall", KIND, DeliberationConfig)
+    config = mechanism_config(world, "hall", KIND, DeliberationConfig)
     world.props["hall"] = {**world.props["hall"], "phase": "voting"}
     world.stage = "hall"
     assert "voting opens in the next stage" in _house(world, "hall", config, None)

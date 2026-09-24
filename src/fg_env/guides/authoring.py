@@ -73,7 +73,7 @@ import fg_env
 assert fg_env.check("lake.json") == []
 print(fg_env.load("lake.json").preview("fisher_1"))
 
-def greedy(wake):  # every fisher asks for 10 every season
+def greedy(wake):  # asks 10 a season; wake.me: own props, wake.update: what an LLM reads
     wake.call("catch", {"amount": 10})
     wake.end()
 
@@ -91,8 +91,8 @@ or effect, or when rounds run out.
   `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
   agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or at `max_calls` calls.
-* An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told
-  why; that costs the action only if it rolled luck or read a hidden value.
+* An action is atomic: a `fail` or a short `transfer` undoes it and tells the agent why (spent only if it drew
+  luck or read a hidden value); in events and hooks it fails the run.
 * An agent also gets `inspect` (one entity's non-`private` props) when a type sets `"inspect": true` or an
   expression over `$viewer` and `$it`; own state belongs in a view.
 
@@ -167,7 +167,7 @@ READ_NEXT = '''
 ## Read next, only when you need it
 
 `fg_env.guide('<part>')` or `fg-env guide <part>`: a section's fields and roots (`actions`, `stages`, `views`,
-`events`, `inputs` …), `effects`, `expressions`, `functions.collections`, `functions.random`, `mechanisms` (markets,
+`events`, `inputs` …), `effects`, `expressions`, `functions`, `mechanisms` (markets,
 auctions, ballots, hidden roles, queues, inventories), `patterns` (demand, trends and seasons over time), `inspect`
 (reading a run). `guide()` maps every part.
 '''

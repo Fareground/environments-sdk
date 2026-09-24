@@ -78,7 +78,7 @@
     {"name": "trial", "when": "$round >= 2", "actions": ["argue"],
      "on_enter": [{"if": "not $world.trial_open", "then": [
        "$world.trial_open = true",
-       {"each": "exhibit", "where": "$it.offered", "do": [{"post": "evidence", "text": "{$it.name}: {$it.title}", "file": "$it.file"}]}
+       {"each": "exhibit", "where": "$it.offered", "do": ["$revealed = $it.file", {"post": "evidence", "text": "{$it.name}: {$it.title}", "file": "$revealed"}]}
      ]}]},
     {"name": "verdict", "when": "$round == 3", "actions": ["rule"]}
   ],

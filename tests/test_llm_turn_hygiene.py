@@ -275,7 +275,7 @@ def test_a_model_that_stops_calling_tools_fails_its_turns_and_degrades_the_run()
     result = fg_env.run(FIVE_DUELS, {"ann": participants.openai(client, "m"), "ben": "random"}, seed=1)
     ann = result.agent_stats["ann"]
     assert ann["actions"] == 1 and ann["no_tool_replies"] == 4 and ann["failed_turns"] == 4
-    assert "agents_mostly_failed" in [d["code"] for d in result.diagnostics] and not result.ok
+    assert "agents_often_failed" in [d["code"] for d in result.diagnostics] and not result.ok
 
 
 def test_a_turn_with_no_action_to_take_ends_without_asking_the_model():

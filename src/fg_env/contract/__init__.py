@@ -14,8 +14,7 @@ from typing import Any
 
 from pydantic import Field, PrivateAttr, model_validator
 
-from ..assets.spec import AssetSpec
-from ..host.tape import TAPE, tape_prop
+from .assets import AssetSpec
 from .base import (
     CONTRACT_VERSION,
     INPUT_TYPES,
@@ -31,8 +30,10 @@ from .base import (
     OUTPUT_TYPES,
     PARAM_TYPES,
     PROP_TYPES,
+    TAPE,
     _Model,
     one_or_many,
+    tape_prop,
 )
 from .game import UTILITIES, GameSpec
 from .measure import (
@@ -240,6 +241,13 @@ class Contract(_Model):
 
     def is_a(self, type_name: str, ancestor: str) -> bool:
         return ancestor in self.lineage(type_name)
+
+    def can_take(self, type_name: str, action: str) -> bool:
+        """Whether an agent of ``type_name`` may take ``action`` (its `by`), whatever the state."""
+        spec = self.actions.get(action)
+        if spec is None:
+            return False
+        return any(self.is_a(type_name, allowed) for allowed in ([spec.by] if isinstance(spec.by, str) else spec.by))
 
     def subtypes(self, type_name: str) -> list[str]:
         """``type_name`` and every type that extends it (directly or not)."""

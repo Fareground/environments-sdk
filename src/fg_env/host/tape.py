@@ -18,25 +18,20 @@ import threading
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from ..contract.base import TAPE
 from ..errors import FatalRunError, RunError
 from ..expr import Untrusted
 from .hosts import counting, hosts_for
 from .protocols import HostError
 
-__all__ = ["TAPE", "MAX_RESPONSE_CHARS", "tape_prop", "plain", "request_key", "consult", "discard", "tape_of"]
+__all__ = ["MAX_RESPONSE_CHARS", "plain", "request_key", "consult", "discard", "tape_of"]
 
-TAPE = "host_tape"
 #: Largest host answer accepted, as JSON characters.
 MAX_RESPONSE_CHARS = 200_000
 #: Deepest nesting accepted in a host answer.
 _MAX_DEPTH = 32
 
 _LOCK = threading.RLock()
-
-
-def tape_prop() -> dict[str, Any]:
-    """The world property every host mechanism declares."""
-    return {"type": "map", "default": {}, "description": "Host answers recorded for replay (managed by the engine)."}
 
 
 def plain(value: Any) -> Any:

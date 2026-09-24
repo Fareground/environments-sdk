@@ -30,7 +30,7 @@
     "jump_prob_bar": {"type": "number", "default": 0.02, "min": 0, "max": 1},
     "jump_sigma": {"type": "number", "default": 0.015, "min": 0},
     "flow_scale": {"type": "number", "default": 1, "min": 0.25, "max": 6, "description": "Pilot share of speculative flow (fit with fg_env.analysis.calibrate)."},
-    "volatility_gain": {"type": "number", "default": 0.05, "min": 0, "max": 0.2, "description": "Largest step per bar (as a log change) the volatility controller takes toward the target."},
+    "volatility_gain": {"type": "number", "default": 0.1, "min": 0, "max": 0.2, "description": "Largest step per bar (as a log change) the volatility controller takes toward the target."},
     "events": {"type": "list", "description": "Scheduled news: [{bar, headline, shock_pct, sentiment, duration_bars}]. The default is a scripted guidance cut at bar 30 that knocks 8% off the fundamental, so a default session ends lower; pass [] for a session without news.",
                "default": [{"bar": 30, "headline": "DEMO cuts full-year guidance; analysts rush to revise their valuations.", "shock_pct": -8, "sentiment": -0.7, "duration_bars": 5}]},
     "seats": {"type": "int", "default": 4, "min": 0, "max": 100, "description": "Trader seats for participants (a model, a person or the coded stand-in); 0 runs the coded crowd alone."},
@@ -38,7 +38,8 @@
     "decision_every_bars": {"type": "int", "default": 1, "min": 1, "max": 50}
   },
   "world": {
-    "value_gap": {"type": "number", "default": 0, "private": true, "description": "How far the mid is from the fundamental this pass, as a fraction."}
+    "value_gap": {"type": "number", "default": 0, "private": true, "description": "How far the mid is from the fundamental this pass, as a fraction."},
+    "heat": {"type": "number", "default": 1, "description": "The book's heat this pass: recent volatility against normal (the crowd acts that much more often)."}
   },
   "types": {
     "trader": {"agent": true, "description": "An account on the exchange.",
@@ -93,8 +94,8 @@
     "bar": {"expr": "($round - 1) // $inputs.substeps + 1", "description": "The bar the current pass belongs to."},
     "bar_starts": {"expr": "($round - 1) % $inputs.substeps == 0"},
     "bar_ends": {"expr": "$round % $inputs.substeps == 0"},
-    "acting_chance": {"args": ["trader"], "expr": "($trader.activity if ($round - 1) % $inputs.substeps >= 0.75 * $inputs.substeps else 0) if $trader.demo_strategy == passive else $min(1, $trader.activity * (1 + 0.5 * $world.value_gap / $world.target_sigma)) if $trader.demo_strategy == fundamentalist else $trader.activity",
-                      "description": "Passive flow works its side only in the last quarter of the bar; fundamentalists act more often the further price is from value."},
+    "acting_chance": {"args": ["trader"], "expr": "$trader.activity if $trader.demo_strategy == market_maker else $min(1, $world.heat * (($trader.activity if ($round - 1) % $inputs.substeps >= 0.75 * $inputs.substeps else 0) if $trader.demo_strategy == passive else $trader.activity * (1 + 0.5 * $world.value_gap / $world.target_sigma) if $trader.demo_strategy == fundamentalist else $trader.activity))",
+                      "description": "Market makers quote at their own pace; everyone else acts more often when the market runs hot (heat), passive flow works its side only in the last quarter of the bar, and fundamentalists act more often the further price is from value."},
     "bar_closes": {"expr": "$map($records(demo_bars), $it.close)"},
     "bar_volumes": {"expr": "$map($records(demo_bars), $it.volume)"}
   },
@@ -105,9 +106,11 @@
             "$half = $round(0.6 * $tick_sigma) + 1",
             "$step = $max(1, $round(0.4 * $tick_sigma))",
             "$size = $max(1, $round($world.base_qty * $uniform(0.2, 0.5) * (1 + 0.1 * $level)))",
-            {"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$round(($world.start_price - ($half + $level * $step) * $tick) / $tick) * $tick"},
-            {"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$round(($world.start_price + ($half + $level * $step) * $tick) / $tick) * $tick"}]},
-    {"name": "value_gap", "phase": "start", "do": "$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)"},
+            "$bid = $round(($world.start_price - ($half + $level * $step) * $tick) / $tick) * $tick",
+            "$ask = $round(($world.start_price + ($half + $level * $step) * $tick) / $tick) * $tick",
+            {"if": "$bid >= $book(demo).band_low", "then": [{"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$bid"}]},
+            {"if": "$ask <= $book(demo).band_high", "then": [{"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$ask"}]}]},
+    {"name": "value_gap", "phase": "start", "do": ["$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)", "$world.heat = $book(demo).heat"]},
     {"name": "pass_closes_before_the_controllers_read_the_bar", "phase": "end", "do": {"market": "demo", "action": "close"}}
   ],
   "metrics": {

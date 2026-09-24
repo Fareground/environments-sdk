@@ -20,11 +20,12 @@ from typing import Any
 from ..effects.chance import ChanceNode, sample
 from ..errors import RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..participants import Participant
 from ..runtime.driving import Driver
 from ..runtime.env import Env
 from ..runtime.session import ToolResult, Wake
-from ..world.entity import Entity
+from ..runtime.turn_tools import HostWake
 from .replay import Playback
 
 __all__ = ["PilotedEnv", "Pilot", "Pause"]
@@ -58,8 +59,6 @@ class PilotedEnv(Env):
         tools = self.driver.turn_tool_specs()
         if not tools:
             return wake
-        from ..host.turn_tools import HostWake
-
         return HostWake(wake._turn, tools)
 
 

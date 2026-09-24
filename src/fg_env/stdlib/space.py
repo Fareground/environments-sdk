@@ -1,4 +1,4 @@
-"""Space functions: who is where, who is near, which cells are free, and layer values.
+"""Space functions: who is where, who is near, which cells are free, how far round obstacles, and layer values.
 
 Every query reads the space's position index (a few cells or areas, never every entity) and lists
 entities in creation order — ``$nearest`` tries candidates nearest first.
@@ -8,7 +8,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..expr import Call, ExprError, _describe, check_size, function, truthy
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.geometry import SpaceError
 
 __all__: list = []
@@ -85,6 +85,34 @@ def _nearest(call: Call) -> Any:
     found = _space(call).positions.nearest(center, _kinds(call, 1), exclude, qualifies)
     check_size([None] * tried[0], call.source)  # charge the candidates tried
     return found
+
+
+@function("path_distance(from, to, open?)", "Grid steps from one position or entity to another along a path that "
+          "only crosses cells for which `open` holds ($it is the cell; the start and the goal are always open), e.g. "
+          "`not $layer(wall, $it)`; null when no such path exists. Without `open`, every cell is open.",
+          min_args=2, max_args=3, lazy=[2])
+def _path_distance(call: Call) -> int | None:
+    geometry = _space(call).geometry
+    if geometry.kind != "grid":
+        raise ExprError(f"${call.name} needs a grid (on a graph, $distance is already the shortest path)", call.source)
+    start, goal = geometry.cell(_center(call, 0)[0]), geometry.cell(_center(call, 1)[0])
+    steps, frontier, tested = {start: 0}, [start], 0
+    while frontier and goal not in steps:
+        reached = []
+        for cell in frontier:
+            for other in geometry.neighbor_cells(cell):
+                if other in steps:
+                    continue
+                if other != goal and len(call) > 2:
+                    tested += 1
+                    if not truthy(call.each(2, geometry.position(other), tested - 1)):
+                        steps[other] = -1  # closed: never tried again
+                        continue
+                steps[other] = steps[cell] + 1
+                reached.append(other)
+        frontier = reached
+    check_size([None] * len(steps), call.source)  # charge the cells explored
+    return steps.get(goal)
 
 
 @function("cells(center?, radius?)", "Every cell of a grid (or place of a graph) with no arguments; with a position "

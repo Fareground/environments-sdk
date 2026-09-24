@@ -117,7 +117,9 @@ class ActionSpec(_Model):
                                                          "failure.")
     do: Effects = Field(default_factory=list, description="Effects applied atomically.")
     otherwise: Effects = Field(default_factory=list, description="Effects when the chance roll fails.")
-    outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params).")
+    outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params); with "
+                                                  "`chance`, when the roll succeeds (a failed roll is told that the "
+                                                  "action did not succeed).")
     announce: str | None = Field(None, description="What everyone else is told (template).")
     private: bool = Field(False, description="Nobody else learns this action happened.")
     terminal: bool | str = Field(False,
@@ -170,7 +172,7 @@ class StageSpec(_Model):
                                           "it, so it may read no agent's private property. Default: seat; a "
                                           "simultaneous stage's choices then commit in a random order drawn anew each "
                                           "time, so no seat always wins a contested item.")
-    who: str | None = Field(None, description="Which agents are woken ($it); e.g. $it.alive && $chance(0.3).")
+    who: str | None = Field(None, description="Which agents are woken ($it); e.g. $it.alive and $chance(0.3).")
     until: str | None = Field(None, description="Repeat turns within the round until true.")
     passes: int | str | None = Field(None,
                                      description="Max passes through the agents (default 1, or 10 with until): a "

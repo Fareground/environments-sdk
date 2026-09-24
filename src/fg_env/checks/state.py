@@ -7,9 +7,9 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING, Any, TypeGuard
 
 from ..contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
+from ..contract.base import TAPE
 from ..contract.inputs import check_value
 from ..expr import EXPRESSION_WORDS, is_expr
-from ..host.tape import TAPE
 from ..physics.entities import MATH_NAMES
 from ..runtime.feeds import feed_target
 from ..world.links import LINK_ATTRS
@@ -110,6 +110,11 @@ def check_relation_fields(checker: _Checker, base: frozenset[str]) -> None:
                               "true, false, null)")
             checker._prop_spec(prop, path, base - {"metrics", "series"} | {"from", "to"},
                                {"from": every_type, "to": every_type})
+            if prop.private:
+                checker.error(f"{path}.private", "a link field cannot be private: a link has no owner to show it to, "
+                                                 "so nothing would hide it",
+                              "keep the hidden value in a private property of the entity it belongs to, or drop "
+                              "`private`")
     for index, entry in enumerate(checker.c.links):
         roots = base | {"from", "to"} | ({"row"} if entry.rows is not None else set())
         check_link_fields(checker, entry.relation, entry.props, f"links[{index}].props", roots)

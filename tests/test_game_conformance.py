@@ -46,18 +46,19 @@ def test_a_matrix_game_scores_a_missed_move_by_its_stated_rule(stem, tool, move,
     assert fg_env.load(GAMES / f"{stem}.json", seed=1).run("idle").status == "completed"
 
 
-def test_a_view_that_shows_a_hidden_card_is_reported_with_both_playouts():
-    # A private property of an entity that is not an agent is hidden from inspect; the views decide who sees it.
-    leaky = load_game("kuhn_poker")
-    leaky["types"]["envelope"] = {"props": {"card": {"type": "int", "default": 0, "private": True}}}
-    leaky["entities"]["envelope"] = {"type": "envelope"}
-    leaky["events"][0]["do"][1]["do"].append("$entity('envelope').card = $second")
-    leaky["views"]["table"]["show"] = "Your card: {$actor.card}. P1's: {$entity('envelope').card}."
-    report = fg_env.rl.conformance(leaky, sims=2, resume=False)
-    leaks = [issue for issue in report.issues if issue.check == "leak"]
-    assert leaks and "can tell apart" in leaks[0].message and leaks[0].other_steps is not None
-    state = leaks[0].reproduce(game(leaky))
-    assert not state.is_terminal()
+def test_a_hidden_card_only_its_owner_reads_is_no_leak_and_one_shown_to_all_is_refused():
+    # A private property of an entity that is not an agent is hidden from every agent, unless a `where` names its owner.
+    sealed = load_game("kuhn_poker")
+    sealed["types"]["envelope"] = {"props": {"card": {"type": "int", "default": 0, "private": True},
+                                             "holder": {"type": "text", "default": "p1"}}}
+    sealed["entities"]["envelope"] = {"type": "envelope"}
+    sealed["events"][0]["do"][1]["do"].append("$entity('envelope').card = $first")  # P0's card, which P1 holds
+    sealed["views"]["envelope"] = {"of": "envelope", "where": "$it.holder == $actor.id", "show": "P0 has: {card}."}
+    report = fg_env.rl.conformance(sealed, sims=4, resume=False, leak_branches=4)
+    assert report.ok, report.summary()  # P1 owns what the envelope holds: telling its states apart is no leak
+    sealed["views"]["envelope"] = {"of": "envelope", "show": "P0 has: {card}."}
+    assert any(issue.path == "views.envelope.show" and "private card" in issue.message
+               for issue in fg_env.check(sealed) if issue.severity == "error")
 
 
 def test_a_view_that_reads_the_other_players_private_hand_is_refused_by_the_engine():

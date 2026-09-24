@@ -22,11 +22,11 @@ from ..copying.snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import ExprError
+from ..expr.objects import Entity
 from ..host.hosts import count_host_tokens
 from ..host.tape import tape_of
 from ..sampling.seeds import SeedTree
 from ..world.build import build_world
-from ..world.entity import Entity
 from ..world.live import _plain
 from .budget import Budget, is_seconds
 from .checks import RunChecks
@@ -78,6 +78,7 @@ class Env(RunChecks, RunRounds, RunStages):
         self.world = build_world(contract, inputs, self.seeds, arm, assets)
         self.world.enable_def_cache()
         self.effects = EffectRunner(self.world)
+        self.world.joined = self._joined
         self.actions = ActionBook(contract, self.world, self.effects)
         self.perception = Perception(contract, self.world)
         self.stats = Stats()
@@ -389,6 +390,12 @@ class Env(RunChecks, RunRounds, RunStages):
         return inspect_rule(self.contract, type_name)
 
     # -- helpers --------------------------------------------------------------------------------
+
+    def _joined(self, entity: Entity) -> None:
+        """An entity created during the run: an agent's news starts from its arrival."""
+        if self.contract.is_agent(entity.entity_type):
+            memory = self._memories[entity.id] = Memory()
+            memory.cursor = self.world.log[-1].seq if self.world.log else 0
 
     def _memory(self, entity_id: str) -> Memory:
         memory = self._memories.get(entity_id)

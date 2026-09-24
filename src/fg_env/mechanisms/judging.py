@@ -19,15 +19,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..assets.delivery import Attachment, attached_ids, entry_assets
 from ..assets.multimodal import host_attachments
+from ..contract.base import tape_prop
 from ..errors import RunError
-from ..expr import Untrusted
+from ..expr import Call, ExprError, Untrusted, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host import allowlist
-from ..host.common import NAME, clip, config_of, prop_of, type_list
+from ..host.common import MODEL_HINT, NAME, clip, prop_of, type_list
+from ..host.hosts import hosts_for
 from ..host.protocols import HostError
-from ..host.tape import consult, plain, tape_prop
-from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
+from ..host.tape import TAPE, consult, plain
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort, _plain
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
@@ -40,6 +42,22 @@ GAME_MASTER = "host.game_master"
 # ---------------------------------------------------------------------------
 # judge
 # ---------------------------------------------------------------------------
+
+
+@function("host_bound(name)", "Whether the host `name` answers this run: bound live, or its answers are on the run's "
+          "tape (a replay, or a restored run). Branch on it to use a host's judgment only when there is one, e.g. a "
+          "judge's reading of a speech, and a coded stand-in otherwise.", min_args=1, max_args=1)
+def _host_bound_function(call: Call) -> bool:
+    world: Any = call.scope.world
+    name = call.arg(0)
+    if not isinstance(name, str):
+        raise ExprError(f"$host_bound: name must be a host's name, got {format_value(name)}", call.source)
+    hosts = hosts_for(world)
+    if hosts is not None and hosts.adapter(name) is not None:
+        return True
+    tape = world.props.get(TAPE)
+    recorded = [*(tape.values() if isinstance(tape, Mapping) else ()), *(hosts.replay.values() if hosts else ())]
+    return any(isinstance(e, Mapping) and e.get("service") == name and not e.get("fallback") for e in recorded)
 
 
 class Criterion(BaseModel):
@@ -65,7 +83,7 @@ class Seat(BaseModel):
 
     name: str = Field(..., description="The judge's name (it is asked as this judge).")
     host: str | None = Field(None, description="Host answering for this judge (default: the mechanism's host).")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
 
 
 class JudgeConfig(BaseModel):
@@ -76,7 +94,7 @@ class JudgeConfig(BaseModel):
     criteria: dict[str, Criterion] = Field(..., min_length=1, description="{criterion: {description, weight, scale}}.")
     instructions: str = Field("", description="What the judge is judging and how (plain text).")
     host: str = Field("judge", description="Host evaluator name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     panel: list[Seat] = Field(default_factory=list, description="Several judges; scores are aggregated per criterion.")
     aggregate: Literal["mean", "median", "trimmed_mean"] = Field("mean", description="How a panel's scores combine "
                                                                                      "(trimmed_mean drops the highest "
@@ -164,7 +182,7 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
 def _judge_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, JUDGE, JudgeConfig, where)
+    config = mechanism_config(world, name, JUDGE, JudgeConfig, where)
     if "text" in effect and "entry" in effect:
         raise RunError("give `text` or `entry`, not both", where)
     if "text" in effect or "entry" in effect:
@@ -410,7 +428,7 @@ class GameMasterConfig(BaseModel):
     who: str | list[str] = Field(..., description="Agent type(s) that may attempt things.")
     allow: list[AllowRule] = Field(..., min_length=1, description="Every change the game master may make.")
     host: str = Field("game_master", description="Host game master name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     tool: str = Field("attempt", description="Name of the free-text tool.")
     description: str = Field("", description="Tool description (default explains the tool).")
     max_chars: int = Field(500, ge=1, le=4000, description="Longest attempt text, in characters.")
@@ -483,7 +501,7 @@ def _absent() -> dict[str, Any]:
 def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, GAME_MASTER, GameMasterConfig, where)
+    config = mechanism_config(world, name, GAME_MASTER, GameMasterConfig, where)
     actor = vars.get("actor")
     if not isinstance(actor, Entity):
         raise RunError("`resolve` runs inside an action (it needs $actor)", where)
@@ -524,7 +542,3 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
                       "reason": refusal}, actor.id, None, where)
     world.set_prop(actor, f"{name}_told", told)
 
-
-# Host building blocks that are not judgments register alongside: host tools and personas.
-from ..host import personas as _personas  # noqa: E402,F401
-from ..host import tools as _tools  # noqa: E402,F401

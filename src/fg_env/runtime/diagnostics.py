@@ -7,9 +7,9 @@ reads, a coded policy rule whose call is refused every time it is tried, a host'
 fallback stand-ins because no host was bound. These are read from what the run counted (:mod:`fg_env.runtime.diagnosis`)
 and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is
 reported only on evidence that random play cannot explain away, so a clean contract raises none. Turns an LLM
-participant forfeited to a failing model provider, agents that never acted or most of whose turns failed, and a run its
-budget cut short are reported too: such a run does not show how its agents play (any failed turns of a model
-participant, or turns out of time, are reported with their rate).
+participant forfeited to a failing model provider, agents that never acted or too many of whose turns failed (for a
+model participant, a small share), and a run its budget cut short are reported too: such a run does not show how its
+agents play (any failed turns of a model participant, or turns out of time, are reported with their rate).
 """
 from __future__ import annotations
 
@@ -19,13 +19,17 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..contract.base import TAPE
+
 if TYPE_CHECKING:
     from .env import Env
 
-__all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", "ALWAYS_FAULTED", "FAILED_SHARE"]
+__all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", "ALWAYS_FAULTED", "FAILED_SHARE",
+           "MODEL_FAILED_SHARE"]
 
 #: In a run with model participants (which report their usage), an action called this often and mostly refused is
-#: reported; random and coded agents choose blindly, so their refusals say nothing about the tools.
+#: reported; random agents choose blindly, so their refusals say nothing about the tools. An action a model or a coded
+#: policy chose this often, and never got through, never ran at all.
 MIN_CALLS = 4
 REFUSED_SHARE = 0.5
 #: Rounds of evidence needed before a metric that never changes, or an agent type that never can act, is reported.
@@ -33,14 +37,18 @@ MIN_ROUNDS = 2
 #: An action that failed this often as it applied, and never once took effect, is broken for every choice, not just
 #: some.
 ALWAYS_FAULTED = 2
-#: Findings that mean the run does not show what the environment is for: an action that can never happen, agents that
-#: never acted or whose turns mostly failed, agents that never had an action to take, turns lost to a failing provider,
-#: an output that raised an error, a run its budget cut short, host answers that were the contract's stand-ins.
-#: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
-DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "agents_mostly_failed",
+#: Findings that mean the run does not show what the environment is for: an action that can never happen, or that
+#: never did (every call refused, so nothing it feeds ran), agents that never acted or too many of whose turns failed,
+#: agents that never had an action to take, turns lost to a failing provider, an output that raised an error, a run
+#: its budget cut short, host answers that were the contract's stand-ins. ``RunResult.degraded`` lists them, and such
+#: a run is not ``ok``.
+DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
                        "agents_never_able_to_act", "turns_forfeited", "output_failed", "budget_cut", "host_fallback"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
+#: The same for a model participant, held to a much lower share: every failed turn of a model is a move it never made
+#: (a coded or random agent's misses may be blind choices, so it is held to :data:`FAILED_SHARE`).
+MODEL_FAILED_SHARE = 0.1
 #: Agents named in one finding; the rest are counted.
 _LISTED = 5
 
@@ -104,12 +112,12 @@ def _out_of_steps(env: Env) -> list[dict[str, str]]:
 
 
 def _never_acted(env: Env) -> list[dict[str, str]]:
-    """Agents that tried — called a model, or tools that were invalid or refused — and none of it ever became an
-    action, and model-driven agents (or ones whose turns ran out of time) most or some of whose turns failed that way.
-    A coded agent's misses are its author's code
-    and may be blind (random play): it is reported only when no agent acted at all. (Refusals from a rule that failed
-    are the contract's: `action_always_faulted` reports those; an agent type that never had an action,
-    `agents_never_able_to_act`.)"""
+    """Agents whose attempts all went wrong — tools that were invalid or refused, model replies refused, cut off, with
+    no tool call or out of steps — so none ever became an action, and model-driven agents (or ones whose turns ran out
+    of time) too many or some of whose turns failed that way. A model that passes (`end_turn`) where passing is allowed
+    made a move: it is not reported. A coded agent's misses are its author's code and may be blind (random play): it
+    is reported only when no agent acted at all. (Refusals from a rule that failed are the contract's:
+    `action_always_faulted` reports those; an agent type that never had an action, `agents_never_able_to_act`.)"""
     if not env.finished:
         return []
     never_able = {kind for kind, entry in sorted(env.diagnosis.agents.items()) if not entry["able"]}
@@ -120,11 +128,13 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
         if not stats.wakes or (entity is not None and entity.entity_type in never_able):
             continue
         refused = stats.rejected_actions - stats.faulted_actions
-        tried = stats.llm_calls or stats.invalid_calls or refused or stats.refusals
+        went_wrong = (stats.invalid_calls or refused or stats.refusals or stats.truncated or stats.out_of_steps
+                      or stats.no_tool_replies)
         watched = stats.llm_calls or stats.timeouts  # a model's misses, and turns out of time, are never blind choices
-        if not stats.actions and tried and (stats.llm_calls or nobody_acted):
+        share = MODEL_FAILED_SHARE if stats.llm_calls else FAILED_SHARE
+        if not stats.actions and went_wrong and (stats.llm_calls or nobody_acted):
             never.append((agent, stats))
-        elif watched and stats.failed_turns > FAILED_SHARE * stats.wakes:
+        elif watched and stats.failed_turns > share * stats.wakes:
             failing.append((agent, stats))
         elif watched and stats.failed_turns:
             some.append((agent, stats))
@@ -138,11 +148,11 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
                             "always refused needs clearer tools and brief"))
     if failing:
         listed = ", ".join(f"{agent} {s.failed_turns} of {s.wakes}" for agent, s in failing[:_LISTED])
-        out.append(_finding("agents_mostly_failed", "participants",
-                            f"most turns of {_named(failing)} ended with no action though one was available, after "
-                            "invalid or refused calls, a model refusal, a reply cut off or with no tool call, or the "
-                            f"model calls used up ({listed}); {_attempts(failing)}; this run does not show how they "
-                            "play",
+        out.append(_finding("agents_often_failed", "participants",
+                            f"too many turns of {_named(failing)} failed: they ended with no action though one was "
+                            "available, after invalid or refused calls, a model refusal, a reply cut off or with no "
+                            f"tool call, or the model calls used up, or a model reply was refused or cut off ({listed}"
+                            f"); {_attempts(failing)}; this run does not show how they play",
                             "read what those agents were shown and did (load with exposures=True, then "
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
                             "calls used up, more `max_steps` or clearer tools; for replies with no tool call, a brief "
@@ -150,8 +160,7 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
     if some:
         failed, wakes = sum(s.failed_turns for _, s in some), sum(s.wakes for _, s in some)
         out.append(_finding("some_turns_failed", "participants",
-                            f"{failed} of {wakes} turns ({failed / wakes:.0%}) of {_named(some)} ended with no action "
-                            f"though one was available "
+                            f"{failed} of {wakes} turns ({failed / wakes:.0%}) of {_named(some)} failed "
                             f"({', '.join(f'{agent} {s.failed_turns} of {s.wakes}' for agent, s in some[:_LISTED])}): "
                             f"{_attempts(some)}{_timeouts(some)}",
                             "read those turns (load with exposures=True, then result.exposures); turns out of time "
@@ -196,8 +205,6 @@ def _arm_inputs(env: Env) -> list[dict[str, str]]:
 
 
 def _host_fallbacks(env: Env) -> list[dict[str, str]]:
-    from ..host.tape import TAPE
-
     tape = env.world.props.get(TAPE)
     counts: dict[tuple[str, str], int] = {}
     for entry in tape.values() if isinstance(tape, dict) else ():
@@ -250,6 +257,15 @@ def _actions(env: Env) -> list[dict[str, str]]:
                                 "made, not just some",
                                 "fix the rule the action_rule_failed or action_broke_invariant finding names; until "
                                 "then no agent can take this action"))
+        if entry["chosen"] >= MIN_CALLS and entry["chosen_refused"] == entry["chosen"] and not entry["applied"] \
+                and not entry["faulted"] and not entry["unusable"]:
+            out.append(_finding("action_never_succeeded", f"actions.{name}",
+                                f"never happened: all {entry['chosen']} call(s) a model or coded policy made were "
+                                "refused, so what it does (and any mechanism it feeds) never ran in this run; most "
+                                f"often: {_most_common(entry['reasons'])}",
+                                "make the tool offer only choices that can work: bound or list its parameters (min, "
+                                "max, values, where), put a requirement that depends on the state in `when` with a "
+                                "`why`, and give a coded policy's `with` arguments the tool accepts"))
         if entry["unusable"]:
             out.append(_finding("action_offered_but_unusable", f"actions.{name}",
                                 f"was offered {entry['unusable']} time(s) when none of its choices could succeed; "
@@ -312,12 +328,14 @@ def _stages(env: Env, rules: _Rules) -> list[dict[str, str]]:
     out = []
     for stage in env.contract.stage_list():
         reached, ran, woke, capped = env.diagnosis.stages.get(stage.name, [0, 0, 0, 0])
-        if capped and capped == ran and stage.until:
-            out.append(_finding("stage_until_never_held", f"stages.{stage.name}.until",
-                                f"never held: all {ran} time(s) the stage ran, it played every pass it allows and "
-                                f"stopped there with `{stage.until}` still false",
-                                "make an action or event set what `until` reads, or set `passes` to the number of "
-                                "passes the stage should always play"))
+        if capped and stage.until:
+            times = f"all {ran} time(s)" if capped == ran else f"{capped} of the {ran} time(s)"
+            out.append(_finding("stage_until_capped", f"stages.{stage.name}.until",
+                                f"did not hold in {times} the stage ran: it played every pass it allows and stopped "
+                                f"there with `{stage.until}` still false, so what `until` waits for (an agreement, a "
+                                "settled state) had not happened",
+                                "make an action or event set what `until` reads, allow more `passes`, or set `passes` "
+                                "to the number of passes the stage should always play"))
         if reached and not ran and stage.when:
             cause = rules.frozen(stage.when)
             if cause:

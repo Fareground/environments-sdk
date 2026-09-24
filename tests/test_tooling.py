@@ -227,8 +227,8 @@ def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeyp
     assert len(page) < 11_000  # One page an authoring agent starts from.
     contract_text = page.split('```json\n')[1].split('```')[0]
     scripts = [block.split('```')[0] for block in page.split('```python\n')[1:]]
-    money_page = (Path(__file__).resolve().parents[1] / 'docs/sdk/authoring.md').read_text()
-    money_section = money_page.split('## Exact monetary budgets\n')[1].split('\n## ')[0]
+    money_page = (Path(__file__).resolve().parents[1] / 'docs/sdk/business-modeling.md').read_text()
+    money_section = money_page.split('## Money and settlement\n')[1].split('\n## ')[0]
     scripts += [block.split('```')[0] for block in money_section.split('```python\n')[1:]]
     (tmp_path / 'lake.json').write_text(contract_text)
     monkeypatch.chdir(tmp_path)
@@ -303,12 +303,18 @@ def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_command
     assert "fg-env replay" not in shown and "fg-env trace FILE replay" in " ".join(shown.split())
 
 
-def test_the_command_list_names_each_command_once_and_no_two_alike(capsys):
+def test_the_command_list_names_each_command_once_by_workflow_and_no_two_alike(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])
-    listed = [line.split()[0] for line in capsys.readouterr().out.splitlines() if line.startswith("    ")
-              and line.split()]
-    assert "check" in listed and "playtest" in listed and "optimise" in listed and "describe" in listed
+    shown = capsys.readouterr().out
+    listed = [line.split()[0] for line in shown.splitlines() if line.startswith("  ") and line[2] != " "
+              and not line.lstrip().startswith("-")]
+    assert len(listed) == len(set(listed)) and {"check", "playtest", "optimise", "describe", "engines"} <= set(listed)
+    assert shown.index("start:") < shown.index("  guide ") < shown.index("run:") < shown.index("analyse:")
+    with pytest.raises(SystemExit):
+        main(["bogus"])
+    offered = capsys.readouterr().err.split("choose from ")[1].rstrip(")\n").split(", ")
+    assert set(offered) - {"optimize"} == set(listed)  # every command is listed; `optimize` is accepted, not listed
     # `checks` next to `check`, both spellings of optimise and `info` beside `describe` confused first-time users.
     assert not {"checks", "optimize", "info"} & set(listed)
     with pytest.raises(SystemExit):

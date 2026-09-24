@@ -23,8 +23,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..world.entity import Entity
 from .statements import RESERVED_ROOTS
 
 if TYPE_CHECKING:

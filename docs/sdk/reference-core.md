@@ -83,8 +83,9 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 
 ## Engines
 
-Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
-`fg-env new --engine <id> my_env.json` (`fg_env.clone_engine`); `fg-env engines` lists them.
+Runnable starters, one per kind of human interaction: each a complete contract with coded participants that runs as
+cloned, to copy and make your own (topic, roles, people, inputs, rules) rather than start blank:
+`fg-env new --engine <id> my_env.json` (`fg_env.engines.clone`); `fg-env engines` lists them.
 
 - `retail` — households choose whether and where to buy while sellers set prices
 - `council` — a panel forecasts a yes/no question, deliberates and forecasts again (Brier-scored)
@@ -98,6 +99,12 @@ Complete, runnable scenarios with coded participants, to copy and edit rather th
 - `network` — an idea spreads over trust ties from its first adopters
 - `matching` — applicants and selectors rank each other; a stable match within capacity
 - `strategy` — repeated cooperate-or-compete choices among players under a payoff matrix
+- `supply_chain` — tiers of a supply chain order upstream and ship downstream with delays (the beer game)
+- `auction` — collectors with private values bid for identical lots under each auction format
+- `contact_centre` — a call-by-call day at a contact centre: arrivals, handling, abandonment and staffing
+- `ride_hailing` — drivers serve ride requests on a city grid while the platform can price zones by surge
+- `epidemic` — an outbreak on a contact network, with lockdowns, vaccination and hospital capacity
+- `hidden_roles` — social deduction: hidden werewolves kill at night while the village talks and votes by day
 
 ## Every other part
 

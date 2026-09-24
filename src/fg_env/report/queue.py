@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..analysis.decompose import decompose
 from ..runtime.clock_words import plural, span_label, unit_word
 from ..runtime.measure import RunResult, _usable_output
 from .evidence import Option, summary
@@ -174,8 +175,6 @@ class QueueView:
         index = self.busiest(option)
         if contract is None or index is None or self.clock.get("mode", "rounds") != "rounds":
             return None
-        from ..patterns.decompose import decompose
-
         channels = self.config.get("channels") or {}
         names = [n for c in channels.values() if isinstance(c, Mapping)
                  for n in _PATTERN.findall(str(c.get("arrivals", "")))]
@@ -201,7 +200,6 @@ class QueueView:
         run = option.runs[0] if option.runs else None
         if contract is None or run is None or self.clock.get("mode", "rounds") != "rounds":
             return None
-        from ..patterns.decompose import decompose
         from .pattern_effects import Effects, clauses, factor_of
 
         for channel, spec in (self.config.get("channels") or {}).items():

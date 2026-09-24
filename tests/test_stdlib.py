@@ -7,9 +7,9 @@ import time
 import pytest
 
 from fg_env.expr import FUNCTIONS, ExprError, Scope, Untrusted, World, evaluate
+from fg_env.expr.objects import Entity
 from fg_env.guides import guide
 from fg_env.stdlib import regex
-from fg_env.world.entity import Entity
 
 APPROX = 1e-9
 

@@ -45,6 +45,12 @@ and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `partic
   `authoring/`, `experiments/`, `cli/`, `analysis/`, `game/`, `host/` …) whose `__init__.py` docstring says what it
   holds.
 
+The parts form layers, and a module imports at load time only from its own layer or the ones below:
+the contract (`contract/`), then the expression language (`expr/`), then the world and what changes it (`world/`,
+`effects/`, `actions/`, `mechanisms/`, `host/` …), then runs (`runtime/`, `participants/`, `copying/`, `checks/`,
+`api.py`), then the tools built on runs (`analysis/`, `report/`, `game/`, `authoring/`, `guides/`, `cli/` …).
+`tests/test_import_cycles.py` holds the exact list and fails on an import that points up.
+
 Every module opens with a docstring saying what it is for: read those rather than a map here, which would go stale.
 To find the code behind a behaviour, search for the error message or guide text it produces.
 
@@ -99,11 +105,11 @@ shapes — needs an entry under `## [Unreleased]` in `CHANGELOG.md`. Mark breaki
 ## Lint and format
 
 Tooling and rules are configured in `pyproject.toml` under `[tool.ruff]`
-(target `py311`, line length 100):
+(target `py311`, line length 120):
 
 ```bash
-ruff check src tests scripts   # lint
-mypy                           # type-check
+make lint        # ruff check src tests scripts
+make typecheck   # mypy
 ```
 
 The kernel keeps a single runtime dependency (`pydantic`) — please keep it that way.
@@ -116,7 +122,8 @@ Optional features may add dev-only dependencies under `[project.optional-depende
 - One logical change per PR; include tests for new behavior.
 - Update `CHANGELOG.md` under `## [Unreleased]`.
 - There is no CI: the tests and checks run locally. Use `make test-fast` while iterating, and before every push run
-  the whole suite (`make test`), `ruff check src tests scripts`, `mypy`, `make check-schema` and `make check-docs`.
+  `make gate`: the whole suite, ruff, mypy, `make check-schema` and `make check-docs`. `make` uses `.venv/bin/python`
+  when it exists; pass `PYTHON=...` for another interpreter.
 - A pushed `v*` tag publishes that commit to PyPI without running anything: run the same checks on it first.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.

@@ -1,7 +1,8 @@
 """Where asset bytes come from: a content-addressed registry shared by every run in this process.
 
 Run state, snapshots and recordings name assets by content hash and never hold their bytes. The bytes are
-found here by hash: files a contract's catalog read (by path, re-read and re-checked on use), files
+found here by hash: files a contract's catalog read (by path, re-read and re-checked on use; every path seen
+holding the bytes is kept, so editing one copy never strands another), files
 participants submitted (kept in memory), and folders handed over with :func:`provide` (a saved run's asset
 folder, a store directory on another machine). Bytes whose hash no longer matches are refused, so a file
 changed after a run started can never pass for the one the run recorded.
@@ -22,7 +23,8 @@ HASH_DIGITS = 32
 
 _LOCK = threading.Lock()
 _BYTES: dict[str, bytes] = {}
-_PATHS: dict[str, Path] = {}
+#: Every file seen holding the bytes with a hash, oldest first; a path whose bytes changed is dropped when read.
+_PATHS: dict[str, list[Path]] = {}
 #: Folders handed over with provide(), scanned by hash on first need.
 _FOLDERS: list[Path] = []
 
@@ -46,7 +48,9 @@ def keep_bytes(data: bytes) -> str:
 def keep_path(key: str, path: Path) -> None:
     """Remember that the file at ``path`` holds the bytes with hash ``key`` (checked again when read)."""
     with _LOCK:
-        _PATHS.setdefault(key, path)
+        paths = _PATHS.setdefault(key, [])
+        if path not in paths:
+            paths.append(path)
 
 
 def provide(folder: str | os.PathLike[str]) -> int:
@@ -64,27 +68,38 @@ def provide(folder: str | os.PathLike[str]) -> int:
 
 def available(key: str) -> bool:
     with _LOCK:
-        return key in _BYTES or key in _PATHS
+        return key in _BYTES or bool(_PATHS.get(key))
 
 
 def read(key: str) -> bytes:
     """The bytes with hash ``key``; raises :class:`BlobMissing` when none are available or they changed."""
     with _LOCK:
         held = _BYTES.get(key)
-        path = _PATHS.get(key)
+        paths = list(_PATHS.get(key, ()))
         folders = list(_FOLDERS)
     if held is not None:
         return held
-    if path is not None:
+    for path in paths:
         data = _read_file(path)
         if data is not None and digest(data) == key:
             return data
-        raise BlobMissing(f"the file '{path}' changed after it was read (its content no longer has hash {key})")
+        _forget(key, path)
     for folder in folders:
         found = _scan(folder, key)
         if found is not None:
             return found
+    if paths:
+        raise BlobMissing(f"the file '{paths[0]}' changed after it was read (its content no longer has hash {key})")
     raise BlobMissing(f"no file with hash {key} is available in this process")
+
+
+def _forget(key: str, path: Path) -> None:
+    with _LOCK:
+        paths = _PATHS.get(key, [])
+        if path in paths:
+            paths.remove(path)
+        if not paths:
+            _PATHS.pop(key, None)
 
 
 def _scan(folder: Path, key: str) -> bytes | None:

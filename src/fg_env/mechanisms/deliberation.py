@@ -33,12 +33,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import check_expr, config_of, entity, named_use, props, require_type
+from ._social import check_expr, entity, named_use, props, require_type
 from .voting import tally
 
 __all__ = ["DeliberationConfig"]
@@ -137,7 +137,7 @@ def _person(world: Any, entity_id: str | None) -> str:
 def _use(call: Call, index: int) -> Any:
     world: Any = call.scope.world
     name = named_use(call, KIND, index)
-    return world, name, config_of(world, name, KIND, DeliberationConfig)
+    return world, name, mechanism_config(world, name, KIND, DeliberationConfig)
 
 
 @function("pending_motion(mechanism?)", "The question before the body (the top motion or amendment) as "
@@ -239,7 +239,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
     def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["decision"]
-        config = config_of(world, name, KIND, DeliberationConfig)
+        config = mechanism_config(world, name, KIND, DeliberationConfig)
         state = _state(world, name)
         if action == "open":
             _open(world, name, config, state)

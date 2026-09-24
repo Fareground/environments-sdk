@@ -20,7 +20,7 @@ def write(contract):
 
 
 def edit(*edits):
-    return call("edit_contract", edits=[{"path": path, **({} if value is ... else {"value": json.dumps(value)})}
+    return call("edit_contract", edits=[{"path": path, **({} if value is ... else {"value": value})}
                                         for path, value in edits])
 
 
@@ -79,7 +79,8 @@ LATE_CRASH = {"name": "Late crash", "clock": {"rounds": 20},
               "world": {"table": {"type": "map", "default": {"a": 1}}, "x": 0},
               "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
               "actions": {"wait": {"by": "p", "do": ["$world.x += 1"]}}, "stages": [{"name": "s"}],
-              "events": [{"at": 15, "do": ["$world.x = $world.table[$text($round)]"]}], "outputs": {"x": "$world.x"}}
+              "events": [{"when": "$round == 15", "do": ["$world.x = $world.table[$text($round)]"]}],
+              "outputs": {"x": "$world.x"}}
 #: A contract that works while agents act, and fails when none does.
 IDLE_CRASH = {"name": "Idle crash", "clock": {"rounds": 3},
               "world": {"moves": {"type": "map", "default": {}}, "n": 0},
@@ -338,13 +339,14 @@ def test_edit_contract_changes_parts_of_the_saved_contract():
 
 def test_the_summary_says_when_the_kept_revision_changed_what_the_environment_is():
     renamed = {**WORKING, "name": "Stones", "outputs": {"score": "1"}}
+    renamed["actions"] = {**WORKING["actions"], "take": {**WORKING["actions"]["take"], "description": "Take stones."}}
     client = FakeOpenAI([write(WORKING)], [write(renamed)], [write(renamed)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
 
-    assert result.working == [1, 2, 3] and result.kept == 3
+    assert result.working == [1, 2] and result.kept == 2
     assert ("changed since revision 1, the first that worked: name 'Take the last stone' → 'Stones'; "
-            "outputs -winner +score") in result.summary()
+            "actions ~take; outputs -winner +score") in result.summary()
 
 
 def test_retryable_provider_errors_are_retried_and_others_stop(monkeypatch):
@@ -395,7 +397,7 @@ def test_invalid_writes_do_not_use_up_the_revisions(monkeypatch):
 
 def test_running_out_of_revisions_without_a_working_contract_stops(monkeypatch):
     monkeypatch.setattr("fg_env.authoring.workbench.MAX_REVISIONS", 2)
-    client = FakeOpenAI([write(BROKEN)], [write(BROKEN)], [call("check")])
+    client = FakeOpenAI([write(BROKEN)], [write({**BROKEN, "name": "Again"})], [call("check")])
 
     result = fg_env.author("A game.", "openai:m", client=client)
 

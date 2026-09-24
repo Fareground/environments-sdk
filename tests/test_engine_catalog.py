@@ -10,32 +10,35 @@ from fg_env.host.stubs import StubEvaluator
 ENGINE_IDS = {
     "retail", "council", "dispute", "exchange", "legislature", "contest",
     "deliberation", "negotiation", "population", "network", "matching", "strategy",
+    "supply_chain", "auction", "contact_centre", "ride_hailing", "epidemic", "hidden_roles",
 }
 
 
-def test_catalog_contains_only_the_twelve_behavioral_engines():
+def test_catalog_contains_exactly_the_behavioral_engines():
     catalogue = fg_env.engines.catalog()
-    assert len(catalogue) == 12
+    assert len(catalogue) == len(ENGINE_IDS)
     assert {engine.id for engine in catalogue} == ENGINE_IDS
     assert set(catalogue.to_dict()) == {"schema_version", "source", "engines"}
     assert all("presets" not in engine.to_dict() for engine in catalogue)
     assert all("products" not in engine.to_dict() for engine in catalogue)
 
 
-def test_catalog_ships_all_twelve_as_native_engines():
-    assert {engine.id for engine in fg_env.list_engines(available=True)} == ENGINE_IDS
-    assert fg_env.list_engines(available=False) == []
-    assert all(engine.status == "native" for engine in fg_env.list_engines())
+def test_catalog_ships_every_engine_as_native():
+    assert {engine.id for engine in fg_env.engines.list_engines(available=True)} == ENGINE_IDS
+    assert fg_env.engines.list_engines(available=False) == []
+    assert all(engine.status == "native" for engine in fg_env.engines.list_engines())
 
 
 #: Warnings the checker gives a starter that are not problems in it. The discussion stages end when everyone is
-#: ready, which a coded or model panel reaches but the smoke play's random agents (who keep talking) rarely do in
-#: one play; the negotiation's offer table values each offer for its reader through a def called with the reader
-#: itself, which the checker cannot tell from reading someone else's private weights.
+#: ready (the werewolves' night when the pack agrees on a victim), which a coded or model panel reaches but the smoke
+#: play's random agents (who keep talking, and pick victims at random) rarely do in one play; the negotiation's offer
+#: table values each offer for its reader through a def called with the reader itself, which the checker cannot tell
+#: from reading someone else's private weights.
 CHECKER_FALSE_POSITIVES = {
     ("council", "stages.discussion.until"), ("dispute", "stages.deliberation.until"),
     ("deliberation", "stages.forum.until"), ("legislature", "stages.chamber.until"),
-    ("negotiation", "views.agreement_table.show"),
+    ("negotiation", "views.agreement_table.show"), ("hidden_roles", "stages.night_wolves.until"),
+    ("hidden_roles", "stages.day_discussion.until"),
 }
 
 
@@ -48,7 +51,7 @@ def test_every_starter_checks_without_warnings(engine_id):
 
 
 def test_available_engine_can_clone_customize_and_run(tmp_path):
-    target = fg_env.clone_engine("retail", tmp_path / "custom_market.json", name="Custom market")
+    target = fg_env.engines.clone("retail", tmp_path / "custom_market.json", name="Custom market")
     contract = json.loads(target.read_text())
     assert contract["name"] == "Custom market"
     env = fg_env.engines.load("retail", seed=4)
@@ -74,7 +77,7 @@ def test_available_engine_can_be_materialized_for_database_backed_builders():
     "legislature", "contest", "deliberation", "population", "network", "matching", "strategy",
 ])
 def test_new_native_engine_clones_runs_deterministically_and_aggregates(engine_id, tmp_path):
-    target = fg_env.clone_engine(engine_id, tmp_path / f"{engine_id}.json", name=f"Custom {engine_id}")
+    target = fg_env.engines.clone(engine_id, tmp_path / f"{engine_id}.json", name=f"Custom {engine_id}")
     assert json.loads(target.read_text())["name"] == f"Custom {engine_id}"
     assert not [issue for issue in fg_env.check(target) if issue.severity == "error"]
 
@@ -122,7 +125,7 @@ def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
         "strategy": ({"rounds": 3, "mutual_cooperate": 4}, "cooperation_rate"),
     }
     for engine_id, (inputs, expected_output) in cases.items():
-        target = fg_env.clone_engine(engine_id, tmp_path / f"custom-{engine_id}.json",
+        target = fg_env.engines.clone(engine_id, tmp_path / f"custom-{engine_id}.json",
                                      name=f"Scenario using {engine_id}")
         result = fg_env.load(target, inputs=inputs, seed=29).run()
         assert result.status in {"completed", "ended"}
@@ -130,7 +133,7 @@ def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
 
 
 def test_negotiation_engine_clone_customize_and_batch(tmp_path):
-    target = fg_env.clone_engine("negotiation", tmp_path / "vendor_negotiation.json",
+    target = fg_env.engines.clone("negotiation", tmp_path / "vendor_negotiation.json",
                                  name="Vendor renewal negotiation")
     contract = json.loads(target.read_text())
     contract["brief"]["situation"] = "A software buyer and vendor negotiate a renewal."
@@ -166,7 +169,7 @@ def test_negotiation_engine_accepts_sampled_people_and_keeps_positions_private()
 
 
 def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path):
-    target = fg_env.clone_engine("retail", tmp_path / "neighborhood_market.json",
+    target = fg_env.engines.clone("retail", tmp_path / "neighborhood_market.json",
                                  name="Neighborhood market")
     contract = json.loads(target.read_text())
     households = contract["inputs"]["households"]["default"]
@@ -186,7 +189,9 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
 
 @pytest.mark.parametrize("name", ["civil_trial.json", "coffee_market.json", "exchange_flagship.json",
                                   "exchange_flagship/calibration.json", "exchange_flagship/seats.json",
-                                  "exchange_flagship/seed_history.csv", "forecast_council.json"])
+                                  "exchange_flagship/seed_history.csv", "forecast_council.json", "beer_game.json",
+                                  "auction_house.json", "contact_centre.json", "contact_centre/history.csv",
+                                  "ride_hailing.json", "town_epidemic.json", "werewolf.json"])
 def test_examples_that_mirror_an_engine_starter_stay_identical_to_it(name):
     """These examples are published copies of engine starters; the starter is the source, so a fix there reaches both.
     """

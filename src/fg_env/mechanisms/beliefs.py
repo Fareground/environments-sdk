@@ -24,11 +24,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._social import config_of, eid, entity, ids, named_use, props, require_type
+from ._social import eid, entity, ids, named_use, props, require_type
 
 __all__ = ["BeliefsConfig"]
 
@@ -62,7 +62,7 @@ class BeliefsConfig(BaseModel):
 
 def _use(call: Call, index: int) -> tuple:
     name = named_use(call, KIND, index)
-    return name, config_of(call.scope.world, name, KIND, BeliefsConfig)
+    return name, mechanism_config(call.scope.world, name, KIND, BeliefsConfig)
 
 
 def _map(holder: Entity, name: str) -> dict[str, Any]:
@@ -171,7 +171,7 @@ def _plain(value: Any) -> Any:
 def _learn(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, KIND, BeliefsConfig)
+    config = mechanism_config(world, name, KIND, BeliefsConfig)
     try:
         key = _key(runner.eval(effect["key"], vars), where)
         holders = ids(runner.eval(effect.get("who", "$actor"), vars), where)
@@ -197,7 +197,7 @@ def _learn(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str
 def _tell(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, KIND, BeliefsConfig)
+    config = mechanism_config(world, name, KIND, BeliefsConfig)
     try:
         key = _key(runner.eval(effect["key"], vars), where)
         teller = _holder(world, config, runner.eval(effect.get("who", "$actor"), vars), where)
@@ -241,7 +241,7 @@ def _confidence_number(value: Any, where: str) -> None:
 def _forget(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, KIND, BeliefsConfig)
+    config = mechanism_config(world, name, KIND, BeliefsConfig)
     try:
         key = _key(runner.eval(effect["key"], vars), where)
         holders = ids(runner.eval(effect.get("who", "$actor"), vars), where)
@@ -259,7 +259,7 @@ def _forget(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: st
 def _decay(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, KIND, BeliefsConfig)
+    config = mechanism_config(world, name, KIND, BeliefsConfig)
     if config.decay == 0:
         return
     for holder in world.entities_of(config.who):

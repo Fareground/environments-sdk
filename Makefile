@@ -1,8 +1,12 @@
-PYTHON ?= python
+# The project's virtualenv when there is one, so `make` never runs some other Python on the PATH.
+PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
 SCHEMA := schema/contract.schema.json
 RUN := PYTHONPATH=src $(PYTHON)
 
-.PHONY: test test-fast lint schema check-schema docs check-docs
+.PHONY: gate test test-fast lint typecheck schema check-schema docs check-docs
+
+# Everything that must pass before a push: the whole suite, lint, types, the schema and the generated docs.
+gate: test lint typecheck check-schema check-docs
 
 # The whole suite: run it before every push.
 test:
@@ -13,7 +17,10 @@ test-fast:
 	$(RUN) -m pytest tests -q -n auto -m "not slow"
 
 lint:
-	ruff check src tests scripts
+	$(PYTHON) -m ruff check src tests scripts
+
+typecheck:
+	$(PYTHON) -m mypy
 
 # Regenerate the committed contract JSON Schema after a deliberate contract change.
 schema:

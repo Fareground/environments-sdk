@@ -293,6 +293,28 @@ def test_payments_use_credit_but_never_pass_it_and_taxes_leave_through_their_sin
     assert env.props["money_supply"]["cash"] == pytest.approx(50 + 0 + 500 - 2.4)
 
 
+def test_ledger_and_loan_tools_join_the_first_stage_their_users_act_in_without_wiring():
+    contract = {
+        "name": "Credit town", "clock": {"rounds": 2},
+        "types": {"person": {"agent": True}, "bank": {"agent": True}},
+        "entities": {"ana": {"type": "person"}, "vault": {"type": "bank", "props": {"cash": 500}}},
+        "mechanisms": {"money": {"kind": "economy", "mode": "ledger", "who": ["person", "bank"],
+                                 "currencies": {"cash": {"start": 50}}, "actions": ["pay"],
+                                 "loans": {"lenders": "bank", "borrowers": "person"}},
+                       "sale": {"kind": "market", "mode": "auction", "format": "english", "who": "person"}},
+        "actions": {"rest": {"by": "person", "do": []}, "review": {"by": "bank", "do": []}},
+        "stages": [{"name": "home", "turns": "sequential", "actions": ["rest"]},
+                   {"name": "bank", "turns": "sequential", "actions": ["review"]}],
+    }
+    assert not [i for i in fg_env.check(contract, rounds=0) if "any stage" in i.message]
+    stages = {s.name: s.actions for s in fg_env.load(contract).contract.stage_list()}
+    assert {"money_pay", "money_borrow", "money_repay"} <= set(stages["home"]) and "money_pay" not in stages["sale"]
+    assert {"money_set_rate", "money_pay"} <= set(stages["bank"])
+    play = scripted({("ana", 1): [("money_borrow", {"lender": "vault", "amount": 100, "term": 2})]})
+    fg_env.load(contract, seed=1).run(play, rounds=1)
+    assert ok(play.results)[0].ok
+
+
 def test_sources_pay_on_schedule_with_add_top_up_and_reset():
     env = fg_env.load(BANKING, seed=1)
     env.run("idle", rounds=3)
@@ -929,7 +951,9 @@ def test_native_beer_game_reproduces_the_hand_written_one(policy, arm):
     native = fg_env.load(EXAMPLES / "beer_game.json", seed=1, arm=arm).run(participants)
     for key in ("total_cost", "bullwhip_ratio", "peak_backlog", "weeks_until_stable", "cost_by_tier",
                 "peak_backlog_by_tier"):
-        assert native.outputs[key] == original.outputs[key], key
+        expected = original.outputs[key]  # the native one takes $variance, the hand-written one squares $stdev
+        close = pytest.approx(expected, rel=1e-12) if isinstance(expected, float) else expected
+        assert native.outputs[key] == close, key
     assert native.series["factory_order"] == original.series["factory_order"]
 
 

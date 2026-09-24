@@ -28,10 +28,10 @@ import statistics
 from collections.abc import Callable, Sequence
 from typing import Any
 
-from . import timebase as tb
+from ..patterns import timebase as tb
+from ..patterns.numeric import dispersion, least_squares, nelder_mead
+from ..patterns.signals import _matches
 from .fit import Estimate, Problem, Row
-from .numeric import dispersion, least_squares, nelder_mead
-from .signals import _matches
 
 __all__ = ["ESTIMATORS"]
 

@@ -9,7 +9,8 @@ from pydantic_core import PydanticCustomError
 
 __all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_LIST_ITEMS", "OUTPUT_TYPES",
            "one_or_many", "Effects", "TYPE_SYNONYMS", "SPELLINGS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES",
-           "MAX_TURN_CALLS", "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS"]
+           "MAX_TURN_CALLS", "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS",
+           "TAPE", "tape_prop"]
 
 CONTRACT_VERSION = "1"
 
@@ -19,6 +20,13 @@ PARAM_TYPES = ("number", "int", "bool", "text", "enum", "entity", "list", "file"
 #: Most items a list argument may hold.
 MAX_LIST_ITEMS = 1_000
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
+#: The world property that records host answers for replay (see :mod:`fg_env.host.tape`).
+TAPE = "host_tape"
+
+
+def tape_prop() -> dict[str, Any]:
+    """The world property every host mechanism declares."""
+    return {"type": "map", "default": {}, "description": "Host answers recorded for replay (managed by the engine)."}
 
 
 def one_or_many(value: Any) -> Any:

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ..host.tape import TAPE
+from ..contract.base import TAPE
 from ..world.live import _plain
 from .measure import shown
 

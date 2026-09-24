@@ -7,9 +7,10 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from .. import contract as C
+from ..actions.params import choice_list
 from ..actions.reads import READS
 from ..contract import Contract
-from ..expr import is_expr
+from ..expr import ExprError, compile_expr, is_expr
 from ..runtime.perception import SPECTATOR
 from ..runtime.session import END_TURN
 from ..sampling.probability import check_literal_probability
@@ -168,8 +169,9 @@ class ActionChecks:
         low, high = param.min_items, param.max_items
         if isinstance(low, int) and isinstance(high, int) and low > high:
             self.error(ppath, f"min_items ({low}) is more than max_items ({high})")
-        if isinstance(high, int) and high > C.MAX_LIST_ITEMS:
-            self.error(f"{ppath}.max_items", f"is more than the limit of {C.MAX_LIST_ITEMS}")
+        if isinstance(high, int) and high > C.MAX_LIST_ITEMS and not choice_list(param):
+            self.error(f"{ppath}.max_items", f"is more than the limit of {C.MAX_LIST_ITEMS} for a list of free values",
+                       "a list of distinct choices (`of` an entity type, or `values`) may be longer")
         entity_of = item.of if item is not None and item.type == "entity" else (param.of if item is None else None)
         where = item.where if item is not None else param.where
         if (item is not None and item.type == "entity") or (item is None and param.of is not None):
@@ -228,6 +230,7 @@ class ActionChecks:
                 self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
             self._sealed_announced(stage, path)
+            self._private_who(stage, f"{path}.who")
         self._open_stages()
 
     def _open_stages(self: _Checker) -> None:  # type: ignore[misc]
@@ -276,6 +279,7 @@ class ActionChecks:
                     self.error(f"{path}.stages", f"'{stage}' is not a stage",
                                self._hint(stage, self.stage_names, "stages"))
             self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
+            self._private_view(view, path)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue
@@ -292,12 +296,25 @@ class ActionChecks:
                 self.expr(view.of, f"{path}.of", BASE | {"actor"}, types)
             self.condition(view.where, f"{path}.where", item_roots, types)
             self.expr(view.sort, f"{path}.sort", item_roots, types)
+            if view.sort is not None and _same_for_every_item(view.sort):
+                self.error(f"{path}.sort", f"`{view.sort}` gives every item the same key, so the list is not sorted",
+                           "sort by something of each item: an expression over $it, e.g. \"$it.cash\" (\"-$it.cash\" "
+                           "for highest first)")
             self.template(view.show, f"{path}.show", "it", item_roots, types)
             if view.of in self.c.types:
                 self._private_listing(view, f"{path}.show")
             if view.limit is not None and view.limit < 1:
                 self.error(f"{path}.limit", "must be at least 1")
 
+
+
+def _same_for_every_item(expr: str) -> bool:
+    """Whether a view's `sort` reads nothing of the item it sorts ($it, $i): then it sorts nothing."""
+    try:
+        compiled = compile_expr(expr)
+    except ExprError:
+        return False  # reported by the expression check
+    return not {"it", "i"} & set(compiled.roots)
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> list[str]:

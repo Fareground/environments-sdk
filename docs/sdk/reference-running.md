@@ -35,7 +35,9 @@ def my_agent(wake):
     result = wake.call("buy", {"offer": "latte", "qty": 1})   # result.ok, result.text, result.ended
     wake.end()
 ```
-`Wake`: `entity_id name type round stage reason me` (own props), `brief`, `update`, `tools` (each a
+`Wake`: `entity_id name type round stage reason`, `me` (a copy of the agent's own props, private ones too, with `id`
+`name` `type` `at`: how a coded participant reads its private value), `brief`, `update` (the text an LLM reads this
+turn), `tools` (each a
 `ToolSpec`: name, description, input_schema, kind act|look|end, terminal), `tools_for("anthropic"|"openai")`,
 `call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
 `end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit (after the agent's
@@ -138,11 +140,14 @@ Every truncated reply wastes its whole output: for frequent decisions use `reaso
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
-take ends without a model call. Retries never wait past the turn's time limit, and a token budget counts cache writes
+take ends without a model call. Retries never wait past the turn's time limit, each request times out with the turn
+(at most 10 minutes), and a token budget counts cache writes
 in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
 `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,
-and `out_of_steps`: turns that used all `max_steps` model calls); a seat most of whose turns fail degrades the run;
+and `out_of_steps`: turns that used all `max_steps` model calls); a model seat more than a tenth of whose turns fail
+(a turn whose reply the provider refused or cut off counts as failed) degrades the run — passing with `end_turn` where
+the stage allows it is a move, not a failure;
 your own participants can add theirs with `wake.record_usage(...)`.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
@@ -151,7 +156,7 @@ Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N
 `record` (data: record, entry, fields), `news` (event `say`), any `emit` name, or `end` (data: ended_by, winner).
 `result.winner` is set by `end` conditions or effects that give `winner`.
 
-CLI: `fg-env check file.json` (static check, then up to 12 rounds with random agents and with each policy; `--rounds 0` for static only),
+CLI: `fg-env check file.json` (static check, then 12 rounds — or up to the last scheduled one-off event — with random agents and with each policy; `--rounds 0` for static only),
 `fg-env preview file.json agent_id --rounds 5 --agent trader=policy:quote` (see a mid-run turn),
 `fg-env bench [files] --rounds 20` (ms per round, rounds per second and time per phase; no files: the
 reference agent-based models), `fg-env check|run|preview|experiment|tournament|evaluate|trace|guide|schema` (`fg-env run file.json --seed 1

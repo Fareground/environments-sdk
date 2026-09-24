@@ -18,14 +18,15 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
+from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..host.common import NAME, agents_of, clip, config_of, prop_of, type_list
+from ..host.common import MODEL_HINT, NAME, agents_of, clip, prop_of, type_list
 from ..host.protocols import HostError
-from ..host.tape import consult, plain, tape_prop
-from ..registry import MechanismError, family_action, mode, use_key
-from ..world.entity import Entity
+from ..host.tape import consult, plain
+from ..registry import MechanismError, family_action, mechanism_config, mode, use_key
 
 __all__ = ["MemoryConfig", "RecapConfig", "lexical_relevance"]
 
@@ -258,7 +259,7 @@ def _capture(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: s
 
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     cursor = int(world.props.get(f"{name}_cursor") or 0)
     events = [e for e in world.log if e.seq > cursor]
     perception = Perception(world.contract, world)
@@ -302,7 +303,7 @@ def _did(event: Any) -> str:
 def _note(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     actor = _actor(vars, "note", where)
     text = runner.eval(effect["text"], vars)
     if not isinstance(text, str) or not text.strip():
@@ -316,7 +317,7 @@ def _note(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str)
 def _recall(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     actor = _actor(vars, "recall", where)
     query = runner.eval(effect["query"], vars)
     if not isinstance(query, str):
@@ -352,7 +353,7 @@ def _skip() -> None:
 def _reflect(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
-    config = config_of(world, name, MEMORY, MemoryConfig, where)
+    config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     for agent in agents_of(world, config.who):
         entries = _entries(agent, name)
         if not entries:
@@ -391,7 +392,7 @@ def _memories_function(call: Call) -> list[Memory]:
     raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
     if use_key(raw) != MEMORY:
         raise ExprError(f"$memories: '{name}' is not a declared mind (memory) mechanism", call.source)
-    config = config_of(world, name, MEMORY, MemoryConfig, "memories")
+    config = mechanism_config(world, name, MEMORY, MemoryConfig, "memories")
     budget = call.arg(2, config.budget)
     if isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget <= 0:
         raise ExprError(f"$memories: budget must be a number of tokens > 0, got {budget!r}", call.source)
@@ -420,7 +421,7 @@ class RecapConfig(BaseModel):
     record: str = Field(..., description="The record to summarise.")
     every: int = Field(..., ge=1, description="Write a recap every N rounds.")
     host: str = Field("writer", description="Host writer name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     prompt: str = Field("Summarise the story so far for participants who need to catch up: who did what, what was "
                         "decided, what is still open. Be faithful and brief.", description="What the recap asks for.")
     last: int = Field(50, ge=1, le=500, description="Most new entries one recap reads.")
@@ -461,7 +462,7 @@ def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -
 def _recap_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
-    config = config_of(world, name, RECAP, RecapConfig, where)
+    config = mechanism_config(world, name, RECAP, RecapConfig, where)
     cursor = int(world.props.get(f"{name}_cursor") or 0)
     fields = world.contract.records[config.record].fields
     new = [e for e in world.records(config.record) if e["seq"] > cursor and e.get("to") is None]

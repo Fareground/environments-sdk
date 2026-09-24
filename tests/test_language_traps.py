@@ -217,3 +217,49 @@ def test_an_output_that_fails_at_runtime_is_in_the_diagnostics():
                 "outputs": {"bad": "1 + $world.label"}}
     result = fg_env.run(contract, seed=1)
     assert any(d.get("kind") == "output_failed" or "bad" in json.dumps(d) for d in result.diagnostics)
+
+
+# -- messages that say how to fix -----------------------------------------------------------------------------------
+
+NOTE = {"name": "Note", "clock": {"rounds": 1}, "world": {"log": "", "budget": 5},
+        "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+        "actions": {"go": {"by": "p", "do": []}}, "outputs": {"log": "$world.log"}}
+
+
+def _doing(effect):
+    return {**NOTE, "actions": {"go": {"by": "p", "do": [effect]}}}
+
+
+def test_a_line_break_inside_quoted_text_says_how_to_write_one():
+    [found] = _errors(_doing("$world.log = 'row\nnext'"))
+    assert "quoted text in the expression holds a line break" in found.message and "\\n" in found.message
+    result = fg_env.run(_doing("$world.log = 'row\\nnext'"), seed=1)
+    assert result.outputs["log"] == "row\nnext"
+
+
+def test_adding_text_and_a_number_suggests_text():
+    found = [i for i in fg_env.check(_doing("$world.log = 'Budget: ' + $world.budget")) if i.path.startswith("actions")]
+    assert any("write $text(<number>) to join a number to text" in i.message for i in found)
+
+
+def test_a_record_field_named_like_a_built_in_entry_field_says_to_rename_it():
+    contract = {**NOTE, "records": {"reviews": {"fields": {"author": "text", "score": "int"}}}}
+    [found] = [i for i in _errors(contract) if i.path == "records.reviews.fields.author"]
+    assert "author: who posted it" in found.message and "rename the field" in found.fix
+
+
+@pytest.mark.parametrize("draw, problem", [("$normal(0, -1)", "sd (spread) must be 0 or more, got -1"),
+                                           ("$randint(6, 1)", "low (6) is above its high (1): write $randint(1, 6)")])
+def test_a_draw_given_impossible_arguments_is_an_error_that_says_why(draw, problem):
+    contract = {**NOTE, "world": {**NOTE["world"], "level": 0.0},
+                "events": [{"phase": "end", "do": [f"$world.level = {draw}"]}]}
+    [found] = [i for i in _errors(contract) if i.path == "events[0].do[0]"]
+    assert problem in found.message
+
+
+@pytest.mark.parametrize("key", ["cahs", "$actor.budget"])
+def test_a_view_sort_that_reads_nothing_of_the_item_is_an_error(key):
+    contract = {**NOTE, "types": {"p": {"agent": True, "props": {"cash": 1, "budget": 2}}},
+                "views": {"rich": {"of": "p", "sort": key, "show": "{name}: {cash}"}}}
+    [found] = [i for i in _errors(contract) if i.path == "views.rich.sort"]
+    assert "gives every item the same key" in found.message and "$it.cash" in found.fix

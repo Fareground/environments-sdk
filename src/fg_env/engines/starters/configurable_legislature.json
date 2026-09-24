@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Legislature Engine",
-  "description": "A reusable configurable legislative body with sponsorship, recognition, debate, seconds, amendments, procedural voting, party positions, and recorded outcomes. Each member's view blends where they started with the average stance of the floor speeches so far, a speech from their own party counting more than one from another, so debate can change the vote without talking the chamber into unanimity.",
+  "description": "A reusable configurable legislative body with sponsorship, recognition, debate, seconds, amendments, procedural voting, party positions, and recorded outcomes. Each member's view blends where they started with the average stance of the floor speeches so far, a speech from their own party counting more than one from another, so debate can change the vote without talking the chamber into unanimity. A speech's stance is what a bound judge host ('judge') reads in its words (direction times strength); without one, coded members react to the speaker's own stance, not to what is said.",
   "inputs": {
     "body_name": {"type": "text", "default": "Legislative body"},
     "bill": {"type": "text", "default": "Adopt the proposed measure."},
@@ -61,7 +61,11 @@
   },
   "population": [{"type": "member", "from": "$inputs.members", "id": "{$row.id}", "name": "{$row.name}", "props": {"party": "$row.party", "stance": "$row.stance", "sponsor": "$row.sponsor", "initial_stance": "$row.stance", "openness": "$uniform(0, 2 * $inputs.persuasion)"}}],
   "entities": {"chair": {"type": "presiding_officer", "name": "Presiding Officer"}},
-  "mechanisms": {"chamber": {
+  "mechanisms": {"speech_judge": {"kind": "host", "mode": "judge", "host": "judge", "visible": "false", "notify": false,
+    "instructions": "Read one floor speech made in a debate on the measure given with it. Score which way it argues and how persuasive it is to a thoughtful listener, on its words alone.",
+    "criteria": {"direction": {"description": "Which way the speech argues on the measure: -1 firmly against, 0 neutral or mixed, 1 firmly for.", "scale": [-1, 1]},
+                 "strength": {"description": "How persuasive the speech is: 0 not at all, 1 compelling.", "scale": [0, 1]}}},
+  "chamber": {
     "kind": "decision", "mode": "deliberation", "who": "member", "chair": "presiding_officer", "floor": true,
     "speaker_limit": 1, "passes": 100, "method": "majority", "quorum": 0.5, "question": "$inputs.bill",
     "motions": true, "second": true, "amendments": true, "private": false, "backstop": "vote", "ready_when_silent": false, "end": "decision"
@@ -73,22 +77,25 @@
     "heard_weight": {"args": ["who"], "expr": "$get($world.speakers, $who.party, 0) + (1 - $inputs.party_loyalty) * ($world.speeches - $get($world.speakers, $who.party, 0))", "description": "How many floor speeches this member has heard, weighed the same way."},
     "room_view": {"args": ["who"], "expr": "$heard_sum($who) / $heard_weight($who) if $heard_weight($who) > 0 else null", "description": "The average stance of the floor speeches as this member weighs them (null while nothing they weigh was said)."},
     "wants_floor": {"args": ["who"], "expr": "$pending_motion() == null and $who.sponsor or $pending_motion() != null and $who.spoke_on != $pending_motion().id", "description": "The mover asks for the floor to move the measure; every member asks to speak once on the question before the chamber."},
-    "speeches": "$filter($records(chamber), $it.says == says)"
+    "speeches": "$filter($records(chamber), $it.says == says)",
+    "speech_stance": {"args": ["speech"], "expr": "$last($records(speech_judge)).scores.direction * $last($records(speech_judge)).scores.strength if $host_bound('judge') else $speech.author.stance", "description": "Where a speech pulls its listeners: the bound judge's reading of its words, else the speaker's own stance."}
   },
   "world": {
     "heard": {"type": "int", "default": 0, "description": "Entries of the chamber record whose persuasion has been applied."},
-    "said": {"type": "map", "default": {}, "description": "Sum of the speakers' stances over the floor speeches, by the speaker's party."},
+    "said": {"type": "map", "default": {}, "description": "Sum of the floor speeches' stances, by the speaker's party."},
     "speakers": {"type": "map", "default": {}, "description": "Floor speeches made, by the speaker's party."},
-    "said_total": {"type": "number", "default": 0, "description": "Sum of the speakers' stances over every floor speech."},
+    "said_total": {"type": "number", "default": 0, "description": "Sum of the stances of every floor speech."},
     "speeches": {"type": "int", "default": 0, "description": "Floor speeches made."}
   },
   "triggers": [{"name": "persuasion", "when": "$len($records(chamber)) > $world.heard", "do": [
     "$world.heard = $len($records(chamber))", "$speech = $last($records(chamber))",
     {"if": "$speech.says == says", "then": [
       "$speaker = $speech.author", "$speaker.spoke_on = $speech.motion", "$party = $speaker.party",
-      "$world.said = $merge($world.said, $dict([$party], $it, $get($world.said, $party, 0) + $speaker.stance))",
+      {"if": "$host_bound('judge')", "then": {"host": "speech_judge", "action": "judge", "text": "$'Measure: ' + $inputs.bill + ' Speech: ' + $speech.text", "subject": "$speaker"}},
+      "$pull = $speech_stance($speech)",
+      "$world.said = $merge($world.said, $dict([$party], $it, $get($world.said, $party, 0) + $pull))",
       "$world.speakers = $merge($world.speakers, $dict([$party], $it, $get($world.speakers, $party, 0) + 1))",
-      "$world.said_total += $speaker.stance", "$world.speeches += 1",
+      "$world.said_total += $pull", "$world.speeches += 1",
       {"each": "member", "where": "$room_view($it) != null", "do": ["$it.stance = (1 - $it.openness) * $it.initial_stance + $it.openness * $room_view($it)"]}
     ]}
   ]}],

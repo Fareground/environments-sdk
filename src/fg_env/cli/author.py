@@ -15,6 +15,10 @@ def cmd_author(args: argparse.Namespace) -> int:
     from ..authoring.author import author
 
     is_file = os.path.isfile(args.brief)  # False, not an error, for a brief too long to be a file name
+    if not is_file and _names_a_file(args.brief):
+        print(f"error: no file '{args.brief}': give the path of a brief file that exists, or the brief itself in "
+              "quotes", file=sys.stderr)
+        return 1
     brief = Path(args.brief).read_text(encoding="utf-8") if is_file else args.brief
     out = args.out or (str(Path(args.brief).with_suffix(".json")) if is_file else "env.json")
     if Path(out).exists() and not args.force:
@@ -27,8 +31,13 @@ def cmd_author(args: argparse.Namespace) -> int:
     return 0 if result.ok else 1
 
 
+def _names_a_file(text: str) -> bool:
+    """Whether ``text`` reads as a file's path rather than a brief: one word with a folder or an extension in it."""
+    return not any(ch.isspace() for ch in text) and (os.sep in text or "/" in text or bool(Path(text).suffix))
+
+
 def add_author_command(sub: Any) -> None:
-    from ..authoring.author import CACHE_WRITE_WEIGHT, DEFAULT_BUDGET
+    from ..authoring.author import DEFAULT_BUDGET
     from ..runtime.budget import CACHED_WEIGHT
     from . import _guarded
 
@@ -39,8 +48,8 @@ def add_author_command(sub: Any) -> None:
                                                   "through OPENAI_BASE_URL)")
     p.add_argument("--out", help="where to write the contract (default: the brief file's name as .json, or env.json)")
     p.add_argument("--force", action="store_true", help="replace --out if it exists")
-    p.add_argument("--tokens", type=int, help="most model tokens to spend, input + output, a cache read counting "
-                                              f"{CACHED_WEIGHT:g} of one and a cache write {CACHE_WRITE_WEIGHT:g} "
+    p.add_argument("--tokens", type=int, help="most model tokens to spend: input, output and cache writes, a cache "
+                                              f"read counting {CACHED_WEIGHT:g} of one "
                                               f"(default: {DEFAULT_BUDGET['tokens']})")
     p.add_argument("--calls", type=int, help=f"most model calls to make (default: {DEFAULT_BUDGET['calls']})")
     p.add_argument("--seconds", type=float,

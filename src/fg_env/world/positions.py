@@ -12,7 +12,7 @@ import math
 from collections.abc import Callable, Collection, Iterable
 from typing import Any
 
-from .entity import Entity
+from ..expr.objects import Entity
 from .geometry import Geometry
 from .type_index import TypeIndex
 

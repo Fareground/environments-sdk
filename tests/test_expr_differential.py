@@ -32,9 +32,9 @@ from fg_env.actions.book import ActionSpec
 from fg_env.effects.statements import split_statement, statement_parts
 from fg_env.errors import RunError
 from fg_env.expr import ExprError, Scope, Untrusted, compile_expr
+from fg_env.expr.objects import Entity
 from fg_env.expr.template import compile_template, render
 from fg_env.game.steps import apply_step, random_step
-from fg_env.world.entity import Entity
 
 pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 

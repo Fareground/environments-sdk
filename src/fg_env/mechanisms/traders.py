@@ -24,6 +24,9 @@ once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the pos
 * ``noise`` — random arrivals, mostly market orders, fat-tailed sizes, herding on the last move and the
   book's ``sentiment``.
 * ``passive`` — index-like flow: one random side per round, worked with market orders.
+
+Every strategy but the market maker acts ``activity`` × the book's heat of the time (recent volatility against the
+usual; see :func:`~.order_book.heat`), so trading picks up after big moves and volatility clusters.
 """
 from __future__ import annotations
 
@@ -33,13 +36,13 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..world.entity import Entity
+from ..expr.objects import Entity
 from ..world.live import Abort
+from ._common import lot_floor, number_of
 from .book_rules import venue
-from .common import lot_floor, number
 from .ledger import Account, balance
 from .market_stats import log_returns, stdev
-from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, short_room, top
+from .order_book import OrderBookConfig, book_config, cancel_all, heat, place, props_for, short_room, top
 
 __all__ = ["DEFAULTS", "run_algo"]
 
@@ -143,7 +146,7 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
     rng = world.rng
     if "p" not in state:
         where = f"mechanisms.{name}.crowd.{strategy}.params"
-        overrides = {key: number(world, raw, f"{where}.{key}", actor=trader)
+        overrides = {key: number_of(world, raw, f"{where}.{key}", actor=trader)
                      for key, raw in _overrides(cfg, strategy).items()}
         params = {**DEFAULTS[strategy], **overrides}
         for key, (low, high) in _DISPERSION[strategy].items():
@@ -158,7 +161,7 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
         receipt = "Trading is halted; your strategy waits."
     elif view is not None and _stopped_out(view, state["p"]):
         receipt = "Stop-loss liquidation: " + " ".join(view.orders)
-    elif rng.random() < state["p"]["activity"]:
+    elif rng.random() < state["p"]["activity"] * (1.0 if strategy == "market_maker" else heat(world, name)):
         view = view or _View(world, name, cfg, trader, state)
         decide(view, state["p"], rng)
         receipt = " ".join(view.orders) if view.orders else "Your strategy placed no orders."
@@ -169,7 +172,7 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
 
 def _setting(world: Any, name: str, field: str, raw: Any, trader: Entity, default: float) -> float:
     """A book setting that is a number or an expression read now (``$actor`` is the trader)."""
-    return default if raw is None else number(world, raw, f"mechanisms.{name}.{field}", actor=trader)
+    return default if raw is None else number_of(world, raw, f"mechanisms.{name}.{field}", actor=trader)
 
 
 def _stopped_out(v: _View, p: dict[str, float]) -> bool:

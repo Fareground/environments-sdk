@@ -1,5 +1,5 @@
-"""The world's small parts: record entries, log events, the journal, and the `$world`, `$physics` and
-`$clock` views expressions read."""
+"""The world's small parts: record entries, log events, the journal, and the `$physics` and `$clock` views
+expressions read (the `$world` view is :class:`fg_env.expr.objects.PropsView`)."""
 from __future__ import annotations
 
 import re
@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from ..contract import Contract
     from .live import SdkWorld
 
-__all__ = ["Entry", "LogEvent", "Journal", "PropsView", "PhysicsView", "ClockView", "private_metrics"]
+__all__ = ["Entry", "LogEvent", "Journal", "PhysicsView", "ClockView", "private_metrics"]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
@@ -89,20 +89,6 @@ class LogEvent:
         if self.time is not None:
             out["time"] = self.time
         return out
-
-
-class PropsView:
-    """``$world`` — global properties, readable and assignable."""
-
-    def __init__(self, world: SdkWorld):
-        self._world = world
-
-    def expr_attr(self, name: str, source: str | None) -> Any:
-        values = self._world.props
-        if name not in values:
-            known = ", ".join(sorted(values)) or "none declared"
-            raise ExprError(f"world has no property '{name}' (declared: {known})", source)
-        return values[name]
 
 
 class PhysicsView:

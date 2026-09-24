@@ -141,7 +141,7 @@ def test_seats_without_a_model_play_the_coded_trend_policy():
 
 #: The stylized facts a session's tape is held to: [low, high) bounds one realistic session meets.
 FACT_BOUNDS = {
-    "realism_score": (0.7, None),
+    "realism_score": (0.5, None),  # each fact scored against the seed history's own value
     "kurtosis": (1, None),  # fat tails
     "acf_abs": (0.1, None),  # volatility clusters
     "abs_acf1": (None, 0.3),  # little memory in returns
@@ -182,15 +182,17 @@ def check_realism_over_seeds(runs, least_every_bound, loosen=None):
     assert every_bound >= least_every_bound, (every_bound, facts)
 
 
-# Thresholds come from 40 seeded sessions at this scale before and after the patterns migration (no fact's
-# distribution differs, Mann-Whitney p 0.2-0.9): one session meets every bound with chance 0.60 (0.55 before).
-# Resampling those sessions, this fast check fails a healthy session set 2.6% of the time (a 4-run one 8%).
+# Thresholds come from 40 seeded sessions at this scale with the crowd's heat and the realism score held to the seed
+# history (T-838): one session meets every bound with chance 0.30, volatility clusters (acf_abs >= 0.1) in 65% of
+# sessions and lands within 10% of its target in two thirds (median 0.98). Six sessions are too few for a statistical
+# claim (resampled, their medians miss a bound a third of the time, mostly volatility clustering): this is the seeded
+# check.
 def test_the_tape_shows_the_stylized_facts_of_the_seed_history_in_the_median_session():
     check_realism_over_seeds(runs=6, least_every_bound=1, loosen={"abs_acf1": (None, 0.35)})
 
 
-# FG_ENV_SLOW=1: strict medians and at least 8 of 24 sessions meeting every bound. A healthy set fails 0.3% of the
-# time (3% on the pre-migration numbers); if one session in five met every bound it would fail 91% of the time.
+# FG_ENV_SLOW=1: strict medians and at least 4 of 24 sessions meeting every bound. Resampling the 40 sessions, a
+# healthy set fails 12% of the time (nearly always on the clustering median); the seeded set meets every bound in 8.
 @pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="slow verification: set FG_ENV_SLOW=1")
 def test_the_stylized_facts_hold_across_many_seeds():
-    check_realism_over_seeds(runs=24, least_every_bound=8)
+    check_realism_over_seeds(runs=24, least_every_bound=4)

@@ -91,6 +91,19 @@ def test_a_cell_at_an_edge_that_does_not_wrap_keeps_the_shares_it_cannot_hand_ou
     assert _layer(env, "scent") == [3.0, 0.5, 0, 0.5, 0, 0, 0, 0, 0]
 
 
+def test_diffusion_with_where_treats_the_other_cells_as_walls_it_neither_leaks_into_nor_drains_through():
+    corridor = {"name": "Corridor", "clock": {"rounds": 20}, "types": {"x": {"props": {}}},
+                "space": {"grid": {"rows": 1, "cols": 5},
+                          "layers": {"smoke": {"default": "8.0 if $cell == [0, 0] else 0.0"},
+                                     "wall": {"type": "bool", "default": "$cell == [0, 2]"}}},
+                "events": [{"do": [{"layer": "smoke", "diffuse": 0.5, "where": "not $layer(wall, $cell)"}]}]}
+    env = fg_env.load(corridor, seed=1)
+    env.run(rounds=20)
+    smoke = _layer(env, "smoke")
+    assert smoke[2:] == [0, 0, 0] and sum(smoke) == pytest.approx(8.0)  # nothing crosses the wall, nothing is lost
+    assert smoke[0] == pytest.approx(smoke[1], rel=0.01)  # the room on its side evens out
+
+
 def test_graph_places_diffuse_to_the_places_their_edges_reach():
     contract = {"name": "Rumour", "space": {"graph": {"nodes": ["a", "b", "c"], "edges": [["a", "b"], ["a", "c"]]},
                                             "layers": {"heat": {"default": "6.0 if $cell == a else 0.0"}}},
@@ -115,9 +128,11 @@ def test_layers_round_trip_through_snapshots():
 
 def test_layer_mistakes_are_reported_with_a_path():
     contract = _with([{"do": [{"layer": "sugar", "diffuse": 0.1}, {"layer": "smell", "decay": 0.1},
-                              {"layer": "scent", "decay": 0.1, "at": [0, 0]}]}])
+                              {"layer": "scent", "decay": 0.1, "at": [0, 0]},
+                              {"layer": "scent", "decay": 0.1, "where": "true"}]}])
     issues = {(i.path, i.message) for i in fg_env.check(contract) if i.severity == "error"}
     assert ("events[0].do[0].diffuse", "`diffuse` needs a number layer; 'sugar' is int") in issues
+    assert ("events[0].do[3].where", "`where` goes with `set` or `diffuse`, not `decay`") in issues
     assert ("events[0].do[1].layer", "'smell' is not a declared layer") in issues
     assert ("events[0].do[2].at", "`at` goes with `set`, not `decay`") in issues
     with pytest.raises(fg_env.RunError) as failed:

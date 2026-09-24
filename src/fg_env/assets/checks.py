@@ -10,7 +10,6 @@ from .kinds import HARD_MAX_BYTES, KINDS
 __all__ = ["check_assets"]
 
 _ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*$")
-_IT_PROP = re.compile(r"\$it\.([A-Za-z_][A-Za-z0-9_]*)")
 
 
 def check_assets(checker: Any, base: frozenset[str]) -> None:
@@ -37,14 +36,6 @@ def check_assets(checker: Any, base: frozenset[str]) -> None:
         path = f"views.{name}.attach"
         its: set[str] = set(contract.subtypes(view.of)) if view.of in contract.types else set()
         checker.expr(view.attach, path, base | {"actor", "it", "i"}, {"actor": agents, "it": its})
-        if view.where is not None:  # the author decides who sees which item
-            continue
-        for prop in _IT_PROP.findall(view.attach):
-            specs = [contract.props_of(kind).get(prop) for kind in its]
-            if any(spec is not None and spec.private for spec in specs):
-                checker.warn(path, f"attaches the private property '{prop}' of every listed {view.of}, so agents "
-                                   "receive a file the rules hide", "filter with `where` (e.g. a reveal flag), or "
-                                                                    "attach it through a record entry when revealed")
     for name, action in contract.actions.items():
         path = f"actions.{name}"
         by = [action.by] if isinstance(action.by, str) else action.by

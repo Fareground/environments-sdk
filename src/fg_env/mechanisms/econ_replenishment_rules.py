@@ -12,12 +12,13 @@ from typing import Any
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
+from ..expr.objects import Entity
 from ..patterns.runtime import key_text
 from ..registry import family_action
-from ..world.entity import Entity
 from ..world.live import Abort
+from ._common import entity_of
 from .econ_assets import balance, burn_money, credit_of
-from .econ_base import DEMAND, REPLENISHMENT, config_of, entity_of, props
+from .econ_base import DEMAND, REPLENISHMENT, config_of, props
 from .econ_demand import DemandConfig
 from .econ_demand_trade import number_of, stock_in
 from .econ_replenishment import NEEDS, POLICIES, LeadTimeRef, ReplenishmentConfig

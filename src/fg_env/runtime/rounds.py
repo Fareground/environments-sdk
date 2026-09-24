@@ -7,12 +7,13 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET
+from ..actions.faults import world_logic_refused
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import shared_budget
-from ..world.entity import Entity
+from ..expr.objects import Entity
+from ..world.clock_math import advance_time
 from ..world.live import Abort, OutOfBounds
-from .clock_math import advance_time
 from .feeds import run_feeds
 from .measure import sample_metrics
 from .turn import Turn
@@ -197,13 +198,14 @@ class RunRounds:
         self._flush_events()
 
     def _atomic(self: Env, effects: list[Any], vars: dict[str, Any], path: str,  # type: ignore[misc]
-                check: bool = True, owner: Any = None) -> bool:
-        """Apply ``effects`` as one undoable block. ``check=False``: one item of a block of world logic whose
-        invariants are checked once it is whole (an `each` event), unless a trigger fires or an agent reacts first.
-        The block draws from the stream of its path and ``owner`` (default: its $actor), so an entity's luck does not
-        shift when others come or go."""
+                check: bool = True, owner: Any = None) -> None:
+        """Apply ``effects`` as one undoable block of world logic: a refusal in it (a `fail`, a transfer or write that
+        does not fit) fails the run — or, inside an agent's action, refuses that action. ``check=False``: one item of a
+        block whose invariants are checked once it is whole (an `each` event), unless a trigger fires or an agent reacts
+        first. The block draws from the stream of its path and ``owner`` (default: its $actor), so an entity's luck
+        does not shift when others come or go."""
         if not effects:
-            return True
+            return
         with self._lock, self.world.drawing_for(path, vars.get("actor") if owner is None else owner):
             mark = self.world.journal.mark()
             try:
@@ -215,15 +217,12 @@ class RunRounds:
                                "$clamp(x, low, high), or guard the write with an `if`", path) from None
             except Abort as refusal:
                 self.world.journal.rollback(mark)
-                self.world.emit("refused", f"{path} was refused: {refusal.reason}", to=[],
-                                data={"path": path, "reason": refusal.reason})
-                return False
+                raise RunError(world_logic_refused(refusal.reason), path) from None
             except BaseException:
                 self.world.journal.rollback(mark)
                 raise
             self._after_commit(path, check)
             self.happenings.react(self._stage_spec())
-        return True
 
     def _stage_spec(self: Env) -> StageSpec | None:  # type: ignore[misc]
         name = self.world.stage

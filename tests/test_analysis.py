@@ -40,7 +40,6 @@ from fg_env.analysis import (
     unit_search,
 )
 from fg_env.analysis.calibrate import evaluate_targets, parse_targets
-from fg_env.analysis.cli import add_analysis_commands
 from fg_env.analysis.compare import welch
 from fg_env.analysis.facts import autocorrelation, excess_kurtosis, max_drawdown
 from fg_env.analysis.highlights import move_score
@@ -58,6 +57,7 @@ from fg_env.analysis.stats import (
     wasserstein,
     wilson,
 )
+from fg_env.cli.analysis import add_analysis_commands
 from fg_env.errors import InputError
 from fg_env.runtime.measure import RunResult
 

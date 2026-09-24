@@ -3,7 +3,9 @@ and the revision that works kept. ``check``, ``run`` and ``preview`` run in the 
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import re
 import tempfile
 from collections.abc import Callable
 from pathlib import Path
@@ -27,16 +29,18 @@ RUN_SECONDS = 60
 MAX_RESULT = 12000
 
 TOOLS: list[dict[str, Any]] = [
-    {"name": "write_contract", "description": "Save the environment contract (the whole JSON object, as text). "
-     "Replaces the previous version.", "parameters": {"type": "object", "properties": {
-         "contract": {"type": "string", "description": "The contract as JSON text (a JSON object is taken too)."}},
+    {"name": "write_contract", "description": "Save the environment contract: the whole JSON object. Replaces the "
+     "previous version.", "parameters": {"type": "object", "properties": {
+         "contract": {"type": "object", "additionalProperties": True, "description": "The contract."}},
          "required": ["contract"]}},
     {"name": "edit_contract", "description": "Change parts of the saved contract without writing it all again. Each "
      "edit sets the value at a path such as 'outputs.score' or 'actions.take.do[0]' (on a list, the index one past "
-     "the end adds an item); an edit without a value removes what is there. Saved as a new revision.",
+     "the end adds an item); an edit without a value removes what is there. All the edits of one call are saved "
+     "together as one new revision.",
      "parameters": {"type": "object", "properties": {"edits": {"type": "array", "items": {
          "type": "object", "properties": {"path": {"type": "string"},
-                                          "value": {"type": "string", "description": "The new value as JSON text."}},
+                                          "value": {"description": "The new value: any JSON value (an object, a list, "
+                                                                   "a string, a number, true, false or null)."}},
          "required": ["path"]}}}, "required": ["edits"]}},
     {"name": "start_from", "description": "Save an engine starter as your contract (a new revision, tested like any "
      "other), to adapt to the brief with edit_contract. The reply shows the whole contract.",
@@ -69,44 +73,62 @@ CUT_WRITE = (" Write the contract shorter, or save a smaller one first and add t
 
 
 def describe_changes(before: dict[str, Any], after: dict[str, Any]) -> str:
-    """How ``after`` differs from ``before`` in what the environment is: its name and the parts :func:`_parts` names."""
+    """How ``after`` differs from ``before`` in what the environment is: its name, the parts :func:`_parts` names that
+    were added or removed, and those whose content changed (an action's `do`, an event's effects ...)."""
     changes = ([f"name {before.get('name')!r} → {after.get('name')!r}"] if before.get("name") != after.get("name")
                else [])
     old_parts, new_parts = _parts(before), _parts(after)
     for key in [k for k in old_parts if k in new_parts]:
         old, new = old_parts[key], new_parts[key]
-        if old != new:
-            changes.append(f"{key} "
-                           + " ".join([f"-{k}" for k in sorted(old - new)] + [f"+{k}" for k in sorted(new - old)]))
+        changed = sorted(name for name in old.keys() & new.keys() if old[name] != new[name])
+        words = [f"-{k}" for k in sorted(old.keys() - new.keys())] + [f"+{k}" for k in sorted(new.keys() - old.keys())]
+        words += [f"~{k}" for k in changed if not key.endswith(".params")]  # an action's changed params: it changed
+        if words:
+            changes.append(f"{key} " + " ".join(words))
     return "; ".join(changes)
 
 
 def removed_parts(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
-    """The parts of ``before`` that ``after`` no longer has, e.g. ``actions.take`` or ``actions.take.params.count``."""
+    """The parts of ``before`` that ``after`` no longer has, e.g. ``actions.take`` or ``actions.take.params.count``,
+    and those whose effects ``after`` rewrote to do nothing, e.g. ``events.0 (its do now does nothing)``."""
     old_parts, new_parts = _parts(before), _parts(after)
-    gone = [f"{key}.{name}" for key, names in old_parts.items() for name in sorted(names - new_parts.get(key, set()))]
+    gone = [f"{key}.{name}" for key, names in old_parts.items()
+            for name in sorted(names.keys() - new_parts.get(key, {}).keys())]
+    gutted = [f"{key}.{name} (its do now does nothing)" for key in _RULES for name, old in old_parts[key].items()
+              if name in new_parts[key] and _acts(old) and not _acts(new_parts[key][name])]
     return [path for path in gone
-            if not any(path.startswith(other + ".") for other in gone)]  # an action, not its params
+            if not any(path.startswith(other + ".") for other in gone)] + gutted  # an action, not its params
 
 
 #: The contract sections made of parts: together, what an environment is.
 _SECTIONS = ("inputs", "assets", "world", "types", "entities", "population", "relations", "links", "feeds", "patterns",
              "records", "actions", "stages", "views", "events", "triggers", "policies", "metrics", "outputs", "end",
              "arms", "invariants", "defs", "blocks", "mechanisms")
+#: The sections whose parts are rules with effects (`do`).
+_RULES = ("actions", "stages", "events", "triggers")
+#: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1.
+_IDENTITY = re.compile(r"\s*\$[\w.\[\]'\"]+\s*(?:[-+]=\s*0|[*/]=\s*1)(?:\.0*)?\s*")
 
 
-def _parts(contract: dict[str, Any]) -> dict[str, set[str]]:
-    """The names of the parts of each of :data:`_SECTIONS` (a list's item by its name, else its position), and of each
+def _parts(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """The parts of each of :data:`_SECTIONS` by name (a list's item by its name, else its position), and each
     action's params."""
-    parts: dict[str, set[str]] = {}
+    parts: dict[str, dict[str, Any]] = {}
     for key in _SECTIONS:
         value = contract.get(key) or {}
-        parts[key] = set(value) if isinstance(value, dict) else {
-            str(item.get("name", n)) if isinstance(item, dict) else str(n) for n, item in enumerate(value)}
+        parts[key] = dict(value) if isinstance(value, dict) else {
+            str(item.get("name", n)) if isinstance(item, dict) else str(n): item for n, item in enumerate(value)}
     for name, action in (contract.get("actions") or {}).items():
         if isinstance(action, dict) and isinstance(action.get("params"), dict):
-            parts[f"actions.{name}.params"] = set(action["params"])
+            parts[f"actions.{name}.params"] = dict(action["params"])
     return parts
+
+
+def _acts(part: Any) -> bool:
+    """Whether ``part`` is a rule with an effect (in its `do`) that changes something: not ``$x += 0``."""
+    effects = part.get("do") if isinstance(part, dict) else None
+    effects = [effects] if isinstance(effects, str) else effects or []
+    return any(not (isinstance(e, str) and _IDENTITY.fullmatch(e)) for e in effects)
 
 
 def _tool(name: str, path: str, args: dict[str, Any]) -> str:
@@ -165,6 +187,8 @@ class Workbench:
         #: What the latest working revision not kept removed from the kept one: saving that removal again confirms it.
         self.unconfirmed: list[str] = []
         self.problem = ""
+        #: What testing found, by the hash of the contract tested.
+        self._tested: dict[str, Tested] = {}
 
     @property
     def best(self) -> dict[str, Any] | None:
@@ -205,10 +229,10 @@ class Workbench:
         return CUT_CALL.format(tool=name, done="saved") + CUT_WRITE
 
     def tool_write_contract(self, contract: Any) -> str:
-        if isinstance(contract, dict):  # many models send the object itself
+        if isinstance(contract, dict):
             return self._save(contract)
         try:
-            data = json.loads(contract) if isinstance(contract, str) else contract
+            data = json.loads(contract) if isinstance(contract, str) else contract  # some models send JSON text
         except json.JSONDecodeError as exc:
             self.writes.append(contract)
             self.problem = f"the last write was not valid JSON ({exc}), so it saved nothing"
@@ -234,13 +258,18 @@ class Workbench:
         return self._save(source) + "\n\nThe contract:\n" + json.dumps(source, ensure_ascii=False)
 
     def _save(self, data: dict[str, Any]) -> str:
+        if data == self.latest:
+            return self._unchanged()
         if self.out_of_revisions:
             kept = f"revision {self.kept}, the best that works, is kept" if self.kept else "none works"
             return f"Revision limit reached ({MAX_REVISIONS}): nothing more is saved; {kept}."
         self.writes.append(data)
         self.revisions.append(data)
         self.path.write_text(json.dumps(data, indent=2))
-        found = tested(str(self.path), self.box)
+        content = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
+        if content not in self._tested:  # a revision saved before, back again, is not tested again
+            self._tested[content] = tested(str(self.path), self.box)
+        found = self._tested[content]
         self.problem, number = found.problem[:MAX_RESULT], len(self.revisions)
         if self.problem:
             return f"Saved revision {number}, but it does not work yet: {self.problem}" + _notes(found)
@@ -257,6 +286,15 @@ class Workbench:
                     "removal." + _notes(found))
         self.kept, self.unconfirmed = number, []
         return saved + _notes(found)
+
+    def _unchanged(self) -> str:
+        """Answer a save of the latest revision as it is: no new revision; a removal it made is confirmed by it."""
+        number = len(self.revisions)
+        if self.unconfirmed and number in self.working and self.kept != number:
+            self.kept, self.unconfirmed, self.problem = number, [], ""
+            return f"Revision {number} saved again unchanged: its removals are confirmed, and it is kept."
+        state = "it is kept" if self.kept == number else f"it is not kept: {self.problem}"
+        return f"Nothing changed: this is revision {number} as saved, not a new revision; {state}"
 
     def tool_check(self) -> str:
         return self._in_child("check")
@@ -288,15 +326,17 @@ def _verdict(found: Tested) -> str:
     how = "without a problem" if found.untested else "to the end"
     ran = (f"{checked}, and runs {how} on {found.seeds} seeds with random agents, {len(TEST_SEEDS)} with idle ones, "
            "and once with agents choosing edge values")
-    return f"{ran}; {found.untested}" if found.untested else ran
+    ran += f"; {found.untested}" if found.untested else ""
+    average, largest = found.prompt
+    return f"{ran}; an agent reads ~{average:,} tokens a turn (its brief and update), ~{largest:,} at most"
 
 
 def _notes(found: Tested) -> str:
-    """The host stand-ins and check warnings behind a save's verdict, as lines to add to its reply."""
+    """The host stand-ins and warnings behind a save's verdict, as lines to add to its reply."""
     lines = [f"Its host calls ({', '.join(found.hosts)}) were answered by the SDK's stand-in stubs, not a model: real "
              "answers need a real host bound (fg_env.host.load(..., hosts=...))."] if found.hosts else []
     if found.warnings:
-        lines += ["Check warnings:", *found.warnings]
+        lines += ["Warnings:", *found.warnings]
     return "".join("\n" + line for line in lines)
 
 
@@ -330,9 +370,10 @@ def _arguments(params: dict[str, Any], arguments: str) -> tuple[dict[str, Any], 
 
 
 def _edit(data: dict[str, Any], one: Any) -> str:
-    """Apply one ``{"path": ..., "value": <JSON text>}`` edit to ``data`` in place; returns what is wrong, or ""."""
+    """Apply one ``{"path": ..., "value": <any JSON value>}`` edit to ``data`` in place; returns what is wrong, or
+    ""."""
     if not isinstance(one, dict) or not isinstance(one.get("path"), str) or not one["path"]:
-        return 'an edit is {"path": "outputs.score", "value": "<JSON text>"} (no value removes what is there)'
+        return 'an edit is {"path": "outputs.score", "value": <any JSON value>} (no value removes what is there)'
     path = one["path"]
     keys = [k for k in path.replace("[", ".").replace("]", "").split(".") if k]
     parent: Any = data
@@ -356,10 +397,7 @@ def _edit(data: dict[str, Any], one: Any) -> str:
         else:
             return f"{path}: there is nothing there to remove"
         return ""
-    try:
-        value = json.loads(one["value"]) if isinstance(one["value"], str) else one["value"]
-    except json.JSONDecodeError as exc:
-        return f"{path}: the value is not valid JSON ({exc}); strings are quoted, e.g. '\"text\"'"
+    value = one["value"]
     if isinstance(parent, list) and int(key) == len(parent):
         parent.append(value)
     else:

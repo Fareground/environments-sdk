@@ -27,7 +27,7 @@ from pydantic import Field, model_validator
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
-from ..registry import MechanismError, mode
+from ..registry import MechanismError, mechanism_config, mode
 from . import _common as common
 from ._common import Config, Number
 
@@ -248,7 +248,7 @@ def _won(call: Call) -> float:
     if entity is None:
         raise ExprError(f"$won: expected an entity, got {call.arg(0)!r}", call.source)
     try:
-        cfg = common.config(world, str(call.arg(1)), KEY, VictoryConfig, call.source)
+        cfg = mechanism_config(world, str(call.arg(1)), KEY, VictoryConfig, call.source)
     except RunError as exc:
         raise ExprError(f"$won: {exc}", call.source) from None
     ended = world.end_request

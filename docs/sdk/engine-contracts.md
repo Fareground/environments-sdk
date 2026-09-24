@@ -17,7 +17,11 @@ Environment code must not reimplement the mechanics below.
   debate, division and recorded decisions. Each member's stance blends their
   starting stance with the average stance of the floor speeches so far, a
   personal share (averaging `persuasion`) coming from the speeches; a speech from
-  another party counts `1 - party_loyalty` of one from the member's own. Members
+  another party counts `1 - party_loyalty` of one from the member's own. A speech's stance is what a bound judge host (`judge`) reads in its words:
+  the direction it argues (-1 to 1) times how persuasive it is (0 to 1). Without
+  a judge, coded listeners react to the speaker's own stance, not to what is
+  said, so a model's argument moves nobody unless a judge is bound.
+  Members
   stay anchored to where they started, so the order of the members table does
   not decide the vote and debate does not collapse the chamber into unanimity.
   Coded members vote their current stance and never amend (amending is there for
@@ -64,7 +68,11 @@ Environment code must not reimplement the mechanics below.
   final ballot. Each member's stance blends their starting stance with the
   average stance of the speeches so far, a personal share (averaging
   `persuasion`) coming from the speeches, so views move without collapsing into
-  unanimity; members speak in a random order each pass. Coded members with
+  unanimity. A speech's stance is what a bound judge host (`judge`) reads in its words:
+  the direction it argues (-1 to 1) times how persuasive it is (0 to 1). Without
+  a judge, coded listeners react to the speaker's own stance, not to what is
+  said, so a model's argument moves nobody unless a judge is bound.
+  Members speak in a random order each pass. Coded members with
   a strong view either way put the question, anyone seconds it, and each speaks
   once per motion and votes their current stance, so an opposed group rejects the
   question rather than leaving it undecided. Coded members never amend.
@@ -83,8 +91,10 @@ Environment code must not reimplement the mechanics below.
 - **Actions:** submit one response, confidence and concise reason.
 - **State and phases:** one sealed simultaneous response stage. The coded
   baseline answers from each person's leaning: the inclination plus normal
-  noise whose spread is one minus their confidence (support above 0.25, oppose
-  below -0.25, otherwise undecided) and reports as its confidence the chance
+  noise whose spread is one minus their confidence. It commits only when the
+  leaning clears a band of 0.25 divided by the confidence (support above it,
+  oppose below minus it, otherwise undecided), so the less confident answer
+  undecided more often, and it reports its confidence discounted by the chance
   that leaning would land on the same answer again, so certain people with a
   clear inclination report high confidence and uncertain or borderline ones less.
 - **Termination and outputs:** completes after the cohort responds; output cohort

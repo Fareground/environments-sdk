@@ -1,5 +1,19 @@
-"""Entity instances: the things in a running world."""
+"""The two world objects the language reads natively: entities and the ``$world`` view.
+
+They live here, below the world, because compiled expressions test them by exact type (the fast path for
+``$it.cash`` and ``$world.price``); the world builds and holds them.
+"""
+from __future__ import annotations
+
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
+
+from .base import ExprError
+
+if TYPE_CHECKING:
+    from ..world.live import SdkWorld
+
+__all__ = ["Entity", "PropertyValue", "PropsView"]
 
 # Runtime value for a property
 PropertyValue = float | int | str | bool | list[str] | None
@@ -36,3 +50,17 @@ class Entity:
             "location_id": self.location_id,
             "alive": self.alive,
         }
+
+
+class PropsView:
+    """``$world`` — global properties, readable and assignable."""
+
+    def __init__(self, world: SdkWorld):
+        self._world = world
+
+    def expr_attr(self, name: str, source: str | None) -> Any:
+        values = self._world.props
+        if name not in values:
+            known = ", ".join(sorted(values)) or "none declared"
+            raise ExprError(f"world has no property '{name}' (declared: {known})", source)
+        return values[name]

@@ -108,10 +108,10 @@ def test_check_reports_undeclared_asset_ids_and_file_parameter_mistakes():
     assert ("actions.submit.params.n", "kinds and max_bytes apply to file parameters") in messages
 
 
-def test_check_warns_when_a_view_attaches_a_private_asset_to_everyone():
+def test_check_refuses_a_view_that_attaches_a_private_asset_to_everyone():
     contract = patched(views={"leaky": {"of": "exhibit", "show": "{title}", "attach": "$it.file"}})
-    warnings = [issue for issue in fg_env.check(contract, rounds=0) if issue.path == "views.leaky.attach"]
-    assert warnings and "private property 'file'" in warnings[0].message
+    errors = [issue for issue in fg_env.check(contract, rounds=0) if issue.path == "views.leaky.show"]
+    assert errors and errors[0].severity == "error" and "private file" in errors[0].message
 
 
 # -- delivery and visibility -------------------------------------------------------------------------------------
@@ -281,6 +281,16 @@ def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):
     (tmp_path / "files" / "report.md").write_text("tampered", encoding="utf-8")
     with pytest.raises(blobs.BlobMissing, match="changed after it was read"):
         env.world.assets.data(asset)
+
+
+def test_editing_one_copy_of_a_file_never_breaks_another_contract_holding_the_original(tmp_path):
+    first, second = trial(tmp_path / "first"), trial(tmp_path / "second")
+    (tmp_path / "first" / "files" / "report.md").write_text(f"Only here: {tmp_path}", encoding="utf-8")
+    (tmp_path / "second" / "files" / "report.md").write_text(f"Only here: {tmp_path}", encoding="utf-8")
+    fg_env.load(first, seed=1)
+    env = fg_env.load(second, seed=1)
+    (tmp_path / "first" / "files" / "report.md").write_text("edited", encoding="utf-8")
+    assert env.world.assets.data(env.world.assets.get("report")) == f"Only here: {tmp_path}".encode()
 
 
 def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, monkeypatch):

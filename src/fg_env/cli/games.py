@@ -69,7 +69,7 @@ def add_game_commands(sub: Any) -> None:
     p.add_argument("--leak-branches", type=int, default=2, help="changed steps per playout for the leak test")
     p.add_argument("--max-steps", type=int, default=1000, help="longest playout")
     p.add_argument("--no-resume", action="store_true", help="skip the whole-run resume check")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print the report as JSON")
     p.set_defaults(func=_guarded(cmd_conformance))
 
     p = sub.add_parser("playthrough", help="play one game and print what every seat reads at every decision, the "

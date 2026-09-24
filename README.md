@@ -19,7 +19,7 @@
 
 ---
 
-[Documentation](https://fareground.com/docs/env-kernel/) · [Quickstart](docs/sdk/getting-started.md) · [Authoring guide](docs/sdk/authoring.md) · [Reference](docs/sdk/reference.md)
+[Documentation](https://fareground.com/docs/env-kernel/) · [Start here: the authoring guide](docs/sdk/reference-authoring.md) · [Business walkthrough](docs/sdk/getting-started.md) · [Reference](docs/sdk/reference.md)
 
 ## Overview
 
@@ -29,13 +29,12 @@ transitions, stopping conditions, and measurements. The runtime builds the world
 agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
-scenario repeatedly. Twelve reusable behavioral engines—Retail, Council, Dispute, Exchange,
-Legislature, Contest, Deliberation, Negotiation, Population, Network, Matching and Strategy—can be
-cloned as a starting point, then customized: topic, participants, rules, information and outcomes.
-
-Do not treat an engine as a finished scenario. Engines provide interaction mechanics; your
-environment supplies the real-world question and assumptions. Named Arena games and physical,
-spatial, logistics, or disease models are not part of the behavioral engine catalog.
+scenario repeatedly. Eighteen engines—Retail, Council, Dispute, Exchange, Legislature, Contest,
+Deliberation, Negotiation, Population, Network, Matching, Strategy, Supply chain, Auction, Contact centre,
+Ride hailing, Epidemic and Hidden roles—are runnable starters, one per kind of interaction: each is a
+complete contract with coded participants that runs as cloned. Clone the closest one and make it your
+own: topic, participants, rules, information and outcomes. The real-world question and its assumptions
+are yours to supply.
 
 You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
 and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
@@ -116,10 +115,12 @@ fg-env run shop.json --seed 1
 
 The model starts from the closest engine starter when one fits, then writes, checks, previews and runs the contract
 until it works; the saved contract is the best one that checks without errors and plays soundly with random, idle and
-edge-value agents on many seeds, every view read and every game-master effect applied (a long simulation is tested as
-far as a minute of runs reaches, and the summary says PARTLY TESTED and how far), written to `--out` as soon as it is
-kept, so stopping early keeps it. A later revision that removes parts is kept only once the model confirms the
-removal; when nothing works, the draft is written beside `--out` as `<name>.not-working.json`. `--tokens`, `--calls`
+edge-value agents on several seeds (more when it draws on chance), every view read and every game-master effect
+applied (a long simulation is tested as far as a minute of runs reaches, and the summary says PARTLY TESTED and how
+far), written to `--out` as soon as it is kept, so stopping early keeps it. A later revision that removes parts, or
+rewrites a rule to do nothing, is kept only once the model confirms it; the summary warns about outputs that came out
+the same in every test run, briefs that never give an agent a goal and rounds that send models a great many prompt
+tokens. When nothing works, the draft is written beside `--out` as `<name>.not-working.json`. `--tokens`, `--calls`
 and `--seconds` cap the session. `--model openai:<model>` uses
 `OPENAI_API_KEY`; OpenRouter or any OpenAI-compatible server works through it by also setting `OPENAI_BASE_URL` (for
 OpenRouter, `https://openrouter.ai/api/v1` with the OpenRouter key as `OPENAI_API_KEY`). From Python:
@@ -170,18 +171,17 @@ To model people interacting at scale, clone a versioned engine's starter and cus
 ```python
 import fg_env
 
-for engine in fg_env.list_engines():
+for engine in fg_env.engines.list_engines():
     print(engine.id, engine.status, engine.available)
 
-fg_env.clone_engine("retail", "my_market.json", name="My market study")  # overwrite=True to clone it again
+fg_env.engines.clone("retail", "my_market.json", name="My market study")  # overwrite=True to clone it again
 # A quick first look: 2 runs of each arm, two weeks over 80 sampled households (the fewest the market takes).
 # More runs give tighter intervals.
 result = fg_env.experiment("my_market.json", runs=2, participants="random", inputs={"sample_size": 80, "days": 14})
 print(result.table())
 ```
 
-The catalog contains reusable behavioral engines only—not finished environments,
-scenario presets, or Arena games. All twelve engines are native, available, and cloneable.
+All eighteen engines are native, available, and cloneable.
 
 Persona generation is shared infrastructure rather than an environment:
 
@@ -234,7 +234,7 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 <!-- not run: shop.json stands for your own contract -->
 ```bash
 fg-env new shop shop.json                 # a ready-to-run start: blank, duel, shop, simulation or meeting
-fg-env engines                            # the engines: complete scenarios with coded participants to start from
+fg-env engines                            # the engines: runnable starters to copy and make your own
 fg-env new --engine legislature vote.json # a copy of one to edit
 fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections

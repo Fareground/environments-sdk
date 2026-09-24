@@ -14,13 +14,14 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import compile_template, format_value
-from ..registry import MechanismError, family_action, mode
-from .common import NAME, agents_of, clip, config_of, type_list
-from .protocols import HostError
-from .tape import consult, plain, tape_prop
+from ..host.common import MODEL_HINT, NAME, agents_of, clip, type_list
+from ..host.protocols import HostError
+from ..host.tape import consult, plain
+from ..registry import MechanismError, family_action, mechanism_config, mode
 
 __all__ = ["PersonaConfig", "generate", "KEY"]
 
@@ -35,7 +36,7 @@ class PersonaConfig(BaseModel):
     who: str = Field(..., description="Type whose entities get a persona.")
     prompt: str = Field(..., description="What to write, as a template over $it (the entity and its props).")
     host: str = Field("personas", description="Host writer name.")
-    model: str | None = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description=MODEL_HINT)
     prop: str = Field("persona", description="Text property that holds the persona.")
     brief: bool = Field(True, description="Add the persona to the entity's brief.")
     fallback: str | None = Field(None,
@@ -70,7 +71,7 @@ def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, An
 
 def generate(world: Any, name: str, where: str) -> int:
     """Write every missing persona of the mechanism ``name``; returns how many were written."""
-    config = config_of(world, name, KEY, PersonaConfig, where)
+    config = mechanism_config(world, name, KEY, PersonaConfig, where)
     written = 0
     for entity in agents_of(world, config.who):
         if entity.properties.get(config.prop):

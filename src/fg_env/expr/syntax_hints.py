@@ -13,6 +13,10 @@ _CONTEXT = 24
 
 def syntax_message(source: str, python_message: str) -> str:
     """The error to report for ``source``, which Python could not parse (``python_message``)."""
+    if ("\n" in source or "\r" in source) and "unterminated string" in python_message:
+        return ("syntax error: quoted text in the expression holds a line break, which ends it — for a line break in "
+                "text write the two characters \\n inside the quotes (in JSON, \"\\\\n\"), or write the text in a "
+                "template (outcome, say, show)")
     unbalanced = _unbalanced(source)
     if unbalanced is not None:
         return f"syntax error: {unbalanced}"

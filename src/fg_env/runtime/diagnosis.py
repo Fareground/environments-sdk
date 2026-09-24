@@ -15,7 +15,7 @@ from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import stage_actions
-from ..world.entity import Entity
+from ..expr.objects import Entity
 
 if TYPE_CHECKING:
     from .session import ToolResult
@@ -49,7 +49,8 @@ class Diagnosis:
     def __init__(self, written: set[str]):
         #: action → {calls, refused, reasons}, plus {unusable, stuck}: refusals when no choice the tool offered could
         #: have worked, and their wordings; {applied, faulted}: times it took effect, and times a rule failed or an
-        #: invariant broke as it applied.
+        #: invariant broke as it applied; {chosen, chosen_refused}: calls a model or a coded policy chose (not blind
+        #: random play), and how many of those were refused.
         self.actions: dict[str, dict[str, Any]] = {}
         #: stage → [times reached, times run, agents woken, times it ran every pass without its `until` holding]
         self.stages: dict[str, list[int]] = {}
@@ -82,6 +83,9 @@ class Diagnosis:
             return
         entry = self._action(name)
         entry["calls"] += 1
+        if turn.stats.llm_calls:  # a model chose this call: its refusal says something about the tool
+            entry["chosen"] += 1
+            entry["chosen_refused"] += not result.ok
         if result.ok:
             entry["applied"] += int(not turn.staged)  # a sealed choice takes effect when it commits
             return
@@ -109,18 +113,27 @@ class Diagnosis:
         if action is not None:
             self._action(action)["faulted"] += 1
 
-    def policy_rule(self, path: str, refusal: str | None = None) -> None:
-        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call was refused."""
+    def policy_rule(self, path: str, action: str, refusal: str | None = None, sent: bool = True) -> None:
+        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call of the contract ``action`` was
+        refused: a refused choice of that action — and, when it was never ``sent`` (arguments the action does not
+        accept), a refused call of it too."""
         entry = self.policy_rules.setdefault(path, [0, 0, ""])
         if refusal is None:
             entry[0] += 1
-        else:
-            entry[1] += 1
-            entry[2] = refusal
+            return
+        entry[1] += 1
+        entry[2] = refusal
+        counts = self._action(action)
+        counts["chosen"] += 1
+        counts["chosen_refused"] += 1
+        if not sent:
+            counts["calls"] += 1
+            counts["refused"] += 1
+            _tally(counts["reasons"], refusal)
 
     def _action(self, name: str) -> dict[str, Any]:
         return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {},
-                                              "applied": 0, "faulted": 0})
+                                              "applied": 0, "faulted": 0, "chosen": 0, "chosen_refused": 0})
 
     def _first_probe(self, turn: Turn, name: str) -> bool:
         if self._probed[0] != turn.number:
@@ -178,8 +191,8 @@ class Diagnosis:
         data = data or {}
         self.actions, self.stages = _copy(data.get("actions", {})), _copy(data.get("stages", {}))
         for entry in self.actions.values():  # snapshots from before these were counted
-            entry.setdefault("applied", 0)
-            entry.setdefault("faulted", 0)
+            for key in ("applied", "faulted", "chosen", "chosen_refused"):
+                entry.setdefault(key, 0)
         for counts in self.stages.values():
             counts.extend([0] * (4 - len(counts)))
         self.agents, self.overwrites = _copy(data.get("agents", {})), _copy(data.get("overwrites", {}))
@@ -274,7 +287,7 @@ class SealedWrites:
         before = self._last.get(key)
         self._last[key] = (self.writer, value)
         sides = _ASSIGNMENT.split(source, 1)
-        builds_on_before = len(sides) == 2 and sides[0].strip() in sides[1]
+        builds_on_before = len(sides) == 2 and _whole(sides[0]) in sides[1]
         if before is None or before[0] == self.writer or _same(before[1], value) or builds_on_before:
             return  # the first write, the same agent again, the same value, or a change built on the value before
         shown = f"{owner.name or owner.id}.{prop}" if isinstance(owner, Entity) else f"$world.{prop}"
@@ -303,7 +316,7 @@ class LoopWrites:
     def assigned(self, owner: Any, prop: str, rest: Sequence[Any], value: Any, source: str) -> None:
         if owner is self.item:
             return
-        target = _ASSIGNMENT.split(source, 1)[0].strip()
+        target = _whole(_ASSIGNMENT.split(source, 1)[0])
         if self.body.count(target) > 1:
             return  # the loop reads the target too: a running best, a guard, a change built on it
         key = (owner.id if isinstance(owner, Entity) else "$world", prop, repr(list(rest)))
@@ -313,6 +326,12 @@ class LoopWrites:
             return
         self.world.diagnosis.overwrote(self.path, f"`{source}` ran for several items with different values, so only "
                                                   "the last item's value is kept", loop=True)
+
+
+def _whole(target: str) -> str:
+    """An assignment's target without its element path: ``$who.tally`` for ``$who.tally[x]``, so reading the whole
+    value (``$get($who.tally, x, 0)``) counts as reading the target."""
+    return target.strip().split("[", 1)[0].rstrip()
 
 
 def _same(a: Any, b: Any) -> bool:

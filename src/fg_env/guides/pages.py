@@ -5,6 +5,7 @@ page cannot drift from what the engine accepts.
 """
 from __future__ import annotations
 
+import inspect
 import json
 import types
 import typing
@@ -345,7 +346,7 @@ def _type_name(annotation: Any, field: str) -> str:
 
 
 def _fields(model: type[BaseModel]) -> str:
-    lines = [f"**{model.__name__}** — {(model.__doc__ or '').strip()}"]
+    lines = [f"**{model.__name__}** — {inspect.cleandoc(model.__doc__ or '')}"]
     for name, info in model.model_fields.items():
         key = info.alias or name
         required = info.is_required()

@@ -18,7 +18,9 @@ def ev(env, source, **vars):
 
 
 def do(env, actor, effects):
-    return env._atomic(effects, {"actor": env.world.entities[actor]} if actor else {}, "test")
+    """Apply effects atomically (as `actor` when given); a refusal raises, as any refused world logic does."""
+    env._atomic(effects, {"actor": env.world.entities[actor]} if actor else {}, "test")
+    return True
 
 
 BASE = {"name": "Composed", "clock": {"rounds": 3},

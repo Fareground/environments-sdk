@@ -153,7 +153,7 @@ class _Compiler:
         if chain is not None:
             self.paths.add(chain)
         base, name, source = self.node(node.value), node.attr, self.source
-        return lambda scope: attr(base(scope), name, source)
+        return lambda scope: attr(base(scope), name, source, scope)  # reads what the engine checks and counts
 
     def _Subscript(self, node: ast.Subscript) -> Evaluator:
         base, key, source = self.node(node.value), self.node(node.slice), self.source
@@ -167,9 +167,9 @@ class _Compiler:
                     raise ExprError(f"index {index} is out of range (length {len(container)})", source)
                 return container[index]
             if isinstance(container, Mapping):
-                return attr(container, str(map_key(index)), source)
+                return attr(container, str(map_key(index)), source, scope)
             if hasattr(container, "entity_type"):
-                return attr(container, str(index), source)
+                return attr(container, str(index), source, scope)
             raise ExprError(f"cannot index {_describe(container)}", source)
 
         return run

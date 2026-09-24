@@ -21,8 +21,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
+from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
-from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._game import game_section

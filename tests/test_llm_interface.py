@@ -6,7 +6,7 @@ import threading
 import time
 from types import SimpleNamespace as NS
 
-from test_host_tape import PITCH, _Anthropic, pitcher
+from test_host_tape import PITCH, _Anthropic, _message, pitcher
 from test_llm_failures import EmptyThenBidding
 from test_llm_participants import FakeAnthropic, FakeOpenAI
 from test_runtime import AUCTION, SHOP
@@ -15,27 +15,28 @@ import fg_env
 from fg_env import host, participants
 
 
-class SlowBidder:
-    """An Anthropic client whose every call takes a moment, counting how many are under way at once."""
+class MeetingBidders:
+    """An Anthropic client counting how many calls are under way at once. Until three have been, each call waits for
+    the others to arrive (never on a clock), so parallel calls always meet and serial ones never do."""
 
     def __init__(self):
-        self.lock = threading.Lock()
+        self.arrived = threading.Condition()
         self.active = self.most = 0
         self.messages = self
 
     def create(self, **request):
-        with self.lock:
+        with self.arrived:
             self.active += 1
             self.most = max(self.most, self.active)
-        time.sleep(0.2)
-        with self.lock:
+            self.arrived.notify_all()
+            self.arrived.wait_for(lambda: self.most >= 3, timeout=10)
             self.active -= 1
         usage = NS(input_tokens=100, output_tokens=10, cache_read_input_tokens=0, cache_creation_input_tokens=0)
         return NS(content=[NS(type="tool_use", id="c1", name="bid", input={"amount": 10})], usage=usage)
 
 
 def test_a_token_budget_far_from_its_limit_keeps_parallel_turns_parallel():
-    client = SlowBidder()
+    client = MeetingBidders()
     bidders = {name: participants.anthropic(client, "m") for name in ("ann", "bo", "cy")}
     result = fg_env.load(AUCTION, seed=1).run(bidders, budget={"tokens": 10**9})
     assert result.ok, result.summary()
@@ -150,3 +151,46 @@ def test_broken_json_arguments_are_refused_saying_the_json_is_invalid():
     [reply] = [m for m in client.requests[1]["messages"] if m["role"] == "tool"]
     assert reply["content"].startswith("bid was not done: its arguments are not valid JSON (")
     assert result.agent_stats["ann"]["invalid_calls"] == 1 and result.outputs["price"] == 30
+
+
+def _judged(models=None, **panel):
+    answer = _message(json.dumps({"scores": {"quality": 7}, "rationale": "fine"}))
+    client = _Anthropic([answer] * 4)
+    contract = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], **panel}}}
+    judge = host.adapters.anthropic(client, "claude-host", models=models)
+    host.run(host.load(contract, hosts={"judge": judge}, seed=1), pitcher)
+    return {request["model"] for request in client.requests}
+
+
+def test_the_hosts_own_model_answers_whatever_model_the_contract_names():
+    assert _judged(model="claude-opus-9-most-expensive") == {"claude-host"}
+
+
+def test_a_contract_model_hint_picks_a_model_only_through_the_hosts_own_map():
+    assert _judged({"strong": "claude-big"}, model="strong") == {"claude-big"}
+    assert _judged({"strong": "claude-big"}, model="cheap") == {"claude-host"}
+
+
+def test_check_flags_a_raw_model_id_in_a_host_mechanism():
+    contract = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], "model": "gpt-4o"}}}
+    [found] = [i for i in fg_env.check(contract, rounds=0) if i.path == "mechanisms.panel.model"]
+    assert found.severity == "warning" and "'gpt-4o' reads as a provider's model id" in found.message
+    named = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], "model": "strong"}}}
+    assert not [i for i in fg_env.check(named, rounds=0) if i.path == "mechanisms.panel.model"]
+
+
+def test_each_provider_request_times_out_with_the_turn_that_made_it():
+    timed = FakeAnthropic([[("buy", {"offer": "espresso", "qty": 1}), ("end_turn", {})]])
+    fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(timed, "m"), rounds=1,
+                                                           time_limit=30)
+    assert 0 < timed.requests[0]["timeout"] <= 30
+    free = FakeAnthropic([[("buy", {"offer": "espresso", "qty": 1}), ("end_turn", {})]])
+    fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(free, "m"), rounds=1)
+    assert free.requests[0]["timeout"] == 600
+
+
+def test_a_host_request_times_out_with_the_turn_that_asked():
+    client = _Anthropic([_message(json.dumps({"scores": {"quality": 7}, "rationale": "fine"}))] * 2)
+    env = host.load(PITCH, hosts={"judge": host.adapters.anthropic(client, "claude-host")}, seed=1)
+    host.run(env, pitcher, time_limit=30)
+    assert all(0 < request["timeout"] <= 30 for request in client.requests)

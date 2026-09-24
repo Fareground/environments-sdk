@@ -21,11 +21,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, family_action, mode
-from ..world.entity import Entity
+from ..expr.objects import Entity
+from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
-from .common import config_of, entity_of, fmt
+from ._common import ToolsSetting, entity_of, fmt, tools_field
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -87,7 +86,7 @@ class PostedMarketConfig(BaseModel):
 
 
 def posted_config(world: Any, name: Any) -> PostedMarketConfig:
-    return config_of(world, name, KEY, PostedMarketConfig)
+    return mechanism_config(world, name, KEY, PostedMarketConfig)
 
 
 def _prop(entity: Entity, key: str, default: Any = None) -> Any:
@@ -549,7 +548,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
     if cfg.sellers:
         fragment["views"][f"{name}_mine"] = {"for": cfg.sellers,
                                              "title": f"Your listings (your cash: {{$actor.{cfg.currency}|money}})",
-                                             "of": f"$filter({listing}, $it.seller == $actor.id)",
+                                             "of": listing, "where": "$it.seller == $actor.id",
                                              "show": f"{{$posted_line({name}, $it)}} · sold {{sold}} for "
                                                      "{revenue|money}"}
     names = list(actions)

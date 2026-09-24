@@ -61,20 +61,24 @@ class Layers:
             value = int(value)
         return value
 
-    def diffused(self, name: str, rate: float) -> list[Any]:
+    def diffused(self, name: str, rate: float, open_cells: list[bool] | None = None) -> list[Any]:
         """Every cell hands ``rate`` of its value out equally to its neighbourhood (a grid cell at an edge
-        that does not wrap keeps the shares of the neighbours it lacks; a place shares among its neighbours)."""
+        that does not wrap keeps the shares of the neighbours it lacks; a place shares among its neighbours).
+        With ``open_cells``, a closed cell is a wall: it takes no part, and a neighbour keeps the share it would
+        have handed across it."""
         values = self._numeric(name, "diffuse")
         geometry = self.geometry
         full = geometry.neighborhood_size() if geometry.kind == "grid" else 0
         out = list(values)
         for cell, value in enumerate(values):
-            if not value:
+            if not value or (open_cells is not None and not open_cells[cell]):
                 continue
             neighbours = geometry.neighbor_cells(cell)
             if not neighbours:
                 continue
             share = value * rate / (full or len(neighbours))
+            if open_cells is not None:
+                neighbours = [other for other in neighbours if open_cells[other]]
             out[cell] -= share * len(neighbours)
             for other in neighbours:
                 out[other] += share

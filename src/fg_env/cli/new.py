@@ -87,5 +87,6 @@ def add_new_command(sub: Any) -> None:
     p.set_defaults(func=cmd_new)
 
     p = sub.add_parser("engines",
-                       help="list the engines: complete, runnable scenarios to start from with fg-env new --engine")
+                       help="list the engines: runnable starters, one per kind of human interaction, to copy "
+                            "with fg-env new --engine and make your own")
     p.set_defaults(func=cmd_engines)
