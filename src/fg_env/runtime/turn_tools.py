@@ -53,7 +53,7 @@ class TurnTool:
 
 def turn_tools(contract: Any) -> dict[str, TurnTool]:
     """The in-turn tools a contract declares, by tool name."""
-    from ..host.tools import HostToolConfig, prefetch
+    from ..mechanisms.host_tools import HostToolConfig, prefetch
     from ..mechanisms.memory import MemoryConfig
 
     tools: dict[str, TurnTool] = {}

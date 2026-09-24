@@ -44,7 +44,7 @@ def attach(env: Env, hosts: HostsLike) -> Env:
 
 def build(env: Env) -> None:
     """Write everything hosts contribute when the world is built (personas). Idempotent."""
-    from .personas import KEY, generate
+    from ..mechanisms.host_personas import KEY, generate
 
     names = [name for name, raw in env.contract.mechanisms.items() if use_key(raw) == KEY]
     if not names or env.world.round:

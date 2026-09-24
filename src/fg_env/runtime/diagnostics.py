@@ -19,6 +19,8 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..contract.base import TAPE
+
 if TYPE_CHECKING:
     from .env import Env
 
@@ -196,8 +198,6 @@ def _arm_inputs(env: Env) -> list[dict[str, str]]:
 
 
 def _host_fallbacks(env: Env) -> list[dict[str, str]]:
-    from ..contract.base import TAPE
-
     tape = env.world.props.get(TAPE)
     counts: dict[tuple[str, str], int] = {}
     for entry in tape.values() if isinstance(tape, dict) else ():

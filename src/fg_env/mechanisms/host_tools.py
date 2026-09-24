@@ -18,11 +18,11 @@ from ..errors import RunError
 from ..expr import Untrusted
 from ..expr.objects import Entity
 from ..expr.template import format_value
+from ..host.common import agents_of, clip, prop_of, type_list
+from ..host.protocols import HostError
+from ..host.tape import consult, plain, request_key
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from .common import agents_of, clip, prop_of, type_list
-from .protocols import HostError
-from .tape import consult, plain, request_key
 
 __all__ = ["HostToolConfig", "fetch", "prefetch"]
 

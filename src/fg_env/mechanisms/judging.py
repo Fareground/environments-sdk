@@ -525,7 +525,3 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
                       "reason": refusal}, actor.id, None, where)
     world.set_prop(actor, f"{name}_told", told)
 
-
-# Host building blocks that are not judgments register alongside: host tools and personas.
-from ..host import personas as _personas  # noqa: E402,F401
-from ..host import tools as _tools  # noqa: E402,F401

@@ -5,7 +5,12 @@ A module-level import cycle makes load order matter: whichever module is importe
 Imports inside functions (deferred to first use) and under ``TYPE_CHECKING`` do not run at load and are allowed.
 """
 import ast
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+import pytest
 
 import fg_env
 
@@ -52,7 +57,9 @@ def _graph(modules):
     for name, path in modules.items():
         edges = set()
         for node in _load_time_imports(ast.parse(path.read_text())):
-            targets = _targets(name, path, node, modules)
+            # Loading a module first runs every package above it: importing `a.b.c` runs `a.b/__init__.py` too.
+            targets = {".".join(t.split(".")[:end]) for t in _targets(name, path, node, modules)
+                       for end in range(2, t.count(".") + 2)}
             # A module's own parent packages are loaded before it anyway: importing from them is not a cycle.
             edges.update(t for t in targets if t in modules and t != name and not name.startswith(t + "."))
         graph[name] = edges
@@ -132,3 +139,15 @@ def test_load_time_imports_only_point_down_the_layers():
     assert not upward, (
         "imports that point up the layers: " + "; ".join(sorted(upward))
         + ". Move what the lower module needs down to its layer, or pass it in from above.")
+
+
+@pytest.mark.slow
+def test_every_module_imports_on_its_own():
+    # `import fg_env` loads almost nothing, so a module leaning on another having been imported first breaks here.
+    def imports(name):
+        done = subprocess.run([sys.executable, "-c", f"import {name}"], capture_output=True, text=True)
+        return None if done.returncode == 0 else f"{name}: {done.stderr.strip().splitlines()[-1]}"
+
+    with ThreadPoolExecutor(8) as pool:
+        broken = [problem for problem in pool.map(imports, sorted(_modules())) if problem]
+    assert not broken, "modules that fail when imported first: " + "; ".join(broken)

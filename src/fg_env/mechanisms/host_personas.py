@@ -18,10 +18,10 @@ from ..contract.base import tape_prop
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import compile_template, format_value
+from ..host.common import NAME, agents_of, clip, type_list
+from ..host.protocols import HostError
+from ..host.tape import consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from .common import NAME, agents_of, clip, type_list
-from .protocols import HostError
-from .tape import consult, plain
 
 __all__ = ["PersonaConfig", "generate", "KEY"]
 

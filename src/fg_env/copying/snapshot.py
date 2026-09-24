@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..assets.store import AssetStore
 from ..contract import Contract
+from ..contract.base import TAPE
 from ..errors import ContractError, RunError, SnapshotError
 from ..expr import Untrusted
 from ..expr.objects import Entity
@@ -159,7 +160,6 @@ def _identity(env: Env) -> dict[str, Any]:
 def _part_way(env: Env) -> dict[str, Any]:
     """A run stopped part-way through a round: its base, the tape since, and the host answers recorded so far (so
     the replay never asks a host again)."""
-    from ..contract.base import TAPE
     from .branch import fresh_copy
     from .pilot import PilotedEnv
 
