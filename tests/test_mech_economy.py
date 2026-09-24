@@ -951,7 +951,9 @@ def test_native_beer_game_reproduces_the_hand_written_one(policy, arm):
     native = fg_env.load(EXAMPLES / "beer_game.json", seed=1, arm=arm).run(participants)
     for key in ("total_cost", "bullwhip_ratio", "peak_backlog", "weeks_until_stable", "cost_by_tier",
                 "peak_backlog_by_tier"):
-        assert native.outputs[key] == original.outputs[key], key
+        expected = original.outputs[key]  # the native one takes $variance, the hand-written one squares $stdev
+        close = pytest.approx(expected, rel=1e-12) if isinstance(expected, float) else expected
+        assert native.outputs[key] == close, key
     assert native.series["factory_order"] == original.series["factory_order"]
 
 
