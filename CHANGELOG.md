@@ -47,7 +47,7 @@ authoring traps `check` used to miss, and makes large runs fast.
   several times; a boundary-value play reports rules that crash at a parameter's least value, zero or greatest.
 - Parameters whose choices depend on an earlier argument list their possible values in the tool schema.
 - `groups.matching.eligible` limits whom each side can rank. Pot all-in is always legal with chips.
-- A release runs the full test matrix before it publishes; CI enforces a coverage floor;
+- A release builds and publishes without running tests (they run locally before every push);
   `make check-docs` keeps generated docs and the examples table in sync.
 
 #### Fixed

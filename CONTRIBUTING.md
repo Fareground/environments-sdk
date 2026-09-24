@@ -73,13 +73,13 @@ in the commit message.
 
 ### Contract JSON Schema
 
-`schema/contract.schema.json` is the committed output of `fg-env schema`. CI fails if
+`schema/contract.schema.json` is the committed output of `fg-env schema`. `make check-schema` fails if
 the SDK's schema differs from it, so every change to the contract surface is deliberate.
 After an intended contract change:
 
 ```bash
 make schema          # regenerate: PYTHONPATH=src python -m fg_env schema
-make check-schema    # what CI runs
+make check-schema    # fails if the committed schema is stale
 ```
 
 ### Public-surface changes need a CHANGELOG entry
@@ -95,7 +95,7 @@ Tooling and rules are configured in `pyproject.toml` under `[tool.ruff]`
 (target `py311`, line length 100):
 
 ```bash
-ruff check src tests scripts   # lint (what CI runs)
+ruff check src tests scripts   # lint
 mypy                           # type-check
 ```
 
@@ -108,8 +108,8 @@ Optional features may add dev-only dependencies under `[project.optional-depende
   `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`.
 - One logical change per PR; include tests for new behavior.
 - Update `CHANGELOG.md` under `## [Unreleased]`.
-- Run `pytest -n auto`, `ruff check src tests scripts`, `mypy`, `make check-schema` and `make check-docs` locally
-  before pushing.
+- There is no CI test run: run `pytest -n auto`, `ruff check src tests scripts`, `mypy`, `make check-schema` and
+  `make check-docs` locally before pushing.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.
 
@@ -121,7 +121,7 @@ SDK's guides, public API and example contracts: never edit them by hand.
 
 ```bash
 make docs          # regenerate: PYTHONPATH=src python scripts/build_docs_reference.py
-make check-docs    # what CI runs: fails if a generated file differs from the committed one
+make check-docs    # fails if a generated file differs from the committed one
 ```
 
 Every python and bash sample in `README.md` and the hand-written `docs/sdk/` pages runs under
