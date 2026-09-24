@@ -255,3 +255,11 @@ def test_a_draw_given_impossible_arguments_is_an_error_that_says_why(draw, probl
                 "events": [{"phase": "end", "do": [f"$world.level = {draw}"]}]}
     [found] = [i for i in _errors(contract) if i.path == "events[0].do[0]"]
     assert problem in found.message
+
+
+@pytest.mark.parametrize("key", ["cahs", "$actor.budget"])
+def test_a_view_sort_that_reads_nothing_of_the_item_is_an_error(key):
+    contract = {**NOTE, "types": {"p": {"agent": True, "props": {"cash": 1, "budget": 2}}},
+                "views": {"rich": {"of": "p", "sort": key, "show": "{name}: {cash}"}}}
+    [found] = [i for i in _errors(contract) if i.path == "views.rich.sort"]
+    assert "gives every item the same key" in found.message and "$it.cash" in found.fix

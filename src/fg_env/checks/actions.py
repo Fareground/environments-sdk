@@ -10,7 +10,7 @@ from .. import contract as C
 from ..actions.params import choice_list
 from ..actions.reads import READS
 from ..contract import Contract
-from ..expr import is_expr
+from ..expr import ExprError, compile_expr, is_expr
 from ..runtime.perception import SPECTATOR
 from ..runtime.session import END_TURN
 from ..sampling.probability import check_literal_probability
@@ -294,12 +294,25 @@ class ActionChecks:
                 self.expr(view.of, f"{path}.of", BASE | {"actor"}, types)
             self.condition(view.where, f"{path}.where", item_roots, types)
             self.expr(view.sort, f"{path}.sort", item_roots, types)
+            if view.sort is not None and _same_for_every_item(view.sort):
+                self.error(f"{path}.sort", f"`{view.sort}` gives every item the same key, so the list is not sorted",
+                           "sort by something of each item: an expression over $it, e.g. \"$it.cash\" (\"-$it.cash\" "
+                           "for highest first)")
             self.template(view.show, f"{path}.show", "it", item_roots, types)
             if view.of in self.c.types:
                 self._private_listing(view, f"{path}.show")
             if view.limit is not None and view.limit < 1:
                 self.error(f"{path}.limit", "must be at least 1")
 
+
+
+def _same_for_every_item(expr: str) -> bool:
+    """Whether a view's `sort` reads nothing of the item it sorts ($it, $i): then it sorts nothing."""
+    try:
+        compiled = compile_expr(expr)
+    except ExprError:
+        return False  # reported by the expression check
+    return not {"it", "i"} & set(compiled.roots)
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> list[str]:
