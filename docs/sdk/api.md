@@ -87,7 +87,7 @@ Raises :class:`ContractError` for problems found while expanding; ``check`` repo
 ## `experiment`
 
 ```pyi
-experiment(source: 'ContractLike', *, runs: 'int' = 10, arms: 'list[str] | None' = None, seed: 'int' = 0, inputs: 'Mapping[str, Any] | None' = None, participants: 'Any' = None, participants_for: 'Callable[[int, str | None], Any] | None' = None, rounds: 'int | None' = None, workers: 'int' = 1, data_dir: 'Any' = None, branch_at: 'int | None' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ExperimentResult'
+experiment(source: 'ContractLike', *, runs: 'int' = 10, arms: 'list[str] | None' = None, seed: 'int' = 0, inputs: 'Mapping[str, Any] | None' = None, participants: 'Any' = None, participants_for: 'Callable[[int, str | None], Any] | None' = None, rounds: 'int | None' = None, workers: 'int' = 1, data_dir: 'Any' = None, branch_at: 'int | None' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, hosts: 'Any' = None, uncertainty: 'Any' = None, time_limit: 'float | None' = None) -> 'ExperimentResult'
 ```
 
 Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
@@ -105,7 +105,8 @@ every arm's run, so they count toward each arm's budget. ``exposures=True`` reco
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
 answers the contract's host requests in every run. ``uncertainty`` (a calibration, a list of points or priors;
 :mod:`fg_env.analysis.draws`) draws parameters per run, the same for run *i* in every arm, so the spread of
-outcomes includes not knowing them.
+outcomes includes not knowing them. ``time_limit`` is the wall-clock seconds each agent's turn may take in every
+run.
 
 Problems shared by every run (an unknown arm, bad inputs, an unknown participant) raise
 before anything runs. A run that fails on its own is kept with ``status="failed"`` and its
@@ -1067,7 +1068,7 @@ A contract as a PettingZoo parallel environment (needs game.returns).
 ### `rl.tournament`
 
 ```pyi
-tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Sequence[str] | None' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'int | None' = None, others: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False) -> 'TournamentResult'
+tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Sequence[str] | None' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'int | None' = None, others: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, time_limit: 'float | None' = None) -> 'TournamentResult'
 ```
 
 Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
@@ -1092,7 +1093,8 @@ vote, which stay meaningful when skill is not transitive; ``returns`` gives ever
 each standing's ``cost`` its turns, calls, invalid calls, timeouts, undone turns and model tokens. A callable
 entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
 its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
-(``result.runs[i].exposures``, events kept), each a trace to read or replay.
+(``result.runs[i].exposures``, events kept), each a trace to read or replay. ``time_limit`` is the wall-clock
+seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`).
 
 ### `rl.TournamentResult`
 
@@ -1299,8 +1301,8 @@ Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 ``participants`` is a callable for every agent, or a mapping from entity id, type or ``"*"`` to a participant (a
 callable — plain or ``async def`` — ``"random"``, ``"idle"``, ``"policy:<name>"``). Agents without one use their
 type's ``policy`` or ``"random"``. Every participant is offered the contract's in-turn host tools; ``hosts``
-binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn
-for stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
+binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds each
+agent's turn may take; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
 :meth:`arun`.
 
 ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run

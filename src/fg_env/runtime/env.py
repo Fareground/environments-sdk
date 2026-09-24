@@ -150,8 +150,8 @@ class Env(RunChecks, RunRounds, RunStages):
         ``participants`` is a callable for every agent, or a mapping from entity id, type or ``"*"`` to a participant (a
         callable — plain or ``async def`` — ``"random"``, ``"idle"``, ``"policy:<name>"``). Agents without one use their
         type's ``policy`` or ``"random"``. Every participant is offered the contract's in-turn host tools; ``hosts``
-        binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn
-        for stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
+        binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds each
+        agent's turn may take; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
         :meth:`arun`.
 
         ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run

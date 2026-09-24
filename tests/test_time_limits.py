@@ -172,3 +172,34 @@ def test_every_agent_is_told_the_run_limit():
 def test_a_limit_that_cannot_work_is_refused():
     with pytest.raises(ValueError, match="time_limit"):
         fg_env.load(GAME, seed=1).run(time_limit=0)
+
+
+def _hanging_ann(release):
+    def participant(wake):
+        if wake.entity_id == "ann":
+            release.wait(10)
+        else:
+            wake.call("score", {"points": 2})
+    return participant
+
+
+def test_experiments_run_jobs_and_tournaments_take_a_turn_time_limit():
+    from fg_env.experiments.experiment import Job, run_jobs
+
+    release = threading.Event()
+    try:
+        runs = fg_env.experiment(GAME, runs=1, participants=_hanging_ann(release), time_limit=LIMIT).arms["baseline"]
+        assert runs.runs[0].stats["timeouts"] == 2
+        [job] = run_jobs(GAME, [Job({}, None, 1)], participants=_hanging_ann(release), time_limit=LIMIT)
+        assert job.stats["timeouts"] == 2
+        played = fg_env.rl.tournament(GAME, {"slow": _hanging_ann(release), "quick": _hanging_ann(release)},
+                                   seats=["ann", "bo"], time_limit=LIMIT)
+        assert all(run.stats["timeouts"] == 2 for run in played.runs)
+    finally:
+        release.set()
+
+
+@pytest.mark.parametrize("bad", [0, -1, "5", True])
+def test_a_bad_time_limit_raises_before_anything_runs(bad):
+    with pytest.raises(ValueError, match="time_limit must be a number of seconds"):
+        fg_env.experiment(GAME, runs=1, time_limit=bad)
