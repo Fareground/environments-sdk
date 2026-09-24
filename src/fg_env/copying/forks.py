@@ -17,11 +17,10 @@ import os
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
-from ..api import ContractLike, _merge, apply_arm, contract_source, default_data_dir, located, parse
-from ..checks import BASE, _Checker, check_contract, parse_contract
+from ..api import ContractLike, _merge, _parsed, apply_arm, contract_source, default_data_dir, located, parse
+from ..checks import BASE, _Checker, check_contract
 from ..contract import Contract, PropSpec
 from ..contract.inputs import resolve_inputs
-from ..contract.normalize import normalize
 from ..errors import ContractError, Issue, RunError, SnapshotError
 from ..expr import ExprError, compile_expr, is_expr
 from ..sampling.seeds import SeedTree
@@ -103,8 +102,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     # Continuing the same arm keeps the current rules, including earlier patches.
     # A different arm or replacement contract deliberately selects a new rule base.
     new = old if to is None and new_arm == old_arm else (apply_arm(base, new_arm) if new_arm is not None else base)
-    if patch:  # a patch may be written in an earlier form: the merged contract is normalized
-        new = located(parse_contract(normalize(_merge(contract_source(new), dict(patch)))[0]), new._folder)
+    if patch:  # a patch may be written in an earlier form: the merged contract is normalized, and the rewrites noted
+        new = located(_parsed(_merge(contract_source(new), dict(patch)), new._notes), new._folder)
     problems = [issue for issue in check_contract(new) if issue.severity == "error"]
     if problems:
         raise ContractError(problems, title="the forked contract is invalid")

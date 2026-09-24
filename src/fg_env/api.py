@@ -14,7 +14,7 @@ from .checks.smoke import run_issue, smoke_issues
 from .contract import Contract
 from .contract.inputs import resolve_inputs
 from .contract.normalize import normalize
-from .contract.normalize_state import expand_macros
+from .contract.normalize_state import macros_expanded
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
 from .runtime.env import Env
@@ -32,12 +32,17 @@ _SHOWN = 120
 
 
 def _read(source: ContractLike) -> Any:
-    """The contract data behind ``source``.
+    """The contract data behind ``source``, in the current form with its imports merged in.
 
     A string is JSON text when it starts (after whitespace) with ``{`` or ``[`` and a file path
     otherwise: a contract is a JSON object, so contract text cannot start any other way."""
+    return _read_noted(source)[0]
+
+
+def _read_noted(source: ContractLike) -> tuple[Any, list[str]]:
+    """:func:`_read`, and a note of every earlier form it rewrote (its imports' too)."""
     if isinstance(source, Contract):
-        return source
+        return source, list(source._notes)
     if isinstance(source, Mapping):
         return _with_imports(source, Path.cwd(), ())
     if isinstance(source, str) and source.lstrip().startswith(("{", "[")):
@@ -48,24 +53,36 @@ def _read(source: ContractLike) -> Any:
     raise ContractError([Issue("(contract)", f"cannot read a contract from {type(source).__name__}", _SOURCES)])
 
 
+def _parsed(data: Any, notes: list[str]) -> Contract:
+    """The contract read from ``data`` (see :func:`_read_noted`), keeping the notes of what reading it rewrote."""
+    contract = parse_contract(data)
+    contract._notes = [*notes, *contract._notes]
+    return contract
+
+
 #: Deepest chain of imports, and most imported files, one contract may use.
 MAX_IMPORT_DEPTH = 16
 MAX_IMPORTS = 64
 
 
-def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> Any:
+def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> tuple[Any, list[str]]:
     """``data`` in the current form with its ``imports`` merged in (each file's earlier-release macros expanded before
-    it is merged)."""
-    data = expand_macros(data)
+    it is merged), and a note of every rewrite."""
+    notes: list[str] = []
+    if isinstance(data, Mapping):  # first, so what the macros make is this contract's own and wins over its imports
+        data = copy.deepcopy(dict(data))
+        notes = macros_expanded(data)
     if isinstance(data, Mapping) and "imports" in data:
-        data = _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
-    return normalize(data)[0]
+        data = _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports", notes)
+    data, found = normalize(data)
+    return data, notes + found
 
 
 def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: tuple[Path, ...], count: list[int],
-                     where: str) -> dict[str, Any]:
+                     where: str, notes: list[str]) -> dict[str, Any]:
     """``data`` (macros already expanded) with its imports merged in. Each file's macros are expanded and its earlier
-    forms normalized before it is merged, so the importing contract's own entries, generated or written, win."""
+    forms normalized before it is merged, so the importing contract's own entries, generated or written, win; each
+    rewrite is noted in ``notes`` with the import it was made in."""
     from .mechanisms import merge_sections
     from .registry import MechanismError
 
@@ -93,8 +110,9 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: t
         fragment = _json(_file_text(target), _shown(str(target)))
         if not isinstance(fragment, dict):
             raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
-        fragment = _resolve_imports(normalize(expand_macros(fragment))[0], target.parent, root, (*stack, target),
-                                    count, f"{path}.imports")
+        fragment, found = normalize(fragment)  # its macros first: the first rule
+        notes += [f"{path} ({_shown(relative)}): {note}" for note in found]
+        fragment = _resolve_imports(fragment, target.parent, root, (*stack, target), count, f"{path}.imports", notes)
         for key in ("fg_env", "name", "description"):
             fragment.pop(key, None)
         try:
@@ -159,7 +177,7 @@ def parse(source: ContractLike, data_dir: DataDir = None) -> Contract:
 
     The contract remembers where its input data files are read from: ``data_dir`` when given, else the
     contract file's folder, so every run, check and analysis of it finds them."""
-    return located(parse_contract(_read(source)), default_data_dir(source, data_dir))
+    return located(_parsed(*_read_noted(source)), default_data_dir(source, data_dir))
 
 
 def located(contract: Contract, folder: DataDir) -> Contract:
@@ -211,11 +229,11 @@ def _without_unknown_fields(data: Any, issues: list[Issue]) -> Any:
 
 def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Contract | None, list[Issue]]:
     try:
-        data = _read(source)
+        data, notes = _read_noted(source)
     except ContractError as exc:  # a missing file or text that is not JSON
         return None, exc.issues + exc.warnings
     try:
-        contract = located(parse_contract(data), default_data_dir(source, data_dir))
+        contract = located(_parsed(data, notes), default_data_dir(source, data_dir))
     except ContractError as exc:
         structural = exc.issues + exc.warnings
         cleaned = _without_unknown_fields(data, exc.issues) if isinstance(data, Mapping) else None
@@ -278,7 +296,7 @@ def apply_arm(contract: Contract, arm: str) -> Contract:
     patch = contract.arms[arm].patch
     if not patch:
         return contract
-    return located(parse_contract(_merge(contract_source(contract), patch)), contract._folder)
+    return located(_parsed(_merge(contract_source(contract), patch), contract._notes), contract._folder)
 
 
 def contract_source(contract: Contract) -> dict[str, Any]:

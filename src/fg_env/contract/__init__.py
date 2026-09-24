@@ -179,6 +179,8 @@ class Contract(_Model):
     _source: dict[str, Any] | None = PrivateAttr(default=None)
     #: The folder input data files are read from (the contract file's folder, or ``data_dir=``); ``None`` when unknown.
     _folder: str | None = PrivateAttr(default=None)
+    #: A note of every earlier form rewritten when the contract was read (see :mod:`.normalize`), its imports' too.
+    _notes: list[str] = PrivateAttr(default_factory=list)
     #: Events by anchor (see :meth:`events_on`), built on first use.
     _anchored: dict[str, list[tuple[int, EventSpec]]] | None = PrivateAttr(default=None)
 

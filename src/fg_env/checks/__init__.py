@@ -67,14 +67,15 @@ def parse_contract(data: Any) -> Contract:
         raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
     from ..mechanisms import expand_mechanisms
 
-    source = normalize(data)[0]
+    source, notes = normalize(data)
     expanded, mechanism_issues = expand_mechanisms(source)
     if mechanism_issues:
         raise ContractError(_dedupe(mechanism_issues))
-    expanded = normalize(expanded)[0]  # what mechanisms and imports generated in an earlier form
+    expanded = normalize(expanded)[0]  # what mechanisms generate in an earlier form: not the author's to rewrite
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source
+        contract._notes = notes
         return contract
     except ValidationError as exc:
         raise ContractError(_dedupe(validation_issues(exc))) from None
