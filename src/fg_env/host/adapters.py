@@ -12,11 +12,11 @@ that replays a history (prices by date) for backtests::
     hosts = host.Hosts({"judge": host.adapters.anthropic(client, "claude-opus-5"),
                         "web_search": host.adapters.anthropic_web_search(client, "claude-opus-5")})
 
-Rate limits, timeouts and server errors are retried with backoff, never waiting past the deadline of
-the turn that asked. A call that still fails, or fails in a way retrying cannot fix (a rejected key,
-an unknown model), stops the run with the provider's error and the fix. An answer that is not what
-the protocol asks for raises :class:`HostError`: the engine validates every answer against the
-contract, asks once more with a ``correction`` when it cannot use it, and records it for replay.
+Each request times out with the turn that asked (at most 10 minutes). Rate limits, timeouts and server errors
+are retried with backoff, never waiting past the deadline of the turn that asked. A call that still fails, or fails
+in a way retrying cannot fix (a rejected key, an unknown model), stops the run with the provider's error and the fix.
+An answer that is not what the protocol asks for raises :class:`HostError`: the engine validates every answer against
+the contract, asks once more with a ``correction`` when it cannot use it, and records it for replay.
 """
 from __future__ import annotations
 
@@ -102,14 +102,15 @@ class _Provider:
                                       "cache_write_tokens": 0, "retries": 0}
         self._lock = threading.Lock()
 
-    def _retrying(self, request: Callable[[], Any]) -> Any:
-        """The provider's response. A failure is never a :class:`HostError`, which would ask the model again with a
-        correction: nothing was wrong with its answer, there was none."""
-        from ..participants.llm import _backoff, _retryable, provider_failure
+    def _retrying(self, request: Callable[[float], Any]) -> Any:
+        """The provider's response to ``request(timeout)``, each try given at most the time left in the turn that asked.
+        A failure is never a :class:`HostError`, which would ask the model again with a correction: nothing was wrong
+        with its answer, there was none."""
+        from ..participants.llm import _backoff, _retryable, provider_failure, request_timeout
 
         for attempt in range(self.retries + 1):
             try:
-                return request()
+                return request(request_timeout(time_left()))
             except Exception as exc:
                 wait, left = _backoff(attempt, exc), time_left()
                 retry = attempt < self.retries and _retryable(exc)
@@ -189,9 +190,9 @@ class LLMHost(_Provider):
         if self.provider == "anthropic":
             parts = anthropic_parts(files, ANTHROPIC_MEDIA)
             message: Any = [{"type": "text", "text": content}, *parts] if parts else content
-            response = self._retrying(lambda: self.client.messages.create(
+            response = self._retrying(lambda timeout: self.client.messages.create(
                 model=model, max_tokens=self.max_tokens, system=system,
-                messages=[{"role": "user", "content": message}]))
+                messages=[{"role": "user", "content": message}], timeout=timeout))
             self._add_anthropic(getattr(response, "usage", None))
             stop = getattr(response, "stop_reason", None)
             if stop == "refusal":
@@ -202,8 +203,9 @@ class LLMHost(_Provider):
                            if _field(b, "type") == "text")
         parts = openai_parts(files, OPENAI_MEDIA)
         user: Any = [{"type": "text", "text": content}, *parts] if parts else content
-        response = self._retrying(lambda: self.client.chat.completions.create(
-            model=model, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}]))
+        response = self._retrying(lambda timeout: self.client.chat.completions.create(
+            model=model, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
+            timeout=timeout))
         usage = getattr(response, "usage", None)
         cached = _count(getattr(usage, "prompt_tokens_details", None), "cached_tokens")
         self._add(calls=1, input_tokens=max(0, _count(usage, "prompt_tokens") - cached),
@@ -240,8 +242,9 @@ class AnthropicWebSearch(_Provider):
         texts: list[str] = []
         sources: dict[str, str] = {}
         for _ in range(_MAX_CONTINUATIONS):
-            response = self._retrying(lambda: self.client.messages.create(
-                model=self.model, max_tokens=self.max_tokens, tools=tools, messages=messages))  # noqa: B023 — called within this iteration
+            response = self._retrying(lambda timeout: self.client.messages.create(
+                model=self.model, max_tokens=self.max_tokens, tools=tools, messages=messages,  # noqa: B023 — called within this iteration
+                timeout=timeout))
             self._add_anthropic(getattr(response, "usage", None))
             stop = getattr(response, "stop_reason", None)
             if stop == "refusal":

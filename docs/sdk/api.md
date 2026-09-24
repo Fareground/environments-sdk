@@ -362,6 +362,7 @@ reference — its caption and alt text — in the text only). See :mod:`fg_env.a
 ``extra`` holds more request fields sent with every call, such as ``{"temperature": 0}``. Pass the sync
 client: an async client fails the run saying so.
 
+Each request is sent with a ``timeout`` of the time left in the turn (at most 10 minutes), so none outlives it.
 Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
 ``retry-after``, never past the turn's time limit: once the turn is over no call is made); if a call still fails,
 the turn is forfeited, counted in ``stats["forfeits"]`` and reported in

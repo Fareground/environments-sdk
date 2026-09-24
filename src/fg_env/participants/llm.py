@@ -80,6 +80,10 @@ _RETRY_NAMES = ("RateLimit", "Timeout", "Connection", "Overloaded", "InternalSer
 
 _MAX_BACKOFF_SECONDS = 60.0
 
+#: The longest one provider request may take (the provider SDKs' own default). A turn with less time left gives each
+#: request only what is left, so no request outlives the turn that made it (:func:`request_timeout`).
+REQUEST_TIMEOUT = 600.0
+
 
 #: What a reply cut off at the output limit is asked, once, when ``retry_truncated`` is on.
 _TRUNCATED = ("Your reply was cut off at the output limit before it called a tool. Answer now with a tool call; "
@@ -238,6 +242,11 @@ def _over(wake: Wake) -> bool:
     return wake.done or (left is not None and left <= 0)
 
 
+def request_timeout(left: float | None) -> float:
+    """The ``timeout`` of one provider request, given the seconds ``left`` in the turn (None: no limit)."""
+    return REQUEST_TIMEOUT if left is None else min(left, REQUEST_TIMEOUT)
+
+
 def _extra(extra: Mapping[str, Any] | None, sent: Collection[str]) -> dict[str, Any]:
     """The ``extra`` request fields, refusing any of the fields the participant sends itself (``sent``)."""
     if extra is None:
@@ -247,7 +256,8 @@ def _extra(extra: Mapping[str, Any] | None, sent: Collection[str]) -> dict[str, 
     clash = [key for key in extra if key in sent]
     if clash:
         raise ValueError(f"extra cannot set {', '.join(map(repr, clash))}: the participant sends it itself (the model, "
-                         "system prompt, max_tokens and reasoning_effort are its own arguments)")
+                         "system prompt, max_tokens and reasoning_effort are its own arguments, and each request's "
+                         "timeout follows the turn's time_limit)")
     return dict(extra)
 
 
@@ -405,7 +415,7 @@ class _Anthropic(_LLMParticipant):
 
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
                  media: frozenset, retry_truncated: bool, extra: Mapping[str, Any] | None):
-        sent = ("model", "messages", "tools", "system", "max_tokens")
+        sent = ("model", "messages", "tools", "system", "max_tokens", "timeout")
         super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
         self.max_tokens = max_tokens
 
@@ -428,7 +438,7 @@ class _Anthropic(_LLMParticipant):
             sent = _cached(messages) if prompt >= _CACHE_MIN_TOKENS else messages
             response = self._create(wake, lambda: self.client.messages.create(
                 model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=sent,  # noqa: B023 — called within this iteration
-                **self.extra), prompt)
+                timeout=request_timeout(wake.time_left), **self.extra), prompt)
             if getattr(response, "stop_reason", None) == "refusal":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
@@ -539,6 +549,7 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
     ``extra`` holds more request fields sent with every call, such as ``{"temperature": 0}``. Pass the sync
     client: an async client fails the run saying so.
 
+    Each request is sent with a ``timeout`` of the time left in the turn (at most 10 minutes), so none outlives it.
     Rate limits, timeouts, overload and server errors are retried ``retries`` times with backoff (honouring
     ``retry-after``, never past the turn's time limit: once the turn is over no call is made); if a call still fails,
     the turn is forfeited, counted in ``stats["forfeits"]`` and reported in
@@ -576,7 +587,8 @@ class _OpenAI(_LLMParticipant):
         self.options: dict[str, Any] = {key: value for key, value in (("max_completion_tokens", max_tokens),
                                                                       ("reasoning_effort", reasoning_effort))
                                         if value is not None}
-        sent = ["model", "messages", "tools", *self.options, *(["max_tokens"] if max_tokens is not None else [])]
+        sent = ["model", "messages", "tools", "timeout", *self.options,
+                *(["max_tokens"] if max_tokens is not None else [])]
         super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
 
     def _turn(self, wake: Wake) -> None:
@@ -592,7 +604,8 @@ class _OpenAI(_LLMParticipant):
                 return
             tools = offered.definitions
             response = self._create(wake, lambda: self.client.chat.completions.create(
-                model=self.model, messages=messages, tools=tools, **self.options, **self.extra),  # noqa: B023 — called within this iteration
+                model=self.model, messages=messages, tools=tools, timeout=request_timeout(wake.time_left),  # noqa: B023 — called within this iteration
+                **self.options, **self.extra),
                 _tokens(tools, messages))
             choice = response.choices[0]
             finish = getattr(choice, "finish_reason", None)

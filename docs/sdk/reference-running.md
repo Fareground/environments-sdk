@@ -138,7 +138,8 @@ Every truncated reply wastes its whole output: for frequent decisions use `reaso
 evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
-take ends without a model call. Retries never wait past the turn's time limit, and a token budget counts cache writes
+take ends without a model call. Retries never wait past the turn's time limit, each request times out with the turn
+(at most 10 minutes), and a token budget counts cache writes
 in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
 `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,

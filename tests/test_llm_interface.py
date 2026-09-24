@@ -176,3 +176,20 @@ def test_check_flags_a_raw_model_id_in_a_host_mechanism():
     assert found.severity == "warning" and "'gpt-4o' reads as a provider's model id" in found.message
     named = {**PITCH, "mechanisms": {"panel": {**PITCH["mechanisms"]["panel"], "model": "strong"}}}
     assert not [i for i in fg_env.check(named, rounds=0) if i.path == "mechanisms.panel.model"]
+
+
+def test_each_provider_request_times_out_with_the_turn_that_made_it():
+    timed = FakeAnthropic([[("buy", {"offer": "espresso", "qty": 1}), ("end_turn", {})]])
+    fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(timed, "m"), rounds=1,
+                                                           time_limit=30)
+    assert 0 < timed.requests[0]["timeout"] <= 30
+    free = FakeAnthropic([[("buy", {"offer": "espresso", "qty": 1}), ("end_turn", {})]])
+    fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(free, "m"), rounds=1)
+    assert free.requests[0]["timeout"] == 600
+
+
+def test_a_host_request_times_out_with_the_turn_that_asked():
+    client = _Anthropic([_message(json.dumps({"scores": {"quality": 7}, "rationale": "fine"}))] * 2)
+    env = host.load(PITCH, hosts={"judge": host.adapters.anthropic(client, "claude-host")}, seed=1)
+    host.run(env, pitcher, time_limit=30)
+    assert all(0 < request["timeout"] <= 30 for request in client.requests)
