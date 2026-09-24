@@ -68,6 +68,22 @@ def _smoothed(old: Optional[float], new: float) -> float:
     return new if old is None else (1 - _SMOOTHING) * old + _SMOOTHING * new
 
 
+#: Seconds between a worker's checks that the process that started it is still alive.
+_PARENT_CHECK_SECONDS = 1.0
+
+
+def _exit_with(parent: int) -> None:
+    """Run in each new worker: exit once ``parent`` is gone. A parent killed outright (SIGKILL, a stopped test run)
+    never shuts its pool down, and an idle worker waits on its queue forever: every worker holds that queue's writing
+    end too, so it never reads an end of file."""
+    def watch() -> None:
+        while os.getppid() == parent:
+            time.sleep(_PARENT_CHECK_SECONDS)
+        os._exit(0)
+
+    threading.Thread(target=watch, name="fg-env-parent-watch", daemon=True).start()
+
+
 def _ready() -> None:
     """Sent to each new worker: returns once the worker has imported the SDK, which times a pool's start."""
 
@@ -75,7 +91,7 @@ def _ready() -> None:
 def _new_pool(size: int) -> ProcessPoolExecutor:
     """A started pool of ``size`` workers; the caller holds ``_kept.lock`` (its start is timed once every worker is up)."""
     _kept.ran_here.pop(size, None)
-    pool = ProcessPoolExecutor(max_workers=size)
+    pool = ProcessPoolExecutor(max_workers=size, initializer=_exit_with, initargs=(os.getpid(),))
     started = time.perf_counter()
     waiting = [pool.submit(_ready) for _ in range(size)]
     remaining = [len(waiting)]
