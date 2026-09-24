@@ -2,18 +2,18 @@
 import pytest
 
 import fg_env
-from fg_env.actions import book as actions
+from fg_env.information.schemas import ToolSchemas
 
 
 def test_coded_policies_never_build_tool_schemas(monkeypatch):
     built = {"n": 0}
-    original = actions.ActionBook.tool
+    original = ToolSchemas.tool
 
     def counting(self, *args, **kwargs):
         built["n"] += 1
         return original(self, *args, **kwargs)
 
-    monkeypatch.setattr(actions.ActionBook, "tool", counting)
+    monkeypatch.setattr(ToolSchemas, "tool", counting)
     contract = {"name": "Sellers", "clock": {"rounds": 4},
                 "types": {"seller": {"agent": True, "policy": "sell", "props": {"stock": 3}}},
                 "population": [{"type": "seller", "count": 5}],
