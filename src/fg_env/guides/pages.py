@@ -19,8 +19,9 @@ from ..expr import FUNCTIONS, FunctionSpec
 from ..registry import FAMILIES, OPS, FamilySpec, ModeSpec
 from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 
-__all__ = ["SECTIONS", "section_page", "roots_table", "expressions_page", "FUNCTION_GROUPS", "function_groups",
-           "functions_index", "functions_page", "effects_page", "mechanisms_page", "family_page", "mode_page"]
+__all__ = ["SECTIONS", "CORE_SECTIONS", "CORE_FUNCTIONS", "section_page", "roots_table", "expressions_page",
+           "FUNCTION_GROUPS", "function_groups", "functions_index", "functions_page", "effects_page", "mechanisms_page",
+           "family_page", "mode_page"]
 
 #: Roots every expression may read, wherever it is written.
 EVERYWHERE = "$inputs $world $physics $clock $round $stage $metrics $series $arm $pattern"
@@ -129,6 +130,13 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "imported files may import others."),
 ]
 
+#: The core language: the sections and functions the start page (``guide('authoring')``) teaches, enough for most
+#: environments. Every other section and function is extended: reach for one when the core cannot say it.
+CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "population", "records", "actions", "stages",
+                 "views", "events", "end", "metrics", "outputs", "invariants")
+CORE_FUNCTIONS = ("count", "sum", "avg", "min", "max", "filter", "map", "dict", "top", "best", "any", "all", "len",
+                  "get", "chance", "randint", "normal", "choice", "round", "floor", "clamp", "entity")
+
 _SECTION_INDEX = {name: (models, shape, doc) for name, models, shape, doc in SECTIONS}
 
 
@@ -216,7 +224,9 @@ def function_groups() -> dict[str, list[FunctionSpec]]:
 
 def functions_index() -> str:
     lines = ["## Functions", "", "Every function by group. Read one group's signatures and docs with "
-             "`guide('functions.<group>')`.", "", "Core functions, for any contract:", ""]
+             "`guide('functions.<group>')`.", "",
+             "Core (the start page teaches them): " + " ".join(f"${name}" for name in CORE_FUNCTIONS)
+             + ". Every other function is extended.", "", "General functions, for any contract:", ""]
     groups = function_groups()
     for group in [g for g in groups if g in FUNCTION_GROUPS]:
         lines.append(f"- `{group}` ({FUNCTION_GROUPS[group]}): " + " ".join(f"${s.name}" for s in groups[group]))

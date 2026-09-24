@@ -9,7 +9,7 @@ from fg_env.__main__ import main
 from fg_env.effects.runner import EFFECT_OPS
 from fg_env.expr import FUNCTIONS
 from fg_env.guides import guide, guide_parts, schema
-from fg_env.guides.pages import SECTIONS, function_groups
+from fg_env.guides.pages import CORE_FUNCTIONS, CORE_SECTIONS, SECTIONS, function_groups
 from fg_env.registry import FAMILIES
 
 #: The core guide must stay short enough to read before writing a first contract (characters / 4 ≈ tokens).
@@ -34,10 +34,33 @@ def test_the_map_and_the_start_page_do_not_repeat_each_other_and_never_send_an_a
     assert page.index("Faithful first, configurable second") < page.index("## Worked example")
     assert "guide('authoring')" in core and "## Worked example" not in core
     shared = {line for line in set(page.splitlines()) & set(core.splitlines()) if line.strip("#|- ")}
-    assert shared == {"## Sections"}, shared
+    assert not shared, shared
     for text in (page, core):
         assert "guide('all')" not in text and "guide all" not in text
     assert guide("all").count("## Worked example") == 1  # the start page appears once
+
+
+def test_the_map_shows_the_core_sections_first_and_the_extended_ones_after():
+    core_part, _, extended_part = guide().partition("## Extended sections")
+    for name, *_ in SECTIONS:
+        assert f"| `{name}` |" in (core_part if name in CORE_SECTIONS else extended_part), name
+    for name in CORE_FUNCTIONS:
+        assert f"`${name}`" in core_part, name
+
+
+def test_the_core_is_what_the_start_page_teaches():
+    page = guide("authoring")
+    for name in CORE_SECTIONS:
+        assert f"`{name}`" in page, name
+    for name in CORE_FUNCTIONS:
+        assert f"${name}" in page and name in FUNCTIONS, name
+
+
+def test_the_schema_marks_every_section_core_or_extended():
+    properties = schema()["properties"]
+    for name, *_ in SECTIONS:
+        tier = "Core section." if name in CORE_SECTIONS else "Extended section."
+        assert properties[name]["description"].startswith(tier), name
 
 
 def test_every_part_renders_and_all_holds_every_function_effect_section_and_mode():

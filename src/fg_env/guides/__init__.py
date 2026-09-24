@@ -23,6 +23,8 @@ from ..patterns.schema import patterns_definitions, patterns_field_schema
 from ..registry import FAMILIES
 from .authoring import AUTHORING
 from .pages import (
+    CORE_FUNCTIONS,
+    CORE_SECTIONS,
     SECTIONS,
     effects_page,
     expressions_page,
@@ -44,6 +46,10 @@ def schema() -> dict[str, Any]:
     out = C.Contract.model_json_schema(by_alias=True)
     out["$defs"] = {**out.get("$defs", {}), **patterns_definitions()}
     out["properties"]["patterns"] = {**out["properties"]["patterns"], **patterns_field_schema()}
+    for name, _, _, doc in SECTIONS:
+        field = out["properties"][name]
+        tier = "Core" if name in CORE_SECTIONS else "Extended"
+        field["description"] = f"{tier} section. {field.get('description') or _first_sentence(doc)}"
     return out
 
 
@@ -55,12 +61,20 @@ write → check → preview → run loop and the core language. It is enough for
 below only when you need them. To have a model do the loop for you: `fg-env author brief.md --model
 anthropic:<model>` (`fg_env.author`); it keeps the best contract that checks without errors and plays soundly.
 
-## Sections
+## Core sections
 
 Every section is optional except `name` and `types`; `guide('<section>')` has its fields and the roots available in
-each.
+each. The core sections and functions are enough for most environments; the start page teaches them.
 
-SECTIONS
+CORE
+
+Core functions: FUNCTIONS; every other function (`guide('functions')`) is extended.
+
+## Extended sections
+
+Reach for one of these when the core cannot say it.
+
+EXTENDED
 
 ## Mechanisms
 
@@ -106,13 +120,17 @@ def _first_sentence(text: str) -> str:
 
 
 def _core() -> str:
-    sections = ["| section | what it declares |", "|---|---|"]
-    sections += [f"| `{name}` | {_first_sentence(doc)} |" for name, _, _, doc in SECTIONS]
+    header = ["| section | what it declares |", "|---|---|"]
+    core = header + [f"| `{name}` | {_first_sentence(doc)} |" for name, _, _, doc in SECTIONS if name in CORE_SECTIONS]
+    extended = header + [f"| `{name}` | {_first_sentence(doc)} |" for name, _, _, doc in SECTIONS
+                         if name not in CORE_SECTIONS]
     families = ["| kind | modes | for |", "|---|---|---|"]
     families += [f"| `{name}` | {', '.join(family.modes) or '—'} | {family.doc} |" for name, family in FAMILIES.items()]
     parts = "\n".join(f"- `{name}` — {about}" for name, about in _PARTS_MAP)
     engines = "\n".join(f"- `{engine.id}` — {engine.summary}" for engine in list_engines(available=True))
-    return (_MAP.replace("SECTIONS", "\n".join(sections)).replace("FAMILIES", "\n".join(families))
+    functions = " ".join(f"`${name}`" for name in CORE_FUNCTIONS)
+    return (_MAP.replace("CORE", "\n".join(core)).replace("EXTENDED", "\n".join(extended))
+            .replace("FUNCTIONS", functions).replace("FAMILIES", "\n".join(families))
             .replace("ENGINES", engines).replace("PARTS", parts))
 
 

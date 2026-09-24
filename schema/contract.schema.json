@@ -11720,7 +11720,7 @@
       "type": "string"
     },
     "imports": {
-      "description": "Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.",
+      "description": "Extended section. Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.",
       "items": {
         "type": "string"
       },
@@ -11728,13 +11728,14 @@
       "type": "array"
     },
     "brief": {
-      "$ref": "#/$defs/Brief"
+      "$ref": "#/$defs/Brief",
+      "description": "Core section. Static text every agent reads first: the situation, the rules, and per-type role text."
     },
     "assets": {
       "additionalProperties": {
         "$ref": "#/$defs/AssetSpec"
       },
-      "description": "Files beside the contract (images, PDFs, text, audio) by id; see guide('assets').",
+      "description": "Extended section. Files beside the contract (images, PDFs, text, audio) by id; see guide('assets').",
       "title": "Assets",
       "type": "object"
     },
@@ -11743,10 +11744,12 @@
         "$ref": "#/$defs/InputSpec"
       },
       "title": "Inputs",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."
     },
     "clock": {
-      "$ref": "#/$defs/Clock"
+      "$ref": "#/$defs/Clock",
+      "description": "Core section. How long a run lasts (`rounds`, default 20) and what one round is called."
     },
     "space": {
       "anyOf": [
@@ -11757,13 +11760,14 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "description": "Extended section. Positions: a grid, a graph of places or a plane, with values on cells."
     },
     "world": {
       "additionalProperties": {
         "$ref": "#/$defs/PropSpec"
       },
-      "description": "Global properties ($world.x).",
+      "description": "Core section. Global properties ($world.x).",
       "title": "World",
       "type": "object"
     },
@@ -11772,35 +11776,40 @@
         "$ref": "#/$defs/TypeSpec"
       },
       "title": "Types",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. Kinds of entities and their properties; `agent: true` makes a type act."
     },
     "entities": {
       "additionalProperties": {
         "$ref": "#/$defs/EntitySpec"
       },
       "title": "Entities",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. Named entities (the name defaults to the id)."
     },
     "population": {
       "items": {
         "$ref": "#/$defs/PopulationSpec"
       },
       "title": "Population",
-      "type": "array"
+      "type": "array",
+      "description": "Core section. Generated entities: a count, or one per data row, with sampled traits."
     },
     "relations": {
       "additionalProperties": {
         "$ref": "#/$defs/RelationSpec"
       },
       "title": "Relations",
-      "type": "object"
+      "type": "object",
+      "description": "Extended section. Typed links between entities (trust, follows), with fields."
     },
     "links": {
       "items": {
         "$ref": "#/$defs/LinkSpec"
       },
       "title": "Links",
-      "type": "array"
+      "type": "array",
+      "description": "Extended section. Links made at build: listed, from data rows, or generated networks."
     },
     "physics": {
       "anyOf": [
@@ -11811,13 +11820,14 @@
           "type": "null"
         }
       ],
-      "default": null
+      "default": null,
+      "description": "Extended section. Continuous variables integrated every round (world-level and per entity)."
     },
     "feeds": {
       "additionalProperties": {
         "$ref": "#/$defs/FeedSpec"
       },
-      "description": "External data written into world props or records, answered by host adapters.",
+      "description": "Extended section. External data written into world props or records, answered by host adapters.",
       "title": "Feeds",
       "type": "object"
     },
@@ -11940,38 +11950,43 @@
         "$ref": "#/$defs/RecordSpec"
       },
       "title": "Records",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`."
     },
     "actions": {
       "additionalProperties": {
         "$ref": "#/$defs/ActionSpec"
       },
       "title": "Actions",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. What agents can do: each is one typed tool with requirements and atomic effects."
     },
     "stages": {
       "items": {
         "$ref": "#/$defs/StageSpec"
       },
       "title": "Stages",
-      "type": "array"
+      "type": "array",
+      "description": "Core section. The steps of every round: who acts, how (sequential or sealed simultaneous), which actions."
     },
     "views": {
       "additionalProperties": {
         "$ref": "#/$defs/ViewSpec"
       },
       "title": "Views",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. What agents read each turn: single lines or ranked, filtered lists."
     },
     "events": {
       "items": {
         "$ref": "#/$defs/EventSpec"
       },
       "title": "Events",
-      "type": "array"
+      "type": "array",
+      "description": "Core section. What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a condition holds, or by chance."
     },
     "triggers": {
-      "description": "Reactions that fire the moment a condition becomes true.",
+      "description": "Extended section. Reactions that fire the moment a condition becomes true.",
       "items": {
         "$ref": "#/$defs/TriggerSpec"
       },
@@ -11983,35 +11998,40 @@
         "$ref": "#/$defs/PolicySpec"
       },
       "title": "Policies",
-      "type": "object"
+      "type": "object",
+      "description": "Extended section. Coded participants as rules, for crowds and baselines (`policy:<name>`)."
     },
     "metrics": {
       "additionalProperties": {
         "$ref": "#/$defs/MetricSpec"
       },
       "title": "Metrics",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. Values sampled every round ($metrics.x latest, $series.x every round)."
     },
     "outputs": {
       "additionalProperties": {
         "$ref": "#/$defs/OutputSpec"
       },
       "title": "Outputs",
-      "type": "object"
+      "type": "object",
+      "description": "Core section. The typed results of a run."
     },
     "end": {
       "items": {
         "$ref": "#/$defs/EndSpec"
       },
       "title": "End",
-      "type": "array"
+      "type": "array",
+      "description": "Core section. Conditions that end the run early, with an optional winner ($result.winner in outputs)."
     },
     "arms": {
       "additionalProperties": {
         "$ref": "#/$defs/ArmSpec"
       },
       "title": "Arms",
-      "type": "object"
+      "type": "object",
+      "description": "Extended section. Experiment variants: input overrides or contract patches."
     },
     "calibration": {
       "anyOf": [
@@ -12023,7 +12043,7 @@
         }
       ],
       "default": null,
-      "description": "Inputs fitted by short pilot sessions whenever the contract loads."
+      "description": "Extended section. Inputs fitted by short pilot sessions whenever the contract loads."
     },
     "game": {
       "anyOf": [
@@ -12035,20 +12055,21 @@
         }
       ],
       "default": null,
-      "description": "Seats, returns and utility for game and learning interfaces."
+      "description": "Extended section. Seats, returns and utility for game and learning interfaces."
     },
     "invariants": {
       "items": {
         "$ref": "#/$defs/InvariantSpec"
       },
       "title": "Invariants",
-      "type": "array"
+      "type": "array",
+      "description": "Core section. Rules that must always hold."
     },
     "defs": {
       "additionalProperties": {
         "$ref": "#/$defs/DefSpec"
       },
-      "description": "Reusable expressions, called as $name(args).",
+      "description": "Extended section. Reusable expressions, called as $name(args).",
       "title": "Defs",
       "type": "object"
     },
@@ -12056,7 +12077,7 @@
       "additionalProperties": {
         "$ref": "#/$defs/BlockSpec"
       },
-      "description": "Reusable effect lists, run with {\"block\": name}.",
+      "description": "Extended section. Reusable effect lists, run with {\"block\": name}.",
       "title": "Blocks",
       "type": "object"
     },
@@ -12065,7 +12086,7 @@
         "additionalProperties": true,
         "type": "object"
       },
-      "description": "Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms part.",
+      "description": "Extended section. Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms part.",
       "title": "Mechanisms",
       "type": "object"
     }

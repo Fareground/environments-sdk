@@ -7,10 +7,10 @@ write → check → preview → run loop and the core language. It is enough for
 below only when you need them. To have a model do the loop for you: `fg-env author brief.md --model
 anthropic:<model>` (`fg_env.author`); it keeps the best contract that checks without errors and plays soundly.
 
-## Sections
+## Core sections
 
 Every section is optional except `name` and `types`; `guide('<section>')` has its fields and the roots available in
-each.
+each. The core sections and functions are enough for most environments; the start page teaches them.
 
 | section | what it declares |
 |---|---|
@@ -18,7 +18,6 @@ each.
 | `clock` | How long a run lasts (`rounds`, default 20) and what one round is called. |
 | `inputs` | Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables. |
 | `world` | Global properties ($world.x). |
-| `assets` | Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets'). |
 | `types` | Kinds of entities and their properties; `agent: true` makes a type act. |
 | `entities` | Named entities (the name defaults to the id). |
 | `population` | Generated entities: a count, or one per data row, with sampled traits. |
@@ -27,11 +26,21 @@ each.
 | `stages` | The steps of every round: who acts, how (sequential or sealed simultaneous), which actions. |
 | `views` | What agents read each turn: single lines or ranked, filtered lists. |
 | `events` | What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a condition holds, or by chance. |
-| `triggers` | What the world does the moment a condition becomes true (checked after every action and effect block), unlike an event, which runs at a set point of the round. |
 | `end` | Conditions that end the run early, with an optional winner ($result.winner in outputs). |
 | `metrics` | Values sampled every round ($metrics.x latest, $series.x every round). |
 | `outputs` | The typed results of a run. |
 | `invariants` | Rules that must always hold. |
+
+Core functions: `$count` `$sum` `$avg` `$min` `$max` `$filter` `$map` `$dict` `$top` `$best` `$any` `$all` `$len` `$get` `$chance` `$randint` `$normal` `$choice` `$round` `$floor` `$clamp` `$entity`; every other function (`guide('functions')`) is extended.
+
+## Extended sections
+
+Reach for one of these when the core cannot say it.
+
+| section | what it declares |
+|---|---|
+| `assets` | Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets'). |
+| `triggers` | What the world does the moment a condition becomes true (checked after every action and effect block), unlike an event, which runs at a set point of the round. |
 | `mechanisms` | Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms'). |
 | `game` | Seats and what each scores, for tournaments, game search and gyms. |
 | `space` | Positions: a grid, a graph of places or a plane, with values on cells. |

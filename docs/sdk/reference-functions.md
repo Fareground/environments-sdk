@@ -4,7 +4,9 @@
 
 Every function by group. Read one group's signatures and docs with `guide('functions.<group>')`.
 
-Core functions, for any contract:
+Core (the start page teaches them): $count $sum $avg $min $max $filter $map $dict $top $best $any $all $len $get $chance $randint $normal $choice $round $floor $clamp $entity. Every other function is extended.
+
+General functions, for any contract:
 
 - `collections` (counting, summing, ranking and filtering lists and entity types): $all $any $avg $count $dict $filter $first $flatten $get $ids $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
 - `world` (entities, records, events and what agents were shown): $asset $entity $events $exists $pattern_values $records $seen
