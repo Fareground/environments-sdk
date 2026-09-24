@@ -193,6 +193,14 @@ def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: int | Non
 
 
 def _trending(world: Any, name: str, config: FeedConfig, n: int) -> list[Entity]:
+    """The ``n`` posts trending now (cached per state: every legality check of every agent reads them)."""
+    found = cache(world, f"{name}:trending")
+    if n not in found:
+        found[n] = _rank_trending(world, name, config, n)
+    return list(found[n])
+
+
+def _rank_trending(world: Any, name: str, config: FeedConfig, n: int) -> list[Entity]:
     order = seat_order(world)
     rows = []
     for post in _recent_posts(world, name, config):
