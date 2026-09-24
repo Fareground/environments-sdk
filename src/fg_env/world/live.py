@@ -3,10 +3,7 @@ physics and space — every mutation journaled so an action commits atomically o
 from __future__ import annotations
 
 import heapq
-import threading
-from collections.abc import Callable, Iterable, Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
+from collections.abc import Callable, Iterable
 from typing import TYPE_CHECKING, Any
 
 from ..assets.store import AssetStore
@@ -21,7 +18,7 @@ from ..expr.template import format_value
 from ..patterns.runtime import PatternRuntime
 from ..physics import world as world_physics
 from ..physics.model import PhysicsModel, _CompiledExpr
-from ..sampling.seeds import DrawSite, SeedTree
+from ..sampling.seeds import SeedTree
 from ..stdlib.dates import calendar_date
 from . import links as _links
 from .defaults import default_order
@@ -31,6 +28,7 @@ from .parts import ClockView, Entry, LogEvent, PhysicsView, private_metrics
 from .props import finite_number as _finite_number
 from .props import prop_type
 from .props import shown_value as _shown_value
+from .randomness import Context, Randomness
 from .record_events import RecordEvents
 from .record_index import RecordAuthors, author_only
 from .space import Spatial, position_of
@@ -39,27 +37,7 @@ from .type_index import TypeIndex
 if TYPE_CHECKING:
     from ..effects.sync import WriteBuffer
 
-__all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "LuckAhead", "prop_type"]
-
-
-class _TurnLocal:
-    """Per-turn state (a turn's random stream, its ``$pending``, its deadline, draw, hidden-read and def-depth counters,
-    the agent whose action is running, whether it may draw)."""
-
-    __slots__ = ("rng", "pending", "deadline", "draws", "hidden", "actor", "depth", "luckless")
-    rng: Any
-    pending: list[dict[str, Any]] | None
-    deadline: float | None
-    draws: int
-    hidden: int
-    actor: Entity | None
-    depth: int
-    luckless: str | None
-
-
-#: The turn running in this thread or asyncio task, as ``(world, state)``. A context variable rather
-#: than a thread-local, so async participants sharing one event-loop thread each keep their own.
-_TURN: ContextVar[tuple[SdkWorld, _TurnLocal] | None] = ContextVar("fg_env_turn", default=None)
+__all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "prop_type"]
 
 
 class Abort(Exception):
@@ -68,11 +46,6 @@ class Abort(Exception):
     def __init__(self, reason: str):
         self.reason = reason
         super().__init__(reason)
-
-
-class LuckAhead(BaseException):
-    """A trial reached a random draw (see :meth:`SdkWorld.without_luck`): what follows depends on luck, which only
-    the call itself may roll. Not an :class:`Exception`, so no rule or mechanism takes it for a failure of its own."""
 
 
 class OutOfBounds(Abort):
@@ -87,12 +60,9 @@ class SdkWorld(World):
     def __init__(self, contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm: str | None = None):
         self.contract = contract
         self.inputs = inputs
-        self.seeds = seeds
         self.arm = arm
-        self._local = threading.local()
-        self.rng = seeds.rng("world")
-        #: How many times each draw site has drawn this round (see :class:`~fg_env.sampling.seeds.DrawSite`).
-        self.firings: dict[str, int] = {}
+        #: The run's luck: its streams, what each draw site drew this round, and what the running logic drew or read.
+        self.luck = Randomness(seeds, seeds.rng("world"))
         self.entities: dict[str, Entity] = {}
         self.props: dict[str, Any] = {}
         self.links: dict[str, dict[tuple[str, str], float]] = {name: {} for name in contract.relations}
@@ -185,90 +155,16 @@ class SdkWorld(World):
         #: The living entities of every type, kept current by create and remove.
         self.types = TypeIndex(contract)
 
-    # -- randomness --------------------------------------------------------------
+    # -- randomness (see world/randomness.py) -----------------------------------------------------------------
+
+    @property
+    def seeds(self) -> SeedTree:
+        return self.luck.seeds
 
     @property  # type: ignore[override]
     def rng(self) -> Any:
-        """The random stream for the current context: the draw site's while a block of logic runs, a turn's own
-        stream while an agent's turn runs outside one (so concurrent turns never race for draws), otherwise the
-        run's main stream — and none inside :meth:`without_luck`."""
-        local = self._here()
-        luckless = getattr(local, "luckless", None)
-        if luckless is not None:
-            if luckless:
-                raise ExprError(luckless)
-            raise LuckAhead()
-        local.draws = getattr(local, "draws", 0) + 1
-        rng = getattr(local, "rng", None)
-        if rng.__class__ is DrawSite:
-            return rng.open(self)
-        return rng or self._rng
-
-    @rng.setter
-    def rng(self, value: Any) -> None:
-        self._rng = value
-
-    def turn_deadline(self) -> float | None:
-        """When the turn running in this thread or task must end (``time.monotonic()``), or None."""
-        return getattr(self._here(), "deadline", None)
-
-    def draws(self) -> int:
-        """How many times this thread has used a random stream: equal counts mean nothing random was drawn."""
-        return getattr(self._here(), "draws", 0)
-
-    @contextmanager
-    def turn_context(self, rng: Any, pending: list[dict[str, Any]] | None,
-                     deadline: float | None = None) -> Iterator[None]:
-        """Inside the block — in this thread or asyncio task only — random draws use ``rng``, ``$pending`` is
-        ``pending`` and the turn ends at ``deadline`` (``time.monotonic()``; None: no limit), which host calls made in
-        it respect. Blocks nest (a reaction inside a turn) and restore on exit."""
-        local = _TurnLocal()
-        local.rng, local.pending, local.deadline = rng, pending, deadline
-        token = _TURN.set((self, local))
-        try:
-            yield
-        finally:
-            _TURN.reset(token)
-
-    def _here(self) -> Any:
-        current = _TURN.get()
-        return current[1] if current is not None and current[0] is self else self._local
-
-    @contextmanager
-    def drawing_from(self, rng: Any) -> Iterator[None]:
-        """Inside the block this thread or turn draws from ``rng``, then from the stream it used before."""
-        local = self._here()
-        previous = getattr(local, "rng", None)
-        local.rng = rng
-        try:
-            yield
-        finally:
-            local.rng = previous
-
-    @contextmanager
-    def without_luck(self, refusal: str = "") -> Iterator[None]:
-        """Inside the block a random draw raises :class:`LuckAhead` instead of drawing — a trial of a call, which must
-        not learn its luck (see ``ActionBook.trial``) — or, given a ``refusal``, fails as a rule does with that text:
-        where nothing may be left to luck."""
-        local = self._here()
-        previous = getattr(local, "luckless", None)
-        local.luckless = refusal
-        try:
-            yield
-        finally:
-            local.luckless = previous
-
-    @contextmanager
-    def drawing_at(self, site: str) -> Iterator[None]:
-        """:meth:`drawing_from` the stream of ``site``: where a block of logic is written, with the actor whose
-        action it is (see :class:`~fg_env.sampling.seeds.DrawSite`)."""
-        with self.drawing_from(DrawSite(site)):
-            yield
-
-    def drawing_for(self, site: str, owner: Any) -> Any:
-        """:meth:`drawing_at` ``site`` as the block of ``owner`` (an action's actor, an `each` item) when it is an
-        entity: each entity has luck of its own, which others coming or going never shifts."""
-        return self.drawing_at(f"{site}@{owner.id}" if isinstance(owner, Entity) else site)
+        """The random stream expressions and mechanisms draw from now (:meth:`Randomness.current`)."""
+        return self.luck.current(self.round)
 
     # -- expression interface ------------------------------------------------
 
@@ -309,33 +205,16 @@ class SdkWorld(World):
         return type(owner) is Entity and self.hidden.entity_hides(owner, prop, agent)
 
     def read_hidden(self) -> None:
-        local = self._here()
-        local.hidden = getattr(local, "hidden", 0) + 1
+        self.luck.count_hidden_read()
 
     def refusal(self, entity: Entity, prop: str, told: str, instead: str) -> Abort:
         """The refusal of a rule about ``entity``'s ``prop``: ``told``, or ``instead`` — which says nothing of it —
         when the value is hidden from the agent whose action is running (the read is noted, so the refusal spends the
         action; see expr/hidden.py)."""
-        if self.hides(entity, prop, getattr(self._here(), "actor", None)):
+        if self.hides(entity, prop, self.luck.here().actor):
             self.read_hidden()
             return Abort(instead)
         return Abort(told)
-
-    @contextmanager
-    def acting_as(self, actor: Entity) -> Iterator[None]:
-        """Inside the block the rules run for ``actor``'s action (whose refusals may not tell it a hidden value)."""
-        local = self._here()
-        previous = getattr(local, "actor", None)
-        local.actor = actor
-        try:
-            yield
-        finally:
-            local.actor = previous
-
-    def hidden_reads(self) -> int:
-        """How many values hidden from the acting agent this thread's game logic has read: equal counts mean a refusal
-        could tell the agent nothing hidden."""
-        return getattr(self._here(), "hidden", 0)
 
     def records(self, name: str) -> list[Entry]:
         if name not in self.records_store:
@@ -432,32 +311,29 @@ class SdkWorld(World):
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got "
                             f"{len(args)}", source)
-        local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it
+        here = self.luck.here()  # the running turn's context, read once: nothing before the evaluation changes it
         key = self._def_key(name, args, viewer)
         if key is not None:
-            pending = getattr(local, "pending", None)
-            state = (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
+            state = self._version(here)
             if state != self._def_cache_state:
                 self._def_cache, self._def_cache_state = {}, state
             elif key in self._def_cache:
                 return self._def_cache[key]
-        depth = getattr(local, "depth", 0)
+        depth = here.depth
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
-        local.depth = depth + 1
-        drawn, hidden = getattr(local, "draws", 0), getattr(local, "hidden", 0)
+        here.depth = depth + 1
+        observed = self.luck.observe()
         try:
             values = dict(zip(spec.args, args))
             if viewer is not None:
                 values["viewer"] = viewer
-            value = compile_expr(spec.expr)(self._scope(local, values))
+            value = compile_expr(spec.expr)(self._scope(here, values))
         finally:
-            local.depth = depth
-        # A call that drew a random number or read a hidden value is never reused (a reuse would neither draw nor
-        # count the read); with the same state and arguments any other call takes the same path again, so its value
-        # is exactly what a fresh call would return.
-        if (key is not None and self.draws() == drawn and self.hidden_reads() == hidden
-                and self.state_version() == state and isinstance(value, _CACHEABLE)):
+            here.depth = depth
+        # Only a pure call is reused (a reuse would neither draw nor count a hidden read); with the same state and
+        # arguments it takes the same path again, so its value is exactly what a fresh call would return.
+        if key is not None and observed.pure(state, self._version(here)) and isinstance(value, _CACHEABLE):
             self._def_cache[key] = value
         return value
 
@@ -470,9 +346,9 @@ class SdkWorld(World):
             self._remembered, self._remembered_state = {}, state
         elif key in self._remembered:
             return self._remembered[key]
-        drawn, hidden = self.draws(), self.hidden_reads()
+        observed = self.luck.observe()
         value = work()
-        if self.draws() == drawn and self.hidden_reads() == hidden and self.state_version() == state:
+        if observed.pure(state, self.state_version()):
             self._remembered[key] = value
         return value
 
@@ -487,7 +363,11 @@ class SdkWorld(World):
 
     def state_version(self) -> Any:
         """Equal values mean nothing a read could see has changed (for caches of derived values)."""
-        pending = getattr(self._here(), "pending", None)
+        return self._version(self.luck.here())
+
+    def _version(self, here: Context) -> Any:
+        """:meth:`state_version` as the running context ``here`` sees it."""
+        pending = here.pending
         return (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
 
     def _def_key(self, name: str, args: list[Any], viewer: Any) -> tuple[Any, ...] | None:
@@ -525,10 +405,10 @@ class SdkWorld(World):
     # -- scopes --------------------------------------------------------------
 
     def scope(self, **values: Any) -> Scope:
-        return self._scope(self._here(), values)
+        return self._scope(self.luck.here(), values)
 
-    def _scope(self, local: Any, values: dict[str, Any]) -> Scope:
-        """A scope over the world as ``local`` (the running turn's state) sees it, with ``values`` as extra roots."""
+    def _scope(self, here: Context, values: dict[str, Any]) -> Scope:
+        """A scope over the world as ``here`` (the running turn's context) sees it, with ``values`` as extra roots."""
         base: dict[str, Any] = {
             "inputs": self.inputs,
             "world": self._props_view,
@@ -540,7 +420,7 @@ class SdkWorld(World):
             "outputs": self.metrics,
             "series": self.series,
             "arm": self.arm,
-            "pending": getattr(local, "pending", None) or [],
+            "pending": here.pending or [],
         }
         base.update(values)
         return Scope(base, self)

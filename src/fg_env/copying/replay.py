@@ -171,9 +171,10 @@ def reseed(turn: Any, seed: int) -> None:
     turn.record("reseed", seed)
     tree = SeedTree(seed)
     env.seed = seed
-    env.seeds = env.world.seeds = tree
-    env.world.rng = tree.rng("run")
-    env.world._here().rng = tree.rng("turn", env.world.round, turn.number)
+    luck = env.world.luck
+    env.seeds = luck.seeds = tree
+    luck.main = tree.rng("run")
+    luck.switch(tree.rng("turn", env.world.round, turn.number))
     env.driver._resolved.clear()
 
 

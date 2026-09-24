@@ -122,15 +122,14 @@ class RunStages:
         shown = {"viewer": EVERYONE} if announces(self.contract, stage) else {}
         woken = []
         for i, agent in enumerate(agents):
-            luck = world.seeds.lazy_rng("who", stage.name, world.round, pass_index, agent.id)
-            with world.drawing_from(luck):
+            with world.luck.stream("who", stage.name, world.round, pass_index, agent.id):
                 if truthy(who(world.scope(it=agent, i=i, **shown))):
                     woken.append(agent)
         return woken
 
     def _shuffle(self: Env, stage: StageSpec, agents: list[Any]) -> None:  # type: ignore[misc]
         """Put ``agents`` (or their turns) in a random order drawn from the stage's own stream."""
-        with self.world.drawing_at(f"stages.{stage.name}.order"):
+        with self.world.luck.at(f"stages.{stage.name}.order"):
             self.world.rng.shuffle(agents)
         self.world.journal.clear()  # the draw is the round's: nothing undoes it, and the run may pause after it
 
@@ -273,7 +272,7 @@ class RunStages:
         world, stage = self.world, turn.stage
 
         def commit() -> str | None:
-            with world.turn_context(None, turn.pending):
+            with world.luck.turn_context(None, turn.pending):
                 why = turn.invalid() if applied else None
             if why is None:
                 self._after_commit(f"stages.{stage.name}")

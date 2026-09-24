@@ -124,8 +124,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
         bind(env, hosts)
     if seed is not None:
         tree = SeedTree(seed)
-        env.seed, env.seeds, env.world.seeds = seed, tree, tree
-        env.world.rng = tree.rng("fork", env.world.round)
+        env.seed, env.seeds, env.world.luck.seeds = seed, tree, tree
+        env.world.luck.main = tree.rng("fork", env.world.round)
     world = env.world
     world.emit("fork", "", to=(), data={"arm": new_arm, "inputs": sorted(inputs or {}), "patch": sorted(patch or {}),
                                         "contract": to is not None, "seed": seed, "effects": len(effects or [])})

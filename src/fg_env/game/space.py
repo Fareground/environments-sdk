@@ -341,5 +341,5 @@ def as_turn(env: Env, turn: Turn) -> Iterator[None]:
     """Read the world as ``turn`` would (its sealed choices as $pending) with a throwaway random stream,
     so looking never draws from the run's streams; the context's own settings come back afterwards."""
     world = env.world
-    with world.turn_context(env.seeds.rng("look", world.round, turn.number), turn.pending):
+    with world.luck.turn_context(env.seeds.rng("look", world.round, turn.number), turn.pending):
         yield

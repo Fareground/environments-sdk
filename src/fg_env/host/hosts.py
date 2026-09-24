@@ -133,7 +133,7 @@ def counting(world: Any, adapter: Any) -> Iterator[None]:
     before = _tokens(adapter)
     outer, outer_deadline = getattr(_CALL, "reported", None), getattr(_CALL, "deadline", None)
     reported: dict[str, int] = {}
-    _CALL.reported, _CALL.deadline = reported, world.turn_deadline()
+    _CALL.reported, _CALL.deadline = reported, world.luck.here().deadline
     try:
         yield
     finally:

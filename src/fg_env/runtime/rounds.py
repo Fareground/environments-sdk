@@ -46,7 +46,7 @@ class RunRounds:
         if self.status in ("ready", "stopped"):
             self.status = "running"
         world.round += 1
-        world.firings.clear()  # counts of this round's luck, and of its uses of actions: never undone
+        world.luck.firings.clear()  # counts of this round's luck, and of its uses of actions: never undone
         world.used_round.clear()
         world.stage = None
         self.happenings.run_scheduled()
@@ -140,7 +140,7 @@ class RunRounds:
         if not effects:
             return
         site = luck or path
-        with self._lock, self.world.drawing_for(site, vars.get("actor") if owner is None else owner):
+        with self._lock, self.world.luck.at(site, vars.get("actor") if owner is None else owner):
             mark = self.world.journal.mark()
             try:
                 with shared_budget(ACTION_BUDGET, path):

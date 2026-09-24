@@ -30,7 +30,8 @@ from ..expr import (
 from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import compile_template, format_value
-from ..world.live import Abort, LuckAhead, SdkWorld, _plain
+from ..world.live import Abort, SdkWorld, _plain
+from ..world.randomness import LuckAhead
 from .faults import fault_reason
 from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
 from .schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
@@ -105,7 +106,7 @@ class ActionBook(ActionSchemas, ActionValidation):
     def deciding(self) -> Any:
         """A block that decides whether a call is allowed or what its arguments may be: a random draw in it fails as a
         rule (see :data:`UNDECIDED_BY_LUCK`)."""
-        return self.world.without_luck(UNDECIDED_BY_LUCK)
+        return self.world.luck.forbidden(UNDECIDED_BY_LUCK)
 
     def _blocked(self, actor: Entity, name: str, used_turn: dict[str, int], used_round: dict[str, int],
                  offered: bool) -> str | None:
@@ -292,7 +293,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         the announcement and its event: they cannot fail or draw, and a rollback would undo them unseen. The action
         draws from its actor's own stream, so it never shifts another agent's luck or the world's; a refusal keeps
         what it drew spent, so retrying rolls fresh luck (see :class:`~fg_env.sampling.seeds.DrawSite`)."""
-        with self.world.drawing_at(f"actions.{name}@{actor.id}"), self.world.acting_as(actor):
+        with self.world.luck.at(f"actions.{name}", actor), self.world.luck.acting_as(actor):
             return self._apply_drawn(actor, name, params, trial)
 
     def _apply_drawn(self, actor: Entity, name: str, params: dict[str, Any], trial: bool) -> Outcome:
@@ -367,7 +368,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         world = self.world
         picker, world.chance_picker = world.chance_picker, None
         try:
-            with shared_budget(ACTION_BUDGET, f"actions.{name}"), world.without_luck():
+            with shared_budget(ACTION_BUDGET, f"actions.{name}"), world.luck.forbidden():
                 outcome = self._apply(actor, name, params, trial=True)
         except LuckAhead:
             return None

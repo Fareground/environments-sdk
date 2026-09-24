@@ -99,7 +99,7 @@ def _expects(world: SdkWorld, owner: str, target: str) -> Any:
 
 
 def _fallback(world: SdkWorld, name: str, spec: FeedSpec) -> Any:
-    with world.drawing_from(world.seeds.rng("feeds", name, world.round)):
+    with world.luck.stream("feeds", name, world.round):
         try:
             return plain(resolve(copy.deepcopy(spec.fallback), world.scope()))
         except ExprError as exc:

@@ -37,7 +37,7 @@ The package lives in `src/fg_env/`. `fg_env/__init__.py` is the public surface: 
 and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `participants`). Below it:
 
 - **The core engine** is a few subpackages, one per part of a run: `world/` (the live world: entities, links,
-  records, space, and building it from a contract), `runtime/` (rounds, stages, turns, what agents perceive, what a
+  records, space, its luck, and building it from a contract), `runtime/` (rounds, stages, turns, what agents perceive, what a
   run measures), `actions/` (legal actions as tools and their arguments), `effects/` (how rules change the world),
   `physics/` (continuous dynamics), `copying/` (branches, forks, replays, snapshots, stepped copies) and
   `sampling/` (seeded random streams and exact draws). `api.py` and `errors.py` sit beside them.

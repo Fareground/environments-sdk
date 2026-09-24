@@ -311,9 +311,9 @@ def test_check_probes_hidden_numbers_and_finds_none_once_refusals_are_spent():
 
 
 def test_the_probing_agent_reports_a_hidden_number_a_free_refusal_tells(monkeypatch):
-    from fg_env.runtime.turn import Turn
+    from fg_env.world.randomness import Observation
 
-    monkeypatch.setattr(Turn, "_tally", lambda self: (0, 0))  # as if no refusal ever read anything hidden
+    monkeypatch.setattr(Observation, "read_hidden", property(lambda self: False))  # as if nothing hidden were ever read
     for contract, hidden in ((WORLD_CODE, "the world's hidden code"), (GUESS, "bob's hidden secret"),
                              (VAULT_GUESS, "v's hidden code")):
         issues = [issue for issue in fg_env.check(contract) if "probing agent" in issue.message]

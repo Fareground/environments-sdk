@@ -36,7 +36,7 @@ class Previews:
     def spectate(self) -> dict[str, str]:
         env, world = self.env, self.env.world
         shown: dict[str, str] = {}
-        with env._lock, world.turn_context(env.seeds.rng("spectator", world.round, len(self.frames)), None):
+        with env._lock, world.luck.turn_context(env.seeds.rng("spectator", world.round, len(self.frames)), None):
             for name in self.spectator:
                 with shared_budget(ACTION_BUDGET, f"views.{name}"):
                     text = env.perception.render_view(name, env.contract.views[name], None)

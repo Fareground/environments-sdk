@@ -120,7 +120,7 @@ class RunState:
         from ..copying.snapshot import encode
 
         w = self.world
-        rng = w._rng.getstate()  # the main stream itself (reading `rng` counts as a draw)
+        rng = w.luck.main.getstate()  # the main stream itself (reading `rng` counts as a draw)
         return {
             "round": w.round, "rounds": w.rounds, "stage": w.stage,
             "entities": [{"id": e.id, "type": e.entity_type, "name": e.name, "props": encode(e.properties),
@@ -139,7 +139,7 @@ class RunState:
             "schedule_seq": w._schedule_seq,
             "wake_requests": encode(w.wake_requests),
             "reactions": encode(w.reactions),
-            "counters": dict(w.counters), "firings": dict(w.firings), "end_request": encode(w.end_request),
+            "counters": dict(w.counters), "firings": dict(w.luck.firings), "end_request": encode(w.end_request),
             "fired_once": sorted(w.fired_once),
             "turn_count": self.turn_count,
             "armed": {str(k): v for k, v in w.armed.items()},
@@ -208,11 +208,11 @@ class RunState:
         w.wake_requests = decode(data["wake_requests"])
         w.reactions = [(entity_id, why, actions) for entity_id, why, actions in decode(data.get("reactions") or [])]
         w.counters = dict(data["counters"])
-        w.firings = {str(k): int(v) for k, v in data["firings"].items()}
+        w.luck.firings = {str(k): int(v) for k, v in data["firings"].items()}
         w.end_request = decode(data.get("end_request"))
         w.round, w.rounds, w.stage = data["round"], data["rounds"], data.get("stage")
         state = data["rng"]
-        w._rng.setstate((state[0], tuple(state[1]), state[2]))
+        w.luck.main.setstate((state[0], tuple(state[1]), state[2]))
         w.fired_once = set(data["fired_once"])
         self.turn_count = int(data["turn_count"])
         w.armed = {int(k): bool(v) for k, v in data["armed"].items()}

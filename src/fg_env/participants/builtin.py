@@ -273,7 +273,7 @@ class PolicyAgent:
         scope = turn.env.world.scope(actor=turn.actor, viewer=turn.actor)
         with turn.env._lock:
             legal = set(turn._legal()) | {"pass"}
-        with turn.env.world.drawing_from(random.Random(0)):
+        with turn.env.world.luck.using(random.Random(0)):
             for later in range(index + 1, len(spec.rules)):
                 rule, path = spec.rules[later], f"{base}.rules[{later}]"
                 if rule.do not in legal:

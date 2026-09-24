@@ -119,7 +119,7 @@ def _seen(run):
     pause = run.pause
 
     def read(env):
-        out = {"state": undoable_state(env), "turns": env.state.turn_count, "firings": dict(env.world.firings),
+        out = {"state": undoable_state(env), "turns": env.state.turn_count, "firings": dict(env.world.luck.firings),
                "status": env.status}
         if pause is not None:
             wake = pause.wake

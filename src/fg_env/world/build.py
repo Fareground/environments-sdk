@@ -36,7 +36,7 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
     world = SdkWorld(contract, inputs, seeds, arm)
     if assets is not None:
         world.assets = assets
-    world.rng = seeds.rng("build")
+    world.luck.main = seeds.rng("build")
     pending_briefs: list[tuple[str, str, dict[str, Any], str]] = []
     try:
         world.rounds = _rounds(world)
@@ -75,7 +75,7 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
     except Abort as refusal:  # nothing to roll back to while building: a full cell is a contract error
         raise RunError(refusal.reason, "build") from None
     world.journal.clear()
-    world.rng = seeds.rng("run")
+    world.luck.main = seeds.rng("run")
     return world
 
 

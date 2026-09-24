@@ -20,7 +20,8 @@ from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.scope import Scope
 from ..expr.template import compile_template, entity_handles, format_value
-from ..world.live import Entry, LogEvent, LuckAhead, SdkWorld
+from ..world.live import Entry, LogEvent, SdkWorld
+from ..world.randomness import LuckAhead
 from ..world.record_index import author_only
 from .news_index import NewsIndex
 
@@ -221,7 +222,7 @@ class Perception:
             return held[1]
         used, handles = budget.used, _Handles()
         try:
-            with world.without_luck(), entity_handles(handles):
+            with world.luck.forbidden(), entity_handles(handles):
                 items = self._select(view, world.scope(viewer=EVERYONE), False)
         except (PrivateRead, LuckAhead):
             items = None

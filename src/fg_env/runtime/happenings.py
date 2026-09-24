@@ -22,6 +22,7 @@ from ..expr import EVERYONE, ExprError, compile_expr, resolve, shared_budget, tr
 from ..expr.objects import Entity
 from ..expr.template import compile_template
 from ..world.live import Abort
+from ..world.randomness import event_streams
 from .diagnosis import LoopWrites
 from .turn import Turn
 
@@ -29,32 +30,6 @@ if TYPE_CHECKING:
     from .env import Env
 
 __all__ = ["Happenings"]
-
-#: The stage hook each stage anchor took the place of: its events draw from that hook's stream.
-_HOOK_STREAMS = {"start": "on_enter", "end": "on_exit", "turn": "on_idle"}
-
-
-def _streams(events: list[EventSpec]) -> list[tuple[str, str]]:
-    """Each event's random streams, for its `when` and for its `do`: those of what it was written as before events
-    absorbed triggers and stage hooks (a round event counted among round events, a change event among change events), so
-    every contract keeps its luck."""
-    streams, rounds, changes = [], 0, 0
-    for index, event in enumerate(events):
-        kind, _, rest = event.on.partition(".")
-        if kind == "round":
-            streams.append((f"events[{rounds}]", f"events[{rounds}].do"))
-            rounds += 1
-        elif kind == "change":
-            streams.append((f"triggers[{changes}].when", f"triggers[{changes}].do"))
-            changes += 1
-        elif kind == "stage":
-            stage, _, point = rest.rpartition(".")
-            hook = f"stages.{stage}.{_HOOK_STREAMS[point]}"
-            streams.append((hook, hook))
-        else:  # create / remove: they draw with the change they run in
-            streams.append((f"events[{index}]", f"events[{index}].do"))
-    return streams
-
 
 def _loop(event: EventSpec) -> Mapping[str, Any] | None:
     """The `each` loop that is a round event's whole `do`, whose items run one by one (see :meth:`Happenings._each`)."""
@@ -74,7 +49,7 @@ class Happenings:
 
     def __init__(self, env: Env):
         self.env = env
-        self._streams = _streams(env.contract.events)
+        self._streams = event_streams(event.on for event in env.contract.events)
         self._change_depth = 0
         self._reaction_depth = 0
 
@@ -97,7 +72,7 @@ class Happenings:
                 continue
             path = f"events[{index}]"
             when, do = self._streams[index]
-            with world.drawing_for(when, owner):
+            with world.luck.at(when, owner):
                 if event.when is not None and not self._holds(event.when, vars or {}, f"{path}.when"):
                     continue
                 if event.once:
@@ -126,7 +101,7 @@ class Happenings:
         body = f"{path}.do[0].do"
         try:
             listed = loop["each"]
-            with world.drawing_at(do):  # what the loop goes over is drawn as its `do` would draw it
+            with world.luck.at(do):  # what the loop goes over is drawn as its `do` would draw it
                 items = world.entities_of(listed) if isinstance(listed, str) and listed in env.contract.types else \
                     each_items(resolve(listed, world.scope()), world, f"{path}.do[0].each")
             if loop.get("sync"):
@@ -140,7 +115,7 @@ class Happenings:
                         continue
                     inner = {name: item, "i": position}
                     if where is not None:
-                        with world.drawing_for(f"{when}.where", item):
+                        with world.luck.at(f"{when}.where", item):
                             if not truthy(compile_expr(where)(world.scope(**inner))):
                                 continue
                     if watch is not None:
@@ -162,10 +137,10 @@ class Happenings:
         def run_item(position: int, item: Any) -> bool:
             inner = {name: item, "i": position}
             if where is not None:
-                with world.drawing_for(f"{when}.where", item):
+                with world.luck.at(f"{when}.where", item):
                     if not truthy(compile_expr(where)(world.scope(**inner))):
                         return False
-            with shared_budget(ACTION_BUDGET, body), world.drawing_for(do, item):
+            with shared_budget(ACTION_BUDGET, body), world.luck.at(do, item):
                 env.effects.run(loop.get("do") or [], dict(inner), body)
             return True
 
@@ -218,7 +193,7 @@ class Happenings:
             if event.once and index in world.fired_once:
                 continue
             when, do = self._streams[index]
-            with world.drawing_at(when):
+            with world.luck.at(when):
                 holds = self._holds(event.when or "true", {}, f"events[{index}].when")
             was = world.armed.get(index, False)
             world.set_armed(index, holds)

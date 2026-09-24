@@ -40,6 +40,7 @@ from .session import END_TURN, ToolResult
 from .state import Memory
 
 if TYPE_CHECKING:
+    from ..world.randomness import Observation
     from .env import Env
     from .exposure import Exposure
 
@@ -209,7 +210,7 @@ class Turn:
     def _views_luck(self, *site: str) -> Any:
         """A block that renders what the agent reads, drawing from a stream of this turn's own: looking again shows the
         same noise (re-looking cannot average it away), and a preview of the turn shows what the turn will."""
-        return self.env.world.drawing_from(self.env.seeds.lazy_rng(*site, self.number))
+        return self.env.world.luck.stream(*site, self.number)
 
     def _deliver(self, ids: list[str], where: str) -> None:
         fresh = [key for key in ids if key not in self._delivered]
@@ -360,14 +361,14 @@ class Turn:
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
-        before = self._tally()
-        acted, fault = guarded(env, lambda: self._act(name, spec, args), action=name)
+        observed = env.world.luck.observe()
+        acted, fault = guarded(env, lambda: self._act(name, spec, args, observed), action=name)
         if acted is None:
             assert fault is not None
             self.stats.rejected_actions += 1
             self.stats.faulted_actions += 1
-            drew = env.world.draws() != before[0]
-            result, applied = self._refused(name, refused_text(name, fault), before, _REJECTED), False
+            drew = observed.drew
+            result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED), False
         else:
             result, applied, drew = acted
         if drew and self._mark is not None:  # luck settles an atomic turn at once: nothing after it can undo it
@@ -385,12 +386,12 @@ class Turn:
                     return self._after(self._undone(why))
         return self._after(result)
 
-    def _act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
-        """Check, then submit (sealed turns) or apply and commit one action call: its result, whether it applied, and
-        whether it drew randomness. Runs inside :func:`guarded`, so the turn's own counts change only once nothing can
-        fail any more."""
+    def _act(self, name: str, spec: ActionSpec, args: Any, observed: Observation) -> tuple[ToolResult, bool, bool]:
+        """Check, then submit (sealed turns) or apply and commit one action call — ``observed`` from its start: its
+        result, whether it applied, and whether applying it drew randomness. Runs inside :func:`guarded`, so the turn's
+        own counts change only once nothing can fail any more."""
         with self.after_choices():
-            return self._checked_act(name, spec, args)
+            return self._checked_act(name, spec, args, observed)
 
     @contextmanager
     def after_choices(self) -> Iterator[None]:
@@ -403,54 +404,47 @@ class Turn:
             self.env.actions.replay(self.actor, self.intents)
             yield
 
-    def _tally(self) -> tuple[int, int]:
-        """How many random draws and hidden reads this thread has made so far: what :meth:`_refused` compares with."""
-        world = self.env.world
-        return world.draws(), world.hidden_reads()
-
-    def _refused(self, name: str, text: str, before: tuple[int, int], free: dict[str, Any]) -> ToolResult:
-        """The result of a refused call to ``name``, the one place that decides what a refusal costs. Since ``before``
-        (:meth:`_tally`), did working it out draw luck or read a value hidden from the actor (see expr/hidden.py)?
+    def _refused(self, name: str, text: str, observed: Observation, free: dict[str, Any]) -> ToolResult:
+        """The result of a refused call to ``name``, the one place that decides what a refusal costs. Did working it
+        out (``observed`` from the call's start) draw luck or read a value hidden from the actor (see expr/hidden.py)?
         Then the action is spent, for good — a free retry would let an agent reroll its luck, or probe the hidden value
         again and again, and so would undoing its atomic turn's part. Otherwise it is free (its ``free`` data: an
         invalid call or a rejected one)."""
-        draws, hidden = self._tally()
-        if (draws, hidden) == before:
+        if not (observed.drew or observed.read_hidden):
             return ToolResult(False, text, data=free)
         self._count(name, spent=True)
         return ToolResult(False, text, self.actions_left <= 0, dict(_SPENT))
 
-    def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
+    def _checked_act(self, name: str, spec: ActionSpec, args: Any,
+                     observed: Observation) -> tuple[ToolResult, bool, bool]:
         env = self.env
-        before = self._tally()
         blocked = env.actions.blocked(self.actor, name, self.used, env.world.used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
-            return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", before, _INVALID),
+            return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", observed, _INVALID),
                     False, False)
         args, cut = _cut(spec.params, args)
         params, problem = env.actions.validate(self.actor, name, args)
         if problem:
             self.stats.invalid_calls += 1
             return (self._refused(name, f"{name} was not done: {problem}. Correct the arguments and call again.",
-                                  before, _INVALID), False, False)
+                                  observed, _INVALID), False, False)
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = env.actions.dry_run(self.actor, name, params)
             if refusal is not None:
                 self.stats.rejected_actions += 1
-                return self._refused(name, refusal, before, _REJECTED), False, False
+                return self._refused(name, refusal, observed, _REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.intents.append((name, dict(args or {})))
             self.pending.append({"action": name, **_plain(params)})
             self._count(name)
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
             return ToolResult(True, text, ended or self.actions_left <= 0), False, False
-        drawn = env.world.draws()
         outcome = env.actions.apply(self.actor, name, params)
-        drew = env.world.draws() != drawn
+        drew = observed.drew  # checking the call drew nothing (it may not): what applying it drew
         if not outcome.ok:
             self.stats.rejected_actions += 1
-            return self._refused(name, outcome.text, before, _REJECTED), False, drew
+            return self._refused(name, outcome.text, observed, _REJECTED), False, drew
         self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
         try:
             self.committed(f"actions.{name}")
@@ -538,7 +532,7 @@ class Turn:
         with env._lock:
             if self._mark is None:
                 return
-            with env.world.turn_context(None, self.pending):
+            with env.world.luck.turn_context(None, self.pending):
                 why = self.settle()
             if why is not None:
                 env.world.emit("outcome", f"Your turn was undone: {why}.", actor=self.actor.id, to=(self.actor.id,),

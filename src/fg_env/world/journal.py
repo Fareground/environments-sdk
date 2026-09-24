@@ -2,7 +2,7 @@
 
 Each journaled write pushes one undo op — a plain tuple ``(kind, *what it replaced)`` — and :meth:`Journal.rollback`
 undoes ops newest first by their kind (:data:`UNDO`, the complete list). What is not journaled is never undone: the
-luck a run has drawn (``world.firings`` and the random streams), and what a change outside the journal moved
+luck a run has drawn (``world.luck``: its streams and firings), and what a change outside the journal moved
 (:meth:`Journal.bump`: metrics sampling, physics steps).
 
 Ops name entities, records and events by id or sequence number, not by the objects themselves, and entries a change

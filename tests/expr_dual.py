@@ -32,7 +32,6 @@ _ORIGINAL = expr_compile.Expr.__call__
 _MODE = threading.local()
 _ORACLES: dict[str, Any] = {}
 _BUDGET_FIELDS = ("hold", "used", "limit", "cap", "label", "shared")
-_UNSET = object()
 #: What a world's pattern runtime derives once and keeps (parameters, rows, keys, random paths).
 _PATTERN_CACHES = ("_params", "_rows", "_keys", "_paths")
 
@@ -54,9 +53,8 @@ def _outcome(run: Callable[[], Any]) -> tuple[str, Any]:
 def _streams(world: Any) -> list[Any]:
     """Every random stream an evaluation over ``world`` may draw from."""
     found: list[Any] = []
-    candidates = [world.__dict__.get("rng"), world.__dict__.get("_rng")]
-    if hasattr(world, "_here"):
-        candidates += [getattr(world._here(), "rng", None), getattr(world._local, "rng", None)]
+    luck = getattr(world, "luck", None)
+    candidates = [world.__dict__.get("rng")] if luck is None else [luck.main, luck.here().rng]
     for rng in candidates:
         if isinstance(rng, DrawSite):
             rng = rng.stream
@@ -70,12 +68,12 @@ def _capture(world: Any) -> dict[str, Any]:
     if world is None:
         return state
     state["streams"] = [(rng, rng.getstate()) for rng in _streams(world)]
-    if hasattr(world, "_here"):
-        local = world._here()
-        site = getattr(local, "rng", None)
+    if hasattr(world, "luck"):
+        here = world.luck.here()
+        site = here.rng
         if isinstance(site, DrawSite):  # a draw site opens at its first draw, counting it and journaling the count
-            state["site"] = (site, site.stream, dict(world.firings), world.journal.mark())
-        state["counters"] = (local, getattr(local, "draws", _UNSET), getattr(local, "depth", _UNSET))
+            state["site"] = (site, site.stream, dict(world.luck.firings), world.journal.mark())
+        state["counters"] = (here, here.draws, here.depth)
         state["defs"] = (dict(world._def_cache), world._def_cache_state)
         # Caches that evaluate expressions or charge work when they miss: both evaluators start from the same ones.
         social = world.__dict__.get("_social_cache")
@@ -96,19 +94,14 @@ def _restore(world: Any, state: dict[str, Any]) -> None:
         return
     if "site" in state:
         site, site.stream, firings, mark = state["site"]
-        world.firings.clear()
-        world.firings.update(firings)
+        world.luck.firings.clear()
+        world.luck.firings.update(firings)
         del world.journal._undo[mark:]
     for rng, saved in state["streams"]:
         rng.setstate(saved)
     if "counters" in state:
-        local, draws, depth = state["counters"]
-        for name, value in (("draws", draws), ("depth", depth)):
-            if value is _UNSET:
-                if hasattr(local, name):
-                    delattr(local, name)
-            else:
-                setattr(local, name, value)
+        here, draws, depth = state["counters"]
+        here.draws, here.depth = draws, depth
         world._def_cache, world._def_cache_state = dict(state["defs"][0]), state["defs"][1]
         social = state["social"]
         if social is None:

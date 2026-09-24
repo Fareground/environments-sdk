@@ -32,8 +32,8 @@ class RunChecks:
 
     def _check_invariants(self: Env, path: str, moment: str = "action") -> None:  # type: ignore[misc]
         """Check the invariants due at ``moment``: build, action (after a change), round or end. An
-        invariant already found to hold in exactly this state — without drawing randomness — holds again,
-        so it is not evaluated again."""
+        invariant already found to hold in exactly this state — purely: drawing nothing and reading nothing hidden —
+        holds again, so it is not evaluated again."""
         if not self.contract.invariants:
             return
         world = self.world
@@ -44,7 +44,7 @@ class RunChecks:
             state = world.state_version()
             if moment == "action" and self.state.invariant_held.get(index) == state:
                 continue
-            drawn = world.draws()
+            observed = world.luck.observe()
             try:
                 holds = self._touched_hold(invariant) if invariant.check == "action" else None
                 if holds is None:
@@ -55,8 +55,7 @@ class RunChecks:
                 why = _why(invariant.why, scope, f"invariants[{index}].why")
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
                                          f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
-            fresh = world.draws() == drawn and world.state_version() == state
-            self.state.invariant_held[index] = state if fresh else None
+            self.state.invariant_held[index] = state if observed.pure(state, world.state_version()) else None
         if moment in _INVARIANT_MOMENTS["action"]:  # every action invariant was due, and holds
             world.touched = {}
 

@@ -45,14 +45,14 @@ INVARIANT = "$world.pot = -1000"
 
 def _spent(env):
     """What is spent for good once drawn or asked for: every site's firings, and the host answers recorded."""
-    return dict(env.world.firings), set(env.world.props.get(TAPE) or ())
+    return dict(env.world.luck.firings), set(env.world.props.get(TAPE) or ())
 
 
 def _still_spent(env, spent, version):
     """Luck drawn and host answers recorded stayed spent; and the journal is back at its ``version`` unless an answer
     was recorded (a change kept outside the journal, which no earlier version may stand for)."""
     firings, answers = spent
-    assert all(env.world.firings.get(site, 0) >= count for site, count in firings.items()), "luck came back"
+    assert all(env.world.luck.firings.get(site, 0) >= count for site, count in firings.items()), "luck came back"
     recorded = set(env.world.props.get(TAPE) or ())
     assert answers <= recorded, "a recorded host answer was dropped"
     if recorded == answers:

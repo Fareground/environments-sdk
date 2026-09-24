@@ -71,9 +71,10 @@ class LazyStream:
 class DrawSite:
     """The stream of one run of a block of logic, opened at its first draw (most runs of a block draw nothing).
 
-    Opening counts the runs of the site that drew this round in ``world.firings``. Nothing gives a count back: a block
-    that is undone after it drew (a refused action, an undone turn) has spent its luck, so trying again rolls afresh
-    and no refusal lets an agent probe its luck. Trials draw nothing (see ``ActionBook.trying``)."""
+    Opening counts the runs of the site that drew this round in the run's ``firings`` (see
+    :mod:`~fg_env.world.randomness`). Nothing gives a count back: a block that is undone after it drew (a refused
+    action, an undone turn) has spent its luck, so trying again rolls afresh and no refusal lets an agent probe its
+    luck. Trials draw nothing (see ``ActionBook.trying``)."""
 
     __slots__ = ("key", "stream")
 
@@ -81,9 +82,10 @@ class DrawSite:
         self.key = key
         self.stream: random.Random | None = None
 
-    def open(self, world: Any) -> random.Random:
+    def open(self, luck: Any, round: int) -> random.Random:
+        """The stream, opened at its first draw in ``round`` from the run's ``luck`` (a ``Randomness``)."""
         if self.stream is None:
-            count = world.firings.get(self.key, 0)
-            world.firings[self.key] = count + 1
-            self.stream = world.seeds.rng("draws", self.key, world.round, count)
+            count = luck.firings.get(self.key, 0)
+            luck.firings[self.key] = count + 1
+            self.stream = luck.seeds.rng("draws", self.key, round, count)
         return self.stream

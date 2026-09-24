@@ -37,8 +37,8 @@ PROBES = 6
 def _observed(env):
     """What a free refusal may not move: the run's undoable state, the luck of every site, and — read inside the turn
     — how often this turn has drawn luck and read a value hidden from its agent."""
-    world = env.world
-    return restored_state(env), dict(world.firings), world.draws(), world.hidden_reads()
+    luck = env.world.luck
+    return restored_state(env), dict(luck.firings), luck.here().draws, luck.here().hidden
 
 
 def _unmoved(env, before, first):
@@ -171,10 +171,10 @@ def test_checking_a_refused_tool_for_a_working_choice_reads_nothing_hidden_for_t
     counts = []
 
     def play(wake):
-        before = wake._turn.env.world.hidden_reads()
+        before = wake._turn.env.world.luck.here().hidden
         result = wake.call("guess", {"x": 99})  # past the maximum: refused for its arguments, free
         assert not result.ok and not (result.data or {}).get("spent")
-        counts.append((before, wake._turn.env.world.hidden_reads()))
+        counts.append((before, wake._turn.env.world.luck.here().hidden))
         wake.end()
 
     fg_env.run({**copy.deepcopy(VAULT), "stages": [{"name": "play"}]}, play, seed=1)

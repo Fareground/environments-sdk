@@ -52,12 +52,12 @@ _STATE_FIELDS = frozenset({
     "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "in_round", "where", "stats",
     "agent_stats", "invariant_held", "rows", "rows_last"})
 _WORLD_FIELDS = frozenset({
-    "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
+    "contract", "inputs", "arm", "luck", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
     "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "start",
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "fired_once", "armed",
-    "used_round", "firings", "journal", "lifecycle",
+    "used_round", "journal", "lifecycle",
     "joined",
     "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
     "_physics_view", "_clock_view",
@@ -194,8 +194,8 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
     types.__dict__.update(_kinds=source.types._kinds, _queries=source.types._queries, _members=source.types._members)
     types.rebuild(entities.values())
     world.__dict__.update(
-        stores, contract=source.contract, inputs=source.inputs, seeds=source.seeds, arm=source.arm,
-        _local=threading.local(), _rng=_copy_rng(source._rng), entities=entities, props=_copy(source.props),
+        stores, contract=source.contract, inputs=source.inputs, arm=source.arm, luck=source.luck.copy(),
+        entities=entities, props=_copy(source.props),
         links={kind: dict(edges) for kind, edges in source.links.items()},
         link_fields={kind: {key: _copy(value) for key, value in fields.items()}
                      for kind, fields in source.link_fields.items()},
@@ -210,7 +210,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
         fired_once=set(source.fired_once), armed=dict(source.armed),
         used_round={actor: dict(used) for actor, used in source.used_round.items()},
-        firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures),
+        journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures),
         written=set(source.written), touched=None, watched_writes=None, diagnosis=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, hidden=source.hidden,
         private_names=source.private_names, private_metrics=source.private_metrics, _def_cache={},
