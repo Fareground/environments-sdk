@@ -261,6 +261,11 @@ class Stats:
             self.failed_turns += 1  # the provider refused or cut off a reply: the model's play was not its own
         return False
 
+    def copy(self) -> Stats:
+        copied = Stats.__new__(Stats)
+        copied.__dict__.update(self.__dict__)  # every field is a count
+        return copied
+
     def add(self, other: Stats) -> None:
         for name, value in vars(other).items():  # every field is a count: most of a turn's are zero
             if value:

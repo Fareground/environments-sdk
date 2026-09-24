@@ -8,9 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from ..api import ContractLike, load
-from ..copying.branch import Branch, copy_pilot, fresh_copy
-from ..copying.direct import NotCopyable
-from ..copying.replay import Tape
+from ..copying.branch import Branch, driven_copy, piloted
 from ..copying.snapshot import contract_hash, decode, encode, run_identity
 from ..copying.stepping import SteppedEnv, Stepper
 from ..describe.walk import draws
@@ -142,7 +140,7 @@ class Game:
                 run = self._stepper().clone()
                 run.start()
                 return GameState(self, run, [])
-            except (Unpausable, NotCopyable):
+            except Unpausable:
                 self._stepped = False
         return GameState(self, self._piloted_start(), [])
 
@@ -150,7 +148,7 @@ class Game:
         """The stepped run, not yet started, that every stepped initial state is a copy of."""
         if self._template is None:
             root, contract = self._root, self.contract
-            env = fresh_copy(root, root.origin.base, self._others, SteppedEnv)
+            env = driven_copy(root, SteppedEnv, self._others)
             measured = [spec.expr for spec in contract.outputs.values()] + self._score_texts()  # what a result reads
             self._template = Stepper(env, self.players, self.chance == "explicit", self._prefetch,
                                      settles=draws(contract, measured))
@@ -160,8 +158,8 @@ class Game:
     def _piloted_start(self) -> ThreadedRun:
         """A run piloted on its own thread, at the first decision."""
         root = self._root
-        pilot = copy_pilot(root, Tape(), 0, root.origin.base, controlled=set(self.players),
-                           explicit=self.chance == "explicit", participants=self._others, checkpoints=True)
+        pilot = piloted(root, controlled=set(self.players), explicit=self.chance == "explicit",
+                        participants=self._others)
         pilot.start()
         return ThreadedRun(Branch(pilot), self._prefetch)
 

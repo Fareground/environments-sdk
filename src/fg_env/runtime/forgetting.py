@@ -2,8 +2,7 @@
 
 Such a run's result carries no events, so an event is needed only while something in the run can still read it:
 an agent's news (what happened since its last turn). Before every round the run forgets the events every living agent
-has already been past, and when its replay tape (what participants did since the run's base, see :mod:`replay`) has
-grown larger than the world, it moves the base to this round so the tape starts afresh. A contract that reads older
+has already been past. A contract that reads older
 events — `$events`, `$seen`, a game's information sets, the memory and procedure mechanisms — keeps its whole log:
 forgetting never changes what a run does, only what it holds.
 """
@@ -23,10 +22,6 @@ if TYPE_CHECKING:
 
 __all__ = ["reads_log", "forget"]
 
-#: Turns the replay tape holds at least before its base moves (a small world is not re-based every round).
-_LEAST_TAPE = 1_000
-
-
 def reads_log(contract: Contract) -> bool:
     """Whether the contract's rules read events older than an agent's news, so the run must keep them all."""
     text = json.dumps(contract.model_dump(by_alias=True, exclude_defaults=True), default=str)
@@ -35,8 +30,8 @@ def reads_log(contract: Contract) -> bool:
 
 
 def forget(env: Env) -> None:
-    """At a round's start: drop the events no living agent's news can reach any more, and move the replay base here
-    when the tape has outgrown the world. Nothing is ever forgotten from a run whose rules read the log."""
+    """At a round's start: drop the events no living agent's news can reach any more. Nothing is ever forgotten from a
+    run whose rules read the log."""
     if env._reads_log:
         return
     world = env.world
@@ -50,5 +45,3 @@ def forget(env: Env) -> None:
         del world.log[:dropped]
         env.state.emitted = max(0, env.state.emitted - dropped)
         world.rebuild_event_index()
-    if len(env.origin.tape.turns) > max(world.types.living, _LEAST_TAPE):
-        env.origin.checkpoint_due = True

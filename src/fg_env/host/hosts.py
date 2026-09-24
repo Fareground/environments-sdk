@@ -90,24 +90,14 @@ def as_hosts(value: HostsLike) -> Hosts | None:
 def bind(env: Env, hosts: HostsLike) -> Env:
     """Bind a loaded environment to its hosts (``None`` unbinds). Returns the environment.
 
-    Previews play the next round on a restored copy of the run; the copy is bound to the same
-    hosts, so a preview shows the turn exactly as it will be (and may consult a live host).
+    A copy of the run (a clone, a preview's probe, a game state) is bound to the same hosts, so a preview shows the turn
+    exactly as it will be (and may consult a live host).
     """
     resolved = as_hosts(hosts)
     if resolved is None:
         _BOUND.pop(env.world, None)
         return env
     _BOUND[env.world] = resolved
-    if not getattr(env, "_host_probe_bound", False):
-        make_probe = env.previews.probe
-
-        def probe(snapshot: Mapping[str, Any], participants: Any = None) -> Env:
-            copy = make_probe(snapshot, participants)
-            current = _BOUND.get(env.world)
-            return bind(copy, current) if current is not None else copy
-
-        env.previews.probe = probe  # type: ignore[method-assign]
-        env._host_probe_bound = True  # type: ignore[attr-defined]
     return env
 
 

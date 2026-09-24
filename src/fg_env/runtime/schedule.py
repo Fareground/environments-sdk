@@ -10,8 +10,9 @@ schedule only says when.
 
 A round advances through safe points — before each stage, each pass and each sequential turn — so a run can stop at
 any of them and continue exactly where it left off. The round is a generator that keeps the run's
-:class:`~fg_env.runtime.state.Cursor` current as it plays, and resumes from the cursor alone: a copy of the run taken
-while a turn waits for a decision continues the round from there (see :mod:`fg_env.copying.direct`).
+:class:`~fg_env.runtime.state.Cursor` current as it plays, and resumes from the cursor alone: a copy of the run (taken
+at a safe point, or while a turn waits for a decision) and a run restored from a snapshot taken part-way through a round
+continue the round from there.
 """
 from __future__ import annotations
 
@@ -63,7 +64,8 @@ class Schedule:
     def __init__(self, env: Env):
         self.env = env
         self.rules = env.rules
-        #: The round in progress while the run is stopped or waiting inside it: a generator over the cursor.
+        #: The round in progress while the run is stopped or waiting inside it: a generator over the cursor (a copy of
+        #: the run, which has none, resumes the round from the cursor).
         self._round: Steps | None = None
         self._reaction_depth = 0
         #: Called with every event as it is logged, once it has committed (``run(on_event=...)``).
@@ -82,6 +84,8 @@ class Schedule:
         env = self.env
         completed = 0
         while not env.finished:
+            if self._round is None and env.state.in_round:  # a copy, or a restored snapshot, part-way through a round
+                self._round = self.steps(resumed=True)
             if self._round is None:
                 if (rounds is not None and completed >= rounds) or (
                         env.budget is not None and env.budget.enforce(env)):
@@ -91,14 +95,12 @@ class Schedule:
                     return
                 if not env.state.keep_events:
                     forget(env)
-                env.origin.round_start(env)
                 self._round = self.steps()
             elif env.status == "stopped":
                 env.status = "running"
             for point in self._round:
                 if point is WAITING:  # a turn waits for a decision: the run pauses here, its round kept
                     return
-                env.origin.tape.points += 1
                 if (env.budget is not None and env.budget.enforce(env)) or (stop is not None and stop(env)):
                     env.status = env.status if env.finished else "stopped"
                     return
@@ -115,10 +117,6 @@ class Schedule:
         if self._round is not None:
             self._round.close()
             self._round = None
-
-    def resume(self) -> None:
-        """Continue the round at the run's cursor: a copy taken while a turn waited in it (see copying/direct.py)."""
-        self._round = self.steps(resumed=True)
 
     def throw(self, error: BaseException) -> None:
         """Raise ``error`` inside the round in progress, where it waits (its turns close as a failure raised inside
@@ -167,20 +165,22 @@ class Schedule:
         return True
 
     def steps(self, resumed: bool = False) -> Steps:
-        """A round, from its start — or, ``resumed``, from the waiting turn the run's cursor is at."""
+        """A round, from its start — or, ``resumed``, from where the run's cursor is (a safe point, or turns being
+        played): what comes after that point, as the round would have played on from it."""
         env, rules, world, state = self.env, self.rules, self.env.world, self.env.state
         if not resumed:
             if not self.begin_round():
                 return
             state.cursor = Cursor()
+        cursor = state.cursor
         stages = env.contract.stage_list()
-        for index in range(state.cursor.stage, len(stages)):
+        for index in range(cursor.stage, len(stages)):
             stage = stages[index]
             if resumed:
                 resumed = False
-                yield from self.run_stage(stage, resumed=True)
+                yield from self.run_stage(stage, resumed=cursor.at != "stage")
             else:
-                state.cursor.stage = index
+                cursor.stage, cursor.at = index, "stage"
                 yield SafePoint(stage)
                 yield from self.run_stage(stage)
             rules.check_end()
@@ -231,7 +231,8 @@ class Schedule:
     # -- stages ----------------------------------------------------------------------------------------------------
 
     def run_stage(self, stage: StageSpec, resumed: bool = False) -> Steps:
-        """One visit of ``stage``: its start events, its passes and its end events."""
+        """One visit of ``stage``: its start events, its passes and its end events (``resumed``: from the pass the
+        cursor is in)."""
         env, rules, world, cursor = self.env, self.rules, self.env.world, self.env.state.cursor
         path = f"stages.{stage.name}"
         if not resumed:
@@ -246,11 +247,13 @@ class Schedule:
             cursor.pass_index = 0
         passes = whole_setting(world, stage.passes, f"{path}.passes", MAX_STAGE_PASSES) or (10 if stage.until else 1)
         for pass_index in range(cursor.pass_index, passes):
-            if resumed:
+            if resumed and cursor.at != "pass":
                 agents = cursor.agents
             else:
-                if pass_index:
+                if pass_index and not resumed:
+                    cursor.pass_index, cursor.at = pass_index, "pass"
                     yield SafePoint(stage)
+                resumed = False
                 agents = self.eligible(stage, pass_index=pass_index)
                 cursor.pass_index, cursor.agents = pass_index, agents
                 env.facts.emit(StageVisit(stage.name, woke=len(agents)))
@@ -368,43 +371,54 @@ class Schedule:
         env, cursor = self.env, self.env.state.cursor
         for position in range(cursor.position if resumed else 0, len(agents)):
             actor = agents[position]
-            if resumed:
-                resumed, turn, cursor.turn = False, cursor.turn, None
+            if resumed and cursor.at == "playing":
+                resumed, turn, waiting, cursor.waiting = False, cursor.turn, cursor.waiting, None
                 assert turn is not None
-                yield from env.driver.drive_steps([turn], resume=0)
+                yield from env.driver.drive_steps([turn], resume=waiting)
             else:
-                if self.rules.ended():
-                    return
-                if not actor.alive:  # removed earlier this pass: everyone after it still takes their turn
-                    continue
-                reason = self._reason(actor, stage, pass_index)
-                if reason is None:
-                    continue
-                cursor.position = position
-                yield SafePoint(stage, {actor.id: reason})
-                turn = Turn(env, actor, stage, reason, staged=False)
+                if resumed:  # at the safe point before this turn: its agent was already told why
+                    resumed, reason = False, cursor.reasons[actor.id]
+                else:
+                    if self.rules.ended():
+                        return
+                    if not actor.alive:  # removed earlier this pass: everyone after it still takes their turn
+                        continue
+                    woken = self._reason(actor, stage, pass_index)
+                    if woken is None:
+                        continue
+                    reason = woken
+                    cursor.position, cursor.at, cursor.reasons = position, "turn", {actor.id: reason}
+                    yield SafePoint(stage, {actor.id: reason})
+                turn = cursor.turn = Turn(env, actor, stage, reason, staged=False)
+                cursor.at = "playing"
                 yield from env.driver.drive_steps([turn])
+            cursor.turn = None
             self._after_turn(stage, turn, turn.stats.actions > 0)
             self._remember(actor)
             self.flush()
 
     def _simultaneous(self, stage: StageSpec, agents: list[Entity], pass_index: int, resumed: bool = False) -> Steps:
-        env = self.env
-        if resumed:
-            turns = list(env.origin.staged)
-            yield from env.driver.drive_steps(turns, together=True, resume=env.state.cursor.position)
+        env, cursor = self.env, self.env.state.cursor
+        if resumed and cursor.at == "playing":
+            turns, waiting, cursor.waiting = list(env.state.staged), cursor.waiting, None
+            yield from env.driver.drive_steps(turns, together=True, resume=waiting)
         else:
-            reasons: dict[str, str] = {}
-            for actor in agents:
-                reason = self._reason(actor, stage, pass_index)
-                if reason is not None:
-                    reasons[actor.id] = reason
-            if reasons:
-                yield SafePoint(stage, dict(reasons))
+            if resumed:  # at the safe point before the turns: their agents were already told why
+                reasons = cursor.reasons
+            else:
+                reasons = {}
+                for actor in agents:
+                    reason = self._reason(actor, stage, pass_index)
+                    if reason is not None:
+                        reasons[actor.id] = reason
+                if reasons:
+                    cursor.at, cursor.reasons = "turns", dict(reasons)
+                    yield SafePoint(stage, dict(reasons))
             turns = [Turn(env, actor, stage, reasons[actor.id], staged=True) for actor in agents
                      if actor.id in reasons]
             for turn in turns:  # every agent's news starts from before anyone's choices commit
                 self._remember(turn.actor)
+            cursor.at = "playing"
             yield from env.driver.drive_steps(turns, together=True)
         try:
             self._commit_choices(stage, turns)

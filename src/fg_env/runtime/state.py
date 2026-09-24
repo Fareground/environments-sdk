@@ -3,7 +3,11 @@
 :class:`RunState` holds everything a run changes as it plays that is not configuration or a service: the world — its
 store and the rules' bookkeeping journaled with it (the events that fired or are armed, each agent's uses of each
 action this round) — and beside it turn numbers, what the engine remembers of each agent, the briefs, the statistics,
-and where the round in progress is. :meth:`RunState.encode` is its canonical form — JSON-safe data, what a snapshot
+the run's status and budget, where the round in progress is (:class:`Cursor`) and the turns being played there.
+
+:meth:`RunState.copy` is the one way a run is copied — a clone, a fork's start, a preview, a game state, a copy taken
+inside a turn: the copy's parts are built afresh around the copied state (they hold none of their own), and a round in
+progress resumes from the cursor. :meth:`RunState.encode` is its canonical form — JSON-safe data, what a snapshot
 stores and what a copy must reproduce — and :meth:`RunState.decode` puts it back into a freshly built run.
 
 What an undo brings back and what it does not is one rule, :data:`UNDONE`: everything the world journals comes back
@@ -20,12 +24,15 @@ from ..assets.store import AssetStore
 from ..errors import RunError, SnapshotError
 from ..expr.objects import Entity
 from ..information.exposure import ExposureLog
+from ..world.copies import copy_world
 from ..world.live import Abort, Entry, LogEvent
 from .diagnosis import Diagnosis
 from .facts import Stats
 
 if TYPE_CHECKING:
     from ..world.live import SdkWorld
+    from .budget import Budget
+    from .env import Env
     from .turn import Turn
 
 __all__ = ["Cursor", "Memory", "RunState", "UNDONE"]
@@ -47,21 +54,59 @@ class Memory:
         self.cursor = 0
         self.turns = 0
 
+    def copy(self) -> Memory:
+        memory = Memory()
+        memory.cursor, memory.turns = self.cursor, self.turns
+        return memory
+
+
+#: Where in a stage the round in progress is (:attr:`Cursor.at`).
+POINTS = ("stage", "pass", "turn", "turns", "playing")
+
 
 @dataclass
 class Cursor:
-    """Where the round in progress is, kept current as the schedule plays it, so a copy of the run taken while a turn
-    waits for a decision continues that round from the same place (see :mod:`fg_env.runtime.schedule` and
-    :mod:`fg_env.copying.stepping`)."""
+    """Where the round in progress is, kept current as the schedule plays it: the round resumes from it alone — in a
+    copy of the run, or in a run restored from a snapshot taken part-way through the round (see
+    :mod:`fg_env.runtime.schedule`)."""
 
+    #: The stage being played (its index among the contract's stages).
     stage: int = 0
+    #: Where in it: at the safe point before it starts (``stage``), before its pass :attr:`pass_index` chooses its
+    #: agents (``pass``), before the sequential turn at :attr:`position` or the pass's sealed turns, each agent told its
+    #: :attr:`reasons` (``turn``, ``turns``), or playing them (``playing``: :attr:`turn`, or the run's
+    #: :attr:`RunState.staged`).
+    at: str = "stage"
     pass_index: int = 0
     #: The agents of the pass being played, in turn order.
     agents: list[Entity] = field(default_factory=list)
-    #: The waiting turn's place: in ``agents`` (sequential), or among the stage's sealed turns (simultaneous).
+    #: The sequential turn's place in ``agents``.
     position: int = 0
-    #: The waiting turn itself (set on a copy only).
+    #: Why each agent about to be woken is woken.
+    reasons: dict[str, str] = field(default_factory=dict)
+    #: The sequential turn being played.
     turn: Turn | None = None
+    #: The number of the turn a copy was taken waiting in: the turns of the stage already started continue only there
+    #: (see :meth:`~fg_env.runtime.driving.Driver.drive_steps`).
+    waiting: int | None = None
+
+    def copy(self, entities: Mapping[str, Entity]) -> Cursor:
+        """This cursor over the copied ``entities`` (the turn in play is copied with the run's turns)."""
+        return Cursor(self.stage, self.at, self.pass_index, [entities[agent.id] for agent in self.agents],
+                      self.position, dict(self.reasons), self.turn, self.waiting)
+
+    def encode(self) -> dict[str, Any]:
+        """The cursor as data (the turns in play are not: a run is saved at a safe point, between them)."""
+        return {"stage": self.stage, "at": self.at, "pass": self.pass_index, "agents": [a.id for a in self.agents],
+                "position": self.position, "reasons": dict(self.reasons)}
+
+    @classmethod
+    def decode(cls, data: Mapping[str, Any], entities: Mapping[str, Entity]) -> Cursor:
+        at = data["at"]
+        if at not in POINTS or at == "playing":
+            raise SnapshotError(f"the snapshot's round is at an unknown point {at!r}")
+        return cls(int(data["stage"]), at, int(data["pass"]), [entities[agent] for agent in data["agents"]],
+                   int(data["position"]), {str(k): str(v) for k, v in data["reasons"].items()})
 
 
 class RunState:
@@ -77,9 +122,17 @@ class RunState:
         #: Each agent's brief, rendered once, and the assets it attaches.
         self.briefs: dict[str, str] = {}
         self.brief_assets: dict[str, list[str]] = {}
-        #: Whether a round is being played, and where in it the run is.
+        #: How the run stands: ready, running, stopped (at a safe point), or finished — completed, ended or failed, the
+        #: end's name (``ended_by``) or the error that failed it.
+        self.status = "ready"
+        self.ended_by: str | None = None
+        self.error: str | None = None
+        #: The run's budget, and what it has counted (see runtime/budget.py).
+        self.budget: Budget | None = None
+        #: Whether a round is being played, where in it the run is, and the sealed turns of the stage being played.
         self.in_round = False
         self.cursor = Cursor()
+        self.staged: list[Turn] = []
         #: How many of the log's events have been handed to the run's ``on_event`` callback.
         self.emitted = 0
         #: Spectator views rendered at the end of every round, the last one marked final (see information/core.py).
@@ -96,6 +149,31 @@ class RunState:
         #: A cache, not state: the log as plain data, converted once per event (see :meth:`event_rows`).
         self.rows: list[dict[str, Any]] = []
         self.rows_last: Any = None
+
+    def copy(self) -> RunState:
+        """A copy of the state that shares nothing that changes (see the module docstring): the world
+        (:func:`~fg_env.world.copies.copy_world`) and every piece of bookkeeping beside it. Its turns in play are copied
+        by :meth:`adopt`, into the run built around the copy; caches start empty."""
+        world = copy_world(self.world)
+        state = RunState.__new__(RunState)
+        state.__dict__.update(
+            world=world, keep_events=self.keep_events, turn_count=self.turn_count,
+            memories={key: memory.copy() for key, memory in self.memories.items()}, briefs=dict(self.briefs),
+            brief_assets={key: list(ids) for key, ids in self.brief_assets.items()},
+            status=self.status, ended_by=self.ended_by, error=self.error,
+            budget=None if self.budget is None else self.budget.copy(), in_round=self.in_round,
+            cursor=self.cursor.copy(world.entities), staged=list(self.staged), emitted=self.emitted,
+            frames=list(self.frames), stats=self.stats.copy(),
+            agent_stats={key: stats.copy() for key, stats in self.agent_stats.items()},
+            diagnosis=self.diagnosis.copy(world.written), invariant_held={}, rows=list(self.rows),
+            rows_last=self.rows_last)
+        return state
+
+    def adopt(self, env: Env) -> None:
+        """Copy the turns in play into ``env``, the run just built around this copied state."""
+        self.staged = [turn.copy(env) for turn in self.staged]
+        if self.cursor.turn is not None:
+            self.cursor.turn = self.cursor.turn.copy(env)
 
     def memory(self, entity_id: str) -> Memory:
         """What the engine remembers of ``entity_id``, from now on."""
@@ -120,8 +198,7 @@ class RunState:
     # -- the canonical form --------------------------------------------------------------------------------------
 
     def encode(self) -> dict[str, Any]:
-        """The state as JSON-safe data. The round in progress is not in it (:attr:`cursor` holds live turns): a run
-        stopped part-way through a round is saved as the snapshot it replays from (see copying/snapshot.py)."""
+        """The state as JSON-safe data: between rounds, or at a safe point part-way through one (:attr:`cursor`)."""
         from ..copying.snapshot import encode
 
         w = self.world
@@ -156,6 +233,7 @@ class RunState:
             "exposures": w.exposures.to_dict() if w.exposures is not None else None,
             "layers": w.space.state() if w.space is not None else {},
             **({"assets": {**w.assets.to_dict(), "briefs": dict(self.brief_assets)}} if len(w.assets) else {}),
+            **({"cursor": self.cursor.encode()} if self.in_round else {}),
         }
 
     def decode(self, data: Mapping[str, Any]) -> None:
@@ -235,6 +313,8 @@ class RunState:
         if data.get("assets"):
             w.assets = AssetStore.from_dict(data["assets"])
             self.brief_assets = {key: list(ids) for key, ids in (data["assets"].get("briefs") or {}).items()}
+        if data.get("cursor") is not None:
+            self.in_round, self.cursor = True, Cursor.decode(data["cursor"], w.entities)
         _check_props(w)
         w.journal.clear()
         w.touch()  # the state was replaced wholesale: nothing cached before holds

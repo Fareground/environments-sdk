@@ -1,8 +1,9 @@
-"""Snapshots: a run between rounds as JSON-safe data, restored so it continues exactly.
+"""Snapshots: a run as JSON-safe data — its state's canonical form (``RunState.encode``) — restored so it continues
+exactly.
 
-A run stopped part-way through a round (``env.run(stop=...)``) is saved as the snapshot it replays from (its
-base: the build, a restored snapshot or a round-start checkpoint) and the tape of every participant call since;
-restoring rebuilds the base and plays the tape back to the same safe point (:mod:`.replay`).
+A run is saved between rounds, or stopped at a safe point part-way through one (``env.run(stop=...)``): then the
+snapshot holds where the round is (its cursor), and the restored run resumes the round there. Snapshots of the previous
+format are still read (:mod:`.legacy_snapshot`).
 
 Participant-text provenance survives the round trip: :class:`Untrusted` text is written as
 ``{"$untrusted": ...}``, and maps whose keys cannot be plain JSON keys (untrusted or non-text
@@ -16,11 +17,9 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..contract import Contract
-from ..contract.base import TAPE
 from ..errors import ContractError, SnapshotError
 from ..expr import Untrusted
 from ..runtime.budget import Budget
-from ..runtime.turn_tools import wrap
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -28,7 +27,7 @@ if TYPE_CHECKING:
 __all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot",
            "restore_env", "restore_state", "matching_contract", "check_snapshot", "recording_start"]
 
-SNAPSHOT_VERSION = 4
+SNAPSHOT_VERSION = 5
 
 _E = TypeVar("_E", bound="Env")
 
@@ -103,7 +102,6 @@ def take_snapshot(env: Env) -> dict[str, Any]:
         if env.status != "stopped":
             raise SnapshotError(f"round {w.round} is being played right now; stop the run at a safe point first "
                                 "(env.run(stop=...)), or take the snapshot between rounds")
-        return _part_way(env)
     return {
         **_identity(env),
         "status": env.status, "ended_by": env.ended_by, "error": env.error,
@@ -121,50 +119,6 @@ def _identity(env: Env) -> dict[str, Any]:
     inputs = encode(env.inputs)
     return {"fg_env_snapshot": SNAPSHOT_VERSION, "contract": contract_hash(env.contract), **_rule_origin(env),
             "run": run_identity(env.seed, env.arm, inputs), "seed": env.seed, "arm": env.arm, "inputs": inputs}
-
-
-def _part_way(env: Env) -> dict[str, Any]:
-    """A run stopped part-way through a round: its base, the tape since, and the host answers recorded so far (so
-    the replay never asks a host again)."""
-    from .branch import fresh_copy
-    from .pilot import PilotedEnv
-
-    tape = env.origin.tape
-    if tape.picks:
-        raise SnapshotError("this copy was steered through chance outcomes part-way through the round; take the "
-                            "snapshot between rounds")
-    base = env.origin.base
-    if base is None:  # the run's build, rebuilt the same from its seed
-        base = take_snapshot(fresh_copy(env, None, None, PilotedEnv))
-    hosts = env.world.props.get(TAPE)
-    if hosts is not None:
-        base = {**base, "props": {**base["props"], TAPE: encode(hosts)}}
-    return {**_identity(env), "status": "stopped", "round": env.world.round,
-            "part_way": {"base": base, "turns": env.state.turn_count, "points": tape.points,
-                         "tape": [[number, actor, [encode(list(entry)) for entry in entries]]
-                                  for number, (actor, entries) in sorted(tape.turns.items())]}}
-
-
-def _replay_part_way(env: Env, held: Mapping[str, Any], round_: int) -> None:
-    """Play ``env``, rebuilt from the base of a part-way snapshot, back along its tape to where it was stopped."""
-    from .replay import Playback, Tape
-
-    tape = Tape()
-    tape.turns = {int(number): (actor, [tuple(decode(entry)) for entry in entries])
-                  for number, actor, entries in held["tape"]}
-    tape.points = int(held["points"])
-    playback = Playback(tape, int(held["turns"]))
-
-    def replay(wake: Any) -> None:
-        playback.play(wake)
-
-    env.run(wrap(env, replay),
-            stop=lambda e: e.state.in_round and e.world.round == round_ and e.origin.tape.points >= tape.points)
-    env.driver.bind({})
-    if env.status != "stopped" or env.world.round != round_ or env.origin.tape.points != tape.points:
-        why = f" ({env.error})" if env.error else ""
-        raise SnapshotError(f"the snapshot did not replay to where it was taken{why}; restore it into the contract "
-                            "it was taken with, unedited")
 
 
 def recording_start(snapshot: Mapping[str, Any]) -> dict[str, Any]:
@@ -235,13 +189,16 @@ def _restore_rule_origin(snapshot: Mapping[str, Any], fallback: Contract) -> Con
 
 
 def check_snapshot(snapshot: Any) -> None:
-    """Refuse what is not a snapshot of this engine, or one whose seed, arm or inputs were edited."""
+    """Refuse what is not a snapshot of this engine (or of its previous format), or one whose seed, arm or inputs were
+    edited."""
+    from .legacy_snapshot import LEGACY_VERSION
+
     if not isinstance(snapshot, Mapping):
         raise SnapshotError(f"a snapshot is a mapping (from env.snapshot()), got {type(snapshot).__name__}")
     version = snapshot.get("fg_env_snapshot")
-    if version != SNAPSHOT_VERSION:
-        raise SnapshotError(f"unsupported snapshot version {version!r} (this engine reads version {SNAPSHOT_VERSION}); "
-                            "rerun from the snapshot's seed and take a new one")
+    if version not in (SNAPSHOT_VERSION, LEGACY_VERSION):
+        raise SnapshotError(f"unsupported snapshot version {version!r} (this engine reads versions {LEGACY_VERSION} "
+                            f"and {SNAPSHOT_VERSION}); rerun from the snapshot's seed and take a new one")
     if "run" in snapshot and snapshot["run"] != run_identity(snapshot.get("seed"), snapshot.get("arm"),
                                                              snapshot.get("inputs")):
         raise SnapshotError("the snapshot's seed, arm or inputs were changed after it was taken, so it no longer "
@@ -249,20 +206,14 @@ def check_snapshot(snapshot: Any) -> None:
 
 
 def restore_env(cls: type[_E], contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+    from .legacy_snapshot import part_way
+
     matched, unarmed = matching_contract(contract, snapshot)
-    held = snapshot.get("part_way")
-    base = held["base"] if isinstance(held, Mapping) else snapshot
-    if base is not snapshot:
-        check_snapshot(base)
-    env = restore_state(cls, matched, base, parallel)
-    env.origin.base, env.origin.unarmed = dict(base), unarmed  # copies of the run replay from here
-    if isinstance(held, Mapping):
-        try:
-            _replay_part_way(env, held, int(snapshot["round"]))
-        except SnapshotError:
-            raise
-        except (KeyError, TypeError, ValueError) as exc:
-            raise SnapshotError(f"the snapshot is incomplete or corrupted ({type(exc).__name__}: {exc})") from None
+    if isinstance(snapshot.get("part_way"), Mapping):  # the previous format's snapshot of a run stopped in a round
+        env = part_way(cls, matched, snapshot, parallel)
+    else:
+        env = restore_state(cls, matched, snapshot, parallel)
+    env.origin.unarmed = unarmed
     return env
 
 
@@ -281,7 +232,9 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
               events=snapshot.get("events", True) is not False)
     env.state.decode(snapshot)
     status = snapshot["status"]
-    env.status = status if status != "stopped" else ("running" if env.world.round else "ready")
+    if status == "stopped" and not env.state.in_round:  # stopped as a round was about to start
+        status = "running" if env.world.round else "ready"
+    env.status = status
     env.ended_by, env.error = snapshot.get("ended_by"), snapshot.get("error")
     env.state.frames = decode(snapshot.get("frames") or [])
     env.origin.start = snapshot.get("start")

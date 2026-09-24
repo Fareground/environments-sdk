@@ -3,20 +3,20 @@
 What the run changes as it plays is one value, :class:`~fg_env.runtime.state.RunState`. The parts are services over
 it: :class:`~fg_env.runtime.rules.Rules` evaluates and commits world logic, :class:`~fg_env.runtime.schedule.Schedule`
 says when everything happens and who acts in what order, the :class:`~fg_env.runtime.driving.Driver` plays each turn's
-participant, and :class:`~fg_env.information.core.Information` renders what agents and spectators read.
+participant, and :class:`~fg_env.information.core.Information` renders what agents and spectators read. The parts hold
+no state of their own, so a copy of the run (:meth:`Env.copy`) is a copy of its state with the parts built around it.
 """
 from __future__ import annotations
 
 import asyncio
 import threading
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, TypeVar
 
 from ..actions.book import ActionBook
 from ..assets.store import AssetStore
 from ..contract import MAX_ROUNDS, Contract
 from ..copying.previews import Previews
-from ..copying.replay import Origin
 from ..copying.snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from ..effects.runner import EffectRunner
 from ..errors import RunError
@@ -28,7 +28,7 @@ from ..information.core import Information
 from ..information.exposure import recording
 from ..sampling.seeds import SeedTree
 from ..world.build import build_world
-from ..world.live import _plain
+from ..world.live import SdkWorld, _plain
 from .budget import Budget, is_seconds
 from .diagnostics import diagnose
 from .driving import Driver, run_on_worker
@@ -40,14 +40,42 @@ from .returns import measured
 from .rules import Rules
 from .schedule import Schedule
 from .state import Memory, RunState
-from .turn import entity_dict
+from .turn import Turn, entity_dict
 
-__all__ = ["Env", "SNAPSHOT_VERSION"]
+__all__ = ["Env", "Origin", "SNAPSHOT_VERSION"]
+
+_E = TypeVar("_E", bound="Env")
+
+
+class Origin:
+    """Where a run comes from: its contract before its arm was applied (forks switch arms from it), and — for a run
+    that continues a fork — the snapshot its recording replays from (None otherwise; see
+    :func:`~fg_env.copying.snapshot.recording_start`)."""
+
+    __slots__ = ("unarmed", "start")
+
+    def __init__(self, unarmed: Contract, start: dict[str, Any] | None = None):
+        self.unarmed = unarmed
+        self.start = start
 
 
 class Env:
     """A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
     and :meth:`fork`."""
+
+    # The run's parts (built around its state by _assemble).
+    world: SdkWorld
+    effects: EffectRunner
+    actions: ActionBook
+    information: Information
+    facts: Facts
+    rules: Rules
+    driver: Driver
+    previews: Previews
+    schedule: Schedule
+    _lock: threading.RLock
+    _signal: threading.Condition
+    _running: threading.Lock
 
     def __init__(self, contract: Contract, inputs: dict[str, Any], seed: int, arm: str | None = None,
                  parallel: int = 8, exposures: bool = False, assets: AssetStore | None = None, events: bool = True):
@@ -57,39 +85,109 @@ class Env:
         self.arm = arm
         self.parallel = max(1, parallel)
         self.seeds = SeedTree(seed)
-        self.world = build_world(contract, inputs, self.seeds, arm, assets)
-        self.world.enable_def_cache()
-        self.effects = EffectRunner(self.world)
-        self.world.joined = self._joined
-        self.actions = ActionBook(contract, self.world, self.effects)
         if exposures and not events:
             raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown "
                              "to replay against it: drop one of them")
+        world = build_world(contract, inputs, self.seeds, arm, assets)
+        world.enable_def_cache()
+        world.exposures = Information.exposure_log(contract, exposures)
         #: Everything the run changes as it plays (see runtime/state.py). Results carry the event log unless
         #: ``events`` is false; then the run forgets what nothing can read (see forgetting.py).
-        self.state = RunState(self.world, keep_events=events)
-        self.status = "ready"
-        self.ended_by: str | None = None
-        self.error: str | None = None
+        self.state = RunState(world, keep_events=events)
+        #: Wall-clock seconds each agent has for a turn (None: no limit).
+        self.time_limit: float | None = None
+        self._reads_log = reads_log(contract) if not events else True
+        self.origin = Origin(contract)
+        self._assemble(None)
+        self.rules.check_invariants("build", "build")
+
+    def _assemble(self, like: Env | None) -> None:
+        """Build the run's parts around its state: when it is loaded, and around the state of a copy (see :meth:`copy`),
+        sharing what ``like``, the run it copies, read from the contract."""
+        contract, world, state = self.contract, self.state.world, self.state
+        self.world = world
         self._lock = threading.RLock()
-        self.information = Information(contract, self.world, self.actions, self.state, self._lock, exposures)
-        #: Where everything that happens is told: the statistics and the diagnosis in the state are its folds.
-        self.facts = self.world.facts = Facts(self.state)
-        self.rules = Rules(contract, self.world, self.effects, self.actions, self.information, self.state,
-                           self.facts, self._lock)
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()
-        self.driver = Driver(self)
-        #: Wall-clock seconds each agent has for a turn (None: no limit).
-        self.time_limit: float | None = None
-        self.budget: Budget | None = None
-        self._reads_log = reads_log(contract) if not events else True
+        self.effects = EffectRunner(world)
+        world.joined = self._joined
+        self.actions = ActionBook(contract, world, self.effects)
+        self.information = Information(contract, world, self.actions, state, self._lock,
+                                       like.information if like is not None else None)
+        #: Where everything that happens is told: the statistics and the diagnosis in the state are its folds.
+        self.facts = world.facts = Facts(state)
+        self.rules = Rules(contract, world, self.effects, self.actions, self.information, state, self.facts,
+                           self._lock)
+        self.driver = self._new_driver()
         self.previews = Previews(self)
         self.schedule = Schedule(self)
         self.rules.react = self.schedule.react
-        self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
-        self.rules.check_invariants("build", "build")
+
+    def _new_driver(self) -> Driver:
+        """What plays this kind of run's turns."""
+        return Driver(self)
+
+    def copy(self, kind: type[_E] | None = None, *, waiting: Turn | None = None) -> _E:
+        """An independent copy of the run now, continuing exactly as it would, as a run of ``kind`` (default: its
+        own). The one way a run is copied: its state is copied (:meth:`RunState.copy`) and its parts are built around
+        the copy; a round in progress resumes where it is. Take it between blocks of logic: between rounds, at a safe
+        point, or while turns wait for a decision — ``waiting``, the one the copy continues from (the turns of the
+        stage already under way end there; see :meth:`~fg_env.runtime.driving.Driver.drive_steps`). The copy keeps the
+        run's participants, time limit and hosts."""
+        made: type[Any] = kind or type(self)
+        env = object.__new__(made)
+        env.contract, env.inputs, env.seed, env.arm = self.contract, self.inputs, self.seed, self.arm
+        env.parallel, env.seeds, env.time_limit = self.parallel, self.seeds, self.time_limit
+        env._reads_log, env.origin = self._reads_log, Origin(self.origin.unarmed, self.origin.start)
+        env.state = self.state.copy()
+        env._assemble(self)
+        env.state.adopt(env)
+        if waiting is not None:
+            env.state.cursor.waiting = waiting.number
+        env.driver.spec = dict(self.driver.spec)
+        from ..copying.branch import keep_chance
+        from ..host.hosts import bind, hosts_for
+
+        hosts = hosts_for(self.world)
+        if hosts is not None:
+            bind(env, hosts)
+        keep_chance(self, env)
+        return env
+
+    # -- the run's standing (held in its state) ------------------------------------
+
+    @property
+    def status(self) -> str:
+        return self.state.status
+
+    @status.setter
+    def status(self, value: str) -> None:
+        self.state.status = value
+
+    @property
+    def ended_by(self) -> str | None:
+        return self.state.ended_by
+
+    @ended_by.setter
+    def ended_by(self, value: str | None) -> None:
+        self.state.ended_by = value
+
+    @property
+    def error(self) -> str | None:
+        return self.state.error
+
+    @error.setter
+    def error(self, value: str | None) -> None:
+        self.state.error = value
+
+    @property
+    def budget(self) -> Budget | None:
+        return self.state.budget
+
+    @budget.setter
+    def budget(self, value: Budget | None) -> None:
+        self.state.budget = value
 
     # -- public API ----------------------------------------------------------------
 
@@ -285,8 +383,8 @@ class Env:
     def clone(self) -> Env:
         """An independent copy of this run now, continuing exactly as it would.
 
-        Between rounds it is a restored snapshot; a run stopped part-way through a round (``run(stop=...)``) is
-        copied by replaying it, so the copy stops at the same point. Inside a turn, use ``wake.clone()``.
+        Between rounds, or stopped part-way through a round (``run(stop=...)``) — then the copy is stopped at the same
+        point. Inside a turn, use ``wake.clone()``.
         """
         from ..copying.branch import clone_env
 

@@ -1,15 +1,15 @@
-"""Replays: what a run did since its base, so a copy can be rebuilt exactly at any point.
+"""Playing back what participants did: a recorded run rerun, or a decision taken again.
 
-A run's base is the state it started from: its build, a restored snapshot, or a checkpoint taken at
-the start of a round. The tape records, turn by turn, everything a participant did through its
-wake — first reads of the brief, update and tools, every tool call, reported usage — plus every
-chance outcome a picker chose and how many safe points the run has passed. The engine is
-deterministic under its seed, so rebuilding the base and playing the tape back in place of the
-participants reproduces the run exactly: the same state, random streams, turn numbers and log.
+A turn keeps, as its steps, everything its participant did through its wake — first reads of the brief, update and
+tools, every tool call, reported usage, uploads, a reseed, a timeout — and a run that records exposures keeps every
+turn's steps. The engine is deterministic under its seed, so playing the steps back into the same run in place of its
+participants reproduces it exactly: the same state, random streams, turn numbers and log. That is what a recording's
+rerun does (:mod:`fg_env.trace.rerun`), what a copy paused inside a decision does to take the decision again
+(:mod:`.pilot`), and what the kernel's tests hold every copy of a run to. Copies of a run are copies of its state
+(:meth:`~fg_env.runtime.env.Env.copy`), never replays.
 """
 from __future__ import annotations
 
-import threading
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
@@ -19,83 +19,31 @@ from ..sampling.seeds import SeedTree
 if TYPE_CHECKING:
     from ..runtime.session import Wake
 
-__all__ = ["Origin", "Tape", "Playback", "apply_step", "reseed"]
+__all__ = ["Tape", "Playback", "apply_step", "reseed"]
 
 Entry = tuple[Any, ...]
 
 
-class Origin:
-    """Where copies of a run start from: its base (a snapshot; None for its build) and the tape since."""
-
-    __slots__ = ("base", "start", "tape", "checkpoint_due", "staged", "unarmed")
-
-    def __init__(self, contract: Any):
-        self.base: dict[str, Any] | None = None
-        #: Where the run's recording replays from when its build cannot rebuild it: the snapshot a fork continued
-        #: from, exposures given as counts (see :func:`~fg_env.copying.snapshot.recording_start`); None otherwise.
-        self.start: dict[str, Any] | None = None
-        self.tape = Tape()
-        #: Take a fresh base at the next round start (the run was copied part-way through a round).
-        self.checkpoint_due = False
-        #: The sealed turns of the simultaneous stage being played.
-        self.staged: list[Any] = []
-        #: The contract before its arm was applied (forks switch arms from it).
-        self.unarmed = contract
-
-    def round_start(self, env: Any) -> None:
-        """Called before every round: the base moves here when a copy asked for it."""
-        if self.checkpoint_due:
-            from .snapshot import take_snapshot
-
-            self.base, self.tape, self.checkpoint_due = take_snapshot(env), Tape(), False
-
-
 class Tape:
-    """Everything participants did since the run's base."""
+    """What participants did, to play back: turn by turn, and the chance outcomes chosen."""
 
-    __slots__ = ("_lock", "turns", "open", "picks", "points")
+    __slots__ = ("turns", "open", "picks")
 
     def __init__(self) -> None:
-        self._lock = threading.Lock()
         #: turn number → (actor id, what the participant did, in order)
         self.turns: dict[int, tuple[str, list[Entry]]] = {}
-        #: Turns in progress (a participant is deciding, or a reaction runs inside one of its calls).
+        #: Turns still in progress where the playback ends: whoever controls the run decides them on from there.
         self.open: set[int] = set()
-        #: Outcomes chance pickers chose, in order.
+        #: Outcomes chance choosers chose, in order.
         self.picks: list[int] = []
-        #: Safe points passed since the base (see ``Env.run(stop=...)``).
-        self.points = 0
-
-    def record(self, number: int, actor: str, entry: Entry) -> None:
-        with self._lock:
-            self.turns.setdefault(number, (actor, []))[1].append(entry)
-
-    def opened(self, number: int) -> None:
-        with self._lock:
-            self.open.add(number)
-
-    def closed(self, number: int) -> None:
-        with self._lock:
-            self.open.discard(number)
-
-    def pick(self, index: int) -> None:
-        with self._lock:
-            self.picks.append(index)
-
-    def copy(self) -> Tape:
-        with self._lock:
-            out = Tape()
-            out.turns = {number: (actor, list(entries)) for number, (actor, entries) in self.turns.items()}
-            out.open, out.picks, out.points = set(self.open), list(self.picks), self.points
-            return out
 
 
 class Playback:
-    """A tape being played back into a copy of the run it was recorded from.
+    """A tape being played back into the run it was recorded from.
 
-    ``turn_count`` is the number of turns the original had started when the copy was taken: a turn
-    after that, or one still in progress then, is live — once its recorded steps are played it is
-    decided by whoever controls the copy.
+    ``turn_count`` is the number of turns the run had started where the tape begins: a turn after that, or one
+    still in progress where the tape ends, is live — once its recorded steps are played it is decided by whoever
+    controls the run.
     """
 
     def __init__(self, tape: Tape, turn_count: int):
@@ -103,7 +51,6 @@ class Playback:
         self._open = set(tape.open)
         self._picks = list(tape.picks)
         self.turn_count = turn_count
-        self.points = tape.points
 
     def live(self, number: int) -> bool:
         return number > self.turn_count or number in self._open
@@ -124,12 +71,12 @@ class Playback:
             return False
         actor, entries = recorded
         if actor != turn.actor.id:
-            raise RunError(f"the copy diverged from the run it was taken from: turn {turn.number} was {actor}'s and is "
-                           f"now {turn.actor.id}'s (was the original's state changed outside the engine?)",
+            raise RunError(f"the playback diverged from the run it was recorded in: turn {turn.number} was {actor}'s "
+                           f"and is now {turn.actor.id}'s (was the run's state changed outside the engine?)",
                            f"replay:turn {turn.number}")
         for position, entry in enumerate(entries):
             if wake.done:
-                raise RunError(f"the copy diverged from the run it was taken from: turn {turn.number} ended after "
+                raise RunError(f"the playback diverged from the run it was recorded in: turn {turn.number} ended after "
                                f"{position} of its {len(entries)} recorded steps", f"replay:turn {turn.number}")
             apply_step(wake, entry)
         return True
@@ -166,8 +113,8 @@ def apply_step(wake: Wake, entry: Entry) -> None:
 
 
 def reseed(turn: Any, seed: int) -> None:
-    """Draw the run's luck from ``seed`` from this moment in ``turn`` on (recorded, so copies replay it).
-    Call from inside the turn's own context (its thread or task)."""
+    """Draw the run's luck from ``seed`` from this moment in ``turn`` on (one of its steps, so a playback does it
+    too). Call from inside the turn's own context (its thread or task)."""
     env = turn.env
     turn.record("reseed", seed)
     tree = SeedTree(seed)
@@ -175,7 +122,8 @@ def reseed(turn: Any, seed: int) -> None:
     luck = env.world.luck
     env.seeds = luck.seeds = tree
     luck.main = tree.rng("run")
-    luck.switch(tree.rng("turn", env.world.round, turn.number))
+    turn.rng = tree.rng("turn", env.world.round, turn.number)
+    luck.switch(turn.rng)
     env.driver._resolved.clear()
 
 

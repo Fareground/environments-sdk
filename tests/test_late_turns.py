@@ -1,4 +1,5 @@
-"""What arrives after a turn is over: a host answer stays off the tape; reported usage still counts; nothing else does."""
+"""What arrives after a turn is over: a host answer stays off the tape; reported usage still counts; nothing else
+does."""
 import json
 import threading
 import time

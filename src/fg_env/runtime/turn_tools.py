@@ -80,7 +80,6 @@ class HostWake(Wake):
     def __init__(self, turn: Turn, tools: Mapping[str, TurnTool]):
         super().__init__(turn)
         self._extras = dict(tools)
-        self._used: dict[str, int] = {}
 
     @property
     def tools(self) -> list[ToolSpec]:
@@ -149,7 +148,7 @@ class HostWake(Wake):
         if not any(env.contract.is_a(turn.actor.entity_type, kind) for kind in allowed):
             return f"{name} is not a tool for a {turn.actor.entity_type}"
         with env._lock:
-            return env.actions.blocked(turn.actor, name, self._used, {})
+            return env.actions.blocked(turn.actor, name, turn.host_uses, {})
 
     def _spec(self, name: str) -> ToolSpec:
         env = self._turn.env
@@ -188,7 +187,7 @@ class HostWake(Wake):
             world.journal.rollback(mark)
             raise
         turn.committed(path)
-        self._used[name] = self._used.get(name, 0) + 1
+        turn.host_uses[name] = turn.host_uses.get(name, 0) + 1
         return ToolResult(True, text)
 
 

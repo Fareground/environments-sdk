@@ -238,7 +238,9 @@ class Driver:
                     resume: int | None = None) -> Iterator[object]:
         """:meth:`drive` as the engine's round plays it: a participant that plays its turn in steps (it has a
         ``steps(turn)`` generator) pauses the round by yielding :data:`WAITING` while it waits for a decision.
-        ``resume`` continues a copy of the run at the turn with that index, which was waiting when it was copied.
+        ``resume`` continues a copy of the run, taken while turn number ``resume`` waited for a decision: that turn's
+        participant takes it on from where it is, the turns already over stay over, a turn another participant was
+        still playing ends where it was (the copy has no one playing it), and the turns not yet begun are played.
 
         A round discarded while a turn waits (its generator closed — by garbage collection, on whatever thread and in
         the middle of whatever that thread evaluates) closes nothing: the run is gone, so no rule is evaluated and no
@@ -250,11 +252,12 @@ class Driver:
         threaded = together and env.parallel > 1 and concurrent > 1
         queue: deque[tuple[Turn, Participant, bool]] = deque()
         if together:
-            env.origin.staged = list(turns)  # sealed choices still being made (read by game states)
+            env.state.staged = list(turns)  # sealed choices still being made (read by game states)
         try:
-            for index, (turn, participant) in enumerate(chosen):
-                if resume is not None and index < resume:
-                    continue  # played before the copy was taken
+            for turn, participant in chosen:
+                if resume is not None and turn.number != resume and (turn.done or turn.started):
+                    continue  # over, or begun elsewhere before this run was copied
+                turn.started = True
                 steps = getattr(participant, "steps", None)
                 if steps is not None:
                     yield from steps(turn)
@@ -281,14 +284,13 @@ class Driver:
                 for turn in turns:
                     self.finish(turn)
                 if together:
-                    env.origin.staged = []
+                    env.state.staged = []
 
     def finish(self, turn: Turn) -> None:
         """Close a played turn: no more calls, its statistics added to the run's (see :meth:`Stats.finish`)."""
         env = self.env
         with env._lock:
             turn.done = True
-            env.origin.tape.closed(turn.number)
             turn.note(Finished(chose=bool(turn.ledger.intents),
                                had_to=turn.stage.must_act or turn.ledger.calls_left <= 0, timed_out=turn.timed_out,
                                able=lambda: turn.actor.alive and bool(turn._legal())))
@@ -296,7 +298,10 @@ class Driver:
                 turn.exposure.close(turn)
 
     def _rng(self, turn: Turn) -> Any:
-        return self.env.world.luck.turn_stream(turn.round, turn.number)
+        """The stream ``turn`` draws from outside a block of logic (its own, kept with it: a copy draws on from it)."""
+        if turn.rng is None:
+            turn.rng = self.env.world.luck.turn_stream(turn.round, turn.number)
+        return turn.rng
 
     def _inline(self, turn: Turn, participant: Participant, rng: Any) -> Any:
         with self.env.world.luck.turn_context(rng, turn.ledger.pending):

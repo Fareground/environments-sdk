@@ -20,7 +20,6 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..copying.branch import Branch, outcome_index
-from ..copying.direct import NotCopyable
 from ..copying.snapshot import encode
 from ..errors import ContractError, Issue, RunError
 from ..runtime.driving import Unpausable
@@ -96,7 +95,7 @@ class GameState:
             return []
         if not turn.staged or self.game.turn_based:
             return [self.game.seat(turn.actor.id)]
-        actors = self._run.read(lambda env: [t.actor.id for t in env.origin.staged if not t.done])
+        actors = self._run.read(lambda env: [t.actor.id for t in env.state.staged if not t.done])
         return [self.game.seat(actor) for actor in actors if actor in self.game.players]
 
     def chance_outcomes(self) -> list[tuple[int, float]]:
@@ -208,10 +207,7 @@ class GameState:
         return state
 
     def clone(self) -> GameState:
-        try:
-            run = self._run.clone()
-        except NotCopyable:
-            run = replayed(self.game, self._history)
+        run = self._run.clone()
         return GameState(self.game, run, list(self._history),
                          list(self._previous) if self._previous is not None else None, self._legal, self._path)
 
@@ -354,7 +350,7 @@ class GameState:
         if turn is not None and turn.actor.id == actor_id:
             return turn
         if turn is not None and turn.staged:
-            return next((t for t in env.origin.staged if t.actor.id == actor_id and not t.done), None)
+            return next((t for t in env.state.staged if t.actor.id == actor_id and not t.done), None)
         return None
 
     def _resolve(self, action: ActionLike) -> tuple[str, dict[str, Any]]:
@@ -429,7 +425,7 @@ class GameState:
         """``decision`` on the state's run; a stepped run that cannot take it goes on as a piloted one."""
         try:
             return decision(self._run)
-        except (Unpausable, NotCopyable):
+        except Unpausable:
             self._run.close()
             self._run = replayed(self.game, self._history)
             return decision(self._run)
@@ -457,7 +453,7 @@ class GameState:
                     "outcomes": [[o.label, o.p] for o in pause.node.outcomes]}
         turn = self._turn()
         assert turn is not None
-        sealed = {t.actor.id: encode(t.ledger.pending.items) for t in env.origin.staged}
+        sealed = {t.actor.id: encode(t.ledger.pending.items) for t in env.state.staged}
         ledger = turn.ledger
         return {"actor": turn.actor.id, "stage": turn.stage.name, "calls_left": ledger.calls_left,
                 "actions_left": ledger.actions_left, "pending": encode(ledger.pending.items), "used": dict(ledger.used),

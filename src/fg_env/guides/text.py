@@ -534,9 +534,8 @@ Games transform into ordinary contracts: `fg_env.game.repeated(contract, 10)`, `
 `game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
 CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,
 `fg-env bench --game file.json`.
-A copy is rebuilt from the run's base and replays what its participants did, so it is exact (state, random
-streams, turn numbers, log, recorded host answers) and costs a restore plus the round so far; turn time
-limits never run out in a copy. It holds the whole world, hidden state included. Game action ids are fixed
+A copy is a copy of the run's state, so it is exact (state, random streams, turn numbers, log, recorded host
+answers) and costs the same at any depth; turn time limits never run out in a copy. It holds the whole world, hidden state included. Game action ids are fixed
 when the game is created (one per combination of listed argument values; free text and lists are
 parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
 

@@ -15,7 +15,7 @@ import random
 from collections.abc import Callable
 from typing import Any
 
-__all__ = ["SeedTree", "DrawSite", "LazyStream", "mint_seed"]
+__all__ = ["SeedTree", "DrawSite", "LazyStream", "mint_seed", "copy_stream"]
 
 PathPart = str | int
 
@@ -66,6 +66,21 @@ class LazyStream:
             assert self._make is not None
             self._stream, self._make = self._make(), None
         return getattr(self._stream, name)
+
+    def copy(self) -> LazyStream:
+        """The same stream, drawing on apart from this one (still unseeded if this one is)."""
+        copied = LazyStream.__new__(LazyStream)
+        copied._make, copied._stream = self._make, None if self._stream is None else copy_stream(self._stream)
+        return copied
+
+
+def copy_stream(stream: Any) -> Any:
+    """A copy of a random stream (a :class:`random.Random` or a :class:`LazyStream`) that draws on apart from it."""
+    if isinstance(stream, LazyStream):
+        return stream.copy()
+    copied = random.Random.__new__(random.Random)
+    copied.setstate(stream.getstate())
+    return copied
 
 
 class DrawSite:

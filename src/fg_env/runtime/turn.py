@@ -23,6 +23,7 @@ from ..information.exposure import Shown
 from ..information.reads import READS, UNCHANGED, reads_refused
 from ..information.schemas import ToolSpec
 from ..information.tool_text import cut_text, offer_text
+from ..sampling.seeds import copy_stream
 from ..world.build import whole_setting
 from ..world.live import _plain
 from .facts import (
@@ -114,13 +115,21 @@ class Turn:
         self.busy = 0
         #: Its statistics are in the run's totals (the engine is done with it); usage reported later goes there.
         self.tallied = False
+        #: Whether its participant has been handed it.
+        self.started = False
+        #: The stream it draws from outside a block of logic: set when it starts, replaced when it is reseeded.
+        self.rng: Any = None
+        #: What its participant did through its wake, in order — reads, calls, reported usage, uploads, a reseed, a
+        #: timeout: the steps its exposure records, and what taking the same decision again plays (copying/replay.py).
+        self.steps: list[tuple[Any, ...]] = []
+        #: Its uses of the contract's in-turn host tools, by name.
+        self.host_uses: dict[str, int] = {}
         self.note(Woke(reaction=kind == "reaction"))
         if peek:
             self.number = env.state.turn_count + 1
         else:
             env.state.turn_count += 1
             self.number = env.state.turn_count  # assigned in deterministic order, before any concurrency
-            env.origin.tape.opened(self.number)
         exposures = env.world.exposures
         self.exposure: Exposure | None = exposures.open(self, kind) if exposures is not None and not peek else None
 
@@ -153,10 +162,24 @@ class Turn:
         self.env.facts.emit(fact, self)
 
     def record(self, *entry: Any) -> None:
-        """Note on the run's tape something the participant did (so a copy can replay it); previews and
-        finished turns change nothing, so they are not recorded."""
+        """Note among its :attr:`steps` something the participant did; previews and finished turns change nothing, so
+        they are not recorded."""
         if not self.peek and not self.done:
-            self.env.origin.tape.record(self.number, self.actor.id, entry)
+            self.steps.append(entry)
+
+    def copy(self, env: Env) -> Turn:
+        """This turn in ``env``, a copy of its run (see :meth:`RunState.copy`): its accounting, its statistics, its
+        steps, its random stream and its exposure record are the copy's own. It waits between calls."""
+        assert not self.busy, "a turn is copied between its calls"
+        world = env.world
+        turn = Turn.__new__(Turn)
+        turn.__dict__.update(self.__dict__)
+        turn.__dict__.update(
+            env=env, actor=world.entities[self.actor.id], ledger=self.ledger.copy(world), stats=self.stats.copy(),
+            _tools=None, _delivered=list(self._delivered), _reads=list(self._reads), steps=list(self.steps),
+            host_uses=dict(self.host_uses), rng=None if self.rng is None else copy_stream(self.rng),
+            exposure=None if self.exposure is None else self.exposure.copy(world.exposures, world))
+        return turn
 
     # Brief and update render on first read, so coded participants that never read them cost nothing.
 

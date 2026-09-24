@@ -55,6 +55,13 @@ feature with the core of the contract language marked apart from the rest.
   through a local instead. Default announcements omit arguments kept in a private property. Metrics and series that
   read a private property, and a stage `order` by one, cannot reach what agents are shown. A `when` that reads hidden
   state no longer hides the tool; the call is refused instead. A shared `post` may not carry a private property.
+- **One copy mechanism.** Every copy of a run — `env.clone()`, `wake.clone()`, `Branch.clone()`, previews, game
+  states, gym episodes — is a copy of its state with the run's parts built around it, and a round in progress resumes
+  where it is: a copy costs the same at any depth (no replay of the run so far), and runs with physics, a space, hosts,
+  a budget or an atomic turn part-way copy like any other. A snapshot taken part-way through a round holds where the round is instead of a replay
+  tape: **snapshot version 5**; version-4 snapshots are still read (for one more minor release), and a copy steered
+  through chance outcomes may now be saved part-way. `wake.clone()` in a reaction turn (inside another agent's call)
+  is refused: clone the turn it reacts to.
 - **Every agent-facing text is rendered for its reader.** A stage's `valid` why (told to the acting agent), a `wake`'s
   why (to the woken agent; to several, to everyone), an end's `say` (a condition's or an `end` effect's), and
   mechanisms' news — a status's `say`/`expire_say`, a procedure phase's or transition's `say`, a stack item's `show`, a

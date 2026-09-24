@@ -103,12 +103,14 @@ class AttemptLedger:
             self.begin_part()
 
     def copy(self, world: SdkWorld) -> AttemptLedger:
-        """This ledger, over the copy ``world`` of its world (no part may be open)."""
-        assert self.mark is None, "an open part is not copied"
+        """This ledger, over the copy ``world`` of its world: an open part stays open there (the copy's journal holds
+        what undoes it, at the same mark)."""
         copied = AttemptLedger.__new__(AttemptLedger)
         copied.__dict__.update(self.__dict__)
         copied.world = world
         copied.used, copied.intents, copied.pending = dict(self.used), list(self.intents), self.pending.copy()
+        actions_left, used, pending, applied = self._checkpoint
+        copied._checkpoint = (actions_left, dict(used), pending, applied)
         copied._counted, copied._held, copied._committed = list(self._counted), list(self._held), list(self._committed)
         return copied
 

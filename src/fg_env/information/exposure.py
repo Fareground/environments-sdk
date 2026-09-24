@@ -22,8 +22,8 @@ under its content hash, so a brief read on a hundred turns costs one copy. A wak
      "invalid": 0, "timed_out": false, "undone": 0, "usage": {...}?, "late_usage": {...}?,
      "steps": [["brief"], ["update"], ["tools"], ["call", tool, args], ["usage", {...}], ["timeout"], ...]}
 
-``steps`` is the turn's entry on the engine's tape (:mod:`fg_env.copying.replay`): everything the participant did
-through its wake, in order — first reads, calls, reported usage, a timeout — which is what a replay plays back.
+``steps`` is the turn's own record of everything its participant did through its wake, in order — first reads, calls,
+reported usage, a timeout — which is what a replay plays back.
 ``late_usage`` is model usage the participant reported after its turn was over (it ran out of time): counted in
 ``usage`` and the run's statistics all the same, though that participant could no longer act.
 
@@ -50,9 +50,13 @@ if TYPE_CHECKING:
     from ..runtime.env import Env
     from ..runtime.session import ToolResult
     from ..runtime.turn import Turn
+    from ..world.live import SdkWorld
     from .schemas import ToolSpec
 
 __all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "recording", "text_hash", "tokens"]
+
+#: The lists a wake's record grows while its turn runs.
+_RECORD_LISTS = ("views", "news", "entries", "view_events", "tools", "tool_sets", "calls")
 
 #: Hex digits kept from a text's SHA-256: unique for any realistic run, short enough to read.
 HASH_DIGITS = 16
@@ -109,6 +113,21 @@ class Exposure:
         self._deferred: list[Shown] = []
         #: The record as appended to the log, once the turn has closed.
         self.logged: dict[str, Any] | None = None
+
+    def copy(self, log: ExposureLog, world: SdkWorld) -> Exposure:
+        """This record, still being filled in, for the same turn in a copy of the run: logging into ``log``, the
+        copy's own, in the copy ``world``."""
+        assert self.logged is None, "a closed turn's record is in the log"
+        exposure = Exposure.__new__(Exposure)
+        record = dict(self.record)
+        for key in _RECORD_LISTS:
+            record[key] = list(record[key])
+        for key in ("usage", "assets"):
+            if key in record:
+                record[key] = type(record[key])(record[key])
+        exposure.log, exposure.staged, exposure._world, exposure.record = log, self.staged, world, record
+        exposure._deferred, exposure.logged = list(self._deferred), None
+        return exposure
 
     def _text(self, text: str) -> dict[str, Any]:
         return {"hash": self.log.keep(text), "chars": len(text), "tokens": tokens(text)}
@@ -184,8 +203,7 @@ class Exposure:
         record["invalid"] = turn.stats.invalid_calls
         record["timed_out"] = turn.timed_out
         record["undone"] = turn.stats.undone_turns
-        taped = turn.env.origin.tape.turns.get(turn.number)
-        record["steps"] = [_jsonable(list(step)) for step in taped[1]] if taped else []
+        record["steps"] = [_jsonable(list(step)) for step in turn.steps]
         for shown in self._deferred:
             self._index(shown)
         self._deferred.clear()
@@ -202,6 +220,15 @@ class ExposureLog:
         self._events: dict[str, set[int]] = {}
         self._entries: dict[str, set[int]] = {}
         self._views: dict[str, set[str]] = {}
+
+    def copy(self) -> ExposureLog:
+        """The same log, recording on apart from this one."""
+        log = ExposureLog.__new__(ExposureLog)
+        log.texts, log.chance, log.wakes = dict(self.texts), list(self.chance), [_detached(w) for w in self.wakes]
+        log._events = {key: set(value) for key, value in self._events.items()}
+        log._entries = {key: set(value) for key, value in self._entries.items()}
+        log._views = {key: set(value) for key, value in self._views.items()}
+        return log
 
     def keep(self, text: str) -> str:
         plain = str.__str__(text)

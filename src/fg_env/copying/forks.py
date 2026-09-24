@@ -86,7 +86,7 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
           effects: list[Any] | None, parallel: int, hosts: Any, data_dir: Any,
           unarmed_source: Contract | None = None) -> Env:
     old, unarmed = matching_contract(contract, snapshot)
-    if "part_way" in snapshot:
+    if "cursor" in snapshot or "part_way" in snapshot:  # (the previous format kept a part-way run as a replay)
         raise SnapshotError(f"this snapshot was taken part-way through round {snapshot.get('round')}, and changes "
                             "apply between rounds: restore it (fg_env.Env.restore), finish the round with "
                             "env.run(rounds=1), then fork the run (env.fork(...))")
@@ -135,9 +135,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
         env.rules.run_block(list(effects), {}, "fork.effects")
     env.rules.check_invariants("fork")
     env.state.emitted = len(world.log)
-    env.origin.base = take_snapshot(env)
     # The fork's changes are not in its build, so a recording of it replays from here.
-    env.origin.start = recording_start(env.origin.base) if world.exposures is not None else None
+    env.origin.start = recording_start(take_snapshot(env)) if world.exposures is not None else None
     return env
 
 

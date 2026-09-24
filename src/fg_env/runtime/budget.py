@@ -112,6 +112,12 @@ class Budget:
             budget._mark = time.monotonic()
         return budget
 
+    def copy(self) -> Budget:
+        """The same limits and what they have counted, for a copy of the run (its clock starts when it runs)."""
+        budget = Budget(self.limits, self.on_exhaust)
+        budget.exhausted, budget.seconds = self.exhausted, self.seconds
+        return budget
+
     @staticmethod
     def report(env: Env) -> dict[str, Any]:
         """The run's budget as ``result.budget`` shows it (empty without one)."""
@@ -135,7 +141,7 @@ class Budget:
         limit = self.limits.get("tokens")
         if limit is None:
             return math.inf
-        playing = {id(t): t for t in (*env.origin.staged, turn) if not t.tallied}
+        playing = {id(t): t for t in (*env.state.staged, turn) if not t.tallied}
         return limit - tokens_of(env.state.stats) - sum(tokens_of(t.stats) for t in playing.values())
 
     def reserve(self, env: Env, turn: Turn, tokens: float) -> float | None:

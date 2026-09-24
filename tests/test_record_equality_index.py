@@ -4,8 +4,8 @@ import json
 import pytest
 
 import fg_env
-from fg_env.copying.direct import _copy_world
 from fg_env.errors import RunError
+from fg_env.world.copies import copy_world
 from fg_env.world.record_index import equality_fields
 
 
@@ -68,7 +68,7 @@ def test_restore_copy_and_fork_rebuild_for_new_policy(keep):
     for i in range(4):
         post(env.world, i % 2, i)
     worlds = [fg_env.Env.restore(c, json.loads(json.dumps(env.snapshot()))).world,
-              _copy_world(env.world), env.fork().world]
+              copy_world(env.world), env.fork().world]
     for w in worlds:
         assert read(w, 'a') == read(env.world, 'a')
         assert read(w, 'b') == read(env.world, 'b')

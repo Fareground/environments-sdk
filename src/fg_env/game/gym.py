@@ -19,8 +19,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..api import ContractLike, load
-from ..copying.branch import Branch, copy_pilot
-from ..copying.replay import Tape
+from ..copying.branch import Branch, piloted
 from ..errors import ContractError, Issue, RunError
 from ..runtime.env import Env
 from ..runtime.returns import seat_ids, seat_returns
@@ -97,8 +96,7 @@ class GymEnv(_Base):  # type: ignore[misc]
             from ..host.api import attach
 
             attach(source, self._hosts)
-        pilot = copy_pilot(source, Tape(), 0, source.origin.base, controlled={self.agent}, explicit=False,
-                           participants=self._others)
+        pilot = piloted(source, controlled={self.agent}, participants=self._others)
         pilot.start()
         self._branch = Branch(pilot)
         self._steps = 0

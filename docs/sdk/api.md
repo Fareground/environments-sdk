@@ -1358,8 +1358,8 @@ clone(self) -> 'Env'
 
 An independent copy of this run now, continuing exactly as it would.
 
-Between rounds it is a restored snapshot; a run stopped part-way through a round (``run(stop=...)``) is
-copied by replaying it, so the copy stops at the same point. Inside a turn, use ``wake.clone()``.
+Between rounds, or stopped part-way through a round (``run(stop=...)``) — then the copy is stopped at the same
+point. Inside a turn, use ``wake.clone()``.
 
 ### `Env.fork`
 

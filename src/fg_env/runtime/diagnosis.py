@@ -195,6 +195,15 @@ class Diagnosis:
 
     # -- saving ----------------------------------------------------------------------
 
+    def copy(self, written: set[str]) -> Diagnosis:
+        """The same counts, for a copy of the run whose world holds ``written``."""
+        copied = Diagnosis(written)
+        copied.actions, copied.stages, copied.agents = _copy(self.actions), _copy(self.stages), _copy(self.agents)
+        copied.overwrites, copied.loop_overwrites = _copy(self.overwrites), _copy(self.loop_overwrites)
+        copied.faults, copied.policy_rules = _copy(self.faults), _copy(self.policy_rules)
+        copied._probed = (self._probed[0], set(self._probed[1]))
+        return copied
+
     def to_dict(self) -> dict[str, Any]:
         return {"actions": _copy(self.actions), "stages": _copy(self.stages), "agents": _copy(self.agents),
                 "overwrites": _copy(self.overwrites), "loop_overwrites": _copy(self.loop_overwrites),

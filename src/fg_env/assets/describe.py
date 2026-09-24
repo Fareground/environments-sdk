@@ -57,15 +57,12 @@ def _answer(answer: Any) -> dict[str, str]:
 
 
 def describe_assets(env: Env) -> None:
-    """Describe every asset that names a host, before round 1; copies of the run then start from the answers."""
+    """Describe every asset that names a host, before round 1 (copies of the run hold the answers)."""
     store = env.world.assets
     pending = [asset for asset in store.assets.values() if asset.describe]
     if not pending or env.world.round:
         return
-    from ..copying.snapshot import take_snapshot
-
     with env._lock:
         for asset in pending:
             described(env.world, asset)
         env.world.journal.clear()
-        env.origin.base = take_snapshot(env)

@@ -92,7 +92,7 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
             block = env.information.render_view(name, view, actor)
             if block:
                 lines.append(block)
-    sealed = [item for staged in env.origin.staged if staged.actor is actor and not staged.done
+    sealed = [item for staged in env.state.staged if staged.actor is actor and not staged.done
               for item in staged.ledger.pending.items]
     if turn is not None and turn.actor is actor and turn.staged and not sealed:
         sealed = list(turn.ledger.pending.items)

@@ -1,14 +1,14 @@
 """Copies of a run, taken at any moment, to look ahead on without touching the real run.
 
 ``wake.clone()`` copies the run paused inside the agent's own turn; ``env.clone()`` copies a run
-between rounds or stopped part-way through one. A copy is rebuilt from the run's base and replays
-its tape (:mod:`.replay`), so it is exact — state, random streams, turn numbers, log, exposures,
+between rounds or stopped part-way through one. A copy is a copy of the run's state
+(:meth:`~fg_env.runtime.env.Env.copy`), so it is exact — state, random streams, turn numbers, log, exposures,
 frames, recorded host answers — and nothing it does reaches the original.
 """
 from __future__ import annotations
 
 import weakref
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeVar
 
@@ -16,20 +16,20 @@ from ..effects.chance import ChanceNode
 from ..errors import RunError, SnapshotError
 from ..information.schemas import ToolSpec
 from ..participants import Participant
-from ..runtime.env import Env
 from ..runtime.measure import RunResult
 from ..runtime.returns import seat_returns
 from ..runtime.session import END_TURN, ToolResult
 from .pilot import Pilot, PilotedEnv
-from .replay import Playback, Tape, reseed
-from .snapshot import restore_state, take_snapshot
+from .replay import reseed
 
 if TYPE_CHECKING:
+    from ..runtime.env import Env
     from ..runtime.turn import Turn
 
-__all__ = ["Decision", "Branch", "clone_turn", "clone_env", "copy_pilot", "fresh_copy", "use_chance", "outcome_index"]
+__all__ = ["Decision", "Branch", "clone_turn", "clone_env", "driven_copy", "piloted", "use_chance", "keep_chance",
+           "outcome_index"]
 
-_Copy = TypeVar("_Copy", bound=PilotedEnv)
+_Driven = TypeVar("_Driven", bound=PilotedEnv)
 
 
 @dataclass(frozen=True)
@@ -140,18 +140,9 @@ class Branch:
         """Another independent copy at this same moment (exact by default; ``same_luck=False`` or ``seed``
         gives it fresh luck from here on)."""
         pilot = self._pilot
-        env = pilot.env
-        origin = env.origin
-        tape, count, base, where = pilot.read(lambda: (origin.tape.copy(), env.state.turn_count, origin.base,
-                                                       (env.world.round, env.state.in_round, origin.tape.points)))
-        copy = copy_pilot(env, tape, count, base, controlled=pilot.controlled, explicit=pilot.explicit,
-                          checkpoints=pilot.checkpoints)
-        if pilot.pause is None and not env.finished:
-            copy.stop = _at_point(*where)
-        copy.start()
-        branch = Branch(copy)
+        branch = Branch(pilot.copy())
         if seed is not None or not same_luck:
-            branch._reseed(seed if seed is not None else env.seeds.derive("clone", count))
+            branch._reseed(seed if seed is not None else pilot.env.seeds.derive("clone", pilot.env.state.turn_count))
         return branch
 
     # -- reading -----------------------------------------------------------------------------------
@@ -219,53 +210,46 @@ def outcome_index(node: ChanceNode, outcome: int | str) -> int:
 # -- making copies ------------------------------------------------------------------------------------
 
 
-def copy_pilot(source: Env, tape: Tape, turn_count: int, base: Mapping[str, Any] | None, *,
-               controlled: set[str], explicit: bool, participants: Any = None, checkpoints: bool = False) -> Pilot:
-    """A pilot for a fresh copy of ``source`` that will replay ``tape`` from ``base``."""
-    env = fresh_copy(source, base, participants, PilotedEnv)
-    return Pilot(env, playback=Playback(tape, turn_count), controlled=controlled, explicit=explicit,
-                 checkpoints=checkpoints)
-
-
-def fresh_copy(source: Env, base: Mapping[str, Any] | None, participants: Any, kind: type[_Copy]) -> _Copy:
-    """A new run of ``kind`` built like ``source`` — from ``base`` (a snapshot), else from its build — bound to its
-    hosts and to ``participants`` (default: its named participants)."""
-    if base is None:
-        seed = source.build_seed if isinstance(source, PilotedEnv) else source.seed
-        env = kind(source.contract, source.inputs, seed, source.arm, parallel=1,
-                   exposures=source.world.exposures is not None, assets=source.world.assets.catalog(),
-                   events=source.state.keep_events)
-    else:
-        env = restore_state(kind, source.contract, base, parallel=1)
-    env.origin.base, env.origin.unarmed = dict(base) if base is not None else None, source.origin.unarmed
-    env.time_limit = source.time_limit  # told to its agents and recorded with its timeouts; its driver never times
-    _share_hosts(source, env)
-    named = {key: value for key, value in source.driver.spec.items() if isinstance(value, str)}
-    env.driver.bind(participants if participants is not None else (named or None))
+def driven_copy(source: Env, kind: type[_Driven], participants: Any = None, waiting: Turn | None = None) -> _Driven:
+    """A copy of ``source`` as it is now (``waiting`` in that turn), as a run of ``kind`` that search code or a
+    controller drives: its turns one at a time, its agents played by ``participants`` — by default the run's named
+    participants (its callables are the caller's own, never called by a copy)."""
+    with source._lock:
+        env = source.copy(kind, waiting=waiting)
+    env.parallel = 1
+    env.driver.spec = {key: value for key, value in source.driver.spec.items() if isinstance(value, str)}
+    env.driver.bind(participants)
     return env
+
+
+def piloted(source: Env, *, controlled: set[str], explicit: bool = False, participants: Any = None,
+            waiting: Turn | None = None) -> Pilot:
+    """A pilot, not yet started, of a :func:`driven_copy` of ``source``."""
+    return Pilot(driven_copy(source, PilotedEnv, participants, waiting), controlled=controlled, explicit=explicit)
 
 
 def clone_turn(turn: Turn, *, participants: Any = None, seed: int | None = None,
                same_luck: bool = False, controlled: set[str] | None = None, explicit: bool = False) -> Branch:
     """A copy of ``turn``'s run paused in that turn (see :meth:`Wake.clone`). ``controlled`` names every agent
     the copy pauses for from this turn on (default: the turn's own agent); ``explicit`` makes chance nodes from this
-    turn on wait for :meth:`Branch.choose` (the copy's past plays back as it happened)."""
+    turn on wait for :meth:`Branch.choose`."""
     source = turn.env
     if turn.peek or turn.done:
         raise RuntimeError("this turn is over; clone the run while the turn is in progress")
-    with source._lock:
-        tape, count, base = source.origin.tape.copy(), source.state.turn_count, source.origin.base
-    source.origin.checkpoint_due = True  # later copies of this run replay from its next round, not from its base
-    pilot = copy_pilot(source, tape, count, base, controlled={turn.actor.id} | set(controlled or ()), explicit=False,
-                       participants=participants)
+    if turn is not source.state.cursor.turn and turn not in source.state.staged:
+        raise RunError(f"{turn.actor.id}'s turn is a reaction inside another agent's call, where a copy of the run "
+                       "cannot begin; clone the turn it reacts to, or the run between turns", "clone")
+    pilot = piloted(source, controlled={turn.actor.id} | set(controlled or ()), participants=participants,
+                    waiting=turn)
     pilot.start()
+    env = pilot.env
     if explicit:
         pilot.explicit = True
-        pilot.env.world.chance_picker = pilot._pick
+        env.world.chance_picker = pilot._pick
     branch = Branch(pilot)
     pending = branch.pending
     if pending is None or pending.kind != "turn" or pending.actor != turn.actor.id:
-        why = pilot.env.error or "the run's state was changed outside the engine"
+        why = env.error or "the run's state was changed outside the engine"
         branch.close()
         raise RunError(f"the copy did not reach {turn.actor.id}'s turn (turn {turn.number}): {why}", "clone")
     if not same_luck:
@@ -275,54 +259,10 @@ def clone_turn(turn: Turn, *, participants: Any = None, seed: int | None = None,
 
 def clone_env(source: Env) -> Env:
     """A copy of ``source`` between rounds, or stopped at the same safe point part-way through a round."""
-    from ..host.hosts import bind, hosts_for
-
-    if not source.state.in_round:
-        snapshot = take_snapshot(source)
-        copy = restore_state(type(source), source.contract, snapshot, source.parallel)
-        copy.origin.base, copy.origin.unarmed = snapshot, source.origin.unarmed
-        copy.driver.spec = dict(source.driver.spec)
-        copy.time_limit = source.time_limit
-        _keep_chance(source, copy)
-        hosts = hosts_for(source.world)
-        if hosts is not None:
-            bind(copy, hosts)
-        return copy
-    if source.status != "stopped":
+    if source.state.in_round and source.status != "stopped":
         raise SnapshotError("a round is being played right now; clone a turn from inside it with wake.clone(), "
                             "or stop the run first (env.run(stop=...))")
-    pilot = copy_pilot(source, source.origin.tape.copy(), source.state.turn_count, source.origin.base, controlled=set(),
-                       explicit=False)
-    env = pilot.env
-    pilot.stop = _at_point(source.world.round, True, source.origin.tape.points)
-    env.run(stop=pilot.stop_here)
-    env.pilot = None
-    env.world.chance_picker = None
-    _keep_chance(source, env)
-    env.parallel, env.time_limit = source.parallel, source.time_limit
-    if env.status != "stopped" or env.origin.tape.points != source.origin.tape.points:
-        raise RunError("the copy did not stop where the original stopped; the run's state was changed outside the "
-                       "engine", "clone")
-    source.origin.checkpoint_due = True
-    return env
-
-
-def _at_point(round_: int, in_round: bool, points: int) -> Callable[[Env], bool]:
-    """A stop condition for the safe point a run is stopped at."""
-    return lambda env: env.world.round == round_ and env.state.in_round == in_round and \
-        (not in_round or env.origin.tape.points >= points)
-
-
-def _share_hosts(source: Env, copy: Env) -> None:
-    """Bind the copy to the source's hosts, answering first from every answer the source has recorded."""
-    from ..host.hosts import Hosts, bind, hosts_for
-    from ..host.tape import tape_of
-
-    hosts = hosts_for(source.world)
-    if hosts is None:
-        return
-    adapters = {name: hosts.adapter(name) for name in hosts.names if hosts.adapter(name) is not None}
-    bind(copy, Hosts(adapters, replay={**hosts.replay, **tape_of(source)}, live=hosts.live))
+    return source.copy()
 
 
 def use_chance(env: Env, chance: Any) -> None:
@@ -337,16 +277,14 @@ def use_chance(env: Env, chance: Any) -> None:
         raise ValueError(f"chance must be 'sampled' or a callable choosing each outcome, got {chance!r}")
 
     def pick(node: ChanceNode) -> int:
-        index = chance(node)
-        env.origin.tape.pick(index)
-        return index
+        return int(chance(node))
 
     pick.choose = chance  # type: ignore[attr-defined]  # so a copy of the run chooses the same way
     env.world.chance_picker = pick
 
 
-def _keep_chance(source: Env, copy: Env) -> None:
-    """Give a plain copy the chance chooser its source was loaded with."""
+def keep_chance(source: Env, copy: Env) -> None:
+    """Give a copy the chance chooser its source was loaded with (``use_chance``)."""
     choose = getattr(source.world.chance_picker, "choose", None)
     if choose is not None:
         use_chance(copy, choose)

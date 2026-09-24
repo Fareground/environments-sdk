@@ -149,7 +149,7 @@ class AssetStore:
         return AssetStore(dict(self.assets), self.resolved, dict(self._texts))
 
     def catalog(self) -> AssetStore:
-        """A store with the contract's catalog only (a run rebuilt from its start adds submissions as it replays)."""
+        """A store with the contract's catalog only (a run built from the contract anew adds its own submissions)."""
         return AssetStore({key: asset for key, asset in self.assets.items() if asset.owner is None}, self.resolved)
 
     def to_dict(self) -> dict[str, Any]:

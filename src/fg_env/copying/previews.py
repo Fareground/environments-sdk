@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -12,7 +11,6 @@ from ..errors import ContractError, Issue
 from ..participants.builtin import policy_names
 from ..runtime.turn import Turn
 from ..runtime.turn_tools import HostWake
-from .snapshot import restore_env
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -38,20 +36,20 @@ class Previews:
             _refuse("stage", f"no stage '{stage}'", stage, stages, "stages")
         if env.finished or env.state.in_round:
             return self.now(entity_id, stage)
-        snapshot = env.snapshot()
-        probe = self.probe(snapshot, participants)
+        probe = self.probe(participants)
         for point in probe.schedule.steps():
             if point.stage is not None and entity_id in point.reasons and stage in (None, point.stage.name):
                 return probe.previews.turn(entity_id, point.stage, point.reasons[entity_id])
-        start = self.probe(snapshot, participants)  # not woken this round: show the round as it opens
+        start = self.probe(participants)  # not woken this round: show the round as it opens
         start.schedule.begin_round()
         return start.previews.now(entity_id, stage)
 
-    def probe(self, snapshot: Mapping[str, Any], participants: Any = None) -> Env:
-        """A restored copy of the run to play a preview on (hosts bind their copies here), its agents played by
-        ``participants`` — by default the run's built-in and named ones."""
+    def probe(self, participants: Any = None) -> Env:
+        """A copy of the run to play a preview on (bound to the run's hosts), its agents played by ``participants`` —
+        by default the run's built-in and named ones."""
         env = self.env
-        probe = restore_env(type(env), env.contract, snapshot, parallel=1)
+        probe: Env = env.copy()
+        probe.parallel = 1
         policies = policy_names(env.contract)
         if participants is None:  # the run's own: only those that play for free
             probe.driver.spec = {k: v for k, v in env.driver.spec.items() if _plays_free(v, policies)}

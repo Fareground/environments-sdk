@@ -4,7 +4,7 @@ import json
 import pytest
 
 import fg_env
-from fg_env.copying.direct import _copy_world
+from fg_env.world.copies import copy_world
 
 
 def contract(rule="$viewer.id == $it.author", keep=None):
@@ -74,7 +74,7 @@ def test_restore_and_fast_copy_rebuild_independent_candidates(keep):
     post(env.world, "a", 1)
     post(env.world, "b", 2)
     restored = fg_env.Env.restore(c, json.loads(json.dumps(env.snapshot())))
-    copied = _copy_world(env.world)
+    copied = copy_world(env.world)
     for w in (restored.world, copied):
         assert w.record_events is not env.world.record_events
         for who in ("a", "b"):

@@ -188,7 +188,8 @@ class Wake:
         looking ahead never reveals the real run's future draws, and every clone taken in this turn shares
         that stream (compare moves under the same luck). ``same_luck=True`` keeps the real run's streams.
         The copy holds the whole world, hidden state included: honest search in a game of hidden
-        information reads only what the agent may see.
+        information reads only what the agent may see. A turn taken as a reaction inside another agent's call is not
+        cloned (a copy of the run cannot begin inside that call): clone the turn it reacts to.
         """
         from ..copying.branch import clone_turn
 
@@ -227,7 +228,7 @@ class Wake:
                 turn.exposure.used(shown)
             budget = turn.env.budget
             if budget is not None and budget.tokens_spent(turn.env, turn):
-                for playing in (*turn.env.origin.staged, turn):  # the budget is spent: every turn in play ends here
+                for playing in (*turn.env.state.staged, turn):  # the budget is spent: every turn in play ends here
                     playing.done = True
 
     @property

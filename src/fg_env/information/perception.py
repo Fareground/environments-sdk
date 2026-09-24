@@ -59,9 +59,24 @@ def _for_type(contract: Contract, targets: Any, type_name: str) -> bool:
 
 
 class Perception:
-    def __init__(self, contract: Contract, world: SdkWorld):
+    """How agents perceive the world: briefs, updates, news and views. ``like``: the perception of the run this one's
+    was copied from, whose reading of the contract it shares."""
+
+    _takes_text: bool
+    _revealing: frozenset[str]
+    _shared: set[str]
+    _silent_records: set[str]
+
+    def __init__(self, contract: Contract, world: SdkWorld, like: Perception | None = None):
         self.contract = contract
         self.world = world
+        #: view → (world state, its items, the work they took)
+        self._selections: dict[str, tuple[Any, list[Any], int]] = {}
+        self._news = NewsIndex(world.log)
+        if like is not None:
+            self._takes_text, self._revealing, self._shared = like._takes_text, like._revealing, like._shared
+            self._silent_records = like._silent_records
+            return
         self._takes_text = any(p.type == "text" for a in contract.actions.values() for p in a.params.values())
         #: The list views whose `where` reveals their items' private properties to the reader (see expr/hidden.py).
         self._revealing = frozenset(name for name, view in contract.views.items() if view.where is not None
@@ -69,9 +84,6 @@ class Perception:
         #: The list views whose items (`of`, `where`, `sort`, `limit`) name nothing of their reader: worked out once
         #: per world state for every reader (see :meth:`_shared_items`).
         self._shared = {name for name, view in contract.views.items() if _reads_no_reader(contract, view)}
-        #: view → (world state, its items, the work they took)
-        self._selections: dict[str, tuple[Any, list[Any], int]] = {}
-        self._news = NewsIndex(world.log)
         # Own entries are never news; an author-only entry is invisible to everyone else.
         self._silent_records = {name for name, spec in contract.records.items() if author_only(spec.visible)}
 

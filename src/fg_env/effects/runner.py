@@ -142,7 +142,9 @@ class EffectRunner:
 
     def __init__(self, world: SdkWorld):
         self.world = world
+        #: How deep create/remove events, and effect defs, are running inside one another (0 between blocks of logic).
         self._hook_depth = 0
+        self._call_depth = 0
         self._hooks: dict[tuple[str, str], list[tuple[int, Any]]] = {}
         world.lifecycle = self.lifecycle
 
@@ -584,15 +586,15 @@ class EffectRunner:
         given = effect.get("with") or {}
         if set(given) != set(spec.args):
             raise RunError(f"def '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
-        depth = getattr(self, "_depth", 0)
+        depth = self._call_depth
         if depth >= 16:
             raise RunError(f"def '{name}' calls defs too deeply (recursion?)", where)
         inner = {key: self._eval(value, vars) for key, value in given.items()}
-        self._depth = depth + 1
+        self._call_depth = depth + 1
         try:
             self.run(spec.do, inner, f"defs.{name}.do")
         finally:
-            self._depth = depth
+            self._call_depth = depth
 
     def _op_chance(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         from .chance import run_chance

@@ -1,5 +1,5 @@
-"""Stepped game states — decided on the caller's own thread and cloned by copying the run — against piloted ones
-(a run on a thread of its own, cloned by replaying): the same states, legal calls, observations, information
+"""Stepped game states — decided on the caller's own thread — against piloted ones (a run on a thread of its own),
+both cloned by copying the run: the same states, legal calls, observations, information
 states, returns and results at every decision of seeded random playouts of every example game, and the same for
 clones taken at every decision.
 
@@ -13,7 +13,6 @@ import pytest
 from game_contracts import GAMES, TIC_TAC_TOE, load_game
 
 import fg_env
-from fg_env.copying.direct import _ENV_FIELDS, _TURN_FIELDS, _WORLD_FIELDS
 from fg_env.copying.stepping import Stepper
 from fg_env.game import apply_step, game, random_step
 from fg_env.game.runs import ThreadedRun
@@ -169,20 +168,6 @@ def test_contracts_that_need_a_thread_of_their_own_are_piloted():
     assert not game(atomic)._stepped
     assert not game(TIC_TAC_TOE, players=["x"], others=lambda wake: wake.end())._stepped
     assert game(TIC_TAC_TOE)._stepped
-
-
-@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
-def test_every_attribute_of_a_stepped_run_is_one_its_copy_accounts_for(path):
-    state = game(path, seed=1).new_initial_state()
-    while state.is_chance_node():
-        state.apply_action(state.chance_outcomes()[0][0])
-    run = state._run
-    env = run._run()
-    turn = state._turn()
-    assert set(vars(env)) == _ENV_FIELDS
-    assert set(vars(env.world)) == _WORLD_FIELDS
-    assert turn is not None and set(vars(turn)) == _TURN_FIELDS
-    state.close()
 
 
 def test_sample_legal_action_draws_the_same_call_from_stepped_and_piloted_states():

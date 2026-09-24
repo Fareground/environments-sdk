@@ -146,12 +146,12 @@ def test_fork_can_change_visibility_without_reusing_the_original_index_policy(be
 
 
 def test_fast_world_copy_rebuilds_index_with_independent_record_entries():
-    from fg_env.copying.direct import _copy_world
+    from fg_env.world.copies import copy_world
 
     env = fg_env.load(contract(keep=3), seed=4)
     for i, who in enumerate(("a", "b", "a")):
         post(env, who, i)
-    copied = _copy_world(env.world)
+    copied = copy_world(env.world)
     assert copied.record_authors is not env.world.record_authors
     for who in ("a", "b"):
         rows = copied.visible_records("notes", copied.entities[who])

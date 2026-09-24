@@ -33,22 +33,32 @@ __all__ = ["Information"]
 
 class Information:
     """What agents and spectators read of the run whose world, action book and state these are (see the module
-    docstring). ``exposures``: record what every agent is shown (also recorded when the contract's rules ask
-    `$seen`)."""
+    docstring). ``like``: the part of the run this one's was copied from, whose reading of the contract it shares."""
+
+    #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
+    inspectable: bool
+    #: The spectator views (`"for": "spectator"`), by name.
+    spectator: list[str]
 
     def __init__(self, contract: Contract, world: SdkWorld, actions: ActionBook, state: RunState,
-                 lock: threading.RLock, exposures: bool = False):
+                 lock: threading.RLock, like: Information | None = None):
         self.contract = contract
         self.world = world
         self.state = state
         self.lock = lock
-        self.perception = Perception(contract, world)
+        self.perception: Perception = Perception(contract, world, like.perception if like is not None else None)
         self.schemas = ToolSchemas(actions)
-        #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
+        if like is not None:
+            self.inspectable, self.spectator = like.inspectable, like.spectator
+            return
         self.inspectable = any(inspect_rule(contract, kind) is not False for kind in contract.types)
-        #: The spectator views (`"for": "spectator"`), by name.
         self.spectator = [name for name, view in contract.views.items() if is_spectator(view)]
-        world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
+
+    @staticmethod
+    def exposure_log(contract: Contract, exposures: bool) -> ExposureLog | None:
+        """What a run built from ``contract`` records of what its agents are shown: with ``exposures``, or when the
+        contract's rules ask `$seen`."""
+        return ExposureLog() if exposures or asks_seen(contract) else None
 
     # -- the gate ------------------------------------------------------------------------------------------------
 

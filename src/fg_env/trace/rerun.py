@@ -367,7 +367,7 @@ def _from_start(recording: Trace, contract: Any, start: Mapping[str, Any], hosts
         raise SnapshotError(f"this recording continues a fork made after round {start.get('round')}, and the state it "
                             f"continued from does not fit this contract ({exc}); replay it against the contract the "
                             "fork ran under") from None
-    env.origin.base, env.origin.unarmed = dict(snapshot), unarmed
+    env.origin.unarmed = unarmed
     if hosts is not None:
         bind(env, hosts)
     return env
