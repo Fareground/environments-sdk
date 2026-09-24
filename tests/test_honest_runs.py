@@ -103,5 +103,6 @@ def test_an_action_no_call_ever_got_through_degrades_the_run():
                 "outputs": {"picks": "$entity(a).picks"}}
     result = fg_env.run(contract, seed=1)
     finding = next(d for d in result.diagnostics if d["code"] == "action_never_succeeded")
-    assert finding["path"] == "actions.pick" and "all 4 call(s) were refused" in finding["message"]
+    assert finding["path"] == "actions.pick"
+    assert "all 4 call(s) a model or coded policy made were refused" in finding["message"]
     assert "action_never_succeeded" in result.degraded and not result.ok

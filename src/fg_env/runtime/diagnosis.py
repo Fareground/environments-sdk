@@ -49,7 +49,8 @@ class Diagnosis:
     def __init__(self, written: set[str]):
         #: action → {calls, refused, reasons}, plus {unusable, stuck}: refusals when no choice the tool offered could
         #: have worked, and their wordings; {applied, faulted}: times it took effect, and times a rule failed or an
-        #: invariant broke as it applied.
+        #: invariant broke as it applied; {chosen, chosen_refused}: calls a model or a coded policy chose (not blind
+        #: random play), and how many of those were refused.
         self.actions: dict[str, dict[str, Any]] = {}
         #: stage → [times reached, times run, agents woken, times it ran every pass without its `until` holding]
         self.stages: dict[str, list[int]] = {}
@@ -82,6 +83,9 @@ class Diagnosis:
             return
         entry = self._action(name)
         entry["calls"] += 1
+        if turn.stats.llm_calls:  # a model chose this call: its refusal says something about the tool
+            entry["chosen"] += 1
+            entry["chosen_refused"] += not result.ok
         if result.ok:
             entry["applied"] += int(not turn.staged)  # a sealed choice takes effect when it commits
             return
@@ -109,25 +113,27 @@ class Diagnosis:
         if action is not None:
             self._action(action)["faulted"] += 1
 
-    def policy_rule(self, path: str, refusal: str | None = None, action: str | None = None) -> None:
-        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call was refused — before it was made,
-        for arguments the contract ``action`` does not accept (given ``action``), which counts as a refused call of it
-        too."""
+    def policy_rule(self, path: str, action: str, refusal: str | None = None, sent: bool = True) -> None:
+        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call of the contract ``action`` was
+        refused: a refused choice of that action — and, when it was never ``sent`` (arguments the action does not
+        accept), a refused call of it too."""
         entry = self.policy_rules.setdefault(path, [0, 0, ""])
         if refusal is None:
             entry[0] += 1
             return
         entry[1] += 1
         entry[2] = refusal
-        if action is not None:
-            counts = self._action(action)
+        counts = self._action(action)
+        counts["chosen"] += 1
+        counts["chosen_refused"] += 1
+        if not sent:
             counts["calls"] += 1
             counts["refused"] += 1
             _tally(counts["reasons"], refusal)
 
     def _action(self, name: str) -> dict[str, Any]:
         return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {},
-                                              "applied": 0, "faulted": 0})
+                                              "applied": 0, "faulted": 0, "chosen": 0, "chosen_refused": 0})
 
     def _first_probe(self, turn: Turn, name: str) -> bool:
         if self._probed[0] != turn.number:
@@ -185,8 +191,8 @@ class Diagnosis:
         data = data or {}
         self.actions, self.stages = _copy(data.get("actions", {})), _copy(data.get("stages", {}))
         for entry in self.actions.values():  # snapshots from before these were counted
-            entry.setdefault("applied", 0)
-            entry.setdefault("faulted", 0)
+            for key in ("applied", "faulted", "chosen", "chosen_refused"):
+                entry.setdefault(key, 0)
         for counts in self.stages.values():
             counts.extend([0] * (4 - len(counts)))
         self.agents, self.overwrites = _copy(data.get("agents", {})), _copy(data.get("overwrites", {}))

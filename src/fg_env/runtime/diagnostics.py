@@ -26,8 +26,8 @@ __all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", 
            "MODEL_FAILED_SHARE"]
 
 #: In a run with model participants (which report their usage), an action called this often and mostly refused is
-#: reported; random and coded agents choose blindly, so their refusals say nothing about the tools — unless every call
-#: of an action called this often was refused, whoever called it: then nothing it does ever ran.
+#: reported; random agents choose blindly, so their refusals say nothing about the tools. An action a model or a coded
+#: policy chose this often, and never got through, never ran at all.
 MIN_CALLS = 4
 REFUSED_SHARE = 0.5
 #: Rounds of evidence needed before a metric that never changes, or an agent type that never can act, is reported.
@@ -257,12 +257,12 @@ def _actions(env: Env) -> list[dict[str, str]]:
                                 "made, not just some",
                                 "fix the rule the action_rule_failed or action_broke_invariant finding names; until "
                                 "then no agent can take this action"))
-        if entry["calls"] >= MIN_CALLS and entry["refused"] == entry["calls"] and not entry["faulted"] \
-                and not entry["unusable"]:
+        if entry["chosen"] >= MIN_CALLS and entry["chosen_refused"] == entry["chosen"] and not entry["applied"] \
+                and not entry["faulted"] and not entry["unusable"]:
             out.append(_finding("action_never_succeeded", f"actions.{name}",
-                                f"never happened: all {entry['calls']} call(s) were refused, so what it does (and any "
-                                f"mechanism it feeds) never ran in this run; most often: "
-                                f"{_most_common(entry['reasons'])}",
+                                f"never happened: all {entry['chosen']} call(s) a model or coded policy made were "
+                                "refused, so what it does (and any mechanism it feeds) never ran in this run; most "
+                                f"often: {_most_common(entry['reasons'])}",
                                 "make the tool offer only choices that can work: bound or list its parameters (min, "
                                 "max, values, where), put a requirement that depends on the state in `when` with a "
                                 "`why`, and give a coded policy's `with` arguments the tool accepts"))

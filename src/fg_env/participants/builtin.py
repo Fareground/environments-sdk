@@ -213,13 +213,13 @@ class PolicyAgent:
             return choice
         args, problem = choice
         if problem is not None:  # arguments the action does not accept: the call is never made, but it was refused
-            turn.env.diagnosis.policy_rule(path, problem, action=rule.do)
+            turn.env.diagnosis.policy_rule(path, rule.do, problem, sent=False)
             return "skipped"
         result = wake.call(rule.do, args)
         if result.ok:
-            turn.env.diagnosis.policy_rule(path)
+            turn.env.diagnosis.policy_rule(path, rule.do)
             return "acted"
-        turn.env.diagnosis.policy_rule(path, result.text)
+        turn.env.diagnosis.policy_rule(path, rule.do, result.text)
         return "skipped"  # this rule does not fit right now; try the next one
 
     def _choose(self, wake: Wake, index: int, scope: Any,
