@@ -1,8 +1,8 @@
 """Copying a stepped run directly while a turn waits for a decision (or before it starts, or once it is over).
 
-The copy gets its own world — entities, properties, links, records, log, schedule, counters, random stream, exposures,
-the asset index — its own bookkeeping — statistics, memories, fired events, tape — its own copies of the turns in
-progress with their random streams, and a round that resumes where the original's is
+The copy gets its own world — entities, properties, links, records, log, schedule, counters, fired and armed events,
+uses of actions, random stream, exposures, the asset index — its own run state — statistics, memories, briefs, tape —
+its own copies of the turns in progress with their random streams, and a round that resumes where the original's is
 (:class:`~fg_env.runtime.state.Where`).
 Nothing mutable is shared, so the two runs continue independently and each exactly as the original would. Immutable
 things are shared: the contract, logged events, scheduled items, snapshots.

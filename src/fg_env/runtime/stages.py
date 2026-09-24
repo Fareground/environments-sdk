@@ -291,7 +291,7 @@ class RunStages:
                        data={"ok": False, "undone": True})
             world.journal.clear()
             self.state.tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1,
-                                             faulted_actions=int(fault is not None)))
+                                                  faulted_actions=int(fault is not None)))
             turn.stats.undone_turns = 1
         return False
 
