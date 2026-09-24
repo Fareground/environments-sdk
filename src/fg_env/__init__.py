@@ -26,14 +26,11 @@ try:
 except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
     __version__ = "0+unknown"
 
-from . import (
-    analysis,
-    engines,
-    participants,
-    personas,
-    rl,
-    stdlib,  # noqa: F401  (registers every built-in expression function before anything runs one)
-)
+# Every built-in expression function is registered first, before any module could compile or run an expression.
+from . import stdlib  # noqa: F401
+
+# isort: split
+from . import analysis, engines, participants, personas, rl
 from .api import check, expand, load, parse, run
 from .authoring.author import author
 from .authoring.scaffold import new
