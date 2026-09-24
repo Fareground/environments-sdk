@@ -140,7 +140,9 @@ A string with `$name` in it is an expression; other strings are text.
   `$top(offer, $it.price, 3)`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
   `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)`, `$round(x, 2)`, `$floor`, `$clamp`.
   `$min` `$max` `$sum` `$avg` take a collection and a value (`$min(stand, $it.price)`) or a list; `$min` and
-  `$max` also take numbers (`$min(3, $x)`).
+  `$max` also take numbers (`$min(3, $x)`). A tie for `$best` is broken at random (seeded; `ties: "none"` gives
+  null, `"all"` every tied item). `$sort` puts tied items in their order (for a type, creation order) and `$top`,
+  which is `$sort` reversed, the other way round: give a list of keys (`[$it.score, $it.age]`) to decide ties.
 * Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject
   (`$it` in lists, `$actor` otherwise); `{$params.amount|money}` is any expression with a format.
 

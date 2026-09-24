@@ -548,12 +548,19 @@ def _uniform(call: Call) -> float:
 
 @function("randint(low, high)", "Whole number between low and high inclusive.", min_args=2, max_args=2)
 def _randint(call: Call) -> int:
-    return call.rng.randint(int(call.number(0)), int(call.number(1)))
+    low, high = int(call.number(0)), int(call.number(1))
+    if low > high:
+        raise ExprError(f"$randint's low ({low}) is above its high ({high}): write $randint({high}, {low})",
+                        call.source)
+    return call.rng.randint(low, high)
 
 
 @function("normal(mean, sd)", "Normally distributed number.", min_args=2, max_args=2)
 def _normal(call: Call) -> float:
-    return call.rng.gauss(call.number(0), call.number(1))
+    sd = call.number(1)
+    if sd < 0:
+        raise ExprError(f"$normal's sd (spread) must be 0 or more, got {sd}", call.source)
+    return call.rng.gauss(call.number(0), sd)
 
 
 @function("lognormal(mu, sigma)", "Log-normally distributed number.", min_args=2, max_args=2)

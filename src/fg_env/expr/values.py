@@ -199,6 +199,11 @@ def _add(a: Any, b: Any, source: str) -> Any:
             raise ExprError(f"a list would have {len(a) + len(b):,} items; the limit is {MAX_LIST_LEN:,}", source)
         charge(len(a) + len(b), source)
         return a + b
+    if isinstance(a, str) or isinstance(b, str):
+        number = b if isinstance(a, str) else a
+        if isinstance(number, (int, float)) and not isinstance(number, bool):
+            raise WrongKind(f"text and a number cannot be added ({_describe(a)} + {_describe(b)}); write "
+                            "$text(<number>) to join a number to text", source)
     return _finite(_number(a, source) + _number(b, source), source)
 
 

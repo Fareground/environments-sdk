@@ -261,7 +261,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                 compiled(Scope())
             except WrongKind as exc:
                 self.error(path, f"{exc.detail} — in `{compiled.source}`",
-                           "text is not a number: write the number without quotes, or join text with text")
+                           "text is not a number: write the number without quotes, or join text with text "
+                           "($text(3) turns a number into text)")
             except ExprError:
                 pass  # other failures (1/0) are reported where the expression runs
         for name, symbol in compiled.calls:

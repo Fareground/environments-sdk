@@ -320,7 +320,9 @@ class WorldChecks:
                 if kind not in RECORD_FIELD_TYPES:
                     self.error(f"{path}.fields.{field}", f"unknown field type '{kind}'", ", ".join(RECORD_FIELD_TYPES))
                 if field in ENTRY_FIELDS:
-                    self.error(f"{path}.fields.{field}", f"'{field}' is a built-in entry field")
+                    self.error(f"{path}.fields.{field}", f"'{field}' is a built-in entry field: every entry already "
+                               f"has {', '.join(sorted(ENTRY_FIELDS))} (author: who posted it)",
+                               f"rename the field (e.g. '{field}_name'), or read the built-in one as $it.{field}")
                 elif field in POST_KEYS:
                     self.error(f"{path}.fields.{field}", f"'{field}' is a `post` option, so a post cannot set it",
                                "rename the field")
