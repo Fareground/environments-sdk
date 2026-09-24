@@ -1,4 +1,4 @@
-"""The world's version names its state: a tried change rolled back leaves the world, and every cache of it, as it was."""
+"""The world's version names its state: a tried change rolled back leaves the world, and its caches, as it was."""
 from fg_env.world.parts import Journal
 
 
