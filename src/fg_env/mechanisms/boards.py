@@ -73,7 +73,7 @@ def _state(world: Any, rules: Rules) -> _State:
     """The current position, rebuilt only when the world changed (pure cache over journaled state)."""
     states = _STATES.setdefault(world, {})
     cached = states.get(rules.name)
-    version = world.journal.version
+    version = world.version
     if cached is not None and cached.version == version:
         return cached
     pieces = world.entities_of(rules.config.piece_type)

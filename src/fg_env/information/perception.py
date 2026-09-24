@@ -224,7 +224,7 @@ class Perception:
         read a private value, draw at random or read an entity's handle is worked out for each reader from then on
         (None); so is any other failure, which each reader then reports as its own."""
         world, budget = self.world, _BUDGET
-        state = (world, world.journal.version, world.round, world.stage)
+        state = (world, world.version, world.round, world.stage)
         held = self._selections.get(name)
         if held is not None and held[0] == state:
             if budget.hold:  # the work counts against each reader's budget, as if it were done again

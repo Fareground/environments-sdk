@@ -55,7 +55,7 @@ def _still_spent(env, spent, version):
     recorded = set(env.world.props.get(TAPE) or ())
     assert answers <= recorded, "a recorded host answer was dropped"
     if recorded == answers:
-        assert env.world.journal.version == version, "the undone world has another version"
+        assert env.world.version == version, "the undone world has another version"
 
 
 def _stopped(subject, seed):
@@ -115,7 +115,7 @@ def _undo_restores(subject, seed, trials, pick):
         is_guarded = trial % 2 == 0
         failures = [FAIL, BROKEN, *(failure for failure in own if is_guarded or failure != INVARIANT)]
         block.insert(rng.randint(0, len(block)), rng.choice(failures))
-        before, version, spent = restored_state(env), env.world.journal.version, _spent(env)
+        before, version, spent = restored_state(env), env.world.version, _spent(env)
 
         def work(block=block, vars=vars, path=path, actor=actor):
             env.rules.run_block(block, vars, path, owner=actor)
@@ -172,7 +172,7 @@ class _Prober:
         stage = next(stage for stage in self.env.contract.stage_list() if stage.name == wake.stage)
         if stage.turns != "simultaneous" and any(tool.name == "kernel_probe" for tool in wake.tools):
             env = self.env
-            before, version, spent = restored_state(env), env.world.journal.version, _spent(env)
+            before, version, spent = restored_state(env), env.world.version, _spent(env)
             result = wake.call("kernel_probe", {})
             if result.ok:  # an atomic turn holds its actions until it settles: the failure undoes the turn then
                 assert stage.valid, result.text
@@ -238,8 +238,8 @@ def test_undoing_back_to_a_mark_restores_armed_and_fired_events_as_they_were_the
     env = fg_env.load(LATCH, seed=1)
     world = env.world
     before = undoable_state(env)
-    mark = world.journal.mark()
-    with world.journal.held():  # a part of an atomic turn: a change committed in it, then a failure undoes it all
+    mark = world.mark()
+    with world.held():  # a part of an atomic turn: a change committed in it, then a failure undoes it all
         env.rules.run_block(["$world.x = 1"], {}, "kernel.earlier")
         assert world.props["rang"] == 1 and world.props["once"] == 1
         _, fault = env.rules.guarded(lambda: env.rules.run_block([FAIL], {}, "kernel.later"), mark)

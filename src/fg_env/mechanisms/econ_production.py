@@ -425,11 +425,11 @@ def _production_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any], 
             world.remove(job)
             continue
         recipe, times = props(job)["recipe"], int(props(job)["qty"])
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             text = _finish(runner, name, config, owner, recipe, times, where)
         except Abort as exc:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             if props(job)["status"] != "waiting":
                 world.set_prop(job, "status", "waiting")
                 emit_to(world, f"{name}_waiting", f"{times} × {recipe} is ready but waits: {exc.reason}", [owner.id])

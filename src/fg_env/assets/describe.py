@@ -65,4 +65,4 @@ def describe_assets(env: Env) -> None:
     with env._lock:
         for asset in pending:
             described(env.world, asset)
-        env.world.journal.clear()
+        env.world.commit()

@@ -125,12 +125,11 @@ class _View:
                       lot_floor(max(0.0, free + short_room(self.world, self.name, self.cfg, self.trader)), self.lot))
         if qty <= 0:
             return
-        journal = self.world.journal
-        mark = journal.mark()
+        mark = self.world.mark()
         try:
             self.orders.append(place(self.world, self.name, self.trader, side, qty, price, kind))
         except Abort:
-            journal.rollback(mark)
+            self.world.rollback(mark)
 
 
 def run_algo(world: Any, name: str, trader: Entity) -> str:

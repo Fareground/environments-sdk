@@ -171,20 +171,20 @@ class HostWake(Wake):
         turn, env = self._turn, self._turn.env
         world, spec, path = env.world, env.contract.actions[name], f"actions.{name}"
         vars: dict[str, Any] = {"actor": turn.actor, "params": params}
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             with shared_budget(ACTION_BUDGET, path):
                 env.effects.run(spec.do, vars, f"{path}.do")
                 text = env.information.render(spec.outcome, vars, viewer=turn.actor) if spec.outcome else "Done."
         except Abort as abort:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             turn.note(REJECTED)
             return ToolResult(False, abort.reason, data={"error": "rejected"})
         except ExprError as exc:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             raise RunError(str(exc), path) from None
         except BaseException:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             raise
         turn.committed(path)
         turn.host_uses[name] = turn.host_uses.get(name, 0) + 1

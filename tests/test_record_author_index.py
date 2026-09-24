@@ -55,11 +55,11 @@ def test_rollback_restores_pruned_rows_and_accepts_reused_sequence_numbers():
     env = fg_env.load(contract(keep=3))
     for i, who in enumerate(("a", "b", "a")):
         post(env, who, i)
-    mark = env.world.journal.mark()
+    mark = env.world.mark()
     for i in range(3, 7):
         post(env, "b", i)
     assert values(env, "a") == []
-    env.world.journal.rollback(mark)
+    env.world.rollback(mark)
     assert values(env, "a") == [0, 2]
     assert values(env, "b") == [1]
     post(env, "c", 10)

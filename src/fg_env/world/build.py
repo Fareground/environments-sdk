@@ -187,7 +187,7 @@ def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
             value = _value(world, spec.default, {})
         except ExprError as exc:
             raise RunError(str(exc), f"world.{name}") from None
-        world.props[name] = world._coerce(spec, value, f"world.{name}")
+        world.props[name] = world.coerce(spec, value, f"world.{name}")
 
 
 def _generate(world: SdkWorld, key: str, spec: EntitySpec, ordinal: int,

@@ -88,7 +88,7 @@ def generate(world: Any, name: str, where: str) -> int:
         persona = Untrusted(clip(text.strip(), config.max_chars))
         world.set_prop(entity, config.prop, persona)
         if config.brief:
-            _add_to_brief(world, entity.id, f"Your persona: {format_value(persona)}")
+            world.add_to_brief(entity.id, f"Your persona: {format_value(persona)}")
         written += 1
     return written
 
@@ -106,12 +106,6 @@ def _persona(answer: Any, limit: int) -> str:
     if not isinstance(answer, str) or not answer.strip():
         raise HostError("a persona is non-empty text")
     return clip(answer.strip(), limit)
-
-
-def _add_to_brief(world: Any, entity_id: str, line: str) -> None:
-    old = world.entity_briefs.get(entity_id)
-    world.journal.push(("brief", entity_id, entity_id in world.entity_briefs, old))
-    world.entity_briefs[entity_id] = f"{old}\n{line}" if old else line
 
 
 @family_action("host", ("personas",), "write",

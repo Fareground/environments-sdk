@@ -79,10 +79,10 @@ def test_shared_listing_invalidates_on_changes_and_rollback_and_keeps_schemas_se
     assert listing(world.entities["h"]) == ["a", "b", "h"]
     assert listing(a) == ["a", "b"]  # private self choices never contaminate shared choices
 
-    mark = world.journal.mark()
+    mark = world.mark()
     world.set_prop(world.entities["empty"], "label", "visible")
     world.remove(b)
     assert listing(a) == ["a", "empty"]
-    world.journal.rollback(mark)
+    world.rollback(mark)
     assert listing(a) == ["a", "b"]
     assert listing(b) == ["a", "b"]

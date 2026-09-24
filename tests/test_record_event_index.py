@@ -46,11 +46,11 @@ def test_retention_and_rollback_with_reused_sequences():
     w = fg_env.load(contract(keep=2)).world
     post(w, "a", 1)
     post(w, "b", 2)
-    mark = w.journal.mark()
+    mark = w.mark()
     post(w, "b", 3)
     post(w, "b", 4)
     assert read(w, "a") == []
-    w.journal.rollback(mark)
+    w.rollback(mark)
     post(w, "a", 5)
     assert read(w, "a") == [5]
     assert read(w, "b") == [2]

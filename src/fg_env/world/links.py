@@ -183,9 +183,9 @@ def _fields(world: SdkWorld, kind: str, a: Any, b: Any, current: dict[str, Any] 
                 start = compile_expr(raw)(scope) if is_expr(raw) and not isinstance(raw, Untrusted) else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"relations.{kind}.props.{name}.default") from None
-            out[name] = world._coerce(spec, _plain(start), f"relations.{kind}.props.{name}")
+            out[name] = world.coerce(spec, _plain(start), f"relations.{kind}.props.{name}")
     for name, raw_value in given.items():
-        out[name] = world._coerce(declared[name], _plain(raw_value), f"{where}.props.{name}")
+        out[name] = world.coerce(declared[name], _plain(raw_value), f"{where}.props.{name}")
     return out
 
 
@@ -205,7 +205,7 @@ def set_link_field(world: SdkWorld, view: Link, name: str, value: Any, where: st
     fields = world.link_fields[kind][key]
     from .live import _plain
 
-    new = world._coerce(declared[name], _plain(value), f"{where}.{name}")
+    new = world.coerce(declared[name], _plain(value), f"{where}.{name}")
     world.journal.push(("link_field", kind, key, name, fields.get(name)))
     fields[name] = new
 

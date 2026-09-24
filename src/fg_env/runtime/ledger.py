@@ -172,7 +172,7 @@ class AttemptLedger:
 
     def begin_part(self) -> None:
         """Start the part of the turn that the next settle checks and an undo returns to."""
-        self.mark = self.world.journal.mark()
+        self.mark = self.world.mark()
         self._checkpoint = (self.actions_left, dict(self.used), len(self.pending), self.applied)
         self._counted.clear()
 
@@ -191,7 +191,7 @@ class AttemptLedger:
         checkpoint; what the part drew stays spent. How many applied actions were undone."""
         assert self.mark is not None
         actions_left, used, pending, applied = self._checkpoint
-        self.world.journal.rollback(self.mark)
+        self.world.rollback(self.mark)
         self._counted.clear()
         self._held.clear()
         self.used = dict(used)

@@ -224,11 +224,11 @@ def _promote(world: Any, name: str, config: BookingsConfig, resource: Any, slot:
         guest = world.entities.get(props(booking)["guest"])
         if party > free or guest is None or not guest.alive:
             continue
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             paid = _pay(world, config, guest, resource, party, where)
         except Abort:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             continue
         world.set_prop(booking, "status", "booked")
         world.set_prop(booking, "paid", paid)
@@ -425,11 +425,11 @@ def _bookings_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any], wh
                 break
             if party > left or guest is None or not guest.alive:
                 continue
-            mark = world.journal.mark()
+            mark = world.mark()
             try:
                 paid = _pay(world, config, guest, resource, party, where)
             except Abort as exc:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 world.set_prop(booking, "status", "turned_away")
                 _stat(world, name, "turned_away", 1)
                 emit_to(world, f"{name}_turned_away",

@@ -713,12 +713,12 @@ def _negotiation_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any],
         if p["manual"]:
             _breach(runner, name, config, duty, "not fulfilled in time", where)
             continue
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             _perform(world, duty, where)
             _stat(world, name, "duties_done", 1)
         except Abort as exc:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             _breach(runner, name, config, duty, exc.reason.rstrip("."), where)
     for deal in world.entities_of(f"{name}_deal"):
         if props(deal)["status"] == "active" and not any(

@@ -287,10 +287,10 @@ def run_hook(runner: Any, block: str, args: dict[str, Any], path: str) -> None:
     transfer) undoes only the block's own changes and is logged as a ``mechanism_refused`` event that no
     agent is shown, instead of escaping into the tick and silently rolling back everything else it did."""
     world = runner.world
-    mark = world.journal.mark()
+    mark = world.mark()
     try:
         runner.run([{"call": block, "with": {key: f"${key}" for key in args}}], dict(args), path)
     except Abort as exc:
-        world.journal.rollback(mark)
+        world.rollback(mark)
         world.emit("mechanism_refused", f"{block} was refused: {exc.reason}", to=[],
                    data={"block": block, "reason": exc.reason})

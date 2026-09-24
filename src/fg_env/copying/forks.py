@@ -129,7 +129,7 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     world = env.world
     world.emit("fork", "", to=(), data={"arm": new_arm, "inputs": sorted(inputs or {}), "patch": sorted(patch or {}),
                                         "contract": to is not None, "seed": seed, "effects": len(effects or [])})
-    world.journal.clear()
+    world.commit()
     env.state.emitted = len(world.log)
     if effects:
         env.rules.run_block(list(effects), {}, "fork.effects")
@@ -168,7 +168,7 @@ def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> 
         _values(issues, new.props_of(kind), decode(row["props"]), f"types.{kind}.props", row["id"], probe)
         if row.get("at") is not None:
             try:
-                probe._check_location(row["at"], "space")
+                probe.place(row["at"], "space")
             except RunError as exc:
                 issues.append(Issue("space", f"{row['id']} stands at {row['at']!r}: {exc.args[0].split(': ', 1)[-1]}",
                                     "keep a space that holds every current position"))
@@ -243,7 +243,7 @@ def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> str | None:
         if spec.max is not None and value > spec.max:
             return f"above the maximum {spec.max:g}"
     try:
-        probe._coerce(spec, value, "fork")
+        probe.coerce(spec, value, "fork")
     except RunError as exc:
         return str(exc).split(": ", 1)[-1]
     return None
@@ -316,8 +316,8 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
         env.status, env.ended_by = "running", None
         if world.log and world.log[-1].kind == "end":  # the run is not over after all
             world.log.pop()
-            world._seq -= 1
-    world.journal.clear()
+            world.event_seq -= 1
+    world.commit()
     world.touch()
     return env
 
@@ -351,7 +351,7 @@ def _default(world: SdkWorld, spec: PropSpec, path: str, **vars: Any) -> Any:
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.default") from None
     try:
-        return world._coerce(spec, value, path)
+        return world.coerce(spec, value, path)
     except Abort as refusal:  # a new property's default outside its own bounds is a contract error
         raise RunError(refusal.reason, f"{path}.default") from None
 

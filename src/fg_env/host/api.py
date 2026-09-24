@@ -53,7 +53,7 @@ def build(env: Env) -> None:
         for name in names:
             generate(env.world, name, f"mechanisms.{name}")
         env.rules.check_invariants("personas")
-        env.world.journal.clear()
+        env.world.commit()
 
 
 def restore(contract: Any, snapshot: Mapping[str, Any], *, hosts: HostsLike = None, parallel: int = 8) -> Env:

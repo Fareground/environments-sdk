@@ -97,7 +97,7 @@ class SdkWorld(World):
         #: one).
         self.start: str | None = None
         #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
-        self._schedule_seq = 0
+        self.schedule_seq = 0
         #: The declared space, resolved at build (sizes may read $inputs); None without one.
         self.space: Spatial | None = None
         #: While a sync loop runs, where property and layer writes wait to land together.
@@ -133,13 +133,15 @@ class SdkWorld(World):
         self.facts: Any = None
         #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
         self.assets = AssetStore()
-        self._seq = 0
-        self._record_seq = 0
+        #: The sequence numbers the log's last event and the records' last entry took.
+        self.event_seq = 0
+        self.record_seq = 0
         self._props_view = PropsView(self)
         self._physics_view = PhysicsView(self)
         self._clock_view = ClockView(self)
         self.patterns = PatternRuntime(self)
-        self._type_props = {t: contract.props_of(t) for t in contract.types}
+        #: Each type's declared properties (its own and inherited), by name.
+        self.type_props = {t: contract.props_of(t) for t in contract.types}
         #: What is hidden from whom (see expr/hidden.py).
         self.hidden = Hidden(contract)
         self.private_names = self.hidden.names
@@ -357,6 +359,35 @@ class SdkWorld(World):
         self._def_cache_on = True
         self.touch()
 
+    # -- transactions (see world/journal.py) ------------------------------------------------------------------
+
+    @property
+    def version(self) -> int:
+        """The world's version: equal versions mean an equal world (the root of every cache key)."""
+        return self.journal.version
+
+    def mark(self) -> int:
+        """Where the changes since the last commit stand now: :meth:`rollback` undoes every change after it."""
+        return self.journal.mark()
+
+    def rollback(self, mark: int) -> None:
+        """Undo every journaled change made after ``mark``, newest first."""
+        self.journal.rollback(mark)
+
+    def commit(self) -> None:
+        """Keep the changes made so far: nothing before now can be undone (inside :meth:`held`, once it ends)."""
+        self.journal.clear()
+
+    def held(self) -> Any:
+        """A block whose changes stay undoable until it ends, whatever commits inside it (see
+        :meth:`Journal.held`)."""
+        return self.journal.held()
+
+    @property
+    def holding(self) -> bool:
+        """Whether a :meth:`held` block is open."""
+        return self.journal.holding > 0
+
     def touch(self) -> None:
         """Record a change made outside the journal (metrics sampling, physics), so cached reads refresh."""
         self.journal.bump()
@@ -393,7 +424,7 @@ class SdkWorld(World):
         return self.space.geometry.distance(start, end)
 
     def prop_spec(self, entity: Entity, prop: str) -> PropSpec:
-        specs = self._type_props.get(entity.entity_type, {})
+        specs = self.type_props.get(entity.entity_type, {})
         if prop not in specs:
             raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {', '.join(specs) or 'none'})",
                            f"{entity.entity_type}.{prop}")
@@ -440,7 +471,7 @@ class SdkWorld(World):
 
     # -- mutation (journaled) --------------------------------------------------
 
-    def _coerce(self, spec: PropSpec | None, value: Any, where: str, owner: str = "") -> Any:
+    def coerce(self, spec: PropSpec | None, value: Any, where: str, owner: str = "") -> Any:
         """``value`` as ``spec`` stores it. A number past a declared min or max is refused (:class:`Abort`), never
         clamped: an action is rolled back and its actor told why, like a transfer that does not fit. ``owner``
         names who holds the property in that refusal."""
@@ -481,13 +512,13 @@ class SdkWorld(World):
         return value
 
     def set_prop(self, entity: Entity, prop: str, value: Any) -> None:
-        specs = self._type_props.get(entity.entity_type, {})
+        specs = self.type_props.get(entity.entity_type, {})
         where = f"{entity.entity_type}.{prop}"
         if prop not in specs:
             known = ", ".join(specs) or "none"
             raise RunError(f"'{entity.entity_type}' has no property '{prop}' (declared: {known})", where)
         self.written.add(prop)
-        new = self._coerce(specs[prop], _plain(value), where, entity.name)
+        new = self.coerce(specs[prop], _plain(value), where, entity.name)
         if self.buffer is not None:
             self.buffer.write(("prop", entity.id, prop), new, lambda: self.set_prop(entity, prop, new), where)
             return
@@ -507,7 +538,7 @@ class SdkWorld(World):
             known = ", ".join(self.contract.world) or "none"
             raise RunError(f"world has no property '{prop}' (declared: {known})", f"world.{prop}")
         self.written.add(prop)
-        new = self._coerce(spec, value if trusted else _plain(value), f"world.{prop}")
+        new = self.coerce(spec, value if trusted else _plain(value), f"world.{prop}")
         if self.buffer is not None:
             self.buffer.write(("world", prop), new, lambda: self.set_world(prop, new), f"world.{prop}")
             return
@@ -564,7 +595,7 @@ class SdkWorld(World):
         eid = entity_id or self.next_id(type_name)
         if eid in self.entities:
             raise RunError(f"an entity with id '{eid}' already exists", where)
-        declared = self._type_props[type_name]
+        declared = self.type_props[type_name]
         unknown = set(props) - set(declared)
         if unknown:
             raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: "
@@ -572,7 +603,7 @@ class SdkWorld(World):
         entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None)
         space = self.space
         if at is not None:  # placed first, so props can read the position: `$layer(sugar, $it.at)`
-            entity.location_id = self._check_location(at, where)
+            entity.location_id = self.place(at, where)
         own = scope.child(it=entity)  # props read other props of the same entity: `$it.income * 0.3`
         raws = {prop: props[prop] if prop in props else prop_spec.default for prop, prop_spec in declared.items()}
         # Expressions: contract text given here, and a type's defaults. Participant text is never one.
@@ -585,7 +616,7 @@ class SdkWorld(World):
                 value = compile_expr(raw)(own) if prop in expressions else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
-            entity.properties[prop] = self._coerce(declared[prop], _plain(value), f"{where}.props.{prop}", entity.name)
+            entity.properties[prop] = self.coerce(declared[prop], _plain(value), f"{where}.props.{prop}", entity.name)
         if order is not raws:  # evaluated out of declaration order: keep the declared order
             entity.properties = {prop: entity.properties[prop] for prop in declared}
         if entity.location_id is not None:
@@ -626,7 +657,7 @@ class SdkWorld(World):
             self.lifecycle("remove", entity, where)
 
     def move(self, entity: Entity, at: Any, where: str) -> None:
-        location = self._check_location(at, where)
+        location = self.place(at, where)
         space = self.space
         if space is not None:
             self._make_room(entity, location, "cannot move there")
@@ -674,8 +705,8 @@ class SdkWorld(World):
             elif value is not None and kind == "asset":
                 value = self.assets.ref(value, f"{where}.{name}")
             entry[name] = value
-        self._record_seq += 1
-        entry.update({"seq": self._record_seq, "round": self.round, "stage": self.stage,
+        self.record_seq += 1
+        entry.update({"seq": self.record_seq, "round": self.round, "stage": self.stage,
                       "author": author, "to": list(to) if to is not None else None})
         rows = self.records_store[record]
         rows.append(entry)
@@ -696,8 +727,8 @@ class SdkWorld(World):
 
     def emit(self, kind: str, text: str, *, actor: str | None = None,
              to: Iterable[str] | None = None, data: dict[str, Any] | None = None) -> LogEvent:
-        self._seq += 1
-        event = LogEvent(self._seq, self.round, kind, text, actor,
+        self.event_seq += 1
+        event = LogEvent(self.event_seq, self.round, kind, text, actor,
                          tuple(to) if to is not None else None, dict(data or {}), self.stage)
         self.log.append(event)
         record_key = self.record_events.add(event, self.entry_by_seq) if kind == "record" else None
@@ -727,8 +758,8 @@ class SdkWorld(World):
                                 "capture_version": CAPTURE_VERSION, "path": path}
         if delivery is not None:
             item["delivery"] = delivery
-        self._schedule_seq += 1
-        entry = (due_round, self._schedule_seq, item)
+        self.schedule_seq += 1
+        entry = (due_round, self.schedule_seq, item)
         heapq.heappush(self.scheduled, entry)
         self.journal.push(("schedule", entry))
 
@@ -745,6 +776,13 @@ class SdkWorld(World):
         if self.end_request is None:
             self.end_request = {"name": name, "winner": winner, "text": text}
             self.journal.push(("end",))
+
+    def add_to_brief(self, entity_id: str, line: str) -> None:
+        """Add ``line`` to the brief of ``entity_id``."""
+        briefs = self.entity_briefs
+        old = briefs.get(entity_id)
+        self.journal.push(("brief", entity_id, entity_id in briefs, old))
+        briefs[entity_id] = f"{old}\n{line}" if old else line
 
     def mark_fired(self, index: int) -> None:
         """The `once` event ``index`` fired: it never fires again, unless an undo takes the firing back."""
@@ -790,7 +828,8 @@ class SdkWorld(World):
     def _key(self, kind: str, a: str, b: str) -> tuple[str, str]:
         return _links.edge_key(self, kind, a, b)
 
-    def _check_location(self, at: Any, where: str) -> Any:
+    def place(self, at: Any, where: str) -> Any:
+        """``at`` as a position in the space (checked against it), or as given without one."""
         return at if self.space is None else self.space.place(at, where)
 
 # ---------------------------------------------------------------------------

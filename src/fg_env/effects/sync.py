@@ -48,7 +48,7 @@ def run_synced(world: SdkWorld, items: Sequence[Any], run_item: Callable[[int, A
     buffer = WriteBuffer()
     ran = False
     for position, item in enumerate(items):
-        mark = world.journal.mark()
+        mark = world.mark()
         world.buffer = buffer
         try:
             if not run_item(position, item):
@@ -56,7 +56,7 @@ def run_synced(world: SdkWorld, items: Sequence[Any], run_item: Callable[[int, A
         finally:
             world.buffer = None
         ran = True
-        if world.journal.mark() != mark:
+        if world.mark() != mark:
             raise RunError("a sync loop can only assign properties ($it.x, $world.x) and layer cells; create, remove, "
                            "move, messages and other changes belong in a loop without sync", path)
         buffer.keep(_label(item, position), path)

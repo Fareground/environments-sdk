@@ -483,7 +483,7 @@ class Turn:
             if why is not None:
                 env.world.emit("outcome", f"Your turn was undone: {why}.", actor=self.actor.id, to=(self.actor.id,),
                                data={"ok": False, "undone": True})
-                env.world.journal.clear()
+                env.world.commit()
 
     def _undone(self, why: str, luck: str | None = None) -> ToolResult:
         if luck is None:

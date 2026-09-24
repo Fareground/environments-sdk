@@ -24,7 +24,7 @@ def commit_sealed(rules: Rules, turn: Turn, writes: SealedWrites, atomic: bool) 
     """Commit ``turn``'s sealed choices through ``rules``, noting their writes in ``writes``; ``atomic`` (a stage with
     `valid` rules) commits or undoes them as a whole. Whether the agent's choices stand, or None when the run ended
     while they committed (nothing more commits)."""
-    mark = rules.world.journal.mark() if atomic else None
+    mark = rules.world.mark() if atomic else None
     applied = 0
     writes.writer = turn.actor.name or turn.actor.id
     for name, args in turn.ledger.intents:
@@ -58,10 +58,10 @@ def _settle(rules: Rules, turn: Turn, mark: int, applied: int) -> bool:
         if why is None:
             rules.react(stage)
             return bool(turn.ledger.intents)
-        world.journal.rollback(mark)
+        world.rollback(mark)
         world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
                    data={"ok": False, "undone": True})
-        world.journal.clear()
+        world.commit()
         rules.facts.emit(Undone(applied, fault is not None), turn)
     return False
 
@@ -78,7 +78,7 @@ def _commit_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], de
                        actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
             rules.facts.emit(CommitRefused(name, fault, faulted=True), turn)
             if not deferred:
-                world.journal.clear()
+                world.commit()
             return 0
         if applied and not deferred:
             rules.react(turn.stage)
@@ -95,7 +95,7 @@ def _apply_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], def
                    actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
         rules.facts.emit(CommitRefused(name, str(problem)), turn)
         if not deferred:
-            world.journal.clear()
+            world.commit()
         return 0
     outcome = rules.apply(actor, name, params)
     text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
@@ -104,7 +104,7 @@ def _apply_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], def
     if not outcome.ok:
         rules.facts.emit(CommitRefused(name, outcome.text), turn)
         if not deferred:
-            world.journal.clear()
+            world.commit()
         return 0
     if not deferred:
         rules.commit(f"actions.{name}")

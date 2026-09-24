@@ -37,10 +37,10 @@ def test_what_is_sent_to_the_agent_comes_first_then_world_news_then_others_actio
 def test_news_follows_undone_and_forgotten_events():
     env, world = _busy()
     a = world.entities["a"]
-    mark = world.journal.mark()
+    mark = world.mark()
     world.emit("notice", "Tried")
     assert "Tried" in env.information.news(a, 0)[0]
-    world.journal.rollback(mark)
+    world.rollback(mark)
     assert "Tried" not in env.information.news(a, 0)[0]
     world.emit("notice", "Kept")
     assert env.information.news(a, 0)[0][-1] == "Kept"

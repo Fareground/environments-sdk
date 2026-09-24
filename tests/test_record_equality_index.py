@@ -49,12 +49,12 @@ def test_retention_rollback_restores_rows_order_and_reused_sequences():
     w = fg_env.load(contract(keep=3)).world
     for i in range(3):
         post(w, i % 2, i)
-    mark = w.journal.mark()
+    mark = w.mark()
     w.set_prop(w.entities['a'], 'team', 1)
     for i in range(3, 8):
         post(w, 1, i)
     assert read(w, 'a') == ([5, 6, 7], [5, 6, 7])
-    w.journal.rollback(mark)
+    w.rollback(mark)
     assert read(w, 'a') == ([0, 2], [0, 2])
     assert read(w, 'b') == ([1], [1])
     post(w, 0, 8)

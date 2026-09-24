@@ -213,12 +213,12 @@ class RunState:
             "links": {kind: [[a, b, v, encode(w.link_fields[kind][(a, b)])] if (a, b) in w.link_fields[kind]
                              else [a, b, v] for (a, b), v in edges.items()] for kind, edges in w.links.items()},
             "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
-            "record_seq": w._record_seq,
-            "log": [encode(row) for row in self.event_rows()], "seq": w._seq,
+            "record_seq": w.record_seq,
+            "log": [encode(row) for row in self.event_rows()], "seq": w.event_seq,
             "physics": w.physics.to_dict() if w.physics else None,
             "metrics": encode(w.metrics), "series": encode(w.series),
             "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
-            "schedule_seq": w._schedule_seq,
+            "schedule_seq": w.schedule_seq,
             "wake_requests": encode(w.wake_requests),
             "reactions": encode(w.reactions),
             "counters": dict(w.counters), "firings": dict(w.luck.firings), "end_request": encode(w.end_request),
@@ -270,7 +270,7 @@ class RunState:
                 w.entry_by_seq[entry["seq"]] = entry
             w.records_store[name] = entries
         w.rebuild_record_index()
-        w._record_seq = data["record_seq"]
+        w.record_seq = data["record_seq"]
         w.log = []
         for raw in data["log"]:
             e = decode(raw)
@@ -278,7 +278,7 @@ class RunState:
                                   tuple(e["to"]) if e.get("to") is not None else None, e.get("data", {}),
                                   e.get("stage")))
         w.rebuild_event_index()
-        w._seq = data["seq"]
+        w.event_seq = data["seq"]
         if data.get("physics") and w.physics is not None:
             restored = PhysicsModel.from_dict(data["physics"])
             w.physics.params, w.physics.time = restored.params, restored.time
@@ -287,7 +287,7 @@ class RunState:
         w.metrics = decode(data["metrics"])
         w.series = decode(data["series"])
         w.scheduled = [(due, order, decode(item)) for due, order, item in data["scheduled"]]
-        w._schedule_seq = data["schedule_seq"]
+        w.schedule_seq = data["schedule_seq"]
         w.wake_requests = decode(data["wake_requests"])
         w.reactions = [(entity_id, why, actions) for entity_id, why, actions in decode(data.get("reactions") or [])]
         w.counters = dict(data["counters"])
@@ -316,7 +316,7 @@ class RunState:
         if data.get("cursor") is not None:
             self.in_round, self.cursor = True, Cursor.decode(data["cursor"], w.entities)
         _check_props(w)
-        w.journal.clear()
+        w.commit()
         w.touch()  # the state was replaced wholesale: nothing cached before holds
 
 
@@ -324,7 +324,7 @@ def _check_props(w: SdkWorld) -> None:
     """Every restored property as its declaration stores it — type, values and bounds."""
     def checked(spec: Any, value: Any, where: str, owner: str = "") -> Any:
         try:
-            return w._coerce(spec, value, where, owner)
+            return w.coerce(spec, value, where, owner)
         except RunError as exc:
             problem = str(exc)
         except Abort as exc:  # out of bounds
@@ -333,7 +333,7 @@ def _check_props(w: SdkWorld) -> None:
                             "snapshot")
 
     for entity in w.entities.values():
-        for prop, spec in w._type_props.get(entity.entity_type, {}).items():
+        for prop, spec in w.type_props.get(entity.entity_type, {}).items():
             if prop in entity.properties:
                 entity.properties[prop] = checked(spec, entity.properties[prop], f"entities.{entity.id}.props.{prop}",
                                                   entity.name)

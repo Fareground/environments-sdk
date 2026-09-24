@@ -156,7 +156,7 @@ class Schedule:
             return False
         with rules.lock:
             world.step_physics()
-            world.journal.clear()
+            world.commit()
         rules.check_invariants("physics")
         rules.check_changes("physics")
         if rules.ended():
@@ -224,7 +224,7 @@ class Schedule:
         end = world.end_request or {}
         text = end.get("text") or (f"The run ended: {env.ended_by}." if env.ended_by != "rounds" else "Time is up.")
         world.emit("end", text, data={"ended_by": env.ended_by, "winner": end.get("winner")})
-        world.journal.clear()
+        world.commit()
         env.information.frame(final=True)
         self.flush()
 
@@ -339,7 +339,7 @@ class Schedule:
         world = self.env.world
         with world.luck.at(f"stages.{stage.name}.order"):
             world.rng.shuffle(agents)
-        world.journal.clear()  # the draw is the round's: nothing undoes it, and the run may pause after it
+        world.commit()  # the draw is the round's: nothing undoes it, and the run may pause after it
 
     def _reason(self, actor: Entity, stage: StageSpec, pass_index: int) -> str | None:
         """Why ``actor`` is woken in this pass of ``stage``, or None when it sits the pass out (`quiet: skip`)."""
@@ -455,7 +455,7 @@ class Schedule:
         if not (timed_out or acted) and actor.alive and turn.did_not_act:
             with rules.lock:
                 rules.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, data={"stage": stage.name})
-                rules.world.journal.clear()
+                rules.world.commit()
         if actor.alive and not rules.ended():
             rules.fire(f"stage.{stage.name}.turn", {"actor": actor, "acted": acted, "timed_out": timed_out},
                        owner=actor)
@@ -468,7 +468,7 @@ class Schedule:
         with self.rules.lock:
             world.emit("timeout", f"{actor.name} ran out of time.", actor=actor.id,
                        data={"stage": turn.stage.name, "limit": turn.time_limit})
-            world.journal.clear()
+            world.commit()
         return True
 
     def _remember(self, actor: Entity) -> None:
@@ -487,7 +487,7 @@ class Schedule:
         finish. Reactions to reactions nested deeper than :attr:`REACTION_DEPTH` become ordinary wakes: agents that keep
         answering each other never fail the run."""
         env, world = self.env, self.env.world
-        if world.journal.holding:
+        if world.holding:
             return
         while world.reactions and not self.rules.ended():
             entity_id, why, actions = world.reactions.pop(0)

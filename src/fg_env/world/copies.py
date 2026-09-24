@@ -31,7 +31,7 @@ __all__ = ["copy_world"]
 
 #: What the contract and the build decide, shared by a copy (never changed while a run plays).
 _SHARED = frozenset({
-    "contract", "inputs", "arm", "physics_writes", "entity_dynamics", "start", "_type_props", "hidden", "private_names",
+    "contract", "inputs", "arm", "physics_writes", "entity_dynamics", "start", "type_props", "hidden", "private_names",
     "private_metrics", "_def_cache_on", "_subtypes"})
 #: Wired by the run, or caches: a copy starts without them.
 _UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "_def_cache": dict,

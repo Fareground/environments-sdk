@@ -84,7 +84,7 @@ def _item(world: Any, item: Any, where: str) -> tuple[str, str, Any]:
 
 
 def is_holder(world: Any, entity: Entity, prop: str) -> bool:
-    return prop in world._type_props.get(entity.entity_type, {})
+    return prop in world.type_props.get(entity.entity_type, {})
 
 
 # ---------------------------------------------------------------------------
@@ -402,7 +402,7 @@ def loose_total(world: Any, inventory: str, item: str, where: str) -> int:
 def _holder_types(world: Any, prop: str) -> frozenset:
     """Entity types that declare ``prop`` (cached per contract)."""
     return cached(world, ("holders", prop),  # type: ignore[no-any-return]
-                  lambda: frozenset(t for t, specs in world._type_props.items() if prop in specs))
+                  lambda: frozenset(t for t, specs in world.type_props.items() if prop in specs))
 
 
 def _number_or_zero(value: Any) -> float:

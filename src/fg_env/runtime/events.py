@@ -64,11 +64,11 @@ class Events:
         """Deliver one scheduled message as its own atomic change."""
         rules, world = self.rules, self.rules.world
         with rules.lock:
-            mark = world.journal.mark()
+            mark = world.mark()
             try:
                 deliver(world, item["delivery"], item["path"])
             except BaseException:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise
             rules.commit(item["path"])
             rules.react(rules.stage_spec())
@@ -93,7 +93,7 @@ class Events:
                 else:
                     rules.run_block(event.do, dict(vars or {}), f"{path}.do", owner=owner, luck=do)
             self._say(index, event)
-            world.journal.clear()  # the event has run: its firing commits with it
+            world.commit()  # the event has run: its firing commits with it
             if rules.ended() or (owner is not None and not owner.alive):
                 return
 
@@ -155,14 +155,14 @@ class Events:
             return True
 
         with rules.lock:
-            mark = world.journal.mark()
+            mark = world.mark()
             try:
                 ran = run_synced(world, items, run_item, body)
             except Abort as refusal:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise RunError(world_logic_refused(refusal.reason), body) from None
             except BaseException:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise
             if ran:
                 rules.commit(body)
@@ -175,7 +175,7 @@ class Events:
         text = self.rules.information.render(event.say, {}, viewer=EVERYONE, path=f"events[{index}].say")
         if text.strip():
             world.emit("news", text, data={"event": event.name or index})
-        world.journal.clear()
+        world.commit()
 
     def check_changes(self, path: str) -> None:
         """Fire every `change` event whose `when` has just become true (after a commit at ``path``)."""
@@ -191,7 +191,7 @@ class Events:
             self._fire_changes(events, path)
         finally:
             self._change_depth -= 1
-        rules.world.journal.clear()  # the `when`s it found changed commit with the change that moved them
+        rules.world.commit()  # the `when`s it found changed commit with the change that moved them
 
     def _fire_changes(self, events: list[tuple[int, EventSpec]], path: str) -> None:
         rules, world = self.rules, self.rules.world

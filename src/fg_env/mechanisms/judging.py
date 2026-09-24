@@ -525,11 +525,11 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
                        fallback=_absent if config.fallback == "refuse" else None)
     plan, refusal = allowlist.validate(world, rules, proposal, config.max_effects)
     if refusal is None:
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             allowlist.apply(runner, plan, actor, name, where)
         except Abort as abort:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             refusal = abort.reason
     changes = [change.summary for change in plan.changes] if refusal is None else []
     narration = Untrusted(plan.narration) if plan.narration and refusal is None else None

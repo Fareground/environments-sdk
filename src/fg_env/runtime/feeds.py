@@ -46,11 +46,11 @@ def run_feeds(rules: Rules) -> None:
         if not _due(world, name, spec):
             continue
         with rules.lock:
-            mark = world.journal.mark()
+            mark = world.mark()
             try:
                 _pull(world, name, spec)
             except BaseException:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise
             rules.commit(f"mechanisms.{name}")
 
@@ -110,7 +110,7 @@ def _validate(world: SdkWorld, owner: str, target: str, answer: Any) -> Any:
     """A host's answer in the shape its target takes, or :class:`HostError`."""
     if owner == "world":
         try:
-            return world._coerce(world.contract.world[target], answer, f"world.{target}")
+            return world.coerce(world.contract.world[target], answer, f"world.{target}")
         except RunError as exc:
             raise HostError(str(exc)) from None
         except Abort as refusal:  # an answer outside the property's bounds is as unusable as one of the wrong type

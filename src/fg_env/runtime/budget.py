@@ -195,7 +195,7 @@ class Budget:
         if self.on_exhaust == "idle":
             with env._lock:
                 env.world.emit("budget", self.message(env), data=self.to_dict(env))
-                env.world.journal.clear()
+                env.world.commit()
             env.schedule.flush()
             return False
         env.schedule.abandon()

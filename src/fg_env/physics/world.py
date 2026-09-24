@@ -54,7 +54,7 @@ def step_physics(world: SdkWorld) -> list[dict[str, Any]]:
     dt = spec.dt
     if dt <= 0:
         return []
-    mark = world.journal.mark()
+    mark = world.mark()
     before, params, start = dict(model.values), dict(model.params), model.time
     rng_state = world.rng.getstate()
     try:
@@ -62,7 +62,7 @@ def step_physics(world: SdkWorld) -> list[dict[str, Any]]:
         world.touch()
         return changes
     except BaseException as exc:
-        world.journal.rollback(mark)
+        world.rollback(mark)
         for name, value in before.items():
             model.variables[name].value = value
         model.params.clear()

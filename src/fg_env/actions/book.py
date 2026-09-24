@@ -315,11 +315,11 @@ class ActionBook(ActionValidation):
         """:meth:`_apply` inside the action's draw site."""
         spec: ActionSpec = self.contract.actions[name]
         world = self.world
-        mark = world.journal.mark()
+        mark = world.mark()
         vars: dict[str, Any] = {"actor": actor, "params": params}
         path = f"actions.{name}"
         log_mark = world.log[-1].seq if world.log else 0
-        record_mark = world._record_seq
+        record_mark = world.record_seq
         try:
             self.effects.run(spec.do, vars, f"{path}.do")
             text = render(world, spec.outcome, vars, viewer=actor, path=f"{path}.outcome") if spec.outcome else \
@@ -346,13 +346,13 @@ class ActionBook(ActionValidation):
                 world.emit("action", "", actor=actor.id, to=(actor.id,),
                            data={"action": name, "params": _plain(params), "success": True, "private": True})
         except Abort as abort:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             return Outcome(False, abort.reason, params)
         except ExprError as exc:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             raise RunError(str(exc), path) from None
         except RunError:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             raise
         return Outcome(True, text, params, assets)
 
@@ -369,11 +369,11 @@ class ActionBook(ActionValidation):
     def trying(self) -> Iterator[None]:
         """Nothing done inside the block stays: its changes are undone on the way out."""
         world = self.world
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             yield
         finally:
-            world.journal.rollback(mark)
+            world.rollback(mark)
 
     def trial(self, actor: Entity, name: str, params: dict[str, Any]) -> str | None:
         """Apply inside :meth:`trying`, to catch a doomed call before it is made: the refusal, or None. A trial draws

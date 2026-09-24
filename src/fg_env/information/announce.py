@@ -36,7 +36,7 @@ class Redaction:
 
     def _posted_since(self, world: SdkWorld, record_mark: int) -> list[tuple[RecordSpec, dict[str, Any]]]:
         """Entries posted after ``record_mark``, with their record's spec."""
-        if world._record_seq == record_mark:
+        if world.record_seq == record_mark:
             return []
         posted: list[tuple[RecordSpec, dict[str, Any]]] = []
         for name, spec in self.contract.records.items():

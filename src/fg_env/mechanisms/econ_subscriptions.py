@@ -302,11 +302,11 @@ def _subscriptions_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any
             _end(world, name, sub, plan, "cancelled", "cancelled")
             emit_to(world, f"{name}_ended", f"Your {plan.name} subscription has ended.", [subscriber.id])
             continue
-        mark = world.journal.mark()
+        mark = world.mark()
         try:
             price = _charge(world, config, subscriber, plan, name, where)
         except Abort:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             _end(world, name, sub, plan, "payment failed", "lapsed")
             emit_to(world, f"{name}_lapsed",
                     f"Your {plan.name} renewal of {money(props(plan)['price'])} {config.currency} could not be paid; "

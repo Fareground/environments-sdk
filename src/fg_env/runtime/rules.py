@@ -93,19 +93,19 @@ class Rules:
             return
         world = self.world
         with self.lock, world.luck.at(luck or path, vars.get("actor") if owner is None else owner):
-            mark = world.journal.mark()
+            mark = world.mark()
             try:
                 with shared_budget(ACTION_BUDGET, path):
                     self.effects.run(effects, dict(vars), path)
             except OutOfBounds as refusal:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise RunError(f"{refusal.reason} Keep it in range where it is written, e.g. with "
                                "$clamp(x, low, high), or guard the write with an `if`", path) from None
             except Abort as refusal:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise RunError(world_logic_refused(refusal.reason), path) from None
             except BaseException:
-                world.journal.rollback(mark)
+                world.rollback(mark)
                 raise
             self.commit(path, check)
             self.react(self.stage_spec())
@@ -118,7 +118,7 @@ class Rules:
             self.check_invariants(path)
         if self.end_on_action:
             self.check_end("action")
-        self.world.journal.clear()
+        self.world.commit()
         self.check_changes(path)
 
     def guarded(self, work: Callable[[], T], mark: int | None = None,
@@ -128,14 +128,14 @@ class Rules:
         failure counted for the run's diagnostics, against the contract ``action`` being applied when given.
         ``reason`` is safe to show the agent (see :mod:`fg_env.actions.faults`)."""
         world = self.world
-        mark = world.journal.mark() if mark is None else mark
+        mark = world.mark() if mark is None else mark
         try:
-            with world.journal.held():
+            with world.held():
                 return work(), None
         except FatalRunError:
             raise
         except (RunError, ExprError) as exc:
-            world.journal.rollback(mark)
+            world.rollback(mark)
             error = exc if isinstance(exc, RunError) else RunError(str(exc))
             if isinstance(error, InvariantViolation):
                 # Already broken before the action (by something no invariant check followed): not the action's doing.

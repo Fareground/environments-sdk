@@ -195,7 +195,7 @@ def _post(world: SdkWorld, op: Op) -> None:
         world.entry_by_seq[old["seq"]] = old
     for old in reversed(dropped):
         world.record_authors.add(record, old, first=True)
-    world._record_seq -= 1
+    world.record_seq -= 1
 
 
 def _emit(world: SdkWorld, op: Op) -> None:
@@ -206,7 +206,7 @@ def _emit(world: SdkWorld, op: Op) -> None:
             event = log.pop(index)
             if record_key is not None:
                 world.record_events.remove(event, record_key)
-            world._seq -= 1
+            world.event_seq -= 1
             break
 
 
@@ -223,7 +223,7 @@ def _schedule(world: SdkWorld, op: Op) -> None:
     if entry in world.scheduled:
         world.scheduled.remove(entry)
         heapq.heapify(world.scheduled)
-    world._schedule_seq = entry[1] - 1  # the number it took
+    world.schedule_seq = entry[1] - 1  # the number it took
 
 
 def _reaction(world: SdkWorld, op: Op) -> None:
