@@ -82,7 +82,12 @@ def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]
     in text sent to several (:data:`EVERYONE`). Game logic binds no ``$viewer`` and reads the true state; an agent
     always sees its own properties."""
     viewer = scope.vars.get("viewer")
-    if viewer is None or _entity_id(viewer) == entity.id or not scope.world.is_private(entity.entity_type, name):
+    if viewer is None:  # game logic reads the true state; note when it reads what the acting agent may not see
+        actor = scope.vars.get("actor")
+        if (actor is None or _entity_id(actor) != entity.id) and scope.world.is_hidden(entity.entity_type, name):
+            scope.world.hidden_reads += 1
+        return
+    if _entity_id(viewer) == entity.id or not scope.world.is_private(entity.entity_type, name):
         return
     if viewer is EVERYONE:
         raise PrivateRead(

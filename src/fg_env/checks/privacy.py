@@ -50,7 +50,7 @@ class PrivacyChecks:
                 self.warn(f"{path}.when[{index}]", f"refuses by private {', '.join(sorted(read))}: a refusal costs "
                                                    "the actor nothing, so calling again and again reads it out",
                           "decide by what the actor may know, or test it in `do` instead (`{\"if\": ..., \"then\": "
-                          "[{\"fail\": ...}]}`): a refusal from `do` spends the action")
+                          "[{\"fail\": ...}]}`): a refusal from `do` that read a private value spends the action")
 
     def _sealed_announced(self: "_Checker", stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
         """A simultaneous stage announces each sealed choice to everyone by its action's name as it commits (unless

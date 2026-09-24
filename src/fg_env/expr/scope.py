@@ -16,10 +16,13 @@ class World:
     """
 
     rng: Any = None
-    #: Every property name some type declares private: reading any other name needs no visibility check.
+    #: Every property name some type declares private: reading any other name needs no visibility check or count.
     private_names: FrozenSet[str] = frozenset()
     #: Metrics worked out from agents' private properties: what an agent is shown may not read them.
     private_metrics: FrozenSet[str] = frozenset()
+    #: How many times game logic read a private property of an entity other than the one acting: a refused action
+    #: that read one could tell its agent something hidden, so it costs the action.
+    hidden_reads: int = 0
 
     def entities_of(self, type_name: str) -> List[Any]:
         raise ExprError(f"no entities of type '{type_name}' exist in this context")
@@ -33,6 +36,10 @@ class World:
 
     def is_private(self, type_name: str, prop: str) -> bool:
         """Whether entities of ``type_name`` keep ``prop`` private: only the entity itself may be shown it."""
+        return False
+
+    def is_hidden(self, type_name: str, prop: str) -> bool:
+        """Whether entities of ``type_name`` declare ``prop`` private (an agent type or any other)."""
         return False
 
     def records(self, name: str) -> List[Any]:

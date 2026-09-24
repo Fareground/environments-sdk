@@ -104,7 +104,8 @@ an action that posts to a record announces nothing extra (the entry is the news)
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. Such a refusal from `do` spends the action (a guess that fails is a guess);
-bad arguments and failed `when` requirements cost nothing. Contract errors (bad expression at run time) stop
+is rolled back and the agent is told why. A refusal that rolled luck or read a private property of another entity
+spends the action (a wrong guess at a hidden code is a guess); any other refusal — a taken cell, bad arguments, an unmet
+`when` — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
 

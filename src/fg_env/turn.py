@@ -51,7 +51,7 @@ _REJECTED = {"error": "rejected"}
 _ENDED = {"error": "ended"}
 _TIMEOUT = {"error": "timeout"}
 _UNDONE = {"error": "undone"}
-#: A call refused once its `do` began, or after it drew randomness: played all the same (its attempt counted).
+#: A call refused after it drew randomness or read what its agent may not see: played all the same (attempt counted).
 _SPENT = {"error": "rejected", "spent": True}
 #: What an atomic turn's action says in place of its outcome, until the turn commits.
 _HELD = "Its outcome is shown when your turn ends."
@@ -418,11 +418,14 @@ class Turn:
             self.stats.invalid_calls += 1
             return ToolResult(False, f"{name} was not done: {problem}. Correct the arguments and call again.",
                               data=_INVALID), False, False
+        hidden = env.world.hidden_reads
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = env.actions.dry_run(self.actor, name, params)
-            if refusal is not None:  # refused by its `do`: spent, as a refusal of an action that applies (below)
+            if refusal is not None:
                 self.stats.rejected_actions += 1
-                self._count(name)
+                if env.world.hidden_reads == hidden:  # it could tell nothing hidden: a free retry
+                    return ToolResult(False, refusal, data=_REJECTED), False, False
+                self._count(name)  # it read what the agent may not see: spent, so it cannot be probed
                 return ToolResult(False, refusal, self.actions_left <= 0, dict(_SPENT)), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.intents.append((name, dict(args or {})))
@@ -434,9 +437,11 @@ class Turn:
         outcome = env.actions.apply(self.actor, name, params)
         drew = env.world.draws() != drawn
         if not outcome.ok:
-            # Refused once its `do` began: an outcome, not a free retry — a free one would let an agent guess a hidden
-            # value again and again. Only its arguments and `when` requirements are checked for free (above).
             self.stats.rejected_actions += 1
+            if not drew and env.world.hidden_reads == hidden:  # it could tell nothing hidden: a free retry
+                return ToolResult(False, outcome.text, data=_REJECTED), False, False
+            # It rolled luck or read what the agent may not see: an outcome, not a free retry — a free one would let
+            # an agent reroll its luck or guess a hidden value again and again.
             self._count(name)
             return ToolResult(False, outcome.text, self.actions_left <= 0, dict(_SPENT)), False, drew
         self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending

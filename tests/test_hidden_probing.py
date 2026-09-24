@@ -1,8 +1,9 @@
 """Hidden values cannot be read out by probing.
 
-A call refused once its action's `do` has begun is played (the action is spent), so an agent cannot guess a hidden
-value again and again for free; only argument checks and `when` stay free, and a `when` that reads another agent's
-private state is a check warning. Entries posted to a record everyone reads, and the names of sealed choices announced
+A call refused after its action rolled luck or read a private property of another entity is played (the action is
+spent), so an agent cannot guess a hidden value again and again for free; a refusal that could tell it nothing hidden
+(a taken cell, a bad argument, an unmet `when`) stays free, and a `when` that reads another agent's private state is a
+check warning. Entries posted to a record everyone reads, and the names of sealed choices announced
 to everyone, may not carry what is private either.
 """
 import copy
@@ -46,6 +47,16 @@ def test_a_refusal_from_inside_do_spends_the_action_so_a_hidden_value_cannot_be_
     result = fg_env.run(VAULT, {"a": play, "b": "idle"}, seed=1)
     assert tried == [(0, False), (1, False)]  # one guess per turn, two rounds
     assert result.outputs["won"] is False
+
+
+def test_a_refusal_that_reads_only_public_state_stays_free_to_retry():
+    board = copy.deepcopy(VAULT)
+    board["world"] = {"taken": {"type": "list", "default": [0, 1]}}
+    board["actions"]["guess"]["do"] = [{"if": "$params.x in $world.taken", "then": [{"fail": "That cell is taken."}]},
+                                       "$world.taken += $params.x"]
+    play, tried = _guesser("guess")
+    fg_env.run(board, {"a": play, "b": "idle"}, seed=1)
+    assert tried[:3] == [(0, False), (1, False), (2, True)]  # two taken cells cost nothing; the third call plays
 
 
 def test_a_refusal_that_reads_a_chosen_agents_private_property_spends_the_action_too():

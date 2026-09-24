@@ -157,8 +157,11 @@ class SdkWorld(World):
         #: knows of: their private properties are hidden from inspect, and the contract's views say who sees them.
         self._private = {t: frozenset(p for p, spec in props.items() if spec.private)
                          for t, props in self._type_props.items() if contract.is_agent(t)}
-        self.private_names = frozenset().union(*self._private.values())
-        self.private_metrics = private_metrics(contract, self.private_names)
+        #: Every type's private properties: none is shown to agents by the engine, so game logic reading one of
+        #: another entity is a hidden read (see :attr:`hidden_reads`).
+        self._hidden = {t: frozenset(p for p, spec in props.items() if spec.private) for t, props in self._type_props.items()}
+        self.private_metrics = private_metrics(contract, frozenset().union(*self._private.values()))
+        self.private_names = frozenset().union(*self._hidden.values())
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: Dict[Any, Any] = {}
         self._def_cache_state: Any = None
@@ -289,6 +292,9 @@ class SdkWorld(World):
 
     def is_private(self, type_name: str, prop: str) -> bool:
         return prop in self._private.get(type_name, ())
+
+    def is_hidden(self, type_name: str, prop: str) -> bool:
+        return prop in self._hidden.get(type_name, ())
 
     def records(self, name: str) -> List[Entry]:
         if name not in self.records_store:
