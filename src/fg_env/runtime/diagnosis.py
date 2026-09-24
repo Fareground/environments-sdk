@@ -89,7 +89,11 @@ class Diagnosis:
             return
         entry["refused"] += 1
         _tally(entry["reasons"], result.text)
-        if self._first_probe(turn, name) and usable(turn, name) is False:
+        if not self._first_probe(turn, name):
+            return
+        with env.world.luck.apart():  # the run's own question, not the agent's: what it reads is not the turn's
+            found = usable(turn, name)
+        if found is False:
             entry["unusable"] += 1
             _tally(entry["stuck"], result.text)
 

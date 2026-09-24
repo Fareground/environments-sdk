@@ -141,6 +141,17 @@ class Randomness:
         return Observation(self.here())
 
     @contextmanager
+    def apart(self) -> Iterator[None]:
+        """Work inside the block is not the running context's own (the run's diagnostics trying a tool's choices): what
+        it draws and reads hidden counts toward no observation outside it. What it draws stays spent."""
+        context = self.here()
+        draws, hidden = context.draws, context.hidden
+        try:
+            yield
+        finally:
+            context.draws, context.hidden = draws, hidden
+
+    @contextmanager
     def turn_context(self, rng: Any, pending: Any, deadline: float | None = None) -> Iterator[None]:
         """Inside the block — in this thread or asyncio task only — draws come from ``rng``, ``$pending`` reads
         ``pending`` (the turn's list of what it did or submitted, or None) and the turn ends at ``deadline``

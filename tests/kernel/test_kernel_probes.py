@@ -35,24 +35,23 @@ PROBES = 6
 
 
 def _observed(env):
-    """What a free refusal may not move: the run's undoable state, the luck of every site, and — read inside the turn
-    — how often this turn has drawn luck and read a value hidden from its agent."""
-    luck = env.world.luck
-    return restored_state(env), dict(luck.firings), luck.here().draws, luck.here().hidden
+    """What a free refusal may not move — the run's undoable state and the luck of every site — and, observed inside
+    the turn from now on, whether it draws luck or reads a value hidden from its agent."""
+    return restored_state(env), dict(env.world.luck.firings), env.world.luck.observe()
 
 
-def _unmoved(env, before, first):
-    """Whether the run is as ``before``. The first refusal of an action in a turn may move the turn's hidden-read count
-    (see ``test_checking_a_refused_tool_for_a_working_choice_reads_nothing_hidden_for_the_turn``); a repeat may not."""
-    now = _observed(env)
-    return now[:3] == before[:3] and (first or now[3] == before[3])
+def _unmoved(env, before):
+    """Whether the run is as ``before``, having drawn nothing and read nothing hidden since."""
+    state, firings, observed = before
+    return (restored_state(env), dict(env.world.luck.firings)) == (state, firings) and \
+        not observed.drew and not observed.read_hidden
 
 
 class _Prober:
     """Probes every turn with refused calls, holds each free one to changing nothing however often it is repeated,
     then plays randomly."""
 
-    concurrent = False  # inline: the turn's draw and hidden-read counts are read on its own thread
+    concurrent = False  # inline: the turn is observed on its own thread
 
     def __init__(self, env, seed):
         self.env, self.inner, self.seed = env, RandomAgent(seed=seed), seed
@@ -81,12 +80,12 @@ class _Prober:
                 break  # it applied (or was submitted), or the turn is over: the world may move from here
             if (result.data or {}).get("spent"):
                 continue  # counted as a use: repeating it is not free
-            assert _unmoved(env, before, first=True), f"refused {name}{args} changed the run: {result.text}"
+            assert _unmoved(env, before), f"refused {name}{args} changed the run: {result.text}"
             before = _observed(env)
             for attempt in range(REPEATS):
                 again = wake.call(name, args)
                 assert not again.ok and not (again.data or {}).get("spent"), again.text
-                assert _unmoved(env, before, first=False), f"refused {name}{args} changed the run when repeated " \
+                assert _unmoved(env, before), f"refused {name}{args} changed the run when repeated " \
                                                            f"({attempt + 1}): {again.text}"
             self.free += 1
         if not wake.done:
@@ -124,7 +123,7 @@ def test_free_refusals_in_many_generated_contracts_change_nothing(fuzz):
     _free_refusals_change_nothing(clean_seed(fuzz), fuzz)
 
 
-# -- violations the rebuild must fix ------------------------------------------------------------------------------
+# -- violations the rebuild fixed --------------------------------------------------------------------------------------
 
 VAULT = {
     "name": "Vault",
@@ -160,22 +159,17 @@ def test_a_refusal_spent_on_a_hidden_value_stays_spent_when_its_atomic_turn_is_u
     assert len(guesses) <= VAULT["stages"][0]["max_actions"], guesses  # was 0..6: the code found in one turn
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "the run's diagnostics count a trial as the turn's own reads: after the first refusal of an action in a turn, "
-    "Diagnosis.called asks usable() (runtime/diagnosis.py) whether any choice would work, and its dry runs read hidden "
-    "values inside the turn's context, raising world.hidden_reads() for the turn though the refusal was free and the "
-    "agent learns nothing. Harmless to the spent/free decision (each call compares its own before and after), but the "
-    "turn's observation is not the agent's alone. Kernel step 3's Randomness.observe() scopes an observation to "
-    "the work it measures."))
 def test_checking_a_refused_tool_for_a_working_choice_reads_nothing_hidden_for_the_turn():
-    counts = []
+    """The run's diagnostics ask whether a refused tool had any choice that works, trying each (0..6 read the hidden
+    code): that is the run's question, not the agent's, so the turn reads nothing hidden."""
+    read = []
 
     def play(wake):
-        before = wake._turn.env.world.luck.here().hidden
+        observed = wake._turn.env.world.luck.observe()
         result = wake.call("guess", {"x": 99})  # past the maximum: refused for its arguments, free
         assert not result.ok and not (result.data or {}).get("spent")
-        counts.append((before, wake._turn.env.world.luck.here().hidden))
+        read.append(observed.read_hidden)
         wake.end()
 
     fg_env.run({**copy.deepcopy(VAULT), "stages": [{"name": "play"}]}, play, seed=1)
-    assert counts == [(0, 0)]  # today: [(0, 7)]: a hidden read for each choice tried (0..6)
+    assert read == [False]
