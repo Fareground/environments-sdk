@@ -102,21 +102,6 @@ def _ends_with(call: Call) -> bool:
     return text_arg(call, 0).endswith(text_arg(call, 1, "the suffix text"))
 
 
-@function("index_of(text, part)", "Position of the first `part` in text (case-sensitive), or -1.", min_args=2,
-          max_args=2)
-def _index_of(call: Call) -> int:
-    return text_arg(call, 0).find(text_arg(call, 1, "the text to find"))
-
-
-@function("count_text(text, part)", "How many times `part` occurs in text, not overlapping (case-sensitive).",
-          min_args=2, max_args=2)
-def _count_text(call: Call) -> int:
-    part = text_arg(call, 1, "the text to count")
-    if not part:
-        raise fail(call, "the text to count cannot be empty")
-    return text_arg(call, 0).count(part)
-
-
 @function("pad(text, width, fill?, side?)",
           "Text padded with `fill` (default a space) to `width` characters; `side` left (default), right or both.",
           min_args=2, max_args=4)
@@ -137,17 +122,6 @@ def _pad(call: Call) -> str:
     else:
         raise fail(call, f"side must be left, right or both, got '{side}'")
     return derived(out, text, fill)
-
-
-@function("repeat_text(text, n)", "Text repeated `n` times.", min_args=2, max_args=2)
-def _repeat_text(call: Call) -> str:
-    text = text_arg(call, 0)
-    times = int_arg(call, 1, low=0, what="the number of repeats")
-    size = len(text) * times
-    if size > MAX_TEXT_LEN:
-        raise fail(call, f"the result would be {size:,} characters; the limit is {MAX_TEXT_LEN:,}")
-    charge(size, call.source)
-    return derived(text * times, text)
 
 
 @function("matches(text, pattern)",

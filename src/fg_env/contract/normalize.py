@@ -25,6 +25,8 @@ def rule(fn: Rule) -> Rule:
 def normalize(data: Any) -> tuple[Any, list[str]]:
     """``data`` in the current contract form, and the notes of every rewrite; anything but an object is returned as
     is (the parser reports it)."""
+    from . import normalize_mechanisms  # noqa: F401  (registers its rules; imported here: they import `rule` from here)
+
     if not isinstance(data, Mapping):
         return data, []
     out: dict[str, Any] = copy.deepcopy(dict(data))
@@ -32,3 +34,4 @@ def normalize(data: Any) -> tuple[Any, list[str]]:
     for fn in RULES:
         notes.extend(fn(out))
     return out, notes
+

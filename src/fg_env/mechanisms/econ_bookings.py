@@ -242,7 +242,7 @@ def _promote(world: Any, name: str, config: BookingsConfig, resource: Any, slot:
 
 
 @function("booking_text(agent, bookings)", "The agent's latest booking of a bookings mechanism, in words.", min_args=2,
-          max_args=2)
+          max_args=2, family="agreements")
 def _booking_text(call: Call) -> str:
     world: Any = call.scope.world
     agent = maybe_entity(world, call.arg(0))
@@ -270,7 +270,8 @@ def _booking_text(call: Call) -> str:
 
 
 @function("places_text(resource, bookings)",
-          "Free places of a resource in the coming rounds (slots) or the line length (queue).", min_args=2, max_args=2)
+          "Free places of a resource in the coming rounds (slots) or the line length (queue).", min_args=2, max_args=2,
+          family="agreements")
 def _places_text(call: Call) -> str:
     world: Any = call.scope.world
     resource = maybe_entity(world, call.arg(0))

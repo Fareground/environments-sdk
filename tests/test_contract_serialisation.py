@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from pydantic import BaseModel
+from test_examples import example_params
 
 import fg_env
 from fg_env.api import contract_source, parse
@@ -45,7 +46,7 @@ def test_no_number_or_expression_field_defaults_to_a_value_its_serialiser_does_n
     assert wrong == []
 
 
-@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+@pytest.mark.parametrize("path", example_params(EXAMPLES))
 def test_every_shipped_contract_serialises_without_pydantic_warnings(path):
     with warnings.catch_warnings():
         warnings.simplefilter("error")

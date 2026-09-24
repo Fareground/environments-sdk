@@ -123,7 +123,7 @@ def _rebate_checked(name: str, values: dict[str, Any]) -> dict[str, Any]:
 
 @function("book_rules(name, rules)", "An order book's venue rules {tick_size, lot_size, ...}, each checked against "
           "its limits; the book's generated `<name>_rules` world prop resolves its expressions through it.", min_args=2,
-          max_args=2)
+          max_args=2, family="market")
 def _rules_function(call: Call) -> dict[str, Any]:
     name, rules = call.arg(0), call.arg(1)
     if not isinstance(rules, Mapping):

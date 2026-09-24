@@ -182,7 +182,7 @@ def _declared_queues(contract: Any) -> list[str]:
     if contract is None:
         return []
     return [name for name, raw in contract.mechanisms.items()
-            if isinstance(raw, Mapping) and (raw.get("kind"), raw.get("mode")) == ("operations", "queue")]
+            if isinstance(raw, Mapping) and (raw.get("kind"), raw.get("mode")) == ("economy", "queue")]
 
 
 def _formats(contract: Any) -> dict[str, str]:

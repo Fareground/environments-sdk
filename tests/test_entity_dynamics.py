@@ -131,7 +131,7 @@ def test_world_variables_take_noise_too():
 def test_noise_never_shifts_any_other_random_draw():
     base = {"name": "Draws", "clock": {"rounds": 3}, "world": {"hits": 0},
             "types": {"particle": {"props": {"x": 0.0}}}, "population": [{"type": "particle", "count": 5}],
-            "events": [{"do": ["$world.hits += $random()"]}], "outputs": {"hits": "$world.hits"}}
+            "events": [{"do": ["$world.hits += $uniform(0, 1)"]}], "outputs": {"hits": "$world.hits"}}
     noisy = {**base, "physics": {"per": {"particle": {"vars": {"x": {"rate": "0", "noise": "1"}}}}}}
     assert _load(base).run().outputs == _load(noisy).run().outputs
 

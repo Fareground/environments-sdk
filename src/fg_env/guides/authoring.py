@@ -137,9 +137,9 @@ A string with `$name` in it is an expression; other strings are text.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not`, `in`, `a if cond else b`, lists `[1, 2]`, maps
   `{price: 3}`, indexing `$list[0]`. Bare words are text: `$actor.role == wolf`. Compare with `==`, never `=`.
 * Functions always take `$`: `$count(buyer, $it.cash > 0)`, `$sum(player, $it.coins)`, `$avg`, `$min`, `$max`,
-  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.coins)`,
-  `$top(offer, $it.price, 3)`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
-  `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)`, `$round(x, 2)`, `$floor`, `$clamp`.
+  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.cash)`,
+  `$top(offer, $it.price, 3)`/`$sort`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
+  `$records`, `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice`, `$round(x, 2)`, `$floor`, `$clamp`.
   `$min` `$max` `$sum` `$avg` take a collection and a value (`$min(stand, $it.price)`) or a list; `$min` and
   `$max` also take numbers (`$min(3, $x)`).
 * Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject

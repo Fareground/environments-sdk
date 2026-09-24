@@ -25,7 +25,7 @@ __all__ = [
     "require_types",
     "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param",
     "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
-    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION", "LABOR",
+    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION",
     "SUBSCRIPTIONS", "BOOKINGS",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
 ]
@@ -38,8 +38,7 @@ NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 LEDGER, INVENTORY, PRODUCTION, SUPPLY_CHAIN = ("economy.ledger", "economy.inventory", "economy.production",
                                                "economy.supply_chain")
 DEMAND, REPLENISHMENT = "economy.demand", "economy.replenishment"
-NEGOTIATION, LABOR, SUBSCRIPTIONS, BOOKINGS = ("agreements.negotiation", "agreements.labor", "agreements.subscriptions",
-                                               "agreements.bookings")
+NEGOTIATION, SUBSCRIPTIONS, BOOKINGS = "agreements.negotiation", "agreements.subscriptions", "agreements.bookings"
 
 #: ``family.mode`` → config model, registered by each module so runtime lookups can parse any use.
 CONFIG_MODELS: dict[str, type[BaseModel]] = {}
@@ -203,7 +202,7 @@ def choice_param(types: Sequence[str], where: str, description: str) -> tuple[di
     values are computed for the actor, since an entity parameter names exactly one type."""
     if len(types) == 1:
         return {"type": "entity", "of": types[0], "where": where, "description": description}, "$params.{name}"
-    values = " + ".join(f"$ids($filter({t}, {where}))" for t in types)
+    values = " + ".join(f"$map($filter({t}, {where}), $it.id)" for t in types)
     return {"type": "enum", "values": values, "description": description + " (an id)"}, "$entity($params.{name})"
 
 

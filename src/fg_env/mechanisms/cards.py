@@ -683,28 +683,29 @@ def _zone_arg(call: Call, deck: Deck, value: Any) -> str:
     return value
 
 
-@function("hand(player, deck?)", "The cards in a player's hand, oldest first.", min_args=1, max_args=2)
+@function("hand(player, deck?)", "The cards in a player's hand, oldest first.", min_args=1, max_args=2, family="game")
 def _hand_function(call: Call) -> list[Entity]:
     deck = _function_deck(call, call.arg(1))
     return cards_in(call.scope.world, deck, "hand", _owner_arg(call, call.arg(0), True))
 
 
 @function("zone(name, owner?, deck?)", "The cards in a zone (one owner's, or everyone's), bottom first.", min_args=1,
-          max_args=3)
+          max_args=3, family="game")
 def _zone_function(call: Call) -> list[Entity]:
     deck = _function_deck(call, call.arg(2))
     return cards_in(call.scope.world, deck, _zone_arg(call, deck, call.arg(0)), _owner_arg(call, call.arg(1), False))
 
 
 @function("top_card(zone, owner?, deck?)", "The top card of a zone (the last card placed), or null.", min_args=1,
-          max_args=3)
+          max_args=3, family="game")
 def _top_card_function(call: Call) -> Entity | None:
     deck = _function_deck(call, call.arg(2))
     cards = cards_in(call.scope.world, deck, _zone_arg(call, deck, call.arg(0)), _owner_arg(call, call.arg(1), False))
     return cards[-1] if cards else None
 
 
-@function("top_cards(zone, n, owner?, deck?)", "The top n cards of a zone, top first.", min_args=2, max_args=4)
+@function("top_cards(zone, n, owner?, deck?)", "The top n cards of a zone, top first.", min_args=2, max_args=4,
+          family="game")
 def _top_cards_function(call: Call) -> list[Entity]:
     deck = _function_deck(call, call.arg(3))
     n = call.arg(1)
@@ -716,13 +717,13 @@ def _top_cards_function(call: Call) -> list[Entity]:
 
 @function("card_visible(card, viewer)",
           "True when `viewer` may see the card's face (public zone, face up, own hand, or peeked).",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="game")
 def _card_visible_function(call: Call) -> bool:
     return card_visible(call.scope.world, call.arg(0), _owner_arg(call, call.arg(1), False))
 
 
 @function("card_names(cards, ids?)", "Card names as text ('A♠, K♥'); with ids true each name is followed by its [id].",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="game")
 def _card_names_function(call: Call) -> str:
     value = call.arg(0)
     items = value if isinstance(value, (list, tuple)) else [value]
@@ -733,7 +734,7 @@ def _card_names_function(call: Call) -> str:
 
 @function("cards_table(deck, viewer)",
           "Lines describing every zone of a deck as `viewer` may see it: visible cards by name, hidden ones only "
-          "counted (the viewer's own hand is left out). Used by the table view.", min_args=2, max_args=2)
+          "counted (the viewer's own hand is left out). Used by the table view.", min_args=2, max_args=2, family="game")
 def _cards_table_function(call: Call) -> list[str]:
     world: Any = call.scope.world
     deck = _function_deck(call, call.arg(0))

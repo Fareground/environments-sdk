@@ -2,7 +2,7 @@
 equality guard that lets collection functions skip items a condition certainly rules out."""
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from difflib import get_close_matches
 from typing import Any
@@ -11,7 +11,8 @@ from .base import _BUDGET, ExprError, charge, truthy
 from .scope import Scope
 from .values import _ENTITY_FIELDS, _describe, _Entity, _entity_id, _number
 
-__all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "function"]
+__all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "CORE_FUNCTIONS", "function",
+           "callable_in", "callable_names", "suggest_function"]
 
 
 #: Names authors reach for that are not functions, and the one way the language says each. A near spelling would
@@ -24,21 +25,42 @@ _SAY_INSTEAD = {
     "argmax": "$index(xs, $max(xs))", "argmin": "$index(xs, $min(xs))", "chance_for": "$random_for(key) < p",
     "realized_vol": "$market_stats(prices).sigma", "vol_clustering": "$market_stats(prices).acf_abs",
     "volume_vol_corr": "$market_stats(prices, volumes).vol_volume_corr", "lmsr_prices": "$softmax(q, b)",
-    "lmsr_cost": "b * $logsumexp($map(q, $it / b))", "cpmm_prices": "$amm(name).prices",
+    "lmsr_cost": "b * $logsumexp($map(q, $it / b))", "cpmm_prices": "$amm(name).prices", "total": "$sum",
+    "random": "$uniform(0, 1)", "exists": "$entity(id) != null", "ids": "$map(items, $it.id)",
+    "index_of": "$index(text, part)", "count_text": "$len($split(text, part)) - 1",
+    "repeat_text": "$join($map($range(n), text), '')",
 }
+#: The core functions: the ones the start page teaches, and the first a misspelled name is matched against.
+CORE_FUNCTIONS = ("count", "sum", "avg", "min", "max", "filter", "map", "dict", "top", "sort", "best", "any", "all",
+                  "len", "get", "entity", "records", "round", "floor", "clamp", "chance", "randint", "normal", "choice")
 
 
 def suggest_function(name: str, candidates: Sequence[str]) -> str | None:
     """What to write instead of the unknown function ``name``: the one way the language says it, or the closest
-    known name (a built-in or a def among ``candidates``), with its ``$``."""
+    known name (a built-in or a def among ``candidates``), with its ``$``. A core function is preferred over an
+    equally close other one."""
     if name in _SAY_INSTEAD:
         return _SAY_INSTEAD[name]
     # A near misspelling first ($random_int → $randint); else a known name it spells out ($maximum → $max, $sum_of →
-    # $sum), which a looser match would miss ($maximum → $matmul).
+    # $sum), which a looser match would miss.
     stems = [known for known in candidates if len(known) >= 3 and name.startswith(known)]
-    close = get_close_matches(name, candidates, n=1, cutoff=0.8 if stems else 0.6)
-    best = close[0] if close else max(stems, key=len, default=None)
+    tiers = ([c for c in candidates if c in CORE_FUNCTIONS], [c for c in candidates if c not in CORE_FUNCTIONS])
+    close = next((found[0] for cutoff in ((0.8,) if stems else (0.8, 0.6)) for tier in tiers
+                  if (found := get_close_matches(name, tier, n=1, cutoff=cutoff))), None)
+    best = close or max(stems, key=len, default=None)
     return f"${best}" if best else None
+
+
+def callable_in(name: str, families: Collection[str]) -> bool:
+    """Whether the built-in ``name`` can be called in a contract declaring mechanisms of ``families``: a mechanism's
+    functions read its state, so they exist only beside one."""
+    spec = FUNCTIONS.get(name)
+    return spec is not None and (not spec.families or any(f in families for f in spec.families))
+
+
+def callable_names(families: Collection[str]) -> list[str]:
+    """Every built-in callable beside mechanisms of ``families``."""
+    return [name for name in FUNCTIONS if callable_in(name, families)]
 
 
 Evaluator = Callable[[Scope], Any]
@@ -182,6 +204,8 @@ class FunctionSpec:
     min_args: int = 0
     max_args: int | None = None
     lazy: frozenset[int] = frozenset()
+    #: The mechanism families whose state it reads: callable only in a contract declaring one of them (none: always).
+    families: tuple[str, ...] = ()
 
 
 FUNCTIONS: dict[str, FunctionSpec] = {}
@@ -194,14 +218,17 @@ def function(
     min_args: int = 0,
     max_args: int | None = None,
     lazy: Sequence[int] = (),
+    family: str | tuple[str, ...] = (),
 ) -> Callable[[Callable[[Call], Any]], Callable[[Call], Any]]:
-    """Register a built-in expression function. ``signature`` starts with its name."""
+    """Register a built-in expression function. ``signature`` starts with its name; ``family`` names the mechanism
+    family (or families) whose state it reads."""
 
     def register(impl: Callable[[Call], Any]) -> Callable[[Call], Any]:
         name = signature.split("(", 1)[0]
         if name in FUNCTIONS:
             raise ValueError(f"built-in function ${name} is registered twice")
-        FUNCTIONS[name] = FunctionSpec(name, impl, signature, doc, min_args, max_args, frozenset(lazy))
+        families = (family,) if isinstance(family, str) else tuple(family)
+        FUNCTIONS[name] = FunctionSpec(name, impl, signature, doc, min_args, max_args, frozenset(lazy), families)
         return impl
 
     return register

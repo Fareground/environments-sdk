@@ -39,13 +39,14 @@ def _trader(call: Call, index: int) -> Entity:
           "band_high, heat}; flow is the last round's aggressive {buy, sell} quantity by trader kind; bar is the bar "
           "in progress {bar, open, high, low, close, volume, vwap, trades, halted, flow, ends}; heat is recent "
           "volatility against the usual (1 = as usual, 0.5–2), which coded traders other than market makers multiply "
-          "their activity by.", min_args=1, max_args=1)
+          "their activity by.", min_args=1, max_args=1, family="market")
 def _book_function(call: Call) -> dict[str, Any]:
     return quote(call.scope.world, _name(call))
 
 
 @function("book_depth(name, levels?, viewer?)", "Order book price levels as a ladder (asks high→low, then bids "
-          "high→low): [{side, price, qty, orders, mine}]; `mine` is the viewer's own quantity.", min_args=1, max_args=3)
+          "high→low): [{side, price, qty, orders, mine}]; `mine` is the viewer's own quantity.", min_args=1, max_args=3,
+          family="market")
 def _depth_function(call: Call) -> list[dict[str, Any]]:
     name = _name(call)
     levels = call.arg(1)
@@ -55,7 +56,8 @@ def _depth_function(call: Call) -> list[dict[str, Any]]:
 
 
 @function("book_orders(name, trader)",
-          "A trader's resting orders, best price first: [{id, side, price, qty, seq, round}].", min_args=2, max_args=2)
+          "A trader's resting orders, best price first: [{id, side, price, qty, seq, round}].", min_args=2, max_args=2,
+          family="market")
 def _orders_function(call: Call) -> list[dict[str, Any]]:
     name, trader = _name(call), _trader(call, 1)
     world: Any = call.scope.world
@@ -64,13 +66,13 @@ def _orders_function(call: Call) -> list[dict[str, Any]]:
 
 
 @function("book_account(name, trader)", "A trader's account on a book: {cash, shares, reserved_cash, reserved_shares, "
-          "position, equity, pnl, fees_paid, orders, max_buy, max_sell}.", min_args=2, max_args=2)
+          "position, equity, pnl, fees_paid, orders, max_buy, max_sell}.", min_args=2, max_args=2, family="market")
 def _account_function(call: Call) -> dict[str, Any]:
     return account(call.scope.world, _name(call), _trader(call, 1))
 
 
 @function("book_ok(name)", "True while the book's accounting holds: reserves equal resting orders, balances within "
-          "limits, the book in price-time order and never crossed.", min_args=1, max_args=1)
+          "limits, the book in price-time order and never crossed.", min_args=1, max_args=1, family="market")
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _name(call))
 

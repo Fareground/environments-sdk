@@ -317,7 +317,7 @@ RECIPES = """\
 * Deliberation: records (`chat`) + a sequential stage with `until: "$all(member, $it.ready)"`
   and `quiet: skip`; a `say` action posts and clears readiness.
 * Answers before something takes effect (an exhibit offered → objection → ruling → admitted or excluded; a
-  motion and its amendments; a spell and its counter): a procedure `stack` (guide('flow.procedure')). The offer
+  motion and its amendments; a spell and its counter): a procedure `stack` (guide('decision.procedure')). The offer
   only pushes an item; the agents its kind names answer it; items resolve last in, first out, so the ruling
   resolves before the objection and the objection (countering the offer when sustained) before the offer.
   `"stack": {..., "stage": "exam"}` holds the answers in the examination stage itself, so one stage runs many

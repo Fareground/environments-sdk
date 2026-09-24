@@ -468,7 +468,8 @@ def _function_table(call: Call) -> tuple[str, PotConfig]:
 
 @function("pot_options(pot, player)",
           "What a player may do in a betting round: {your_turn, to_call, call_amount, can_check, can_call, can_bet, "
-          "min_bet, can_raise, min_raise_to, max_to, can_all_in, current_bet, pot}.", min_args=2, max_args=2)
+          "min_bet, can_raise, min_raise_to, max_to, can_all_in, current_bet, pot}.", min_args=2, max_args=2,
+          family="game")
 def _pot_options_function(call: Call) -> dict[str, Any]:
     name, config = _function_table(call)
     player = call.scope.world.entity(call.arg(1))
@@ -477,20 +478,22 @@ def _pot_options_function(call: Call) -> dict[str, Any]:
     return options(call.scope.world, config, name, player)
 
 
-@function("pot_live(pot)", "Players still in the hand (not folded), in seat order.", min_args=1, max_args=1)
+@function("pot_live(pot)", "Players still in the hand (not folded), in seat order.", min_args=1, max_args=1,
+          family="game")
 def _pot_live_function(call: Call) -> list[Entity]:
     name, config = _function_table(call)
     return [p for p in _seats(call.scope.world, config, name) if _live(p)]
 
 
-@function("pot_total(pot)", "Chips in the pot this hand (every player's committed chips).", min_args=1, max_args=1)
+@function("pot_total(pot)", "Chips in the pot this hand (every player's committed chips).", min_args=1, max_args=1,
+          family="game")
 def _pot_total_function(call: Call) -> int:
     _, config = _function_table(call)
     return sum(_p(p, "committed") for p in call.scope.world.entities_of(config.who))
 
 
 @function("pot_table(pot, viewer)", "Lines describing the table (pot, bets, stacks, who is to act) for the table view.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="game")
 def _pot_table_function(call: Call) -> list[str]:
     name, config = _function_table(call)
     world: Any = call.scope.world

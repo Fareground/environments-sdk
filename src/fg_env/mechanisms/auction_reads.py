@@ -83,7 +83,7 @@ def _auction(call: Call) -> str:
           "leader and bids describe the open lot; items what a combinatorial lot still has for sale; last the latest "
           "closed lot's result, sold or not: {lot, winner, winners, price, qty, note} (winner: the first winner's "
           "id, '' when unsold; price: the first winner's price per unit), kept until another lot closes, null before "
-          "any has.", min_args=1, max_args=1)
+          "any has.", min_args=1, max_args=1, family="market")
 def _auction_function(call: Call) -> dict[str, Any]:
     name = _auction(call)
     world: Any = call.scope.world
@@ -109,13 +109,13 @@ def last_result(world: Any, name: str) -> dict[str, Any] | None:
 
 
 @function("auction_text(name, viewer?)", "The open lot as one plain sentence (what is sold, prices, your bids).",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="market")
 def _text_function(call: Call) -> str:
     name = _auction(call)
     return describe(call.scope.world, name, call.scope.world.entity(call.arg(1)) if len(call) > 1 else None)
 
 
 @function("auction_ok(name)", "True while an auction's escrow matches its open bids and every item is held once.",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="market")
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _auction(call))

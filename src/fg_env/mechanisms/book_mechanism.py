@@ -265,7 +265,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     if cfg.stage is None:
         fragment["stages"] = [{"name": name, "turns": "sequential", "actions": names, "max_actions": cfg.max_actions,
                                "order": f"0 if $it.type == '{name}_market_maker' else 1 + "
-                                        "$random()",  # a type is public
+                                        "$uniform(0, 1)",  # a type is public
                                "brief": f"Trade {unit}: buy, sell, cancel, or end your turn."}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}

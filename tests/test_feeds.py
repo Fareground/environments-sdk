@@ -24,7 +24,7 @@ MARKET = {
                  "fallback": [{"headline": "Quiet day", "impact": 0}]},
     },
     "actions": {"wait": {"by": "trader", "do": []}},
-    "events": [{"do": ["$world.draws += $random()"]}],
+    "events": [{"do": ["$world.draws += $uniform(0, 1)"]}],
     "metrics": {"oil": "$world.oil"},
     "outputs": {"oil": "$world.oil", "news": "$count($records(news))", "draws": "$world.draws"},
 }

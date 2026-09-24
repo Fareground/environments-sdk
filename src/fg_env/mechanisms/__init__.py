@@ -661,15 +661,11 @@ from . import families  # noqa: E402,F401  (registers the mechanism families bef
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
 from . import boards  # noqa: E402,F401  (registers the board-game mechanism)
 from . import markets  # noqa: E402,F401  (registers the market mechanisms)
-from . import card_scoring, cards, cards_mechanism, pot, roles, slots  # noqa: E402,F401  (cards, pots, roles, worker placement)
+from . import card_scoring, cards, cards_mechanism, pot, roles  # noqa: E402,F401  (cards, pots, roles)
 from . import social  # noqa: E402,F401  (registers the social mechanism family)
 from . import matching  # noqa: E402,F401  (two-sided stable matching, a groups mode)
 from . import status  # noqa: E402,F401
-from . import abilities  # noqa: E402,F401
-from . import locations  # noqa: E402,F401
 from . import procedure  # noqa: E402,F401
-from . import turn_order  # noqa: E402,F401
-from . import victory  # noqa: E402,F401
 from . import judging, host_personas, host_tools, memory  # noqa: E402,F401  (host-evaluated intelligence, in guide order)
 from . import economy  # noqa: E402,F401  (registers the economy mechanisms)
 from . import ops_queue  # noqa: E402,F401  (registers the operations mechanisms)

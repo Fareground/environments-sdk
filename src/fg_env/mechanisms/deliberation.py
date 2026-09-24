@@ -142,7 +142,7 @@ def _use(call: Call, index: int) -> Any:
 
 @function("pending_motion(mechanism?)", "The question before the body (the top motion or amendment) as "
           "{id, kind, text, mover, seconder, status, speeches, target}, or null (deliberation mechanism).", min_args=0,
-          max_args=1)
+          max_args=1, family="decision")
 def _pending_fn(call: Call) -> dict[str, Any] | None:
     world, name, _ = _use(call, 0)
     stack = (world.props.get(name) or _fresh())["stack"]
@@ -150,21 +150,21 @@ def _pending_fn(call: Call) -> dict[str, Any] | None:
 
 
 @function("discussion_over(mechanism?)", "True when the discussion should stop this round: a vote is due, or every "
-          "member (the last speaker aside) is ready.", min_args=0, max_args=1)
+          "member (the last speaker aside) is ready.", min_args=0, max_args=1, family="decision")
 def _over_fn(call: Call) -> bool:
     world, name, config = _use(call, 0)
     return bool((world.props.get(name) or _fresh())["phase"] == "voting" or _all_ready(world, name, config))
 
 
 @function("decisions(mechanism?)", "Decided main motions, oldest first: [{id, text, passed, counts, round}].",
-          min_args=0, max_args=1)
+          min_args=0, max_args=1, family="decision")
 def _decisions_fn(call: Call) -> list[dict[str, Any]]:
     world, name, _ = _use(call, 0)
     return [dict(d) for d in (world.props.get(name) or _fresh())["decisions"]]
 
 
 @function("house(viewer, mechanism?)", "The state of the deliberation as the viewer should read it: question, floor, "
-          "hands, readiness.", min_args=1, max_args=2)
+          "hands, readiness.", min_args=1, max_args=2, family="decision")
 def _house_fn(call: Call) -> str:
     world, name, config = _use(call, 1)
     viewer = world.entity(call.arg(0).id if isinstance(call.arg(0), Entity) else call.arg(0))

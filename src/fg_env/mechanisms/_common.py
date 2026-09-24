@@ -1,10 +1,10 @@
 """Shared plumbing for the native mechanism families.
 
 * Action hooks: families attach extra ``when`` conditions and effects to actions the contract
-  already declares (a status that blocks ``attack``, a cooldown on ``fireball``) by returning an
-  ``action_hooks`` section, which the spine's merge applies.
-* Modifiers: ``$effective(entity, prop)`` — a property with every active modifier applied. Status
-  and terrain families register modifier sources here.
+  already declares (a status that blocks ``attack``) by returning an ``action_hooks`` section, which the
+  spine's merge applies.
+* Modifiers: ``$effective(entity, prop)`` — a property with every active modifier applied. Statuses register
+  their modifier source here.
 * Small value helpers shared by the families (numbers, entity lists, frozen params, checks).
 """
 from __future__ import annotations
@@ -57,7 +57,7 @@ def tools_field() -> Any:
 
 
 class ModifierSpec(Config):
-    """How a status or a place changes a property: ``(base + add) * mul`` (per stack for statuses)."""
+    """How a status changes a property: ``(base + add) * mul`` per stack."""
 
     add: Number = Field(0.0, description="Added to the property (number or expression over $it).")
     mul: Number = Field(1.0, description="Multiplies the property (number or expression over $it).")
@@ -278,9 +278,9 @@ def modifier_terms(world: Any, raw: Any, entity: Entity, where: str) -> tuple[fl
 
 
 @function("effective(entity, prop)",
-          "The property with every active modifier applied: (base + adds) × multipliers from statuses and "
-          "terrain, kept within the property's min/max, e.g. $effective($actor, 'armor').",
-          min_args=2, max_args=2)
+          "The property with every active modifier applied: (base + adds) × multipliers from statuses, kept "
+          "within the property's min/max, e.g. $effective($actor, 'armor').",
+          min_args=2, max_args=2, family="game")
 def _effective(call: Call) -> Any:
     world: Any = call.scope.world
     entity = world.entity(call.arg(0))

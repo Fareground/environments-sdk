@@ -88,10 +88,10 @@ def test_every_function_belongs_to_a_named_group():
 
 
 def test_the_function_map_keeps_core_functions_apart_from_mechanism_ones():
-    core, _, families = guide("functions").partition("Mechanism functions")
-    assert "$sum" in core and "$lookup" in core
-    assert "$poker_hand" not in core and "$wordle_feedback" not in core and "$board_moves" not in core
-    assert "$poker_hand" in families and "$wordle_feedback" in guide("functions.game")
+    index = guide("functions")
+    assert "$sum" in index and "$lookup" in index and "$wordle_feedback" in index  # the library, for any contract
+    assert "$poker_hand" not in index and "$board_moves" not in index  # a mechanism's: on its family's page
+    assert "$poker_hand" in guide("game") and "$poker_hand" in guide("functions.game")
 
 
 def test_an_unknown_part_suggests_the_closest_one():

@@ -17,7 +17,7 @@ def contract(*, unanswered="wait", custom_window=False, reviewers=("reviewer",))
             {"name": "submit", "who": "$it.id == 'owner'", "actions": ["review_purchase"]},
             {"name": "departure", "who": "$it.id != 'owner'", "actions": ["leave"]},
         ],
-        "mechanisms": {"review": {"kind": "flow", "mode": "procedure", "stack": {
+        "mechanisms": {"review": {"kind": "decision", "mode": "procedure", "stack": {
             "who": "manager", "silence": "wait", "unanswered": unanswered,
             "kinds": {"purchase": {"resolve": ["$world.spent += 10"]}},
         }}},
@@ -90,7 +90,7 @@ def test_independent_reviews_keep_their_own_responders_and_share_costs():
     second = c["mechanisms"]["second"]["stack"]["kinds"]["purchase"]
     second.update(responders="$it.id == 'other'", resolve=["$world.spent += 20"])
     c["actions"]["submit_both"] = {"by": "manager", "do": [
-        {"flow": name, "action": "push", "item": "purchase"} for name in ("review", "second")]}
+        {"decision": name, "action": "push", "item": "purchase"} for name in ("review", "second")]}
     c["stages"][0]["actions"] = ["submit_both"]
     env = fg_env.load(c)
 

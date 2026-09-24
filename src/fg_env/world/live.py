@@ -13,8 +13,8 @@ from ..assets.store import AssetStore
 from ..contract import MAX_ENTITIES, Contract, PropSpec
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import FatalRunError, RunError
-from ..expr import FUNCTIONS, ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
-from ..expr.calls import suggest_function
+from ..expr import ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
+from ..expr.calls import callable_names, suggest_function
 from ..expr.hidden import Hidden
 from ..expr.objects import Entity, PropsView
 from ..expr.template import format_value
@@ -421,7 +421,7 @@ class SdkWorld(World):
         one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
         spec = self.contract.defs.get(name)
         if spec is None:
-            hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
+            hint = suggest_function(name, callable_names(self.contract.mechanism_families()) + list(self.contract.defs))
             raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got "

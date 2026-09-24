@@ -79,7 +79,7 @@ class Writer(Protocol):
 
 @runtime_checkable
 class Ranker(Protocol):
-    """Scores how relevant each memory is to a query (``mind.memory`` with ``relevance: host``).
+    """Scores how relevant each memory is to a query (``host.memory`` with ``relevance: host``).
 
     Request: ``{"query", "items": [{"id", "text"}]}``. Answer: one number in [0, 1] per item.
     """

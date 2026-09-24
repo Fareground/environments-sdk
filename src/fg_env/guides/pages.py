@@ -17,6 +17,7 @@ from pydantic_core import PydanticUndefined
 from .. import contract as C
 from ..effects.runner import EFFECT_OPS
 from ..expr import FUNCTIONS, FunctionSpec
+from ..expr.calls import CORE_FUNCTIONS
 from ..registry import FAMILIES, OPS, FamilySpec, ModeSpec
 from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 
@@ -135,8 +136,6 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
 #: environments. Every other section and function is extended: reach for one when the core cannot say it.
 CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "population", "records", "actions", "stages",
                  "views", "events", "end", "metrics", "outputs", "invariants")
-CORE_FUNCTIONS = ("count", "sum", "avg", "min", "max", "filter", "map", "dict", "top", "best", "any", "all", "len",
-                  "get", "chance", "randint", "normal", "choice", "round", "floor", "clamp", "entity")
 
 _SECTION_INDEX = {name: (models, shape, doc) for name, models, shape, doc in SECTIONS}
 
@@ -168,7 +167,7 @@ def section_page(section: str) -> str:
 
 #: Group of each core function (the rest are grouped by the module that registers them).
 _CORE_GROUPS = {
-    "collections": "count sum avg min max median quantile stdev top sort filter map pick any all ids len first last "
+    "collections": "count sum avg min max median quantile stdev top sort best filter map pick any all len first last "
                    "unique tally mode reverse slice range flatten dict keys values get is",
     "world": "entity exists records events seen asset",
     "space": "relation linked link links neighbors distance",
@@ -177,42 +176,35 @@ _CORE_GROUPS = {
     "text": "text lower contains join fmt",
 }
 _MODULE_GROUPS = {
-    "stdlib.mathx": "math", "stdlib.linalg": "math", "stdlib.dists": "random", "stdlib.strings": "text",
-    "stdlib.words": "game", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
+    "stdlib.mathx": "math", "stdlib.linalg": "random", "stdlib.dists": "random", "stdlib.strings": "text",
+    "stdlib.words": "words", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
     "stdlib.sets": "lists", "stdlib.stats": "stats",
-    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "game",
-    "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
-    "mechanisms.econ_assets": "economy", "mechanisms.econ_replenishment_rules": "economy",
-    "mechanisms.market_stats": "market", "mechanisms.book_functions": "market",
-    "mechanisms.book_rules": "market",
-    "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
-    "patterns.runtime": "world",
+    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "words",
+    "patterns.runtime": "world", "mechanisms.market_stats": "stats", "mechanisms.voting": "stats",
 }
 #: What each non-family group holds, in the order the guide lists them.
 FUNCTION_GROUPS = {
     "collections": "counting, summing, ranking and filtering lists and entity types",
     "world": "entities, records, events and what agents were shown",
-    "math": "arithmetic, trigonometry, interpolation, linear algebra",
+    "math": "arithmetic, trigonometry, interpolation",
     "random": "seeded draws and distributions",
     "text": "text and formatting",
     "dates": "calendar arithmetic and parts of ISO dates",
     "lists": "list and map manipulation, sets",
     "stats": "statistics, time series and forecast scores",
     "space": "grids, graphs, networks and links",
+    "words": "word games and puzzles: dictionaries, anagrams, crosswords, sudoku",
 }
 _OTHER = "other"
 
 
 def _group(spec: FunctionSpec) -> str:
+    if spec.families:  # a mechanism's function: on its (first) family's page
+        return spec.families[0]
     for group, names in _CORE_GROUPS.items():
         if spec.name in names.split():
             return group
-    module = spec.impl.__module__.removeprefix("fg_env.")
-    if module in _MODULE_GROUPS:
-        return _MODULE_GROUPS[module]
-    families = sorted({name for name, family in FAMILIES.items()
-                       for mode in family.modes.values() if mode.expand.__module__ == spec.impl.__module__})
-    return families[0] if len(families) == 1 else _OTHER
+    return _MODULE_GROUPS.get(spec.impl.__module__.removeprefix("fg_env."), _OTHER)
 
 
 def function_groups() -> dict[str, list[FunctionSpec]]:
@@ -231,11 +223,13 @@ def functions_index() -> str:
     groups = function_groups()
     for group in [g for g in groups if g in FUNCTION_GROUPS]:
         lines.append(f"- `{group}` ({FUNCTION_GROUPS[group]}): " + " ".join(f"${s.name}" for s in groups[group]))
-    lines += ["", "Mechanism functions, for reading a mechanism family's state (a board, a deck, a market …); each "
-                  "group is also on its family's page:", ""]
-    for group in [g for g in groups if g not in FUNCTION_GROUPS]:
-        about = FAMILIES[group].doc if group in FAMILIES else ""
-        lines.append(f"- `{group}` ({about.rstrip('.')}): " + " ".join(f"${s.name}" for s in groups[group]))
+    other = groups.get(_OTHER)
+    if other:
+        lines.append(f"- `{_OTHER}`: " + " ".join(f"${s.name}" for s in other))
+    families = [g for g in groups if g in FAMILIES]
+    lines += ["", "A mechanism's functions read its state (a board, a deck, a market …) and can be called only in a "
+                  "contract that declares a mechanism of its family; each family's page lists them: "
+              + ", ".join(f"`guide('{g}')`" for g in families) + "."]
     return "\n".join(lines)
 
 

@@ -156,7 +156,7 @@ def _board(call: Call) -> tuple[Any, Rules]:
 @function("board_moves(board, player?)",
           "Legal moves of a player (default: the player to move) on a declared board, as move texts: "
           "e2-e4, b1xc3, e7-e8=Q, O-O, d3 (placement). Empty when the game is over or it is not their turn.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="game")
 def _moves_function(call: Call) -> list[str]:
     world, rules = _board(call)
     state = _state(world, rules)
@@ -168,7 +168,7 @@ def _moves_function(call: Call) -> list[str]:
 
 @function("board_render(board, viewer?)",
           "The board as compact text with coordinates, whose turn it is, the last move, check and the result.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="game")
 def _render_function(call: Call) -> str:
     world, rules = _board(call)
     state = _state(world, rules)
@@ -180,7 +180,7 @@ def _is_side(rules: Rules, value: Any) -> bool:
     return (value.id if isinstance(value, Entity) else value) in rules.sides
 
 
-@function("board_at(board, cell)", "The piece entity on a cell, or null.", min_args=2, max_args=2)
+@function("board_at(board, cell)", "The piece entity on a cell, or null.", min_args=2, max_args=2, family="game")
 def _at_function(call: Call) -> Entity | None:
     world, rules = _board(call)
     state = _state(world, rules)
@@ -193,7 +193,7 @@ def _at_function(call: Call) -> Entity | None:
 
 
 @function("board_cell(board, cell)", "A cell's declared properties (color, region, terrain …) as a map.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="game")
 def _cell_function(call: Call) -> dict[str, Any]:
     _, rules = _board(call)
     cell = call.arg(1)
@@ -202,14 +202,15 @@ def _cell_function(call: Call) -> dict[str, Any]:
     return dict(rules.config.cells.get(cell) or {})
 
 
-@function("board_in_check(board, player)", "True when the player's royal piece is attacked.", min_args=2, max_args=2)
+@function("board_in_check(board, player)", "True when the player's royal piece is attacked.", min_args=2, max_args=2,
+          family="game")
 def _check_function(call: Call) -> bool:
     world, rules = _board(call)
     return in_check(rules, _state(world, rules).pos, _side(rules, call.arg(1), call.source))
 
 
 @function("board_line(board, player, length)", "True when the player has `length` pieces in a row.",
-          min_args=3, max_args=3)
+          min_args=3, max_args=3, family="game")
 def _line_function(call: Call) -> bool:
     world, rules = _board(call)
     length = call.arg(2)
@@ -219,7 +220,7 @@ def _line_function(call: Call) -> bool:
 
 
 @function("board_score(board)", "Each side's score as {side: points}: pieces on the board (plus surrounded area "
-          "when the board scores area, plus komi).", min_args=1, max_args=1)
+          "when the board scores area, plus komi).", min_args=1, max_args=1, family="game")
 def _score_function(call: Call) -> dict[str, float]:
     world, rules = _board(call)
     return dict(zip(rules.sides, score(rules, _state(world, rules).pos)))

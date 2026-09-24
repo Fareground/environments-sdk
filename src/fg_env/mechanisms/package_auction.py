@@ -176,7 +176,7 @@ def _reserves_arg(call: Call, bids: Sequence[PackageBid]) -> dict[str, float]:
           "Exact winner determination for package bids [{bidder, items, price}] (each bidder wins at most one bid, "
           "no item twice): {winners: [{bidder, items, price, pays}], surplus, revenue}. `reserves` is one number "
           "per item or {item: reserve}; `payment` vcg (default: winners pay the surplus they displace) or pay_bid.",
-          min_args=1, max_args=3)
+          min_args=1, max_args=3, family="market")
 def _package_winners(call: Call) -> dict[str, Any]:
     bids = _bids_arg(call)
     reserves = _reserves_arg(call, bids)

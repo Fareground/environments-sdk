@@ -283,6 +283,10 @@ class Contract(_Model):
     def agent_types(self) -> list[str]:
         return [name for name in self.types if self.is_agent(name)]
 
+    def mechanism_families(self) -> frozenset[str]:
+        """The families of the declared mechanisms: a family's functions can be called only beside one of them."""
+        return frozenset(str(use["kind"]) for use in self.mechanisms.values() if isinstance(use.get("kind"), str))
+
     def stage_list(self) -> list[StageSpec]:
         """Declared stages, or the default single stage where every action is available."""
         return list(self.stages) or [_PLAY]

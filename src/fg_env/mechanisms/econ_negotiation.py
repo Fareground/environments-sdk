@@ -390,7 +390,7 @@ def terms_text(config: NegotiationConfig, terms: Mapping[str, Any]) -> str:
 
 
 @function("terms_text(terms, negotiation)", "Terms of an offer or deal as plain words, with units.", min_args=2,
-          max_args=2)
+          max_args=2, family="agreements")
 def _terms_text(call: Call) -> str:
     world: Any = call.scope.world
     terms = call.arg(0)

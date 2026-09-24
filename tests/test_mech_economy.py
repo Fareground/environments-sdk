@@ -1,4 +1,4 @@
-"""Economy mechanisms: inventory, ledger, production, subscriptions, bookings, negotiation, labor
+"""Economy mechanisms: inventory, ledger, production, subscriptions, bookings, negotiation
 and supply chains — value is conserved, tools list only valid choices, runs are deterministic."""
 import copy
 import json
@@ -794,71 +794,8 @@ def test_agreements_actions_check_their_own_keys():
     assert path.endswith(".action") and message == "'answer' is not an action of trade (agreements negotiation)"
     assert fix == "actions: propose, counter, accept, reject, withdraw, fulfill"
     _, _, fix = op({"counter": "trade", "offer": "x"})[0]
-    assert fix.startswith('`counter` is an action of the `agreements` or `flow` op: '
+    assert fix.startswith('`counter` is an action of the `agreements` or `decision` op: '
                           '{"agreements": "<mechanism>", "action": "counter"')
-
-
-# ---------------------------------------------------------------------------
-# labor
-# ---------------------------------------------------------------------------
-
-WORK = {
-    "name": "Work",
-    "clock": {"rounds": 4},
-    "types": {"person": {"agent": True, "props": {"skill": 1}}, "bakery": {"agent": True}},
-    "entities": {"pat": {"type": "person", "name": "Pat", "props": {"skill": 3}},
-                 "quinn": {"type": "person", "name": "Quinn", "props": {"skill": 5}},
-                 "baker": {"type": "bakery", "name": "Baker", "props": {"cash": 25, "goods": {"flour": 5}}}},
-    "mechanisms": {
-        "money": {"kind": "economy", "mode": "ledger", "who": ["person", "bakery"], "currencies": {"cash": {}},
-                  "taxes": {"income": {"rate": 0.1}}},
-        "goods": {"kind": "economy", "mode": "inventory", "who": ["person", "bakery"],
-                  "items": {"flour": {}, "bread": {"value": 3}}},
-        "jobs": {"kind": "agreements", "mode": "labor", "who": "person", "employers": "bakery", "currency": "cash",
-                 "wage_min": 5, "wage_max": 20, "tax": "income", "inventory": "goods",
-                 "firm": {"output": "bread", "per_worker": 2, "inputs": {"flour": 1}, "price": 3}}},
-    "stages": [{"name": "day", "turns": "sequential", "max_actions": 3, "max_calls": 8}],
-}
-
-
-def test_labor_postings_applications_hiring_wages_output_and_quitting():
-    assert errors(WORK) == []
-    env = fg_env.load(WORK, seed=1)
-    play = scripted({("baker", 1): [("jobs_post", {"title": "baker", "wage": 10, "openings": 1})],
-                     ("pat", 2): [("jobs_apply", {"posting": "jobs_posting_1"})],
-                     ("quinn", 2): [("jobs_apply", {"posting": "jobs_posting_1"})],
-                     ("baker", 2): [("jobs_hire", {"application": "jobs_application_2"})],
-                     ("quinn", 3): [("jobs_quit", {"job": "jobs_job_1"})]})
-    env.run(play, rounds=2)
-    assert all(r.ok for r in ok(play.results)), [r.text for r in ok(play.results)]
-    assert blocked(env, "pat", "jobs_apply") == "there is no jobs_posting you can choose for posting right now"
-    result = env.run(play, rounds=1)
-    assert result.status != "failed", result.error
-    assert play.reasons[("quinn", 3)] == "Baker hired you."
-    assert env.entity("quinn")["props"]["cash"] == 9 and env.entity("baker")["props"]["cash"] == 15
-    assert env.props["money_flows"] == {"income": {"cash": -1}}
-    assert env.props["goods_flows"] == {"jobs production": {"flour": -2, "bread": 2}}
-    assert env.props["jobs_stats"] == {"hires": 1, "quits": 1, "fires": 0, "wages": 10, "unpaid": 0, "produced": 2}
-    assert env.entity("baker")["props"]["jobs_output"] == 0
-
-
-@pytest.mark.parametrize("on_unpaid", ["quit", "owe"])
-def test_rule_hiring_by_rank_and_unpaid_wages(on_unpaid):
-    contract = copy.deepcopy(WORK)
-    contract["mechanisms"]["jobs"].update(hiring="rule", rank="$it.skill", on_unpaid=on_unpaid)
-    contract["entities"]["baker"]["props"]["cash"] = 5
-    env = fg_env.load(contract, seed=1)
-    assert "jobs_hire" not in env.contract.actions
-    apply = [("jobs_apply", {"posting": "jobs_posting_1"})]
-    env.run(scripted({("baker", 1): [("jobs_post", {"title": "baker", "wage": 10, "openings": 2})],
-                      ("pat", 2): apply, ("quinn", 2): apply}), rounds=3)
-    jobs = {j["props"]["worker"]: j["props"] for j in env.entities("jobs_job")}
-    assert list(jobs) == ["quinn", "pat"]  # ranked by skill
-    assert env.props["jobs_stats"]["unpaid"] == 2 and env.entity("baker")["props"]["goods"] == {"flour": 1, "bread": 4}
-    if on_unpaid == "quit":
-        assert {j["status"] for j in jobs.values()} == {"ended"} and jobs["pat"]["reason"] == "unpaid"
-    else:
-        assert {(j["status"], j["owed"]) for j in jobs.values()} == {("active", 10)}
 
 
 # ---------------------------------------------------------------------------
@@ -968,13 +905,13 @@ def test_guide_documents_every_economy_mode_function_and_op():
     assert "- `tick`" not in economy and "- `close`" not in economy  # generated bookkeeping stays out of the guide
     assert '- `economy`: {"economy": "<economy mechanism>", "action": ...}' in effects
     agreements = "\n".join(fg_env.guide(f"agreements.{mode}")
-                           for mode in ("negotiation", "labor", "subscriptions", "bookings"))
-    for mode in ("negotiation", "labor", "subscriptions", "bookings"):
+                           for mode in ("negotiation", "subscriptions", "bookings"))
+    for mode in ("negotiation", "subscriptions", "bookings"):
         assert f"### `agreements.{mode}`" in agreements
-    for action in ("propose", "counter", "accept", "reject", "withdraw", "fulfill", "hire", "quit", "fire", "subscribe",
+    for action in ("propose", "counter", "accept", "reject", "withdraw", "fulfill", "subscribe",
                    "set_price", "book", "cancel"):
         assert f"- `{action}`" in agreements
-    assert "- `payday`" not in agreements and "- `tick`" not in agreements
+    assert "- `tick`" not in agreements
     assert '- `agreements`: {"agreements": "<agreements mechanism>", "action": ...}' in effects
     assert "| `economy` |" in mechanisms and "| `agreements` |" in mechanisms
     for fn in ("$has(", "$count_items(", "$net_worth(", "$conserved(", "$skill(", "$subscribed(", "$pipeline("):

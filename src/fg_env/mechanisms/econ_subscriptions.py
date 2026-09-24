@@ -115,6 +115,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
     }
     agents = agent_types(contract, subscribers)
     mine = "$it.subscriber == $actor.id and $it.status != ended"
+    offered = "$get($entity($it.provider), 'alive', false)"  # the plan's provider is still in business
     trial_available = f"$it.trial > 0 and not $any({sub}, $it.subscriber == $actor.id and $it.plan == $outer.id)"
     if agents:
         actions, views = fragment["actions"], fragment["views"]
@@ -124,7 +125,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
                 "description": "Subscribe to a plan: its price is charged now and every period (a free trial on your "
                                "first subscription to a plan that offers one).",
                 "params": {"plan": {"type": "entity", "of": plan,
-                      "where": "$exists($it.provider) and not $subscribed($actor, $it.id) and "
+                      "where": f"{offered} and not $subscribed($actor, $it.id) and "
                                f"(({trial_available}) or $has($actor, '{config.currency}', $it.price))",
                       "description": "Plan."}},
                 "do": [{"agreements": name, "action": "subscribe", "who": "$actor", "plan": "$params.plan"}],
@@ -143,7 +144,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
                 "params": {"subscription": {"type": "entity", "of": sub, "where": f"{mine} and $it.cancelling"}},
                 "do": ["$params.subscription.cancelling = false"],
                 "outcome": "It renews again in round {$params.subscription.renews}.", "private": True}
-        views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "where": "$exists($it.provider)",
+        views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "where": offered,
                                   "look": True, "show": "[{id}] {name}: {price|money} every {period} "
                                           "rounds{$' · ' + $text($it.trial) + ' rounds free' if " + trial_available
                                   + " else ''}"}
@@ -201,7 +202,7 @@ def _charge(world: Any, config: SubscriptionsConfig, subscriber: Any, plan: Any,
 
 @function("subscribed(agent, plan_or_provider)",
           "True when the agent has a live subscription (trial or paid) to the plan, or to any plan of the provider.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="agreements")
 def _subscribed(call: Call) -> bool:
     world: Any = call.scope.world
     agent = maybe_entity(world, call.arg(0))

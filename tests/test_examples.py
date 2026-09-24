@@ -11,7 +11,17 @@ import pytest
 
 import fg_env
 
-EXAMPLES = sorted((Path(__file__).parents[1] / "examples" / "contracts").glob("*.json"))
+#: Examples that use removed mechanism modes, which loading refuses, until they are rewritten by hand (T-839).
+REWRITE_BY_HAND = {"dungeon_skirmish"}
+
+
+def example_params(paths):
+    """``paths`` as test parameters named by their stem; one to be rewritten by hand is expected to fail."""
+    refused = pytest.mark.xfail(strict=True, reason="uses removed mechanism modes; rewritten by hand (T-839)")
+    return [pytest.param(path, id=path.stem, marks=refused if path.stem in REWRITE_BY_HAND else ()) for path in paths]
+
+
+EXAMPLES = example_params(sorted((Path(__file__).parents[1] / "examples" / "contracts").glob("*.json")))
 GOLDEN = Path(__file__).parent / "golden"
 ROUNDS = 4
 #: How many leading events a golden shows as text.
@@ -53,7 +63,7 @@ def _fingerprint(result: fg_env.RunResult) -> dict:
     }
 
 
-@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+@pytest.mark.parametrize("path", EXAMPLES)
 def test_example_contract(path: Path) -> None:
     errors = [str(i) for i in fg_env.check(path) if i.severity == "error"]
     assert errors == []
@@ -68,7 +78,7 @@ def test_example_contract(path: Path) -> None:
     assert _fingerprint(result) == json.loads(golden.read_text())
 
 
-@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+@pytest.mark.parametrize("path", EXAMPLES)
 def test_example_resumes_exactly(path: Path) -> None:
     """A run split by a JSON snapshot, or stopped part-way through a round, ends exactly like one straight run."""
     straight = fg_env.load(path, seed=11).run(rounds=ROUNDS).to_dict()
@@ -98,7 +108,7 @@ FULL_SEEDS = (1, 2, 3, 4, 5) if os.environ.get("FG_ENV_SLOW") else (1,)
 
 
 @pytest.mark.parametrize("seed", FULL_SEEDS)
-@pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
+@pytest.mark.parametrize("path", EXAMPLES)
 def test_example_plays_to_its_end_with_random_agents(path: Path, seed: int) -> None:
     """The goldens stop after a few rounds; rules that only start later (a mediator from round 7) must work too."""
     from _leaks import SMALL

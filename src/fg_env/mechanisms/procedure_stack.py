@@ -2,16 +2,17 @@
 
 .. code-block:: json
 
-    "trial": {"kind": "flow", "mode": "procedure", "phases": {...}, "stack": {"who": ["attorney", "judge"], "kinds": {
+    "trial": {"kind": "decision", "mode": "procedure", "phases": {...},
+              "stack": {"who": ["attorney", "judge"], "kinds": {
         "exhibit": {"tool": false, "params": {"name": "text"}, "responders": "$is($it, attorney) and $it.id !=
         $item.by",
                     "resolve": ["$world.admitted += $params.name"]},
         "objection": {"starts": false, "on": ["exhibit"], "who": "attorney", "responders": "$is($it, judge)",
-                      "resolve": [{"if": "$world.sustained", "then": [{"flow": "trial", "action": "counter"}]}]},
+                      "resolve": [{"if": "$world.sustained", "then": [{"decision": "trial", "action": "counter"}]}]},
         "ruling": {"starts": false, "on": ["objection"], "who": "judge", "responders": "false",
                    "params": {"sustain": "bool"}, "resolve": ["$world.sustained = $params.sustain"]}}}}
 
-An item is pushed by its tool ``<name>_<kind>`` or by ``{"flow": name, "action": "push", "item": kind, ...}``
+An item is pushed by its tool ``<name>_<kind>`` or by ``{"decision": name, "action": "push", "item": kind, ...}``
 inside any action. While it is on top, its responders — the agents for whom the kind's
 ``responders`` holds — each answer it once: push an item that may sit on it (the kind lists the top's
 kind in ``on``), which counts as their answer, or ``<name>_pass``. Once nobody owes an answer the top
@@ -339,7 +340,7 @@ def _close(runner: Any, name: str, cfg: StackConfig, where: str) -> None:
 
 def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapping[str, Any], vars: dict[str, Any],
              where: str) -> None:
-    """One stack action of the flow op: push, pass, idle, counter or close."""
+    """One stack action of the decision op: push, pass, idle, counter or close."""
     world = runner.world
     if action == "close":
         _close(runner, name, cfg, where)
@@ -455,7 +456,7 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> di
             require_type(contract, type_name, f"{at}.who", agent=True)
         check_expr(spec.when, f"{at}.when", ("actor", "top"))
         check_expr(spec.responders, f"{at}.responders", ("it", "item"))
-    op = {"flow": name}
+    op = {"decision": name}
     actions: dict[str, Any] = {}
     for kind, spec in cfg.kinds.items():
         if not spec.tool:

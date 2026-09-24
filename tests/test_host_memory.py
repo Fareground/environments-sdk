@@ -19,7 +19,7 @@ NOTEBOOK = {
     "actions": {"say": {"by": "person", "params": {"text": "text"}, "do": [{"post": "chat", "text": "$params.text"}],
                         "terminal": True}},
     "stages": [{"name": "talk", "turns": "sequential"}],
-    "mechanisms": {"memory": {"kind": "mind", "mode": "memory", "who": "person", "half_life": 2, "limit": 12}},
+    "mechanisms": {"memory": {"kind": "host", "mode": "memory", "who": "person", "half_life": 2, "limit": 12}},
 }
 
 
@@ -146,19 +146,19 @@ def _errors(contract):
 def test_memory_config_and_actions_say_what_to_fix():
     old = copy.deepcopy(NOTEBOOK)
     old["mechanisms"]["memory"] = {"kind": "memory", "agents": "person"}
-    assert any("'memory' is a mode of kind 'mind'" in e for e in _errors(old))
-    assert any("`max_char` is not a field of `mind` mode `memory` → did you mean 'max_chars'?" in e
+    assert any("'memory' is a mode of kind 'host'" in e for e in _errors(old))
+    assert any("`max_char` is not a field of `host` mode `memory` → did you mean 'max_chars'?" in e
                for e in _errors(_with(max_char=40)))
 
     def op(*effects):
         return _errors({**NOTEBOOK, "events": [{"do": list(effects)}]})
 
-    assert any("`mind.recall` needs `query`" in e for e in op({"mind": "memory", "action": "recall"}))
-    assert any("'query' is not part of `mind.note`" in e
-               for e in op({"mind": "memory", "action": "note", "text": "a", "query": "b"}))
-    assert any("'remember' is not an action of memory (mind memory)" in e and "actions: note, recall" in e
-               for e in op({"mind": "memory", "action": "remember"}))
-    assert any('`note` is an action of the `mind` op: {"mind": "<mechanism>", "action": "note"' in e
+    assert any("`host.recall` needs `query`" in e for e in op({"host": "memory", "action": "recall"}))
+    assert any("'query' is not part of `host.note`" in e
+               for e in op({"host": "memory", "action": "note", "text": "a", "query": "b"}))
+    assert any("'remember' is not an action of memory (host memory)" in e and "actions: note, recall" in e
+               for e in op({"host": "memory", "action": "remember"}))
+    assert any('`note` is an action of the `host` op: {"host": "<mechanism>", "action": "note"' in e
                for e in op({"note": "memory", "text": "a"}))
-    page = fg_env.guide("mind.memory")
-    assert page.startswith("### `mind.memory`") and "- `recall` — takes `query`" in page and "- `reflect`" not in page
+    page = fg_env.guide("host.memory")
+    assert page.startswith("### `host.memory`") and "- `recall` — takes `query`" in page and "- `reflect`" not in page

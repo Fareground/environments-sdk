@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Any
 from .. import contract as C
 from ..contract import Contract
 from ..effects.statements import RESERVED_ROOTS
-from ..expr import FUNCTIONS, ExprError, compile_expr
+from ..expr import ExprError, compile_expr
+from ..expr.calls import callable_in
 from ..expr.template import FORMATS, compile_template
 from ..sampling.probability import check_literal_probability
 from .roots import BASE
@@ -150,7 +151,7 @@ class RuleChecks:
             path = f"defs.{name}"
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
                 self.error(path, "def names are letters, digits and underscores")
-            if name in FUNCTIONS:
+            if callable_in(name, self.families):
                 self.warn(path, f"'{name}' shadows the built-in ${name}; this contract's def is used",
                           "rename it if you meant the built-in")
             for arg in spec.args:

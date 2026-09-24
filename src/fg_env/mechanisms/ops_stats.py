@@ -1,4 +1,4 @@
-"""Per-interval statistics of the ``operations.queue`` mode: what each interval's customers met, and the run's totals.
+"""Per-interval statistics of the ``economy.queue`` mode: what each interval's customers met, and the run's totals.
 
 Counts belong to the interval a customer arrived in, so an interval's record keeps changing while its customers are
 still waiting; time-weighted values (queue length, server time, staff, cost) belong to the interval they were

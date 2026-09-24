@@ -10,7 +10,7 @@ CASE = {
     "inputs": {"fragile": {"type": "bool", "default": False}},
     "world": {"profit": 10},
     "events": [{"do": ["$world.profit = 1000 if $inputs.fragile else 10",
-                        {"if": "$inputs.fragile and $random() < 0.5", "then": ["$world.profit = 1/0"]}]}],
+                        {"if": "$inputs.fragile and $uniform(0, 1) < 0.5", "then": ["$world.profit = 1/0"]}]}],
     "outputs": {"profit": "$world.profit"},
     "arms": {"safe": {"inputs": {"fragile": False}}, "fragile": {"inputs": {"fragile": True}}},
 }
@@ -40,7 +40,7 @@ def test_an_unfinished_run_is_described_without_a_recommendation():
 def test_missing_decision_measurements_cannot_be_silently_dropped():
     contract = copy.deepcopy(CASE)
     contract["events"][0]["do"] = ["$world.profit = 1000 if $inputs.fragile else 10"]
-    contract["outputs"]["profit"] = "null if $inputs.fragile and $random() < 0.5 else $world.profit"
+    contract["outputs"]["profit"] = "null if $inputs.fragile and $uniform(0, 1) < 0.5 else $world.profit"
     experiment = fg_env.experiment(contract, runs=8, seed=19)
     assert all(r.status == "completed" for r in experiment.arms["fragile"].runs)
     values = [r.outputs["profit"] for r in experiment.arms["fragile"].runs]

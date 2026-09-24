@@ -46,7 +46,7 @@ GAME_MASTER = "host.game_master"
 
 @function("host_bound(name)", "Whether the host `name` answers this run: bound live, or its answers are on the run's "
           "tape (a replay, or a restored run). Branch on it to use a host's judgment only when there is one, e.g. a "
-          "judge's reading of a speech, and a coded stand-in otherwise.", min_args=1, max_args=1)
+          "judge's reading of a speech, and a coded stand-in otherwise.", min_args=1, max_args=1, family="host")
 def _host_bound_function(call: Call) -> bool:
     world: Any = call.scope.world
     name = call.arg(0)

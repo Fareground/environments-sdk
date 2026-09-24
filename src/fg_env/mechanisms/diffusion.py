@@ -117,7 +117,7 @@ def state_of(state: Mapping[str, Any] | None, agent_id: str) -> str:
 
 
 @function("reach(item)", "Distinct agents an item has reached so far: exposed, adopted or rejected (diffusion).",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="social")
 def _reach_fn(call: Call) -> int:
     state = _find(call.scope.world, _item_key(call.arg(0), call.source))
     if state is None:
@@ -126,25 +126,28 @@ def _reach_fn(call: Call) -> int:
 
 
 @function("adopter_count(item)", "How many agents currently hold an item (adopted, not rejected).", min_args=1,
-          max_args=1)
+          max_args=1, family="social")
 def _adopter_count_fn(call: Call) -> int:
     state = _find(call.scope.world, _item_key(call.arg(0), call.source))
     return len(state["adopted"]) if state is not None else 0
 
 
-@function("spread_state(agent, item)", "unaware | exposed | adopted | rejected.", min_args=2, max_args=2)
+@function("spread_state(agent, item)", "unaware | exposed | adopted | rejected.", min_args=2, max_args=2,
+          family="social")
 def _state_fn(call: Call) -> str:
     return state_of(_find(call.scope.world, _item_key(call.arg(1), call.source)), eid(call.arg(0), call.source))
 
 
-@function("exposures(agent, item)", "How many times an agent was exposed to an item.", min_args=2, max_args=2)
+@function("exposures(agent, item)", "How many times an agent was exposed to an item.", min_args=2, max_args=2,
+          family="social")
 def _exposures_fn(call: Call) -> int:
     state = _find(call.scope.world, _item_key(call.arg(1), call.source))
     return int(state["exposed"].get(eid(call.arg(0), call.source), 0)) if state is not None else 0
 
 
 @function("heard(agent, mechanism?)",
-          "Items an agent is aware of: [{item, state, exposures}], in the order they started.", min_args=1, max_args=2)
+          "Items an agent is aware of: [{item, state, exposures}], in the order they started.", min_args=1, max_args=2,
+          family="social")
 def _heard_fn(call: Call) -> list[dict[str, Any]]:
     world: Any = call.scope.world
     agent = eid(call.arg(0), call.source)

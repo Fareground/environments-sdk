@@ -65,7 +65,7 @@ def turn_tools(contract: Any) -> dict[str, TurnTool]:
         if key == "host.tool":
             stages = HostToolConfig.model_validate(config).stages
             tools[name] = TurnTool(name, name, tuple(stages) if stages else None, prefetch)
-        elif key == "mind.memory":
+        elif key == "host.memory":
             memory = MemoryConfig.model_validate(config)
             for tool in (memory.recall, memory.note):
                 if tool:
