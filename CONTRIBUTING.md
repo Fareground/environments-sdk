@@ -105,11 +105,11 @@ shapes — needs an entry under `## [Unreleased]` in `CHANGELOG.md`. Mark breaki
 ## Lint and format
 
 Tooling and rules are configured in `pyproject.toml` under `[tool.ruff]`
-(target `py311`, line length 100):
+(target `py311`, line length 120):
 
 ```bash
-ruff check src tests scripts   # lint
-mypy                           # type-check
+make lint        # ruff check src tests scripts
+make typecheck   # mypy
 ```
 
 The kernel keeps a single runtime dependency (`pydantic`) — please keep it that way.
@@ -122,7 +122,8 @@ Optional features may add dev-only dependencies under `[project.optional-depende
 - One logical change per PR; include tests for new behavior.
 - Update `CHANGELOG.md` under `## [Unreleased]`.
 - There is no CI: the tests and checks run locally. Use `make test-fast` while iterating, and before every push run
-  the whole suite (`make test`), `ruff check src tests scripts`, `mypy`, `make check-schema` and `make check-docs`.
+  `make gate`: the whole suite, ruff, mypy, `make check-schema` and `make check-docs`. `make` uses `.venv/bin/python`
+  when it exists; pass `PYTHON=...` for another interpreter.
 - A pushed `v*` tag publishes that commit to PyPI without running anything: run the same checks on it first.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.
