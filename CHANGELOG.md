@@ -13,6 +13,35 @@ feature with the core of the contract language marked apart from the rest.
 
 ### Breaking
 
+- **One rule for what is hidden.** A `private` property is hidden from every agent but its owner: an agent owns its
+  own, and the world's and every other entity's private properties are hidden from all agents unless a view's or an
+  entity choice's `where` picks items by the reader (`$it.owner == $actor.id`). One check enforces it in every channel an
+  agent is shown or offered — views, tool bounds, choices and defaults, `who`, announcements, posts, outcomes, refusals,
+  inspect. Any refusal (a `when`, a `fail`, an error, a transfer) whose rules read a hidden value spends the action, and
+  refusals about another's hidden balance are generic. `private` on a link field is an error. Arguments nested too
+  deeply or with lone surrogate characters are invalid calls.
+- **World logic cannot fail quietly.** A `fail` or an uncovered transfer in an event, stage hook or trigger fails the
+  run at its path (guard it with an `if`); the `refused` event kind is gone.
+- **Run health.** A model seat degrades the run when more than a tenth of its turns fail, and a refused or cut-off
+  reply counts; a clean pass is not "never acted". New degrading `action_never_succeeded`. Renamed:
+  `agents_mostly_failed` → `agents_often_failed`, `stage_until_never_held` → `stage_until_capped` (reported for any
+  round it capped). A failed `chance` tells the agent it did not succeed.
+- **`check`** plays a fixed number of rounds (and every scheduled one-off event) instead of a time budget, so the same
+  contract gives the same findings on any machine; every policy plays every agent type. A view `sort` that reads
+  nothing of its items is an error.
+- **Hosts.** The host's own model always answers; a contract's `model` is a name the host maps
+  (`LLMHost(..., models={...})`). Every provider request carries a timeout; `extra={"timeout": ...}` is refused.
+- **`fg_env.author`** reads every view and inspects every kind of entity while testing, asks the model to confirm a
+  rule rewritten to do nothing, warns about outputs that never change, states its limits up front, takes the contract
+  as an object, counts one `edit_contract` call as one revision, tests a contract without randomness on 3 seeds, and
+  caches test results. `edit_contract` values are JSON values (a string is the string).
+- **API.** `fg_env.list_engines` / `clone_engine` are `fg_env.engines.list_engines` / `clone`; `import fg_env` loads
+  subpackages on first use; several internal modules moved (see CONTRIBUTING's map).
+- **Mechanisms and engines.** IRV `ties: "first"` keeps the first-declared option; `tie`/`tied` report elimination
+  tie-breaks; `ranking` starts with the winner. `$market_realism` scores against the reference (scores drop). The
+  exchange crowd trades more when volatility is high (`$book(x).heat`); `volatility_gain` defaults to 0.1. The
+  population engine's undecided share rises as confidence falls.
+
 - **Luck and hidden information.** Luck cannot be probed: trials (submitting a sealed choice, listing legal tools, RL
   masks, diagnostics) never draw, and a refused action costs the turn when the refusal rolled luck or read another
   entity's private value, so a hidden code cannot be guessed for free; any other refusal (a taken cell, bad arguments,
@@ -95,6 +124,11 @@ feature with the core of the contract language marked apart from the rest.
 
 ### Added
 
+- Six engines: `supply_chain`, `auction`, `contact_centre`, `ride_hailing`, `epidemic`, `hidden_roles`.
+- `$path_distance` (grid distance around obstacles), `diffuse` with `where` (walls), `$host_bound`, auction
+  `deliver_from`; deliberation, legislature and dispute score speeches with a bound `judge` host.
+- `check` tries to read hidden numbers out through refusals and reports any it can. `make gate` runs every local check.
+
 - **Guide.** `guide()` lists the 16 core sections and 22 core functions the start page teaches first, then the
   extended ones to reach for when the core cannot say it; every section's schema description starts with "Core
   section." or "Extended section.". It also says which is which of a mechanism, an engine and a starting template.
@@ -129,6 +163,10 @@ feature with the core of the contract language marked apart from the rest.
   generated docs and the examples table in sync.
 
 ### Fixed
+
+- A file edited in one place no longer breaks other contracts holding the original; generated docs are the same on
+  every supported Python; `import fg_env` takes ~40 ms; lists of choices are no longer capped at 1,000 items; an agent
+  that joins mid-run hears only news from its arrival; mechanism tools no stage offered join a stage.
 
 - **Speed.** A turn no longer costs more as the world grows (100 agents among 50,000 items: 30 ms → 0.35 ms per turn).
   An `each` event in a contract with triggers, and invariants over a crowd, no longer grow with the square of the
