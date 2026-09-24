@@ -1267,15 +1267,16 @@ Assign labels by proportional shares using largest remainder, then shuffle.
 ### `Env.preview`
 
 ```pyi
-preview(self, entity_id: 'str', stage: 'Optional[str]' = None) -> 'Dict[str, Any]'
+preview(self, entity_id: 'str', stage: 'Optional[str]' = None, participants: 'Any' = None) -> 'Dict[str, Any]'
 ```
 
 What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
 
 Between rounds this plays the next round on a copy up to the agent's turn — scheduled
-effects, start events, physics and the turns of agents before it (with their built-in
-or named participants; your own callables are never called) — so the preview shows the
-turn as the agent will get it.
+effects, start events, physics and the turns of agents before it — so the preview shows the
+turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns;
+by default the run's built-in and named participants do (your own callables are never called).
+A turn an `auto` stage plays without waking the agent is skipped, as the run skips it.
 
 ### `Env.run`
 
@@ -1357,7 +1358,7 @@ fork(self: "'Env'", **changes: 'Any') -> "'Env'"
 A new run continuing this one from now under changes, leaving this run untouched: another ``arm``
 (``None`` for none), ``inputs``, a contract ``patch`` or a whole replacement ``contract``, a ``seed`` for
 the luck from here on, and intervention ``effects`` applied at the fork (logged as a `fork` event,
-invariants checked). Without changes it is :meth:`clone`.
+invariants checked). Without changes it is :meth:`clone`; like a clone, it keeps this run's participants.
 
 Changes apply between rounds. Whatever the changed contract cannot hold of the current state is refused
 with a :class:`~fg_env.ContractError` listing each problem and its fix. See :func:`fg_env.fork`.

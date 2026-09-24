@@ -265,7 +265,7 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
-            diagnostics=diagnose(self, outputs),
+            diagnostics=diagnose(self, outputs, issues),
             clock={"mode": self.contract.clock.mode, "unit": self.contract.clock.unit, "step": self.contract.clock.step,
                    "start": self.world.start},
             assets=self.world.assets.to_dict() if len(self.world.assets) else {},
@@ -282,15 +282,16 @@ class Env(Copying, RunChecks, RunRounds, RunStages):
         nothing: views that draw randomness use a stream of their own."""
         return self.previews.spectate()
 
-    def preview(self, entity_id: str, stage: Optional[str] = None) -> Dict[str, Any]:
+    def preview(self, entity_id: str, stage: Optional[str] = None, participants: Any = None) -> Dict[str, Any]:
         """What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
 
         Between rounds this plays the next round on a copy up to the agent's turn — scheduled
-        effects, start events, physics and the turns of agents before it (with their built-in
-        or named participants; your own callables are never called) — so the preview shows the
-        turn as the agent will get it.
+        effects, start events, physics and the turns of agents before it — so the preview shows the
+        turn as the agent will get it. ``participants`` (as for :meth:`run`) plays those earlier turns;
+        by default the run's built-in and named participants do (your own callables are never called).
+        A turn an `auto` stage plays without waking the agent is skipped, as the run skips it.
         """
-        return self.previews.preview(entity_id, stage)
+        return self.previews.preview(entity_id, stage, participants)
 
     def snapshot(self) -> Dict[str, Any]:
         """Everything needed to continue this run later, as JSON-safe data: between rounds, or stopped part-way

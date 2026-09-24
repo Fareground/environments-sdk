@@ -108,7 +108,7 @@ class ActionChecks:
         texts.update({f"when[{index}].why": condition.why for index, condition in enumerate(spec.when)})
         for pname, param in spec.params.items():
             texts.update({f"params.{pname}.{key}": getattr(param, key)
-                          for key in ("min", "max", "default", "values", "where", "invalid")})
+                          for key in ("min", "max", "min_items", "max_items", "default", "values", "where", "invalid")})
         for key, text in texts.items():
             if isinstance(text, str) and draws(self.c, [text]):
                 self.error(f"{path}.{key}", "draws at random, but it decides whether a call is allowed or what its "
@@ -152,9 +152,16 @@ class ActionChecks:
         elif param.of is None and param.values is None:
             self.warn(ppath, "a list without `items`, `of` or `values` takes free-text items",
                       "say what each item is, e.g. \"values\": [...] or \"of\": \"card\"")
-        if param.min_items is not None and param.max_items is not None and param.min_items > param.max_items:
-            self.error(ppath, f"min_items ({param.min_items}) is more than max_items ({param.max_items})")
-        if param.max_items is not None and param.max_items > C.MAX_LIST_ITEMS:
+        for key in ("min_items", "max_items"):
+            raw = getattr(param, key)
+            if isinstance(raw, str) and not is_expr(raw):
+                self.error(f"{ppath}.{key}", f"must be a whole number or an expression with $, got the text '{raw}'",
+                           f'e.g. "{key}": 2 or "{key}": "$inputs.seats"')
+            self.value(raw, f"{ppath}.{key}", BASE | {"actor", "params"}, types, params)
+        low, high = param.min_items, param.max_items
+        if isinstance(low, int) and isinstance(high, int) and low > high:
+            self.error(ppath, f"min_items ({low}) is more than max_items ({high})")
+        if isinstance(high, int) and high > C.MAX_LIST_ITEMS:
             self.error(f"{ppath}.max_items", f"is more than the limit of {C.MAX_LIST_ITEMS}")
         entity_of = item.of if item is not None and item.type == "entity" else (param.of if item is None else None)
         where = item.where if item is not None else param.where
@@ -232,8 +239,13 @@ class ActionChecks:
                           "action belongs in it too")
 
     def _count(self: "_Checker", value: Any, path: str) -> None:  # type: ignore[misc]
-        """A stage count setting: a whole number ≥ 1, or an expression over $inputs giving one."""
-        if isinstance(value, str):
+        """A count setting (`clock.rounds`, a stage's `passes`, `max_actions`, `max_calls`, an event's `every`): a
+        whole number ≥ 1, or an expression over $inputs giving one."""
+        if isinstance(value, str) and not is_expr(value):
+            self.error(path, f"must be a whole number or an expression with $, got the text '{value}'",
+                       f"write {value.strip()} without quotes" if value.strip().isdigit() else
+                       'e.g. 5 or "$inputs.rounds"')
+        elif isinstance(value, str):
             self.expr(value, path, {"inputs"})
         elif isinstance(value, int) and value < 1:
             self.error(path, f"is {value}; it must be at least 1", "remove it for the default")

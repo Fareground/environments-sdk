@@ -76,6 +76,7 @@ def fork_env(env: "Env", *, arm: Any = KEEP_ARM, inputs: Optional[Mapping[str, A
                    seed=seed, effects=effects, parallel=env.parallel, hosts=hosts_for(env.world), data_dir=None,
                    unarmed_source=env.origin.unarmed)
     forked.time_limit = env.time_limit
+    forked.driver.spec = dict(env.driver.spec)  # the same participants as the run (and env.clone()) play on
     return forked
 
 

@@ -30,7 +30,8 @@ def test_python_result_already_exposes_output_failure_and_repair_hint(kind):
     assert result.status == 'completed' and not result.ok
     assert result.output_issues[0]['path'] == 'outputs.units'
     assert result.output_issues[0]['fix']
-    assert 'output issue: outputs.units:' in result.summary()
+    assert 'diagnostic: outputs.units:' in result.summary()
+    assert [found['code'] for found in result.diagnostics] == ['output_failed']
 
 
 @pytest.mark.parametrize('kind', ['type', 'division', 'runtime'])
@@ -48,7 +49,7 @@ def test_commands_signal_unusable_results_while_printing_diagnostics(tmp_path, c
         results = [payload] if command == 'run' else payload['arms']['baseline']['runs']
         assert all(r['status'] == 'failed' if kind == 'runtime' else r['output_issues'] for r in results)
     else:
-        assert ('failed' if kind == 'runtime' else 'output issue') in output
+        assert ('failed' if kind == 'runtime' else 'outputs.units') in output
 
 
 @pytest.mark.parametrize('kind', ['valid', 'nullable'])

@@ -27,6 +27,7 @@ from .type_index import TypeIndex
 from . import links as _links, world_physics
 from .patterns.runtime import PatternRuntime
 from .links import Link
+from .world_defaults import default_order
 from .world_parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
 
 if TYPE_CHECKING:
@@ -108,8 +109,9 @@ class SdkWorld(World):
         self.series: Dict[str, List[Any]] = {}
         self.scheduled: List[Tuple[float, int, Dict[str, Any]]] = []
         self.wake_requests: Dict[str, str] = {}
-        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits.
-        self.reactions: List[Tuple[str, str]] = []
+        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits: id, why, and the
+        #: actions offered (None: the stage's).
+        self.reactions: List[Tuple[str, str, Optional[List[str]]]] = []
         #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
         self.time = 0.0
         self.horizon: Optional[float] = None
@@ -658,17 +660,21 @@ class SdkWorld(World):
         space = self.space
         if at is not None:  # placed first, so props can read the position: `$layer(sugar, $it.at)`
             entity.location_id = self._check_location(at, where)
-        own = scope.child(it=entity)  # props read earlier props of the same entity: `$it.income * 0.3`
-        for prop, prop_spec in declared.items():
-            raw = props[prop] if prop in props else prop_spec.default
+        own = scope.child(it=entity)  # props read other props of the same entity: `$it.income * 0.3`
+        raws = {prop: props[prop] if prop in props else prop_spec.default for prop, prop_spec in declared.items()}
+        # Expressions: contract text given here, and a type's defaults. Participant text is never one.
+        expressions = {prop: raw for prop, raw in raws.items() if is_expr(raw) and (
+            prop not in props or (evaluate and not isinstance(raw, Untrusted)))}
+        order = self._prop_order(raws, expressions, where)
+        for prop in order:
+            raw = raws[prop]
             try:
-                expression = evaluate and prop in props and is_expr(raw) and not isinstance(raw, Untrusted)
-                if prop not in props and is_expr(raw):  # a type default is contract text
-                    expression = True
-                value = compile_expr(raw)(own) if expression else _copy(raw)
+                value = compile_expr(raw)(own) if prop in expressions else _copy(raw)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
-            entity.properties[prop] = self._coerce(prop_spec, _plain(value), f"{where}.props.{prop}", entity.name)
+            entity.properties[prop] = self._coerce(declared[prop], _plain(value), f"{where}.props.{prop}", entity.name)
+        if order is not raws:  # evaluated out of declaration order: keep the declared order
+            entity.properties = {prop: entity.properties[prop] for prop in declared}
         if entity.location_id is not None:
             self._make_room(entity, entity.location_id, "cannot be placed")
         self.entities[eid] = entity
@@ -687,6 +693,18 @@ class SdkWorld(World):
         if self.lifecycle is not None:
             self.lifecycle("on_create", entity, where)
         return entity
+
+    @staticmethod
+    def _prop_order(raws: Dict[str, Any], expressions: Dict[str, Any], where: str) -> Iterable[str]:
+        """The order a new entity's props are evaluated in: declaration order (``raws`` itself), but each prop after
+        the props it reads through `$it`, whichever order they are written in."""
+        if not any("$it." in raw for raw in expressions.values()):
+            return raws
+        order, circle = default_order({prop: expressions.get(prop) for prop in raws}, "it")
+        if circle is not None:
+            raise RunError(f"props {' → '.join(circle)} read each other through $it in a circle, so none can be "
+                           "worked out first: give one of them a plain value", f"{where}.props")
+        return order
 
     def remove(self, entity: Entity, where: str = "remove") -> None:
         if not entity.alive:
@@ -837,8 +855,8 @@ class SdkWorld(World):
 
         self.journal.push(undo)
 
-    def request_reaction(self, entity_id: str, why: str) -> None:
-        entry = (entity_id, why)
+    def request_reaction(self, entity_id: str, why: str, actions: Optional[List[str]] = None) -> None:
+        entry = (entity_id, why, actions)
         self.reactions.append(entry)
 
         def undo() -> None:

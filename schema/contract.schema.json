@@ -2161,11 +2161,14 @@
               "type": "integer"
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Type list: fewest elements.",
+          "description": "Type list: fewest elements (a number or an expression, like `min`).",
           "title": "Min Items"
         },
         "max_items": {
@@ -2175,11 +2178,14 @@
               "type": "integer"
             },
             {
+              "type": "string"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "Type list: most elements.",
+          "description": "Type list: most elements (a number or an expression, like `max`).",
           "title": "Max Items"
         },
         "unique": {

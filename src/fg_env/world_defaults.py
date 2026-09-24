@@ -1,7 +1,8 @@
-"""World property defaults that read other world properties, evaluated in dependency order.
+"""Property values that read other properties, evaluated in dependency order.
 
 ``"plan": {"default": "$map($world.rates, $it * 2)"}`` is evaluated after ``rates`` whatever the declaration order;
-defaults that read each other in a circle cannot be ordered and are a contract error.
+defaults that read each other in a circle cannot be ordered and are a contract error. A new entity's props read each
+other through ``$it`` the same way (``"double": "$it.base * 2"``).
 """
 from __future__ import annotations
 
@@ -12,24 +13,24 @@ from .expr import is_expr
 
 __all__ = ["world_reads", "default_order"]
 
-_READ = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
+_READS = {root: re.compile(rf"\${root}\.([A-Za-z_][A-Za-z0-9_]*)") for root in ("world", "it")}
 
 
-def world_reads(raw: Any) -> Set[str]:
-    """The world properties an expression (or a list or map holding expressions) reads by name."""
+def world_reads(raw: Any, root: str = "world") -> Set[str]:
+    """The properties of ``$<root>`` an expression (or a list or map holding expressions) reads by name."""
     if isinstance(raw, str):
-        return set(_READ.findall(raw)) if is_expr(raw) else set()
+        return set(_READS[root].findall(raw)) if is_expr(raw) else set()
     if isinstance(raw, list):
-        return set().union(*(world_reads(item) for item in raw)) if raw else set()
+        return set().union(*(world_reads(item, root) for item in raw)) if raw else set()
     if isinstance(raw, dict):
-        return set().union(*(world_reads(item) for item in raw.values())) if raw else set()
+        return set().union(*(world_reads(item, root) for item in raw.values())) if raw else set()
     return set()
 
 
-def default_order(defaults: Mapping[str, Any]) -> Tuple[List[str], Optional[List[str]]]:
-    """Property names in evaluation order (each after the properties its default reads), and the first circle
-    of defaults reading each other (``["a", "b", "a"]``), or ``None``. Unrelated properties keep their order."""
-    reads: Dict[str, List[str]] = {name: sorted(world_reads(raw) & set(defaults)) for name, raw in defaults.items()}
+def default_order(defaults: Mapping[str, Any], root: str = "world") -> Tuple[List[str], Optional[List[str]]]:
+    """Property names in evaluation order (each after the properties of ``$<root>`` its value reads), and the first
+    circle of values reading each other (``["a", "b", "a"]``), or ``None``. Unrelated properties keep their order."""
+    reads: Dict[str, List[str]] = {name: sorted(world_reads(raw, root) & set(defaults)) for name, raw in defaults.items()}
     order: List[str] = []
     state: Dict[str, str] = {}
     for start in defaults:

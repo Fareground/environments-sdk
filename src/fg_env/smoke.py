@@ -97,8 +97,8 @@ def _random_findings(play: RunResult, errors: List[Issue], warnings: List[Issue]
     offered when none of its choices could succeed (the failing rule is why)."""
     broken = {found["path"] for found in play.diagnostics if found["code"] == "action_always_faulted"}
     for found in play.diagnostics:
-        if found["code"] == "action_offered_but_unusable" and found["path"] in broken:
-            continue
+        if found["code"] == "output_failed" or (found["code"] == "action_offered_but_unusable" and found["path"] in broken):
+            continue  # a failing output is reported by _outputs; the failing rule is why the action was unusable
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
         (errors if severity == "error" else warnings).append(
             Issue(found["path"], f"{found['message']} (smoke run of {play.rounds} round(s), random agents)",

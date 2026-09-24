@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple
 
 if TYPE_CHECKING:
     from .runtime import Env
@@ -30,10 +30,11 @@ MIN_ROUNDS = 2
 #: An action that failed this often as it applied, and never once took effect, is broken for every choice, not just some.
 ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, agents that
-#: never acted or whose turns mostly failed, agents that never had an action to take, turns lost to a failing provider.
+#: never acted or whose turns mostly failed, agents that never had an action to take, turns lost to a failing provider,
+#: an output that raised an error.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "agents_mostly_failed", "agents_never_able_to_act",
-                       "turns_forfeited"})
+                       "turns_forfeited", "output_failed"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
 #: Agents named in one finding; the rest are counted.
@@ -50,11 +51,16 @@ _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 _RULE_SECTIONS = ("actions", "stages", "events", "triggers", "blocks", "end", "feeds", "physics", "policies")
 
 
-def diagnose(env: "Env", outputs: Dict[str, Any]) -> List[Dict[str, str]]:
-    """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``."""
+def diagnose(env: "Env", outputs: Dict[str, Any], issues: Sequence[Dict[str, Any]] = ()) -> List[Dict[str, str]]:
+    """Every likely logic problem the run so far shows, as ``{code, path, message, fix}``; ``issues`` are the outputs
+    that could not be worked out (``RunResult.output_issues``)."""
     rules = _Rules(env)
-    return [*_forfeits(env), *_never_acted(env), *_out_of_steps(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
-            *_overwrites(env), *_idle_agents(env), *_stages(env, rules), *_stuck_measures(env, outputs, rules)]
+    failed = [issue for issue in issues if issue["path"].startswith("outputs.")]
+    return [*(_finding("output_failed", issue["path"], issue["message"],
+                       issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
+            *_forfeits(env), *_never_acted(env), *_out_of_steps(env), *_arm_inputs(env), *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
+            *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
+            *_stuck_measures(env, outputs, rules, {issue["path"] for issue in failed})]
 
 
 def _forfeits(env: "Env") -> List[Dict[str, str]]:
@@ -289,11 +295,12 @@ def _stages(env: "Env", rules: "_Rules") -> List[Dict[str, str]]:
     return out
 
 
-def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules") -> List[Dict[str, str]]:
+def _stuck_measures(env: "Env", outputs: Dict[str, Any], rules: "_Rules", failed: Set[str]) -> List[Dict[str, str]]:
     out = []
     if env.finished and env.status != "failed":
         for name, spec in env.contract.outputs.items():
-            cause = rules.cause(spec.expr) if name in outputs and outputs[name] is None else None
+            empty = name in outputs and outputs[name] is None and f"outputs.{name}" not in failed
+            cause = rules.cause(spec.expr) if empty else None
             if cause:
                 out.append(_finding("output_empty", f"outputs.{name}", f"is empty (null) at the end of the run: {cause}",
                                     "set what it reads in an action or event, or read what the rules do change"))

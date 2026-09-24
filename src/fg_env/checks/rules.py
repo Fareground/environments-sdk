@@ -11,7 +11,7 @@ from .space import check_event_order
 from ..contract import Contract
 from ..effects import RESERVED_ROOTS
 from ..expr import FUNCTIONS, ExprError, compile_expr
-from ..template import FORMATS
+from ..template import FORMATS, compile_template
 
 if TYPE_CHECKING:
     from . import _Checker
@@ -36,10 +36,7 @@ class RuleChecks:
             self.value(event.at, f"{path}.at", BASE)
             self._after_the_clock(event.at, event.name, path)
             self.condition(event.when, f"{path}.when", BASE)
-            if isinstance(event.every, str):
-                self.expr(event.every, f"{path}.every", {"inputs"})
-            elif event.every is not None and event.every < 1:
-                self.error(f"{path}.every", "must be at least 1")
+            self._count(event.every, f"{path}.every")
             types: Types = {}
             roots = set(BASE)
             if event.each is not None:
@@ -52,7 +49,13 @@ class RuleChecks:
             self.condition(event.where, f"{path}.where", roots, types)
             self.effects(event.do, f"{path}.do", roots, types)
             check_event_order(self, event, path, frozenset(roots), types)
-            self.template(event.say, f"{path}.say", None, BASE)
+            if event.each is not None and event.say is not None and _reads_root(event.say, event.as_ or "it"):
+                item = event.as_ or "it"
+                self.error(f"{path}.say", f"reads ${item}, but `say` is one headline for the whole event, told once "
+                                          "after every item's `do`",
+                           f'to tell news per item, emit it in `do`: {{"emit": "news", "say": "…{{${item}.name}}…"}}')
+            else:
+                self.template(event.say, f"{path}.say", None, BASE)
             self._shared_text(event.say, f"{path}.say", {})
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
@@ -221,3 +224,11 @@ def _at_last_round(when: str, rounds: Any) -> bool:
     number or input the clock's `rounds` is)."""
     match = _ROUND_IS.fullmatch(when)
     return match is not None and match.group(1) in ("$clock.rounds", str(rounds))
+
+
+def _reads_root(template: str, root: str) -> bool:
+    """Whether a template reads ``$<root>`` (False when it does not compile: the template check reports that)."""
+    try:
+        return any(root in expr.roots for expr in compile_template(template, None).expressions)
+    except ExprError:
+        return False

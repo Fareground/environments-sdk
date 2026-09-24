@@ -56,6 +56,8 @@
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
   several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
   agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+  A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
+  wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
   The engine's own refusals (a transfer that does not fit, a bound) never show another agent's private value. A
   `when` that reads another agent's private prop does not hide the tool: it stays listed and a call is refused when
   the `when` fails. A private prop of an entity that is not an agent is hidden from inspect; the views say who sees

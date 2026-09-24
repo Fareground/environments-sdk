@@ -67,7 +67,7 @@ EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
     "fail": ("fail",),
     "end": ("end", "winner", "say"),
     "after": ("after", "do"),
-    "wake": ("wake", "why", "in", "now", "drop"),
+    "wake": ("wake", "why", "in", "now", "actions", "drop"),
     "repeat": ("repeat", "while", "do"),
     "block": ("block", "with"),
     "chance": ("chance", "outcomes", "weight", "as", "do"),
@@ -755,7 +755,7 @@ class EffectRunner:
             return
         for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
             if now:
-                world.request_reaction(entity_id, why)
+                world.request_reaction(entity_id, why, effect.get("actions"))
                 continue
             world.request_wake(entity_id, why)
             if world.continuous:

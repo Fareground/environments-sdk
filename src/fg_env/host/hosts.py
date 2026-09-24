@@ -98,8 +98,8 @@ def bind(env: "Env", hosts: HostsLike) -> "Env":
     if not getattr(env, "_host_probe_bound", False):
         make_probe = env.previews.probe
 
-        def probe(snapshot: Mapping[str, Any]) -> "Env":
-            copy = make_probe(snapshot)
+        def probe(snapshot: Mapping[str, Any], participants: Any = None) -> "Env":
+            copy = make_probe(snapshot, participants)
             current = _BOUND.get(env.world)
             return bind(copy, current) if current is not None else copy
 

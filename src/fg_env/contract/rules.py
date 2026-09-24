@@ -52,8 +52,8 @@ class ParamSpec(_Model):
     max_len: Optional[int] = Field(None, description="Maximum length (type text).")
     overflow: Literal["refuse", "truncate"] = Field("refuse", description="Type text: text longer than `max_len` is refused (the agent is told to shorten it), or with `truncate` cut after the last full sentence that fits (the agent is told what was cut).")
     items: Optional["ParamSpec"] = Field(None, description="Type list: the spec every element follows (e.g. {\"type\": \"enum\", \"values\": [...]}). Shorthand: `of` makes entity items, `values` enum items.")
-    min_items: Optional[int] = Field(None, ge=0, description="Type list: fewest elements.")
-    max_items: Optional[int] = Field(None, ge=0, description="Type list: most elements.")
+    min_items: Union[Annotated[int, Field(ge=0)], str, None] = Field(None, description="Type list: fewest elements (a number or an expression, like `min`).")
+    max_items: Union[Annotated[int, Field(ge=0)], str, None] = Field(None, description="Type list: most elements (a number or an expression, like `max`).")
     unique: bool = Field(True, description="Type list: no element twice (rankings, hands of cards).")
     default: Any = None
     required: Optional[bool] = Field(None, description="Defaults to true unless a default is given.")

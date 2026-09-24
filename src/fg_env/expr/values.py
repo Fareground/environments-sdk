@@ -7,7 +7,7 @@ import operator
 from typing import Any, Callable, Dict, Mapping, Optional
 
 from ..entity import Entity as _Entity
-from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, charge
+from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, WrongKind, charge
 
 __all__ = ["attr", "EVERYONE", "map_key"]
 
@@ -146,7 +146,7 @@ def _eq(a: Any, b: Any) -> bool:
 
 def _number(value: Any, source: str, what: str = "a number") -> Any:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ExprError(f"expected {what}, got {_describe(value)}", source)
+        raise WrongKind(f"expected {what}, got {_describe(value)}", source)
     if isinstance(value, float) and not math.isfinite(value):
         raise ExprError(f"expected a finite number, got {value}", source)
     return value

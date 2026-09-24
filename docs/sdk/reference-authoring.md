@@ -41,14 +41,18 @@ total catch. Report `catch_by_fisher` (fisher id → total catch) and `fish_left
     "regrowth": {"type": "number", "default": 0.2, "min": 0}
   },
   "world": {"fish": "$inputs.capacity"},
-  "types": {"fisher": {"agent": true, "props": {"caught": 0}}},
+  "types": {"fisher": {"agent": true, "props": {"caught": 0, "asked": 0}}},
   "population": [{"type": "fisher", "count": "$inputs.fishers"}],
-  "stages": [{"name": "fish", "turns": "simultaneous"}],
+  "stages": [{"name": "fish", "turns": "simultaneous", "on_exit": [
+    "$share = $min(1, $world.fish / $max(1, $sum(fisher, $it.asked)))",
+    {"each": "fisher", "do": ["$got = $floor($it.asked * $share)", "$world.fish -= $got", "$it.caught += $got",
+                              "$it.asked = 0"]}
+  ]}],
   "actions": {"catch": {
-    "by": "fisher", "description": "Take fish from the lake this season.",
+    "by": "fisher", "description": "Ask for fish from the lake this season.",
     "params": {"amount": {"type": "int", "min": 0, "max": "$inputs.max_catch"}},
-    "do": ["$got = $min($params.amount, $world.fish)", "$world.fish -= $got", "$actor.caught += $got"],
-    "outcome": "You caught {$got} fish."
+    "do": "$actor.asked = $params.amount", "private": true,
+    "outcome": "You asked for {$params.amount} fish."
   }},
   "events": [{"phase": "end", "do": "$world.fish = $min($inputs.capacity, $floor($world.fish * (1 + $inputs.regrowth)))"}],
   "views": {"lake": {"show": "The lake holds {$world.fish} fish. You have caught {caught} in all."}},
@@ -57,8 +61,9 @@ total catch. Report `catch_by_fisher` (fisher id → total catch) and `fish_left
 }
 ```
 
-Each number in the brief is an input defaulting to it; "secretly" is a simultaneous stage; regrowth after the catch
-is an end event; outputs carry the brief's names. Save it as `lake.json`; test a case worked out from the brief:
+Each number in the brief is an input defaulting to it; "secretly" is a simultaneous stage whose `on_exit` shares the
+fish out once everyone has chosen, so identical choices get identical catches; regrowth after the catch is an end
+event; outputs carry the brief's names. Save it as `lake.json`; test a case worked out from the brief:
 
 ```python
 import fg_env
@@ -70,10 +75,10 @@ def greedy(wake):  # every fisher asks for 10 every season
     wake.call("catch", {"amount": 10})
     wake.end()
 
-# By hand: 100 → 70 → 84 → 54 → 64 → 34 → 40 → 10 → 12 → 0 fish, so 4 × 30 + 12 = 132 caught.
+# By hand: 100 → 70 → 84 → 54 → 64 → 34 → 40 → 10 → 12 → 0 fish; the last 12 are shared: 4 × 10 + 4 = 44 each.
 result = fg_env.run("lake.json", greedy, seed=1)
 assert result.ok and result.outputs["fish_left"] == 0
-assert sum(result.outputs["catch_by_fisher"].values()) == 132
+assert result.outputs["catch_by_fisher"] == {"fisher_1": 44, "fisher_2": 44, "fisher_3": 44}
 ```
 
 ## How a round runs

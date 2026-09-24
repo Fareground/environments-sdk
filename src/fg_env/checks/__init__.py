@@ -30,6 +30,7 @@ from ..contract.base import TYPE_SYNONYMS
 from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
+from ..expr.base import WrongKind
 from ..expr.calls import suggest_function
 from ..expr.codegen import _ITEM_ROOTS
 from ..parse_errors import validation_issues
@@ -251,6 +252,14 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             if root not in roots and not (root in self.c.defs and not self.c.defs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
                 self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
+        if not (compiled.roots or compiled.functions or compiled.methods):
+            try:  # literals only: text where a number is needed fails the same way every time it runs
+                compiled(Scope())
+            except WrongKind as exc:
+                self.error(path, f"{exc.detail} — in `{compiled.source}`",
+                           "text is not a number: write the number without quotes, or join text with text")
+            except ExprError:
+                pass  # other failures (1/0) are reported where the expression runs
         for name, symbol in compiled.calls:
             if name in self.collection_funcs and symbol is not None and symbol not in self.c.types:
                 if symbol in self.c.records or name in ("choice", "min", "max"):

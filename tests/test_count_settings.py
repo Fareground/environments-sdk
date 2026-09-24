@@ -40,7 +40,7 @@ def test_check_rejects_counts_that_read_more_than_inputs_or_are_below_one():
     bad = contract(passes="$world.turns + 1", every=0)
     issues = {i.path: i.message for i in fg_env.check(bad) if i.severity == "error"}
     assert "stages[0].passes" in issues and "world" in issues["stages[0].passes"]
-    assert issues["events[0].every"] == "must be at least 1"
+    assert issues["events[0].every"] == "is 0; it must be at least 1"
 
 
 def test_a_count_that_is_not_a_whole_number_fails_at_load_with_its_path():

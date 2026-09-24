@@ -133,14 +133,11 @@ class RunResult:
     def degraded(self) -> List[str]:
         """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
         agent could ever take, agents that never acted or whose turns mostly failed, agents that never had an action
-        to take, turns lost to a failing provider — and ``output_failed`` when an output raised an error
-        (``output_issues``; an output that is only null is not one). Empty for a sound run; a degraded run is not
-        :attr:`ok`."""
+        to take, turns lost to a failing provider, an output that raised an error (``output_failed``; an output that
+        is only null is not one). Empty for a sound run; a degraded run is not :attr:`ok`."""
         from .diagnostics import DEGRADING
 
-        codes = [found["code"] for found in self.diagnostics if found["code"] in DEGRADING]
-        failed = any(issue["path"].startswith("outputs.") for issue in self.output_issues)
-        return list(dict.fromkeys(codes + (["output_failed"] if failed else [])))
+        return list(dict.fromkeys(found["code"] for found in self.diagnostics if found["code"] in DEGRADING))
 
     def to_dict(self, events: bool = True) -> Dict[str, Any]:
         out = asdict(self)
@@ -194,8 +191,6 @@ class RunResult:
             lines.append(f"winner: {self.winner}")
         for key, value in self.outputs.items():
             lines.append(f"{key}: {shown(value, self.formats.get(key))}")
-        for issue in self.output_issues:
-            lines.append(f"output issue: {issue['path']}: {issue['message']}")
         for found in self.diagnostics:
             lines.append(f"diagnostic: {found['path']}: {found['message']} → {found['fix']}")
         if self.budget.get("exhausted"):

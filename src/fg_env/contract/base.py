@@ -71,7 +71,7 @@ def _ceiling(value: Any, limit: int, fix: str) -> Any:
 
 
 class _Model(BaseModel):
-    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+    model_config = ConfigDict(extra="forbid", populate_by_name=True, strict=True)
 
 
 class _ExprShorthand(_Model):

@@ -445,8 +445,8 @@ class Driver:
         or nothing when no action is legal. False when the agent has a real choice."""
         env = self.env
         with env.world.turn_context(self._rng(turn), turn.pending):
-            acts = [tool for tool in turn.tools() if tool.kind == "act"]
-            if len(acts) > 1 or (acts and acts[0].input_schema.get("properties")):
+            acts = self._choices(turn)
+            if acts is None:
                 return False
             if acts:
                 turn.call(acts[0].name, {})
@@ -457,6 +457,17 @@ class Driver:
         turn.exposure = None  # the agent was never woken, so it was shown nothing
         self.finish(turn)
         return True
+
+    def trivial(self, turn: "Turn") -> bool:
+        """Whether :meth:`_auto` would play ``turn`` without the agent (it has no real choice)."""
+        with self.env.world.turn_context(self._rng(turn), turn.pending):
+            return self._choices(turn) is not None
+
+    @staticmethod
+    def _choices(turn: "Turn") -> Optional[List[Any]]:
+        """The turn's action tools when it has no real choice (none, or one without arguments); else None."""
+        acts = [tool for tool in turn.tools() if tool.kind == "act"]
+        return None if len(acts) > 1 or (acts and acts[0].input_schema.get("properties")) else acts
 
 
 def _failure(turn: "Turn", exc: BaseException) -> RunError:

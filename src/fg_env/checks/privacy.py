@@ -30,7 +30,7 @@ class PrivacyChecks:
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
         texts = {"outcome": spec.outcome}
         for pname, param in spec.params.items():
-            texts.update({f"params.{pname}.{key}": getattr(param, key) for key in ("min", "max", "default", "values")})
+            texts.update({f"params.{pname}.{key}": getattr(param, key) for key in ("min", "max", "min_items", "max_items", "default", "values")})
             texts[f"params.{pname}.invalid"] = param.invalid
         for index, condition in enumerate(spec.when):
             texts[f"when[{index}].why"] = condition.why

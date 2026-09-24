@@ -107,6 +107,27 @@ class EffectChecks:
         if len(fields) == len(steps):  # the property itself, not an element of it
             self._assigned_kind((root, *fields), op, right, path, types, params or {}, source)
 
+    def _reaction_actions(self: "_Checker", effect: Dict[str, Any], path: str) -> None:  # type: ignore[misc]
+        """A reaction (`wake` with `now`) names the actions it offers; without them it gets every action of the
+        stage it happens in — the very action that woke it included — so it could act out of turn."""
+        actions = effect.get("actions")
+        if actions is None:
+            if "now" in effect and effect["now"] is not False:
+                self.warn(path, "this reaction is offered every action of the stage it happens in (the one that "
+                                "woke it too), so it can act out of turn",
+                          'name the answers it may give, e.g. "actions": ["accept", "reject"]')
+            return
+        if "now" not in effect:
+            self.error(f"{path}.actions", "`actions` names what a reaction (`wake` with `now`) is offered",
+                       'add "now": true, or remove `actions` (a later wake takes the stage\'s actions)')
+        if not isinstance(actions, list) or not all(isinstance(name, str) for name in actions):
+            self.error(f"{path}.actions", "must be a list of action names", 'e.g. "actions": ["accept", "reject"]')
+            return
+        for name in actions:
+            if name not in self.c.actions:
+                self.error(f"{path}.actions", f"'{name}' is not a declared action",
+                           self._suggest(name, self.c.actions) or f"actions: {', '.join(self.c.actions) or 'none'}")
+
     def _assigned_kind(self: "_Checker", target: Tuple[str, ...], op: str, right: str, path: str,  # type: ignore[misc]
                        types: Types, params: Mapping[str, C.ParamSpec], source: str) -> None:
         """A value whose kind the text makes plain (a literal, or a property or argument read on its own) assigned to
@@ -278,6 +299,7 @@ class EffectChecks:
                 v("now")
                 if "in" in effect and "now" in effect:
                     self.error(path, "`wake` takes `now` or `in`, not both")
+                self._reaction_actions(effect, path)
                 if "in" in effect and self.c.clock.mode != "continuous":
                     self.error(f"{path}.in", "`in` needs a continuous clock", "set clock.mode to continuous")
                 v("drop")

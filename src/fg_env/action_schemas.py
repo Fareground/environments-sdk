@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 
 from .entity import Entity
-from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_spec, _list_bounds, _preview, _tidy
+from .action_params import TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_count, _item_spec, _list_bounds, _preview, _tidy
 from .assets.intake import file_schema
 from .contract import ParamSpec
 from .errors import RunError
@@ -208,7 +208,9 @@ class ActionSchemas:
             item_description = item_schema.pop("description", "")
             out["type"] = "array"
             out["items"] = item_schema
-            low, high = _list_bounds(param)
+            where = f"actions.{action}.params.{pname}"
+            low, high = _list_bounds(param, lambda raw, key: _item_count(self._static(actor, raw, f"{where}.{key}"),
+                                                                         f"{where}.{key}"))
             if low:
                 out["minItems"] = low
             out["maxItems"] = high
