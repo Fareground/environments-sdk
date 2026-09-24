@@ -105,10 +105,10 @@ def test_matching_engine_keeps_selector_thresholds_private():
     env = fg_env.engines.load("matching", seed=5)
     applicant = json.dumps(env.preview("a1"))
     selector = json.dumps(env.preview("s1"))
-    assert "Selector 1: appeal 0.80" in applicant and "minimum quality" not in applicant
-    assert "private minimum quality is 0.60" in selector and "private minimum quality is 0.50" not in selector
+    assert "Selector 1: appeal 0.77" in applicant and "minimum quality" not in applicant
+    assert "private minimum quality is 0.52" in selector and "private minimum quality is 0.57" not in selector
     result = env.run()
-    assert result.outputs["placement_matched"] + result.outputs["unmatched_applicants"] == 5
+    assert result.outputs["placement_matched"] + result.outputs["unmatched_applicants"] == len(env.entities("applicant"))
 
 
 def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):

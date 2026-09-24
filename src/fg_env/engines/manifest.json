@@ -67,7 +67,7 @@
       "id": "negotiation",
       "title": "Negotiation",
       "summary": "two parties trade multi-issue offers and counteroffers before a deadline",
-      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears, the issues they care least about first.",
+      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears, each at a pace drawn every run, the issues they care least about first.",
       "status": "native",
       "path": "starters/multi_issue_negotiation.json"
     },
@@ -99,7 +99,7 @@
       "id": "strategy",
       "title": "Strategy",
       "summary": "repeated cooperate-or-compete choices among players under a payoff matrix",
-      "description": "Simulates repeated cooperate-or-compete choices among any number of players under a configurable payoff matrix; coded players follow classic strategies (tit for tat, grim trigger, always cooperate or compete, random) with occasional mistakes, and a tie names no winner.",
+      "description": "Simulates repeated cooperate-or-compete choices among any number of players under a configurable payoff matrix; coded players follow classic strategies (tit for tat, grim trigger, always cooperate or compete, random), which ignore the payoffs, or look forward and weigh the payoffs against the rounds left, with occasional mistakes, and a tie names no winner.",
       "status": "native",
       "path": "starters/repeated_strategy.json"
     }

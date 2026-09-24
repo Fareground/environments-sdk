@@ -1,17 +1,24 @@
 {
   "fg_env": "1",
   "name": "Strategy Engine",
-  "description": "A reusable repeated-interaction engine for interdependent human choices, cooperation, competition, commitments, and configurable consequences. Coded players follow a classic strategy (tit for tat, grim trigger, always cooperate, always compete or random) and occasionally make a mistake.",
+  "description": "A reusable repeated-interaction engine for interdependent human choices, cooperation, competition, commitments, and configurable consequences. Coded players follow a classic strategy (tit for tat, grim trigger, always cooperate, always compete or random), which ignores the payoffs by design, or look forward, weighing the payoffs against the rounds left, and occasionally make a mistake.",
   "inputs": {
-    "rounds": {"type": "int", "default": 4, "min": 1, "max": 50},
+    "rounds": {"type": "int", "default": 10, "min": 1, "max": 50},
     "participants": {
       "type": "table",
-      "description": "strategy is what the coded baseline plays: tit_for_tat (cooperate first, then compete only after most others competed last round), grim_trigger (cooperate until anyone else ever competes), always_cooperate, always_compete or random.",
+      "description": "strategy is what the coded baseline plays: tit_for_tat (cooperate first, then compete only after most others competed last round), grim_trigger (cooperate until anyone else ever competes), forward_looking (cooperate while most others cooperated last round and the cooperation still to come is worth more than the one-round gain from competing: (mutual_cooperate - mutual_compete) × rounds left ≥ compete_bonus - mutual_cooperate), always_cooperate, always_compete or random. Only forward_looking reads the payoffs.",
       "columns": {"id": "text", "name": "text", "strategy": "text"},
       "default": [
-        {"id": "a", "name": "Participant A", "strategy": "tit_for_tat"},
-        {"id": "b", "name": "Participant B", "strategy": "grim_trigger"},
-        {"id": "c", "name": "Participant C", "strategy": "random"}
+        {"id": "s1", "name": "Player 1", "strategy": "tit_for_tat"},
+        {"id": "s2", "name": "Player 2", "strategy": "tit_for_tat"},
+        {"id": "s3", "name": "Player 3", "strategy": "grim_trigger"},
+        {"id": "s4", "name": "Player 4", "strategy": "grim_trigger"},
+        {"id": "s5", "name": "Player 5", "strategy": "forward_looking"},
+        {"id": "s6", "name": "Player 6", "strategy": "forward_looking"},
+        {"id": "s7", "name": "Player 7", "strategy": "forward_looking"},
+        {"id": "s8", "name": "Player 8", "strategy": "always_cooperate"},
+        {"id": "s9", "name": "Player 9", "strategy": "always_compete"},
+        {"id": "s10", "name": "Player 10", "strategy": "random"}
       ]
     },
     "mistakes": {"type": "number", "default": 0.05, "min": 0, "max": 1, "description": "Chance a coded player picks at random instead of following its strategy (a trembling hand)."},
@@ -27,7 +34,7 @@
   },
   "clock": {"rounds": "$inputs.rounds", "unit": "round"},
   "types": {"strategist": {"agent": true, "policy": "baseline", "props": {
-    "strategy": {"type": "enum", "values": ["tit_for_tat", "grim_trigger", "always_cooperate", "always_compete", "random"], "default": "tit_for_tat", "private": true},
+    "strategy": {"type": "enum", "values": ["tit_for_tat", "grim_trigger", "forward_looking", "always_cooperate", "always_compete", "random"], "default": "tit_for_tat", "private": true},
     "choice": {"type": "text", "default": "", "private": true},
     "last_choice": {"type": "text", "default": "none"},
     "score": {"type": "number", "default": 0},
@@ -57,6 +64,7 @@
     {"chance": "$inputs.mistakes", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}},
     {"when": "$actor.strategy == tit_for_tat", "do": "choose", "with": {"choice": "$'compete' if $count($rivals($actor), $it.last_choice == compete) * 2 > $count($rivals($actor)) else 'cooperate'"}},
     {"when": "$actor.strategy == grim_trigger", "do": "choose", "with": {"choice": "$'compete' if $sum($rivals($actor), $it.competitions) > 0 else 'cooperate'"}},
+    {"when": "$actor.strategy == forward_looking", "do": "choose", "with": {"choice": "$'cooperate' if $count($rivals($actor), $it.last_choice == compete) * 2 <= $count($rivals($actor)) and ($inputs.mutual_cooperate - $inputs.mutual_compete) * ($inputs.rounds - $round) >= $inputs.compete_bonus - $inputs.mutual_cooperate else 'compete'"}},
     {"when": "$actor.strategy == always_cooperate", "do": "choose", "with": {"choice": "cooperate"}},
     {"when": "$actor.strategy == always_compete", "do": "choose", "with": {"choice": "compete"}},
     {"when": "$actor.strategy == random", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}}

@@ -14,11 +14,11 @@ The engine catalog contains exactly these twelve boundaries:
 - **Legislature** — legislative bodies use motions, amendments, coalitions, and votes; each member's view blends their starting stance with the floor speeches so far, their own party's counting more (`party_loyalty`), so debate moves votes without talking the chamber into unanimity (members may amend; the coded members do not).
 - **Contest** — at least two participants submit and a host judge scores them on a rubric; a rubric tie goes to the stronger hidden performance (skill plus luck).
 - **Deliberation** — people exchange reasons, revise views (each member's view blends their starting stance with the speeches so far), and seek a conclusion.
-- **Negotiation** — two parties make proposals, concessions and agreements, never below their walk-away values, over at least two rounds; coded parties concede toward the other side as the deadline nears, giving up first the issues they care least about, so they find deals that trade priorities.
+- **Negotiation** — two parties make proposals, concessions and agreements, never below their walk-away values, over at least two rounds; coded parties concede toward the other side as the deadline nears, each at a pace drawn every run (some hold out, some concede early), giving up first the issues they care least about, so they find deals that trade priorities.
 - **Population** — sampled people independently respond from their inclination, blurred by their uncertainty, and outcomes are aggregated.
 - **Network** — behavior and information spread through explicit human relationships from the initial adopters in `inputs.seeds`; people may also take up or turn down an idea they heard of, or recommend it; adopters, the seed included, stay committed.
 - **Matching** — both sides rank each other and deferred acceptance makes a stable match within capacity.
-- **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs and classic coded strategies.
+- **Strategy** — any number of players' choices play against each other, round-robin, with configurable payoffs; the classic coded strategies ignore the payoffs by design, and forward-looking players weigh them against the rounds left.
 
 All twelve have native SDK implementations, and every one ships coded
 baseline participants whose outcomes vary with the seed (Network's baseline

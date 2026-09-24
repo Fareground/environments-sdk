@@ -11,8 +11,12 @@
       "description": "skill (0 to 1) is private: the hidden quality behind each round's performance.",
       "columns": {"id": "text", "name": "text", "approach": "text", "skill": "number"},
       "default": [
-        {"id": "c1", "name": "Contestant 1", "approach": "Prioritize clarity and evidence.", "skill": 0.6},
-        {"id": "c2", "name": "Contestant 2", "approach": "Prioritize originality and persuasion.", "skill": 0.5}
+        {"id": "c1", "name": "Contestant 1", "approach": "Prioritize clarity and evidence.", "skill": 0.8},
+        {"id": "c2", "name": "Contestant 2", "approach": "Prioritize originality and persuasion.", "skill": 0.7},
+        {"id": "c3", "name": "Contestant 3", "approach": "Lead with a concrete example.", "skill": 0.6},
+        {"id": "c4", "name": "Contestant 4", "approach": "Anticipate and answer the strongest objection.", "skill": 0.5},
+        {"id": "c5", "name": "Contestant 5", "approach": "Keep it short and practical.", "skill": 0.4},
+        {"id": "c6", "name": "Contestant 6", "approach": "Tell it as a story.", "skill": 0.3}
       ]
     }
   },

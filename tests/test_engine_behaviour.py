@@ -395,3 +395,37 @@ def test_the_chain_launch_refuses_a_launch_after_the_run_ends():
 ])
 def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
     assert run(engine_id, inputs=inputs).outputs[output] is None
+
+
+def test_population_reports_more_confidence_the_more_certain_people_are():
+    people = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
+
+    def reported(confidence):
+        table = [{**p, "confidence": confidence} for p in people]
+        return statistics.fmean(run("population", seed=s, inputs={"participants": table}).outputs["average_confidence"]
+                                for s in SEEDS)
+
+    assert reported(0) < reported(0.5) < reported(1)
+
+
+@pytest.mark.parametrize("engine_id, kind, at_least", [
+    ("population", "person", 100), ("network", "person", 50), ("matching", "applicant", 30), ("contest", "contestant", 5),
+    ("strategy", "strategist", 8), ("legislature", "member", 21), ("deliberation", "member", 10),
+])
+def test_engines_ship_realistic_default_sizes(engine_id, kind, at_least):
+    assert len(fg_env.engines.load(engine_id).entities(kind)) >= at_least
+
+
+def test_forward_looking_players_compete_more_as_the_temptation_grows():
+    def cooperation(bonus):
+        return statistics.fmean(run("strategy", seed=s, inputs={"compete_bonus": bonus}).outputs["cooperation_rate"]
+                                for s in SEEDS)
+
+    assert cooperation(50) < cooperation(8) < cooperation(5)
+    lookers = _players(a="forward_looking", b="forward_looking")
+    moves = run("strategy", inputs={"participants": lookers, "rounds": 4, "mistakes": 0}).outputs
+    assert moves["total_competitions"] == 2  # both cooperate until the last round, when nothing is left to protect
+
+
+def test_coded_negotiators_strike_different_deals_on_different_seeds():
+    assert len({json.dumps(run("negotiation", seed=seed).outputs["surplus"]) for seed in range(8)}) > 2
