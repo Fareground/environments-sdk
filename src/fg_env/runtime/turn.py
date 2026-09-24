@@ -235,7 +235,7 @@ class Turn:
             return []
         env = self.env
         names = stage_actions(env.contract, self.stage, self.actor.entity_type)
-        used_round = env.state.used_round.get(self.actor.id, {})
+        used_round = env.world.used_round.get(self.actor.id, {})
         return [n for n in names if env.actions.blocked(self.actor, n, self.used, used_round, offered=True) is None]
 
     def _allows(self, name: str) -> bool:
@@ -243,7 +243,7 @@ class Turn:
         if self.actions_left <= 0:
             return False
         env = self.env
-        used_round = env.state.used_round.get(self.actor.id, {})
+        used_round = env.world.used_round.get(self.actor.id, {})
         return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
             env.actions.blocked(self.actor, name, self.used, used_round, offered=True) is None
 
@@ -422,7 +422,7 @@ class Turn:
     def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
         env = self.env
         before = self._tally()
-        blocked = env.actions.blocked(self.actor, name, self.used, env.state.used_round.get(self.actor.id, {}))
+        blocked = env.actions.blocked(self.actor, name, self.used, env.world.used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
             return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", before, _INVALID),
@@ -477,9 +477,11 @@ class Turn:
         return offer_text(self._legal())
 
     def _count(self, name: str) -> None:
+        """Count one use of ``name``: this turn's and, in the world, this round's. An atomic turn's uses are undone with
+        the part of the turn they were made in; elsewhere a use stands once counted (its change has committed, or it
+        is a sealed choice)."""
         self.used[name] = self.used.get(name, 0) + 1
-        per_round = self.env.state.used_round.setdefault(self.actor.id, {})
-        per_round[name] = per_round.get(name, 0) + 1
+        self.env.world.count_use(self.actor.id, name, undoable=self.atomic)
         self.actions_left -= 1
         if self.atomic:
             self._counted.append(name)
@@ -554,14 +556,11 @@ class Turn:
         return None
 
     def _undo(self) -> None:
-        """Undo the turn's part (see :meth:`_begin_part`); what the turn drew stays spent."""
-        env = self.env
+        """Undo the turn's part (see :meth:`_begin_part`) — the world, with the part's uses of actions this round — and
+        the turn's own counts; what the turn drew stays spent."""
         actions_left, used, pending, actions = self._part
         assert self._mark is not None
-        env.world.journal.rollback(self._mark)
-        per_round = env.state.used_round.get(self.actor.id, {})
-        for name in self._counted:
-            per_round[name] = per_round.get(name, 1) - 1
+        self.env.world.journal.rollback(self._mark)
         self._counted.clear()
         self._held.clear()
         self.used.clear()

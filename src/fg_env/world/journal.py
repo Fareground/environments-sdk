@@ -266,6 +266,23 @@ def _layer(world: SdkWorld, op: Op) -> None:
     world.space.layers.values[name] = old
 
 
+def _fired(world: SdkWorld, op: Op) -> None:
+    world.fired_once.discard(op[1])
+
+
+def _armed(world: SdkWorld, op: Op) -> None:
+    _, index, old = op
+    if old is None:
+        world.armed.pop(index, None)
+    else:
+        world.armed[index] = old
+
+
+def _use(world: SdkWorld, op: Op) -> None:
+    _, actor_id, action = op
+    world.used_round[actor_id][action] -= 1
+
+
 #: How each kind of op is undone: the complete list of what the journal can take back.
 UNDO: dict[str, Callable[[SdkWorld, Op], None]] = {
     "prop": _prop, "world": _world_prop, "physics_variable": _physics_variable, "physics_param": _physics_param,
@@ -273,4 +290,5 @@ UNDO: dict[str, Callable[[SdkWorld, Op], None]] = {
     "link_field": _link_field, "unlink": _unlink, "post": _post, "emit": _emit, "first": _first,
     "schedule": _schedule,
     "reaction": _reaction, "wake": _wake, "end": _end, "brief": _brief, "cell": _cell, "layer": _layer,
+    "fired": _fired, "armed": _armed, "use": _use,
 }

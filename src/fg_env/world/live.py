@@ -137,6 +137,12 @@ class SdkWorld(World):
         #: effects/chance.py).
         self.chance_picker: Callable[[Any], int] | None = None
         self.counters: dict[str, int] = {}
+        #: The run's bookkeeping of what the rules did, journaled like the store so an undo brings it back: the events
+        #: with `once` that fired (by index), the last truth value of each `change` event's `when`, and each agent's
+        #: uses of each action this round (see :meth:`count_use`).
+        self.fired_once: set[int] = set()
+        self.armed: dict[int, bool] = {}
+        self.used_round: dict[str, dict[str, int]] = {}
         self.journal = Journal(self)
         #: Called as ``lifecycle(kind, entity, where)`` (create / remove) after every creation and removal (set by the
         #: effect runner).
@@ -859,6 +865,28 @@ class SdkWorld(World):
         if self.end_request is None:
             self.end_request = {"name": name, "winner": winner, "text": text}
             self.journal.push(("end",))
+
+    def mark_fired(self, index: int) -> None:
+        """The `once` event ``index`` fired: it never fires again, unless an undo takes the firing back."""
+        if index not in self.fired_once:
+            self.fired_once.add(index)
+            self.journal.push(("fired", index))
+
+    def set_armed(self, index: int, holds: bool) -> None:
+        """The `change` event ``index``'s `when` now ``holds`` (it fires when this turns true)."""
+        armed = self.armed
+        if index in armed and armed[index] == holds:
+            return
+        self.journal.push(("armed", index, armed.get(index)))
+        armed[index] = holds
+
+    def count_use(self, actor_id: str, action: str, undoable: bool) -> None:
+        """One more use of ``action`` by ``actor_id`` this round. ``undoable``: the use is taken back with the changes
+        an undo takes back (an atomic turn's actions); otherwise it stands once counted (see runtime/turn.py)."""
+        used = self.used_round.setdefault(actor_id, {})
+        used[action] = used.get(action, 0) + 1
+        if undoable:
+            self.journal.push(("use", actor_id, action))
 
     def thaw(self, vars: dict[str, Any], *, version: int = 0) -> dict[str, Any]:
         return {k: thaw(v, self, version=version) for k, v in vars.items()}

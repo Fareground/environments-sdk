@@ -221,7 +221,7 @@ def test_many_actions_that_fail_anywhere_leave_the_run_as_it_was_before_the_call
     _probed_turns_change_nothing(fuzz)
 
 
-# -- violations the rebuild must fix ------------------------------------------------------------------------------
+# -- undoing to a mark ---------------------------------------------------------------------------------------------
 
 LATCH = {
     "name": "Latch",
@@ -235,12 +235,6 @@ LATCH = {
 }
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "guarded(env, work, mark) undoes the world back to `mark` but restores env.state.armed and fired_once only to "
-    "their values when `work` began (actions/faults.py): a `change` event armed, or a `once` event fired, by a commit "
-    "between `mark` and `work` stays armed or fired while that commit's changes are gone, so the event never fires "
-    "again when its `when` next becomes true. Latent today: no caller commits between the mark it passes and the work "
-    "(atomic turns defer every commit to settle). Kernel step 2 journals armed/fired_once and deletes the restore."))
 def test_undoing_back_to_a_mark_restores_armed_and_fired_events_as_they_were_there():
     env = fg_env.load(LATCH, seed=1)
     world = env.world
@@ -251,7 +245,7 @@ def test_undoing_back_to_a_mark_restores_armed_and_fired_events_as_they_were_the
         assert world.props["rang"] == 1 and world.props["once"] == 1
         _, fault = guarded(env, lambda: env._atomic([FAIL], {}, "kernel.later"), mark)
     assert fault is not None and world.props == {"x": 0, "rang": 0, "once": 0}
-    assert undoable_state(env) == before  # armed[0], armed[1] and fired_once {1} survive the undo
+    assert undoable_state(env) == before  # armed[0], armed[1] and fired_once {1} undone with the commit
     env._atomic(["$world.x = 1"], {}, "kernel.again")
     assert world.props["rang"] == 1 and world.props["once"] == 1  # the events should fire as the first time
 

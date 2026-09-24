@@ -46,9 +46,9 @@ class RunRounds:
         if self.status in ("ready", "stopped"):
             self.status = "running"
         world.round += 1
-        world.firings.clear()
+        world.firings.clear()  # counts of this round's luck, and of its uses of actions: never undone
+        world.used_round.clear()
         world.stage = None
-        self.state.used_round.clear()
         self.happenings.run_scheduled()
         run_feeds(self)
         self.happenings.fire("round.start")

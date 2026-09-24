@@ -49,14 +49,15 @@ _ENV_FIELDS = frozenset({
     "previews", "_on_event", "_emitted", "_cursor", "origin", "_inspectable", "pilot", "build_seed", "stepper",
     "diagnosis", "_end_on_action", "_reads_log"})
 _STATE_FIELDS = frozenset({
-    "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "fired_once", "armed", "used_round",
-    "in_round", "where", "stats", "agent_stats", "invariant_held", "rows", "rows_last"})
+    "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "in_round", "where", "stats",
+    "agent_stats", "invariant_held", "rows", "rows_last"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "seeds", "arm", "_local", "_rng", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
     "physics_writes", "entity_dynamics", "round",
     "stage", "rounds", "metrics", "series", "scheduled", "wake_requests", "reactions", "start",
-    "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "firings", "journal", "lifecycle",
+    "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "fired_once", "armed",
+    "used_round", "firings", "journal", "lifecycle",
     "joined",
     "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
     "_physics_view", "_clock_view",
@@ -152,8 +153,6 @@ def _copy_state(source: RunState, world: SdkWorld) -> RunState:
     state.__dict__.update(
         turn_count=source.turn_count, in_round=source.in_round, briefs=dict(source.briefs),
         brief_assets={key: list(ids) for key, ids in source.brief_assets.items()},
-        fired_once=set(source.fired_once), armed=dict(source.armed),
-        used_round={actor: dict(used) for actor, used in source.used_round.items()},
         stats=_copy_stats(source.stats), agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
         memories={key: _copy_memory(memory) for key, memory in source.memories.items()},
         rows=list(source.rows), rows_last=source.rows_last)
@@ -209,6 +208,8 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         start=source.start, _schedule_seq=source._schedule_seq,
         space=None,
         buffer=None, end_request=_copy(source.end_request), chance_picker=None, counters=dict(source.counters),
+        fired_once=set(source.fired_once), armed=dict(source.armed),
+        used_round={actor: dict(used) for actor, used in source.used_round.items()},
         firings=dict(source.firings), journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures),
         written=set(source.written), touched=None, watched_writes=None, diagnosis=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, hidden=source.hidden,

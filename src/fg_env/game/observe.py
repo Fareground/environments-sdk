@@ -155,9 +155,9 @@ def _world_data(env: Env, entities: list[Any], pending: dict[str, Any]) -> dict[
                     for name, rows in world.records_store.items()},
         "scheduled": [[due, encode(item)] for due, _, item in world.scheduled],
         "wake": encode(world.wake_requests), "counters": world.counters,
-        "end": encode(world.end_request), "fired": sorted(env.state.fired_once),
-        "armed": sorted(env.state.armed.items()),
-        "used": encode(env.state.used_round), "pending": pending,
+        "end": encode(world.end_request), "fired": sorted(world.fired_once),
+        "armed": sorted(world.armed.items()),
+        "used": encode(world.used_round), "pending": pending,
     }
 
 

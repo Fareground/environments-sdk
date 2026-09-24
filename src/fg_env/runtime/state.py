@@ -1,13 +1,13 @@
 """A run's state in one value: the world and the bookkeeping the run keeps beside it, with one canonical form.
 
-:class:`RunState` holds everything a run changes as it plays that is not configuration or a service: the world store,
-the events that fired or are armed, each agent's uses of each action this round, turn numbers, what the engine
-remembers of each agent, the briefs, the statistics, and where the round in progress is. :meth:`RunState.encode` is
-its canonical form — JSON-safe data, what a snapshot stores and what a copy must reproduce — and
-:meth:`RunState.decode` puts it back into a freshly built run.
+:class:`RunState` holds everything a run changes as it plays that is not configuration or a service: the world — its
+store and the rules' bookkeeping journaled with it (the events that fired or are armed, each agent's uses of each
+action this round) — and beside it turn numbers, what the engine remembers of each agent, the briefs, the statistics,
+and where the round in progress is. :meth:`RunState.encode` is its canonical form — JSON-safe data, what a snapshot
+stores and what a copy must reproduce — and :meth:`RunState.decode` puts it back into a freshly built run.
 
-What an undo brings back and what it does not is one rule, :data:`UNDONE`: the world store and the run's undoable
-bookkeeping come back; what is spent for good (luck drawn — the random stream and each site's ``firings`` — and turn
+What an undo brings back and what it does not is one rule, :data:`UNDONE`: everything the world journals comes back
+(see world/journal.py); what is spent for good (luck drawn — the random stream and each site's ``firings`` — and turn
 numbers) and what only records the run (memories, briefs, statistics, exposures, metrics) do not.
 """
 from __future__ import annotations
@@ -75,11 +75,6 @@ class RunState:
         #: Each agent's brief, rendered once, and the assets it attaches.
         self.briefs: dict[str, str] = {}
         self.brief_assets: dict[str, list[str]] = {}
-        #: Events with `once` that fired, by index; and the last truth value of each `change` event's `when`.
-        self.fired_once: set[int] = set()
-        self.armed: dict[int, bool] = {}
-        #: Each agent's uses of each action this round.
-        self.used_round: dict[str, dict[str, int]] = {}
         #: Whether a round is being played, and where in it the run is.
         self.in_round = False
         self.where = Where()
@@ -145,10 +140,10 @@ class RunState:
             "wake_requests": encode(w.wake_requests),
             "reactions": encode(w.reactions),
             "counters": dict(w.counters), "firings": dict(w.firings), "end_request": encode(w.end_request),
-            "fired_once": sorted(self.fired_once),
+            "fired_once": sorted(w.fired_once),
             "turn_count": self.turn_count,
-            "armed": {str(k): v for k, v in self.armed.items()},
-            "used_round": {actor: dict(used) for actor, used in self.used_round.items()},
+            "armed": {str(k): v for k, v in w.armed.items()},
+            "used_round": {actor: dict(used) for actor, used in w.used_round.items()},
             "memory": {k: {"cursor": m.cursor, "turns": m.turns} for k, m in self.memories.items()},
             "rng": [rng[0], list(rng[1]), rng[2]],
             "stats": self.stats.to_dict(),
@@ -218,11 +213,11 @@ class RunState:
         w.round, w.rounds, w.stage = data["round"], data["rounds"], data.get("stage")
         state = data["rng"]
         w._rng.setstate((state[0], tuple(state[1]), state[2]))
-        self.fired_once = set(data["fired_once"])
+        w.fired_once = set(data["fired_once"])
         self.turn_count = int(data["turn_count"])
-        self.armed = {int(k): bool(v) for k, v in data["armed"].items()}
-        self.used_round = {str(actor): {str(name): int(n) for name, n in used.items()}
-                           for actor, used in (data.get("used_round") or {}).items()}
+        w.armed = {int(k): bool(v) for k, v in data["armed"].items()}
+        w.used_round = {str(actor): {str(name): int(n) for name, n in used.items()}
+                        for actor, used in (data.get("used_round") or {}).items()}
         for key, m in data["memory"].items():
             memory = self.memory(key)
             memory.cursor, memory.turns = m["cursor"], m["turns"]

@@ -31,7 +31,6 @@ def guarded(env: Env, work: Callable[[], T], mark: int | None = None,
     agent."""
     world = env.world
     mark = world.journal.mark() if mark is None else mark
-    armed, fired = dict(env.state.armed), set(env.state.fired_once)
     try:
         with world.journal.held():
             return work(), None
@@ -39,10 +38,6 @@ def guarded(env: Env, work: Callable[[], T], mark: int | None = None,
         raise
     except (RunError, ExprError) as exc:
         world.journal.rollback(mark)
-        env.state.armed.clear()
-        env.state.armed.update(armed)
-        env.state.fired_once.clear()
-        env.state.fired_once.update(fired)
         error = exc if isinstance(exc, RunError) else RunError(str(exc))
         if isinstance(error, InvariantViolation):
             # Already broken before the action (by something no invariant check followed): not the action's doing.
