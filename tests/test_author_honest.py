@@ -5,11 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from test_author import WORKING, FakeOpenAI, call, edit, tool_replies, write
+from test_author_safety import game
 
 import fg_env
 from fg_env.authoring.sandbox import Sandbox, TooSlow
-from test_author import WORKING, FakeOpenAI, call, edit, tool_replies, write
-from test_author_safety import game
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 LEMONADE = json.loads((EXAMPLES / "lemonade_stand.json").read_text())
@@ -27,7 +27,8 @@ def authored(contract, **kwargs):
 
 def test_a_view_that_breaks_on_a_state_play_reaches_is_not_working():
     # At the greatest price the tool allows the view divides by zero: an agent reading its update after that breaks.
-    views = {**LEMONADE["views"], "margin": {"for": "seller", "title": "Margin", "show": "{$round(10 / ($actor.price - 5))}"}}
+    views = {**LEMONADE["views"],
+             "margin": {"for": "seller", "title": "Margin", "show": "{$round(10 / ($actor.price - 5))}"}}
 
     result, _ = authored(lemonade(views=views))
 
@@ -99,7 +100,8 @@ def test_write_contract_takes_the_json_object_itself():
 def test_random_agents_play_more_seeds_while_test_time_lasts():
     # Its end-of-round event fails on seeds 8 and 12 only: the first three seeds, and check's plays, all pass.
     rare = game("Rare", world={"table": {"type": "map", "default": {"a": 1}}, "x": 0},
-                events=[{"phase": "end", "do": [{"if": "$random() * 20 < 1", "then": ["$world.x = $world.table['b']"]}]}])
+                events=[{"phase": "end",
+                         "do": [{"if": "$random() * 20 < 1", "then": ["$world.x = $world.table['b']"]}]}])
 
     result, _ = authored(rare)
 

@@ -4,8 +4,8 @@ import json
 import pytest
 
 import fg_env
-from fg_env.actions import book as actions
 from fg_env import expr
+from fg_env.actions import book as actions
 from fg_env.world.live import SdkWorld
 
 HERD = {
@@ -134,7 +134,8 @@ def _choices_of(where):
     contract = {"name": "Teams", "clock": {"rounds": 1},
                 "types": {"p": {"agent": True, "props": {"team": "red", "rival": ""}}},
                 "entities": {"a": {"type": "p", "props": {"rival": "c"}}, "b": {"type": "p"},
-                             "c": {"type": "p", "props": {"team": "blue"}}, "d": {"type": "p", "props": {"team": "blue"}}},
+                             "c": {"type": "p", "props": {"team": "blue"}},
+                             "d": {"type": "p", "props": {"team": "blue"}}},
                 "actions": {"pick": {"by": "p", "params": {"who": {"type": "entity", "of": "p", "where": where}},
                                      "do": []}}}
     tools = {t["name"]: t for t in fg_env.load(contract).preview("a")["tools"]}

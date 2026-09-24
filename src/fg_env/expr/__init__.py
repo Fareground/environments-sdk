@@ -31,8 +31,24 @@ from typing import Any, Optional
 
 # Re-exported: the language's pieces are imported from here (helpers used by function modules included).
 from .base import (  # noqa: F401
-    EVAL_BUDGET, EXPRESSION_WORDS, MAX_INT_BITS, MAX_LIST_LEN, MAX_RANGE, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted,
-    _held, charge, check_size, derived, is_expr, nested_free, shared_budget, tainted, truthy,
+    EVAL_BUDGET,
+    EXPRESSION_WORDS,
+    MAX_INT_BITS,
+    MAX_LIST_LEN,
+    MAX_RANGE,
+    MAX_TEXT_LEN,
+    ExprError,
+    PrivateRead,
+    Untrusted,
+    _held,
+    charge,
+    check_size,
+    derived,
+    is_expr,
+    nested_free,
+    shared_budget,
+    tainted,
+    truthy,
 )
 from .calls import _NO_KEY, FUNCTIONS, Call, EqualityGuard, FunctionSpec, function  # noqa: F401
 from .compile import Expr, compile_expr, item_conditions
@@ -71,7 +87,7 @@ __all__ = [
 ]
 
 
-def evaluate(source: str, scope: Optional[Scope] = None) -> Any:
+def evaluate(source: str, scope: Scope | None = None) -> Any:
     """Compile (cached) and evaluate ``source``."""
     return compile_expr(source)(scope or Scope())
 

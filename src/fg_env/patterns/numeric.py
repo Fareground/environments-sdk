@@ -15,20 +15,20 @@ from __future__ import annotations
 
 import math
 import operator
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass, field
 from itertools import islice
 
 from .count_math import probabilities
-from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Sequence, Tuple, Union
 
-__all__ = ["Design", "Linear", "CountFit", "least_squares", "count_regression", "dispersion", "truncated_mean", "truncated_moments",
-           "nelder_mead", "inverse"]
+__all__ = ["Design", "Linear", "CountFit", "least_squares", "count_regression", "dispersion", "truncated_mean",
+           "truncated_moments", "nelder_mead", "inverse"]
 
-Matrix = List[List[float]]
+Matrix = list[list[float]]
 _COLLINEAR = "the columns are collinear (a factor never varies, or two always move together)"
 
 
-def inverse(a: Matrix) -> Optional[Matrix]:
+def inverse(a: Matrix) -> Matrix | None:
     """The inverse of a square matrix by Gauss–Jordan elimination with partial pivoting; None when it is singular."""
     n = len(a)
     rows = [list(map(float, row)) + [1.0 if i == j else 0.0 for j in range(n)] for i, row in enumerate(a)]
@@ -52,13 +52,13 @@ def inverse(a: Matrix) -> Optional[Matrix]:
 class Design:
     """Rows as ``[(column, value), …]`` with zeros left out, and each row's group (None: one overall intercept)."""
 
-    rows: List[List[Tuple[int, float]]]
+    rows: list[list[tuple[int, float]]]
     width: int
-    groups: List[int]
+    groups: list[int]
     count: int
-    _pairs: Optional[List[List[Tuple[int, float]]]] = field(default=None, init=False, repr=False, compare=False)
+    _pairs: list[list[tuple[int, float]]] | None = field(default=None, init=False, repr=False, compare=False)
 
-    def pairs(self) -> List[List[Tuple[int, float]]]:
+    def pairs(self) -> list[list[tuple[int, float]]]:
         """Each row's products xᵢ·xⱼ (i ≤ j) at their place in the flattened XᵀX — fixed by the design, so a fit that
         re-solves with new weights every iteration builds them once."""
         if self._pairs is None:
@@ -68,7 +68,7 @@ class Design:
         return self._pairs
 
     @classmethod
-    def of(cls, x: Union["Design", Sequence[Sequence[float]]], groups: Optional[Sequence[int]] = None) -> "Design":
+    def of(cls, x: Design | Sequence[Sequence[float]], groups: Sequence[int] | None = None) -> Design:
         if isinstance(x, Design):
             return x
         width = len(x[0]) if x else 0
@@ -77,7 +77,7 @@ class Design:
             return cls(rows, width, [], 0)
         return cls(rows, width, list(groups), (max(groups) + 1) if groups else 0)
 
-    def apply(self, coef: Sequence[float], intercepts: Sequence[float]) -> List[float]:
+    def apply(self, coef: Sequence[float], intercepts: Sequence[float]) -> list[float]:
         """x·β (plus each row's group intercept) for every row."""
         values = [sum(coef[j] * v for j, v in row) for row in self.rows]
         return [v + intercepts[g] for v, g in zip(values, self.groups)] if self.count else values
@@ -87,29 +87,29 @@ class Design:
 class Linear:
     """A fitted linear model: coefficients, their standard errors, group intercepts, and how well it fits."""
 
-    coef: List[float]
-    se: List[float]
+    coef: list[float]
+    se: list[float]
     rmse: float
     r2: float
     n: int
-    intercepts: List[float] = field(default_factory=list)
-    intercept_se: List[float] = field(default_factory=list)
+    intercepts: list[float] = field(default_factory=list)
+    intercept_se: list[float] = field(default_factory=list)
 
 
 @dataclass
 class _Solution:
-    coef: List[float]
-    intercepts: List[float]
+    coef: list[float]
+    intercepts: list[float]
     covariance: Matrix  # of the scaled coefficients, before multiplying by the residual variance
-    intercept_var: List[float]
-    scales: List[float]
+    intercept_var: list[float]
+    scales: list[float]
     #: Each group intercept's covariance with each scaled coefficient (same units as ``covariance``).
     intercept_cross: Matrix = field(default_factory=list)
     #: Each coefficient's variance inflation: its variance over what it would be were its column unrelated to the rest.
-    inflation: List[float] = field(default_factory=list)
+    inflation: list[float] = field(default_factory=list)
 
 
-def _cholesky(a: Matrix) -> Optional[Matrix]:
+def _cholesky(a: Matrix) -> Matrix | None:
     """The lower factor L of a symmetric positive definite matrix (a = L·Lᵀ); None when it is singular."""
     n = len(a)
     scale = max((abs(v) for row in a for v in row), default=0.0) or 1.0
@@ -128,7 +128,7 @@ def _cholesky(a: Matrix) -> Optional[Matrix]:
     return lower
 
 
-def _cholesky_solve(lower: Matrix, b: Sequence[float]) -> List[float]:
+def _cholesky_solve(lower: Matrix, b: Sequence[float]) -> list[float]:
     """x with L·Lᵀ·x = b, by forward then back substitution."""
     n = len(b)
     z = [0.0] * n
@@ -205,8 +205,8 @@ def _solve(design: Design, w: Sequence[float], y: Sequence[float], covariance: b
                      intercept_cross, inflation)
 
 
-def least_squares(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float], weights: Optional[Sequence[float]] = None,
-                  groups: Optional[Sequence[int]] = None) -> Linear:
+def least_squares(x: Design | Sequence[Sequence[float]], y: Sequence[float], weights: Sequence[float] | None = None,
+                  groups: Sequence[int] | None = None) -> Linear:
     """Minimise Σ w·(y − x·β − intercept of the row's group)². Raises ValueError when there are too few rows or the
     columns are collinear."""
     design = Design.of(x, groups)
@@ -228,14 +228,14 @@ def least_squares(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float
                   solution.intercepts, intercept_se)
 
 
-def _count_pmf(mean: float, k: Optional[float], upto: int) -> List[float]:
+def _count_pmf(mean: float, k: float | None, upto: int) -> list[float]:
     """P(Y = 0 … upto−1) for a Poisson (k None) or negative binomial count with this mean."""
     if mean <= 0:
         return [1.0] + [0.0] * (upto - 1)
     return list(islice(probabilities(mean, k), upto))
 
 
-def truncated_mean(mean: float, k: Optional[float], floor: float) -> float:
+def truncated_mean(mean: float, k: float | None, floor: float) -> float:
     """E[Y | Y ≥ floor] for a Poisson or negative-binomial count Y with this mean."""
     c = max(0, math.ceil(floor))
     if c == 0 or mean <= 0:
@@ -249,26 +249,26 @@ def truncated_mean(mean: float, k: Optional[float], floor: float) -> float:
 
 @dataclass(frozen=True)
 class CountFit:
-    coef: List[float]
-    se: List[float]
-    means: List[float]
-    filled: List[float]
+    coef: list[float]
+    se: list[float]
+    means: list[float]
+    filled: list[float]
     iterations: int
-    intercepts: List[float] = field(default_factory=list)
-    intercept_se: List[float] = field(default_factory=list)
+    intercepts: list[float] = field(default_factory=list)
+    intercept_se: list[float] = field(default_factory=list)
     #: The coefficients' covariance, and each group intercept's covariance with each coefficient — what the standard
     #: error of a quantity combining several of them (a profile rescaled to average 1) needs.
-    covariance: List[List[float]] = field(default_factory=list)
-    intercept_covariance: List[List[float]] = field(default_factory=list)
+    covariance: list[list[float]] = field(default_factory=list)
+    intercept_covariance: list[list[float]] = field(default_factory=list)
     #: Each coefficient's variance inflation: how many times its variance is what it would be were its driver unrelated
     #: to the other coefficients' drivers (1: separate; large: the data can hardly tell it from the others).
-    inflation: List[float] = field(default_factory=list)
+    inflation: list[float] = field(default_factory=list)
 
 
-def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[float], *,
-                     offset: Optional[Sequence[float]] = None, censored: Optional[Sequence[bool]] = None,
-                     k: Optional[float] = None, groups: Optional[Sequence[int]] = None, iterations: int = 100,
-                     tolerance: float = 1e-6, start: Optional[CountFit] = None, errors: bool = True) -> CountFit:
+def count_regression(x: Design | Sequence[Sequence[float]], y: Sequence[float], *,
+                     offset: Sequence[float] | None = None, censored: Sequence[bool] | None = None,
+                     k: float | None = None, groups: Sequence[int] | None = None, iterations: int = 100,
+                     tolerance: float = 1e-6, start: CountFit | None = None, errors: bool = True) -> CountFit:
     """log E[y] = offset + x·β (+ the row's group intercept) for counts (see the module).
 
     ``start`` continues from an earlier fit of the same design (a refit with a new dispersion converges in a few
@@ -285,7 +285,7 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
         first = _solve(design, [1.0] * n, [math.log(max(0.0, v) + 0.5) - o for v, o in zip(y, offs)], covariance=False)
         coef, intercepts = first.coef, first.intercepts
 
-    def means_of(c: Sequence[float], a: Sequence[float]) -> List[float]:
+    def means_of(c: Sequence[float], a: Sequence[float]) -> list[float]:
         return [math.exp(max(-30.0, min(30.0, o + e))) for o, e in zip(offs, design.apply(c, a))]
 
     def deviance(means: Sequence[float], values: Sequence[float]) -> float:
@@ -312,7 +312,8 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
             if deviance(trial_means, filled) <= before + 1e-9 * abs(before) or step < 1e-4:
                 break
             step /= 2
-        change = max([abs(a - b) for a, b in zip(trial, coef)] + [abs(a - b) for a, b in zip(trial_intercepts, intercepts)])
+        change = max([abs(a - b) for a, b in zip(trial, coef)]
+                     + [abs(a - b) for a, b in zip(trial_intercepts, intercepts)])
         after = deviance(trial_means, filled)
         coef, intercepts, means = trial, trial_intercepts, trial_means
         if change < tolerance or abs(before - after) <= 1e-10 * max(1.0, abs(after)):
@@ -332,7 +333,7 @@ def count_regression(x: Union[Design, Sequence[Sequence[float]]], y: Sequence[fl
     return CountFit(coef, se, means, filled, done, intercepts, intercept_se, covariance, crossed, solution.inflation)
 
 
-def _information(mean: float, seen: float, k: Optional[float], censored: bool) -> float:
+def _information(mean: float, seen: float, k: float | None, censored: bool) -> float:
     """A row's observed information about its log mean — the curvature of its log-likelihood there.
 
     A negative-binomial count's curvature grows with the count, so it is read at the count seen rather than averaged
@@ -348,7 +349,7 @@ def _information(mean: float, seen: float, k: Optional[float], censored: bool) -
     return max(0.0, (mean * (1 + count / k) if k else mean) - unknown) / (damp * damp)
 
 
-def truncated_moments(mean: float, k: Optional[float], floor: float) -> Tuple[float, float]:
+def truncated_moments(mean: float, k: float | None, floor: float) -> tuple[float, float]:
     """E[Y | Y ≥ floor] and E[Y² | Y ≥ floor] for a Poisson or negative-binomial count Y with this mean."""
     c = max(0, math.ceil(floor))
     second = mean + (mean * mean / k if k else 0.0) + mean * mean
@@ -363,8 +364,8 @@ def truncated_moments(mean: float, k: Optional[float], floor: float) -> Tuple[fl
     return max(float(c), first), max(float(c * c), squared)
 
 
-def dispersion(values: Sequence[float], means: Sequence[float], censored: Optional[Sequence[bool]] = None,
-               iterations: int = 30, fitted: int = 0) -> Optional[float]:
+def dispersion(values: Sequence[float], means: Sequence[float], censored: Sequence[bool] | None = None,
+               iterations: int = 30, fitted: int = 0) -> float | None:
     """The negative-binomial k matching Σ(y − μ)² = Σ(μ + μ²/k); None when the counts are not over-dispersed.
 
     A censored row (demand went unmet, so it was more than what was sold) counts with its expected squared distance
@@ -377,7 +378,7 @@ def dispersion(values: Sequence[float], means: Sequence[float], censored: Option
     squares = sum(m * m for m in means)
     widen = len(values) / (len(values) - fitted) if len(values) > fitted else 1.0
 
-    def solve(k: Optional[float]) -> Optional[float]:
+    def solve(k: float | None) -> float | None:
         excess = 0.0
         for v, m, c in zip(values, means, cens):
             if c:
@@ -400,8 +401,8 @@ def dispersion(values: Sequence[float], means: Sequence[float], censored: Option
     return k
 
 
-def nelder_mead(objective: Callable[[List[float]], float], start: Sequence[float], *, step: float = 0.1,
-                iterations: int = 2000, tolerance: float = 1e-10) -> Tuple[List[float], float]:
+def nelder_mead(objective: Callable[[list[float]], float], start: Sequence[float], *, step: float = 0.1,
+                iterations: int = 2000, tolerance: float = 1e-10) -> tuple[list[float], float]:
     """The point minimising ``objective`` near ``start`` (the downhill simplex), and its value."""
     dims = len(start)
     simplex = [list(map(float, start))]

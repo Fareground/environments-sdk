@@ -1,8 +1,8 @@
 """Finite products retain their scale across underflow, overflow and zero factors."""
-from decimal import Decimal, localcontext
 import itertools
 import json
 import math
+from decimal import Decimal, localcontext
 
 import pytest
 

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Collection, Dict, List, Literal, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Collection, Mapping, Sequence
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,10 +27,10 @@ def _key(value: Any) -> str:
     return value.id if hasattr(value, "entity_type") else str(value)
 
 
-def tally(method: str, ballots: Any, options: Optional[Sequence[Any]] = None, threshold: Optional[float] = None,
-          ties: str = "random", rng: Any = None, eligible: Optional[float] = None, quorum: Optional[float] = None,
-          weights: Optional[Mapping[str, float]] = None, base: Optional[float] = None,
-          vetoers: Optional[Collection[str]] = None) -> Dict[str, Any]:
+def tally(method: str, ballots: Any, options: Sequence[Any] | None = None, threshold: float | None = None,
+          ties: str = "random", rng: Any = None, eligible: float | None = None, quorum: float | None = None,
+          weights: Mapping[str, float] | None = None, base: float | None = None,
+          vetoers: Collection[str] | None = None) -> dict[str, Any]:
     """Count ballots. ``ballots`` is ``{voter: ballot}`` or a list of ballots.
 
     A ballot is one option (plurality, majority, supermajority), a list of options (approval: every
@@ -57,7 +58,7 @@ def tally(method: str, ballots: Any, options: Optional[Sequence[Any]] = None, th
     weighed = [(b, _weight(weights, voter)) for voter, b in pairs]
     valid = [(b, w) for b, w in weighed if not _abstained(b)]
     cast = sum(w for _, w in weighed)
-    result: Dict[str, Any] = {"method": method, "votes": _clean(sum(w for _, w in valid)), "cast": _clean(cast),
+    result: dict[str, Any] = {"method": method, "votes": _clean(sum(w for _, w in valid)), "cast": _clean(cast),
                               "winner": None, "decided": False, "passed": False, "tie": False, "tied": [], "counts": {},
                               "ranking": []}
     if eligible:
@@ -79,18 +80,18 @@ def tally(method: str, ballots: Any, options: Optional[Sequence[Any]] = None, th
     return result
 
 
-def _weight(weights: Optional[Mapping[str, float]], voter: Any) -> float:
+def _weight(weights: Mapping[str, float] | None, voter: Any) -> float:
     return 1.0 if weights is None or voter is None else float(weights.get(_key(voter), 1.0))
 
 
-def _on_ballot(option: Any, order: List[str]) -> str:
+def _on_ballot(option: Any, order: list[str]) -> str:
     key = _key(option)
     if order and key != ABSTAIN and key not in order:
         raise ValueError(f"{key!r} is not on the ballot (options: {', '.join(order)})")
     return key
 
 
-def _scores(method: str, order: List[str], valid: List[Tuple[Any, float]]) -> Dict[str, float]:
+def _scores(method: str, order: list[str], valid: list[tuple[Any, float]]) -> dict[str, float]:
     if method in SINGLE:
         return _count(order, [([b], w) for b, w in valid], lambda i: 1.0 if i == 0 else 0.0)
     if method == "approval":
@@ -110,11 +111,11 @@ def _scores(method: str, order: List[str], valid: List[Tuple[Any, float]]) -> Di
     return scores
 
 
-def _rankings(valid: List[Tuple[Any, float]], order: List[str], method: str) -> List[Tuple[List[str], float]]:
+def _rankings(valid: list[tuple[Any, float]], order: list[str], method: str) -> list[tuple[list[str], float]]:
     return [([_on_ballot(o, order) for o in _as_list(b, method)], w) for b, w in valid]
 
 
-def _veto(result: Dict[str, Any], order: List[str], pairs: List[Tuple[Any, Any]], vetoers: Collection[str]) -> None:
+def _veto(result: dict[str, Any], order: list[str], pairs: list[tuple[Any, Any]], vetoers: Collection[str]) -> None:
     """A veto-holder voting against (the second of two options) defeats the first."""
     if not vetoers:
         return
@@ -129,7 +130,7 @@ def _abstained(ballot: Any) -> bool:
     return ballot is None or ballot == ABSTAIN or (isinstance(ballot, (list, tuple, Mapping)) and not ballot)
 
 
-def _as_list(ballot: Any, method: str) -> List[Any]:
+def _as_list(ballot: Any, method: str) -> list[Any]:
     if isinstance(ballot, (list, tuple)):
         return list(ballot)
     if isinstance(ballot, str) or hasattr(ballot, "entity_type"):
@@ -137,7 +138,7 @@ def _as_list(ballot: Any, method: str) -> List[Any]:
     raise ValueError(f"a {method} ballot is a list of options, got {ballot!r}")
 
 
-def _count(order: List[str], ballots: List[Tuple[List[Any], float]], points: Any) -> Dict[str, float]:
+def _count(order: list[str], ballots: list[tuple[list[Any], float]], points: Any) -> dict[str, float]:
     """Each ballot's ``points(position)`` per option, times the voter's weight."""
     scores = {o: 0.0 for o in order}
     for ballot, weight in ballots:
@@ -151,11 +152,11 @@ def _count(order: List[str], ballots: List[Tuple[List[Any], float]], points: Any
     return scores
 
 
-def _clean(value: float) -> Union[int, float]:
+def _clean(value: float) -> int | float:
     return int(value) if float(value).is_integer() else value
 
 
-def _break_tie(tied: List[str], ties: str, rng: Any) -> Optional[str]:
+def _break_tie(tied: list[str], ties: str, rng: Any) -> str | None:
     if len(tied) == 1:
         return tied[0]
     if ties == "none":
@@ -167,8 +168,8 @@ def _break_tie(tied: List[str], ties: str, rng: Any) -> Optional[str]:
     return tied[rng.randrange(len(tied))]
 
 
-def _decide(result: Dict[str, Any], scores: Dict[str, float], method: str, threshold: Optional[float],
-            base: Optional[float], ties: str, rng: Any) -> Dict[str, Any]:
+def _decide(result: dict[str, Any], scores: dict[str, float], method: str, threshold: float | None,
+            base: float | None, ties: str, rng: Any) -> dict[str, Any]:
     ranking = sorted(scores, key=lambda o: -scores[o])  # stable: declared order breaks equal scores
     result["counts"] = {o: _clean(scores[o]) for o in ranking}
     result["ranking"] = ranking
@@ -197,12 +198,12 @@ def _decide(result: Dict[str, Any], scores: Dict[str, float], method: str, thres
     return result
 
 
-def _instant_runoff(result: Dict[str, Any], order: List[str], ballots: List[Tuple[List[str], float]], ties: str,
-                    rng: Any) -> Dict[str, Any]:
+def _instant_runoff(result: dict[str, Any], order: list[str], ballots: list[tuple[list[str], float]], ties: str,
+                    rng: Any) -> dict[str, Any]:
     remaining = list(dict.fromkeys(order + [o for b, _ in ballots for o in b if o != ABSTAIN]))
-    rounds: List[Dict[str, Any]] = []
+    rounds: list[dict[str, Any]] = []
     while remaining:
-        counts: Dict[str, float] = {o: 0 for o in remaining}
+        counts: dict[str, float] = {o: 0 for o in remaining}
         active: float = 0
         for ballot, weight in ballots:
             choice = next((o for o in ballot if o in counts), None)
@@ -213,7 +214,8 @@ def _instant_runoff(result: Dict[str, Any], order: List[str], ballots: List[Tupl
         leader = max(counts.values()) if counts else 0
         if active and (leader * 2 > active or len(remaining) == 1):
             tied = [o for o in remaining if counts[o] == leader]
-            result.update(counts=rounds[0]["counts"], rounds=rounds, ranking=sorted(remaining, key=lambda o: -counts[o]),
+            result.update(counts=rounds[0]["counts"], rounds=rounds,
+                          ranking=sorted(remaining, key=lambda o: -counts[o]),
                           tie=len(tied) > 1, tied=tied if len(tied) > 1 else [])
             result["winner"] = _break_tie(tied, ties, rng)
             return result
@@ -234,14 +236,14 @@ def _instant_runoff(result: Dict[str, Any], order: List[str], ballots: List[Tupl
     return result
 
 
-def _condorcet(result: Dict[str, Any], order: List[str], ballots: List[Tuple[List[str], float]], ties: str,
-               rng: Any) -> Dict[str, Any]:
+def _condorcet(result: dict[str, Any], order: list[str], ballots: list[tuple[list[str], float]], ties: str,
+               rng: Any) -> dict[str, Any]:
     """Copeland: each option scores a point per head-to-head win (half per draw); an option beating
     every other is the Condorcet winner."""
     options = list(dict.fromkeys(order + [o for b, _ in ballots for o in b if o != ABSTAIN]))
     position = [({o: i for i, o in enumerate(b)}, w) for b, w in ballots]
-    wins: Dict[str, float] = {o: 0.0 for o in options}
-    pairwise: Dict[str, Dict[str, Union[int, float]]] = {o: {} for o in options}
+    wins: dict[str, float] = {o: 0.0 for o in options}
+    pairwise: dict[str, dict[str, int | float]] = {o: {} for o in options}
     for a in options:
         for b in options:
             if a == b:
@@ -270,7 +272,7 @@ def _condorcet(result: Dict[str, Any], order: List[str], ballots: List[Tuple[Lis
           "votes, tie, tied, share, rounds}: decided = there is a winner, passed = the first option won (list a "
           "motion's yes first). ties: random (seeded) | none | first.",
           min_args=2, max_args=5)
-def _tally_function(call: Call) -> Dict[str, Any]:
+def _tally_function(call: Call) -> dict[str, Any]:
     method = call.arg(0)
     options = call.arg(2)
     threshold = call.arg(3)
@@ -294,32 +296,47 @@ class BallotConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     who: str = Field(..., description="Agent type that votes (subtypes included).")
-    options: Union[List[Any], str] = Field(..., description="The choices: a list, or an expression giving a list (e.g. \"$map(candidate, $it.id)\").")
+    options: list[Any] | str = Field(...,
+                                     description="The choices: a list, or an expression giving a list (e.g. "
+                                                 "\"$map(candidate, $it.id)\").")
     method: Literal["plurality", "majority", "supermajority", "approval", "ranked", "borda", "condorcet"] = Field(
-        "plurality", description="plurality (most votes) | majority (more than half) | supermajority (threshold, default 2/3) "
-                                 "| approval (approve any number) | ranked (instant runoff) | borda | condorcet (Copeland); "
-                                 "the last four take a list ballot. (score ballots are a map: count them with $tally_votes.)")
-    threshold: Optional[float] = Field(None, ge=0, le=1, description="Share of votes needed to pass (majority/supermajority).")
+        "plurality", description="plurality (most votes) | majority (more than half) | supermajority (threshold, "
+                                 "default 2/3) | approval (approve any number) | ranked (instant runoff) | borda | "
+                                 "condorcet (Copeland); the last four take a list ballot. (score ballots are a map: "
+                                 "count them with $tally_votes.)")
+    threshold: float | None = Field(None, ge=0, le=1,
+                                    description="Share of votes needed to pass (majority/supermajority).")
     threshold_of: Literal["votes", "members"] = Field(
-        "votes", description="What the threshold is a share of: the votes cast (abstentions aside), or all members still in "
-                             "the game (e.g. cloture at 3/5 of the senate).")
-    weight: Optional[str] = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
-                                                    "\"$it.shares\"); default 1. Turnout and quorum count weight too.")
-    veto: Optional[str] = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. \"$it.permanent\"): "
-                                                  "one of them voting for the second option defeats the first. Needs exactly "
-                                                  "two options, the motion first.")
-    quorum: Optional[float] = Field(None, ge=0, le=1, description="Share of eligible voters who must cast a ballot (abstentions count).")
+        "votes", description="What the threshold is a share of: the votes cast (abstentions aside), or all members "
+                             "still in the game (e.g. cloture at 3/5 of the senate).")
+    weight: str | None = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
+                                                 "\"$it.shares\"); default 1. Turnout and quorum count weight too.")
+    veto: str | None = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. "
+                                               "\"$it.permanent\"): one of them voting for the second option defeats "
+                                               "the first. Needs exactly two options, the motion first.")
+    quorum: float | None = Field(None, ge=0, le=1,
+                                 description="Share of eligible voters who must cast a ballot (abstentions count).")
     abstain: bool = Field(True, description="Voters may abstain.")
     private: bool = Field(True, description="Ballots stay private; only the result is announced.")
-    ties: Literal["random", "none", "first"] = Field("random", description="How a tie is decided (random uses the run's seed; none leaves it undecided, and in a ranked count eliminates every option tied for last together). A majority or supermajority tied at the top fails unless ties is first (a casting vote for the first option).")
-    stage: Optional[str] = Field(None, description="Vote during this declared stage (tally at its end); default: a simultaneous stage named after the vote.")
-    when: Optional[str] = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
+    ties: Literal["random", "none", "first"] = Field("random",
+                                                     description="How a tie is decided (random uses the run's seed; "
+                                                                 "none leaves it undecided, and in a ranked count "
+                                                                 "eliminates every option tied for last together). A "
+                                                                 "majority or supermajority tied at the top fails "
+                                                                 "unless ties is first (a casting vote for the first "
+                                                                 "option).")
+    stage: str | None = Field(None,
+                              description="Vote during this declared stage (tally at its end); default: a simultaneous "
+                                          "stage named after the vote.")
+    when: str | None = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
     question: str = Field("", description="What is being decided, shown with the ballot.")
-    announce: str = Field("", description="Result text (template over $result); default names the winner or says it failed.")
+    announce: str = Field("",
+                          description="Result text (template over $result); default names the winner or says it "
+                                      "failed.")
     tools: ToolsSetting = tools_field()
 
 
-def _options(runner: Any, config: BallotConfig, vars: Dict[str, Any]) -> List[Any]:
+def _options(runner: Any, config: BallotConfig, vars: dict[str, Any]) -> list[Any]:
     value = runner.eval(config.options, vars) if isinstance(config.options, str) else config.options
     if not isinstance(value, list):
         raise ExprError(f"ballot options must be a list, got {value!r}", str(config.options))
@@ -327,27 +344,29 @@ def _options(runner: Any, config: BallotConfig, vars: Dict[str, Any]) -> List[An
 
 
 @family_action("decision", ("ballot",), "tally",
-               example='{"decision": "election", "action": "tally"}  (count the ballot now: sets $world.election_result, '
-                       'announces it, opens a fresh ballot)')
-def _tally_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"decision": "election", "action": "tally"}  (count the ballot now: sets '
+                       '$world.election_result, announces it, opens a fresh ballot)')
+def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     name = effect["decision"]
     world = runner.world
     config = _common.config(world, name, KEY, BallotConfig, where)
     ballots = dict(world.props.get(f"{name}_ballots") or {})
     voters = _voters_in_game(world, config.who)
-    weights = {v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters} if config.weight else None
+    weights = ({v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters}
+               if config.weight else None)
     eligible = sum(weights.values()) if weights is not None else len(voters)
     vetoers = [v.id for v in voters if config.veto and truthy(runner.eval(config.veto, {"it": v}))]
     try:
         result = tally(config.method, ballots, _options(runner, config, vars), config.threshold, config.ties,
-                       world.rng, eligible, config.quorum, weights, eligible if config.threshold_of == "members" else None,
-                       vetoers)
+                       world.rng, eligible, config.quorum, weights,
+                       eligible if config.threshold_of == "members" else None, vetoers)
     except ValueError as exc:
         raise RunError(f"tally {name}: {exc}", where) from None
     result["round"] = world.round
     world.set_world(f"{name}_result", result)
     world.set_world(f"{name}_ballots", {})
-    text = runner.text(config.announce, {**vars, "result": result}) if config.announce else _announcement(world, config, result)
+    text = (runner.text(config.announce, {**vars, "result": result}) if config.announce
+            else _announcement(world, config, result))
     world.emit(name, text, data={"mechanism": "ballot", "result": result})
 
 
@@ -358,14 +377,14 @@ def _weight_of(runner: Any, expr: str, voter: Any, where: str) -> float:
     return float(value)
 
 
-def _voters_in_game(world: Any, who: str) -> List[Any]:
+def _voters_in_game(world: Any, who: str) -> list[Any]:
     """Voters still in the game: every living `who`, less those a roles mechanism on the same type has put out."""
     out_props = [raw.get("alive") or "living" for _, raw in _common.uses(world.contract, "groups.roles")
                  if raw.get("who") == who]
     return [voter for voter in world.entities_of(who) if all(voter.properties.get(prop, True) for prop in out_props)]
 
 
-def _announcement(world: Any, config: BallotConfig, result: Dict[str, Any]) -> str:
+def _announcement(world: Any, config: BallotConfig, result: dict[str, Any]) -> str:
     """The result in words, options that are entity ids shown by name."""
     def label(option: Any) -> str:
         entity = world.entity(option) if isinstance(option, str) else None
@@ -385,19 +404,21 @@ def _announcement(world: Any, config: BallotConfig, result: Dict[str, Any]) -> s
 
 @mode("decision", "ballot", BallotConfig,
            "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or "
-           "supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit effects, so "
-           "read the result in a later stage, event or on_enter, not in the vote stage's on_exit. The result is in "
-           "$world.<name>_result ({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty map until "
-           "the first count) and is announced, options that are entity ids named: `decided` is true when there is a winner, "
-           "`passed` when the first option won, so list a motion's yes first. Turnout counts the voters still in the game. "
-           "`weight` gives shareholder-style votes, `threshold_of: members` measures the threshold over every member "
-           "(cloture), `veto` lets some voters defeat a motion alone (a security council).",
+           "supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit "
+           "effects, so read the result in a later stage, event or on_enter, not in the vote stage's on_exit. The "
+           "result is in $world.<name>_result "
+           "({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty map until the first "
+           "count) and is announced, options that are entity ids named: `decided` is true when there is a winner, "
+           "`passed` when the first option won, so list a motion's yes first. Turnout counts the voters still in the "
+           "game. `weight` gives shareholder-style votes, `threshold_of: members` measures the threshold over every "
+           "member (cloture), `veto` lets some voters defeat a motion alone (a security council).",
            example={"who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5,
                     "question": "Adopt the budget?"})
-def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:
-        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}",
+                             "who")
     if config.veto and (config.method not in SINGLE or (isinstance(config.options, list) and len(config.options) != 2)):
         raise MechanismError("a veto needs a single-choice ballot of exactly two options", 'the motion first, e.g. '
                              '"options": ["adopt", "reject"], "method": "majority"', "veto")
@@ -408,7 +429,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     vote, abstain = f"{name}_vote", f"{name}_abstain"
     question = f" on: {config.question}" if config.question else ""
     open_ballot = f"not ($actor.id in $world.{ballots})"
-    ballot_param: Dict[str, Any]
+    ballot_param: dict[str, Any]
     if config.method in SINGLE:
         ballot_param = {"choice": {"type": "enum", "values": config.options, "description": "Your choice."}}
         cast, told, how = "$params.choice", "You voted {$params.choice}.", "Cast your ballot"
@@ -421,7 +442,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
         ballot_param = {"choices": {"type": "list", "values": config.options, "min_items": 1, "unique": True,
                                     "description": f"List {what}."}}
         cast, told = "$params.choices", "Your ballot: {$params.choices}."
-    actions: Dict[str, Any] = {
+    actions: dict[str, Any] = {
         vote: {"by": config.who, "description": f"{how}{question}.",
                "params": ballot_param,
                "when": [{"expr": open_ballot, "why": "You have already voted."}],
@@ -437,13 +458,13 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     for action in actions.values():
         if action.get("outcome") is None:
             action.pop("outcome", None)
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "world": {ballots: {"type": "map", "default": {}}, result: {"type": "map", "default": {}}},
         "actions": actions,
     }
     names = list(actions)
     if config.stage is None:
-        stage: Dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names,
+        stage: dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names,
                                  "brief": config.question, "on_exit": [{"decision": name, "action": "tally"}]}
         if config.when:
             stage["when"] = config.when

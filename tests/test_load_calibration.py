@@ -1,4 +1,5 @@
-"""A contract's `calibration` section fits inputs with pilot sessions when a session loads: reproducible, skippable, checked."""
+"""A contract's `calibration` section fits inputs with pilot sessions when a session loads: reproducible, skippable,
+checked."""
 import json
 import sys
 
@@ -18,7 +19,8 @@ def gain_contract(**calibration):
                    "goal": {"type": "number", "default": 30}},
         "world": {"level": 0, "goal": "$inputs.goal"},
         "types": {"gauge": {"description": "Nothing acts: the world grows on its own."}},
-        "events": [{"name": "grow", "phase": "end", "do": "$world.level = $world.level + $inputs.gain * $uniform(0.9, 1.1)"}],
+        "events": [{"name": "grow", "phase": "end",
+                    "do": "$world.level = $world.level + $inputs.gain * $uniform(0.9, 1.1)"}],
         "outputs": {"level": "$world.level"},
         "arms": {"known_gain": {"inputs": {"gain": 2}}},
         "calibration": {"params": {"gain": {}}, "targets": {"level": "$world.goal"}, "inputs": {"rounds": 5},
@@ -47,7 +49,8 @@ def test_setting_a_fitted_input_in_the_call_or_an_arm_skips_the_calibration(monk
     def refuse(*_args, **_kwargs):
         raise AssertionError("calibrate should not run")
 
-    monkeypatch.setattr(sys.modules["fg_env.analysis.calibrate"], "calibrate", refuse)  # the package's `calibrate` is the function
+    monkeypatch.setattr(sys.modules["fg_env.analysis.calibrate"], "calibrate",
+                        refuse)  # the package's `calibrate` is the function
     by_caller = fg_env.load(gain_contract(), inputs={"gain": 3}, seed=1)
     by_arm = fg_env.load(gain_contract(), arm="known_gain", seed=1)
     assert (by_caller.calibration, by_caller.inputs["gain"]) == (None, 3)

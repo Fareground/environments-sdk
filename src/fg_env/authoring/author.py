@@ -30,22 +30,24 @@ import json
 import os
 import shutil
 import time
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import Any
 
 from ..api import load, parse
-from ..runtime.budget import CACHED_WEIGHT, is_seconds
 from ..engines import list_engines
 from ..guides import guide
 from ..participants.llm import _MAX_BACKOFF_SECONDS, PROVIDERS, _retry_after, _retryable, official_client
+from ..runtime.budget import CACHED_WEIGHT, is_seconds
 from .testing import Tested
 from .workbench import TOOLS, Workbench, describe_changes, removed_parts
 
 __all__ = ["author", "AuthorResult"]
 
 #: What a brief may spend unless ``budget`` says otherwise: model tokens (input + output, cache reads weighted by
-#: :data:`~fg_env.runtime.budget.CACHED_WEIGHT` and cache writes by :data:`CACHE_WRITE_WEIGHT`), model calls, and wall-clock
+#: :data:`~fg_env.runtime.budget.CACHED_WEIGHT` and cache writes by :data:`CACHE_WRITE_WEIGHT`), model calls, and
+#: wall-clock
 #: seconds (checked before each model call, so the session ends at most one step past them).
 DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30, "seconds": 1800}
 #: What an input token written to the provider's prompt cache counts for in the budget: providers bill it at a quarter
@@ -60,17 +62,17 @@ MAX_NUDGES = 2
 ANTHROPIC_MAX_TOKENS = 20_000
 
 
-INSTRUCTION = ("\n\nBuild this environment. Save it with write_contract, revise it with edit_contract, and use the other "
-               "tools as you see fit. The guide's steps name fg-env commands; here your tools do them: write_contract or "
-               "edit_contract saves the file, `fg-env check` is check, `fg-env preview <file> <id>` is preview(agent), "
-               "`fg-env run <file> --seed N` is run(seed) and `fg-env guide <part>` is guide(part). "
-               "Reply without calling a tool when you are done.\n\nEngine starters: working environments to adapt. When "
-               "one is close to this brief, start from it with start_from and change what the brief needs; otherwise "
-               "write your own.\n")
+INSTRUCTION = ("\n\nBuild this environment. Save it with write_contract, revise it with edit_contract, and use the "
+               "other tools as you see fit. The guide's steps name fg-env commands; here your tools do them: "
+               "write_contract or edit_contract saves the file, `fg-env check` is check, `fg-env preview <file> <id>` "
+               "is preview(agent), `fg-env run <file> --seed N` is run(seed) and `fg-env guide <part>` is "
+               "guide(part). Reply without calling a tool when you are done.\n\nEngine starters: working environments "
+               "to adapt. When one is close to this brief, start from it with start_from and change what the brief "
+               "needs; otherwise write your own.\n")
 #: What a model that stops after a working revision that removed parts of the kept one is told once.
-UNKEPT = ("Revision {latest} works, but it removed {removed}, which revision {kept} has, so revision {kept} is kept. Put "
-          "back what the brief asks for; if the brief does not need them, save it again to confirm the removal. "
-          "Stopping now keeps revision {kept}.")
+UNKEPT = ("Revision {latest} works, but it removed {removed}, which revision {kept} has, so revision {kept} "
+          "is kept. Put back what the brief asks for; if the brief does not need them, save it again to confirm the "
+          "removal. Stopping now keeps revision {kept}.")
 NUDGE = "No contract is saved yet. Save it with write_contract (keep replies short; put the contract in the tool call)."
 NOT_WORKING = "Nothing you saved works yet: {problem}\nFix it and save it again."
 #: What a model that stops on a broken revision, after an earlier one worked, is told once.
@@ -78,8 +80,8 @@ REGRESSED = "{latest} does not work: {problem}\nStopping now keeps revision {kep
 #: What a reply cut off at the output limit, with no tool call, is told.
 CUT_REPLY = "Your reply was cut off at the output limit. Keep replies short; put the contract in the tool call."
 
-Message = Dict[str, Any]
-Ask = Callable[[List[Message]], Tuple[Message, Dict[str, Any]]]
+Message = dict[str, Any]
+Ask = Callable[[list[Message]], tuple[Message, dict[str, Any]]]
 
 
 class EmptyReply(Exception):
@@ -91,7 +93,7 @@ class AuthorResult:
     """What :func:`author` built. ``contract`` is the kept revision, the best that works (``ok``), else the latest one
     saved (``problem`` says what is wrong), else None."""
 
-    contract: Optional[Dict[str, Any]]
+    contract: dict[str, Any] | None
     ok: bool
     #: What is wrong with the model's last write, or why it was not kept, when that is not the contract kept ("" when
     #: it is).
@@ -101,23 +103,23 @@ class AuthorResult:
     #: "seconds" (the budget); or "error: <the provider's error>".
     stop: str
     #: Every write, in order: the contract saved, or the text of one that saved nothing (not valid JSON, cut off).
-    writes: List[Any]
+    writes: list[Any]
     #: The whole conversation, in OpenAI chat format.
-    messages: List[Message]
+    messages: list[Message]
     #: input_tokens (fresh ones), cached_tokens (read from the provider's prompt cache), cache_write_tokens (written to
     #: it), output_tokens, calls, truncated (replies cut off at the output limit), and cost when the provider reports it
     #: (OpenRouter does).
-    usage: Dict[str, Any]
+    usage: dict[str, Any]
     seconds: float
     #: Where ``contract`` was written: ``out``, or beside it as ``<name>.not-working.json`` when nothing worked.
-    path: Optional[str] = None
+    path: str | None = None
     #: The revisions that worked, numbered from 1 in the order they were saved.
-    working: List[int] = field(default_factory=list)
+    working: list[int] = field(default_factory=list)
     #: The number of the kept revision, ``contract`` (None when none works).
-    kept: Optional[int] = None
+    kept: int | None = None
     #: What testing the kept revision found: how far its runs got when test time ran out (``untested``), its check's
     #: warnings, and the hosts the SDK's stand-in stubs answered (None when none works).
-    tested: Optional["Tested"] = None
+    tested: Tested | None = None
 
     def summary(self) -> str:
         """What it built — name, agent types, actions, stages, outputs — what changed along the way, what it used, and
@@ -136,7 +138,8 @@ class AuthorResult:
         if self.problem and not self.ok:
             lines.append(f"  problem: {self.problem}")
         elif self.problem:
-            last = ("the last write" if self.writes[-1] is not revisions[-1] else f"revision {len(revisions)} was not kept"
+            last = ("the last write" if self.writes[-1] is not revisions[-1]
+                    else f"revision {len(revisions)} was not kept"
                     if len(revisions) in self.working else f"revision {len(revisions)} did not work")
             lines.append(f"  kept revision {kept} of {len(revisions)}; {last}: {self.problem}")
         first = revisions[self.working[0] - 1] if self.ok and self.contract else None
@@ -149,8 +152,8 @@ class AuthorResult:
                          "check the brief is still met")
         agent = self._describe(lines)
         if self.tested and self.tested.hosts:
-            lines.append(f"  hosts: {', '.join(self.tested.hosts)} answered by the SDK's stand-in stubs in testing, not a "
-                         "model: bind real hosts to run it for real")
+            lines.append(f"  hosts: {', '.join(self.tested.hosts)} answered by the SDK's stand-in stubs in testing, "
+                         "not a model: bind real hosts to run it for real")
         if self.tested and self.tested.warnings:
             lines += ["  check warnings:", *(f"    {warning}" for warning in self.tested.warnings)]
         said = next((m["content"] for m in reversed(self.messages) if m["role"] == "assistant"), "").strip()
@@ -166,7 +169,7 @@ class AuthorResult:
                          + ("" if self.ok else f" · fg-env check {self.path}"))
         return "\n".join(lines)
 
-    def _describe(self, lines: List[str]) -> str:
+    def _describe(self, lines: list[str]) -> str:
         """Add the contract's types, actions, stages and outputs to ``lines``; returns an agent id to preview."""
         agent = "<agent id>"
         try:  # a model's contract can fail to parse or build in any way; the summary then leaves this part out
@@ -183,26 +186,27 @@ class AuthorResult:
         return agent
 
 
-def author(brief: str, model: str, *, client: Any = None, out: Optional[str] = None,
-           budget: Optional[Mapping[str, float]] = None, progress: Optional[Callable[[str], None]] = None) -> AuthorResult:
+def author(brief: str, model: str, *, client: Any = None, out: str | None = None,
+           budget: Mapping[str, float] | None = None, progress: Callable[[str], None] | None = None) -> AuthorResult:
     """Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
     :class:`AuthorResult` (``result.contract``, ``result.ok``, ``result.summary()``).
 
     ``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
     end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
     (input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
-    model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
-    retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
-    (``result.stop`` says why) and keeps what already works."""
+    model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official
+    client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and
+    server errors are retried with backoff; a provider error that persists or that retrying cannot fix does not raise:
+    the loop stops (``result.stop`` says why) and keeps what already works."""
     provider, name = _model(model)
     limits = _budget(budget)
     ask = _ANSWERERS[provider](client if client is not None else official_client(provider, name), name)
     if out and not Path(out).parent.is_dir():
         raise ValueError(f"out {out!r}: the folder {str(Path(out).parent)!r} does not exist")
     bench, started = Workbench(), time.time()
-    messages: List[Message] = [{"role": "system", "content": guide("authoring")},
+    messages: list[Message] = [{"role": "system", "content": guide("authoring")},
                                {"role": "user", "content": brief + INSTRUCTION + _starters()}]
-    usage: Dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
+    usage: dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
                              "calls": 0, "truncated": 0}
     try:
         stop = _converse(_retrying(ask, progress), messages, bench, usage, limits, progress, out,
@@ -230,8 +234,8 @@ def _not_working(out: str) -> str:
     return str(path.with_name(f"{path.stem}.not-working{path.suffix or '.json'}"))
 
 
-def _converse(ask: Ask, messages: List[Message], bench: "Workbench", usage: Dict[str, Any], limits: Dict[str, float],
-              progress: Optional[Callable[[str], None]], out: Optional[str], deadline: float) -> str:
+def _converse(ask: Ask, messages: list[Message], bench: Workbench, usage: dict[str, Any], limits: dict[str, float],
+              progress: Callable[[str], None] | None, out: str | None, deadline: float) -> str:
     """The tool loop, until ``deadline`` (a ``time.time()``); returns why it stopped. Each revision kept is written to
     ``out`` at once."""
     nudges, sent_back = 0, False
@@ -280,13 +284,13 @@ def _converse(ask: Ask, messages: List[Message], bench: "Workbench", usage: Dict
             return "revisions"
 
 
-def _spent(usage: Dict[str, Any]) -> float:
+def _spent(usage: dict[str, Any]) -> float:
     """The tokens ``usage`` counts against the budget."""
     return (usage["input_tokens"] + usage["output_tokens"] + usage["cached_tokens"] * CACHED_WEIGHT
             + usage["cache_write_tokens"] * CACHE_WRITE_WEIGHT)
 
 
-def _unsettled(bench: "Workbench") -> str:
+def _unsettled(bench: Workbench) -> str:
     """What a model that stops is sent back once with: its last write broken or not kept; "" when it is the kept one."""
     if not bench.problem:
         return ""
@@ -297,7 +301,7 @@ def _unsettled(bench: "Workbench") -> str:
                             problem=bench.problem, kept=bench.kept)
 
 
-def _write(out: str, contract: Dict[str, Any]) -> None:
+def _write(out: str, contract: dict[str, Any]) -> None:
     """Write ``contract`` to ``out`` whole or not at all: a session stopped mid-write never leaves half a file."""
     path = Path(out)
     scratch = path.with_name(f".{path.name}.{os.getpid()}.tmp")
@@ -305,7 +309,7 @@ def _write(out: str, contract: Dict[str, Any]) -> None:
     os.replace(scratch, path)
 
 
-def _answer(calls: List[Dict[str, Any]], truncated: bool, bench: "Workbench") -> List[Message]:
+def _answer(calls: list[dict[str, Any]], truncated: bool, bench: Workbench) -> list[Message]:
     """Make a reply's tool calls; returns their results. In a reply cut off at the output limit, only the last call
     is incomplete: it is answered as cut off, and the provider is sent back arguments it can read (the half-written
     ones stay in ``writes``)."""
@@ -321,10 +325,10 @@ def _answer(calls: List[Dict[str, Any]], truncated: bool, bench: "Workbench") ->
     return results
 
 
-def _retrying(ask: Ask, progress: Optional[Callable[[str], None]]) -> Ask:
+def _retrying(ask: Ask, progress: Callable[[str], None] | None) -> Ask:
     """``ask``, retrying rate limits, overload, timeouts and server errors with backoff (honouring retry-after)."""
 
-    def retried(messages: List[Message]) -> Tuple[Message, Dict[str, Any]]:
+    def retried(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         for attempt in range(RETRIES + 1):
             try:
                 return ask(messages)
@@ -341,7 +345,7 @@ def _retrying(ask: Ask, progress: Optional[Callable[[str], None]]) -> Ask:
     return retried
 
 
-def _model(model: str) -> Tuple[str, str]:
+def _model(model: str) -> tuple[str, str]:
     provider, _, name = model.partition(":") if isinstance(model, str) else ("", "", "")
     if provider not in PROVIDERS or not name:
         raise ValueError(f"model {model!r}: use 'anthropic:<model>' or 'openai:<model>' (any OpenAI-compatible "
@@ -349,8 +353,8 @@ def _model(model: str) -> Tuple[str, str]:
     return provider, name
 
 
-def _budget(budget: Optional[Mapping[str, float]]) -> Dict[str, float]:
-    limits: Dict[str, float] = {**DEFAULT_BUDGET, **(budget or {})}
+def _budget(budget: Mapping[str, float] | None) -> dict[str, float]:
+    limits: dict[str, float] = {**DEFAULT_BUDGET, **(budget or {})}
     for key, value in limits.items():
         if key not in DEFAULT_BUDGET:
             raise ValueError(f"budget has no {key!r}: use tokens, calls and seconds, e.g. {DEFAULT_BUDGET}")
@@ -365,7 +369,7 @@ def _budget(budget: Optional[Mapping[str, float]]) -> Dict[str, float]:
 def _openai(client: Any, model: str) -> Ask:
     tools = [{"type": "function", "function": tool} for tool in TOOLS]
 
-    def ask(messages: List[Message]) -> Tuple[Message, Dict[str, Any]]:
+    def ask(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         response = client.chat.completions.create(model=model, messages=messages, tools=tools)
         if not getattr(response, "choices", None):  # OpenRouter does this now and then, with the reason in `error`
             error = getattr(response, "error", None)
@@ -393,7 +397,7 @@ def _openai(client: Any, model: str) -> Ask:
 def _anthropic(client: Any, model: str) -> Ask:
     tools = [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in TOOLS]
 
-    def ask(messages: List[Message]) -> Tuple[Message, Dict[str, Any]]:
+    def ask(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         system = [{"type": "text", "text": messages[0]["content"], "cache_control": {"type": "ephemeral"}}]
         conversation = _to_anthropic(messages[1:])
         last = conversation[-1]  # a cache breakpoint on the latest turn: the next call reads all of this from cache
@@ -419,10 +423,10 @@ def _anthropic(client: Any, model: str) -> Ask:
     return ask
 
 
-def _to_anthropic(messages: List[Message]) -> List[Message]:
+def _to_anthropic(messages: list[Message]) -> list[Message]:
     """The OpenAI-format conversation (after the system message) as Anthropic messages, without whitespace-only text
     (the API refuses it)."""
-    out: List[Message] = []
+    out: list[Message] = []
     for m in messages:
         if m["role"] == "tool":
             block = {"type": "tool_result", "tool_use_id": m["tool_call_id"], "content": m["content"]}
@@ -431,7 +435,7 @@ def _to_anthropic(messages: List[Message]) -> List[Message]:
             else:
                 out.append({"role": "user", "content": [block]})
         elif m["role"] == "assistant":
-            blocks: List[Dict[str, Any]] = [{"type": "text", "text": m["content"]}] if m["content"].strip() else []
+            blocks: list[dict[str, Any]] = [{"type": "text", "text": m["content"]}] if m["content"].strip() else []
             blocks += [{"type": "tool_use", "id": c["id"], "name": c["function"]["name"],
                         "input": json.loads(c["function"]["arguments"] or "{}")} for c in m.get("tool_calls", [])]
             out.append({"role": "assistant", "content": blocks or [{"type": "text", "text": "(no reply)"}]})

@@ -1,10 +1,10 @@
 """Recordings that replay exactly: outcomes a chance chooser picked, and runs that continue a fork."""
 import copy
 
-import fg_env
-
 from test_runtime import SHOP
 from test_traces import overreacher
+
+import fg_env
 
 COIN = {
     "name": "Coin",

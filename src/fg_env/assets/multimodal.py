@@ -23,7 +23,8 @@ reads them back for the reference host adapters.
 """
 from __future__ import annotations
 
-from typing import Any, Collection, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Collection, Mapping, Sequence
+from typing import Any
 
 from ..expr.template import format_value
 from .delivery import Attachment
@@ -36,7 +37,7 @@ ANTHROPIC_MEDIA = frozenset({"image", "pdf", "text"})
 OPENAI_MEDIA = frozenset({"image", "pdf", "audio", "text"})
 
 
-def media_set(media: Optional[Collection[str]], default: Collection[str], allowed: Collection[str]) -> frozenset:
+def media_set(media: Collection[str] | None, default: Collection[str], allowed: Collection[str]) -> frozenset:
     """The attachment types a participant sends as real content (``None``: the provider default; empty: text only)."""
     if media is None:
         return frozenset(default)
@@ -48,7 +49,7 @@ def media_set(media: Optional[Collection[str]], default: Collection[str], allowe
     return chosen
 
 
-def _label(item: Any) -> Dict[str, Any]:
+def _label(item: Any) -> dict[str, Any]:
     return {"type": "text", "text": f"Attached: {item.reference}"}
 
 
@@ -57,13 +58,14 @@ def _text_content(item: Any) -> str:
     return format_value(content) if item.untrusted else content
 
 
-def anthropic_parts(attachments: Sequence[Any], media: Collection[str]) -> List[Dict[str, Any]]:
-    parts: List[Dict[str, Any]] = []
+def anthropic_parts(attachments: Sequence[Any], media: Collection[str]) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
     for item in attachments:
         if item.type not in media:
             continue
         parts.append(_label(item))
-        described = {"title": str.__str__(item.name), **({"context": str.__str__(item.caption)} if item.caption else {})}
+        described = {"title": str.__str__(item.name),
+                     **({"context": str.__str__(item.caption)} if item.caption else {})}
         if item.type == "image":
             parts.append({"type": "image", "source": {"type": "base64", "media_type": item.media_type,
                                                       "data": item.base64()}})
@@ -76,8 +78,8 @@ def anthropic_parts(attachments: Sequence[Any], media: Collection[str]) -> List[
     return parts
 
 
-def openai_parts(attachments: Sequence[Any], media: Collection[str]) -> List[Dict[str, Any]]:
-    parts: List[Dict[str, Any]] = []
+def openai_parts(attachments: Sequence[Any], media: Collection[str]) -> list[dict[str, Any]]:
+    parts: list[dict[str, Any]] = []
     for item in attachments:
         if item.type not in media:
             continue
@@ -95,7 +97,7 @@ def openai_parts(attachments: Sequence[Any], media: Collection[str]) -> List[Dic
     return parts
 
 
-def host_attachments(attachments: Sequence[Attachment]) -> List[Dict[str, Any]]:
+def host_attachments(attachments: Sequence[Attachment]) -> list[dict[str, Any]]:
     """Attachments inside a host request: metadata with the content (base64 `data`, or `text` for text files)."""
     return [item.to_dict(data=True) for item in attachments]
 
@@ -120,11 +122,11 @@ class Carried:
     def base64(self) -> str:
         return str(self._data.get("data", ""))
 
-    def text(self) -> Optional[str]:
+    def text(self) -> str | None:
         text = self._data.get("text")
         return text if isinstance(text, str) else None
 
 
-def without_content(attachments: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+def without_content(attachments: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Attachment metadata without the content, for the JSON text of a host request."""
     return [{key: value for key, value in item.items() if key not in ("data", "text")} for item in attachments]

@@ -2,7 +2,6 @@
 import math
 
 import pytest
-
 from patterns_helpers import errors, series, world
 
 WEEKS = {"unit": "week", "start": "2025-01-06"}
@@ -84,7 +83,8 @@ def test_cycles_follow_their_shape():
 
 
 def test_a_lifecycle_ramps_up_after_its_start_then_decays_toward_its_floor():
-    got = series({"l": {"kind": "lifecycle", "start": 2, "before": 1, "peak": 2, "ramp": 2, "floor": 1, "half_life": 1}},
+    got = series({"l": {"kind": "lifecycle", "start": 2, "before": 1, "peak": 2, "ramp": 2, "floor": 1,
+                        "half_life": 1}},
                  {"l": "$pattern.l"}, rounds=6)
     assert got["l"] == pytest.approx([1, 1, 1, 1.5, 2, 1.5])
 
@@ -144,7 +144,8 @@ def test_a_calendar_follows_a_start_date_read_from_an_input():
     options = {"clock": {"unit": "day", "start": "$inputs.start"},
                "inputs": {"start": {"type": "date", "default": "2025-12-22"}}}
     assert not errors(world({"c": {"kind": "calendar", "effects": effects},
-                             "g": {"kind": "trend", "rate": 0.01, "form": "exponential", "origin": "2026-01-05"}}, **options))
+                             "g": {"kind": "trend", "rate": 0.01, "form": "exponential", "origin": "2026-01-05"}},
+                            **options))
     got = series({"c": {"kind": "calendar", "effects": effects}}, {"c": "$pattern.c"}, rounds=7,
                  values={"start": "2025-12-24"}, **options)
     assert got["c"] == [1, 1, 1, 1.5, 1.5, 1, 1]  # Wednesday 24 December, the weekend on the 27th and 28th

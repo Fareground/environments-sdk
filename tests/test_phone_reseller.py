@@ -43,7 +43,8 @@ def test_the_bundled_sales_and_lot_histories_are_exactly_what_the_truth_arm_reco
 def test_retail_and_wholesale_demand_and_lead_times_fitted_from_the_histories_recover_the_truth():
     fitted = fg_env.analysis.fit_patterns(CONTRACT).contract["inputs"]
     truth = _truth()
-    elasticity, error = fitted["retail_price_effect_elasticity"]["default"], fitted["retail_price_effect_elasticity_se"]["default"]
+    elasticity, error = (fitted["retail_price_effect_elasticity"]["default"],
+                         fitted["retail_price_effect_elasticity_se"]["default"])
     assert abs(elasticity - truth["retail_price_effect_elasticity"]) < 3 * error
     assert fitted["sales_dispersion"]["default"] == pytest.approx(truth["sales_dispersion"], rel=0.3)
     assert fitted["bulk_dispersion"]["default"] == pytest.approx(truth["bulk_dispersion"], rel=0.3)
@@ -59,7 +60,8 @@ def test_retail_and_wholesale_demand_and_lead_times_fitted_from_the_histories_re
 
 def test_each_channels_fitted_demand_adds_up_to_the_truth_despite_stockouts_that_sold_nothing():
     """Stockout rows say demand was more than what sold; read as 'at least what sold', a slow line's empty-shelf days
-    added nothing back and every channel's demand came out a few percent low (the held-out forecasts ran low with it)."""
+    added nothing back and every channel's demand came out a few percent low (the held-out forecasts ran low with it).
+    """
     fitted = fg_env.analysis.fit_patterns(CONTRACT).contract["inputs"]
     truth = _truth()
     for table in ("retail_demand_fit", "wholesale_demand_fit"):
@@ -96,7 +98,8 @@ def test_clearance_pricing_sells_more_at_retail_but_earns_less_with_value_and_st
     exp = fg_env.experiment(contract, arms=[None, "clearance"], runs=4, seed=5, data_dir=CONTRACT.parent)
     base, clearance = ([run.outputs for run in exp.arms[arm].runs] for arm in ("baseline", "clearance"))
     assert all(run.status == "completed" for arm in exp.arms.values() for run in arm.runs)
-    retail = [(c["sales_sold_by_segment"]["retail"], b["sales_sold_by_segment"]["retail"]) for c, b in zip(clearance, base)]
+    retail = [(c["sales_sold_by_segment"]["retail"], b["sales_sold_by_segment"]["retail"])
+              for c, b in zip(clearance, base)]
     assert all(c > 1.1 * b for c, b in retail)
     assert statistics.fmean(c["buying_profit"] for c in clearance) < statistics.fmean(b["buying_profit"] for b in base)
     assert all(c["sales_returned"] >= b["sales_returned"] * 0.8 for c, b in zip(clearance, base))

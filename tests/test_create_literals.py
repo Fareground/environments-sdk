@@ -1,11 +1,11 @@
 """Entity creation never evaluates participant text or runtime values as expressions."""
 import json
 
+from family_fixtures import Nothing, scratch_family
+
 import fg_env
 from fg_env.expr import Untrusted
 from fg_env.registry import family_action, mode
-
-from family_fixtures import Nothing, scratch_family
 
 
 def test_participant_text_stored_by_a_native_op_is_never_evaluated():
@@ -18,7 +18,8 @@ def test_participant_text_stored_by_a_native_op_is_never_evaluated():
             world = runner.world
             text = runner.eval(effect["text"], vars)
             world.create("note", None, None, {"text": text}, None, world.scope(**vars), where)
-            world.create("note", None, None, {"text": effect["plain"]}, None, world.scope(**vars), where, evaluate=False)
+            world.create("note", None, None, {"text": effect["plain"]}, None, world.scope(**vars), where,
+                         evaluate=False)
 
         contract = {"name": "Notes", "clock": {"rounds": 1},
                     "world": {"secret": {"type": "text", "default": "the vault code is 4321"}},

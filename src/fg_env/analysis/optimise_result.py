@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any
 
 from . import runner
 
@@ -20,25 +21,25 @@ _VERDICT = {"feasible": "feasible with confidence: every constraint holds with t
             "infeasible": "infeasible: a constraint clearly fails"}
 
 
-def _num(value: Optional[float]) -> str:
+def _num(value: float | None) -> str:
     if value is None:
         return "—"
     value = value + 0.0  # -0.0 reads as 0
     return f"{value:,.0f}" if abs(value) >= 1000 else f"{value:.4g}"
 
 
-def _decision(values: Dict[str, Any]) -> str:
+def _decision(values: dict[str, Any]) -> str:
     """A decision in full (tables shorten long values; a summary never does)."""
     return ", ".join(f"{name}={json.dumps(value)}" for name, value in values.items())
 
 
-def _span(row: Dict[str, Any], share: bool = False) -> str:
+def _span(row: dict[str, Any], share: bool = False) -> str:
     text = (lambda v: "—" if v is None else f"{v:.0%}") if share else _num
     interval = f" [{text(row['low'])}, {text(row['high'])}]" if row.get("low") is not None else ""
     return f"{text(row['value'])}{interval}"
 
 
-def _sureness(row: Dict[str, Any], short: str) -> str:
+def _sureness(row: dict[str, Any], short: str) -> str:
     """A constraint's verdict in words: met with its confidence, borderline, or not met (and by how much)."""
     if row["verdict"] == "feasible":
         return f"met with {row['confidence']:.0%} confidence"
@@ -48,7 +49,7 @@ def _sureness(row: Dict[str, Any], short: str) -> str:
     return f"NOT met, short by {short}" if not row["met"] else f"NOT met with {row['confidence']:.0%} confidence"
 
 
-def _constraint_text(row: Dict[str, Any]) -> str:
+def _constraint_text(row: dict[str, Any]) -> str:
     if row["value"] is None:
         return f"{row['constraint']}: no value"
     if "keys_total" in row:
@@ -63,7 +64,7 @@ def _constraint_text(row: Dict[str, Any]) -> str:
     return f"{row['constraint']}: {row.get('stat', 'mean')} {_span(row)} — {_sureness(row, _num(row['shortfall']))}"
 
 
-def _difference_text(diff: Optional[Dict[str, Any]]) -> str:
+def _difference_text(diff: dict[str, Any] | None) -> str:
     if not diff:
         return "no paired runs to compare"
     interval = f" (95% CI {_num(diff['low'])} to {_num(diff['high'])})" if diff["low"] is not None else ""
@@ -74,9 +75,9 @@ def _difference_text(diff: Optional[Dict[str, Any]]) -> str:
 class OptimisationResult:
     contract: str
     method: str
-    decisions: List[str]
-    objectives: List[str]
-    constraints: List[str]
+    decisions: list[str]
+    objectives: list[str]
+    constraints: list[str]
     runs: int
     seed: int
     #: Distinct decisions the search evaluated.
@@ -84,25 +85,26 @@ class OptimisationResult:
     #: Every run made: search, confirming the finalists, held-out seeds and sensitivity.
     total_runs: int
     #: The chosen decision (``None`` for a Pareto frontier); when nothing is feasible, the closest one.
-    best: Optional[Dict[str, Any]] = None
+    best: dict[str, Any] | None = None
     #: The chosen decision meets every constraint with the confidence it asks for (``verdict == "feasible"``).
     feasible: bool = False
     #: ``feasible``, ``borderline`` or ``infeasible``, on the confirmation seeds (see :mod:`.constraints`).
     verdict: str = "infeasible"
     #: The confidence a constraint holds with unless it states its own.
     confidence: float = 0.9
-    #: The chosen decision's objectives and constraints with 95% intervals, on the confirmation seeds (not the search's).
-    estimates: Optional[Dict[str, Any]] = None
-    runner_up: Optional[Dict[str, Any]] = None
+    #: The chosen decision's objectives and constraints with 95% intervals, on the confirmation seeds (not the
+    #: search's).
+    estimates: dict[str, Any] | None = None
+    runner_up: dict[str, Any] | None = None
     #: The chosen decision and the runner-up re-run on fresh seeds: values, the paired difference, seed-luck flags.
-    holdout: Optional[Dict[str, Any]] = None
+    holdout: dict[str, Any] | None = None
     #: The objective when each decision moves one step down or up from the best, paired on the search seeds.
-    sensitivity: List[Dict[str, Any]] = field(default_factory=list)
+    sensitivity: list[dict[str, Any]] = field(default_factory=list)
     #: Pareto frontier rows (two or three objectives), first objective best first.
-    frontier: List[Dict[str, Any]] = field(default_factory=list)
+    frontier: list[dict[str, Any]] = field(default_factory=list)
     #: Every evaluated decision, in the order the search tried them.
-    history: List[Dict[str, Any]] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
         """The answer in plain words."""
@@ -125,7 +127,7 @@ class OptimisationResult:
         lines += self._holdout_lines()
         return "\n".join(lines + [f"note: {n}" for n in self.notes])
 
-    def _holdout_lines(self) -> List[str]:
+    def _holdout_lines(self) -> list[str]:
         h = self.holdout
         if not h:
             return []
@@ -143,7 +145,8 @@ class OptimisationResult:
             else:
                 verdict = "the runner-up does better"
             lines.append(f"  against the runner-up ({_decision(h['runner_up']['decision'])}): {verdict}; "
-                         f"{_measure(self.objectives[0])} difference {_difference_text(diff)} (positive favours the choice)")
+                         f"{_measure(self.objectives[0])} difference {_difference_text(diff)} (positive favours the "
+                         "choice)")
         if h["seed_luck"]:
             lines.append("  SEED LUCK: " + "; ".join(h["reasons"]) + " — trust the fresh seeds and use more runs")
         return lines
@@ -168,12 +171,12 @@ class OptimisationResult:
             lines.append("Around the best decision (paired on the search seeds):")
             for row in self.sensitivity:
                 state = "" if row["feasible"] else ", constraints NOT met"
-                lines.append(f"  {row['decision']} one step {row['direction']}: {_measure(self.objectives[0])} changes by "
-                             f"{_difference_text(row['change'])}{state}")
+                lines.append(f"  {row['decision']} one step {row['direction']}: {_measure(self.objectives[0])} changes "
+                             f"by {_difference_text(row['change'])}{state}")
         lines += ["", self.table()]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "method": self.method, "decisions": self.decisions,
                 "objectives": self.objectives, "constraints": self.constraints, "runs": self.runs, "seed": self.seed,
                 "evaluations": self.evaluations, "total_runs": self.total_runs, "best": self.best,
@@ -188,6 +191,6 @@ def _measure(objective: str) -> str:
     return objective.split(" ", 1)[1]
 
 
-def _values(row: Dict[str, Any]) -> Sequence[Optional[float]]:
+def _values(row: dict[str, Any]) -> Sequence[float | None]:
     objectives = row.get("objectives", [])
     return [o["value"] if isinstance(o, dict) else o for o in objectives]

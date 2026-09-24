@@ -9,7 +9,8 @@ import fg_env
 def contract(nested=False, second_delay=False):
     body = (['$shock = $batch[0]'] if nested else []) + [
         '$world.cash += $shock.amount',
-        '$world.observed = [$shock.kind, $shock.text, $shock.round, $shock.actor, $shock.stage, $shock.time, $shock.details]']
+        '$world.observed = [$shock.kind, $shock.text, $shock.round, $shock.actor, $shock.stage, $shock.time, '
+        '$shock.details]']
     if second_delay:
         body = [{'after': 1, 'do': body}]
     return {'name': 'Deferred demand shock', 'clock': {'rounds': 3},

@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import copy
 import re
+from collections.abc import Mapping
 from difflib import get_close_matches
-from typing import Any, Dict, List, Mapping, Tuple
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
@@ -20,11 +21,12 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 _FOLDED = {"drift": "trend, seasonal, random_walk or mean_reversion", "shocks": "shocks", "priors": "draw"}
 
 
-def validated(name: str, spec: Any) -> Tuple[PatternConfig | None, List[Issue]]:
+def validated(name: str, spec: Any) -> tuple[PatternConfig | None, list[Issue]]:
     """``spec`` as its kind's config, or the issues saying what to fix."""
     path = f"patterns.{name}"
     if not isinstance(name, str) or not _NAME.match(name):
-        return None, [Issue(path, "a pattern name starts with a letter and uses letters, digits and _", "rename it, e.g. 'winter'")]
+        return None, [Issue(path, "a pattern name starts with a letter and uses letters, digits and _",
+                            "rename it, e.g. 'winter'")]
     if not isinstance(spec, Mapping) or "kind" not in spec:
         return None, [Issue(path, "needs a `kind`", f"kinds: {', '.join(sorted(KINDS))} (guide('patterns'))")]
     kind = spec["kind"]
@@ -42,13 +44,16 @@ def validated(name: str, spec: Any) -> Tuple[PatternConfig | None, List[Issue]]:
 
 
 def _issue(path: str, kind: str, model: Any, error: Mapping[str, Any]) -> Issue:
-    loc = [part for part in error["loc"] if not (isinstance(part, str) and ("[" in part or part.startswith("function")))]
+    loc = [part for part in error["loc"]
+           if not (isinstance(part, str) and ("[" in part or part.startswith("function")))]
     at = ".".join([path, *(f"[{p}]" if isinstance(p, int) else str(p) for p in loc)]).replace(".[", "[")
     if error["type"] == "extra_forbidden":
         field = str(loc[-1])
         fields = _fields(model, loc[:-1])
         hint = get_close_matches(field, fields, n=1)
-        return Issue(at, f"`{field}` is not a field of a `{kind}` pattern" if len(loc) == 1 else f"`{field}` is not a field here",
+        return Issue(at,
+                     f"`{field}` is not a field of a `{kind}` pattern" if len(loc) == 1
+                     else f"`{field}` is not a field here",
                      (f"did you mean '{hint[0]}'? " if hint else "") + f"it takes: {', '.join(fields)}")
     if error["type"] == "missing":
         info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
@@ -58,7 +63,7 @@ def _issue(path: str, kind: str, model: Any, error: Mapping[str, Any]) -> Issue:
     return Issue(at if loc else path, message, f"see guide('patterns') for `{kind}`")
 
 
-def _fields(model: Any, loc: List[Any]) -> List[str]:
+def _fields(model: Any, loc: list[Any]) -> list[str]:
     current = model
     for part in loc:
         if isinstance(part, int) or not (isinstance(current, type) and issubclass(current, BaseModel)):
@@ -82,16 +87,16 @@ def _model_in(annotation: Any) -> Any:
     return None
 
 
-def expand_patterns(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue]]:
+def expand_patterns(data: Mapping[str, Any]) -> tuple[dict[str, Any], list[Issue]]:
     """The contract with what its patterns add, plus problems with their configs."""
     raw = data.get("patterns")
     if not raw:
         return dict(data), []
     if not isinstance(raw, Mapping):
         return dict(data), [Issue("patterns", "must be an object of {name: {kind, ...}}", "guide('patterns')")]
-    out: Dict[str, Any] = dict(data)
-    issues: List[Issue] = []
-    metrics: Dict[str, Any] = {}
+    out: dict[str, Any] = dict(data)
+    issues: list[Issue] = []
+    metrics: dict[str, Any] = {}
     memory = False
     for name, spec in raw.items():
         cfg, problems = validated(name, spec)
@@ -100,7 +105,8 @@ def expand_patterns(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue
             continue
         kind = KINDS[cfg.kind]
         memory = memory or kind.shape == "memory"
-        if cfg.record and name not in (data.get("metrics") or {}) and not kind.arg_names(cfg):  # else the check says why
+        if (cfg.record and name not in (data.get("metrics") or {})
+            and not kind.arg_names(cfg)):  # else the check says why
             expr = f"$pattern_values('{name}')" if cfg.keyed else f"$pattern.{name}"
             metrics[name] = {"expr": expr, "description": cfg.description or f"The {cfg.kind} pattern '{name}'.",
                              "unit": cfg.unit}
@@ -110,6 +116,7 @@ def expand_patterns(data: Mapping[str, Any]) -> Tuple[Dict[str, Any], List[Issue
         world = dict(data.get("world") or {}) if isinstance(data.get("world") or {}, Mapping) else data.get("world")
         if isinstance(world, dict):
             world.setdefault(MEMORY_STATE, {"type": "map", "default": {},
-                                            "description": "State memory patterns carry between rounds (managed by the engine)."})
+                                            "description": "State memory patterns carry between rounds (managed by the "
+                                                           "engine)."})
             out["world"] = world
     return out, issues

@@ -19,15 +19,16 @@ from __future__ import annotations
 
 import itertools
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from . import runner
 from .stats import is_number
 
 __all__ = ["Axis", "Decision", "DecisionSpace", "parse_decisions", "Point"]
 
-Point = Tuple[float, ...]
+Point = tuple[float, ...]
 
 #: Levels a continuous range is cut into for a grid.
 GRID_LEVELS = 5
@@ -48,8 +49,8 @@ class Axis:
 
     low: float
     high: float
-    step: Optional[float] = None
-    values: Optional[Tuple[Any, ...]] = None
+    step: float | None = None
+    values: tuple[Any, ...] | None = None
 
     @property
     def choice(self) -> bool:
@@ -64,7 +65,7 @@ class Axis:
         k = min(round((x - self.low) / self.step), math.floor((self.high - self.low) / self.step + 1e-9))
         return round(self.low + k * self.step, _DIGITS)
 
-    def levels(self) -> List[float]:
+    def levels(self) -> list[float]:
         if self.values is not None:
             return [float(i) for i in range(len(self.values))]
         if self.step is None:
@@ -104,12 +105,12 @@ class Axis:
 class Decision:
     name: str
     kind: str  # scalar | choice | list | map
-    axes: Tuple[Axis, ...]
-    keys: Tuple[str, ...] = ()
+    axes: tuple[Axis, ...]
+    keys: tuple[str, ...] = ()
     integer: bool = False
-    monotone: Optional[str] = None
-    total: Optional[Tuple[Optional[float], Optional[float]]] = None
-    start: Tuple[float, ...] = ()
+    monotone: str | None = None
+    total: tuple[float | None, float | None] | None = None
+    start: tuple[float, ...] = ()
 
     @property
     def vector(self) -> bool:
@@ -124,7 +125,7 @@ class Decision:
             return numbers[0]
         return dict(zip(self.keys, numbers)) if self.kind == "map" else numbers
 
-    def coords(self, value: Any) -> Optional[Tuple[float, ...]]:
+    def coords(self, value: Any) -> tuple[float, ...] | None:
         """``value`` as coordinates, or ``None`` when it is not in the domain's shape."""
         if self.kind == "choice":
             values = self.axes[0].values or ()
@@ -141,7 +142,7 @@ class Decision:
             items = list(value)
         return tuple(float(v) for v in items) if all(is_number(v) for v in items) else None
 
-    def repair(self, coords: List[float]) -> List[float]:
+    def repair(self, coords: list[float]) -> list[float]:
         """Coordinates on the grid, inside the bounds and in the structure (monotone order, sum)."""
         out = [axis.snap(x) for axis, x in zip(self.axes, coords)]
         if self.monotone:
@@ -151,13 +152,15 @@ class Decision:
         return out
 
 
-def _into_total(axes: Sequence[Axis], values: List[float], total: Tuple[Optional[float], Optional[float]]) -> List[float]:
-    """Move values toward the sum's range: step by step on the coordinates with the most room (continuous: in one go)."""
+def _into_total(axes: Sequence[Axis], values: list[float], total: tuple[float | None, float | None]) -> list[float]:
+    """Move values toward the sum's range: step by step on the coordinates with the most room (continuous: in one go).
+    """
     low, high = total
     out = list(values)
     for _ in range(sum(len(a.levels()) if a.step is not None else 1 for a in axes)):
         s = math.fsum(out)
-        gap = (low - s) if low is not None and s < low - 1e-9 else (high - s) if high is not None and s > high + 1e-9 else 0.0
+        gap = ((low - s) if low is not None and s < low - 1e-9 else (high - s) if high is not None and s > high + 1e-9
+               else 0.0)
         if gap == 0.0:
             break
         room = [(a.high - x) if gap > 0 else (x - a.low) for a, x in zip(axes, out)]
@@ -174,10 +177,10 @@ def _into_total(axes: Sequence[Axis], values: List[float], total: Tuple[Optional
 
 @dataclass(frozen=True)
 class DecisionSpace:
-    decisions: Tuple[Decision, ...]
+    decisions: tuple[Decision, ...]
 
     @property
-    def axes(self) -> List[Axis]:
+    def axes(self) -> list[Axis]:
         return [axis for d in self.decisions for axis in d.axes]
 
     @property
@@ -185,10 +188,10 @@ class DecisionSpace:
         return len(self.axes)
 
     @property
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return [d.name for d in self.decisions]
 
-    def _spans(self) -> List[Tuple[Decision, int, int]]:
+    def _spans(self) -> list[tuple[Decision, int, int]]:
         spans, at = [], 0
         for d in self.decisions:
             spans.append((d, at, at + len(d.axes)))
@@ -196,16 +199,16 @@ class DecisionSpace:
         return spans
 
     def snap(self, point: Sequence[float]) -> Point:
-        out: List[float] = []
+        out: list[float] = []
         for d, a, b in self._spans():
             out += d.repair(list(point[a:b]))
         return tuple(out)
 
-    def decode(self, point: Point) -> Dict[str, Any]:
+    def decode(self, point: Point) -> dict[str, Any]:
         return {d.name: d.value(point[a:b]) for d, a, b in self._spans()}
 
     def encode(self, values: Mapping[str, Any]) -> Point:
-        coords: List[float] = []
+        coords: list[float] = []
         for d in self.decisions:
             c = d.coords(values[d.name])
             if c is None:
@@ -219,8 +222,8 @@ class DecisionSpace:
     def grid_size(self) -> int:
         return math.prod(len(axis.levels()) for axis in self.axes)
 
-    def grid(self) -> List[Point]:
-        seen: Dict[Point, None] = {}
+    def grid(self) -> list[Point]:
+        seen: dict[Point, None] = {}
         for combo in itertools.product(*(axis.levels() for axis in self.axes)):
             seen.setdefault(self.snap(combo), None)
         return list(seen)
@@ -228,10 +231,10 @@ class DecisionSpace:
     def from_unit(self, unit: Sequence[float]) -> Point:
         return self.snap([axis.from_unit(u) for axis, u in zip(self.axes, unit)])
 
-    def to_unit(self, point: Point) -> List[float]:
+    def to_unit(self, point: Point) -> list[float]:
         return [axis.to_unit(x) for axis, x in zip(self.axes, point)]
 
-    def moves(self, point: Point, i: int, step: float) -> List[Point]:
+    def moves(self, point: Point, i: int, step: float) -> list[Point]:
         """Neighbours of ``point`` along coordinate ``i``: every other choice, ±``step``, or — for a vector whose sum
         is fixed — ``step`` moved between ``i`` and each other position of that vector."""
         axis = self.axes[i]
@@ -247,7 +250,7 @@ class DecisionSpace:
                 raw = [_with(point, {i: point[i] + step}), _with(point, {i: point[i] - step})]
         return self._distinct(point, raw)
 
-    def pair_moves(self, point: Point, i: int, steps: Sequence[float]) -> List[Point]:
+    def pair_moves(self, point: Point, i: int, steps: Sequence[float]) -> list[Point]:
         """``point`` with coordinate ``i`` a step up and each later numeric coordinate a step down, or the reverse:
         the shifts single moves cannot make along a constraint (an agent moved from one half hour to another)."""
         if self.axes[i].choice:
@@ -255,7 +258,7 @@ class DecisionSpace:
         return self._distinct(point, [_with(point, {i: point[i] + sign * steps[i], j: point[j] - sign * steps[j]})
                                       for j in range(i + 1, self.dims) if not self.axes[j].choice for sign in (1, -1)])
 
-    def block_moves(self, point: Point, i: int, steps: Sequence[float]) -> List[Point]:
+    def block_moves(self, point: Point, i: int, steps: Sequence[float]) -> list[Point]:
         """``point`` with a block of a vector's positions from ``i`` moved a step up or down together: 2, 4, 8…
         positions, and the run of equal values ``i`` starts. A monotone profile cannot move one position past its
         neighbour, and a smooth one improves by shifting a stretch, not a point."""
@@ -276,7 +279,7 @@ class DecisionSpace:
         return self._distinct(point, [_with(point, {j: point[j] + sign * steps[j] for j in range(i, end)})
                                       for end in sorted(ends) for sign in (1, -1)])
 
-    def smoothing_moves(self, point: Point, i: int, steps: Sequence[float]) -> List[Point]:
+    def smoothing_moves(self, point: Point, i: int, steps: Sequence[float]) -> list[Point]:
         """``point`` with an inner position of a vector set to the middle of its two neighbours (onto its step from
         below and from above): the move that irons a lone spike or dip out of a near-monotone or smooth profile."""
         owner, a, b = self._span_of(i)
@@ -288,19 +291,19 @@ class DecisionSpace:
         below = axis.low + math.floor((middle - axis.low) / axis.step + 1e-9) * axis.step
         return self._distinct(point, [_with(point, {i: below}), _with(point, {i: below + axis.step})])
 
-    def _span_of(self, i: int) -> Tuple[Decision, int, int]:
+    def _span_of(self, i: int) -> tuple[Decision, int, int]:
         return next(span for span in self._spans() if span[1] <= i < span[2])
 
-    def _distinct(self, point: Point, raw: Sequence[Sequence[float]]) -> List[Point]:
+    def _distinct(self, point: Point, raw: Sequence[Sequence[float]]) -> list[Point]:
         """``raw`` snapped into the space, without repeats or ``point`` itself."""
-        seen: Dict[Point, None] = {}
+        seen: dict[Point, None] = {}
         for candidate in raw:
             snapped = self.snap(candidate)
             if snapped != point:
                 seen.setdefault(snapped, None)
         return list(seen)
 
-    def shifted(self, point: Point, name: str, direction: int) -> Optional[Point]:
+    def shifted(self, point: Point, name: str, direction: int) -> Point | None:
         """``point`` with one decision moved a step up or down as a whole (``None`` when that changes nothing)."""
         changes = {}
         for d, a, b in self._spans():
@@ -310,9 +313,9 @@ class DecisionSpace:
         moved = self.snap(_with(point, changes))
         return None if moved == point else moved
 
-    def at_edges(self, point: Point) -> Dict[str, List[str]]:
+    def at_edges(self, point: Point) -> dict[str, list[str]]:
         """Numeric decisions with a value on a bound of its range: the positions or keys there (empty for a scalar)."""
-        out: Dict[str, List[str]] = {}
+        out: dict[str, list[str]] = {}
         for d, a, b in self._spans():
             if d.kind == "choice":
                 continue
@@ -327,7 +330,7 @@ class DecisionSpace:
         return runner.describe_inputs(self.decode(point))
 
 
-def _with(point: Sequence[float], changes: Mapping[int, float]) -> List[float]:
+def _with(point: Sequence[float], changes: Mapping[int, float]) -> list[float]:
     return [changes.get(i, x) for i, x in enumerate(point)]
 
 
@@ -417,13 +420,14 @@ def _vector(name: str, spec: Mapping[str, Any], input_spec: Any) -> Decision:
 
 
 def _structure(name: str, spec: Mapping[str, Any], axes: Sequence[Axis]
-               ) -> Tuple[Optional[str], Optional[Tuple[Optional[float], Optional[float]]]]:
+               ) -> tuple[str | None, tuple[float | None, float | None] | None]:
     monotone = spec.get("monotone")
     if monotone not in (None, "increasing", "decreasing"):
         raise ValueError(f"decision '{name}': monotone must be 'increasing' or 'decreasing', got {monotone!r}")
     if monotone:
         sign = 1 if monotone == "increasing" else -1
-        bounds_follow = all(sign * (b.low - a.low) >= 0 and sign * (b.high - a.high) >= 0 for a, b in zip(axes, axes[1:]))
+        bounds_follow = all(sign * (b.low - a.low) >= 0 and sign * (b.high - a.high) >= 0
+                            for a, b in zip(axes, axes[1:]))
         if not bounds_follow:
             raise ValueError(f"decision '{name}': per-position low and high must themselves be {monotone} "
                              "for a monotone decision")
@@ -443,7 +447,7 @@ def _structure(name: str, spec: Mapping[str, Any], axes: Sequence[Axis]
     return None, (None if low is None else float(low), None if high is None else float(high))
 
 
-def _vector_start(probe: Decision, spec: Mapping[str, Any], default: Any) -> Tuple[float, ...]:
+def _vector_start(probe: Decision, spec: Mapping[str, Any], default: Any) -> tuple[float, ...]:
     given = spec.get("start")
     coords = probe.coords(given) if given is not None else None
     if given is not None and coords is None:
@@ -463,7 +467,7 @@ def _scalar_start(name: str, value: Any, axis: Axis, given: bool) -> float:
     return axis.snap(float(value) if inside else (axis.low + axis.high) / 2)
 
 
-def _per_position(name: str, key: str, value: Any, labels: Sequence[str]) -> List[float]:
+def _per_position(name: str, key: str, value: Any, labels: Sequence[str]) -> list[float]:
     if value is None:
         raise ValueError(f"decision '{name}': give '{key}' (one number, or one per position or key); the input "
                          f"declares no {'min' if key == 'low' else 'max'}")
@@ -481,7 +485,7 @@ def _per_position(name: str, key: str, value: Any, labels: Sequence[str]) -> Lis
     return [float(value)] * len(labels)
 
 
-def _step(name: str, step: Any) -> Optional[float]:
+def _step(name: str, step: Any) -> float | None:
     if step is None:
         return None
     if not is_number(step) or step <= 0:

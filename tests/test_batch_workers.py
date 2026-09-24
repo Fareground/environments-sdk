@@ -8,9 +8,9 @@ from pathlib import Path
 import pytest
 
 import fg_env
-from fg_env.experiments import workers as pools
-from fg_env.api import contract_source
 from fg_env.analysis.runner import run_seeds
+from fg_env.api import contract_source
+from fg_env.experiments import workers as pools
 from fg_env.experiments.experiment import Job, _Batch, _run_chunk, run_job, run_jobs, worker_pool
 
 LEMONADE = Path(__file__).parents[1] / "examples" / "contracts" / "lemonade_stand.json"
@@ -35,7 +35,8 @@ def always_in_workers(monkeypatch):
 
 @pytest.fixture
 def fresh_costs(monkeypatch):
-    """Nothing measured yet in this process: a pool takes a second to start and no batch has run here waiting for one."""
+    """Nothing measured yet in this process: a pool takes a second to start and no batch has run here waiting for one.
+    """
     monkeypatch.setattr(pools._kept, "start_seconds", 1.0)
     monkeypatch.setattr(pools._kept, "job_seconds", {})
     monkeypatch.setattr(pools._kept, "ran_here", {})

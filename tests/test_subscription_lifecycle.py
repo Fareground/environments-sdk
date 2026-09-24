@@ -2,10 +2,10 @@
 import copy
 import json
 
-import fg_env
 import pytest
-
 from test_shared_subscription_choices import CONTRACT
+
+import fg_env
 
 
 @pytest.mark.parametrize("removed", ["seller", "one", "a"])

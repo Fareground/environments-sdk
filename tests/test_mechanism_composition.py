@@ -1,4 +1,5 @@
-"""Mechanisms compose: several of one kind share a contract, clashing names are refused, nothing ends the run unasked."""
+"""Mechanisms compose: several of one kind share a contract, clashing names are refused, nothing ends the run unasked.
+"""
 import fg_env
 from fg_env.expr import compile_expr
 from fg_env.mechanisms import generated_summary
@@ -22,7 +23,8 @@ def do(env, actor, effects):
 
 BASE = {"name": "Composed", "clock": {"rounds": 3},
         "types": {"member": {"agent": True}, "committee_member": {"extends": "member"}},
-        "population": [{"type": "member", "count": 3, "id": "m{$i}"}, {"type": "committee_member", "count": 2, "id": "c{$i}"}]}
+        "population": [{"type": "member", "count": 3, "id": "m{$i}"},
+                       {"type": "committee_member", "count": 2, "id": "c{$i}"}]}
 
 
 def _with(**mechanisms):

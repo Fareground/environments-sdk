@@ -6,14 +6,13 @@ import json
 import os
 import random
 
+import _fuzz
+import _leaks
 import pytest
+from _adversaries import played, probing
 
 import fg_env
 from fg_env.participants import RandomAgent
-
-import _fuzz
-import _leaks
-from _adversaries import played, probing
 
 SEEDS = range(3000 if os.environ.get("FG_ENV_SLOW") else 100)
 

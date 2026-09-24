@@ -13,7 +13,8 @@ FIRMS = {
         "firm": {"props": {"capital": 10, "seen_total": 0},
                  "on_create": ["$world.founded += 1", "$world.log += 'firm:' + $it.id",
                                "$it.seen_total = $count(firm)"],
-                 "on_remove": ["$world.closed += 1", "$world.log += 'gone:' + $it.id + ':' + ('alive' if $it.alive else 'dead')"]},
+                 "on_remove": ["$world.closed += 1",
+                               "$world.log += 'gone:' + $it.id + ':' + ('alive' if $it.alive else 'dead')"]},
         "bank": {"extends": "firm", "on_create": ["$world.log += 'bank:' + $it.id"]},
     },
     "entities": {"f0": {"type": "founder"}, "acme": {"type": "firm"}},
@@ -110,5 +111,6 @@ def test_the_checker_checks_hook_effects_over_it():
     contract["types"]["founder"]["on_create_at_build"] = False
     issues = [(i.path, i.message, i.severity) for i in fg_env.check(contract)]
     assert ("types.firm.on_create[0]", "$it.nope: bank/firm has no property 'nope'", "error") in issues
-    assert any(path == "types.firm.on_create[1]" and "$actor is not available" in message for path, message, _ in issues)
+    assert any(path == "types.firm.on_create[1]" and "$actor is not available" in message
+               for path, message, _ in issues)
     assert ("types.founder.on_create_at_build", "does nothing: this type has no on_create", "warning") in issues

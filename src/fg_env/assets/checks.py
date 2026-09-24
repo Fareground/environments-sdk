@@ -3,7 +3,7 @@ parameters. Whether the files exist and match is checked when the contract is lo
 from __future__ import annotations
 
 import re
-from typing import Any, FrozenSet, Set
+from typing import Any
 
 from .kinds import HARD_MAX_BYTES, KINDS
 
@@ -13,7 +13,7 @@ _ID = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*$")
 _IT_PROP = re.compile(r"\$it\.([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def check_assets(checker: Any, base: FrozenSet[str]) -> None:
+def check_assets(checker: Any, base: frozenset[str]) -> None:
     contract = checker.c
     for name, spec in contract.assets.items():
         path = f"assets.{name}"
@@ -35,7 +35,7 @@ def check_assets(checker: Any, base: FrozenSet[str]) -> None:
         if view.attach is None:
             continue
         path = f"views.{name}.attach"
-        its: Set[str] = set(contract.subtypes(view.of)) if view.of in contract.types else set()
+        its: set[str] = set(contract.subtypes(view.of)) if view.of in contract.types else set()
         checker.expr(view.attach, path, base | {"actor", "it", "i"}, {"actor": agents, "it": its})
         if view.where is not None:  # the author decides who sees which item
             continue

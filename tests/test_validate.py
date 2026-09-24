@@ -12,7 +12,9 @@ SHOPS = {
                "noise": {"type": "number", "default": 0, "min": 0, "max": 50}},
     "types": {"t": {"props": {"v": 0}}},
     "outputs": {
-        "by_shop": {"type": "map", "expr": "$dict($keys($inputs.demand), $it, $get($inputs.demand, $it) * $inputs.level + $normal(0, $inputs.noise))"},
+        "by_shop": {"type": "map",
+                    "expr": "$dict($keys($inputs.demand), $it, $get($inputs.demand, $it) * $inputs.level + $normal(0, "
+                            "$inputs.noise))"},
         "total": {"type": "number", "expr": "$sum($values($inputs.demand)) * $inputs.level"},
         "path": {"type": "list", "expr": "[$inputs.level, $inputs.level * 2]"}},
 }
@@ -45,7 +47,8 @@ def test_errors_are_reported_per_key_and_overall_with_bias_as_a_share_of_the_act
     assert by_shop["overall"]["bias"] == pytest.approx(0.1)
     assert by_shop["keys"]["north"]["wape"] == pytest.approx(0.1)
     assert "by_shop: forecasts run high by 10.0% of the actual total on average (± 0.0%)" in result.warnings
-    assert [row["key"] for row in result.rows if row["case"] == "week 1" and row["measure"] == "by_shop"] == ["north", "south"]
+    assert ([row["key"] for row in result.rows if row["case"] == "week 1" and row["measure"] == "by_shop"]
+            == ["north", "south"])
 
 
 def test_consistent_bias_with_spread_is_called_out():

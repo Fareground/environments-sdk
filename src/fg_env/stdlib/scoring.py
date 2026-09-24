@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..expr import Call, _describe, charge, function
 from ._args import fail, list_arg, number_arg, present_numbers, probability
@@ -26,14 +26,15 @@ def _binary_outcome(call: Call, outcome: Any) -> int:
     raise fail(call, f"a binary outcome must be true/false or 1/0, got {_describe(outcome)}")
 
 
-def _vector(call: Call, forecast: Any, what: str = "the forecast") -> Tuple[List[Any], List[float]]:
+def _vector(call: Call, forecast: Any, what: str = "the forecast") -> tuple[list[Any], list[float]]:
     """Keys and probabilities of a list or map forecast; probabilities in [0, 1] summing to 1."""
     if isinstance(forecast, dict):
         keys, raw = list(forecast), list(forecast.values())
     elif isinstance(forecast, (list, tuple)):
         keys, raw = list(range(len(forecast))), list(forecast)
     else:
-        raise fail(call, f"{what} must be a probability, a list of probabilities or a map of them, got {_describe(forecast)}")
+        raise fail(call,
+                   f"{what} must be a probability, a list of probabilities or a map of them, got {_describe(forecast)}")
     charge(len(raw), call.source)
     if not raw:
         raise fail(call, f"{what} is empty")
@@ -43,18 +44,22 @@ def _vector(call: Call, forecast: Any, what: str = "the forecast") -> Tuple[List
     return keys, probabilities
 
 
-def _outcome_position(call: Call, keys: List[Any], forecast: Any, outcome: Any) -> int:
+def _outcome_position(call: Call, keys: list[Any], forecast: Any, outcome: Any) -> int:
     if isinstance(forecast, dict):
         if isinstance(outcome, str) and outcome in forecast:
             return keys.index(outcome)
-        raise fail(call, f"the outcome must be one of the forecast's keys ({', '.join(map(str, keys))}), got {_describe(outcome)}")
+        raise fail(call,
+                   f"the outcome must be one of the forecast's keys ({', '.join(map(str, keys))}), got "
+                   f"{_describe(outcome)}")
     if isinstance(outcome, bool) or not isinstance(outcome, int) or not 0 <= outcome < len(keys):
-        raise fail(call, f"the outcome must be a position 0..{len(keys) - 1} in the forecast list, got {_describe(outcome)}")
+        raise fail(call,
+                   f"the outcome must be a position 0..{len(keys) - 1} in the forecast list, got {_describe(outcome)}")
     return outcome
 
 
 @function("brier(forecast, outcome)",
-          "Brier score (lower is better): (p - outcome)² for a probability and a true/false outcome; for a list (outcome = position) or map (outcome = key), the sum over classes (0–2).",
+          "Brier score (lower is better): (p - outcome)² for a probability and a true/false outcome; for a list "
+          "(outcome = position) or map (outcome = key), the sum over classes (0–2).",
           min_args=2, max_args=2)
 def _brier(call: Call) -> float:
     forecast, outcome = call.arg(0), call.arg(1)
@@ -66,7 +71,8 @@ def _brier(call: Call) -> float:
 
 
 @function("log_loss(forecast, outcome, epsilon?)",
-          "Log loss (lower is better): -ln of the probability given to what happened; probabilities are floored at `epsilon` (default 1e-15). Forecast forms as in $brier.",
+          "Log loss (lower is better): -ln of the probability given to what happened; probabilities are floored at "
+          "`epsilon` (default 1e-15). Forecast forms as in $brier.",
           min_args=2, max_args=3)
 def _log_loss(call: Call) -> float:
     forecast, outcome = call.arg(0), call.arg(1)
@@ -83,9 +89,10 @@ def _log_loss(call: Call) -> float:
 
 
 @function("crps(samples, outcome)",
-          "Continuous ranked probability score of a sample forecast (list; nulls skipped) or a point forecast, against the outcome (lower is better; in the outcome's units).",
+          "Continuous ranked probability score of a sample forecast (list; nulls skipped) or a point forecast, against "
+          "the outcome (lower is better; in the outcome's units).",
           min_args=2, max_args=2)
-def _crps(call: Call) -> Optional[float]:
+def _crps(call: Call) -> float | None:
     outcome = number_arg(call, 1, what="the outcome")
     forecast = call.arg(0)
     if isinstance(forecast, (int, float)) and not isinstance(forecast, bool):
@@ -101,9 +108,10 @@ def _crps(call: Call) -> Optional[float]:
 
 
 @function("abs_error(forecast, outcome)",
-          "Absolute error |forecast - outcome|; for two equal-length lists, the mean absolute error (pairs with a null skipped; null when none).",
+          "Absolute error |forecast - outcome|; for two equal-length lists, the mean absolute error (pairs with a null "
+          "skipped; null when none).",
           min_args=2, max_args=2)
-def _abs_error(call: Call) -> Optional[float]:
+def _abs_error(call: Call) -> float | None:
     forecast, outcome = call.arg(0), call.arg(1)
     if isinstance(forecast, (list, tuple)) or isinstance(outcome, (list, tuple)):
         predicted = list_arg(call, 0, "a list of forecasts")
@@ -117,9 +125,10 @@ def _abs_error(call: Call) -> Optional[float]:
 
 
 @function("elo(rating_a, rating_b, score_a, k?)",
-          "Elo update after a game: score_a is 1 (A won), 0.5 (draw) or 0 (A lost); gives {a, b, expected_a} with K-factor k (default 32).",
+          "Elo update after a game: score_a is 1 (A won), 0.5 (draw) or 0 (A lost); gives {a, b, expected_a} with "
+          "K-factor k (default 32).",
           min_args=3, max_args=4)
-def _elo(call: Call) -> Dict[str, float]:
+def _elo(call: Call) -> dict[str, float]:
     a, b = number_arg(call, 0, what="rating_a"), number_arg(call, 1, what="rating_b")
     score = number_arg(call, 2, low=0, high=1, what="score_a")
     k = number_arg(call, 3, ELO_K, low=0, what="the K-factor")
@@ -128,7 +137,7 @@ def _elo(call: Call) -> Dict[str, float]:
     return {"a": a + change, "b": b - change, "expected_a": expected}
 
 
-def _pool_weights(call: Call, count: int) -> List[float]:
+def _pool_weights(call: Call, count: int) -> list[float]:
     if len(call) < 4 or call.arg(3) is None:
         return [1.0 / count] * count
     weights = present_numbers(call, list_arg(call, 3, "a list of weights"), "weights")
@@ -138,12 +147,12 @@ def _pool_weights(call: Call, count: int) -> List[float]:
     return [w / total for w in weights]
 
 
-def _pooled(call: Call, vectors: List[List[float]], weights: List[float], method: str, exponent: float) -> List[float]:
+def _pooled(call: Call, vectors: list[list[float]], weights: list[float], method: str, exponent: float) -> list[float]:
     size = len(vectors[0])
     if method == "linear":
         return [math.fsum(w * v[k] for w, v in zip(weights, vectors)) for k in range(size)]
     power = exponent if method == "extremized" else 1.0
-    logs: List[float] = []
+    logs: list[float] = []
     for k in range(size):
         if any(v[k] == 0 and w > 0 for w, v in zip(weights, vectors)):
             logs.append(-math.inf)
@@ -158,7 +167,8 @@ def _pooled(call: Call, vectors: List[List[float]], weights: List[float], method
 
 
 @function("pool(forecasts, method?, exponent?, weights?)",
-          "Combine forecasts (probabilities, probability lists or maps): linear (weighted mean, default), log (normalised weighted geometric mean) or extremized (log pool raised to `exponent`, default 2.5).",
+          "Combine forecasts (probabilities, probability lists or maps): linear (weighted mean, default), log "
+          "(normalised weighted geometric mean) or extremized (log pool raised to `exponent`, default 2.5).",
           min_args=1, max_args=4)
 def _pool(call: Call) -> Any:
     forecasts = list_arg(call, 0, "a list of forecasts")

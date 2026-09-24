@@ -2,13 +2,14 @@
 equality guard that lets collection functions skip items a condition certainly rules out."""
 from __future__ import annotations
 
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from difflib import get_close_matches
-from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from .base import _BUDGET, ExprError, charge, truthy
 from .scope import Scope
-from .values import _ENTITY_FIELDS, _Entity, _describe, _entity_id, _number
+from .values import _ENTITY_FIELDS, _describe, _Entity, _entity_id, _number
 
 __all__ = ["Evaluator", "EqualityGuard", "Call", "FunctionSpec", "FUNCTIONS", "function"]
 
@@ -27,7 +28,7 @@ _SAY_INSTEAD = {
 }
 
 
-def suggest_function(name: str, candidates: Sequence[str]) -> Optional[str]:
+def suggest_function(name: str, candidates: Sequence[str]) -> str | None:
     """What to write instead of the unknown function ``name``: the one way the language says it, or the closest
     known name (a built-in or a def among ``candidates``), with its ``$``."""
     if name in _SAY_INSTEAD:
@@ -57,7 +58,7 @@ class EqualityGuard:
 
     field: str
     value: Evaluator
-    roots: FrozenSet[str]
+    roots: frozenset[str]
 
     def key(self, scope: Scope) -> Any:
         """The value every item is compared with, or ``_NO_KEY`` when it cannot be known up front."""
@@ -110,7 +111,7 @@ class Call:
         vars = scope.vars  # the child scope built in one step: every collection function runs this per item
         return self.nodes[index](Scope({**vars, "it": item, "i": position, "outer": vars.get("it")}, scope.world))
 
-    def collection(self, index: int = 0) -> List[Any]:
+    def collection(self, index: int = 0) -> list[Any]:
         return self._items(self.arg(index), copy=True)  # type: ignore[return-value]
 
     def members(self, index: int = 0) -> Sequence[Any]:
@@ -142,16 +143,16 @@ class Call:
             charge(0, self.source)
         return items
 
-    def filtered(self, index: int = 0, where: Optional[int] = None) -> List[Any]:
+    def filtered(self, index: int = 0, where: int | None = None) -> list[Any]:
         items = self.collection(index)
         if where is None or where >= len(self.nodes):
             return items
         return [item for pos, item in self.candidates(items, where) if truthy(self.each(where, item, pos))]
 
-    def candidates(self, items: Sequence[Any], where: int) -> Iterator[Tuple[int, Any]]:
+    def candidates(self, items: Sequence[Any], where: int) -> Iterator[tuple[int, Any]]:
         """``(position, item)`` for the items argument ``where`` may hold for. Items it cannot hold for are
         left out only when that is certain without evaluating it (see :class:`EqualityGuard`)."""
-        guard: Optional[EqualityGuard] = getattr(self.nodes[where], "guard", None)
+        guard: EqualityGuard | None = getattr(self.nodes[where], "guard", None)
         key = guard.key(self.scope.child(outer=self.scope.vars.get("it"))) if guard is not None else _NO_KEY
         if key is _NO_KEY:
             return enumerate(items)
@@ -179,11 +180,11 @@ class FunctionSpec:
     signature: str
     doc: str
     min_args: int = 0
-    max_args: Optional[int] = None
-    lazy: FrozenSet[int] = frozenset()
+    max_args: int | None = None
+    lazy: frozenset[int] = frozenset()
 
 
-FUNCTIONS: Dict[str, FunctionSpec] = {}
+FUNCTIONS: dict[str, FunctionSpec] = {}
 
 
 def function(
@@ -191,7 +192,7 @@ def function(
     doc: str,
     *,
     min_args: int = 0,
-    max_args: Optional[int] = None,
+    max_args: int | None = None,
     lazy: Sequence[int] = (),
 ) -> Callable[[Callable[[Call], Any]], Callable[[Call], Any]]:
     """Register a built-in expression function. ``signature`` starts with its name."""

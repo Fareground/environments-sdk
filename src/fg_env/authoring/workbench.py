@@ -5,14 +5,16 @@ from __future__ import annotations
 import copy
 import json
 import tempfile
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any
 
 from ..api import check, load
-from .sandbox import Sandbox, TooSlow
-from ..engines import get as engine_spec, list_engines
+from ..engines import get as engine_spec
+from ..engines import list_engines
 from ..guides import guide
 from ..host.hosts import Hosts
+from .sandbox import Sandbox, TooSlow
 from .testing import TEST_SEEDS, StubHosts, Tested, tested
 
 __all__ = ["TOOLS", "Workbench", "describe_changes", "removed_parts"]
@@ -24,7 +26,7 @@ RUN_SECONDS = 60
 #: Longest tool result sent back to the model.
 MAX_RESULT = 12000
 
-TOOLS: List[Dict[str, Any]] = [
+TOOLS: list[dict[str, Any]] = [
     {"name": "write_contract", "description": "Save the environment contract (the whole JSON object, as text). "
      "Replaces the previous version.", "parameters": {"type": "object", "properties": {
          "contract": {"type": "string", "description": "The contract as JSON text (a JSON object is taken too)."}},
@@ -50,10 +52,11 @@ TOOLS: List[Dict[str, Any]] = [
     {"name": "preview", "description": "Exactly what one agent reads on its next turn: brief, update and tools.",
      "parameters": {"type": "object", "properties": {"agent": {"type": "string", "description": "Entity id."}},
                     "required": ["agent"]}},
-    {"name": "guide", "description": "Read one part of the SDK guide, e.g. 'actions', 'effects', 'functions.collections'.",
+    {"name": "guide",
+     "description": "Read one part of the SDK guide, e.g. 'actions', 'effects', 'functions.collections'.",
      "parameters": {"type": "object", "properties": {"part": {"type": "string"}, "start": {
          "type": "integer", "description": "Where to start reading, in characters: a part longer than one reply is "
-                                           "cut, and the cut says where to read on."}}, "required": ["part"]}},
+                          "cut, and the cut says where to read on."}}, "required": ["part"]}},
 ]
 
 
@@ -65,22 +68,25 @@ CUT_WRITE = (" Write the contract shorter, or save a smaller one first and add t
              "also revises a saved contract without writing it all again).")
 
 
-def describe_changes(before: Dict[str, Any], after: Dict[str, Any]) -> str:
+def describe_changes(before: dict[str, Any], after: dict[str, Any]) -> str:
     """How ``after`` differs from ``before`` in what the environment is: its name and the parts :func:`_parts` names."""
-    changes = [f"name {before.get('name')!r} → {after.get('name')!r}"] if before.get("name") != after.get("name") else []
+    changes = ([f"name {before.get('name')!r} → {after.get('name')!r}"] if before.get("name") != after.get("name")
+               else [])
     old_parts, new_parts = _parts(before), _parts(after)
     for key in [k for k in old_parts if k in new_parts]:
         old, new = old_parts[key], new_parts[key]
         if old != new:
-            changes.append(f"{key} " + " ".join([f"-{k}" for k in sorted(old - new)] + [f"+{k}" for k in sorted(new - old)]))
+            changes.append(f"{key} "
+                           + " ".join([f"-{k}" for k in sorted(old - new)] + [f"+{k}" for k in sorted(new - old)]))
     return "; ".join(changes)
 
 
-def removed_parts(before: Dict[str, Any], after: Dict[str, Any]) -> List[str]:
+def removed_parts(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
     """The parts of ``before`` that ``after`` no longer has, e.g. ``actions.take`` or ``actions.take.params.count``."""
     old_parts, new_parts = _parts(before), _parts(after)
     gone = [f"{key}.{name}" for key, names in old_parts.items() for name in sorted(names - new_parts.get(key, set()))]
-    return [path for path in gone if not any(path.startswith(other + ".") for other in gone)]  # an action, not its params
+    return [path for path in gone
+            if not any(path.startswith(other + ".") for other in gone)]  # an action, not its params
 
 
 #: The contract sections made of parts: together, what an environment is.
@@ -89,10 +95,10 @@ _SECTIONS = ("inputs", "assets", "world", "types", "entities", "population", "re
              "arms", "invariants", "defs", "blocks", "mechanisms")
 
 
-def _parts(contract: Dict[str, Any]) -> Dict[str, Set[str]]:
+def _parts(contract: dict[str, Any]) -> dict[str, set[str]]:
     """The names of the parts of each of :data:`_SECTIONS` (a list's item by its name, else its position), and of each
     action's params."""
-    parts: Dict[str, Set[str]] = {}
+    parts: dict[str, set[str]] = {}
     for key in _SECTIONS:
         value = contract.get(key) or {}
         parts[key] = set(value) if isinstance(value, dict) else {
@@ -103,7 +109,7 @@ def _parts(contract: Dict[str, Any]) -> Dict[str, Set[str]]:
     return parts
 
 
-def _tool(name: str, path: str, args: Dict[str, Any]) -> str:
+def _tool(name: str, path: str, args: dict[str, Any]) -> str:
     """The model's ``check``, ``run`` or ``preview`` tool on the saved contract at ``path``, in the child process."""
     hosts = StubHosts(path)
     try:
@@ -120,7 +126,7 @@ def _check_tool(path: str, hosts: Hosts) -> str:
 
 
 def _run_tool(path: str, hosts: Hosts, seconds: float, seed: int = 1,
-              participants: Optional[Dict[str, str]] = None) -> str:
+              participants: dict[str, str] | None = None) -> str:
     env = load(path, seed=seed, hosts=hosts)
     wrong = _unplayable(participants, list(env.contract.policies))
     if wrong:
@@ -135,7 +141,7 @@ def _preview_tool(path: str, hosts: Hosts, agent: str) -> str:
     return f"BRIEF:\n{shown['brief']}\n\nUPDATE:\n{shown['update']}\n\nTOOLS:\n{tools}"
 
 
-_CHILD_TOOLS: Dict[str, Callable[..., str]] = {"check": _check_tool, "run": _run_tool, "preview": _preview_tool}
+_CHILD_TOOLS: dict[str, Callable[..., str]] = {"check": _check_tool, "run": _run_tool, "preview": _preview_tool}
 
 
 class Workbench:
@@ -149,23 +155,23 @@ class Workbench:
         #: The child process the saved contract is tested, checked, run and previewed in.
         self.box = Sandbox()
         self.box.start()  # it imports the SDK while the model writes
-        self.writes: List[Any] = []
-        self.revisions: List[Dict[str, Any]] = []
-        self.working: List[int] = []
+        self.writes: list[Any] = []
+        self.revisions: list[dict[str, Any]] = []
+        self.working: list[int] = []
         #: The number of the kept revision.
-        self.kept: Optional[int] = None
+        self.kept: int | None = None
         #: What testing found, per working revision.
-        self.tests: Dict[int, Tested] = {}
+        self.tests: dict[int, Tested] = {}
         #: What the latest working revision not kept removed from the kept one: saving that removal again confirms it.
-        self.unconfirmed: List[str] = []
+        self.unconfirmed: list[str] = []
         self.problem = ""
 
     @property
-    def best(self) -> Optional[Dict[str, Any]]:
+    def best(self) -> dict[str, Any] | None:
         return self.revisions[self.kept - 1] if self.kept else None
 
     @property
-    def latest(self) -> Optional[Dict[str, Any]]:
+    def latest(self) -> dict[str, Any] | None:
         return self.revisions[-1] if self.revisions else None
 
     @property
@@ -178,7 +184,8 @@ class Workbench:
             return f"Bad tool call: there is no tool {name!r}; the tools are {', '.join(t['name'] for t in TOOLS)}."
         args, wrong = _arguments(tool["parameters"], arguments)
         if wrong:
-            return f"Bad tool call: {name}: {wrong}. It takes: {', '.join(tool['parameters']['properties']) or 'nothing'}."
+            return (f"Bad tool call: {name}: {wrong}. It takes: "
+                    f"{', '.join(tool['parameters']['properties']) or 'nothing'}.")
         try:
             text = str(getattr(self, "tool_" + name)(**args))
         except Exception as exc:  # the SDK's own errors are what the author reads
@@ -212,7 +219,7 @@ class Workbench:
             return "Not a JSON object: a contract is one object {...}. Nothing saved."
         return self._save(data)
 
-    def tool_edit_contract(self, edits: List[Dict[str, Any]]) -> str:
+    def tool_edit_contract(self, edits: list[dict[str, Any]]) -> str:
         if self.latest is None:
             return "No contract saved yet: save one with write_contract first."
         data = copy.deepcopy(self.latest)
@@ -226,7 +233,7 @@ class Workbench:
         source = engine_spec(engine).materialized_source()
         return self._save(source) + "\n\nThe contract:\n" + json.dumps(source, ensure_ascii=False)
 
-    def _save(self, data: Dict[str, Any]) -> str:
+    def _save(self, data: dict[str, Any]) -> str:
         if self.out_of_revisions:
             kept = f"revision {self.kept}, the best that works, is kept" if self.kept else "none works"
             return f"Revision limit reached ({MAX_REVISIONS}): nothing more is saved; {kept}."
@@ -243,8 +250,8 @@ class Workbench:
         removed = removed_parts(self.best, data) if self.best is not None else []
         if removed and removed != self.unconfirmed:
             self.unconfirmed = removed
-            self.problem = (f"it removed {', '.join(removed)}, which revision {self.kept} has; saving it again keeps it "
-                            "instead")
+            self.problem = (f"it removed {', '.join(removed)}, which revision {self.kept} has; saving it again keeps "
+                            "it instead")
             return (f"{saved}\nBut it removed {', '.join(removed)}, which revision {self.kept} has, so revision "
                     f"{self.kept} stays kept: put back what the brief asks for, or save it again to confirm the "
                     "removal." + _notes(found))
@@ -254,7 +261,7 @@ class Workbench:
     def tool_check(self) -> str:
         return self._in_child("check")
 
-    def tool_run(self, seed: int = 1, participants: Optional[Dict[str, str]] = None) -> str:
+    def tool_run(self, seed: int = 1, participants: dict[str, str] | None = None) -> str:
         return self._in_child("run", seconds=RUN_SECONDS, seed=seed, participants=participants)
 
     def tool_preview(self, agent: str) -> str:
@@ -268,8 +275,8 @@ class Workbench:
         if not self.path.exists():
             return "No contract saved yet."
         try:
-            text: str = self.box.call("fg_env.authoring.workbench:_tool", {"name": name, "path": str(self.path), "args": args},
-                                      RUN_SECONDS)
+            text: str = self.box.call("fg_env.authoring.workbench:_tool",
+                                      {"name": name, "path": str(self.path), "args": args}, RUN_SECONDS)
         except TooSlow as exc:
             return f"Too slow: {name} was still going after {RUN_SECONDS:g}s ({exc.step or 'building it'})."
         return text
@@ -279,8 +286,8 @@ def _verdict(found: Tested) -> str:
     """What the tests of a working revision showed."""
     checked = "it checks clean" if not found.warnings else "it checks with no errors (warnings below)"
     how = "without a problem" if found.untested else "to the end"
-    ran = (f"{checked}, and runs {how} on {found.seeds} seeds with random agents, {len(TEST_SEEDS)} with idle ones, and "
-           "once with agents choosing edge values")
+    ran = (f"{checked}, and runs {how} on {found.seeds} seeds with random agents, {len(TEST_SEEDS)} with idle ones, "
+           "and once with agents choosing edge values")
     return f"{ran}; {found.untested}" if found.untested else ran
 
 
@@ -293,7 +300,7 @@ def _notes(found: Tested) -> str:
     return "".join("\n" + line for line in lines)
 
 
-def _unplayable(participants: Any, policies: List[str]) -> str:
+def _unplayable(participants: Any, policies: list[str]) -> str:
     """What is wrong with the run tool's ``participants``, or "": only the contract's own agents may play — model,
     file and search participants would spend money, read files or run for hours outside the author's budget."""
     if participants is None:
@@ -307,7 +314,7 @@ def _unplayable(participants: Any, policies: List[str]) -> str:
     return ""
 
 
-def _arguments(params: Dict[str, Any], arguments: str) -> Tuple[Dict[str, Any], str]:
+def _arguments(params: dict[str, Any], arguments: str) -> tuple[dict[str, Any], str]:
     """A tool call's arguments, and what is wrong with them for ``params`` ("" when nothing is)."""
     try:
         args = json.loads(arguments)
@@ -322,7 +329,7 @@ def _arguments(params: Dict[str, Any], arguments: str) -> Tuple[Dict[str, Any], 
     return args, f"it has no {', '.join(unknown)}" if unknown else ""
 
 
-def _edit(data: Dict[str, Any], one: Any) -> str:
+def _edit(data: dict[str, Any], one: Any) -> str:
     """Apply one ``{"path": ..., "value": <JSON text>}`` edit to ``data`` in place; returns what is wrong, or ""."""
     if not isinstance(one, dict) or not isinstance(one.get("path"), str) or not one["path"]:
         return 'an edit is {"path": "outputs.score", "value": "<JSON text>"} (no value removes what is there)'

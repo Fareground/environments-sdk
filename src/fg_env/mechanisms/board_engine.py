@@ -7,8 +7,8 @@ the journaled world API.
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Collection
 from dataclasses import dataclass
-from typing import Collection, Dict, List, Optional, Tuple
 
 from .board_rules import CaptureRule, Castle, Pattern, Rules
 
@@ -21,12 +21,12 @@ class Pos:
     __slots__ = ("cells", "ids", "owner", "kind", "at", "moved", "turn", "chain", "ep_cell", "ep_piece", "ko", "hand")
 
     def __init__(self, size: int, sides: int):
-        self.cells: List[int] = [-1] * size
-        self.ids: List[Optional[str]] = []
-        self.owner: List[int] = []
-        self.kind: List[str] = []
-        self.at: List[int] = []
-        self.moved: List[bool] = []
+        self.cells: list[int] = [-1] * size
+        self.ids: list[str | None] = []
+        self.owner: list[int] = []
+        self.kind: list[str] = []
+        self.at: list[int] = []
+        self.moved: list[bool] = []
         self.turn = 0
         #: The piece that must keep capturing, or -1.
         self.chain = -1
@@ -35,9 +35,9 @@ class Pos:
         self.ep_piece = -1
         #: The cell the side to move may not play on (simple ko), or -1.
         self.ko = -1
-        self.hand: List[Dict[str, int]] = [{} for _ in range(sides)]
+        self.hand: list[dict[str, int]] = [{} for _ in range(sides)]
 
-    def add(self, owner: int, kind: str, cell: int, moved: bool = False, piece_id: Optional[str] = None) -> int:
+    def add(self, owner: int, kind: str, cell: int, moved: bool = False, piece_id: str | None = None) -> int:
         slot = len(self.at)
         self.ids.append(piece_id)
         self.owner.append(owner)
@@ -47,14 +47,15 @@ class Pos:
         self.cells[cell] = slot
         return slot
 
-    def copy(self) -> "Pos":
+    def copy(self) -> Pos:
         new = Pos.__new__(Pos)
         new.cells, new.ids, new.owner, new.kind = self.cells[:], self.ids[:], self.owner[:], self.kind[:]
         new.at, new.moved, new.hand = self.at[:], self.moved[:], [dict(h) for h in self.hand]
-        new.turn, new.chain, new.ep_cell, new.ep_piece, new.ko = self.turn, self.chain, self.ep_cell, self.ep_piece, self.ko
+        new.turn, new.chain, new.ko = self.turn, self.chain, self.ko
+        new.ep_cell, new.ep_piece = self.ep_cell, self.ep_piece
         return new
 
-    def pieces(self, side: int) -> List[int]:
+    def pieces(self, side: int) -> list[int]:
         return [p for p in range(len(self.at)) if self.owner[p] == side and self.at[p] >= 0]
 
     def lift(self, slot: int) -> None:
@@ -69,9 +70,9 @@ class Move:
     piece: int = -1
     frm: int = -1
     to: int = -1
-    captures: Tuple[int, ...] = ()
-    promote: Optional[str] = None
-    place: Optional[str] = None
+    captures: tuple[int, ...] = ()
+    promote: str | None = None
+    place: str | None = None
     rook: int = -1
     rook_from: int = -1
     rook_to: int = -1
@@ -94,9 +95,9 @@ class Played:
 # ---------------------------------------------------------------------------
 
 
-def legal(rules: Rules, pos: Pos, side: int) -> List[Move]:
+def legal(rules: Rules, pos: Pos, side: int) -> list[Move]:
     """Every legal move for ``side`` in ``pos`` (chains, ko and en passant apply to the side to move)."""
-    moves: List[Move] = []
+    moves: list[Move] = []
     if pos.chain >= 0 and side == pos.turn:
         _piece_moves(rules, pos, pos.chain, side, moves)
         moves = [m for m in moves if m.chain and m.captures]
@@ -110,13 +111,13 @@ def legal(rules: Rules, pos: Pos, side: int) -> List[Move]:
         if captures:
             moves = captures
     moves = _filtered(rules, pos, side, moves)
-    seen: Dict[str, Move] = {}
+    seen: dict[str, Move] = {}
     for move in moves:
         seen.setdefault(move.text, move)
     return list(seen.values())
 
 
-def _filtered(rules: Rules, pos: Pos, side: int, moves: List[Move]) -> List[Move]:
+def _filtered(rules: Rules, pos: Pos, side: int, moves: list[Move]) -> list[Move]:
     check = rules.config.self_check and bool(rules.royal)
     flip, enclose = rules.flip_rule(), rules.enclose_rule()
     need_flip = flip is not None and flip.required
@@ -136,7 +137,7 @@ def _filtered(rules: Rules, pos: Pos, side: int, moves: List[Move]) -> List[Move
     return out
 
 
-def _piece_moves(rules: Rules, pos: Pos, slot: int, side: int, out: List[Move]) -> None:
+def _piece_moves(rules: Rules, pos: Pos, slot: int, side: int, out: list[Move]) -> None:
     at, kind = pos.at[slot], pos.kind[slot]
     for pat in rules.patterns[side][kind]:
         if pat.first and pos.moved[slot]:
@@ -158,9 +159,9 @@ def _piece_moves(rules: Rules, pos: Pos, slot: int, side: int, out: List[Move]) 
                 _emit(rules, pos, slot, side, target, (occupant,), pat, out)
 
 
-def _reach(pos: Pos, at: int, pat: Pattern) -> List[Tuple[int, int]]:
+def _reach(pos: Pos, at: int, pat: Pattern) -> list[tuple[int, int]]:
     """Cells a non-jump pattern can land on (occupied landing cells included), with the cell passed last."""
-    out: List[Tuple[int, int]] = []
+    out: list[tuple[int, int]] = []
     within = pat.within
     if pat.mode == "leap":
         for table in pat.tables:
@@ -192,7 +193,7 @@ def _reach(pos: Pos, at: int, pat: Pattern) -> List[Tuple[int, int]]:
     return out
 
 
-def _jumps(rules: Rules, pos: Pos, slot: int, side: int, pat: Pattern, out: List[Move]) -> None:
+def _jumps(rules: Rules, pos: Pos, slot: int, side: int, pat: Pattern, out: list[Move]) -> None:
     at = pos.at[slot]
     for table in pat.tables:
         middle = table[at]
@@ -210,8 +211,8 @@ def _jumps(rules: Rules, pos: Pos, slot: int, side: int, pat: Pattern, out: List
         _emit(rules, pos, slot, side, land, (jumped,) if pat.capture and not own else (), pat, out)
 
 
-def _emit(rules: Rules, pos: Pos, slot: int, side: int, target: int, captures: Tuple[int, ...], pat: Pattern,
-          out: List[Move], passed: int = -1) -> None:
+def _emit(rules: Rules, pos: Pos, slot: int, side: int, target: int, captures: tuple[int, ...], pat: Pattern,
+          out: list[Move], passed: int = -1) -> None:
     names = rules.geo.names
     frm = pos.at[slot]
     text = f"{names[frm]}{'x' if captures else '-'}{names[target]}"
@@ -227,7 +228,7 @@ def _emit(rules: Rules, pos: Pos, slot: int, side: int, target: int, captures: T
     out.append(Move(text, slot, frm, target, captures, chain=pat.chain, passed=passed))
 
 
-def _castles(rules: Rules, pos: Pos, side: int, out: List[Move]) -> None:
+def _castles(rules: Rules, pos: Pos, side: int, out: list[Move]) -> None:
     for castle in rules.castles:
         if castle.side != side:
             continue
@@ -245,7 +246,7 @@ def _castles(rules: Rules, pos: Pos, side: int, out: List[Move]) -> None:
                         rook_to=castle.rook_to))
 
 
-def _placements(rules: Rules, pos: Pos, side: int, out: List[Move]) -> None:
+def _placements(rules: Rules, pos: Pos, side: int, out: list[Move]) -> None:
     if not rules.place_kinds:
         return
     if rules.place_from == "hand":
@@ -281,7 +282,8 @@ def attacked(rules: Rules, pos: Pos, cells: Collection[int], by: int) -> bool:
         if at < 0 or pos.owner[slot] != by:
             continue
         for pat in rules.patterns[by][pos.kind[slot]]:
-            if pat.only == "move" or (pat.first and pos.moved[slot]) or (pat.origin is not None and at not in pat.origin):
+            if (pat.only == "move" or (pat.first and pos.moved[slot])
+                or (pat.origin is not None and at not in pat.origin)):
                 continue
             if pat.mode == "jump":
                 if not pat.capture:
@@ -349,7 +351,7 @@ def make(rules: Rules, pos: Pos, move: Move, side: int, continue_chain: bool = T
     if continue_chain and move.chain and move.captures and new.at[piece] >= 0:
         promotion = rules.promotions[side].get(pos.kind[piece]) if move.place is None else None
         if not (move.promote is not None and promotion is not None and promotion.ends_turn):
-            follow: List[Move] = []
+            follow: list[Move] = []
             _piece_moves(rules, new, piece, side, follow)
             continues = any(m.chain and m.captures for m in follow)
     new.chain = piece if continues else -1
@@ -379,7 +381,7 @@ def _custodial(pos: Pos, cell: int, side: int, rule: CaptureRule) -> int:
 def _flip(pos: Pos, cell: int, side: int, rule: CaptureRule) -> int:
     flipped = 0
     for table in rule.tables:
-        line: List[int] = []
+        line: list[int] = []
         current = table[cell]
         while current >= 0 and pos.cells[current] >= 0 and pos.owner[pos.cells[current]] != side:
             line.append(pos.cells[current])
@@ -391,7 +393,7 @@ def _flip(pos: Pos, cell: int, side: int, rule: CaptureRule) -> int:
     return flipped
 
 
-def _group(rules: Rules, pos: Pos, cell: int) -> Tuple[List[int], int]:
+def _group(rules: Rules, pos: Pos, cell: int) -> tuple[list[int], int]:
     """The connected pieces of one side containing ``cell`` and their number of liberties."""
     owner = pos.owner[pos.cells[cell]]
     adjacent = rules.geo.adjacent
@@ -409,8 +411,8 @@ def _group(rules: Rules, pos: Pos, cell: int) -> Tuple[List[int], int]:
     return stones, len(liberties)
 
 
-def _enclose(rules: Rules, pos: Pos, cell: int, side: int, rule: CaptureRule) -> Tuple[int, bool]:
-    taken: List[int] = []
+def _enclose(rules: Rules, pos: Pos, cell: int, side: int, rule: CaptureRule) -> tuple[int, bool]:
+    taken: list[int] = []
     checked: set = set()
     for nxt in rules.geo.adjacent[cell]:
         occupant = pos.cells[nxt]
@@ -456,7 +458,7 @@ def has_line(rules: Rules, pos: Pos, side: int, length: int) -> bool:
     return False
 
 
-def score(rules: Rules, pos: Pos) -> List[float]:
+def score(rules: Rules, pos: Pos) -> list[float]:
     """Each side's score: pieces on the board, plus surrounded empty regions for area scoring, plus komi."""
     totals = [float(len(pos.pieces(side))) for side in range(len(rules.sides))]
     if rules.config.score == "area":
@@ -483,7 +485,7 @@ def score(rules: Rules, pos: Pos) -> List[float]:
     return totals
 
 
-def position_key(rules: Rules, pos: Pos, moves: List[Move]) -> str:
+def position_key(rules: Rules, pos: Pos, moves: list[Move]) -> str:
     """A short fingerprint of what repetition compares: pieces, side to move, castling and en passant
     rights (only when a capture there is actually possible), ko and hands."""
     symbols = rules.symbols
@@ -505,7 +507,7 @@ def _castle_right(rules: Rules, pos: Pos, castle: Castle) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def render(rules: Rules, pos: Pos) -> List[str]:
+def render(rules: Rules, pos: Pos) -> list[str]:
     """The board as compact text lines with coordinates."""
     geo = rules.geo
     marks = [rules.symbols[(pos.owner[s], pos.kind[s])] if s >= 0 else "." for s in pos.cells]
@@ -522,14 +524,15 @@ def render(rules: Rules, pos: Pos) -> List[str]:
         lines.append(" " * (label + 1) + " ".join(h.ljust(width) for h in heads).rstrip())
         return lines
     if geo.shape == "hex":
-        rows: Dict[int, List[int]] = {}
+        rows: dict[int, list[int]] = {}
         for cell, (_, r) in enumerate(geo.coords):
             rows.setdefault(r, []).append(cell)
         lines = []
         for r in sorted(rows):
             cells = rows[r]
             indent = " " * (geo.coords[cells[0]][0] * 2 + r - min(q * 2 + rr for q, rr in geo.coords))
-            lines.append(f"{str(r + 1).rjust(2)} {indent}{' '.join(marks[c] for c in cells)}   (from {geo.names[cells[0]]})")
+            lines.append(f"{str(r + 1).rjust(2)} {indent}{' '.join(marks[c] for c in cells)}   (from "
+                         f"{geo.names[cells[0]]})")
         return lines
     if geo.shape == "ring":
         occupied = [f"{geo.names[c]}={marks[c]}" for c in range(geo.size) if pos.cells[c] >= 0]

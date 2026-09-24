@@ -8,8 +8,9 @@ actual values than they claim. Baselines forecast each key from the actual value
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from .scoring import crps_ensemble, interval_coverage
 from .stats import mean, quantile
@@ -29,15 +30,16 @@ class Pair:
     case: int
     key: str
     actual: float
-    ensemble: Tuple[float, ...]
+    ensemble: tuple[float, ...]
 
     @property
     def point(self) -> float:
         return quantile(list(self.ensemble), 0.5)
 
 
-def point_accuracy(points: Sequence[Tuple[float, float]]) -> Dict[str, Any]:
-    """Errors of point forecasts ``(forecast, actual)``: bias and WAPE as shares of the actual total, MAPE, MAE, RMSE."""
+def point_accuracy(points: Sequence[tuple[float, float]]) -> dict[str, Any]:
+    """Errors of point forecasts ``(forecast, actual)``: bias and WAPE as shares of the actual total, MAPE, MAE, RMSE.
+    """
     errors = [forecast - actual for forecast, actual in points]
     total = math.fsum(abs(actual) for _, actual in points)
     nonzero = [(forecast, actual) for forecast, actual in points if actual != 0]
@@ -49,7 +51,7 @@ def point_accuracy(points: Sequence[Tuple[float, float]]) -> Dict[str, Any]:
             "mape_skipped": len(points) - len(nonzero)}
 
 
-def accuracy(pairs: Sequence[Pair], levels: Sequence[float]) -> Dict[str, Any]:
+def accuracy(pairs: Sequence[Pair], levels: Sequence[float]) -> dict[str, Any]:
     """Point errors, CRPS, the standard error of the bias and interval coverage at every nominal level."""
     out = point_accuracy([(pair.point, pair.actual) for pair in pairs])
     out["crps"] = mean([crps_ensemble(list(pair.ensemble), pair.actual) for pair in pairs])
@@ -67,10 +69,10 @@ def accuracy(pairs: Sequence[Pair], levels: Sequence[float]) -> Dict[str, Any]:
     return out
 
 
-def baseline_points(actuals: Mapping[int, float], kind: str, season: Optional[int]) -> Dict[int, float]:
+def baseline_points(actuals: Mapping[int, float], kind: str, season: int | None) -> dict[int, float]:
     """Each case's baseline forecast from the actual values of earlier cases (cases without one are left out)."""
     order = sorted(actuals)
-    out: Dict[int, float] = {}
+    out: dict[int, float] = {}
     for position, case in enumerate(order):
         earlier = [actuals[c] for c in order[:position]]
         if kind == "last" and earlier:
@@ -82,7 +84,7 @@ def baseline_points(actuals: Mapping[int, float], kind: str, season: Optional[in
     return out
 
 
-def coverage_verdict(coverage: Mapping[str, Any]) -> Optional[str]:
+def coverage_verdict(coverage: Mapping[str, Any]) -> str | None:
     """A plain warning when intervals clearly hold fewer actual values than their nominal level (``None`` otherwise)."""
     nominal = float(coverage["nominal"])
     low, high = (float(bound) for bound in coverage["coverage_ci95"])
@@ -94,17 +96,20 @@ def coverage_verdict(coverage: Mapping[str, Any]) -> Optional[str]:
             "carry parameter uncertainty into the runs (uncertainty=) or model the variation that is missing")
 
 
-def bias_verdict(result: Mapping[str, Any]) -> Optional[str]:
+def bias_verdict(result: Mapping[str, Any]) -> str | None:
     """A plain warning when forecasts run high or low by more than twice the bias's standard error."""
     bias, se = result.get("bias"), result.get("bias_se")
     if bias is None or se is None or result["n"] < 3 or abs(bias) <= 2 * se:
         return None
-    return f"forecasts run {'high' if bias > 0 else 'low'} by {abs(bias):.1%} of the actual total on average (± {se:.1%})"
+    return (f"forecasts run {'high' if bias > 0 else 'low'} by {abs(bias):.1%} of the actual total on average (± "
+            f"{se:.1%})")
 
 
-def compare_baseline(model: Mapping[str, Any], baseline: Mapping[str, Any], name: str, season: Optional[int]) -> Dict[str, Any]:
+def compare_baseline(model: Mapping[str, Any], baseline: Mapping[str, Any], name: str,
+                     season: int | None) -> dict[str, Any]:
     """The model's WAPE against a baseline's on the same cases; ``skill`` > 0 means the model is better."""
-    label = f"seasonal naive ({season} back)" if name == "seasonal" else f"{name} value" if name == "last" else "earlier mean"
+    label = (f"seasonal naive ({season} back)" if name == "seasonal" else f"{name} value" if name == "last"
+             else "earlier mean")
     skill = None
     if model["wape"] is not None and baseline["wape"]:
         skill = 1.0 - model["wape"] / baseline["wape"]
@@ -112,9 +117,9 @@ def compare_baseline(model: Mapping[str, Any], baseline: Mapping[str, Any], name
             "reference": baseline, "skill": skill}
 
 
-def per_key(pairs: Sequence[Pair]) -> Dict[str, List[Pair]]:
+def per_key(pairs: Sequence[Pair]) -> dict[str, list[Pair]]:
     """Pairs grouped by their key, in first-seen order."""
-    grouped: Dict[str, List[Pair]] = {}
+    grouped: dict[str, list[Pair]] = {}
     for pair in pairs:
         grouped.setdefault(pair.key, []).append(pair)
     return grouped

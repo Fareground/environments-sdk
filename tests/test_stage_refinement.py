@@ -6,7 +6,8 @@ HOLDEM = {
     "name": "Holdem",
     "clock": {"rounds": 1},
     "types": {"player": {"agent": True, "props": {"seat": 0, "flashed": 0}}},
-    "entities": {name: {"type": "player", "props": {"seat": seat}} for seat, name in enumerate(["ana", "ben", "cy"], 1)},
+    "entities": {name: {"type": "player", "props": {"seat": seat}}
+                 for seat, name in enumerate(["ana", "ben", "cy"], 1)},
     "mechanisms": {
         "deck": {"kind": "game", "mode": "cards", "who": "player", "deal": "never",
                  "zones": {"board": {"visible": "public", "title": "Board"}}},
@@ -15,7 +16,8 @@ HOLDEM = {
                             {"game": "deck", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}],
                   "streets": {"preflop": [],
                               "flop": [{"game": "deck", "action": "deal", "qty": 3, "zone": "board", "face_up": True}],
-                              "river": [{"game": "deck", "action": "deal", "qty": 1, "zone": "board", "face_up": True}]},
+                              "river": [{"game": "deck", "action": "deal", "qty": 1, "zone": "board",
+                                         "face_up": True}]},
                   "score": "$poker_rank($hand($it) + $zone(board)).score"},
     },
     "actions": {"flash": {"by": "player", "do": ["$actor.flashed += 1"], "terminal": False}},
@@ -44,4 +46,5 @@ def test_a_declared_generated_stage_keeps_its_generated_fields_and_place():
 
 def test_stages_the_author_adds_keep_their_place_before_the_generated_ones():
     contract = {**HOLDEM, "stages": [{"name": "warmup", "actions": ["flash"]}]}
-    assert [s.name for s in fg_env.load(contract, seed=1).contract.stage_list()] == ["warmup", "preflop", "flop", "river"]
+    assert ([s.name for s in fg_env.load(contract, seed=1).contract.stage_list()]
+            == ["warmup", "preflop", "flop", "river"])

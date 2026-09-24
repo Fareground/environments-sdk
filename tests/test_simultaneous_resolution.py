@@ -151,7 +151,8 @@ def test_the_same_choices_give_the_same_result_however_long_each_agent_takes():
     c = {"name": "Stuck", "clock": {"rounds": 3},
          "types": {"a": {"agent": True, "props": {"x": 0}}, "b": {"agent": True, "props": {"x": 0}}},
          "entities": {"a1": {"type": "a"}, "b1": {"type": "b"}},
-         "actions": {"go": {"by": "a", "when": "$actor.x > 0", "do": []}, "run": {"by": "b", "when": "$actor.x > 0", "do": []}},
+         "actions": {"go": {"by": "a", "when": "$actor.x > 0", "do": []},
+                     "run": {"by": "b", "when": "$actor.x > 0", "do": []}},
          "stages": [{"name": "s", "turns": "simultaneous"}]}
 
     def slow(who):
@@ -188,7 +189,8 @@ def test_how_many_sealed_turns_run_at_once_does_not_change_the_outcome():
          "types": {"p": {"agent": True, "props": {"luck": 0, "cash": 20}}},
          "entities": {f"p{i}": {"type": "p"} for i in range(12)},
          "actions": {"roll": {"by": "p", "chance": 0.5, "otherwise": ["$actor.cash -= 1"],
-                              "do": ["$actor.luck += $randint(1, 100)", "$world.pot += 1", "$world.order += $actor.id"]}},
+                              "do": ["$actor.luck += $randint(1, 100)", "$world.pot += 1",
+                                     "$world.order += $actor.id"]}},
          "stages": [{"name": "s", "turns": "simultaneous"}], "outputs": {"pot": "$world.pot"}}
     def roll(wake):
         wake.call("roll", {})

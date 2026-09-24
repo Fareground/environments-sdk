@@ -30,7 +30,8 @@ def test_folds_partition_the_cases_and_the_same_seed_gives_the_same_folds():
     names = ["a", "b", "c", "d", "e"]
     folds = splits(names, folds=2, seed=7)
     tests = [set(split.test) for split in folds]
-    assert sorted(len(t) for t in tests) == [2, 3] and tests[0].isdisjoint(tests[1]) and tests[0] | tests[1] == set(range(5))
+    assert (sorted(len(t) for t in tests) == [2, 3] and tests[0].isdisjoint(tests[1]) and tests[0] | tests[1]
+            == set(range(5)))
     assert all(set(split.train) == set(range(5)) - set(split.test) for split in folds)
     assert splits(names, folds=2, seed=7) == folds
     assert [s.label for s in folds] == ["fold 1 of 2", "fold 2 of 2"]
@@ -152,8 +153,8 @@ def test_cli_holds_out_cases_for_calibration_and_backtests(tmp_path, capsys):
     assert main(["calibrate", str(contract), "--cases", str(cases), "--param", "a", "--runs", "1", "--budget", "20",
                  "--test", "b2", "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["holdout"]["splits"][0]["test"] == ["b2"]
-    assert main(["backtest", str(contract), "--cases", str(outcomes), "--output", "y", "--threshold", "3", "--runs", "1",
-                 "--folds", "2"]) == 0
+    assert main(["backtest", str(contract), "--cases", str(outcomes), "--output", "y", "--threshold", "3", "--runs",
+                 "1", "--folds", "2"]) == 0
     assert "2-fold cross-validation" in capsys.readouterr().out
     assert main(["calibrate", str(contract), "--cases", str(cases), "--target", "y=1", "--param", "a"]) == 1
     assert "not both" in capsys.readouterr().err

@@ -1,4 +1,5 @@
-"""A stage's `passes` and an event's `every` may be expressions over $inputs: checked, resolved at load, snapshot-safe."""
+"""A stage's `passes` and an event's `every` may be expressions over $inputs: checked, resolved at load, snapshot-safe.
+"""
 import json
 
 import pytest
@@ -53,7 +54,8 @@ def test_a_count_that_is_not_a_whole_number_fails_at_load_with_its_path():
 
 
 def test_a_snapshot_resumes_a_run_with_expression_counts_exactly():
-    straight = fg_env.load(contract(), seed=2, inputs={"passes": 2, "every": 4}).run({"walker": "policy:stepper"}).to_dict()
+    straight = fg_env.load(contract(), seed=2, inputs={"passes": 2, "every": 4}).run(
+        {"walker": "policy:stepper"}).to_dict()
     env = fg_env.load(contract(), seed=2, inputs={"passes": 2, "every": 4})
     env.run({"walker": "policy:stepper"}, rounds=3)
     resumed = fg_env.Env.restore(contract(), json.loads(json.dumps(env.snapshot())))

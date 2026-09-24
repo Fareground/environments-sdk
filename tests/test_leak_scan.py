@@ -2,10 +2,9 @@
 played with random agents that read everything they are offered (_leaks.py). Generated contracts are scanned in
 test_fuzz_contracts.py."""
 import pytest
+from _leaks import EXAMPLES, SMALL, scan
 
 import fg_env
-
-from _leaks import EXAMPLES, SMALL, scan
 
 pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 

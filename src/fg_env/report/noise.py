@@ -7,10 +7,9 @@ the outcome itself — a real but trivial gap is no reason to pick one option ov
 """
 from __future__ import annotations
 
-
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..analysis.stats import estimate
 from ..runtime.measure import _usable_output
@@ -29,8 +28,8 @@ class Paired:
     measure: str
     n: int
     mean: float
-    low: Optional[float]
-    high: Optional[float]
+    low: float | None
+    high: float | None
     #: The size of the outcome the difference is judged against (the larger mean of the two, in absolute value).
     scale: float
 
@@ -52,13 +51,13 @@ class Paired:
     def within_noise(self) -> bool:
         return self.uncertain or self.trivial
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"measure": self.measure, "n": self.n, "difference": self.mean, "ci95": [self.low, self.high],
                 "within_noise": self.within_noise}
 
 
-def _by_seed(option: Option, measure: str) -> Dict[int, float]:
-    out: Dict[int, float] = {}
+def _by_seed(option: Option, measure: str) -> dict[int, float]:
+    out: dict[int, float] = {}
     for run in option.runs:
         if not _usable_output(run, measure):
             continue
@@ -68,10 +67,10 @@ def _by_seed(option: Option, measure: str) -> Dict[int, float]:
     return out
 
 
-def paired(mine: Option, theirs: Option, measure: str) -> Optional[Paired]:
+def paired(mine: Option, theirs: Option, measure: str) -> Paired | None:
     """The paired difference ``mine − theirs`` on ``measure`` (``None`` when no seed has a value in both)."""
     a, b = _by_seed(mine, measure), _by_seed(theirs, measure)
-    seeds: List[int] = [seed for seed in a if seed in b]
+    seeds: list[int] = [seed for seed in a if seed in b]
     if not seeds:
         return None
     found = estimate([a[seed] - b[seed] for seed in seeds])

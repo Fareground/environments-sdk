@@ -6,14 +6,15 @@ round, so any change (including a rollback) invalidates them, and a restored run
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, TypeVar
+from collections.abc import Mapping, Sequence
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key
+from ..world.entity import Entity
 
 __all__ = ["NAME", "props", "cache", "config_of", "uses_of", "named_use", "eid", "ids", "entity",
            "require_type", "check_expr", "edges", "seat_order"]
@@ -28,14 +29,14 @@ GLOBAL_ROOTS = frozenset({"inputs", "world", "physics", "clock", "round", "stage
                           "pending"})
 
 
-def props(item: Any) -> Dict[str, Any]:
+def props(item: Any) -> dict[str, Any]:
     """An entity's properties, typed for reading any declared value."""
     return item.properties  # type: ignore[no-any-return]
 
 
-def cache(world: Any, namespace: str) -> Dict[Any, Any]:
+def cache(world: Any, namespace: str) -> dict[Any, Any]:
     """A scratch dict for derived values, emptied whenever the world changes."""
-    store: Dict[str, Any] = world.__dict__.setdefault("_social_cache", {})
+    store: dict[str, Any] = world.__dict__.setdefault("_social_cache", {})
     stamp = (world.journal.version, world.round, world.stage)
     if store.get("$stamp") != stamp:
         store.clear()
@@ -43,27 +44,29 @@ def cache(world: Any, namespace: str) -> Dict[Any, Any]:
     return store.setdefault(namespace, {})
 
 
-def config_of(world: Any, name: str, kind: str, model: Type[_M]) -> _M:
+def config_of(world: Any, name: str, kind: str, model: type[_M]) -> _M:
     """The validated config of mechanism ``name`` (which must be of ``kind``), parsed once per contract."""
-    parsed: Dict[Any, Any] = world.__dict__.setdefault("_social_configs", {})
+    parsed: dict[Any, Any] = world.__dict__.setdefault("_social_configs", {})
     key = (id(world.contract), name, kind)
     found = parsed.get(key)
     if found is None:
         raw = world.contract.mechanisms.get(name)
         if not isinstance(raw, Mapping) or use_key(raw) != kind:
             declared = ", ".join(uses_of(world.contract.mechanisms, kind)) or "none declared"
-            raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism ({describe(kind)} mechanisms: {declared})",
+            raise RunError(f"'{name}' is not a declared {describe(kind)} mechanism ({describe(kind)} mechanisms: "
+                           f"{declared})",
                            f"mechanisms.{name}")
         found = parsed[key] = model.model_validate(config_data(raw))
     return found  # type: ignore[no-any-return]
 
 
-def uses_of(mechanisms: Mapping[str, Any], kind: str) -> List[str]:
+def uses_of(mechanisms: Mapping[str, Any], kind: str) -> list[str]:
     return [n for n, use in (mechanisms or {}).items() if use_key(use) == kind]
 
 
 def named_use(call: Any, kind: str, index: int) -> str:
-    """The mechanism a function reads: the name passed as argument ``index``, else the contract's only one of ``kind``."""
+    """The mechanism a function reads: the name passed as argument ``index``, else the contract's only one of ``kind``.
+    """
     names = uses_of(call.scope.world.contract.mechanisms, kind)
     given = call.arg(index)
     if given is not None:
@@ -73,12 +76,13 @@ def named_use(call: Any, kind: str, index: int) -> str:
         return str(given)
     if len(names) != 1:
         raise ExprError(f"${call.name}: " + (f"no {describe(kind)} mechanism is declared" if not names else
-                        f"there are several {describe(kind)} mechanisms ({', '.join(names)}): name one as the last argument"),
+                        f"there are several {describe(kind)} mechanisms ({', '.join(names)}): name one as the last "
+                        "argument"),
                         call.source)
     return names[0]
 
 
-def eid(value: Any, source: Optional[str] = None) -> str:
+def eid(value: Any, source: str | None = None) -> str:
     if isinstance(value, Entity):
         return value.id
     if isinstance(value, str) and value:
@@ -86,7 +90,7 @@ def eid(value: Any, source: Optional[str] = None) -> str:
     raise ExprError(f"expected an entity or id, got {value!r}", source)
 
 
-def ids(value: Any, source: Optional[str] = None) -> List[str]:
+def ids(value: Any, source: str | None = None) -> list[str]:
     """Entity ids from an entity, an id, or a list of either (order kept, duplicates dropped)."""
     if value is None:
         return []
@@ -94,7 +98,7 @@ def ids(value: Any, source: Optional[str] = None) -> List[str]:
     return list(dict.fromkeys(eid(item, source) for item in items))
 
 
-def entity(world: Any, value: Any, where: str, kind: Optional[str] = None) -> Entity:
+def entity(world: Any, value: Any, where: str, kind: str | None = None) -> Entity:
     """The alive entity ``value`` names, optionally required to be of ``kind`` (subtypes included)."""
     found = world.entities.get(eid(value, where)) if isinstance(value, (str, Entity)) else None
     if found is None or not found.alive:
@@ -104,20 +108,22 @@ def entity(world: Any, value: Any, where: str, kind: Optional[str] = None) -> En
     return found  # type: ignore[no-any-return]
 
 
-def require_type(contract: Mapping[str, Any], type_name: Optional[str], field: str, agent: bool = False) -> None:
+def require_type(contract: Mapping[str, Any], type_name: str | None, field: str, agent: bool = False) -> None:
     """Fail the expansion unless ``type_name`` is declared (and, with ``agent``, takes turns)."""
     if type_name is None:
         return
     types = contract.get("types") or {}
     if type_name not in types:
-        raise MechanismError(f"{field} '{type_name}' is not a declared type", f"types: {', '.join(types) or 'none'}", field)
+        raise MechanismError(f"{field} '{type_name}' is not a declared type", f"types: {', '.join(types) or 'none'}",
+                             field)
     if agent and not _is_agent(types, type_name):
-        raise MechanismError(f"{field} '{type_name}' is not an agent type", f"set \"agent\": true on {type_name}", field)
+        raise MechanismError(f"{field} '{type_name}' is not an agent type", f"set \"agent\": true on {type_name}",
+                             field)
 
 
 def _is_agent(types: Mapping[str, Any], name: str) -> bool:
     seen = set()
-    current: Optional[str] = name
+    current: str | None = name
     while current is not None and current in types and current not in seen:
         seen.add(current)
         spec = types[current] or {}
@@ -141,14 +147,14 @@ def check_expr(source: Any, field: str, roots: Sequence[str]) -> None:
         raise MechanismError(f"${sorted(unknown)[0]} is not available here", f"available: {allowed}", field)
 
 
-def edges(world: Any, relation: str) -> Tuple[Dict[str, List[str]], Dict[str, List[str]]]:
+def edges(world: Any, relation: str) -> tuple[dict[str, list[str]], dict[str, list[str]]]:
     """(out, in) adjacency of a relation, cached per state. A symmetric relation lists both ways."""
     if relation not in world.links:
         raise RunError(f"'{relation}' is not a declared relation", f"relations.{relation}")
     found = cache(world, f"edges:{relation}")
     if not found:
-        out: Dict[str, List[str]] = {}
-        into: Dict[str, List[str]] = {}
+        out: dict[str, list[str]] = {}
+        into: dict[str, list[str]] = {}
         symmetric = world.contract.relations[relation].symmetric
         for a, b in world.links[relation]:
             out.setdefault(a, []).append(b)
@@ -160,7 +166,7 @@ def edges(world: Any, relation: str) -> Tuple[Dict[str, List[str]], Dict[str, Li
     return found["out"], found["in"]
 
 
-def seat_order(world: Any) -> Dict[str, int]:
+def seat_order(world: Any) -> dict[str, int]:
     """Entity id → creation position: a deterministic order that survives snapshots."""
     found = cache(world, "seat")
     if not found:

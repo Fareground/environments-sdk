@@ -15,8 +15,9 @@ safe, never charges less than the reserves of the items won, nor more than the b
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..expr import Call, _describe, charge, function
 from ..stdlib._args import fail, list_arg, map_arg
@@ -39,7 +40,7 @@ class PackageBid:
     """One bid: a bidder, the items it wants together, and its price for all of them."""
 
     bidder: str
-    items: Tuple[str, ...]
+    items: tuple[str, ...]
     price: float
 
 
@@ -50,7 +51,7 @@ class SearchLimit(Exception):
 class _Steps:
     """Search steps left for one lot; each step is also reported to ``on_step`` (the expression work budget)."""
 
-    def __init__(self, budget: int, on_step: Optional[Callable[[int], None]]):
+    def __init__(self, budget: int, on_step: Callable[[int], None] | None):
         self.budget, self.used, self.on_step = budget, 0, on_step
 
     def take(self, count: int) -> None:
@@ -65,8 +66,8 @@ def _reserve(items: Sequence[str], reserves: Mapping[str, float]) -> float:
     return sum(reserves.get(item, 0.0) for item in items)
 
 
-def best_allocation(bids: Sequence[PackageBid], reserves: Mapping[str, float], skip: Optional[str] = None,
-                    steps: Optional[_Steps] = None) -> Tuple[List[int], float]:
+def best_allocation(bids: Sequence[PackageBid], reserves: Mapping[str, float], skip: str | None = None,
+                    steps: _Steps | None = None) -> tuple[list[int], float]:
     """Indices of the winning bids (in ``bids``) and their total surplus, ignoring bids by ``skip``."""
     counter = steps or _Steps(SEARCH_BUDGET, None)
     bits = {item: 1 << bit for bit, item in enumerate(sorted({item for bid in bids for item in bid.items}))}
@@ -82,8 +83,8 @@ def best_allocation(bids: Sequence[PackageBid], reserves: Mapping[str, float], s
     suffix = [0.0] * (len(candidates) + 1)
     for position in range(len(candidates) - 1, -1, -1):
         suffix[position] = suffix[position + 1] + candidates[position][1]
-    best: List[Any] = [-1.0, []]
-    chosen: List[int] = []
+    best: list[Any] = [-1.0, []]
+    chosen: list[int] = []
 
     def search(position: int, taken: int, bidders: frozenset, total: float) -> None:
         counter.take(1)
@@ -105,7 +106,8 @@ def best_allocation(bids: Sequence[PackageBid], reserves: Mapping[str, float], s
 
 
 def settle(bids: Sequence[PackageBid], reserves: Mapping[str, float], payment: str = "vcg",
-           budget: int = SEARCH_BUDGET, on_step: Optional[Callable[[int], None]] = None) -> Tuple[List[Dict[str, Any]], float]:
+           budget: int = SEARCH_BUDGET,
+           on_step: Callable[[int], None] | None = None) -> tuple[list[dict[str, Any]], float]:
     """The winners ``[{bid, bidder, items, price, pays}]`` (in bid order) and the total surplus.
 
     Raises :class:`SearchLimit` when the search needs more than ``budget`` steps in all."""
@@ -132,7 +134,7 @@ def settle(bids: Sequence[PackageBid], reserves: Mapping[str, float], payment: s
 # ---------------------------------------------------------------------------
 
 
-def _bids_arg(call: Call) -> List[PackageBid]:
+def _bids_arg(call: Call) -> list[PackageBid]:
     raw = list_arg(call, 0, "a list of bids like {bidder, items, price}")
     if len(raw) > MAX_PACKAGE_BIDS:
         raise fail(call, f"{len(raw)} bids; winner determination takes at most {MAX_PACKAGE_BIDS}")
@@ -144,8 +146,10 @@ def _bids_arg(call: Call) -> List[PackageBid]:
         bidder = getattr(bidder, "id", bidder)
         if not isinstance(bidder, str) or not bidder:
             raise fail(call, f"bid {position}: bidder must be an entity or text, got {_describe(entry['bidder'])}")
-        if not isinstance(items, list) or not items or not all(isinstance(i, str) for i in items) or len(set(items)) != len(items):
-            raise fail(call, f"bid {position}: items must be a non-empty list of distinct item names, got {_describe(items)}")
+        if (not isinstance(items, list) or not items or not all(isinstance(i, str) for i in items) or len(set(items))
+            != len(items)):
+            raise fail(call,
+                       f"bid {position}: items must be a non-empty list of distinct item names, got {_describe(items)}")
         if isinstance(price, bool) or not isinstance(price, (int, float)) or price < 0:
             raise fail(call, f"bid {position}: price must be a number ≥ 0, got {_describe(price)}")
         bids.append(PackageBid(str(bidder), tuple(items), float(price)))
@@ -154,7 +158,7 @@ def _bids_arg(call: Call) -> List[PackageBid]:
     return bids
 
 
-def _reserves_arg(call: Call, bids: Sequence[PackageBid]) -> Dict[str, float]:
+def _reserves_arg(call: Call, bids: Sequence[PackageBid]) -> dict[str, float]:
     if len(call) < 2 or call.arg(1) is None:
         return {}
     value = call.arg(1)
@@ -169,11 +173,11 @@ def _reserves_arg(call: Call, bids: Sequence[PackageBid]) -> Dict[str, float]:
 
 
 @function("package_winners(bids, reserves?, payment?)",
-          "Exact winner determination for package bids [{bidder, items, price}] (each bidder wins at most one bid, no item "
-          "twice): {winners: [{bidder, items, price, pays}], surplus, revenue}. `reserves` is one number per item or "
-          "{item: reserve}; `payment` vcg (default: winners pay the surplus they displace) or pay_bid.",
+          "Exact winner determination for package bids [{bidder, items, price}] (each bidder wins at most one bid, "
+          "no item twice): {winners: [{bidder, items, price, pays}], surplus, revenue}. `reserves` is one number "
+          "per item or {item: reserve}; `payment` vcg (default: winners pay the surplus they displace) or pay_bid.",
           min_args=1, max_args=3)
-def _package_winners(call: Call) -> Dict[str, Any]:
+def _package_winners(call: Call) -> dict[str, Any]:
     bids = _bids_arg(call)
     reserves = _reserves_arg(call, bids)
     payment = call.arg(2) if len(call) > 2 and call.arg(2) is not None else "vcg"

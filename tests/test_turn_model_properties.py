@@ -21,12 +21,15 @@ def _contract(rng):
     contract = {
         "name": "Turn model",
         "types": {"player": {"agent": True, "props": {"rank": 0, "seated": 0}}},
-        "entities": {f"p{i}": {"type": "player", "props": {"rank": rng.randint(0, 3)}} for i in range(rng.randint(2, 5))},
+        "entities": {f"p{i}": {"type": "player", "props": {"rank": rng.randint(0, 3)}}
+                     for i in range(rng.randint(2, 5))},
         "actions": {
             "tick": {"by": "player", "do": []},
-            "kill": {"by": "player", "params": {"t": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
+            "kill": {"by": "player",
+                     "params": {"t": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
                      "do": {"remove": "$params.t"}},
-            "spawn": {"by": "player", "params": {"k": {"type": "int", "min": 0}, "rank": {"type": "int", "min": 0, "max": 3}},
+            "spawn": {"by": "player",
+                      "params": {"k": {"type": "int", "min": 0}, "rank": {"type": "int", "min": 0, "max": 3}},
                       "do": {"create": "player", "id": "n{$params.k}", "props": {"rank": "$params.rank"}}},
         },
         "stages": [{"name": f"{kind}{k}", "turns": kind, "order": rng.choice(ORDERS),
@@ -95,7 +98,8 @@ def test_a_removed_agent_does_not_cost_the_agents_after_it_their_turns(turns):
         "name": "Removal",
         "types": {"player": {"agent": True}},
         "entities": {name: {"type": "player"} for name in "abcde"},
-        "actions": {"kill": {"by": "player", "params": {"t": {"type": "entity", "of": "player"}}, "do": {"remove": "$params.t"}},
+        "actions": {"kill": {"by": "player", "params": {"t": {"type": "entity", "of": "player"}},
+                             "do": {"remove": "$params.t"}},
                     "tick": {"by": "player", "do": []}},
         "stages": [{"name": "play", "turns": turns}],
         "clock": {"mode": "continuous" if turns == "scheduled" else "rounds", "rounds": 1},

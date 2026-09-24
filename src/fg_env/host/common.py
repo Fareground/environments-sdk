@@ -3,15 +3,16 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Mapping, Sequence
 from functools import lru_cache
-from typing import Any, List, Mapping, Sequence, Tuple, Type, TypeVar, Union, cast
+from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Untrusted
 from ..registry import MechanismError, config_data, describe, use_key
+from ..world.entity import Entity
 
 __all__ = ["NAME", "config_of", "type_list", "agents_of", "clip", "ellipsis"]
 
@@ -21,7 +22,7 @@ M = TypeVar("M", bound=BaseModel)
 ellipsis = "…"
 
 
-def config_of(world: Any, name: str, kind: str, model: Type[M], where: str) -> M:
+def config_of(world: Any, name: str, kind: str, model: type[M], where: str) -> M:
     """The validated config of the mechanism ``name`` of ``kind`` declared in the run's contract."""
     raw = world.contract.mechanisms.get(name)
     if not isinstance(raw, Mapping) or use_key(raw) != kind:
@@ -30,15 +31,15 @@ def config_of(world: Any, name: str, kind: str, model: Type[M], where: str) -> M
 
 
 @lru_cache(maxsize=512)
-def _parse(model: Type[BaseModel], frozen: Tuple[Tuple[str, str], ...]) -> BaseModel:
+def _parse(model: type[BaseModel], frozen: tuple[tuple[str, str], ...]) -> BaseModel:
     return model.model_validate(config_data({key: json.loads(value) for key, value in frozen}))
 
 
-def _frozen(raw: Mapping[str, Any]) -> Tuple[Tuple[str, str], ...]:
+def _frozen(raw: Mapping[str, Any]) -> tuple[tuple[str, str], ...]:
     return tuple(sorted((key, json.dumps(value, sort_keys=True, default=str)) for key, value in raw.items()))
 
 
-def type_list(contract: Mapping[str, Any], value: Union[str, Sequence[str]], field: str) -> List[str]:
+def type_list(contract: Mapping[str, Any], value: str | Sequence[str], field: str) -> list[str]:
     """The type names in ``value``, each checked against the contract's types."""
     names = [value] if isinstance(value, str) else list(value)
     types = contract.get("types") or {}
@@ -50,7 +51,7 @@ def type_list(contract: Mapping[str, Any], value: Union[str, Sequence[str]], fie
     return names
 
 
-def agents_of(world: Any, types: Union[str, Sequence[str]]) -> List[Entity]:
+def agents_of(world: Any, types: str | Sequence[str]) -> list[Entity]:
     """Living entities of any of ``types`` (subtypes included), in seat order, each once."""
     kinds = [types] if isinstance(types, str) else list(types)
     return [e for e in world.entities.values() if e.alive and any(world.is_a(e.entity_type, k) for k in kinds)]

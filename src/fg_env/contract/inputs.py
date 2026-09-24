@@ -8,13 +8,14 @@ import io
 import json
 import math
 import os
-from fractions import Fraction
+from collections.abc import Mapping
 from difflib import get_close_matches
+from fractions import Fraction
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any
 
-from . import Contract, InputSpec
 from ..errors import InputError, Issue
+from . import Contract, InputSpec
 
 __all__ = ["resolve_inputs", "check_value", "DATA_SUFFIXES", "MAX_DATA_BYTES", "MAX_DATA_ROWS"]
 
@@ -29,7 +30,7 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) -> Optional[str]:
+def check_value(type_name: str, value: Any, spec: InputSpec | None = None) -> str | None:
     """Return a problem description, or None when ``value`` fits ``type_name``."""
     if type_name == "any":
         return None
@@ -70,7 +71,8 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
             for column, column_type in columns.items():
                 if column not in row:
                     return f"row {index} is missing column '{column}'"
-                problem = check_value("text" if column_type == "asset" else column_type, row[column], (spec.fields or {}).get(column) if spec else None)
+                problem = check_value("text" if column_type == "asset" else column_type, row[column],
+                                      (spec.fields or {}).get(column) if spec else None)
                 if problem:
                     return f"row {index} column '{column}' {problem}"
     else:
@@ -107,11 +109,11 @@ def check_value(type_name: str, value: Any, spec: Optional[InputSpec] = None) ->
     return None
 
 
-def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = None,
-                   data_dir: Union[str, "os.PathLike[str]", None] = None) -> Dict[str, Any]:
+def resolve_inputs(contract: Contract, supplied: Mapping[str, Any] | None = None,
+                   data_dir: str | os.PathLike[str] | None = None) -> dict[str, Any]:
     """Merge supplied inputs over data files over defaults. Raises :class:`InputError` listing every problem."""
     supplied = dict(supplied or {})
-    issues: List[Issue] = []
+    issues: list[Issue] = []
     declared = contract.inputs
     for name in supplied:
         if name not in declared:
@@ -120,7 +122,7 @@ def resolve_inputs(contract: Contract, supplied: Optional[Mapping[str, Any]] = N
                 f"inputs.{name}", "is not a declared input",
                 f"did you mean '{hint[0]}'?" if hint else f"declared inputs: {', '.join(declared) or 'none'}",
             ))
-    resolved: Dict[str, Any] = {}
+    resolved: dict[str, Any] = {}
     for name, spec in declared.items():
         if name in supplied:
             value = supplied[name]
@@ -154,7 +156,7 @@ def _nested_defaults(spec: InputSpec, value: Any) -> Any:
     """Materialize declared child defaults without changing the caller's data."""
     fields = spec.fields
     if fields is not None and value is not None:
-        def row_defaults(row: Dict[str, Any]) -> Dict[str, Any]:
+        def row_defaults(row: dict[str, Any]) -> dict[str, Any]:
             result = copy.deepcopy(row)
             for name, field in fields.items():
                 if name in result or field.default is not None:
@@ -167,12 +169,12 @@ def _nested_defaults(spec: InputSpec, value: Any) -> Any:
 
 
 class _SourceProblem(Exception):
-    def __init__(self, message: str, fix: Optional[str] = None):
+    def __init__(self, message: str, fix: str | None = None):
         super().__init__(message)
         self.fix = fix
 
 
-def load_source(spec: InputSpec, data_dir: Union[str, "os.PathLike[str]", None]) -> Any:
+def load_source(spec: InputSpec, data_dir: str | os.PathLike[str] | None) -> Any:
     """Read an input's data file. Only files inside ``data_dir`` are read: absolute paths, `..`,
     and links that lead outside it are refused, as are unknown file kinds and oversized files."""
     name = spec.source or ""
@@ -211,23 +213,26 @@ def load_source(spec: InputSpec, data_dir: Union[str, "os.PathLike[str]", None])
     except json.JSONDecodeError as exc:
         raise _SourceProblem(f"'{name}' is not valid JSON: {exc.msg} at line {exc.lineno}", "fix the file") from None
     if len(rows) > MAX_DATA_ROWS:
-        raise _SourceProblem(f"'{name}' has {len(rows):,} rows; the limit is {MAX_DATA_ROWS:,}", "use a smaller extract")
+        raise _SourceProblem(f"'{name}' has {len(rows):,} rows; the limit is {MAX_DATA_ROWS:,}",
+                             "use a smaller extract")
     return rows
 
 
-def _csv_rows(text: str, columns: Mapping[str, str], name: str, fields: Optional[Dict[str, InputSpec]] = None) -> List[Dict[str, Any]]:
+def _csv_rows(text: str, columns: Mapping[str, str], name: str,
+              fields: dict[str, InputSpec] | None = None) -> list[dict[str, Any]]:
     reader = csv.DictReader(io.StringIO(text))
     if reader.fieldnames is None:
         raise _SourceProblem(f"'{name}' has no header row", "put column names on the first line")
     missing = [column for column in columns if column not in reader.fieldnames]
     if missing:
-        raise _SourceProblem(f"'{name}' has no column(s) {', '.join(missing)} (columns: {', '.join(reader.fieldnames)})",
+        raise _SourceProblem(f"'{name}' has no column(s) {', '.join(missing)} (columns: "
+                             f"{', '.join(reader.fieldnames)})",
                              "match `columns` to the file's header")
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for line, raw in enumerate(reader, start=2):
         if len(rows) >= MAX_DATA_ROWS:
             raise _SourceProblem(f"'{name}' has more than {MAX_DATA_ROWS:,} rows", "use a smaller extract")
-        row: Dict[str, Any] = {}
+        row: dict[str, Any] = {}
         for column, cell in raw.items():
             if column is None:
                 raise _SourceProblem(f"'{name}' line {line} has more cells than the header", "fix the row")
@@ -237,7 +242,7 @@ def _csv_rows(text: str, columns: Mapping[str, str], name: str, fields: Optional
     return rows
 
 
-def _cell(kind: str, cell: Optional[str], name: str, line: int, column: str) -> Any:
+def _cell(kind: str, cell: str | None, name: str, line: int, column: str) -> Any:
     text = (cell or "").strip()
     if kind in ("text", "enum", "date", "any", "asset"):
         return cell if cell is not None else ""
@@ -250,7 +255,8 @@ def _cell(kind: str, cell: Optional[str], name: str, line: int, column: str) -> 
             number = float(text)
             return int(number) if number.is_integer() and "." not in text and "e" not in text.lower() else number
     except ValueError:
-        raise _SourceProblem(f"'{name}' line {line} column '{column}' must be {'a whole number' if kind == 'int' else 'a number'}, got {cell!r}",
+        raise _SourceProblem(f"'{name}' line {line} column '{column}' must be "
+                             f"{'a whole number' if kind == 'int' else 'a number'}, got {cell!r}",
                              "fix the cell or the column type") from None
     if kind == "bool":
         lowered = text.lower()

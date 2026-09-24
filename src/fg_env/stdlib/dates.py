@@ -1,4 +1,5 @@
-"""Dates: calendar arithmetic and calendar parts of ISO date texts (``2026-09-14``) and date-times (``2026-09-14T09:30``).
+"""Dates: calendar arithmetic and calendar parts of ISO date texts (``2026-09-14``) and date-times
+(``2026-09-14T09:30``).
 
 Dates stay text in the world, so they are saved, compared (``<`` orders ISO dates) and shown as written; these
 functions read them, move them by calendar units and take them apart.
@@ -7,14 +8,14 @@ from __future__ import annotations
 
 import calendar
 import datetime as _dt
-from typing import Any, List, Optional, Union
+from typing import Any
 
 from ..expr import Call, _describe, function
 from ._args import fail, list_arg, number_arg, optional_text, text_arg
 
 __all__ = ["UNITS", "PARTS", "parse_moment", "shift", "calendar_date"]
 
-Moment = Union[_dt.date, _dt.datetime]
+Moment = _dt.date | _dt.datetime
 
 #: Units a date moves by.
 UNITS = ("day", "week", "month", "quarter", "year", "hour", "minute")
@@ -37,7 +38,7 @@ def _written(moment: Moment) -> str:
     return moment.isoformat()
 
 
-def _unit(name: str) -> Optional[str]:
+def _unit(name: str) -> str | None:
     unit = name.lower().rstrip("s")
     return unit if unit in UNITS else None
 
@@ -55,7 +56,7 @@ def shift(moment: Moment, amount: float, unit: str) -> Moment:
     return moment + _dt.timedelta(days=amount * (7 if unit == "week" else 1))
 
 
-def calendar_date(start: Optional[str], unit: str, step: int, elapsed: float) -> Optional[str]:
+def calendar_date(start: str | None, unit: str, step: int, elapsed: float) -> str | None:
     """The calendar label of a moment ``elapsed`` clock steps after ``start`` (``None`` without a start or for units
     that have no calendar). Month clocks retain the start day, clamping only in shorter target months."""
     if not start:
@@ -82,7 +83,9 @@ def _moment_arg(call: Call, index: int) -> Moment:
     try:
         return parse_moment(text)
     except ValueError:
-        raise fail(call, f"argument {index + 1} must be an ISO date like 2026-09-14 (or 2026-09-14T09:30), got {text!r}") from None
+        raise fail(call,
+                   f"argument {index + 1} must be an ISO date like 2026-09-14 (or 2026-09-14T09:30), got "
+                   f"{text!r}") from None
 
 
 @function("date_add(date, n, unit?)",
@@ -105,7 +108,7 @@ def _date_add(call: Call) -> str:
 
 @function("days_between(a, b)", "Days from date `a` to date `b`: negative when `b` is earlier, fractional between "
           "date-times ($days_between('2026-09-01', '2026-09-15') is 14).", min_args=2, max_args=2)
-def _days_between(call: Call) -> Union[int, float]:
+def _days_between(call: Call) -> int | float:
     a, b = _moment_arg(call, 0), _moment_arg(call, 1)
     if isinstance(a, _dt.datetime) or isinstance(b, _dt.datetime):
         whole_a = a if isinstance(a, _dt.datetime) else _dt.datetime.combine(a, _dt.time())
@@ -136,7 +139,7 @@ def _date_part(call: Call) -> Any:
           "`date` field (a holidays table).", min_args=2, max_args=2)
 def _is_holiday(call: Call) -> bool:
     day = _written(_moment_arg(call, 0))[:10]
-    listed: List[str] = []
+    listed: list[str] = []
     for item in list_arg(call, 1):
         value = item.get("date") if isinstance(item, dict) else item
         if not isinstance(value, str):

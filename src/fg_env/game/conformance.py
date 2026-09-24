@@ -20,15 +20,16 @@ from __future__ import annotations
 
 import json
 import random
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any
 
 from ..api import ContractLike, load
 from ..effects.chance import PROBABILITY_TOLERANCE
 from ..errors import ContractError, RunError, SnapshotError
 from ..expr import ExprError
-from ..runtime.returns import UTILITY_TOLERANCE, utility_issues
 from ..runtime.env import Env
+from ..runtime.returns import UTILITY_TOLERANCE, utility_issues
 from .game import Game, game
 from .leaks import leak_issues
 from .state import GameState
@@ -49,15 +50,15 @@ class ConformanceIssue:
     message: str
     sim: int
     seed: int
-    steps: Tuple[Step, ...]
-    history: Tuple[str, ...]
-    other_steps: Optional[Tuple[Step, ...]] = None
+    steps: tuple[Step, ...]
+    history: tuple[str, ...]
+    other_steps: tuple[Step, ...] | None = None
 
     def reproduce(self, subject: Game) -> GameState:
         """The state the issue shows at (the game must be built with the conformance run's contract and seed)."""
         return replay_steps(subject, self.steps)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         out = {"check": self.check, "message": self.message, "sim": self.sim, "seed": self.seed,
                "steps": steps_to_json(self.steps), "history": list(self.history)}
         if self.other_steps is not None:
@@ -77,8 +78,8 @@ class ConformanceReport:
     sims: int
     decisions: int = 0
     chance_nodes: int = 0
-    checks: Dict[str, int] = field(default_factory=lambda: {name: 0 for name in CHECKS})
-    issues: List[ConformanceIssue] = field(default_factory=list)
+    checks: dict[str, int] = field(default_factory=lambda: {name: 0 for name in CHECKS})
+    issues: list[ConformanceIssue] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
@@ -93,7 +94,7 @@ class ConformanceReport:
                 return
         self.issues.append(issue)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"game": self.game, "sims": self.sims, "decisions": self.decisions, "chance_nodes": self.chance_nodes,
                 "checks": dict(self.checks), "ok": self.ok, "issues": [issue.to_dict() for issue in self.issues]}
 
@@ -106,8 +107,8 @@ class ConformanceReport:
         return head + f"\n{len(self.issues)} issue(s):\n" + "\n".join(f"  {issue}" for issue in self.issues)
 
 
-def conformance(source: Union[ContractLike, Game], *, sims: int = 20, seed: int = 0,
-                inputs: Optional[Mapping[str, Any]] = None, simultaneous: str = "joint", leak_branches: int = 2,
+def conformance(source: ContractLike | Game, *, sims: int = 20, seed: int = 0,
+                inputs: Mapping[str, Any] | None = None, simultaneous: str = "joint", leak_branches: int = 2,
                 max_steps: int = 1000, resume: bool = True) -> ConformanceReport:
     """Check a game (a contract, or a :class:`Game` from :func:`fg_env.rl.game`) over ``sims`` seeded random playouts.
 
@@ -152,11 +153,11 @@ class _Checker:
 
     # -- recording ----------------------------------------------------------------------------------------
 
-    def issue(self, check: str, message: str, steps: Sequence[Step], other: Optional[Sequence[Step]] = None) -> None:
+    def issue(self, check: str, message: str, steps: Sequence[Step], other: Sequence[Step] | None = None) -> None:
         self.report.add(ConformanceIssue(check, message, self.sim, self.seed, tuple(steps), self._history(steps),
                                          tuple(other) if other is not None else None))
 
-    def _history(self, steps: Sequence[Step]) -> Tuple[str, ...]:
+    def _history(self, steps: Sequence[Step]) -> tuple[str, ...]:
         try:
             state = self.game.new_initial_state()
         except _FAILURES:
@@ -174,8 +175,8 @@ class _Checker:
 
     # -- one playout --------------------------------------------------------------------------------------
 
-    def _playout(self, rng: random.Random) -> Optional[List[Step]]:
-        steps: List[Step] = []
+    def _playout(self, rng: random.Random) -> list[Step] | None:
+        steps: list[Step] = []
         earned = [0.0] * self.game.num_players()
         try:
             state = self.game.new_initial_state()
@@ -205,7 +206,7 @@ class _Checker:
         finally:
             state.close()
 
-    def _node(self, state: GameState, steps: List[Step]) -> None:
+    def _node(self, state: GameState, steps: list[Step]) -> None:
         if state.is_chance_node():
             self.report.chance_nodes += 1
             self.report.checks["chance"] += 1
@@ -223,7 +224,8 @@ class _Checker:
         listed = {seat: state.legal_tool_calls(seat) for seat in acting}
         for seat in acting:
             if not listed[seat] and not state.unlisted_actions(seat):
-                self.issue("legal", f"seat {seat} ({self.game.players[seat]}) must decide but has no legal action", steps)
+                self.issue("legal", f"seat {seat} ({self.game.players[seat]}) must decide but has no legal action",
+                           steps)
         if any(not calls for calls in listed.values()):
             return
         for seat in acting:
@@ -236,7 +238,7 @@ class _Checker:
                 else:
                     self._try(state, {"seat": seat, **call}, steps, "legal")
 
-    def _try(self, state: GameState, step: Step, steps: List[Step], check: str) -> None:
+    def _try(self, state: GameState, step: Step, steps: list[Step], check: str) -> None:
         child = state.clone()
         try:
             apply_step(child, step)
@@ -245,10 +247,10 @@ class _Checker:
         finally:
             child.close()
 
-    def _advance(self, state: GameState, step: Step, steps: List[Step]) -> bool:
+    def _advance(self, state: GameState, step: Step, steps: list[Step]) -> bool:
         """Apply ``step`` to the state, a clone and a deserialized copy, and compare where they end up."""
         twin = state.clone()
-        copies: List[Tuple[str, GameState]] = [("clone", twin)]
+        copies: list[tuple[str, GameState]] = [("clone", twin)]
         key = state.state_key()
         self.report.checks["clone"] += 1
         if twin.state_key() != key:
@@ -284,14 +286,14 @@ class _Checker:
             for _, other in copies:
                 other.close()
 
-    def _signature(self, state: GameState) -> Dict[str, Any]:
+    def _signature(self, state: GameState) -> dict[str, Any]:
         seats = range(self.game.num_players())
         return {"state key": state.state_key(), "player to move": state.current_player(),
                 "observation text": [state.observation_string(s) for s in seats],
                 "information state": [state.information_state(s) for s in seats],
                 "returns": state.returns() if self.has_returns else None}
 
-    def _finished(self, state: GameState, steps: List[Step], earned: List[float]) -> None:
+    def _finished(self, state: GameState, steps: list[Step], earned: list[float]) -> None:
         if self.has_returns:
             self.report.checks["returns"] += 1
             returns = state.returns()
@@ -314,7 +316,7 @@ class _Checker:
         finally:
             again.close()
 
-    def _leaks(self, steps: List[Step], rng: random.Random) -> None:
+    def _leaks(self, steps: list[Step], rng: random.Random) -> None:
         self.report.checks["leak"] += 1
         try:
             for leak in leak_issues(self.game, steps, rng, self.leak_branches):
@@ -347,7 +349,8 @@ class _Checker:
             if stopped.status == "stopped":
                 twin = stopped.clone()
                 self._same_run(straight, twin.run("random").to_dict(), f"stopped at safe point {stop_at} and cloned")
-                self._same_run(straight, stopped.run("random").to_dict(), f"stopped at safe point {stop_at} and resumed")
+                self._same_run(straight, stopped.run("random").to_dict(),
+                               f"stopped at safe point {stop_at} and resumed")
             between = fresh()
             between.run("random", rounds=1)
             if not between.finished:
@@ -357,13 +360,14 @@ class _Checker:
         except _FAILURES as exc:
             self.issue("resume", f"a run with seed {run_seed} could not be resumed: {exc}", [])
 
-    def _same_run(self, straight: Dict[str, Any], other: Dict[str, Any], how: str) -> None:
+    def _same_run(self, straight: dict[str, Any], other: dict[str, Any], how: str) -> None:
         if other != straight:
             keys = sorted(key for key in set(straight) | set(other) if straight.get(key) != other.get(key))
-            self.issue("resume", f"a run {how} ends differently from the straight run (differs in {', '.join(keys)})", [])
+            self.issue("resume", f"a run {how} ends differently from the straight run (differs in {', '.join(keys)})",
+                       [])
 
 
-def _mismatch(expected: Dict[str, Any], got: Dict[str, Any]) -> Optional[str]:
+def _mismatch(expected: dict[str, Any], got: dict[str, Any]) -> str | None:
     for key, value in expected.items():
         if got[key] != value:
             if isinstance(value, list):

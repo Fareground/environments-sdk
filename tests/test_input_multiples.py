@@ -1,6 +1,7 @@
 """Numeric increments enforce data requirements independently of UI hints."""
 import pytest
-from fg_env.contract import InputSpec, Contract
+
+from fg_env.contract import Contract, InputSpec
 from fg_env.contract.inputs import check_value, resolve_inputs
 from fg_env.errors import InputError
 
@@ -35,7 +36,8 @@ def test_non_numeric_constraint_is_rejected():
 
 
 def test_nested_default_and_supplied_values_follow_the_same_rule():
-    contract = Contract.model_validate({'name': 'Input validation', 'types': {}, 'inputs': {'rows': {'type': 'table', 'fields': {
+    contract = Contract.model_validate({'name': 'Input validation', 'types': {},
+                                        'inputs': {'rows': {'type': 'table', 'fields': {
         'prices': {'type': 'list', 'items': {'type': 'number', 'multiple_of': .01}}
     }, 'default': [{'prices': [1.25]}]}}})
     assert resolve_inputs(contract)['rows'][0]['prices'] == [1.25]

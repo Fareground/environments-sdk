@@ -8,13 +8,14 @@ import math
 import random
 import time
 from collections import Counter
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ..contract import MAX_ENTITIES, Contract
-from ..runtime.diagnostics import MIN_CALLS
 from ..errors import Issue
-from ..runtime.measure import RunResult
 from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _seed_for, sample_args
+from ..runtime.diagnostics import MIN_CALLS
+from ..runtime.measure import RunResult
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -34,8 +35,8 @@ _EDGE_FINDINGS = ("action_rule_failed", "action_broke_invariant")
 _EDGES = "agents choosing boundary values"
 
 
-def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optional[int],
-                 seed: int) -> Tuple[List[Issue], List[Issue]]:
+def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | None,
+                 seed: int) -> tuple[list[Issue], list[Issue]]:
     """``(errors, warnings)`` from playing the contract built by ``build``: first with random agents that read
     everything they are shown, then with agents that choose boundary values, then with every agent idle (as when a
     model times out or refuses), then with each policy playing the agent types whose default it is, or else the types
@@ -45,9 +46,9 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
     policies = [(name, _players(contract, name)) for name in contract.policies]
     policies = [(name, players) for name, players in policies if players]
     seconds = _SMOKE_SECONDS / (3 + len(policies)) if rounds is None else None
-    errors: List[Issue] = []
-    warnings: List[Issue] = []
-    played: List["Env"] = []
+    errors: list[Issue] = []
+    warnings: list[Issue] = []
+    played: list[Env] = []
 
     census = _Census()
     random_env = _kept(build(), played)
@@ -66,7 +67,8 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
     reported = {issue.path for issue in errors + warnings}
     warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {edge_play.rounds} round(s), {_EDGES})",
                           found["fix"], "warning")
-                    for found in edge_play.diagnostics if found["code"] in _EDGE_FINDINGS and found["path"] not in reported)
+                    for found in edge_play.diagnostics if found["code"] in _EDGE_FINDINGS
+                    and found["path"] not in reported)
     idle_play = _play(build(), {"*": "idle"}, rounds, seconds)
     _failure(idle_play, "agents that never act", errors,
              "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
@@ -84,12 +86,12 @@ def smoke_issues(contract: Contract, build: Callable[[], "Env"], rounds: Optiona
     return errors, warnings
 
 
-def _kept(env: "Env", played: List["Env"]) -> "Env":
+def _kept(env: Env, played: list[Env]) -> Env:
     played.append(env)
     return env
 
 
-def _outputs(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> None:
+def _outputs(play: RunResult, errors: list[Issue], warnings: list[Issue]) -> None:
     """Outputs the random play could not work out: an error when the run finished (they are final), else a warning."""
     finished = play.status in ("completed", "ended")  # its outputs are final, not provisional
     for problem in play.output_issues:
@@ -99,11 +101,11 @@ def _outputs(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> Non
                                 "fix the expression, or guard the case it fails in: `<value> if <it can be worked out> "
                                 "else null` (null means no value)"))
         else:
-            warnings.append(Issue(problem["path"], message, "fine if it only has a value later in a run; otherwise guard it",
-                                  "warning"))
+            warnings.append(Issue(problem["path"], message,
+                                  "fine if it only has a value later in a run; otherwise guard it", "warning"))
 
 
-def _random_findings(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> None:
+def _random_findings(play: RunResult, errors: list[Issue], warnings: list[Issue]) -> None:
     """The random play's diagnostics, one per cause: an action whose rule always failed is not also reported as
     offered when none of its choices could succeed (the failing rule is why). The play's own time running out
     (`budget_cut`) says nothing about the contract."""
@@ -118,11 +120,11 @@ def _random_findings(play: RunResult, errors: List[Issue], warnings: List[Issue]
                   found["fix"], severity))
 
 
-def _never_succeeded(contract: Contract, played: List["Env"]) -> List[Issue]:
+def _never_succeeded(contract: Contract, played: list[Env]) -> list[Issue]:
     """Actions called at least :data:`~fg_env.runtime.diagnostics.MIN_CALLS` times across the plays that act and refused
     every time: the rules or arguments the tool offers never let it happen, so what it does was never exercised.
     Actions that take free text are left out: smoke agents write placeholder text, so its refusal says nothing."""
-    totals: Dict[str, List[Any]] = {}  # action → [calls, applied, {cause: [count, wording]}]
+    totals: dict[str, list[Any]] = {}  # action → [calls, applied, {cause: [count, wording]}]
     for env in played:
         for name, entry in env.diagnosis.actions.items():
             total = totals.setdefault(name, [0, 0, {}])
@@ -140,8 +142,9 @@ def _never_succeeded(contract: Contract, played: List["Env"]) -> List[Issue]:
         out.append(Issue(f"actions.{name}", f"never succeeded in the smoke plays: all {calls} call(s) were refused; "
                                             f"most often: {text.rstrip('.')} ({count}×)",
                          "make the tool offer only choices that can work: bound or list its parameters (min, max, "
-                         "values, where — `values` and `where` may read earlier arguments), and put a requirement that "
-                         "depends on the state in `when` with a `why`; then agents can take the action and its rules run",
+                         "values, where — `values` and `where` may read earlier arguments), and put a requirement "
+                         "that depends on the state in `when` with a `why`; then agents can take the action and its "
+                         "rules run",
                          "warning"))
     return out
 
@@ -156,7 +159,7 @@ def run_issue(message: str) -> Issue:
     return Issue(path or "(run)", message, "fix the rule at this path (found by a smoke run)")
 
 
-def _players(contract: Contract, policy: str) -> List[str]:
+def _players(contract: Contract, policy: str) -> list[str]:
     """The agent types a policy plays in the smoke run: those whose default it is, or else those that can take every
     action it takes."""
     agents = contract.agent_types()
@@ -169,14 +172,14 @@ def _players(contract: Contract, policy: str) -> List[str]:
         for action in actions)]
 
 
-def _play(env: "Env", participants: Any, rounds: Optional[int], seconds: Optional[float],
-          census: Optional["_Census"] = None) -> RunResult:
+def _play(env: Env, participants: Any, rounds: int | None, seconds: float | None,
+          census: _Census | None = None) -> RunResult:
     """Play ``rounds`` rounds; or, when ``seconds`` is set, up to :data:`SMOKE_ROUNDS` rounds while time is left —
     the first round always, then stopping in the round that is under way when time runs out. ``census`` counts the
     living entities as the play goes."""
     deadline = time.monotonic() + seconds if seconds is not None else None
 
-    def stop(e: "Env") -> bool:
+    def stop(e: Env) -> bool:
         if census is not None:
             census.take(e)
         return deadline is not None and e.round > 1 and time.monotonic() > deadline
@@ -189,15 +192,15 @@ class _Census:
     engine's ceiling (:data:`~fg_env.contract.MAX_ENTITIES`) before the run's last round — a run that fails there."""
 
     def __init__(self) -> None:
-        self.counts: Dict[int, int] = {}
+        self.counts: dict[int, int] = {}
         self.start: Counter = Counter()
 
-    def take(self, env: "Env") -> None:
+    def take(self, env: Env) -> None:
         if not self.counts:
             self.start = _by_type(env)
         self.counts[env.round] = env.world.types.living
 
-    def runaway(self, env: "Env") -> Optional[Issue]:
+    def runaway(self, env: Env) -> Issue | None:
         rounds = sorted(self.counts)
         if len(rounds) < 3:
             return None
@@ -217,25 +220,26 @@ class _Census:
         grew = _by_type(env) - self.start
         kind = max(sorted(grew), key=lambda name: grew[name])
         return Issue(f"types.{kind}",
-                     f"the population grows from {start:,} to {end:,} living entities in {last - first} smoke round(s), "
-                     f"most of them '{kind}'; at that pace it passes the ceiling of {MAX_ENTITIES:,} around round "
-                     f"{reached} of {total}, and the run fails there",
+                     f"the population grows from {start:,} to {end:,} living entities in {last - first} smoke "
+                     f"round(s), most of them '{kind}'; at that pace it passes the ceiling of {MAX_ENTITIES:,} around "
+                     f"round {reached} of {total}, and the run fails there",
                      f"bound the growth: create only while a limit holds, e.g. {{\"if\": \"$count({kind}) < 1000\", "
                      f"\"then\": [{{\"create\": \"{kind}\"}}]}}, or remove entities that are done", "warning")
 
 
-def _by_type(env: "Env") -> Counter:
+def _by_type(env: Env) -> Counter:
     return Counter(entity.entity_type for entity in env.world.entities.values() if entity.alive)
 
 
-def _failure(result: RunResult, who: str, errors: List[Issue], fix: Optional[str] = None) -> None:
+def _failure(result: RunResult, who: str, errors: list[Issue], fix: str | None = None) -> None:
     """Add the error a failed play ran into, unless an earlier play already reported it."""
     if result.status != "failed":
         return
     issue = run_issue(result.error or "the run failed")
     if any(e.path == issue.path and e.message.startswith(issue.message) for e in errors):
         return
-    errors.append(Issue(issue.path, f"{issue.message} (smoke run of {result.rounds} round(s), {who})", fix or issue.fix))
+    errors.append(Issue(issue.path, f"{issue.message} (smoke run of {result.rounds} round(s), {who})",
+                        fix or issue.fix))
 
 
 class _Probing(PolicyAgent):

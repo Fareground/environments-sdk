@@ -1,14 +1,13 @@
-"""The demand mode: demand drawn from patterns and served from stock — true demand and lost sales kept apart, substitutes,
-backorders, segments with their own prices and returns, revenue into a ledger — conserved, resumable, and recorded in
-the columns fit_patterns reads."""
+"""The demand mode: demand drawn from patterns and served from stock — true demand and lost sales kept apart,
+substitutes, backorders, segments with their own prices and returns, revenue into a ledger — conserved, resumable, and
+recorded in the columns fit_patterns reads."""
 import copy
 import json
 
 import pytest
+from store_fixtures import item, store, with_ledger
 
 import fg_env
-
-from store_fixtures import item, store, with_ledger
 
 
 def test_sales_are_capped_by_stock_and_lost_sales_are_kept_apart_from_true_demand():
@@ -38,14 +37,16 @@ def test_expected_demand_is_the_rate_times_each_factor_read_for_the_item():
         "base": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base", "of": ["growth"]},
         "price_effect": {"kind": "elasticity", "keys": ["pads"], "elasticity": -1.5, "reference": 1.0},
         "promo": {"kind": "promotion", "keys": "sku", "input": "$it.shop_promo", "lift": 0.8},
-        "substitution": {"kind": "cross_price", "keys": "sku", "reference": {"a": 10.0, "b": 8.0}, "own": -0.5, "cross": 0.4}})
+        "substitution": {"kind": "cross_price", "keys": "sku", "reference": {"a": 10.0, "b": 8.0}, "own": -0.5,
+                         "cross": 0.4}})
     env = fg_env.load(contract, seed=2)
     env.run("idle", rounds=2)
     runtime = env.world.patterns
     a = item(env, "a")
     assert a["shop_promo"] == 0.25 and a["shop_price"] == 7.5
     expected = (runtime.call("base", ["a"], "test") * runtime.call("price_effect", [0.75, "pads"], "test")
-                * runtime.call("promo", ["a"], "test") * runtime.call("substitution", [{"a": 7.5, "b": 6.0}, "a"], "test") * 1.5)
+                * runtime.call("promo", ["a"], "test")
+                * runtime.call("substitution", [{"a": 7.5, "b": 6.0}, "a"], "test") * 1.5)
     assert a["shop_expected"] == pytest.approx(expected)
     assert a["shop_variance"] == pytest.approx(expected + expected ** 2 / 4)
 
@@ -67,7 +68,8 @@ def test_unmet_demand_that_waits_is_served_first_when_stock_arrives():
     skus = [{"sku": "a", "part": "pads", "base": 8.0, "list": 10.0, "sibling": "b", "stock": 0}]
     contract = store(skus=skus, backorder=1)
     contract["events"] = [{"at": 4, "phase": "start", "each": "sku",
-                           "do": [{"economy": "shop", "action": "receive", "item": "$it", "qty": 50, "source": "supplier"}]}]
+                           "do": [{"economy": "shop", "action": "receive", "item": "$it", "qty": 50,
+                                   "source": "supplier"}]}]
     env = fg_env.load(contract, seed=4)
     env.run("idle", rounds=3)
     a = item(env, "a")
@@ -83,8 +85,9 @@ def test_unmet_demand_that_waits_is_served_first_when_stock_arrives():
 def test_segments_buy_at_their_own_prices_send_units_back_and_money_is_conserved():
     skus = [{"sku": "a", "part": "pads", "base": 8.0, "list": 10.0, "sibling": "b", "stock": 1000},
             {"sku": "b", "part": "pads", "base": 4.0, "list": 8.0, "sibling": "a", "stock": 1000}]
-    contract = with_ledger(store(skus=skus, rounds=12, returns={"rate": 0.5, "delay": 2, "restock": 0.5}, account="store",
-                                 currency="cash", segments={"bulk": {"rate": 3, "price": "$price * 0.8", "where": "$it.id == 'a'"}}))
+    contract = with_ledger(store(skus=skus, rounds=12, returns={"rate": 0.5, "delay": 2, "restock": 0.5},
+                                 account="store", currency="cash",
+                                 segments={"bulk": {"rate": 3, "price": "$price * 0.8", "where": "$it.id == 'a'"}}))
     contract["invariants"] = ["$conserved('money')"]
     env = fg_env.load(contract, seed=5)
     result = env.run("idle")
@@ -117,7 +120,8 @@ def test_the_history_record_holds_what_fit_patterns_reads_and_the_elasticity_is_
     truth["patterns"].update({
         "wobble": {"kind": "noise", "dist": "lognormal", "mean": 0, "sd": 0.2},
         "growth": {"kind": "trend", "form": "exponential", "rate": 0.0, "origin": "2026-01-05"},
-        "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base", "of": ["growth"]}})
+        "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base",
+                   "of": ["growth"]}})
     env = fg_env.load(truth, seed=6)
     env.run("idle")
     rows = [dict(row) for row in env.world.records_store["shop_history"]]
@@ -127,7 +131,8 @@ def test_the_history_record_holds_what_fit_patterns_reads_and_the_elasticity_is_
     guess["inputs"]["history"] = {"type": "table", "default": rows}
     guess["patterns"]["price_effect"]["elasticity"] = -0.5
     guess["patterns"]["demand"]["fit"] = {"data": "$inputs.history", "value": "units", "time": "time", "key": "item",
-                                          "censored": "stockout", "noise": "sales", "x": {"price_effect": "price_effect"}}
+                                          "censored": "stockout", "noise": "sales",
+                                          "x": {"price_effect": "price_effect"}}
     fitted = fg_env.analysis.fit_patterns(guess).contract["inputs"]
     assert abs(fitted["price_effect_elasticity"]["default"] + 1.3) < 3 * fitted["price_effect_elasticity_se"]["default"]
 
@@ -146,11 +151,12 @@ def test_config_mistakes_are_reported_at_their_field_with_what_to_do(change, pat
 
 
 def test_a_store_run_resumes_exactly_from_a_json_snapshot_and_a_clone():
-    contract = with_ledger(store(substitutes="[$it.sibling]", spill=0.5, backorder=0.3, account="store", currency="cash",
-                                 returns={"rate": 0.2, "delay": 3}, segments={"bulk": {"rate": 2, "price": "$price * 0.9"}},
-                                 noise="sales"))
+    contract = with_ledger(store(substitutes="[$it.sibling]", spill=0.5, backorder=0.3, account="store",
+                                 currency="cash", returns={"rate": 0.2, "delay": 3},
+                                 segments={"bulk": {"rate": 2, "price": "$price * 0.9"}}, noise="sales"))
     contract["events"] = [{"every": 3, "phase": "start", "each": "sku",
-                           "do": [{"economy": "shop", "action": "receive", "item": "$it", "qty": 25, "source": "supplier"}]}]
+                           "do": [{"economy": "shop", "action": "receive", "item": "$it", "qty": 25,
+                                   "source": "supplier"}]}]
     straight = fg_env.load(contract, seed=7).run("idle").to_dict()
     env = fg_env.load(contract, seed=7)
     env.run("idle", rounds=8)

@@ -12,19 +12,51 @@ import pytest
 
 import fg_env
 from fg_env.analysis import (
-    AnalysisError, backtest, behavior_checks, brier, brier_multiclass, calibrate, chain, compare, crps_ensemble,
-    drivers, ece, highlights, interval_coverage, log_loss, log_loss_multiclass, murphy, narrative, precision,
-    reliability, score, sensitivity, skill_score, statistic, sweep,
+    AnalysisError,
+    backtest,
+    behavior_checks,
+    brier,
+    brier_multiclass,
+    calibrate,
+    chain,
+    compare,
+    crps_ensemble,
+    drivers,
+    ece,
+    highlights,
+    interval_coverage,
+    log_loss,
+    log_loss_multiclass,
+    murphy,
+    narrative,
+    precision,
+    reliability,
+    runner,
+    score,
+    sensitivity,
+    skill_score,
+    statistic,
+    sweep,
+    unit_search,
 )
-from fg_env.analysis import runner, unit_search
 from fg_env.analysis.calibrate import evaluate_targets, parse_targets
 from fg_env.analysis.cli import add_analysis_commands
 from fg_env.analysis.compare import welch
 from fg_env.analysis.facts import autocorrelation, excess_kurtosis, max_drawdown
 from fg_env.analysis.highlights import move_score
 from fg_env.analysis.stats import (
-    correlation_ratio, estimate, fisher_interval, latin_hypercube, levels, pearson, quantile, ranks, spearman,
-    t_quantile, wasserstein, wilson,
+    correlation_ratio,
+    estimate,
+    fisher_interval,
+    latin_hypercube,
+    levels,
+    pearson,
+    quantile,
+    ranks,
+    spearman,
+    t_quantile,
+    wasserstein,
+    wilson,
 )
 from fg_env.errors import InputError
 from fg_env.runtime.measure import RunResult
@@ -373,7 +405,8 @@ def test_target_errors_by_hand():
     fit, details = evaluate_targets(value, [fake_run(outputs={"level": v}) for v in (9, 11, 13)])
     assert details[0]["error"] == pytest.approx(0.1) and fit == pytest.approx(0.1)  # (11 − 10)/10
     path = parse_targets(contract, {"series.level": [1, 2, 3]})
-    fit, details = evaluate_targets(path, [fake_run(series={"level": [1, 2, 4]}), fake_run(series={"level": [1, 2, 2]})])
+    fit, details = evaluate_targets(path,
+                                    [fake_run(series={"level": [1, 2, 4]}), fake_run(series={"level": [1, 2, 2]})])
     assert details[0]["rmse"] == pytest.approx(0.0) and fit == pytest.approx(0.0)
     spread = parse_targets(contract, {"level": {"distribution": [0, 1]}})
     fit, _ = evaluate_targets(spread, [fake_run(outputs={"level": v}) for v in (1, 2)])
@@ -384,7 +417,8 @@ def test_target_errors_by_hand():
 
 def test_search_algorithms_find_known_optima():
     def evaluator(fn, budget=60):
-        return unit_search.Evaluator(lambda p: (fn(p), None), key=lambda p: tuple(round(x, 9) for x in p), budget=budget)
+        return unit_search.Evaluator(lambda p: (fn(p), None), key=lambda p: tuple(round(x, 9) for x in p),
+                                     budget=budget)
 
     e = evaluator(lambda p: abs(p[0] - 0.3))
 
@@ -419,7 +453,8 @@ def test_backtest_binary_and_ensemble():
     numbers = backtest(NOISY, [{"inputs": {"rate": 0.2}, "outcome": 2.0}, {"inputs": {"rate": 0.8}, "outcome": 8.0}],
                        "level", runs=6)
     assert numbers.kind == "ensemble" and numbers.scores["crps"] < 0.3
-    thresholded = backtest(NOISY, [{"inputs": {"rate": 0.2}, "outcome": 2.0}, {"inputs": {"rate": 0.8}, "outcome": 8.0}],
+    thresholded = backtest(NOISY,
+                           [{"inputs": {"rate": 0.2}, "outcome": 2.0}, {"inputs": {"rate": 0.8}, "outcome": 8.0}],
                            "level", runs=6, threshold=5)
     assert thresholded.kind == "binary" and thresholded.scores["brier"] == pytest.approx(0.0)
     assert "Brier" in binary.report()
@@ -570,7 +605,8 @@ def test_cli_commands(tmp_path, capsys):
     assert _cli(["calibrate", str(formula), "--target", "y=4", "--param", "a", "--input", "b=0", "--runs", "1"]) == 0
     assert "Best inputs: a=2" in capsys.readouterr().out
     cases = tmp_path / "cases.json"
-    cases.write_text(json.dumps([{"inputs": {"rate": 0.2}, "outcome": False}, {"inputs": {"rate": 0.8}, "outcome": True}]))
+    cases.write_text(json.dumps([{"inputs": {"rate": 0.2}, "outcome": False},
+                                 {"inputs": {"rate": 0.8}, "outcome": True}]))
     assert _cli(["backtest", str(noisy), "--cases", str(cases), "--output", "high", "--runs", "3"]) == 0
     assert "Brier" in capsys.readouterr().out
     assert _cli(["playtest", str(broken), "--runs", "2"]) == 0

@@ -3,8 +3,7 @@ from __future__ import annotations
 
 import math
 from fractions import Fraction
-
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -25,22 +24,22 @@ class Operand(BaseModel):
 
 
 class _Combined(PatternConfig):
-    of: List[Union[str, Operand]] = Field(..., min_length=1, description="The patterns combined: names (keyed ones get "
-                                                                         "this pattern's key) or {pattern, key}.")
+    of: list[str | Operand] = Field(..., min_length=1, description="The patterns combined: names (keyed ones get "
+                                                                   "this pattern's key) or {pattern, key}.")
 
     @model_validator(mode="after")
-    def _unique(self) -> "_Combined":
+    def _unique(self) -> _Combined:
         names = operand_names(self)
         if len(set(names)) != len(names):
             raise ValueError("`of` names a pattern twice")
         return self
 
 
-def operand_names(cfg: Any) -> List[str]:
+def operand_names(cfg: Any) -> list[str]:
     return [item if isinstance(item, str) else item.pattern for item in cfg.of]
 
 
-def operand_key(ctx: Any, index: int) -> Optional[str]:
+def operand_key(ctx: Any, index: int) -> str | None:
     """The key operand ``index`` is read with: this pattern's own key, or its `key` expression (fixed per run)."""
     from .runtime import key_text
 
@@ -58,7 +57,7 @@ def operand_key(ctx: Any, index: int) -> Optional[str]:
     return str(ctx.cached(f"operand {index}", build))
 
 
-def _operands(ctx: Any) -> List[float]:
+def _operands(ctx: Any) -> list[float]:
     values = []
     for index, name in enumerate(operand_names(ctx.cfg)):
         value = ctx.operand(name, operand_key(ctx, index))
@@ -86,11 +85,11 @@ def _product(ctx: Any) -> float:
 
 class SumConfig(_Combined):
     kind: Literal["sum"] = "sum"
-    weights: Optional[List[Number]] = Field(None, description="One weight per pattern (default 1 each).")
+    weights: list[Number] | None = Field(None, description="One weight per pattern (default 1 each).")
     base: Number = Field(0.0, description="Added to the sum.")
 
     @model_validator(mode="after")
-    def _weights(self) -> "SumConfig":
+    def _weights(self) -> SumConfig:
         if self.weights is not None and len(self.weights) != len(self.of):
             raise ValueError(f"`weights` needs one weight per pattern in `of` ({len(self.of)})")
         return self
@@ -99,7 +98,8 @@ class SumConfig(_Combined):
 @kind("sum", "composition", "composite", SumConfig,
       "A weighted sum of patterns plus a base: level + seasonal swing + noise.",
       example={"kind": "sum", "of": ["normal_temp", "anomaly"], "base": 0},
-      params=("weights", "base"), words=lambda cfg: " + ".join(operand_names(cfg)) + (f" + {cfg.base}" if cfg.base else ""))
+      params=("weights", "base"),
+      words=lambda cfg: " + ".join(operand_names(cfg)) + (f" + {cfg.base}" if cfg.base else ""))
 def _sum(ctx: Any) -> float:
     weights = ctx.numbers("weights") if ctx.cfg.weights is not None else [1.0] * len(ctx.cfg.of)
     terms = [ctx.number("base"), *(w * v for w, v in zip(weights, _operands(ctx)))]

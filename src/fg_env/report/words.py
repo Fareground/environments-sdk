@@ -2,10 +2,11 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
-from ..runtime.clock_words import unit_word
 from ..expr.template import apply_format
+from ..runtime.clock_words import unit_word
 
 __all__ = ["Namer", "QUEUE_MEASURES", "number"]
 
@@ -13,7 +14,8 @@ __all__ = ["Namer", "QUEUE_MEASURES", "number"]
 QUEUE_MEASURES = {"service_level": "service level", "asa": "average wait to answer", "aht": "average handle time",
                   "abandon_rate": "abandonment",
                   "utilisation": "utilisation", "offered": "customers", "abandoned": "customers who gave up",
-                  "cost": "staffing cost", "paid_hours": "paid hours", "intervals_below_target": "intervals below target",
+                  "cost": "staffing cost", "paid_hours": "paid hours",
+                  "intervals_below_target": "intervals below target",
                   "callbacks": "callbacks taken", "callbacks_unserved": "callbacks not served", "retrials": "retries",
                   "staff": "staff", "abandon_rate_by_interval": "abandonment"}
 #: What the demand and replenishment modes' generated outputs and metrics are called (the part after the mechanism's
@@ -48,24 +50,24 @@ def number(value: float) -> str:
 class Namer:
     """Names and shows the measures of one report."""
 
-    def __init__(self, formats: Mapping[str, str], queues: List[str], clock: Mapping[str, Any],
-                 contract: Any = None, units: Optional[Mapping[str, str]] = None):
+    def __init__(self, formats: Mapping[str, str], queues: list[str], clock: Mapping[str, Any],
+                 contract: Any = None, units: Mapping[str, str] | None = None):
         self.formats, self.queues, self.clock, self.contract = dict(formats), list(queues), dict(clock), contract
-        self.units: Dict[str, str] = dict(units or {})
+        self.units: dict[str, str] = dict(units or {})
         #: Demand and replenishment mechanisms by name, with the word their groups are called (``category``).
-        self.stock: Dict[str, str] = {}
+        self.stock: dict[str, str] = {}
         for name, raw in (contract.mechanisms.items() if contract is not None else ()):
             if isinstance(raw, Mapping) and raw.get("kind") == "economy" and raw.get("mode") in _STOCK_MODES:
                 group = str(raw.get("group") or "")
                 self.stock[name] = group[len("$it."):].replace("_", " ") if group.startswith("$it.") else "group"
 
-    def _queue_part(self, measure: str) -> Optional[tuple]:
+    def _queue_part(self, measure: str) -> tuple | None:
         for queue in self.queues:
             if measure.startswith(f"{queue}_"):
                 return queue, measure[len(queue) + 1:]
         return None
 
-    def _stock_name(self, measure: str) -> Optional[str]:
+    def _stock_name(self, measure: str) -> str | None:
         """A demand or replenishment measure called by what it counts (``lost sales``, ``fill rate by category``); the
         mechanism's own name is kept only when two of the same mode could be confused."""
         for mechanism in sorted(self.stock, key=len, reverse=True):
@@ -115,7 +117,8 @@ class Namer:
         if found is not None and found[1] == "asa":
             return f"{value:.0f} {_SHORT_UNITS.get(self.units.get(found[0], 'second'), '')}".strip()
         if fmt == "pct":
-            return f"{value:.1%}" if abs(value) < 1 and round(value, 2) != round(value, 3) else apply_format(value, "pct")
+            return (f"{value:.1%}" if abs(value) < 1 and round(value, 2) != round(value, 3)
+                    else apply_format(value, "pct"))
         if fmt == "money" and abs(value) >= _WHOLE_MONEY:
             return f"{'-' if value < 0 else ''}${abs(value):,.0f}"
         return apply_format(value, fmt) if fmt else number(float(value))

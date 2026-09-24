@@ -26,11 +26,13 @@ SHARED = {
     "qty": "a number of units (items, shares, cards, batches); money is `amount`",
 }
 
-family("market", "Trading venues: continuous order books, auctions and procurement tenders, prediction markets and posted-price shops.",
+family("market",
+       "Trading venues: continuous order books, auctions and procurement tenders, prediction markets and posted-price "
+       "shops.",
        {"who": "agent type that trades (in effects: the trading agent, default $actor)", "currency": SHARED["currency"],
         "qty": "units traded (shares, items); money is `amount`", "stage": SHARED["stage"], "tools": SHARED["tools"]})
-family("economy", "Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, supply chains, "
-                  "customers' demand for stocked items and the policies that replenish them.",
+family("economy", "Money, goods and making things: ledgers (currencies, taxes, loans), inventories, production, "
+                  "supply chains, customers' demand for stocked items and the policies that replenish them.",
        {"who": "agent type(s) holding money or goods", "tools": SHARED["tools"]})
 family("agreements", "Commitments between agents over time: negotiated deals, jobs, subscriptions and bookings.",
        {"who": "agent type(s) making the commitments", "currency": SHARED["currency"], "tools": SHARED["tools"]})
@@ -46,7 +48,8 @@ family("flow", "Who acts when and how it ends: turn order, procedures with phase
 family("operations", "Service operations: customers arriving on channels and served by staffed server pools — contact "
                      "centres, clinics, counters, repair crews — with queues, patience, callbacks and service levels.",
        {"unit": "the time unit of every duration and threshold (second, minute, hour)"})
-family("groups","Who belongs with whom: hidden roles and teams, factions and alliances, relationships, stable matching.",
+family("groups",
+       "Who belongs with whom: hidden roles and teams, factions and alliances, relationships, stable matching.",
        {"who": "agent type that belongs to groups", "views": SHARED["views"], "phase": SHARED["phase"],
         "tools": SHARED["tools"]})
 family("social", "Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network.",
@@ -55,5 +58,6 @@ family("mind", "What agents know and remember: beliefs with confidence, memory w
        {"who": "agent type whose mind it models", "phase": SHARED["phase"], "views": SHARED["views"]})
 family("conditions", "Effects on entities over time: statuses, cooldowns, channeled actions and terrain.",
        {"who": "entity type(s) the conditions apply to", "phase": SHARED["phase"], "views": SHARED["views"]})
-family("host", "Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search.",
+family("host",
+       "Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search.",
        {"who": "agent type(s) served", "max_chars": SHARED["max_chars"], "private": SHARED["private"]})

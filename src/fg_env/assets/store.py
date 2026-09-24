@@ -8,9 +8,10 @@ submitted in a replay gets the same id.
 """
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from pathlib import PurePath
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..errors import RunError
 from ..expr import Untrusted
@@ -37,22 +38,22 @@ class Asset:
     hash: str
     caption: str = ""
     alt: str = ""
-    tags: Tuple[str, ...] = ()
-    path: Optional[str] = None
-    describe: Optional[str] = None
-    owner: Optional[str] = None
+    tags: tuple[str, ...] = ()
+    path: str | None = None
+    describe: str | None = None
+    owner: str | None = None
 
     @property
     def untrusted(self) -> bool:
         return self.owner is not None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
         data["tags"] = list(self.tags)
         return {key: value for key, value in data.items() if value not in (None, "", [])}
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "Asset":
+    def from_dict(cls, data: Mapping[str, Any]) -> Asset:
         """An asset from :meth:`to_dict`; a submitted file's name is participant text again."""
         owner = data.get("owner")
         name = str.__str__(str(data["name"]))
@@ -68,9 +69,9 @@ class AssetStore:
     """Every asset a run knows, by id. ``resolved`` is true once the contract's catalog was read from its folder:
     only then are asset properties checked against it."""
 
-    assets: Dict[str, Asset] = field(default_factory=dict)
+    assets: dict[str, Asset] = field(default_factory=dict)
     resolved: bool = False
-    _texts: Dict[str, str] = field(default_factory=dict, repr=False)
+    _texts: dict[str, str] = field(default_factory=dict, repr=False)
 
     # -- reading ------------------------------------------------------------------------------
 
@@ -80,7 +81,7 @@ class AssetStore:
     def has(self, asset_id: Any) -> bool:
         return isinstance(asset_id, str) and str.__str__(asset_id) in self.assets
 
-    def get(self, asset_id: Any) -> Optional[Asset]:
+    def get(self, asset_id: Any) -> Asset | None:
         return self.assets.get(str.__str__(asset_id)) if isinstance(asset_id, str) else None
 
     def data(self, asset: Asset) -> bytes:
@@ -89,10 +90,10 @@ class AssetStore:
             return blobs.read(asset.hash)
         except blobs.BlobMissing as exc:
             where = f"'{asset.path}' beside the contract" if asset.path else "the run's asset folder"
-            raise blobs.BlobMissing(f"the bytes of asset '{asset.id}' are not available ({exc}); load the contract from "
-                                    f"its folder, or fg_env.assets.provide() {where}") from None
+            raise blobs.BlobMissing(f"the bytes of asset '{asset.id}' are not available ({exc}); load the contract "
+                                    f"from its folder, or fg_env.assets.provide() {where}") from None
 
-    def text(self, asset: Asset) -> Optional[str]:
+    def text(self, asset: Asset) -> str | None:
         """A text asset's content (cut at the limit); None for other kinds. Submitted text stays untrusted."""
         if asset.kind != "text":
             return None
@@ -119,8 +120,8 @@ class AssetStore:
     def add(self, asset: Asset) -> None:
         self.assets[asset.id] = asset
 
-    def submit(self, data: bytes, name: Any, owner: str, kinds: Optional[Sequence[str]] = None,
-               max_bytes: Optional[int] = None) -> Tuple[Optional[Asset], Optional[str]]:
+    def submit(self, data: bytes, name: Any, owner: str, kinds: Sequence[str] | None = None,
+               max_bytes: int | None = None) -> tuple[Asset | None, str | None]:
         """Store a file a participant hands in: ``(asset, None)`` or ``(None, what to fix)``. The same bytes submitted
         again are the same asset (its first submitter stays its owner)."""
         asset, problem = accepts(data, name, owner, kinds, max_bytes)
@@ -143,29 +144,29 @@ class AssetStore:
 
     # -- state ----------------------------------------------------------------------------------
 
-    def copy(self) -> "AssetStore":
+    def copy(self) -> AssetStore:
         """An independent store knowing the same assets (entries are immutable; bytes stay found by hash)."""
         return AssetStore(dict(self.assets), self.resolved, dict(self._texts))
 
-    def catalog(self) -> "AssetStore":
+    def catalog(self) -> AssetStore:
         """A store with the contract's catalog only (a run rebuilt from its start adds submissions as it replays)."""
         return AssetStore({key: asset for key, asset in self.assets.items() if asset.owner is None}, self.resolved)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"resolved": self.resolved, "assets": [self.assets[key].to_dict() for key in sorted(self.assets)]}
 
     @classmethod
-    def from_dict(cls, data: Optional[Mapping[str, Any]]) -> "AssetStore":
+    def from_dict(cls, data: Mapping[str, Any] | None) -> AssetStore:
         if not data:
             return cls()
         return cls({row["id"]: Asset.from_dict(row) for row in data.get("assets") or []}, bool(data.get("resolved")))
 
-    def of(self, ids: Iterable[str]) -> List[Asset]:
+    def of(self, ids: Iterable[str]) -> list[Asset]:
         return [self.assets[key] for key in ids if key in self.assets]
 
 
-def accepts(data: bytes, name: Any, owner: str, kinds: Optional[Sequence[str]] = None,
-            max_bytes: Optional[int] = None) -> Tuple[Optional[Asset], Optional[str]]:
+def accepts(data: bytes, name: Any, owner: str, kinds: Sequence[str] | None = None,
+            max_bytes: int | None = None) -> tuple[Asset | None, str | None]:
     """The asset a submitted file would become, or what to fix — decided from its bytes alone, storing nothing."""
     if len(data) == 0:
         return None, "is an empty file"

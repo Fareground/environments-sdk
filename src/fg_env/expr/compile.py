@@ -7,9 +7,10 @@ from __future__ import annotations
 
 import ast
 import keyword
+from collections.abc import Callable
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Callable, FrozenSet, List, Optional, Tuple
+from typing import Any
 
 from .base import _BUDGET, EVAL_BUDGET, EXPRESSION_WORDS, ExprError, charge, nested_free
 from .calls import _NO_KEY, EqualityGuard, Evaluator
@@ -36,7 +37,7 @@ _WORD_PREFIX = "__w_"
 def _preprocess(source: str) -> str:
     """Map ``$root`` → ``__r_root``, ``$fn(`` → ``__f_fn(``, C-style boolean operators, and names that are Python
     keywords but not expression words → ``__w_name`` (a field after ``.`` is always a name: ``$it.in``)."""
-    out: List[str] = []
+    out: list[str] = []
     i, n, quote = 0, len(source), None
     while i < n:
         ch = source[i]
@@ -77,7 +78,8 @@ def _preprocess(source: str) -> str:
                 j += 1
             word = source[i:j]
             field = i and source[i - 1] == "."
-            out.append(_WORD_PREFIX + word if keyword.iskeyword(word) and (field or word not in EXPRESSION_WORDS) else word)
+            out.append(_WORD_PREFIX + word if keyword.iskeyword(word) and (field or word not in EXPRESSION_WORDS)
+                       else word)
             i = j
             continue
         if source.startswith("&&", i):
@@ -105,28 +107,28 @@ class Expr:
 
     source: str
     run: Evaluator
-    roots: FrozenSet[str]
-    functions: FrozenSet[str]
-    symbols: FrozenSet[str]
+    roots: frozenset[str]
+    functions: frozenset[str]
+    symbols: frozenset[str]
     #: ``(root, field, field, ...)`` chains read from roots, e.g. ``("actor", "cash")``.
-    paths: FrozenSet[Tuple[str, ...]] = frozenset()
+    paths: frozenset[tuple[str, ...]] = frozenset()
     #: ``(function, first_argument_symbol)`` pairs, e.g. ``("count", "buyer")``.
-    calls: FrozenSet[Tuple[str, Optional[str]]] = frozenset()
+    calls: frozenset[tuple[str, str | None]] = frozenset()
     #: ``(function, first_argument_symbol, ("it", field, ...))`` — item fields read inside
     #: per-item arguments, e.g. ``("sum", "offer", ("it", "price"))``.
-    item_paths: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...]]] = frozenset()
+    item_paths: frozenset[tuple[str, str | None, tuple[str, ...]]] = frozenset()
     #: ``(("actor", "status"), "open")`` — a root field compared with a bare word.
-    comparisons: FrozenSet[Tuple[Tuple[str, ...], str]] = frozenset()
+    comparisons: frozenset[tuple[tuple[str, ...], str]] = frozenset()
     #: ``(function, first_argument_symbol, ("it", field), word)`` — the same inside per-item arguments.
-    item_comparisons: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...], str]] = frozenset()
+    item_comparisons: frozenset[tuple[str, str | None, tuple[str, ...], str]] = frozenset()
     #: ``(function, signature)`` — built-in calls with the wrong number of arguments. Valid when the
     #: contract defines its own function of that name (a def shadows a built-in); reported otherwise.
-    arity_errors: FrozenSet[Tuple[str, str]] = frozenset()
+    arity_errors: frozenset[tuple[str, str]] = frozenset()
     #: ``(root, name, argument count)`` — calls of a root's member, e.g. ``$pattern.season($it.sku)``.
-    methods: FrozenSet[Tuple[str, str, int]] = frozenset()
+    methods: frozenset[tuple[str, str, int]] = frozenset()
     #: ``(function, field, ...)`` chains read from what a function returned, e.g. ``("entity", "cash")`` for
     #: ``$entity(bo).cash``.
-    call_paths: FrozenSet[Tuple[str, ...]] = frozenset()
+    call_paths: frozenset[tuple[str, ...]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
@@ -148,21 +150,21 @@ class Expr:
         except (ArithmeticError, IndexError, KeyError, TypeError, ValueError, AttributeError) as exc:
             raise ExprError(f"could not evaluate: {type(exc).__name__}: {str(exc)[:200]}", self.source) from None
 
-    def rules_out(self, scope: Scope) -> Optional[Callable[[Any], bool]]:
+    def rules_out(self, scope: Scope) -> Callable[[Any], bool] | None:
         """For evaluating this condition once per item (as ``$it``, each a top-level evaluation) over
         ``scope``: a test that is true for items it certainly does not hold for, so they need not be
         evaluated (see :class:`EqualityGuard`). None when no item can be ruled out that way."""
         return self._differs("guard", scope)
 
-    def rules_in(self, scope: Scope) -> Optional[Callable[[Any], bool]]:
+    def rules_in(self, scope: Scope) -> Callable[[Any], bool] | None:
         """For a condition that is only ``$it.field != value``, evaluated like :meth:`rules_out`: a test that is true
         for items it certainly holds for (their field differs, so ``==`` is certainly false), which need not be
         evaluated. None for any other condition."""
         return self._differs("unequal", scope)
 
-    def _differs(self, kind: str, scope: Scope) -> Optional[Callable[[Any], bool]]:
+    def _differs(self, kind: str, scope: Scope) -> Callable[[Any], bool] | None:
         """A test true for items whose field certainly differs from the value of the ``kind`` guard, if any."""
-        guard: Optional[EqualityGuard] = getattr(self.run, kind, None)
+        guard: EqualityGuard | None = getattr(self.run, kind, None)
         if guard is None or not nested_free():  # nested evaluations charge a budget: evaluate every one
             return None
         key = guard.key(scope)
@@ -202,7 +204,8 @@ def compile_expr(source: str) -> Expr:
                             + (f": write ${called}(...)" if called else ""), source)
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
                 and not node.value.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)) and node.value.id not in _LITERAL_NAMES:
-            raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write ${node.value.id}.{node.attr}",
+            raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write "
+                            f"${node.value.id}.{node.attr}",
                             source)
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ExprError(f"private field '{node.attr}' cannot be read", source)
@@ -225,7 +228,7 @@ _MOVING_FIELDS = frozenset({"at", "alive"})
 
 
 @lru_cache(maxsize=1_024)
-def item_conditions(source: str) -> Optional[Tuple[Tuple[str, Expr], ...]]:
+def item_conditions(source: str) -> tuple[tuple[str, Expr], ...] | None:
     """``$all(<type>, <condition>)``, alone or joined by ``and`` with more like it: each term's type word and its
     condition as an expression of ``$it``, when every condition reads nothing but its item's own properties and
     ``$inputs`` — so it can only change for an item whose properties change. None for any other expression (and an
@@ -255,7 +258,7 @@ def item_conditions(source: str) -> Optional[Tuple[Tuple[str, Expr], ...]]:
     return tuple(found)
 
 
-def _restore_words(nodes: List[ast.AST]) -> None:
+def _restore_words(nodes: list[ast.AST]) -> None:
     """Give names and fields marked by :func:`_preprocess` their own spelling back (the tree is never run by Python)."""
     for node in nodes:
         if isinstance(node, ast.Name) and node.id.startswith(_WORD_PREFIX):
@@ -266,4 +269,5 @@ def _restore_words(nodes: List[ast.AST]) -> None:
 
 def _root_method(func: ast.AST) -> bool:
     """``func`` is ``$root.name`` — a member of a root, which may be called like a function."""
-    return isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id.startswith(_ROOT_PREFIX)
+    return (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and func.value.id.startswith(_ROOT_PREFIX))

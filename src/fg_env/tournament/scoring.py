@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from ..contract import Contract
 from ..expr import ExprError, Scope, compile_expr, is_expr
@@ -11,13 +12,13 @@ from ..runtime.measure import RunResult
 __all__ = ["ScoreSpec", "SeatScorer"]
 
 #: ``None`` (the winner), an output name, an expression over $outputs/$seat, or ``fn(result, seat) -> number``.
-ScoreSpec = Union[None, str, Callable[[RunResult, str], Any]]
+ScoreSpec = None | str | Callable[[RunResult, str], Any]
 
 #: A scored game: every seat's number, or ``None`` with the reason it could not be scored.
-Scored = Tuple[Optional[Dict[str, float]], str]
+Scored = tuple[dict[str, float] | None, str]
 
 
-def _number(value: Any) -> Optional[float]:
+def _number(value: Any) -> float | None:
     if isinstance(value, bool):
         return 1.0 if value else 0.0
     if isinstance(value, (int, float)) and math.isfinite(value):
@@ -40,7 +41,7 @@ class SeatScorer:
         self.seats = list(seats)
         self.names = {seat: agents[seat] for seat in seats}
         self.agents = agents
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for name in self.names.values():
             counts[name] = counts.get(name, 0) + 1
         self._by_name = {name: seat for seat, name in self.names.items() if counts[name] == 1}
@@ -56,8 +57,9 @@ class SeatScorer:
             except ExprError as exc:
                 raise ValueError(f"score: {exc}") from None
         elif spec not in contract.outputs:
-            raise ValueError(f"score '{spec}' is not a declared output (outputs: {', '.join(contract.outputs) or 'none'}); "
-                             "an expression needs a $, like $outputs.points[$seat]")
+            raise ValueError(f"score '{spec}' is not a declared output (outputs: "
+                             f"{', '.join(contract.outputs) or 'none'}); an expression needs a $, like "
+                             "$outputs.points[$seat]")
 
     def describe(self) -> str:
         if self.spec is None:
@@ -89,7 +91,7 @@ class SeatScorer:
             return {seat: float(result.returns[seat]) for seat in self.seats}, ""
         return self._winners(result.winner if result.winner is not None else result.outputs.get("winner"))
 
-    def _seat(self, key: Any) -> Optional[str]:
+    def _seat(self, key: Any) -> str | None:
         if isinstance(key, Mapping):
             key = key.get("id")
         if not isinstance(key, str):
@@ -97,7 +99,7 @@ class SeatScorer:
         return key if key in self.names else self._by_name.get(key)
 
     def _winners(self, value: Any) -> Scored:
-        members: List[Any] = list(value) if isinstance(value, (list, tuple)) else \
+        members: list[Any] = list(value) if isinstance(value, (list, tuple)) else \
             [] if value is None or value == "" else [value]
         winners = set()
         for member in members:
@@ -111,7 +113,7 @@ class SeatScorer:
 
     def _output(self, value: Any) -> Scored:
         if isinstance(value, Mapping):
-            scores: Dict[str, float] = {}
+            scores: dict[str, float] = {}
             for seat in self.seats:
                 raw = value.get(seat, value.get(self.names[seat]))
                 number = _number(raw)
@@ -125,7 +127,7 @@ class SeatScorer:
                       "or an expression over $seat")
 
     def _each(self, score: Callable[[str], Any], what: str) -> Scored:
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
         for seat in self.seats:
             try:
                 raw = score(seat)

@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import threading
 import weakref
-from typing import Any, Callable, Dict, Mapping, Tuple, Type, TypeVar
+from collections.abc import Callable, Mapping
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
@@ -23,7 +24,7 @@ M = TypeVar("M", bound=BaseModel)
 
 #: Re-entrant: a weakref callback may run during garbage collection while the lock is held.
 _LOCK = threading.RLock()
-_CACHE: Dict[Tuple[int, str], Tuple["weakref.ref[Any]", Any]] = {}
+_CACHE: dict[tuple[int, str], tuple[weakref.ref[Any], Any]] = {}
 
 
 def per_contract(world: Any, key: str, build: Callable[[Any], T], empty: T) -> T:
@@ -38,7 +39,7 @@ def per_contract(world: Any, key: str, build: Callable[[Any], T], empty: T) -> T
             return entry[1]  # type: ignore[no-any-return]
     value = build(contract)
 
-    def forget(dead: "weakref.ref[Any]", slot: Tuple[int, str] = slot) -> None:
+    def forget(dead: weakref.ref[Any], slot: tuple[int, str] = slot) -> None:
         with _LOCK:
             current = _CACHE.get(slot)
             if current is not None and current[0] is dead:
@@ -49,7 +50,7 @@ def per_contract(world: Any, key: str, build: Callable[[Any], T], empty: T) -> T
     return value
 
 
-def parse_kind(contract: Any, kind: str, model: Type[M]) -> Dict[str, M]:
+def parse_kind(contract: Any, kind: str, model: type[M]) -> dict[str, M]:
     """Every mechanism of ``kind`` in the contract, its config validated by ``model``, by name."""
     return {name: model.model_validate(config_data(use))
             for name, use in contract.mechanisms.items() if isinstance(use, Mapping) and use_key(use) == kind}

@@ -4,31 +4,40 @@ from __future__ import annotations
 
 import copy
 import math
-from typing import Any, Dict, List, Optional, Set, Tuple, Union, overload
+from typing import Any, overload
 
-from .entity import Entity
 from ..assets.store import AssetStore
-from ..contract import MAX_POPULATION, MAX_ROUNDS, MAX_STAGE_PASSES, MAX_TURN_ACTIONS, MAX_TURN_CALLS, Contract, LinkSpec, PopulationSpec
+from ..contract import (
+    MAX_POPULATION,
+    MAX_ROUNDS,
+    MAX_STAGE_PASSES,
+    MAX_TURN_ACTIONS,
+    MAX_TURN_CALLS,
+    Contract,
+    LinkSpec,
+    PopulationSpec,
+)
 from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
+from ..expr.template import compile_template
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import parse_moment
-from ..expr.template import compile_template
-from .live import Abort, SdkWorld
-from .defaults import default_order, world_reads
 from . import networks as _networks  # noqa: F401  (registers network and keyed-draw functions)
+from .defaults import default_order, world_reads
+from .entity import Entity
+from .live import Abort, SdkWorld
 
 __all__ = ["build_world"]
 
 
-def build_world(contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None,
-                assets: Optional[AssetStore] = None) -> SdkWorld:
+def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm: str | None = None,
+                assets: AssetStore | None = None) -> SdkWorld:
     world = SdkWorld(contract, inputs, seeds, arm)
     if assets is not None:
         world.assets = assets
     world.rng = seeds.rng("build")
-    pending_briefs: List[Tuple[str, str, Dict[str, Any], str]] = []
+    pending_briefs: list[tuple[str, str, dict[str, Any], str]] = []
     try:
         world.rounds = _rounds(world)
         world.start = _clock_start(world)
@@ -79,7 +88,7 @@ def _build_hooks(world: SdkWorld) -> None:
             runner.lifecycle("on_create", entity, f"entities.{entity.id}")
 
 
-def _value(world: SdkWorld, raw: Any, vars: Dict[str, Any]) -> Any:
+def _value(world: SdkWorld, raw: Any, vars: dict[str, Any]) -> Any:
     # Literal lists and maps are copied, so a run never shares (or mutates) the contract's objects.
     return compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else copy.deepcopy(raw)
 
@@ -105,7 +114,7 @@ def _rounds(world: SdkWorld) -> int:
     return rounds
 
 
-def _clock_start(world: SdkWorld) -> Optional[str]:
+def _clock_start(world: SdkWorld) -> str | None:
     """``clock.start`` as a calendar date: as written, or read from ``$inputs`` (null leaves the run without dates)."""
     raw = world.contract.clock.start
     if raw is None or not is_expr(raw):
@@ -121,12 +130,13 @@ def _clock_start(world: SdkWorld) -> Optional[str]:
 
 
 @overload
-def whole_setting(world: SdkWorld, raw: Union[int, str], path: str, limit: Optional[int] = None) -> int: ...
+def whole_setting(world: SdkWorld, raw: int | str, path: str, limit: int | None = None) -> int: ...
 @overload
-def whole_setting(world: SdkWorld, raw: Optional[Union[int, str]], path: str, limit: Optional[int] = None) -> Optional[int]: ...
-def whole_setting(world: SdkWorld, raw: Optional[Union[int, str]], path: str, limit: Optional[int] = None) -> Optional[int]:
-    """A count setting (a stage's `passes`, `max_actions` or `max_calls`, an event's `every`): a literal as written,
-    or an expression over $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives the same number."""
+def whole_setting(world: SdkWorld, raw: int | str | None, path: str, limit: int | None = None) -> int | None: ...
+def whole_setting(world: SdkWorld, raw: int | str | None, path: str, limit: int | None = None) -> int | None:
+    """A count setting (a stage's `passes`, `max_actions` or `max_calls`, an event's `every`): a literal as written, or
+    an expression over $inputs giving a whole number ≥ 1. Inputs never change during a run, so reading it again gives
+    the same number."""
     if not isinstance(raw, str):
         return raw
     try:
@@ -158,7 +168,8 @@ def _capped(count: int, path: str) -> int:
     return count
 
 
-_ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "relation", "linked", "events", "money_held"})
+_ENTITY_FUNCTIONS = frozenset({"entity", "exists", "records", "neighbors", "relation", "linked", "events",
+                               "money_held"})
 
 
 def _needs_entities(world: SdkWorld, raw: Any) -> bool:
@@ -175,7 +186,7 @@ def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
     populated. A default reading other world properties (`$world.rates`) is evaluated after them."""
     specs = world.contract.world
     order, _ = default_order({name: spec.default for name, spec in specs.items()})
-    late: Set[str] = set()
+    late: set[str] = set()
     for name in order:
         if _needs_entities(world, specs[name].default) or world_reads(specs[name].default) & late:
             late.add(name)
@@ -191,9 +202,9 @@ def _world_props(world: SdkWorld, after_entities: bool = False) -> None:
 
 
 def _population(world: SdkWorld, spec: PopulationSpec, index: int,
-                pending_briefs: List[Tuple[str, str, Dict[str, Any], str]]) -> None:
+                pending_briefs: list[tuple[str, str, dict[str, Any], str]]) -> None:
     path = f"population[{index}]"
-    rows: List[Any]
+    rows: list[Any]
     if spec.from_ is not None:
         rows = _value(world, spec.from_, {})
         if not isinstance(rows, list):
@@ -251,7 +262,7 @@ def _whole(value: Any, where: str) -> float:
     return value
 
 
-def _sample(world: SdkWorld, rows: List[Any], spec: PopulationSpec, count: int, path: str) -> List[Any]:
+def _sample(world: SdkWorld, rows: list[Any], spec: PopulationSpec, count: int, path: str) -> list[Any]:
     rng = world.seeds.rng("population", path)
     weights = None
     if spec.weight:
@@ -262,7 +273,8 @@ def _sample(world: SdkWorld, rows: List[Any], spec: PopulationSpec, count: int, 
                 raise RunError(f"row weight must be a number ≥ 0, got {w!r}", f"{path}.weight")
             weights.append(float(w))
     if spec.raking is not None:
-        weights = rake(rows, weights, spec.raking.margins, spec.raking.iterations, spec.raking.tolerance, f"{path}.raking")
+        weights = rake(rows, weights, spec.raking.margins, spec.raking.iterations, spec.raking.tolerance,
+                       f"{path}.raking")
     if spec.replace:
         if not rows:
             raise RunError("no rows to sample from", path)
@@ -270,7 +282,8 @@ def _sample(world: SdkWorld, rows: List[Any], spec: PopulationSpec, count: int, 
             raise RunError("all row weights are zero", f"{path}.weight")
         return rng.choices(rows, weights=weights, k=count)
     if count > len(rows):
-        raise RunError(f"asked for {count} but only {len(rows)} rows qualify", f"{path}.count → lower count or set replace: true")
+        raise RunError(f"asked for {count} but only {len(rows)} rows qualify",
+                       f"{path}.count → lower count or set replace: true")
     if weights is None:
         return rng.sample(rows, count)
     # Efraimidis–Spirakis: weighted sampling without replacement, keeps row order stable.
@@ -307,9 +320,10 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
             raise RunError("give `from` and `to`, or `among` with a `graph`", path)
         source, target = _endpoint(world, spec.from_, path), _endpoint(world, spec.to, path)
         pair = {"from": source, "to": target}
-        world.link(spec.relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
+        world.link(spec.relation, source, target, _value(world, spec.value, pair), path,
+                   _fields(world, spec, pair, path))
         return
-    members: List[Entity] = world.entities_of(spec.among)
+    members: list[Entity] = world.entities_of(spec.among)
     if spec.where:
         members = [m for m in members if truthy(_value(world, spec.where, {"it": m}))]
     rng = seeds.rng("links", index)
@@ -319,7 +333,8 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
     p_value = _value(world, spec.p, {}) if spec.p is not None and not per_pair else None
     if degree is not None and (isinstance(degree, bool) or not isinstance(degree, (int, float)) or degree < 1):
         raise RunError(f"degree must be a number ≥ 1, got {degree!r}", f"{path}.degree")
-    if p_value is not None and (isinstance(p_value, bool) or not isinstance(p_value, (int, float)) or not 0 <= p_value <= 1):
+    if p_value is not None and (isinstance(p_value, bool) or not isinstance(p_value, (int, float)) or not 0 <= p_value
+                                <= 1):
         raise RunError(f"p must be a number from 0 to 1, got {p_value!r}", f"{path}.p")
     degree = int(degree) if degree is not None else None
     directed = not world.contract.relations[spec.relation].symmetric
@@ -329,10 +344,11 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
             return p_value if p_value is not None else default
         value = _value(world, spec.p, {"from": members[i], "to": members[j]})
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1:
-            raise RunError(f"p must be a number from 0 to 1, got {value!r} for {members[i].id} → {members[j].id}", f"{path}.p")
+            raise RunError(f"p must be a number from 0 to 1, got {value!r} for {members[i].id} → {members[j].id}",
+                           f"{path}.p")
         return float(value)
 
-    pairs: Set[Tuple[int, int]] = set()
+    pairs: set[tuple[int, int]] = set()
     graph = spec.graph or "complete"
     if graph == "complete":
         pairs = {(i, j) for i in range(n) for j in range(i + 1, n)}
@@ -346,7 +362,8 @@ def _links(world: SdkWorld, spec: LinkSpec, index: int, seeds: SeedTree) -> None
         default = min(1.0, (degree or 4) / max(1, n - 1))
         if directed:
             default = 1 - math.sqrt(1 - default)
-            one_way = [(i, j) for i in range(n) for j in range(n) if i != j and rng.random() < probability(i, j, default)]
+            one_way = [(i, j) for i in range(n) for j in range(n) if i != j and rng.random()
+                       < probability(i, j, default)]
             for i, j in one_way:
                 _pair_link(world, spec, members[i], members[j], path)
             return
@@ -421,7 +438,7 @@ def _pair_link(world: SdkWorld, spec: LinkSpec, source: Entity, target: Entity, 
     world.link(spec.relation, source, target, _value(world, spec.value, pair), path, _fields(world, spec, pair, path))
 
 
-def _fields(world: SdkWorld, spec: LinkSpec, pair: Dict[str, Any], path: str) -> Dict[str, Any]:
+def _fields(world: SdkWorld, spec: LinkSpec, pair: dict[str, Any], path: str) -> dict[str, Any]:
     """The link fields a `links` entry sets for one pair (values, templates or expressions over $from, $to, $row)."""
     try:
         return {name: resolve(copy.deepcopy(raw), world.scope(**pair)) for name, raw in spec.props.items()}
@@ -429,7 +446,7 @@ def _fields(world: SdkWorld, spec: LinkSpec, pair: Dict[str, Any], path: str) ->
         raise RunError(str(exc), f"{path}.props") from None
 
 
-def _archetypes(world: SdkWorld, spec: PopulationSpec, count: int, path: str) -> List[Any]:
+def _archetypes(world: SdkWorld, spec: PopulationSpec, count: int, path: str) -> list[Any]:
     """The archetype of each generated entity, in order: exact shares (largest remainder, then shuffled)
     or independent weighted draws."""
     if not spec.mix:
@@ -456,7 +473,7 @@ def _archetypes(world: SdkWorld, spec: PopulationSpec, count: int, path: str) ->
 
 
 def _members(world: SdkWorld, spec: Any, parent: Entity, row: Any, path: str,
-             pending_briefs: List[Tuple[str, str, Dict[str, Any], str]]) -> None:
+             pending_briefs: list[tuple[str, str, dict[str, Any], str]]) -> None:
     count = _value(world, spec.count, {"parent": parent, "row": row})
     count = _capped(int(_whole(count, f"{path}.count")), f"{path}.count")
     name_template = compile_template(spec.name, None) if spec.name else None
@@ -475,8 +492,8 @@ def _members(world: SdkWorld, spec: Any, parent: Entity, row: Any, path: str,
             pending_briefs.append((member.id, spec.brief, vars, f"{path}.brief"))
 
 
-def rake(rows: List[Any], base: Optional[List[float]], margins: Dict[str, Dict[str, float]], iterations: int,
-         tolerance: float, path: str) -> List[float]:
+def rake(rows: list[Any], base: list[float] | None, margins: dict[str, dict[str, float]], iterations: int,
+         tolerance: float, path: str) -> list[float]:
     """Iterative proportional fitting: weights whose weighted shares match every margin."""
     weights = list(base) if base is not None else [1.0] * len(rows)
     for column, targets in margins.items():
@@ -490,7 +507,7 @@ def rake(rows: List[Any], base: Optional[List[float]], margins: Dict[str, Dict[s
     for _ in range(iterations):
         worst = 0.0
         for column, targets in margins.items():
-            totals: Dict[str, float] = {}
+            totals: dict[str, float] = {}
             for row, weight in zip(rows, weights):
                 key = str(row.get(column)) if isinstance(row, dict) else ""
                 totals[key] = totals.get(key, 0.0) + weight
@@ -511,16 +528,16 @@ def rake(rows: List[Any], base: Optional[List[float]], margins: Dict[str, Dict[s
     return weights
 
 
-def _preferential(n: int, m: int, rng: Any) -> Set[Tuple[int, int]]:
+def _preferential(n: int, m: int, rng: Any) -> set[tuple[int, int]]:
     """Barabási–Albert: each new member links to m existing members chosen by degree."""
-    pairs: Set[Tuple[int, int]] = set()
+    pairs: set[tuple[int, int]] = set()
     seed_size = min(n, m + 1)
     for i in range(seed_size):
         for j in range(i + 1, seed_size):
             pairs.add((i, j))
-    targets: List[int] = [v for pair in pairs for v in pair] or list(range(seed_size))
+    targets: list[int] = [v for pair in pairs for v in pair] or list(range(seed_size))
     for new in range(seed_size, n):
-        chosen: Set[int] = set()
+        chosen: set[int] = set()
         while len(chosen) < min(m, new):
             chosen.add(rng.choice(targets))
         for old in sorted(chosen):
@@ -529,7 +546,7 @@ def _preferential(n: int, m: int, rng: Any) -> Set[Tuple[int, int]]:
     return pairs
 
 
-def _pair(a: int, b: int) -> Tuple[int, int]:
+def _pair(a: int, b: int) -> tuple[int, int]:
     return (a, b) if a <= b else (b, a)
 
 

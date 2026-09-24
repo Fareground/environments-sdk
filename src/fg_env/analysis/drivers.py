@@ -10,9 +10,10 @@ lift any feature reaches on shuffled labels (family-wise error control).
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from statistics import median
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..runtime.measure import RunResult, _usable_output
 from ..sampling.seeds import SeedTree
@@ -33,13 +34,13 @@ class Driver:
     low_rate: float
     n_high: int
     n_low: int
-    split: Optional[float] = None
+    split: float | None = None
 
     @property
     def description(self) -> str:
         return f"{self.feature} ≥ {self.split:.4g}" if self.kind == "numeric" else self.feature
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"feature": self.feature, "kind": self.kind, "description": self.description, "lift": self.lift,
                 "p_value": self.p_value, "high_rate": self.high_rate, "low_rate": self.low_rate,
                 "n_high": self.n_high, "n_low": self.n_low, "split": self.split}
@@ -51,11 +52,11 @@ class DriversResult:
     focus: str
     n: int
     base_rate: float
-    drivers: List[Driver]
+    drivers: list[Driver]
     tested: int
     permutations: int
     alpha: float
-    notes: List[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def report(self) -> str:
         lines = [f"Drivers of {self.focus} ({self.output}): {self.n} run(s), base rate {self.base_rate:.0%}, "
@@ -68,13 +69,13 @@ class DriversResult:
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"output": self.output, "focus": self.focus, "n": self.n, "base_rate": self.base_rate,
                 "drivers": [d.to_dict() for d in self.drivers], "tested": self.tested,
                 "permutations": self.permutations, "alpha": self.alpha, "notes": self.notes}
 
 
-def collect_runs(source: Any) -> List[RunResult]:
+def collect_runs(source: Any) -> list[RunResult]:
     """Runs from a list of results, an experiment (every arm), a sweep, or any object with ``runs``."""
     if isinstance(source, RunResult):
         return [source]
@@ -91,7 +92,7 @@ def collect_runs(source: Any) -> List[RunResult]:
     raise TypeError("drivers needs RunResults, an experiment, or a sweep")
 
 
-def _labels(values: List[Any], focus: Any, threshold: Optional[float]) -> Tuple[List[int], str]:
+def _labels(values: list[Any], focus: Any, threshold: float | None) -> tuple[list[int], str]:
     if threshold is not None:
         return [1 if is_number(v) and v > threshold else 0 for v in values], f"above {threshold:g}"
     if focus is not None:
@@ -101,14 +102,14 @@ def _labels(values: List[Any], focus: Any, threshold: Optional[float]) -> Tuple[
     if all(is_number(v) for v in values):
         mid = median(values)
         return [1 if v > mid else 0 for v in values], f"above the median ({mid:.4g})"
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for v in values:
         counts[str(v)] = counts.get(str(v), 0) + 1
     mode = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))[0][0]
     return [1 if str(v) == mode else 0 for v in values], f"= {mode} (most common)"
 
 
-def _flat(prefix: str, values: Mapping[str, Any], row: Dict[str, float]) -> None:
+def _flat(prefix: str, values: Mapping[str, Any], row: dict[str, float]) -> None:
     for key, v in values.items():
         if isinstance(v, bool) or is_number(v):
             row[f"{prefix}.{key}"] = float(v)
@@ -116,8 +117,8 @@ def _flat(prefix: str, values: Mapping[str, Any], row: Dict[str, float]) -> None
             row[f"{prefix}.{key}={v}"] = 1.0
 
 
-def _features(run: RunResult, output: str, groups: Sequence[str]) -> Dict[str, float]:
-    row: Dict[str, float] = {}
+def _features(run: RunResult, output: str, groups: Sequence[str]) -> dict[str, float]:
+    row: dict[str, float] = {}
     if "inputs" in groups:
         _flat("inputs", run.inputs, row)
         if run.arm is not None:
@@ -144,7 +145,7 @@ def _features(run: RunResult, output: str, groups: Sequence[str]) -> Dict[str, f
     return row
 
 
-def _binarize(column: List[Optional[float]]) -> Optional[Tuple[List[int], str, Optional[float]]]:
+def _binarize(column: list[float | None]) -> tuple[list[int], str, float | None] | None:
     present = [v for v in column if v is not None]
     if not present:
         return None
@@ -165,7 +166,7 @@ def _lift(high: Sequence[int], labels: Sequence[int], total: int) -> float:
     return s1 / n1 - (total - s1) / n0
 
 
-def drivers(runs: Any, output: str, *, focus: Any = None, threshold: Optional[float] = None,
+def drivers(runs: Any, output: str, *, focus: Any = None, threshold: float | None = None,
             include: Sequence[str] = FEATURE_GROUPS, permutations: int = 500, alpha: float = 0.05, top: int = 10,
             seed: int = 0) -> DriversResult:
     """Features that separate runs where ``output`` hits the focus from runs where it does not.

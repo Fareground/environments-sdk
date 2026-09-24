@@ -113,7 +113,7 @@ is rolled back and the agent is told why. A refusal that rolled luck or read a p
 spends the action (a wrong guess at a hidden code is a guess); any other refusal — a taken cell, bad arguments, an unmet
 `when` — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
-"""
+"""  # noqa: E501 — guide text: each line is shown as written
 
 EXPRESSIONS = """\
 ## Expressions
@@ -183,7 +183,7 @@ mechanisms, in every file on its own (see the result with `fg_env.expand(contrac
   not name a loop variable after a property you read in a template.
 * Limits: MAX_ITEMS generated values per file, loops MAX_DEPTH deep. Two generated entries with one
   name, a missing field or a wrong `for` are errors with the macro's path.
-"""
+"""  # noqa: E501 — guide text: each line is shown as written
 
 TEMPLATES = """\
 ## Templates (show, outcome, announce, say, brief, id, name)
@@ -240,25 +240,42 @@ random (seeded); add a unique last key when the rule needs a fixed order, or use
 
 EFFECT_EXAMPLES = {
     "if": '{"if": "$cost > $actor.cash", "then": [...], "else": [...]}',
-    "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)',
-    "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: "double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
+    "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o '
+            'instead of $it)',
+    "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, '
+              '"at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: '
+              '"double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
     "remove": '{"remove": "$params.target"}',
-    "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short)',
-    "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
+    "transfer": '{"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if '
+                'short)',
+    "link": '{"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": '
+            '"$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets '
+            'the relation\'s `default`; `props` sets link fields, a new link starting from their defaults)',
     "unlink": '{"unlink": "follows", "from": "$actor", "to": "$params.who"}',
     "move": '{"move": "$actor", "to": "$params.place"}',
-    "post": '{"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` chance)',
-    "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}, "delay": 1}  (optional `delay` and `drop`, as for post)',
+    "post": '{"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields '
+            'as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` '
+            'chance)',
+    "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": '
+            '{}, "delay": 1}  (optional `delay` and `drop`, as for post)',
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
-    "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)',
-    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues, offered the actions named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)',
-    "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
-    "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)',
-    "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], '
-              '"as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  '
-              '(picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.rl.game` can '
-              'enumerate and choose outcomes instead of sampling them)',
+    "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time '
+             'units later)',
+    "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — '
+            'they react as soon as this action has taken effect, before this turn continues, offered the actions '
+            'named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction '
+            'cannot stop or change the action that woke them: to let others answer first, use a procedure stack; '
+            'reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; '
+            '"drop": 0.2 — the wake may be lost)',
+    "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; '
+              'derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
+    "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from '
+             '`blocks`)',
+    "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": '
+              '[...]}], "as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": '
+              '"card", "do": [...]}  (picks one outcome from the listed distribution, logged as a `chance` event; '
+              '`fg_env.rl.game` can enumerate and choose outcomes instead of sampling them)',
 }
 
 RECIPES = """\
@@ -408,7 +425,7 @@ RECIPES = """\
   "do": "hold", "with": {"army": "$it"}}`.
 * Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
   set `types.X.policy` to make them the default.
-"""
+"""  # noqa: E501 — guide text: each line is shown as written
 
 RUNNING = """\
 ## Running (Python)
@@ -567,7 +584,7 @@ CLI: `fg-env check file.json` (static check, then up to 12 rounds with random ag
 `fg-env bench [files] --rounds 20` (ms per round, rounds per second and time per phase; no files: the
 reference agent-based models), `fg-env check|run|preview|experiment|tournament|evaluate|trace|guide|schema` (`fg-env run file.json --seed 1
 --input budget=50 --agent shopper=policy:thrifty --json`).
-"""
+"""  # noqa: E501 — guide text: each line is shown as written
 
 INSPECT = """\
 ## Inspecting a run
@@ -618,7 +635,7 @@ Reproducing: the same seed and participants give the same run. `result.save("run
 and names the first divergence.
 
 CLI: `fg-env run game.json --seed 1 --events --trace run.jsonl`, `fg-env trace run.jsonl turn ann 3`.
-"""
+"""  # noqa: E501 — guide text: each line is shown as written
 
 CHECKLIST = """\
 ## Quality checklist (what makes an environment great for LLM agents)

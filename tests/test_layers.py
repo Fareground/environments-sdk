@@ -15,8 +15,10 @@ FIELD = {
                          "alive": {"type": "bool", "default": False}}},
     "types": {"ant": {"agent": True, "props": {"eaten": 0}}},
     "entities": {"a": {"type": "ant", "at": [1, 1]}},
-    "actions": {"eat": {"by": "ant", "do": ["$actor.eaten += $layer(sugar, $actor)", {"layer": "sugar", "at": "$actor", "set": 0}]},
-                "gorge": {"by": "ant", "do": [{"layer": "sugar", "at": "$actor", "set": "$value + 1"}, {"fail": "Too much."}]}},
+    "actions": {"eat": {"by": "ant",
+                        "do": ["$actor.eaten += $layer(sugar, $actor)", {"layer": "sugar", "at": "$actor", "set": 0}]},
+                "gorge": {"by": "ant",
+                          "do": [{"layer": "sugar", "at": "$actor", "set": "$value + 1"}, {"fail": "Too much."}]}},
 }
 
 
@@ -51,7 +53,8 @@ def test_setting_one_cell_rolls_back_with_its_action():
 
 
 def test_setting_every_cell_reads_the_values_as_they_were():
-    env = fg_env.load(_with([{"do": [{"layer": "sugar", "set": "$layer(sugar, [($cell[0] + 2) % 3, $cell[1]])"}]}]), seed=1)
+    env = fg_env.load(_with([{"do": [{"layer": "sugar", "set": "$layer(sugar, [($cell[0] + 2) % 3, $cell[1]])"}]}]),
+                      seed=1)
     env.run("idle", rounds=1)
     assert _layer(env, "sugar") == [2, 3, 3, 0, 1, 2, 1, 2, 3]
 
@@ -99,7 +102,8 @@ def test_graph_places_diffuse_to_the_places_their_edges_reach():
 
 
 def test_layers_round_trip_through_snapshots():
-    contract = _with([{"do": [{"layer": "scent", "set": "$value + $uniform(0, 1)"}, {"layer": "scent", "diffuse": 0.2}]}])
+    contract = _with([{"do": [{"layer": "scent", "set": "$value + $uniform(0, 1)"},
+                              {"layer": "scent", "diffuse": 0.2}]}])
     straight = fg_env.load(contract, seed=4)
     straight.run("random")
     env = fg_env.load(contract, seed=4)

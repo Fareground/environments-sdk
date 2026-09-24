@@ -8,7 +8,7 @@ remove entities (the actor too). Stages are sequential, simultaneous or schedule
 turn; events run per entity with `$chance`.
 """
 import random
-from typing import Any, Dict, List
+from typing import Any
 
 MOODS = ["calm", "keen", "wary"]
 
@@ -22,8 +22,8 @@ def marker_text(rng: random.Random) -> str:
     return "zq" + "".join(rng.choice("bcdfghjkmnpqrstvwxz") for _ in range(8))
 
 
-def _agent_type(rng: random.Random, name: str) -> Dict[str, Any]:
-    props: Dict[str, Any] = {
+def _agent_type(rng: random.Random, name: str) -> dict[str, Any]:
+    props: dict[str, Any] = {
         "cash": {"default": rng.randint(0, 20), "min": 0, "max": 100},
         "score": 0,
         "mood": {"type": "enum", "values": MOODS, "default": rng.choice(MOODS)},
@@ -32,14 +32,14 @@ def _agent_type(rng: random.Random, name: str) -> Dict[str, Any]:
         "secret": {"type": "int", "default": 0, "private": True},
         "code": {"type": "text", "default": "", "private": True},
     }
-    spec: Dict[str, Any] = {"agent": True, "props": props}
+    spec: dict[str, Any] = {"agent": True, "props": props}
     inspect = rng.choice([None, True, "$it.score >= $viewer.score"])
     if inspect is not None:
         spec["inspect"] = inspect
     return spec
 
 
-def _param(rng: random.Random, agents: List[str]) -> Dict[str, Any]:
+def _param(rng: random.Random, agents: list[str]) -> dict[str, Any]:
     kind = rng.choice(["number", "int", "enum", "entity", "entity", "bool", "text"])
     if kind in ("bool", "text"):
         return {"type": kind}
@@ -55,7 +55,7 @@ def _param(rng: random.Random, agents: List[str]) -> Dict[str, Any]:
     return {"type": "entity", "of": of, **({"where": where} if where else {})}
 
 
-def _effects(rng: random.Random, params: Dict[str, Dict[str, Any]]) -> List[Any]:
+def _effects(rng: random.Random, params: dict[str, dict[str, Any]]) -> list[Any]:
     """Effects over the action's own parameters: every one a valid rule, some refused by bounds at run time."""
     numbers = [f"$params.{p}" for p, s in params.items() if s["type"] in ("number", "int")] or ["1"]
     targets = [(p, s["of"]) for p, s in params.items() if s["type"] == "entity"]
@@ -94,9 +94,9 @@ def _effects(rng: random.Random, params: Dict[str, Dict[str, Any]]) -> List[Any]
     return [rng.choice(options)() for _ in range(rng.randint(1, 3))]
 
 
-def _action(rng: random.Random, agents: List[str], scheduled: bool) -> Dict[str, Any]:
+def _action(rng: random.Random, agents: list[str], scheduled: bool) -> dict[str, Any]:
     params = {f"p{k}": _param(rng, agents) for k in range(rng.randint(0, 2))}
-    action: Dict[str, Any] = {"by": rng.choice(agents), "description": "A move.", "params": params,
+    action: dict[str, Any] = {"by": rng.choice(agents), "description": "A move.", "params": params,
                               "do": _effects(rng, params)}
     requirements = []
     if rng.random() < 0.4:
@@ -122,11 +122,12 @@ def _action(rng: random.Random, agents: List[str], scheduled: bool) -> Dict[str,
     return action
 
 
-def _stages(rng: random.Random, agents: List[str], scheduled: bool) -> List[Dict[str, Any]]:
-    kinds = ["scheduled"] if scheduled else [rng.choice(["sequential", "simultaneous"]) for _ in range(rng.randint(1, 2))]
+def _stages(rng: random.Random, agents: list[str], scheduled: bool) -> list[dict[str, Any]]:
+    kinds = ["scheduled"] if scheduled else [rng.choice(["sequential", "simultaneous"])
+                                             for _ in range(rng.randint(1, 2))]
     stages = []
     for k, turns in enumerate(kinds):
-        stage: Dict[str, Any] = {"name": f"s{k}", "turns": turns, "max_actions": rng.randint(1, 3),
+        stage: dict[str, Any] = {"name": f"s{k}", "turns": turns, "max_actions": rng.randint(1, 3),
                                  "on_enter": [{"each": kind, "do": ["$it.seated += 1"]} for kind in agents]}
         order = rng.choice([None, "random", "$it.cash"])
         if order:
@@ -147,17 +148,17 @@ def _stages(rng: random.Random, agents: List[str], scheduled: bool) -> List[Dict
     return stages
 
 
-def contract(seed: int) -> Dict[str, Any]:
+def contract(seed: int) -> dict[str, Any]:
     rng = random.Random(seed)
     agents = [f"a{k}" for k in range(rng.randint(1, 2))]
     scheduled = rng.random() < 0.2
-    types: Dict[str, Any] = {name: _agent_type(rng, name) for name in agents}
+    types: dict[str, Any] = {name: _agent_type(rng, name) for name in agents}
     types["token"] = {"props": {"value": 0}}
-    entities: Dict[str, Any] = {}
+    entities: dict[str, Any] = {}
     for kind in agents:
         for k in range(rng.randint(2, 3)):
             entities[f"{kind}_{k}"] = {"type": kind, "props": {"secret": marker_number(rng), "code": marker_text(rng)}}
-    c: Dict[str, Any] = {
+    c: dict[str, Any] = {
         "name": f"Fuzz {seed}",
         "brief": {"rules": "Play well."},
         "world": {"pot": 0},

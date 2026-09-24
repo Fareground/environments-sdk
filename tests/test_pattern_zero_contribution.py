@@ -88,7 +88,8 @@ def test_product_scale_and_bounds_can_come_from_inputs():
                    'capacity': {'type': 'number', 'default': 5}}
     c['patterns']['demand']['max'] = '$inputs.capacity'
     assert fg_env.analysis.decompose(c, 'demand').rows[0]['adds']['availability'] == -5
-    assert fg_env.analysis.decompose(c, 'demand', inputs={'base': 20, 'capacity': 12}).rows[0]['adds']['availability'] == -12
+    assert (fg_env.analysis.decompose(c, 'demand', inputs={'base': 20, 'capacity': 12}).rows[0]['adds']['availability']
+            == -12)
 
 
 def test_keyed_nested_products_keep_each_regions_scale_bounds_and_factors():

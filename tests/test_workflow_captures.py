@@ -5,7 +5,6 @@ import pytest
 
 import fg_env
 
-
 DATA = [
     {'$entity': 'supplier'},
     {'$link': ['credit', 'buyer', 'supplier']},

@@ -2,12 +2,12 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..stdlib.linalg import cholesky
 from ..sampling.poisson import sample_poisson
+from ..stdlib.linalg import cholesky
 from .base import Number, PatternConfig, kind
 from .signals import when
 
@@ -20,29 +20,32 @@ _NEEDS = {"normal": ("mean", "sd"), "lognormal": ("mu", "sigma"), "uniform": ("l
 
 class DrawConfig(PatternConfig):
     kind: Literal["draw"] = "draw"
-    dist: Literal["normal", "lognormal", "uniform", "beta", "gamma", "triangular", "choice", "mvnormal", "poisson"] = Field(
+    dist: Literal["normal", "lognormal", "uniform", "beta", "gamma", "triangular", "choice", "mvnormal",
+                  "poisson"] = Field(
         ..., description="The distribution. mvnormal draws correlated values (a list, or a map with `names`).")
-    mean: Optional[Number] = None
-    sd: Optional[Number] = None
-    mu: Optional[Number] = None
-    sigma: Optional[Number] = None
-    low: Optional[Number] = None
-    high: Optional[Number] = None
-    mode: Optional[Number] = None
-    a: Optional[Number] = None
-    b: Optional[Number] = None
-    shape: Optional[Number] = None
-    scale: Optional[Number] = None
-    values: Optional[List[Any]] = Field(None, description="choice: the values.")
-    weights: Optional[List[Number]] = Field(None, description="choice: relative weights.")
-    means: Union[List[Number], str, None] = Field(None, description="mvnormal: the means.")
-    cov: Union[List[List[Number]], str, None] = Field(None, description="mvnormal: the covariance matrix.")
-    names: Optional[List[str]] = Field(None, description="mvnormal: names for the values, giving a map ($pattern.traits($it).elasticity).")
+    mean: Number | None = None
+    sd: Number | None = None
+    mu: Number | None = None
+    sigma: Number | None = None
+    low: Number | None = None
+    high: Number | None = None
+    mode: Number | None = None
+    a: Number | None = None
+    b: Number | None = None
+    shape: Number | None = None
+    scale: Number | None = None
+    values: list[Any] | None = Field(None, description="choice: the values.")
+    weights: list[Number] | None = Field(None, description="choice: relative weights.")
+    means: list[Number] | str | None = Field(None, description="mvnormal: the means.")
+    cov: list[list[Number]] | str | None = Field(None, description="mvnormal: the covariance matrix.")
+    names: list[str] | None = Field(None,
+                                    description="mvnormal: names for the values, giving a map "
+                                                "($pattern.traits($it).elasticity).")
     log: bool = Field(False, description="mvnormal: exponentiate every value (correlated lognormals).")
     integer: bool = Field(False, description="A whole number (uniform draws whole numbers from low to high).")
 
     @model_validator(mode="after")
-    def _shape(self) -> "DrawConfig":
+    def _shape(self) -> DrawConfig:
         for key in _NEEDS[self.dist]:
             if getattr(self, key) is None:
                 raise ValueError(f"a {self.dist} draw needs `{key}`")
@@ -84,7 +87,8 @@ def _draw_words(cfg: DrawConfig) -> str:
       "entity, correlated with mvnormal. Parameters of other patterns may read it.",
       example={"kind": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"},
       random=True, words=_draw_words,
-      params=("mean", "sd", "mu", "sigma", "low", "high", "mode", "a", "b", "shape", "scale", "values", "weights", "means", "cov"))
+      params=("mean", "sd", "mu", "sigma", "low", "high", "mode", "a", "b", "shape", "scale", "values", "weights",
+              "means", "cov"))
 def _draw(ctx: Any) -> Any:
     cfg: DrawConfig = ctx.cfg
     rng = ctx.stream("draw")
@@ -107,7 +111,8 @@ def _draw(ctx: Any) -> Any:
         if low > high:
             raise ctx.fail(f"low ({low:g}) is more than high ({high:g})")
         if cfg.integer and math.ceil(low) > math.floor(high):
-            raise ctx.fail(f"an integer uniform draw needs at least one whole number between low ({low:g}) and high ({high:g})")
+            raise ctx.fail(f"an integer uniform draw needs at least one whole number between low ({low:g}) and high "
+                           f"({high:g})")
         value = rng.randint(math.ceil(low), math.floor(high)) if cfg.integer else rng.uniform(low, high)
     elif dist == "beta":
         value = rng.betavariate(ctx.number("a", 1e-12), ctx.number("b", 1e-12))
@@ -129,7 +134,8 @@ def _draw(ctx: Any) -> Any:
 def _mvnormal(ctx: Any, rng: Any) -> Any:
     means = ctx.numbers("means")
     cov = ctx.param("cov")
-    if not isinstance(cov, list) or len(cov) != len(means) or not all(isinstance(r, list) and len(r) == len(means) for r in cov):
+    if (not isinstance(cov, list) or len(cov) != len(means)
+        or not all(isinstance(r, list) and len(r) == len(means) for r in cov)):
         raise ctx.fail(f"`cov` must be a {len(means)}×{len(means)} matrix to match `means`")
     lower, reason = cholesky([[float(v) for v in row] for row in cov])
     if reason:
@@ -150,22 +156,23 @@ class Segment(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     share: Number = Field(..., description="Relative share of keys in this segment.")
-    values: Dict[str, Any] = Field(default_factory=dict, description="What the segment gives: {elasticity: -2.2, …}.")
+    values: dict[str, Any] = Field(default_factory=dict, description="What the segment gives: {elasticity: -2.2, …}.")
 
 
 class SegmentsConfig(PatternConfig):
     kind: Literal["segments"] = "segments"
-    segments: Dict[str, Segment] = Field(..., description="{segment: {share, values}}: each key falls in one segment, "
+    segments: dict[str, Segment] = Field(..., description="{segment: {share, values}}: each key falls in one segment, "
                                                           "drawn once per run; reads give {segment, …values}.")
 
 
 @kind("segments", "population", "draw", SegmentsConfig,
       "Segments: each key (entity) falls in one segment by share, and reads the segment's values.",
       example={"kind": "segments", "keys": "customer", "segments": {
-          "bargain": {"share": 0.6, "values": {"elasticity": -2.4}}, "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}},
+          "bargain": {"share": 0.6, "values": {"elasticity": -2.4}},
+          "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}},
       random=True, params=("segments",),
       words=lambda cfg: "segments " + ", ".join(f"{name} ({seg.share})" for name, seg in cfg.segments.items()))
-def _segments(ctx: Any) -> Dict[str, Any]:
+def _segments(ctx: Any) -> dict[str, Any]:
     segments = ctx.param("segments")
     names = list(segments)
     shares = [segments[name]["share"] for name in names]
@@ -186,10 +193,10 @@ class DiffusionConfig(PatternConfig):
     p: Number = Field(..., description="Innovation: the share adopting on their own each unit.")
     q: Number = Field(..., description="Imitation: how strongly adopters draw in others (word of mouth).")
     market: Number = Field(1.0, description="Everyone who will eventually adopt.")
-    start: Union[float, str] = Field(0.0, description="When adoption begins: clock units or an ISO date.")
+    start: float | str = Field(0.0, description="When adoption begins: clock units or an ISO date.")
     output: Literal["adopters", "new", "share", "hazard"] = Field(
-        "adopters", description="adopters: total so far | new: adopting this round | share: of the market | "
-                                "hazard: called with the adopted share, the chance a non-adopter adopts now (p + q·share).")
+        "adopters", description="adopters: total so far | new: adopting this round | share: of the market | hazard: "
+                                "called with the adopted share, the chance a non-adopter adopts now (p + q·share).")
 
 
 def _bass(p: float, q: float, tau: float) -> float:

@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 import re
 from difflib import get_close_matches
-from typing import Any, Dict, Optional
+from typing import Any
 
 from .. import contract as C
 from ..expr import is_expr
@@ -34,7 +34,7 @@ def check_param_bounds(checker: Any, path: str, spec: C.ActionSpec) -> None:
             checker.error(f"{ppath}.values", "is empty, so no value can be chosen", "list the allowed values")
         if param.type not in ("number", "int"):
             continue
-        literal: Dict[str, float] = {}
+        literal: dict[str, float] = {}
         for key in ("min", "max"):
             raw = getattr(param, key)
             if isinstance(raw, str) and not is_expr(raw):
@@ -53,12 +53,13 @@ def check_param_bounds(checker: Any, path: str, spec: C.ActionSpec) -> None:
                                  f"{format_value(literal['max'])}", "lower `min` or raise `max`")
 
 
-def check_entity_literals(checker: Any, op: str, effect: Dict[str, Any], path: str) -> None:
+def check_entity_literals(checker: Any, op: str, effect: dict[str, Any], path: str) -> None:
     """A plain id (no `$`) where an effect names an entity must be one that can exist."""
     contract: C.Contract = checker.c
     if any(group.id is not None for group in contract.population):
         return  # ids come from templates: any text may be one
-    generated = re.compile(r"(?:" + "|".join(re.escape(t) for t in contract.types) + r")_\d+") if contract.types else None
+    generated = (re.compile(r"(?:" + "|".join(re.escape(t) for t in contract.types) + r")_\d+") if contract.types
+                 else None)
     for key in ENTITY_KEYS.get(op, ()):
         raw = effect.get(key)
         if not isinstance(raw, str) or is_expr(raw) or "{" in raw or not raw.strip():
@@ -68,7 +69,7 @@ def check_entity_literals(checker: Any, op: str, effect: Dict[str, Any], path: s
         checker.error(f"{path}.{key}", f"'{raw}' is not an entity id", _entity_fix(contract, raw))
 
 
-def _entity_fix(contract: C.Contract, raw: str) -> Optional[str]:
+def _entity_fix(contract: C.Contract, raw: str) -> str | None:
     hint = get_close_matches(raw, list(contract.entities), n=1)
     if hint:
         return f"did you mean '{hint[0]}'?"

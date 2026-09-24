@@ -5,7 +5,7 @@ import bisect
 import math
 import re
 from statistics import NormalDist
-from typing import Any, List, Tuple
+from typing import Any
 
 from ..expr import MAX_RANGE, Call, _describe, charge, function
 from ..sampling.binomial import sample_large_binomial
@@ -81,7 +81,8 @@ def _weibull(call: Call) -> float:
     return call.rng.weibullvariate(scale, shape)
 
 
-@function("triangular(low, high, mode)", "Number between low and high, most likely near `mode`.", min_args=3, max_args=3)
+@function("triangular(low, high, mode)", "Number between low and high, most likely near `mode`.", min_args=3,
+          max_args=3)
 def _triangular(call: Call) -> float:
     low, high, mode = number_arg(call, 0), number_arg(call, 1), number_arg(call, 2)
     if not low <= mode <= high:
@@ -91,7 +92,7 @@ def _triangular(call: Call) -> float:
     return call.rng.triangular(low, high, mode)
 
 
-def _weights(call: Call, index: int, what: str) -> Tuple[List[Any], List[float]]:
+def _weights(call: Call, index: int, what: str) -> tuple[list[Any], list[float]]:
     """Keys (positions for a list) and non-negative weights from a list or map; at least one above 0."""
     value = call.arg(index)
     if isinstance(value, dict):
@@ -106,9 +107,10 @@ def _weights(call: Call, index: int, what: str) -> Tuple[List[Any], List[float]]
     return keys, [float(w) for w in numbers]
 
 
-@function("dirichlet(alphas)", "Random probabilities (summing to 1) from a Dirichlet with concentration `alphas` (each > 0).",
+@function("dirichlet(alphas)",
+          "Random probabilities (summing to 1) from a Dirichlet with concentration `alphas` (each > 0).",
           min_args=1, max_args=1)
-def _dirichlet(call: Call) -> List[float]:
+def _dirichlet(call: Call) -> list[float]:
     _, alphas = _weights(call, 0, "the alphas")
     if any(a <= 0 for a in alphas):
         raise fail(call, "every alpha must be above 0")
@@ -121,7 +123,8 @@ def _dirichlet(call: Call) -> List[float]:
     return [d / total for d in draws]
 
 
-@function("multinomial(n, weights)", "n draws split across categories in proportion to `weights` (list → list of counts, map → map of counts).",
+@function("multinomial(n, weights)",
+          "n draws split across categories in proportion to `weights` (list → list of counts, map → map of counts).",
           min_args=2, max_args=2)
 def _multinomial(call: Call) -> Any:
     n = int_arg(call, 0, low=0, high=10**12, what="the number of draws n")
@@ -142,7 +145,7 @@ def _multinomial(call: Call) -> Any:
         correction += (total - combined) + weight if total >= weight else (weight - combined) + total
         total = combined
         remaining[index] = total + correction
-    counts: List[int] = []
+    counts: list[int] = []
     left = n
     for index, weight in enumerate(weights):
         if left == 0 or weight == 0:
@@ -164,7 +167,7 @@ def _zipf(call: Call) -> int:
     n = int_arg(call, 0, low=1, high=MAX_RANGE, what="the number of ranks n")
     s = number_arg(call, 1, low=0, what="the exponent s")
     charge(n, call.source)
-    cumulative: List[float] = []
+    cumulative: list[float] = []
     total = 0.0
     for k in range(1, n + 1):
         total += k ** -s
@@ -208,17 +211,18 @@ def _truncnormal(call: Call) -> float:
     return min(high, max(low, mean + sd * z))
 
 
-def parse_dice(notation: str) -> List[Tuple[int, int, int, str, int]]:
+def parse_dice(notation: str) -> list[tuple[int, int, int, str, int]]:
     """``"3d6+2"`` → terms ``(sign, count, sides, keep, kept)``; a constant term has ``sides`` 0.
     Raises ``ValueError`` describing the problem."""
     if not notation.strip():
         raise ValueError("the notation is empty; write something like 3d6+2")
-    terms: List[Tuple[int, int, int, str, int]] = []
+    terms: list[tuple[int, int, int, str, int]] = []
     position = 0
     while position < len(notation):
         match = _DICE_TERM.match(notation, position)
         if match is None or match.end() == position:
-            raise ValueError(f"cannot read '{notation[position:]}'; write terms like 2d6, d20, 4d6kh3 or 5 joined by + or -")
+            raise ValueError(f"cannot read '{notation[position:]}'; write terms like 2d6, d20, 4d6kh3 or 5 joined by + "
+                             "or -")
         sign_text, count_text, sides_text, keep, kept_text, constant = match.groups()
         if terms and sign_text is None:
             raise ValueError(f"terms must be joined by + or - near '{match.group(0).strip()}'")
@@ -240,12 +244,15 @@ def parse_dice(notation: str) -> List[Tuple[int, int, int, str, int]]:
     return terms
 
 
-@function("dice(notation)", "Roll dice written like 3d6+2, d20, 2d8-1 or 4d6kh3 (keep highest 3; kl keeps lowest) and return the total.",
+@function("dice(notation)",
+          "Roll dice written like 3d6+2, d20, 2d8-1 or 4d6kh3 (keep highest 3; kl keeps lowest) and return the total.",
           min_args=1, max_args=1)
 def _dice(call: Call) -> int:
     notation = call.arg(0)
     if not isinstance(notation, str) or len(notation) > _MAX_NOTATION:
-        raise fail(call, f"pass dice notation text (up to {_MAX_NOTATION} characters) like '3d6+2', got {_describe(notation)}")
+        raise fail(call,
+                   f"pass dice notation text (up to {_MAX_NOTATION} characters) like '3d6+2', got "
+                   f"{_describe(notation)}")
     try:
         terms = parse_dice(notation)
     except ValueError as exc:

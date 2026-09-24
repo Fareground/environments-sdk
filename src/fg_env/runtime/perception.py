@@ -9,16 +9,16 @@ says that such text is information, never instructions.
 from __future__ import annotations
 
 import heapq
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..assets.delivery import attached_ids, entry_assets, references
 from ..contract import Contract, StageSpec, ViewSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
-from ..world.record_index import author_only
 from ..expr.template import compile_template, format_value
+from ..world.entity import Entity
 from ..world.live import Entry, LogEvent, SdkWorld
+from ..world.record_index import author_only
 
 if TYPE_CHECKING:
     from .exposure import Shown
@@ -56,7 +56,7 @@ class Perception:
 
     # -- brief -------------------------------------------------------------------
 
-    def brief(self, actor: Entity, attached: Optional[List[str]] = None) -> str:
+    def brief(self, actor: Entity, attached: list[str] | None = None) -> str:
         """``actor``'s brief; the assets it attaches are added to ``attached``."""
         c = self.contract
         scope = self.world.scope(actor=actor, viewer=actor)
@@ -67,7 +67,7 @@ class Perception:
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
 
-        lines: List[str] = [f"# {c.name}"]
+        lines: list[str] = [f"# {c.name}"]
         if c.brief.situation or c.description:
             lines.append(text(c.brief.situation, "brief.situation") if c.brief.situation else c.description.strip())
         if c.brief.rules:
@@ -89,7 +89,8 @@ class Perception:
                 lines.append("Attached: " + references(self.world.assets, ids))
                 if attached is not None:
                     attached.extend(ids)
-        may_pass = not all(stage.must_act for stage in c.stage_list())  # a must-act stage offers end_turn only after acting
+        may_pass = not all(stage.must_act
+                           for stage in c.stage_list())  # a must-act stage offers end_turn only after acting
         lines.append("Act only through your tools. Your turn ends when you take a final action"
                      + (" or call end_turn." if may_pass else "."))
         if self._takes_text:
@@ -99,11 +100,11 @@ class Perception:
     # -- update ---------------------------------------------------------------------
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
-               memory: Dict[str, str], time_limit: Optional[float] = None, shown: Optional["Shown"] = None,
-               attached: Optional[List[str]] = None, calls: Optional[int] = None, reads: bool = False) -> str:
+               memory: dict[str, str], time_limit: float | None = None, shown: Shown | None = None,
+               attached: list[str] | None = None, calls: int | None = None, reads: bool = False) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
         calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect."""
-        lines: List[str] = [f"{self.world.clock_label()} · {stage.name}"]
+        lines: list[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if stage.brief:
             lines.append(self._render(stage.brief, actor, f"stages.{stage.name}.brief"))
         if reason:
@@ -122,13 +123,14 @@ class Perception:
         for name, view in self.contract.views.items():
             if view.look or not self._applies(view, actor, stage):
                 continue
-            listed: Optional["Shown"] = type(shown)() if shown is not None else None
-            files: List[str] = []
+            listed: Shown | None = type(shown)() if shown is not None else None
+            files: list[str] = []
             block = self.render_view(name, view, actor, listed, files)
             if block is None:
                 continue
             if view.only_changes:
-                if memory.get(name) == block:  # said, so an agent that does not remember its last turn knows it is there
+                if (memory.get(name)
+                    == block):  # said, so an agent that does not remember its last turn knows it is there
                     lines += ["", f"{_label(name, view)}: unchanged since your last turn."]
                     continue
                 memory[name] = block
@@ -148,14 +150,14 @@ class Perception:
             return False
         return True
 
-    def look_views(self, actor: Entity, stage: StageSpec) -> List[str]:
+    def look_views(self, actor: Entity, stage: StageSpec) -> list[str]:
         return [n for n, v in self.contract.views.items() if v.look and self._applies(v, actor, stage)]
 
-    def render_view(self, name: str, view: ViewSpec, actor: Optional[Entity], shown: Optional["Shown"] = None,
-                    attached: Optional[List[str]] = None) -> Optional[str]:
+    def render_view(self, name: str, view: ViewSpec, actor: Entity | None, shown: Shown | None = None,
+                    attached: list[str] | None = None) -> str | None:
         """One view as text for ``actor`` (None for a spectator view), or None when it shows nothing.
         ``shown`` collects the events and record entries it listed, ``attached`` the assets it delivers."""
-        files: List[str] = []
+        files: list[str] = []
         path = f"views.{name}"
         scope = self.world.scope(actor=actor, viewer=actor) if actor is not None else self.world.scope()
         try:
@@ -171,7 +173,8 @@ class Perception:
             items = self._select(view, scope)
             template = compile_template(view.show, "it")
             marker = "- " if view.bullet else ""
-            rendered = [self._attach(view, scope.child(it=it, i=i + 1), it, marker + template.render(scope.child(it=it, i=i + 1)),
+            rendered = [self._attach(view, scope.child(it=it, i=i + 1), it,
+                                     marker + template.render(scope.child(it=it, i=i + 1)),
                                      files, path) for i, it in enumerate(items)]
         except ExprError as exc:
             raise RunError(str(exc), path) from None
@@ -187,7 +190,7 @@ class Perception:
             attached.extend(files)
         return f"{title}:\n" + "\n".join(rendered)
 
-    def _select(self, view: ViewSpec, scope: Any) -> List[Any]:
+    def _select(self, view: ViewSpec, scope: Any) -> list[Any]:
         """The items a list view shows: filtered, sorted and cut to its limit."""
         items = self._items(view, scope)
         if view.where is not None:
@@ -206,7 +209,7 @@ class Perception:
             items = items[: view.limit]
         return items
 
-    def _attach(self, view: ViewSpec, scope: Any, item: Any, line: str, files: List[str], path: str) -> str:
+    def _attach(self, view: ViewSpec, scope: Any, item: Any, line: str, files: list[str], path: str) -> str:
         """``line`` with the references of the assets it delivers (its `attach`, a listed record entry's files)."""
         ids = attached_ids(self.world, view.attach, scope, f"{path}.attach") if view.attach is not None else []
         if item is not None and view.of in self.contract.records:
@@ -224,7 +227,7 @@ class Perception:
         except ExprError as exc:
             raise RunError(str(exc), f"{path}.title") from None
 
-    def _items(self, view: ViewSpec, scope: Any) -> List[Any]:
+    def _items(self, view: ViewSpec, scope: Any) -> list[Any]:
         source = view.of or ""
         if source in self.contract.types:
             return list(self.world.entities_of(source))
@@ -245,11 +248,11 @@ class Perception:
 
     # -- news -----------------------------------------------------------------------
 
-    def entry_visible(self, record: str, entry: Entry, viewer: Optional[Entity]) -> bool:
+    def entry_visible(self, record: str, entry: Entry, viewer: Entity | None) -> bool:
         return self.world.entry_visible(record, entry, viewer)
 
-    def news(self, actor: Entity, since: int, limit: Optional[int] = None,
-             shown: Optional["Shown"] = None, attached: Optional[List[str]] = None) -> Tuple[List[str], int]:
+    def news(self, actor: Entity, since: int, limit: int | None = None,
+             shown: Shown | None = None, attached: list[str] | None = None) -> tuple[list[str], int]:
         """News lines for ``actor`` after log position ``since``, in order.
 
         Returns ``(lines, hidden)``. Past ``limit`` lines, what is addressed to ``actor`` is always kept, then the
@@ -259,7 +262,7 @@ class Perception:
         """
         # Own entries are never news; an author-only entry is invisible to everyone else.
         silent_records = {name for name, spec in self.contract.records.items() if author_only(spec.visible)}
-        tiers: Tuple[List[LogEvent], List[LogEvent], List[LogEvent]] = ([], [], [])  # addressed, world, actions
+        tiers: tuple[list[LogEvent], list[LogEvent], list[LogEvent]] = ([], [], [])  # addressed, world, actions
         for event in reversed(self._events_after(since)):
             if not event.visible_to(actor.id):
                 continue
@@ -271,9 +274,9 @@ class Perception:
         room = max(0, limit - len(addressed)) if limit is not None else None
         kept = addressed + (world_news + actions if room is None else (world_news + actions)[:room])
         hidden = len(addressed) + len(world_news) + len(actions) - len(kept)
-        delivered: List[LogEvent] = []
-        files: List[str] = []
-        lines: List[str] = []
+        delivered: list[LogEvent] = []
+        files: list[str] = []
+        lines: list[str] = []
         for event in sorted(kept, key=lambda e: e.seq):
             line = self._event_line(event, actor)
             if line:
@@ -299,12 +302,13 @@ class Perception:
             return entry is not None and entry.get("to") is not None and actor.id in entry.get("to")
         return False
 
-    def _event_assets(self, event: LogEvent) -> List[str]:
+    def _event_assets(self, event: LogEvent) -> list[str]:
         """The assets an event delivers: a record entry's files, or those an outcome carries."""
         if event.kind == "record":
             entry = self.world.entry_by_seq.get(event.data.get("entry"))
             record = event.data.get("record")
-            return entry_assets(self.world, record, entry) if entry is not None and record in self.contract.records else []
+            return (entry_assets(self.world, record, entry) if entry is not None and record in self.contract.records
+                    else [])
         return [key for key in event.data.get("assets") or () if self.world.assets.has(key)]
 
     def _would_show(self, event: LogEvent, actor: Entity) -> bool:
@@ -316,7 +320,7 @@ class Perception:
             return False
         return bool(event.text)
 
-    def _events_after(self, since: int) -> List[LogEvent]:
+    def _events_after(self, since: int) -> list[LogEvent]:
         log = self.world.log
         # Sequence numbers are dense and start at 1, so the tail is found by index.
         start = 0
@@ -328,7 +332,7 @@ class Perception:
                 start += 1
         return log[start:]
 
-    def _event_line(self, event: LogEvent, actor: Entity) -> Optional[str]:
+    def _event_line(self, event: LogEvent, actor: Entity) -> str | None:
         if event.kind == "record":
             return self._record_line(event, actor)
         if event.kind == "action" and event.actor == actor.id:
@@ -337,7 +341,7 @@ class Perception:
             return event.text or None
         return event.text or None
 
-    def _record_line(self, event: LogEvent, actor: Entity) -> Optional[str]:
+    def _record_line(self, event: LogEvent, actor: Entity) -> str | None:
         name = event.data.get("record")
         spec = self.contract.records.get(name)
         if spec is None:
@@ -358,12 +362,12 @@ def _label(name: str, view: ViewSpec) -> str:
     return view.title if view.title and "{" not in view.title else name.replace("_", " ").capitalize()
 
 
-def _default_show(fields: Dict[str, str]) -> str:
+def _default_show(fields: dict[str, str]) -> str:
     parts = " · ".join(f"{{{name}}}" for name in fields)
     return "{author}: " + parts
 
 
-def _sort_key(value: Any) -> Tuple[int, Any]:
+def _sort_key(value: Any) -> tuple[int, Any]:
     if isinstance(value, (list, tuple)):
         return (3, tuple(_sort_key(part) for part in value))  # multi-key: `[$it.price, -$it.seq]`
     if value is None:

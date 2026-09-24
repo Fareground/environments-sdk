@@ -8,13 +8,14 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 __all__ = ["Evaluator", "bisection", "golden_section", "nelder_mead", "cross_entropy", "cross_entropy_sizes",
            "BudgetExhausted"]
 
-Point = Tuple[float, ...]
+Point = tuple[float, ...]
 
 #: Golden-ratio step for golden-section search.
 _INVERSE_PHI = (math.sqrt(5.0) - 1.0) / 2.0
@@ -26,7 +27,7 @@ _SIMPLEX_STEP = 0.25
 _CE_POPULATION_PER_DIM, _CE_ELITE_SHARE = 6, 0.25
 
 
-def cross_entropy_sizes(dims: int, budget: int) -> Tuple[int, int, int]:
+def cross_entropy_sizes(dims: int, budget: int) -> tuple[int, int, int]:
     """``(population, elite, generations)`` for a cross-entropy search of ``dims`` parameters within ``budget``."""
     population = _CE_POPULATION_PER_DIM * dims
     return population, max(2, int(population * _CE_ELITE_SHARE)), max(1, budget // population)
@@ -44,11 +45,11 @@ class Evaluator:
     that run identically share one evaluation.
     """
 
-    objective: Callable[[Point], Tuple[float, Any]]
-    key: Callable[[Point], Tuple]
+    objective: Callable[[Point], tuple[float, Any]]
+    key: Callable[[Point], tuple]
     budget: int
-    history: List[Tuple[Point, float, Any]] = field(default_factory=list)
-    _cache: Dict[Tuple, Tuple[float, Any]] = field(default_factory=dict)
+    history: list[tuple[Point, float, Any]] = field(default_factory=list)
+    _cache: dict[tuple, tuple[float, Any]] = field(default_factory=dict)
 
     def __call__(self, point: Sequence[float]) -> float:
         clipped = tuple(min(1.0, max(0.0, float(x))) for x in point)
@@ -70,11 +71,11 @@ class Evaluator:
         return self._cache[self.key(clipped)][1]
 
     @property
-    def best(self) -> Optional[Tuple[Point, float, Any]]:
+    def best(self) -> tuple[Point, float, Any] | None:
         return min(self.history, key=lambda h: h[1]) if self.history else None
 
 
-def bisection(signed: Callable[[float], Optional[float]], evaluate: Evaluator, iterations: int) -> bool:
+def bisection(signed: Callable[[float], float | None], evaluate: Evaluator, iterations: int) -> bool:
     """Find where a monotone ``signed(u)`` (simulated − target) crosses zero on [0, 1].
 
     Returns ``False`` without searching when both ends have the same sign (no crossing to find).
@@ -124,7 +125,7 @@ def golden_section(evaluate: Evaluator, iterations: int) -> None:
         pass
 
 
-def nelder_mead(evaluate: Evaluator, dims: int, start: Optional[Sequence[float]] = None, tolerance: float = 1e-4) -> None:
+def nelder_mead(evaluate: Evaluator, dims: int, start: Sequence[float] | None = None, tolerance: float = 1e-4) -> None:
     """Nelder–Mead simplex search in the unit cube (points are clipped to the cube)."""
     origin = list(start) if start is not None else [0.5] * dims
     simplex = [origin] + [[x + (_SIMPLEX_STEP if i == j else 0.0) if x + _SIMPLEX_STEP <= 1.0

@@ -18,12 +18,13 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr.template import format_value
+from ..world.entity import Entity
 from .statements import RESERVED_ROOTS
 
 if TYPE_CHECKING:
@@ -53,15 +54,15 @@ class ChanceNode:
 
     name: str
     site: str
-    outcomes: Tuple[ChanceOutcome, ...]
+    outcomes: tuple[ChanceOutcome, ...]
 
     @property
-    def possible(self) -> List[ChanceOutcome]:
+    def possible(self) -> list[ChanceOutcome]:
         """The outcomes with a probability above zero, in listed order."""
         return [outcome for outcome in self.outcomes if outcome.p > 0]
 
 
-def run_chance(runner: "EffectRunner", effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def run_chance(runner: EffectRunner, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     node = _node(runner, effect, vars, where)
     chosen = node.outcomes[_pick(world, node, where)]
@@ -76,7 +77,7 @@ def run_chance(runner: "EffectRunner", effect: Dict[str, Any], vars: Dict[str, A
         runner.run(effect.get("do") or [], vars, f"{where}.do")
 
 
-def _node(runner: "EffectRunner", effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> ChanceNode:
+def _node(runner: EffectRunner, effect: dict[str, Any], vars: dict[str, Any], where: str) -> ChanceNode:
     raw = effect["chance"]
     if isinstance(raw, list):
         outcomes = []
@@ -100,7 +101,8 @@ def _node(runner: "EffectRunner", effect: Dict[str, Any], vars: Dict[str, Any], 
     total = sum(weights)
     if total <= 0:
         raise RunError("every outcome has weight 0, so nothing can happen", f"{where}.weight")
-    outcomes = [ChanceOutcome(i, _label(item), weight / total, item) for i, (item, weight) in enumerate(zip(items, weights))]
+    outcomes = [ChanceOutcome(i, _label(item), weight / total, item)
+                for i, (item, weight) in enumerate(zip(items, weights))]
     return ChanceNode(str(raw), where, tuple(outcomes))
 
 
@@ -123,7 +125,8 @@ def _pick(world: Any, node: ChanceNode, where: str) -> int:
     index = picker(node)
     if isinstance(index, bool) or not isinstance(index, int) or not any(o.index == index for o in possible):
         choices = ", ".join(f"{o.index} ({o.label})" for o in possible)
-        raise RunError(f"the chance picker chose {index!r}, which is not a possible outcome (possible: {choices})", where)
+        raise RunError(f"the chance picker chose {index!r}, which is not a possible outcome (possible: {choices})",
+                       where)
     if world.exposures is not None:  # recorded, so a replay reproduces the pick without the chooser
         world.exposures.picked(node, index, world.round)
     return index
@@ -144,12 +147,12 @@ def _label(item: Any) -> str:
 # -- static check ---------------------------------------------------------------------------------
 
 
-def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: Set[str], types: Dict[str, Set[str]],
-                 params: Optional[Mapping[str, Any]]) -> Set[str]:
+def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: set[str], types: dict[str, set[str]],
+                 params: Mapping[str, Any] | None) -> set[str]:
     """Check a `chance` effect; returns the names it makes available afterwards."""
     from ..checks.roots import merge_types
 
-    bound: Set[str] = set()
+    bound: set[str] = set()
     name = effect.get("as")
     if name is not None:
         if not isinstance(name, str) or not _NAME.match(name):
@@ -182,14 +185,14 @@ def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: Set[
     return bound
 
 
-def _check_branches(checker: Any, branches: List[Any], path: str, roots: Set[str], inner: Set[str],
-                    types: Dict[str, Set[str]], params: Optional[Mapping[str, Any]]) -> Set[str]:
-    bound: Set[str] = set()
+def _check_branches(checker: Any, branches: list[Any], path: str, roots: set[str], inner: set[str],
+                    types: dict[str, set[str]], params: Mapping[str, Any] | None) -> set[str]:
+    bound: set[str] = set()
     from ..checks.roots import merge_types
 
-    paths: List[Dict[str, Set[str]]] = []
+    paths: list[dict[str, set[str]]] = []
     total, literal = 0.0, True
-    labels: Set[str] = set()
+    labels: set[str] = set()
     for index, branch in enumerate(branches):
         where = f"{path}.chance[{index}]"
         if not isinstance(branch, dict):
@@ -216,7 +219,8 @@ def _check_branches(checker: Any, branches: List[Any], path: str, roots: Set[str
         if isinstance(label, str):
             checker.template(label, f"{where}.label", None, roots, types, params)
             if label in labels:
-                checker.error(f"{where}.label", f"label '{label}' is used by another branch", "give each branch its own label")
+                checker.error(f"{where}.label", f"label '{label}' is used by another branch",
+                              "give each branch its own label")
             labels.add(label)
         elif label is not None:
             checker.error(f"{where}.label", "a label is text")

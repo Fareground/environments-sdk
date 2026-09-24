@@ -7,7 +7,6 @@ import pytest
 import fg_env
 from fg_env.expr import Untrusted, compile_expr
 
-
 # ---------------------------------------------------------------------------
 # helpers
 # ---------------------------------------------------------------------------
@@ -83,7 +82,8 @@ CHAT = {
     "entities": {"ana": {"type": "citizen", "name": "Ana"}, "ben": {"type": "citizen", "name": "Ben"},
                  "cy": {"type": "citizen", "name": "Cy"}, "dee": {"type": "citizen", "name": "Dee"},
                  "mo": {"type": "mayor", "name": "Mo"}},
-    "mechanisms": {"chat": {"kind": "social", "mode": "channels", "who": "citizen", "rooms": ["plaza"], "broadcast": "mayor",
+    "mechanisms": {"chat": {"kind": "social", "mode": "channels", "who": "citizen", "rooms": ["plaza"],
+                            "broadcast": "mayor",
                             "groups": {"cabal": {"members": ["ana", "ben"], "title": "Night committee"}},
                             "create_groups": True, "per_turn": 2}},
     "outputs": {"messages": {"expr": "$len($records(chat))", "type": "int"}},
@@ -127,7 +127,8 @@ def test_private_group_and_dm_never_leak_to_non_members():
         surfaces.append(json.dumps(ev(env, "$records(chat)", viewer=viewer), default=str))
         surfaces.append(json.dumps([e.to_dict() for e in ev(env, "$events()", viewer=viewer)], default=str))
         if viewer.entity_type == "citizen":
-            surfaces.append(json.dumps(ev(env, "[$inbox($it), $recent_messages($it), $inbox_channels($it), $groups($it)]",
+            surfaces.append(json.dumps(ev(env,
+                                          "[$inbox($it), $recent_messages($it), $inbox_channels($it), $groups($it)]",
                                           it=viewer), default=str))
         blob = "\n".join(surfaces)
         for secret in SECRETS:
@@ -204,7 +205,8 @@ def test_channel_config_errors_say_what_to_fix():
     bad["mechanisms"]["chat"].update(rooms=["plaza"], who="resident")
     assert any("who 'resident' is not a declared type" in e for e in errors(bad))
     op = {**CHAT, "events": [{"do": [{"social": "chatter", "action": "say", "channel": "plaza", "text": "hi"}]}]}
-    assert any("`social` names a declared social mechanism, got 'chatter' → did you mean 'chat'?" in e for e in errors(op))
+    assert any("`social` names a declared social mechanism, got 'chatter' → did you mean 'chat'?" in e
+               for e in errors(op))
 
 
 def _event(contract, *effects):
@@ -223,16 +225,21 @@ def test_an_old_social_kind_or_a_field_typo_says_what_to_write():
 
 
 def test_social_actions_check_their_own_keys():
-    assert any("`social.say` needs `channel`" in e for e in _event(CHAT, {"social": "chat", "action": "say", "text": "hi"}))
+    assert any("`social.say` needs `channel`" in e
+               for e in _event(CHAT, {"social": "chat", "action": "say", "text": "hi"}))
     assert any("'in' is not part of `social.say`" in e
-               for e in _event(CHAT, {"social": "chat", "action": "say", "in": "plaza", "channel": "plaza", "text": "hi"}))
+               for e in _event(CHAT,
+                               {"social": "chat", "action": "say", "in": "plaza", "channel": "plaza", "text": "hi"}))
     assert any("'shout' is not an action of chat (social channels)" in e
                for e in _event(CHAT, {"social": "chat", "action": "shout"}))
     assert any('`say` is an action of the `social` op: {"social": "<mechanism>", "action": "say"' in e
                for e in _event(CHAT, {"say": "chat", "channel": "plaza", "text": "hi"}))
-    assert any("`social.follow` needs `account`" in e for e in _event(NET, {"social": "net", "action": "follow", "who": "a"}))
-    assert any("did you mean 'repost'" in e for e in _event(NET, {"social": "net", "action": "repost_it", "target": "x"}))
-    assert any("`social.adopt` needs `who`" in e for e in _event(LINE, {"social": "rumor", "action": "adopt", "item": "moon"}))
+    assert any("`social.follow` needs `account`" in e
+               for e in _event(NET, {"social": "net", "action": "follow", "who": "a"}))
+    assert any("did you mean 'repost'" in e
+               for e in _event(NET, {"social": "net", "action": "repost_it", "target": "x"}))
+    assert any("`social.adopt` needs `who`" in e
+               for e in _event(LINE, {"social": "rumor", "action": "adopt", "item": "moon"}))
     assert _event(LINE, {"social": "rumor", "action": "step"}) == []
 
 
@@ -282,9 +289,10 @@ def test_motion_amendment_and_vote_with_floor_control():
     script = Script(env, {
         "mod": [("hall_recognize", {"who": "r1"}), ("hall_recognize", {"who": "r3"}, _top("motion")),
                 ("hall_call_question", {}, _top("amendment")), ("hall_call_question", {}, _top("motion"))],
-        "r1": [("hall_raise_hand", {}), ("hall_propose", {"text": "Build it by June"}), ("hall_vote", {"choice": "yes"}),
+        "r1": [("hall_raise_hand", {}), ("hall_propose", {"text": "Build it by June"}),
+               ("hall_vote", {"choice": "yes"}), ("hall_vote", {"choice": "yes"})],
+        "r2": [("hall_second", {}), ("hall_second", {}), ("hall_vote", {"choice": "yes"}),
                ("hall_vote", {"choice": "yes"})],
-        "r2": [("hall_second", {}), ("hall_second", {}), ("hall_vote", {"choice": "yes"}), ("hall_vote", {"choice": "yes"})],
         "r3": [("hall_raise_hand", {}), ("hall_amend", {"text": "Build it by July"}), ("hall_vote", {"choice": "yes"}),
                ("hall_vote", {"choice": "no"})],
         "r4": [("hall_vote", {"choice": "no"}), ("hall_vote", {"choice": "yes"})],
@@ -398,7 +406,8 @@ def test_tools_one_offers_the_whole_body_as_one_tool():
                           "r2": [("hall", {"action": "second"}, _top_status("proposed"))]})
     env.run(script, rounds=1)
     assert [(r[2], r[3]) for r in script.results] == [("hall", True), ("hall", True)], script.results
-    assert [d["text"] for d in env.props["hall"]["decisions"]] == ["Adopt the plan"]  # seconded, debated, put and counted
+    assert ([d["text"] for d in env.props["hall"]["decisions"]]
+            == ["Adopt the plan"])  # seconded, debated, put and counted
     tools = json.loads(script.seen["r1"][1])
     assert [t["name"] for t in tools if t["kind"] == "act"] == ["hall"]
 
@@ -471,8 +480,9 @@ def test_blocks_mutes_friends_and_notifications():
 
 
 def test_insularity_homophily_and_untrusted_posts():
-    tight = {**NET, "links": [{"relation": "net_follows", "among": "account", "graph": "complete", "where": "$it.id != d"},
-                              {"relation": "net_follows", "from": "d", "to": "a"}]}
+    tight = {**NET,
+             "links": [{"relation": "net_follows", "among": "account", "graph": "complete", "where": "$it.id != d"},
+                       {"relation": "net_follows", "from": "d", "to": "a"}]}
     env = fg_env.load(tight, seed=1)
     for x, y in (("b", "a"), ("c", "a"), ("c", "b")):  # complete links each pair one way; add the other
         assert do(env, None, [{"link": "net_follows", "from": x, "to": y}])
@@ -497,8 +507,8 @@ LINE = {
     "population": [{"type": "person", "count": 5, "id": "p{$i}", "name": "P{$i}"}],
     "relations": {"knows": {"symmetric": True}},
     "links": [{"relation": "knows", "from": f"p{i}", "to": f"p{i + 1}"} for i in range(1, 5)],
-    "mechanisms": {"rumor": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "model": "cascade", "p": 1,
-                             "seeds": {"moon": ["p1"]}, "on_adopt": ["$it.heard += 1"]}},
+    "mechanisms": {"rumor": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows",
+                             "model": "cascade", "p": 1, "seeds": {"moon": ["p1"]}, "on_adopt": ["$it.heard += 1"]}},
     "metrics": {"reach": "$reach(moon)"},
 }
 
@@ -536,8 +546,8 @@ def test_cascade_with_no_chance_only_exposes_and_flow_follows_direction():
 
 def test_linear_threshold_adopts_when_enough_neighbours_have():
     star = {**LINE, "links": [{"relation": "knows", "from": "p1", "to": f"p{i}"} for i in range(2, 6)],
-            "mechanisms": {"rumor": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows", "model": "threshold",
-                                     "threshold": 0.5, "seeds": {"moon": ["p2", "p3"]}}}}
+            "mechanisms": {"rumor": {"kind": "social", "mode": "diffusion", "who": "person", "over": "knows",
+                                     "model": "threshold", "threshold": 0.5, "seeds": {"moon": ["p2", "p3"]}}}}
     env = fg_env.load(star, seed=1)
     env.run("idle", rounds=1)
     assert ev(env, "$spread_state(p1, moon)") == "adopted" and ev(env, "$exposures(p1, moon)") == 2
@@ -578,10 +588,13 @@ def test_learn_tell_secondhand_trust_and_decay():
     assert do(env, "ana", [{"mind": "memory", "action": "learn", "key": "wolf", "value": "ben", "confidence": 0.8}])
     assert ev(env, "[$believes(ana, wolf), $believes(ana, wolf, ben), $believes(ana, wolf, cy)]") == [True, True, False]
     assert do(env, "ana", [{"mind": "memory", "action": "tell", "key": "wolf", "to": "ben"}])
-    assert ev(env, "$belief(ben, wolf)") == {"value": "ben", "confidence": 0.4, "source": "told", "told_by": "ana", "round": 0}
+    assert ev(env, "$belief(ben, wolf)") == {"value": "ben", "confidence": 0.4, "source": "told", "told_by": "ana",
+                                             "round": 0}
     assert do(env, "ben", [{"mind": "memory", "action": "tell", "key": "wolf", "to": "cy"}])
     assert ev(env, "$confidence(cy, wolf)") == pytest.approx(0.4 * 0.5 * 0.5)  # secondhand × trust
-    assert do(env, "ben", [{"mind": "memory", "action": "learn", "key": "wolf", "value": "cy", "confidence": 0.3}])  # weaker and contradicting: ignored
+    assert do(env, "ben",
+              [{"mind": "memory", "action": "learn", "key": "wolf", "value": "cy",
+                "confidence": 0.3}])  # weaker and contradicting: ignored
     assert ev(env, "$belief(ben, wolf).value") == "ben"
     assert not do(env, "cy", [{"mind": "memory", "action": "tell", "key": "stash", "to": "ben"}])  # nothing to pass on
     assert not do(env, "ana", [{"mind": "memory", "action": "tell", "key": "wolf", "to": "ana"}])  # no telling yourself
@@ -597,7 +610,8 @@ def test_learn_tell_secondhand_trust_and_decay():
 
 def test_an_agent_sees_only_its_own_beliefs():
     env = fg_env.load(VILLAGE, seed=1)
-    assert do(env, "ana", [{"mind": "memory", "action": "learn", "key": "stash", "value": "the old barn", "confidence": 0.9}])
+    assert do(env, "ana",
+              [{"mind": "memory", "action": "learn", "key": "stash", "value": "the old barn", "confidence": 0.9}])
     script = Script(env, {}, probes={"ben": [("inspect", {"id": "ana"})]})
     env.run(script, rounds=1)
     assert "the old barn" not in script.text("ben") and "the old barn" not in json.dumps(env.preview("cy"))
@@ -615,7 +629,8 @@ def test_beliefs_config_and_actions_say_what_to_fix():
         return {**VILLAGE, "mechanisms": {"memory": {**VILLAGE["mechanisms"]["memory"], **config}}}
 
     assert errors(with_config(decay_curve="linear")) == []
-    assert any("`holders` is not a field of `mind` mode `beliefs`" in e for e in errors(with_config(holders="villager")))
+    assert any("`holders` is not a field of `mind` mode `beliefs`" in e
+               for e in errors(with_config(holders="villager")))
     assert any("'beliefs' is a mode of kind 'mind'" in e
                for e in errors({**VILLAGE, "mechanisms": {"memory": {"kind": "beliefs", "holders": "villager"}}}))
 
@@ -625,7 +640,8 @@ def test_beliefs_config_and_actions_say_what_to_fix():
     assert any("`mind.tell` needs `to`" in e for e in op({"mind": "memory", "action": "tell", "key": "wolf"}))
     assert any("'from' is not part of `mind.tell`" in e
                for e in op({"mind": "memory", "action": "tell", "key": "wolf", "to": "ben", "from": "ana"}))
-    assert any('`learn` is an action of the `mind` op: {"mind": "<mechanism>", "action": "learn"' in e for e in op({"learn": "wolf"}))
+    assert any('`learn` is an action of the `mind` op: {"mind": "<mechanism>", "action": "learn"' in e
+               for e in op({"learn": "wolf"}))
 
 
 # ---------------------------------------------------------------------------
@@ -640,7 +656,8 @@ BONDS = {
     "entities": {"fr": {"type": "nation", "name": "France"}, "uk": {"type": "nation", "name": "Britain"},
                  "de": {"type": "nation", "name": "Germany"}},
     "mechanisms": {
-        "bonds": {"kind": "groups", "mode": "relationships", "relations": {"trust": {"baseline": 0, "decay": 0.5, "thresholds": [
+        "bonds": {"kind": "groups", "mode": "relationships",
+                  "relations": {"trust": {"baseline": 0, "decay": 0.5, "thresholds": [
             {"at": 0.6, "say": "{$from.name} now trusts {$to.name}.", "to": "both", "do": ["$world.fired += 1"]}]}}},
         "blocs": {"kind": "groups", "mode": "factions", "who": "nation",
                   "factions": {"entente": {"members": ["fr"]}, "central": {"members": ["de"], "open": True}}},
@@ -708,11 +725,14 @@ def test_relationship_and_faction_actions_check_their_own_keys():
     assert any("`groups.relate` takes exactly one of `add` or `set`" in e for e in op(RELATE))
     assert any("'by' is not part of `groups.relate`" in e for e in op({**RELATE, "by": 0.2}))
     assert any("'rivalry' is not a relation of bonds" in e for e in op({**RELATE, "relation": "rivalry", "add": 1}))
-    assert any("`groups.invite` needs `guest`" in e for e in op({"groups": "blocs", "action": "invite", "in": "entente"}))
+    assert any("`groups.invite` needs `guest`" in e
+               for e in op({"groups": "blocs", "action": "invite", "in": "entente"}))
     assert any("did you mean 'break_alliance'" in e
                for e in op({"groups": "blocs", "action": "break_aliance", "in": "entente", "other": "central"}))
-    assert any("`join` is an action of the `groups` or `social` op" in e for e in op({"join": "blocs", "in": "central"}))
-    assert any("`relate` is an action of the `groups` op" in e for e in op({"relate": "trust", "from": "fr", "to": "uk", "by": 1}))
+    assert any("`join` is an action of the `groups` or `social` op" in e
+               for e in op({"join": "blocs", "in": "central"}))
+    assert any("`relate` is an action of the `groups` op" in e
+               for e in op({"relate": "trust", "from": "fr", "to": "uk", "by": 1}))
 
 
 def test_relationships_and_factions_written_as_kinds_name_their_groups_family():

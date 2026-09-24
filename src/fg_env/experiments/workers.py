@@ -21,8 +21,9 @@ import os
 import threading
 import time
 from collections import OrderedDict
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any, Union
 
 from ..api import parse
 from ..contract import Contract
@@ -54,17 +55,17 @@ class _Kept:
     def __init__(self) -> None:
         #: Re-entrant: a pool's start is timed by callbacks that may run at once, in the thread starting it.
         self.lock = threading.RLock()
-        self.pools: Dict[int, ProcessPoolExecutor] = {}
+        self.pools: dict[int, ProcessPoolExecutor] = {}
         self.start_seconds = _ASSUMED_START_SECONDS
-        self.job_seconds: Dict[str, float] = {}
+        self.job_seconds: dict[str, float] = {}
         #: Seconds batches ran here, by pool size, because that pool was not running (reset when one starts).
-        self.ran_here: Dict[int, float] = {}
+        self.ran_here: dict[int, float] = {}
 
 
 _kept = _Kept()
 
 
-def _smoothed(old: Optional[float], new: float) -> float:
+def _smoothed(old: float | None, new: float) -> float:
     return new if old is None else (1 - _SMOOTHING) * old + _SMOOTHING * new
 
 
@@ -89,7 +90,8 @@ def _ready() -> None:
 
 
 def _new_pool(size: int) -> ProcessPoolExecutor:
-    """A started pool of ``size`` workers; the caller holds ``_kept.lock`` (its start is timed once every worker is up)."""
+    """A started pool of ``size`` workers; the caller holds ``_kept.lock`` (its start is timed once every worker is up).
+    """
     _kept.ran_here.pop(size, None)
     pool = ProcessPoolExecutor(max_workers=size, initializer=_exit_with, initargs=(os.getpid(),))
     started = time.perf_counter()
@@ -115,10 +117,10 @@ class Workers:
     """Worker processes for one or more batches: this process's kept pool of ``size`` workers, a pool of its own when
     pools are not kept, or ``executor`` (a caller's pool, used as it is). Nothing starts until a batch needs it."""
 
-    def __init__(self, size: int, executor: Optional[ProcessPoolExecutor] = None):
+    def __init__(self, size: int, executor: ProcessPoolExecutor | None = None):
         self.size = size
         self._given = executor
-        self._own: Optional[ProcessPoolExecutor] = None
+        self._own: ProcessPoolExecutor | None = None
         self._keep = executor is None and _keeping()
 
     @property
@@ -174,7 +176,7 @@ def shutdown_workers() -> None:
 atexit.register(shutdown_workers)
 
 
-def chunk_size(jobs: int, workers: int, seconds_per_job: Optional[float], started: bool) -> int:
+def chunk_size(jobs: int, workers: int, seconds_per_job: float | None, started: bool) -> int:
     """Jobs per chunk sent to workers, or ``0`` when the batch would finish sooner in this process.
 
     Starting workers is charged only what batches have not already spent here waiting for it: once runs kept in this
@@ -191,16 +193,16 @@ def chunk_size(jobs: int, workers: int, seconds_per_job: Optional[float], starte
     return chunk if there < here else 0
 
 
-def contract_key(data: Mapping[str, Any], folder: Optional[str]) -> str:
+def contract_key(data: Mapping[str, Any], folder: str | None) -> str:
     """Names a contract as written together with the folder its data files are read from."""
     text = json.dumps(data, sort_keys=True, default=str)
     return hashlib.sha256(f"{folder}\0{text}".encode()).hexdigest()
 
 
-_parsed: "OrderedDict[str, Contract]" = OrderedDict()
+_parsed: OrderedDict[str, Contract] = OrderedDict()
 
 
-def cached_contract(key: str, data: Mapping[str, Any], folder: Optional[str]) -> Contract:
+def cached_contract(key: str, data: Mapping[str, Any], folder: str | None) -> Contract:
     """The parsed contract for ``key``, parsed on this process's first request for it."""
     found = _parsed.get(key)
     if found is None:
@@ -213,7 +215,7 @@ def cached_contract(key: str, data: Mapping[str, Any], folder: Optional[str]) ->
     return found
 
 
-def job_seconds(key: str) -> Optional[float]:
+def job_seconds(key: str) -> float | None:
     """Seconds one job of this contract has been measured to take in this process's batches (``None``: not yet)."""
     with _kept.lock:
         return _kept.job_seconds.get(key)
@@ -230,8 +232,8 @@ def record_ran_here(workers: int, seconds: float) -> None:
         _kept.ran_here[workers] = _kept.ran_here.get(workers, 0.0) + seconds
 
 
-def run_chunks(pool: ProcessPoolExecutor, work: Callable[[Any, Sequence[Any]], Tuple[List[Any], float]], shared: Any,
-               items: Sequence[Any], chunk: int) -> Tuple[List[Any], float]:
+def run_chunks(pool: ProcessPoolExecutor, work: Callable[[Any, Sequence[Any]], tuple[list[Any], float]], shared: Any,
+               items: Sequence[Any], chunk: int) -> tuple[list[Any], float]:
     """``work(shared, chunk)`` on every ``chunk`` items in workers: the results in order, and the seconds the
     workers reported. A failure cancels the chunks not yet started and is raised."""
     futures = [pool.submit(work, shared, items[start:start + chunk]) for start in range(0, len(items), chunk)]

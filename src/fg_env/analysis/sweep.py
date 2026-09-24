@@ -9,8 +9,9 @@ from __future__ import annotations
 import itertools
 import json
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any
 
 from ..api import ContractLike
 from ..runtime.measure import RunResult
@@ -21,7 +22,7 @@ from .stats import Estimate, estimate, fisher_interval, latin_hypercube, levels,
 
 __all__ = ["sweep", "SweepResult", "SweepCell", "parse_param"]
 
-ParamSpec = Union[Sequence[Any], Mapping[str, Any]]
+ParamSpec = Sequence[Any] | Mapping[str, Any]
 
 #: Bins used to show a Latin-hypercube input's effect as means over equal-count bins.
 _LHS_BINS = 4
@@ -32,10 +33,10 @@ class SweepCell:
     """One combination of swept inputs (and arm), with its runs and per-output estimates."""
 
     index: int
-    inputs: Dict[str, Any]
-    arm: Optional[str]
-    runs: List[RunResult]
-    summary: Dict[str, Estimate]
+    inputs: dict[str, Any]
+    arm: str | None
+    runs: list[RunResult]
+    summary: dict[str, Estimate]
 
     def label(self) -> str:
         text = runner.describe_inputs(self.inputs)
@@ -46,19 +47,19 @@ class SweepCell:
 class SweepResult:
     contract: str
     design: str
-    params: Dict[str, List[Any]]
-    arms: List[Optional[str]]
-    measures: List[str]
-    seeds: List[int]
-    cells: List[SweepCell]
-    rounds: Optional[int] = None
-    _effects: Dict[str, Dict[str, Dict[str, Any]]] = field(default_factory=dict, repr=False)
+    params: dict[str, list[Any]]
+    arms: list[str | None]
+    measures: list[str]
+    seeds: list[int]
+    cells: list[SweepCell]
+    rounds: int | None = None
+    _effects: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict, repr=False)
 
     @property
-    def runs(self) -> List[RunResult]:
+    def runs(self) -> list[RunResult]:
         return [r for cell in self.cells for r in cell.runs]
 
-    def main_effects(self) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    def main_effects(self) -> dict[str, dict[str, dict[str, Any]]]:
         """``{output: {input_or_arm: effect}}``.
 
         Factorial: ``levels`` (value, mean of cell means, cells), ``trend`` (increasing,
@@ -74,7 +75,7 @@ class SweepResult:
     def trend(self, param: str, measure: str) -> str:
         return self.main_effects()[measure][param]["trend"]
 
-    def _factors(self) -> Dict[str, List[Any]]:
+    def _factors(self) -> dict[str, list[Any]]:
         factors = dict(self.params)
         if len(self.arms) > 1:
             factors["arm"] = list(self.arms)
@@ -83,21 +84,21 @@ class SweepResult:
     def _level_of(self, cell: SweepCell, factor: str) -> Any:
         return cell.arm if factor == "arm" else cell.inputs[factor]
 
-    def _effects_for(self, measure: str) -> Dict[str, Dict[str, Any]]:
+    def _effects_for(self, measure: str) -> dict[str, dict[str, Any]]:
         key = ("outputs", measure)
         if self.design == "lhs":
             return {name: self._lhs_effect(name, key) for name in self.params}
         return {name: self._factorial_effect(name, levels_, key) for name, levels_ in self._factors().items()}
 
-    def _factorial_effect(self, factor: str, levels_: List[Any], key: Any) -> Dict[str, Any]:
+    def _factorial_effect(self, factor: str, levels_: list[Any], key: Any) -> dict[str, Any]:
         rows = []
-        per_level_runs: List[List[Optional[float]]] = []
+        per_level_runs: list[list[float | None]] = []
         for level in levels_:
             cells = [c for c in self.cells if self._level_of(c, factor) == level]
             means = [m for m in (c.summary[key[1]].mean for c in cells) if m is not None]
             rows.append({"value": level, "mean": mean(means) if means else None, "cells": len(cells)})
             per_level_runs.append(_per_seed_means(cells, key, len(self.seeds)))
-        effect: Dict[str, Any] = {"levels": rows}
+        effect: dict[str, Any] = {"levels": rows}
         ordered = [r for r in rows if r["mean"] is not None]
         numeric_levels = all(isinstance(r["value"], (int, float)) and not isinstance(r["value"], bool) for r in ordered)
         if numeric_levels:
@@ -105,15 +106,17 @@ class SweepResult:
         values = [r["mean"] for r in ordered]
         effect["range"] = (max(values) - min(values)) if values else None
         effect["trend"] = _trend(values) if numeric_levels else "unordered"
-        effect["spearman"] = spearman([r["value"] for r in ordered], values) if numeric_levels and len(values) >= 3 else None
+        effect["spearman"] = (spearman([r["value"] for r in ordered], values) if numeric_levels and len(values) >= 3
+                              else None)
         if len(per_level_runs) >= 2:
             low_i, high_i = (levels_.index(ordered[0]["value"]), levels_.index(ordered[-1]["value"])) \
                 if numeric_levels and ordered else (0, len(levels_) - 1)
-            diffs = [h - lo for h, lo in zip(per_level_runs[high_i], per_level_runs[low_i]) if h is not None and lo is not None]
+            diffs = [h - lo for h, lo in zip(per_level_runs[high_i], per_level_runs[low_i]) if h is not None
+                     and lo is not None]
             effect["high_minus_low"] = estimate(diffs).to_dict() if diffs else None
         return effect
 
-    def _lhs_effect(self, param: str, key: Any) -> Dict[str, Any]:
+    def _lhs_effect(self, param: str, key: Any) -> dict[str, Any]:
         xs, ys = [], []
         for cell in self.cells:
             for run in cell.runs:
@@ -161,7 +164,7 @@ class SweepResult:
             lines.append(f"\n{failure}")
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "contract": self.contract, "design": self.design, "params": self.params, "arms": self.arms,
             "seeds": self.seeds, "measures": self.measures, "rounds": self.rounds,
@@ -172,12 +175,13 @@ class SweepResult:
         }
 
 
-def _per_seed_means(cells: Sequence[SweepCell], key: Any, runs: int) -> List[Optional[float]]:
+def _per_seed_means(cells: Sequence[SweepCell], key: Any, runs: int) -> list[float | None]:
     """For seed i, the mean output over ``cells`` (``None`` if any is missing, keeping pairs honest)."""
-    out: List[Optional[float]] = []
+    out: list[float | None] = []
     for i in range(runs):
         values = [runner.value(c.runs[i], key) for c in cells]
-        out.append(mean([v for v in values if v is not None]) if values and all(v is not None for v in values) else None)
+        out.append(mean([v for v in values if v is not None]) if values and all(v is not None for v in values)
+                   else None)
     return out
 
 
@@ -196,7 +200,7 @@ def _fmt(value: Any) -> str:
     return f"{value:.4g}" if isinstance(value, float) else json.dumps(value, default=str)
 
 
-def _effect_text(effect: Dict[str, Any]) -> str:
+def _effect_text(effect: dict[str, Any]) -> str:
     if "levels" in effect:
         parts = ", ".join(f"{_fmt(r['value'])}: {r['mean']:.4g}" for r in effect["levels"] if r["mean"] is not None)
         text = f"{effect['trend']} ({parts})"
@@ -212,7 +216,7 @@ def _effect_text(effect: Dict[str, Any]) -> str:
     return f"{effect['trend']}, rank correlation {rho:+.2f}{ci}{', clear' if effect['clear'] else ''}"
 
 
-def parse_param(contract: Any, name: str, spec: ParamSpec) -> List[Any]:
+def parse_param(contract: Any, name: str, spec: ParamSpec) -> list[Any]:
     """Levels for one swept input: a list of values, or ``{low, high, steps, log}``."""
     runner.input_spec(contract, name)
     if isinstance(spec, Mapping):
@@ -230,9 +234,9 @@ def parse_param(contract: Any, name: str, spec: ParamSpec) -> List[Any]:
 
 
 def sweep(contract: ContractLike, params: Mapping[str, ParamSpec], *, runs: int = 5,
-          outputs: Optional[Sequence[str]] = None, arms: Optional[Sequence[Optional[str]]] = None,
-          inputs: Optional[Mapping[str, Any]] = None, design: str = "factorial", samples: Optional[int] = None,
-          participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
+          outputs: Sequence[str] | None = None, arms: Sequence[str | None] | None = None,
+          inputs: Mapping[str, Any] | None = None, design: str = "factorial", samples: int | None = None,
+          participants: Any = None, rounds: int | None = None, seed: int = 0, workers: int = 1,
           data_dir: Any = None, hosts: Any = None, uncertainty: Any = None) -> SweepResult:
     """Run the contract across combinations of inputs.
 
@@ -248,7 +252,7 @@ def sweep(contract: ContractLike, params: Mapping[str, ParamSpec], *, runs: int 
     if not params:
         raise ValueError("sweep needs at least one param")
     parsed = runner.as_contract(contract, data_dir)
-    arm_list: List[Optional[str]] = list(arms) if arms else [None]
+    arm_list: list[str | None] = list(arms) if arms else [None]
     base = dict(inputs or {})
     overlap = set(base) & set(params)
     if overlap:
@@ -271,7 +275,8 @@ def sweep(contract: ContractLike, params: Mapping[str, ParamSpec], *, runs: int 
     measures = list(outputs) if outputs else runner.numeric_measures(parsed, results)
     for name in measures:
         if runner.resolve_measure(parsed, name)[0] != "outputs":
-            raise ValueError(f"'{name}' is a metric; sweep measures outputs (declare an output reading $metrics.{name})")
+            raise ValueError(f"'{name}' is a metric; sweep measures outputs (declare an output reading "
+                             f"$metrics.{name})")
     sweep_cells = []
     for index, ((cell_inputs, arm), cell_runs) in enumerate(zip(cells, grouped)):
         swept = {k: cell_inputs[k] for k in params}

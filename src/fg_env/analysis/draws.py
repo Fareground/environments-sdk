@@ -1,9 +1,9 @@
 """Parameter uncertainty in runs: each run draws its parameters, so a forecast's range includes not knowing them.
 
-A calibration leaves a set of points that fit as well as the best within the objective's noise; a forecast run only
-at the best point pretends those parameters are known, and its intervals are too narrow. ``uncertainty=`` on
-:func:`fg_env.experiment`, :func:`fg_env.analysis.sweep`, :func:`fg_env.analysis.backtest` and :func:`fg_env.analysis.validate` draws them per
-run instead, from:
+A calibration leaves a set of points that fit as well as the best within the objective's noise; a forecast run only at
+the best point pretends those parameters are known, and its intervals are too narrow. ``uncertainty=`` on
+:func:`fg_env.experiment`, :func:`fg_env.analysis.sweep`, :func:`fg_env.analysis.backtest` and
+:func:`fg_env.analysis.validate` draws them per run instead, from:
 
 * a :class:`~fg_env.analysis.calibrate.CalibrationResult` — one of its plausible points, the parameters together;
 * a list of points ``[{"price_level": 0.94}, …]`` — one of them;
@@ -17,8 +17,9 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
-from typing import Any, Dict, List, Mapping, Sequence
+from typing import Any
 
 from ..sampling.seeds import SeedTree
 from . import runner
@@ -31,7 +32,7 @@ DISTRIBUTIONS = {"normal": ("mean", "sd"), "lognormal": ("median", "sd"), "unifo
                  "triangular": ("low", "mode", "high")}
 
 
-def parameter_draws(contract: Any, uncertainty: Any, count: int, seed: int) -> List[Dict[str, Any]]:
+def parameter_draws(contract: Any, uncertainty: Any, count: int, seed: int) -> list[dict[str, Any]]:
     """``count`` parameter draws (one per run) from a calibration, a list of points or priors."""
     rng = SeedTree(seed).rng("parameter-draws")
     report = getattr(uncertainty, "calibration", None)  # a loaded session: its load-time calibration report
@@ -57,7 +58,7 @@ def parameter_draws(contract: Any, uncertainty: Any, count: int, seed: int) -> L
             for _ in range(count)]
 
 
-def with_draws(jobs: Sequence[runner.Job], draws: Sequence[Mapping[str, Any]]) -> List[runner.Job]:
+def with_draws(jobs: Sequence[runner.Job], draws: Sequence[Mapping[str, Any]]) -> list[runner.Job]:
     """Every job with run *i*'s draw added to its inputs. An input the job already sets cannot also be drawn."""
     out = []
     for job in jobs:
@@ -79,7 +80,8 @@ def _prior_fields(name: str, spec: Any) -> None:
         return
     dist = spec.get("dist")
     if dist not in DISTRIBUTIONS:
-        raise ValueError(f"prior '{name}': dist must be one of {', '.join(DISTRIBUTIONS)} (or give values), got {dist!r}")
+        raise ValueError(f"prior '{name}': dist must be one of {', '.join(DISTRIBUTIONS)} (or give values), got "
+                         f"{dist!r}")
     for key in DISTRIBUTIONS[dist]:
         if not is_number(spec.get(key)):
             raise ValueError(f"prior '{name}': a {dist} prior needs a number for {key}")
@@ -109,7 +111,7 @@ def _draw(name: str, spec: Mapping[str, Any], rng: random.Random) -> Any:
     return value
 
 
-def _checked(contract: Any, point: Dict[str, Any], what: str) -> Dict[str, Any]:
+def _checked(contract: Any, point: dict[str, Any], what: str) -> dict[str, Any]:
     """A draw with every name a declared number input, whole numbers rounded for ``int`` inputs."""
     out = {}
     for name, value in point.items():

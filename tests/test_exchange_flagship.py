@@ -36,9 +36,11 @@ def test_the_flagship_checks_clean_including_its_seed_history_file():
 
 def test_the_default_crowd_follows_the_balanced_preset_and_is_calibrated_to_the_seed_tape():
     env = fg_env.load(PATH, seed=1)
-    counts = {kind: len(env.entities(f"demo_{kind}")) for kind in ("market_maker", "momentum", "mean_reversion", "fundamentalist",
-                                                                    "noise", "passive")}
-    assert counts == {"market_maker": 18, "momentum": 54, "mean_reversion": 48, "fundamentalist": 42, "noise": 120, "passive": 18}
+    counts = {kind: len(env.entities(f"demo_{kind}"))
+              for kind in ("market_maker", "momentum", "mean_reversion", "fundamentalist",
+                            "noise", "passive")}
+    assert counts == {"market_maker": 18, "momentum": 54, "mean_reversion": 48, "fundamentalist": 42, "noise": 120,
+                      "passive": 18}
     world = env.world.props
     with open(PATH.parent / "exchange_flagship" / "seed_history.csv", newline="") as handle:
         history = [{k: float(v) for k, v in row.items()} for row in csv.DictReader(handle)][-120:]
@@ -64,7 +66,8 @@ def test_cash_and_shares_are_conserved_through_a_crash_and_its_halts():
 
     def totals(world):
         traders = [e for e in world.entities.values() if e.alive and e.properties.get("demo_shares") is not None]
-        cash = sum(t.properties["cash"] + t.properties["demo_reserved_cash"] for t in traders) + world.props["demo_fees"]
+        cash = (sum(t.properties["cash"] + t.properties["demo_reserved_cash"] for t in traders)
+                + world.props["demo_fees"])
         return cash, sum(t.properties["demo_shares"] + t.properties["demo_reserved_shares"] for t in traders)
 
     start_cash, start_shares = totals(fg_env.load(PATH, inputs=inputs, seed=2).world)
@@ -92,7 +95,8 @@ def test_the_circuit_breaker_halts_the_rest_of_the_bar_and_trading_resumes_at_th
 
 
 def test_a_tight_circuit_breaker_clearly_softens_the_crash_bar_against_no_breaker():
-    exp = fg_env.experiment(PATH, runs=4, seed=1, arms=["breaker_tight", "breaker_off"], inputs={**SMALL, "events": CRASH})
+    exp = fg_env.experiment(PATH, runs=4, seed=1, arms=["breaker_tight", "breaker_off"],
+                            inputs={**SMALL, "events": CRASH})
     deltas = exp.deltas("breaker_off")["breaker_tight"]
     assert deltas["worst_bar_drop"]["clear"] and deltas["worst_bar_drop"]["mean"] > 0.02  # the crash bar falls less
     assert deltas["demo_volume"]["max"] < 0  # halted passes trade nothing: less volume in every paired run

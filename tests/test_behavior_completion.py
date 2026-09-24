@@ -1,5 +1,6 @@
-import fg_env
 import pytest
+
+import fg_env
 
 
 def contract(rounds=3):

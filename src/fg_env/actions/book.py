@@ -6,24 +6,36 @@ parameter limits both share in :mod:`.params`.
 from __future__ import annotations
 
 import math
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, FrozenSet, Iterator, List, Optional, Sequence, Set, Tuple
+from typing import Any
 
-from ..world.entity import Entity
-from .faults import fault_reason
-from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
-from .schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
-from .validation import ActionValidation
 from ..assets.delivery import attached_ids
 from ..contract import ActionSpec, Contract, ParamSpec, RecordSpec, StageSpec
 from ..effects.runner import EffectRunner
 from ..effects.statements import compile_statement
 from ..errors import RunError
-from ..sampling.probability import is_probability
-from ..expr import EVAL_BUDGET, EVERYONE, Expr, ExprError, PrivateRead, Scope, compile_expr, is_expr, shared_budget, truthy
+from ..expr import (
+    EVAL_BUDGET,
+    EVERYONE,
+    Expr,
+    ExprError,
+    PrivateRead,
+    Scope,
+    compile_expr,
+    is_expr,
+    shared_budget,
+    truthy,
+)
 from ..expr.template import compile_template, format_value
+from ..sampling.probability import is_probability
+from ..world.entity import Entity
 from ..world.live import Abort, LuckAhead, SdkWorld, _plain
+from .faults import fault_reason
+from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
+from .schemas import _ENUM_CHOICES, ActionSchemas, ToolSpec
+from .validation import ActionValidation
 
 __all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "ToolSpec", "Outcome", "ActionBook", "stage_actions"]
 
@@ -40,12 +52,12 @@ class Outcome:
     ok: bool
     text: str
     success: bool = True
-    params: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any] = field(default_factory=dict)
     #: The assets the action's `attach` delivers to its actor.
-    assets: List[str] = field(default_factory=list)
+    assets: list[str] = field(default_factory=list)
 
 
-def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> List[str]:
+def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> list[str]:
     """Action names available to ``type_name`` during ``stage`` (before per-turn legality)."""
     spec = stage.actions
     if spec == "all":
@@ -78,17 +90,17 @@ class ActionBook(ActionSchemas, ActionValidation):
         self.effects = effects
         #: Every property name some type keeps private, and per action the arguments its effects write into one.
         self._private_props = frozenset(p for t in contract.types for p, s in contract.props_of(t).items() if s.private)
-        self._kept_secrets: Dict[str, FrozenSet[str]] = {}
+        self._kept_secrets: dict[str, frozenset[str]] = {}
         #: Shared tool name → the actions offered inside it, in declaration order.
-        self.groups: Dict[str, List[str]] = {}
+        self.groups: dict[str, list[str]] = {}
         for name, spec in contract.actions.items():
             if spec.tool is not None:
                 self.groups.setdefault(spec.tool, []).append(name)
 
     # -- legality -------------------------------------------------------------
 
-    def blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int],
-                offered: bool = False) -> Optional[str]:
+    def blocked(self, actor: Entity, name: str, used_turn: dict[str, int], used_round: dict[str, int],
+                offered: bool = False) -> str | None:
         """Why ``name`` is not legal for ``actor`` right now, or None when it is. ``offered``: whether to offer it as
         a tool, where a requirement that reads another agent's private property does not count — the tool is listed
         and a call is refused if the requirement fails, so the list itself reveals nothing hidden. A turn asks this
@@ -103,8 +115,8 @@ class ActionBook(ActionSchemas, ActionValidation):
         rule (see :data:`UNDECIDED_BY_LUCK`)."""
         return self.world.without_luck(UNDECIDED_BY_LUCK)
 
-    def _blocked(self, actor: Entity, name: str, used_turn: Dict[str, int], used_round: Dict[str, int],
-                 offered: bool) -> Optional[str]:
+    def _blocked(self, actor: Entity, name: str, used_turn: dict[str, int], used_round: dict[str, int],
+                 offered: bool) -> str | None:
         spec = self.contract.actions[name]
         if not actor.alive:
             return "you are no longer active"
@@ -129,10 +141,10 @@ class ActionBook(ActionSchemas, ActionValidation):
                 return f"there is no value you can choose for {pname} right now"
         return None
 
-    def _unmet(self, actor: Entity, name: str, params: Optional[Dict[str, Any]], offered: bool = False) -> Optional[str]:
+    def _unmet(self, actor: Entity, name: str, params: dict[str, Any] | None, offered: bool = False) -> str | None:
         """The `why` of the first requirement that does not hold: those over $actor alone (``params`` None), or
         those that read $params. ``offered``: leave out those that read another agent's private property."""
-        scope: Optional[Scope] = None
+        scope: Scope | None = None
         for index, condition in enumerate(self.contract.actions[name].when):
             compiled = compile_expr(condition.expr)
             if ("params" in compiled.roots) is not (params is not None):
@@ -140,7 +152,8 @@ class ActionBook(ActionSchemas, ActionValidation):
             if offered and self._reads_hidden(actor, compiled):
                 continue
             if scope is None:  # built for the first requirement evaluated
-                scope = self.world.scope(actor=actor) if params is None else self.world.scope(actor=actor, params=params)
+                scope = (self.world.scope(actor=actor) if params is None
+                         else self.world.scope(actor=actor, params=params))
             path = f"actions.{name}.when[{index}]"
             try:
                 if truthy(compiled(scope)):
@@ -166,9 +179,10 @@ class ActionBook(ActionSchemas, ActionValidation):
             pass  # evaluated in the true state next, where it is reported
         return False
 
-    def _empty_range(self, actor: Entity, param: ParamSpec, where: str) -> Optional[str]:
+    def _empty_range(self, actor: Entity, param: ParamSpec, where: str) -> str | None:
         """The bounds, when no value lies between them right now (min above max)."""
-        low, high = _tidy(self._static(actor, param.min, f"{where}.min")), _tidy(self._static(actor, param.max, f"{where}.max"))
+        low, high = (_tidy(self._static(actor, param.min, f"{where}.min")),
+                     _tidy(self._static(actor, param.max, f"{where}.max")))
         if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (low, high)):
             return None
         least, most = (math.ceil(low), math.floor(high)) if param.type == "int" else (low, high)
@@ -187,7 +201,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         return isinstance(param.values, str) and "params" in compile_expr(param.values).roots
 
     def _choices(self, actor: Entity, action: str, pname: str, param: ParamSpec,
-                 params: Optional[Dict[str, Any]] = None, first: bool = False) -> List[Entity]:
+                 params: dict[str, Any] | None = None, first: bool = False) -> list[Entity]:
         """Entities that qualify. A `where` over earlier params is applied once they are known
         (at validation); before that (tool schemas) every entity of the type is listed. With
         ``first``, stop at the first one (enough to know whether any qualifies). The list may be shared: read it,
@@ -205,8 +219,8 @@ class ActionBook(ActionSchemas, ActionValidation):
         return self.world.remembered(("choices", action, pname, actor.id, param.of, param.where),
                                      lambda: self._qualifying(actor, action, pname, expr, items, None, False))
 
-    def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: List[Entity],
-                    params: Optional[Dict[str, Any]], first: bool) -> List[Entity]:
+    def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: list[Entity],
+                    params: dict[str, Any] | None, first: bool) -> list[Entity]:
         out = []
         base = self.world.scope(actor=actor, viewer=actor, params=params or {})
         ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
@@ -227,8 +241,8 @@ class ActionBook(ActionSchemas, ActionValidation):
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.where") from None
         return out
 
-    def fill_dependent(self, actor: Entity, name: str, args: Dict[str, Any],
-                       pick: Callable[[List[Any]], Any]) -> Dict[str, Any]:
+    def fill_dependent(self, actor: Entity, name: str, args: dict[str, Any],
+                       pick: Callable[[list[Any]], Any]) -> dict[str, Any]:
         """``args`` with each argument its tool cannot list the exact choices of — an entity or enum whose choices
         depend on earlier arguments, or entities too many to enumerate — set to ``pick`` of the choices that qualify,
         for participants that choose arguments from the tool schema without reading the rules. It stops at the first
@@ -237,16 +251,16 @@ class ActionBook(ActionSchemas, ActionValidation):
         with self.deciding():
             return self._fill_dependent(actor, name, args, pick)
 
-    def _fill_dependent(self, actor: Entity, name: str, args: Dict[str, Any],
-                        pick: Callable[[List[Any]], Any]) -> Dict[str, Any]:
+    def _fill_dependent(self, actor: Entity, name: str, args: dict[str, Any],
+                        pick: Callable[[list[Any]], Any]) -> dict[str, Any]:
         spec = self.contract.actions[name]
         unlisted = {pname for pname, p in spec.params.items() if (p.type == "entity" and (
             self._depends_on_params(p) or len(self._choices(actor, name, pname, p)) > _ENUM_CHOICES))
             or (p.type == "enum" and self._values_depend_on_params(p))}
         if not unlisted:
             return args
-        filled: Dict[str, Any] = dict(args)
-        params: Dict[str, Any] = {}
+        filled: dict[str, Any] = dict(args)
+        params: dict[str, Any] = {}
         for pname, param in spec.params.items():
             if pname in unlisted:
                 entity = param.type == "entity"
@@ -269,14 +283,14 @@ class ActionBook(ActionSchemas, ActionValidation):
 
     # -- apply ---------------------------------------------------------------------
 
-    def apply(self, actor: Entity, name: str, params: Dict[str, Any]) -> Outcome:
+    def apply(self, actor: Entity, name: str, params: dict[str, Any]) -> Outcome:
         """Apply atomically. A `fail` effect or failed transfer rolls back and returns ok=False.
         Everything the action evaluates shares one work budget, so a loop of effects is bounded
         as a whole, not only each expression in it."""
         with shared_budget(ACTION_BUDGET, f"actions.{name}"):
             return self._apply(actor, name, params)
 
-    def _apply(self, actor: Entity, name: str, params: Dict[str, Any], trial: bool = False) -> Outcome:
+    def _apply(self, actor: Entity, name: str, params: dict[str, Any], trial: bool = False) -> Outcome:
         """Apply atomically. A ``trial`` (a dry run, rolled back by the caller) leaves out the default outcome text,
         the announcement and its event: they cannot fail or draw, and a rollback would undo them unseen. The action
         draws from its actor's own stream, so it never shifts another agent's luck or the world's; a refusal keeps
@@ -284,12 +298,12 @@ class ActionBook(ActionSchemas, ActionValidation):
         with self.world.drawing_at(f"actions.{name}@{actor.id}"):
             return self._apply_drawn(actor, name, params, trial)
 
-    def _apply_drawn(self, actor: Entity, name: str, params: Dict[str, Any], trial: bool) -> Outcome:
+    def _apply_drawn(self, actor: Entity, name: str, params: dict[str, Any], trial: bool) -> Outcome:
         """:meth:`_apply` inside the action's draw site."""
         spec: ActionSpec = self.contract.actions[name]
         world = self.world
         mark = world.journal.mark()
-        vars: Dict[str, Any] = {"actor": actor, "params": params}
+        vars: dict[str, Any] = {"actor": actor, "params": params}
         path = f"actions.{name}"
         success = True
         log_mark = world.log[-1].seq if world.log else 0
@@ -337,7 +351,7 @@ class ActionBook(ActionSchemas, ActionValidation):
             raise
         return Outcome(True, text, success, params, assets)
 
-    def duration(self, actor: Entity, name: str, params: Dict[str, Any]) -> float:
+    def duration(self, actor: Entity, name: str, params: dict[str, Any]) -> float:
         """How long the action takes on a continuous clock (0 when it declares no duration)."""
         raw = self.contract.actions[name].duration
         if raw is None:
@@ -350,7 +364,7 @@ class ActionBook(ActionSchemas, ActionValidation):
             raise RunError(f"duration must be a number ≥ 0, got {format_value(value)}", f"actions.{name}.duration")
         return float(value)
 
-    def ends_turn(self, actor: Entity, name: str, params: Dict[str, Any]) -> bool:
+    def ends_turn(self, actor: Entity, name: str, params: dict[str, Any]) -> bool:
         terminal = self.contract.actions[name].terminal
         if isinstance(terminal, bool):
             return terminal
@@ -369,7 +383,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         finally:
             world.journal.rollback(mark)
 
-    def trial(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
+    def trial(self, actor: Entity, name: str, params: dict[str, Any]) -> str | None:
         """Apply inside :meth:`trying`, to catch a doomed call before it is made: the refusal, or None. A trial draws
         nothing and asks no chance picker: at its first random draw it stops and refuses nothing, because what follows
         is luck, and telling it would let an agent probe its luck before playing (the call itself rolls it)."""
@@ -384,12 +398,12 @@ class ActionBook(ActionSchemas, ActionValidation):
             world.chance_picker = picker
         return None if outcome.ok else outcome.text
 
-    def dry_run(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
+    def dry_run(self, actor: Entity, name: str, params: dict[str, Any]) -> str | None:
         """:meth:`trial` and roll back: the refusal, or None."""
         with self.trying():
             return self.trial(actor, name, params)
 
-    def replay(self, actor: Entity, intents: Sequence[Tuple[str, Dict[str, Any]]]) -> None:
+    def replay(self, actor: Entity, intents: Sequence[tuple[str, dict[str, Any]]]) -> None:
         """Apply ``actor``'s sealed choices inside :meth:`trying`, as their commit will, so its next choice is tried
         against the state they leave (two buys cannot spend the same coins)."""
         for name, args in intents:
@@ -397,7 +411,7 @@ class ActionBook(ActionSchemas, ActionValidation):
             if not problem:
                 self.trial(actor, name, params)
 
-    def refusal(self, actor: Entity, name: str, params: Dict[str, Any]) -> Optional[str]:
+    def refusal(self, actor: Entity, name: str, params: dict[str, Any]) -> str | None:
         """:meth:`dry_run` for code that only asks whether a call would work (tool probes, legal-call listings): a rule
         that fails for the call refuses it, as it would if an agent made it."""
         try:
@@ -405,11 +419,11 @@ class ActionBook(ActionSchemas, ActionValidation):
         except RunError as exc:
             return fault_reason(exc)
 
-    def _posted_since(self, record_mark: int) -> List[Tuple[RecordSpec, Dict[str, Any]]]:
+    def _posted_since(self, record_mark: int) -> list[tuple[RecordSpec, dict[str, Any]]]:
         """Entries posted after ``record_mark``, with their record's spec."""
         if self.world._record_seq == record_mark:
             return []
-        posted: List[Tuple[RecordSpec, Dict[str, Any]]] = []
+        posted: list[tuple[RecordSpec, dict[str, Any]]] = []
         for name, spec in self.contract.records.items():
             for entry in reversed(self.world.records_store.get(name, [])):
                 if entry["seq"] <= record_mark:
@@ -423,7 +437,7 @@ class ActionBook(ActionSchemas, ActionValidation):
         stage = self.world.stage
         return any(spec.name == stage and spec.turns == "simultaneous" for spec in self.contract.stage_list())
 
-    def _kept_secret(self, name: str) -> FrozenSet[str]:
+    def _kept_secret(self, name: str) -> frozenset[str]:
         """The arguments of action ``name`` that its effects write into a private property."""
         known = self._kept_secrets.get(name)
         if known is None:
@@ -432,8 +446,8 @@ class ActionBook(ActionSchemas, ActionValidation):
         return known
 
     @staticmethod
-    def _public_params(params: Dict[str, Any], posted: Sequence[Tuple[RecordSpec, Dict[str, Any]]],
-                       secret: FrozenSet[str]) -> Dict[str, Any]:
+    def _public_params(params: dict[str, Any], posted: Sequence[tuple[RecordSpec, dict[str, Any]]],
+                       secret: frozenset[str]) -> dict[str, Any]:
         """The arguments an announcement may repeat. An entry that is not broadcast to everyone
         (a record that does not notify, a directed or restricted entry) keeps its content to
         its own audience, so arguments carried into it are left out; so are ``secret`` ones, which the action keeps
@@ -445,35 +459,35 @@ class ActionBook(ActionSchemas, ActionValidation):
             return params
         return {k: v for k, v in params.items() if k not in secret and not _carried(_plain(v), kept)}
 
-    def _render(self, template: str, vars: Dict[str, Any], path: str) -> str:
+    def _render(self, template: str, vars: dict[str, Any], path: str) -> str:
         try:
             return compile_template(template, None).render(self.world.scope(**vars))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
     @staticmethod
-    def _args_text(params: Dict[str, Any]) -> str:
+    def _args_text(params: dict[str, Any]) -> str:
         parts = [f"{k}={format_value(v)}" for k, v in params.items() if v is not None]
         return f" ({', '.join(parts)})" if parts else ""
 
-    def default_outcome(self, name: str, params: Dict[str, Any], success: bool) -> str:
+    def default_outcome(self, name: str, params: dict[str, Any], success: bool) -> str:
         verb = name.replace("_", " ")
         return f"Done: {verb}{self._args_text(params)}." if success else f"{verb.capitalize()} did not succeed."
 
-    def _default_announce(self, actor: Entity, name: str, params: Dict[str, Any], success: bool) -> str:
+    def _default_announce(self, actor: Entity, name: str, params: dict[str, Any], success: bool) -> str:
         verb = name.replace("_", " ")
         suffix = "" if success else " — it did not succeed"
         return f"{actor.name}: {verb}{self._args_text(params)}{suffix}."
 
 
-def _written_into(private: FrozenSet[str], effects: Any) -> Iterator[str]:
+def _written_into(private: frozenset[str], effects: Any) -> Iterator[str]:
     """The arguments (``$params.<name>``) whose value may reach a property named in ``private`` through the
     assignments in ``effects``, however nested: read on the right of an assignment into one, or carried there by
     locals (``$x = $params.v``, then ``$actor.secret = $x``). It follows the value, not the wording."""
     statements = list(_statements(effects))
-    carried: Dict[str, Set[str]] = {}  # local → the arguments its value may hold
+    carried: dict[str, set[str]] = {}  # local → the arguments its value may hold
 
-    def reads(statement: Any) -> Set[str]:
+    def reads(statement: Any) -> set[str]:
         found = {chain[1] for chain in statement.value.paths if chain[0] == "params" and len(chain) > 1}
         return found.union(*(carried.get(root, ()) for root in statement.value.roots))
 

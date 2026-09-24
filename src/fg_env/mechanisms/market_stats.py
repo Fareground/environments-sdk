@@ -11,7 +11,8 @@ Expression functions: ``$market_stats`` (every stylized fact of a series), ``$ma
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..expr import Call, ExprError, function
 
@@ -22,9 +23,9 @@ __all__ = ["log_returns", "stdev", "autocorr", "correlation", "excess_kurtosis",
 CLUSTER_LAGS = (1, 2, 3, 4, 5)
 
 
-def log_returns(prices: Sequence[float]) -> List[float]:
+def log_returns(prices: Sequence[float]) -> list[float]:
     """Log returns between consecutive positive prices."""
-    out: List[float] = []
+    out: list[float] = []
     for prev, cur in zip(prices, prices[1:]):
         if prev is not None and cur is not None and prev > 0 and cur > 0:
             out.append(math.log(cur / prev))
@@ -93,10 +94,10 @@ def max_drawdown(prices: Sequence[float]) -> float:
     return worst
 
 
-def series_stats(prices: Sequence[float], volumes: Optional[Sequence[float]] = None) -> Dict[str, float]:
+def series_stats(prices: Sequence[float], volumes: Sequence[float] | None = None) -> dict[str, float]:
     """Stylized-fact summary of one price series (one value per bar, oldest first)."""
     rets = log_returns(prices)
-    stats: Dict[str, float] = {
+    stats: dict[str, float] = {
         "bars": len(prices),
         "sigma": stdev(rets),
         "mean_return": _mean(rets),
@@ -124,11 +125,11 @@ def _ratio_score(sim: float, ref: float) -> float:
     return math.exp(-abs(math.log(sim / ref)))
 
 
-def realism_score(sim: Mapping[str, float], ref: Mapping[str, float]) -> Dict[str, Any]:
+def realism_score(sim: Mapping[str, float], ref: Mapping[str, float]) -> dict[str, Any]:
     """Compare simulated stylized facts with a reference: ``{score, components}`` (each 0..1)."""
-    components: List[Dict[str, Any]] = []
+    components: list[dict[str, Any]] = []
 
-    def add(key: str, label: str, score: float, sim_value: float, ref_value: Optional[float], note: str) -> None:
+    def add(key: str, label: str, score: float, sim_value: float, ref_value: float | None, note: str) -> None:
         components.append({"key": key, "label": label, "score": round(max(0.0, min(1.0, score)), 3),
                            "sim": round(sim_value, 5), "ref": None if ref_value is None else round(ref_value, 5),
                            "note": note})
@@ -160,13 +161,13 @@ def realism_score(sim: Mapping[str, float], ref: Mapping[str, float]) -> Dict[st
 # ---------------------------------------------------------------------------
 
 
-def _numbers(call: Call, index: int, what: str) -> List[float]:
+def _numbers(call: Call, index: int, what: str) -> list[float]:
     value = call.arg(index)
     if value is None:
         return []
     if not isinstance(value, (list, tuple)):
         raise ExprError(f"${call.name}: {what} must be a list of numbers, got {value!r}", call.source)
-    out: List[float] = []
+    out: list[float] = []
     for item in value:
         if item is None:
             continue
@@ -176,7 +177,7 @@ def _numbers(call: Call, index: int, what: str) -> List[float]:
     return out
 
 
-def _stats_of(call: Call, value: Any, what: str) -> Dict[str, float]:
+def _stats_of(call: Call, value: Any, what: str) -> dict[str, float]:
     """A price list, ``{prices, volumes}``, or a stats map already computed."""
     if isinstance(value, Mapping):
         if "sigma" in value:
@@ -186,10 +187,12 @@ def _stats_of(call: Call, value: Any, what: str) -> Dict[str, float]:
             raise ExprError(f"${call.name}: {what} as a map needs `prices` (and optionally `volumes`) or stats "
                             "from $market_stats", call.source)
         return series_stats([float(p) for p in prices if p is not None],
-                            [float(v) for v in volumes if v is not None] if isinstance(volumes, (list, tuple)) else None)
+                            [float(v) for v in volumes if v is not None] if isinstance(volumes, (list, tuple))
+                            else None)
     if isinstance(value, (list, tuple)):
         return series_stats([float(p) for p in value if isinstance(p, (int, float)) and not isinstance(p, bool)])
-    raise ExprError(f"${call.name}: {what} must be a price list, {{prices, volumes}} or $market_stats(...), got {value!r}",
+    raise ExprError(f"${call.name}: {what} must be a price list, {{prices, volumes}} or $market_stats(...), got "
+                    f"{value!r}",
                     call.source)
 
 
@@ -201,7 +204,7 @@ def _kurtosis_function(call: Call) -> float:
 
 @function("market_stats(prices, volumes?)", "Stylized facts of a price series: {bars, sigma, mean_return, kurtosis, "
           "acf1, acf_abs, max_drawdown, total_return, avg_volume, vol_volume_corr}.", min_args=1, max_args=2)
-def _stats_function(call: Call) -> Dict[str, float]:
+def _stats_function(call: Call) -> dict[str, float]:
     volumes = _numbers(call, 1, "volumes") if len(call) > 1 else None
     return series_stats(_numbers(call, 0, "prices"), volumes)
 
@@ -209,5 +212,5 @@ def _stats_function(call: Call) -> Dict[str, float]:
 @function("market_realism(series, reference)", "Realism score of a simulated tape against a reference: {score, "
           "components} on volatility, fat tails, no return memory, volatility clustering, volume and volume-volatility "
           "correlation. Each side is a price list, {prices, volumes} or $market_stats(...).", min_args=2, max_args=2)
-def _realism_function(call: Call) -> Dict[str, Any]:
+def _realism_function(call: Call) -> dict[str, Any]:
     return realism_score(_stats_of(call, call.arg(0), "series"), _stats_of(call, call.arg(1), "reference"))

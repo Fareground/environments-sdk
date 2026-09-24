@@ -12,16 +12,19 @@ CHAIN = {
     "world": {"now": 0, "total_stock": {"type": "number", "default": "$sum(tier, $it.stock)"},
               "board": {"type": "list", "default": [0, 0, 0]}, "tally": {"type": "map", "default": {"a": 1}}},
     "types": {
-        "tier": {"agent": True, "policy": "steady", "props": {"stock": 10, "n": 0, "log": {"type": "list", "default": []}}},
+        "tier": {"agent": True, "policy": "steady",
+                 "props": {"stock": 10, "n": 0, "log": {"type": "list", "default": []}}},
         "shop": {"extends": "tier"},
         "plant": {"extends": "tier"},
     },
     "entities": {"s": {"type": "shop", "name": "Shop"}, "p": {"type": "plant", "name": "Plant"}},
     "defs": {"year": "$clock.date"},
     "actions": {
-        "order": {"by": "tier", "params": {"qty": {"type": "int", "min": 0, "max": 20, "invalid": "Order 0 to 20 units, not {$value}."}},
-                  "do": ["$actor.n += 1", "$world.board[$actor.n - 1] = $params.qty", "$world.tally[$actor.id] += $params.qty",
-                         "$actor.log += $params.qty"],
+        "order": {"by": "tier",
+                  "params": {"qty": {"type": "int", "min": 0, "max": 20,
+                                     "invalid": "Order 0 to 20 units, not {$value}."}},
+                  "do": ["$actor.n += 1", "$world.board[$actor.n - 1] = $params.qty",
+                         "$world.tally[$actor.id] += $params.qty", "$actor.log += $params.qty"],
                   "terminal": "$actor.n >= 2"},
     },
     "stages": [{"name": "orders", "must_act": True, "max_actions": 3, "on_idle": ["$actor.stock -= 1"]}],
@@ -41,7 +44,8 @@ def _contract(**changes):
 
 def test_parent_participant_keys_and_inherited_policy():
     seen = []
-    fg_env.run(_contract(), {"tier": lambda w: (seen.append(w.type), w.call("order", {"qty": 1}), w.call("order", {"qty": 1}))},
+    fg_env.run(_contract(),
+               {"tier": lambda w: (seen.append(w.type), w.call("order", {"qty": 1}), w.call("order", {"qty": 1}))},
                seed=1, rounds=1)
     assert sorted(seen) == ["plant", "shop"]
     result = fg_env.run(_contract(outputs={}), seed=1, rounds=1)  # no participants: the parent's policy
@@ -126,7 +130,8 @@ NETWORK = {
     "relations": {"follows": {}},
     "links": [{"relation": "follows", "among": "user", "graph": "random", "p": "0.9 if $to.star else 0.05"}],
     "actions": {"wait": {"by": "user", "do": []}},
-    "outputs": {"star_followers": {"expr": "$avg(filter(user, $it.star), $count(user, $linked($it, $outer, follows)))".replace("filter(", "$filter("), "type": "number"}},
+    "outputs": {"star_followers": {"expr": "$avg(filter(user, $it.star), $count(user, $linked($it, $outer, "
+                                           "follows)))".replace("filter(", "$filter("), "type": "number"}},
 }
 
 

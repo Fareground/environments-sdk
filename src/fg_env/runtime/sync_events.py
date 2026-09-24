@@ -8,13 +8,14 @@ property is an error naming both; anything else that changes the world directly 
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..actions.book import ACTION_BUDGET
 from ..contract import EventSpec
 from ..errors import RunError
 from ..expr import compile_expr, shared_budget, truthy
+from ..world.entity import Entity
 from ..world.live import Abort
 
 if TYPE_CHECKING:
@@ -22,15 +23,15 @@ if TYPE_CHECKING:
 
 __all__ = ["WriteBuffer", "run_sync"]
 
-Key = Tuple[Any, ...]
+Key = tuple[Any, ...]
 
 
 class WriteBuffer:
     """Writes waiting for a sync event to commit: the running item's, then every kept item's."""
 
     def __init__(self) -> None:
-        self.item: Dict[Key, Tuple[Any, Callable[[], None]]] = {}
-        self.kept: Dict[Key, Tuple[Any, Callable[[], None], str]] = {}
+        self.item: dict[Key, tuple[Any, Callable[[], None]]] = {}
+        self.kept: dict[Key, tuple[Any, Callable[[], None], str]] = {}
 
     def write(self, key: Key, value: Any, apply: Callable[[], None], where: str) -> None:
         self.item[key] = (value, apply)  # an item's later write to the same target replaces its earlier one
@@ -45,10 +46,10 @@ class WriteBuffer:
         self.item.clear()
 
 
-def run_sync(env: "Env", event: EventSpec, items: Sequence[Any], name: str, path: str) -> None:
+def run_sync(env: Env, event: EventSpec, items: Sequence[Any], name: str, path: str) -> None:
     world = env.world
     buffer = WriteBuffer()
-    refusals: List[str] = []
+    refusals: list[str] = []
     ran = False
     with env._lock:
         for position, item in enumerate(items):
@@ -86,7 +87,8 @@ def run_sync(env: "Env", event: EventSpec, items: Sequence[Any], name: str, path
             world.journal.rollback(mark)
             raise
         for reason in refusals:
-            world.emit("refused", f"{path}.do was refused: {reason}", to=[], data={"path": f"{path}.do", "reason": reason})
+            world.emit("refused", f"{path}.do was refused: {reason}", to=[],
+                       data={"path": f"{path}.do", "reason": reason})
         env._after_commit(f"{path}.do")
         env.happenings.react(env._stage_spec())
 

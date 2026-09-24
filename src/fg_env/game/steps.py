@@ -8,7 +8,8 @@ is how conformance issues, playthroughs and benchmarks name a position.
 from __future__ import annotations
 
 import random
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from .space import Action
 from .state import CHANCE, GameState
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Step", "random_step", "apply_step", "step_text", "replay_steps"]
 
-Step = Dict[str, Any]
+Step = dict[str, Any]
 
 
 def random_step(state: GameState, rng: random.Random) -> Step:
@@ -42,7 +43,7 @@ def _pick(state: GameState, seat: int, rng: random.Random) -> Action:
     return rng.choice(legal)
 
 
-def _call(action: Action) -> Dict[str, Any]:
+def _call(action: Action) -> dict[str, Any]:
     return {"tool": action.tool, "args": dict(action.args)}
 
 
@@ -72,7 +73,7 @@ def step_text(state: GameState, step: Mapping[str, Any]) -> str:
     return f"seat {step['seat']}: {Action(None, step['tool'], step['args']).text}"
 
 
-def replay_steps(game: "Game", steps: Sequence[Mapping[str, Any]]) -> GameState:
+def replay_steps(game: Game, steps: Sequence[Mapping[str, Any]]) -> GameState:
     """The state reached by applying ``steps`` to a new initial state."""
     state = game.new_initial_state()
     try:
@@ -84,7 +85,8 @@ def replay_steps(game: "Game", steps: Sequence[Mapping[str, Any]]) -> GameState:
     return state
 
 
-def steps_to_json(steps: Sequence[Mapping[str, Any]]) -> List[Dict[str, Any]]:
+def steps_to_json(steps: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     """Steps with string seat keys in joint moves, as JSON writes them."""
-    return [{"joint": {str(seat): dict(call) for seat, call in step["joint"].items()}} if "joint" in step else dict(step)
+    return [{"joint": {str(seat): dict(call) for seat, call in step["joint"].items()}} if "joint" in step
+            else dict(step)
             for step in steps]

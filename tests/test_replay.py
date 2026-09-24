@@ -3,13 +3,13 @@ import copy
 import json
 import time
 
-import fg_env
-from fg_env.__main__ import main
-from fg_env import host
-from fg_env.host.stubs import StubEvaluator
-
 from test_exposures import TOWN
 from test_host_tape import PITCH
+
+import fg_env
+from fg_env import host
+from fg_env.__main__ import main
+from fg_env.host.stubs import StubEvaluator
 
 
 def llm_like(wake):
@@ -59,7 +59,8 @@ def test_changing_the_contract_text_reports_the_first_divergence_precisely(tmp_p
                                                    "the recording — the definition of 'pitch' changed")
     shorter = dict(copy.deepcopy(PITCH), clock={"rounds": 1})
     assert recording.replay(shorter).message == ('turn 1 (ana, round 1, stage play): the update differs from the '
-                                                 'recording — line 1 was "Round 1 of 2 · play", now "Round 1 of 1 · play"')
+                                                 'recording — line 1 was "Round 1 of 2 · play", now "Round 1 of 1 · '
+                                                 'play"')
 
 
 def test_a_changed_call_result_is_reported_with_both_outcomes(tmp_path):

@@ -3,16 +3,16 @@ every change journaled through the world, so an action that is refused leaves th
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from .entity import Entity
 from ..contract import Space
+from ..effects import layer as _layer_effect  # noqa: F401  (registers the `layer` effect)
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
+from .entity import Entity
 from .geometry import Geometry, SpaceError
 from .layers import Layers
 from .positions import PositionIndex
-from ..effects import layer as _layer_effect  # noqa: F401  (registers the `layer` effect)
 
 if TYPE_CHECKING:
     from .live import SdkWorld
@@ -21,7 +21,7 @@ __all__ = ["Spatial", "position_of"]
 
 
 class Spatial:
-    def __init__(self, world: "SdkWorld", spec: Space):
+    def __init__(self, world: SdkWorld, spec: Space):
         self._world = world
         try:
             self.geometry = Geometry(spec, self._resolve)
@@ -43,7 +43,7 @@ class Spatial:
         except ExprError as exc:
             raise RunError(str(exc), "space.layers") from None
 
-    def _capacity(self, raw: Any) -> "tuple[Optional[int], Dict[str, int]]":
+    def _capacity(self, raw: Any) -> tuple[int | None, dict[str, int]]:
         if raw is None:
             return None, {}
         if self.geometry.kind == "plane":
@@ -54,7 +54,8 @@ class Spatial:
         for type_name, limit in raw.items():
             if type_name not in self._world.contract.types:
                 raise SpaceError(f"space.capacity: '{type_name}' is not a declared type")
-            limits[type_name] = _count(self._resolve(limit, f"space.capacity.{type_name}"), f"space.capacity.{type_name}")
+            limits[type_name] = _count(self._resolve(limit, f"space.capacity.{type_name}"),
+                                       f"space.capacity.{type_name}")
         return None, limits
 
     # -- entities --------------------------------------------------------------------------
@@ -65,7 +66,7 @@ class Spatial:
         except SpaceError as exc:
             raise RunError(str(exc), where) from None
 
-    def no_room(self, entity: Entity, position: Any) -> Optional[str]:
+    def no_room(self, entity: Entity, position: Any) -> str | None:
         """Why ``entity`` cannot be at ``position`` (the cell is full), or None when it fits."""
         if self.capacity is None and not self.capacities:
             return None
@@ -104,17 +105,17 @@ class Spatial:
         values[cell] = new
         world.journal.push(lambda: values.__setitem__(cell, old))
 
-    def replace(self, name: str, values: List[Any]) -> None:
+    def replace(self, name: str, values: list[Any]) -> None:
         """Swap in a whole layer's new values as one journaled change."""
         store = self.layers.values
         old = store[name]
         store[name] = values
         self._world.journal.push(lambda: store.__setitem__(name, old))
 
-    def state(self) -> Dict[str, List[Any]]:
+    def state(self) -> dict[str, list[Any]]:
         return {name: list(values) for name, values in self.layers.values.items()}
 
-    def restore(self, state: Dict[str, List[Any]]) -> None:
+    def restore(self, state: dict[str, list[Any]]) -> None:
         for name, values in state.items():
             if name in self.layers.values and len(values) == self.geometry.cell_count:
                 self.layers.values[name] = list(values)

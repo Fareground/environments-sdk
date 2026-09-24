@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from typing import List, Optional, Tuple
 
 __all__ = ["syntax_message"]
 
@@ -23,10 +22,10 @@ def syntax_message(source: str, python_message: str) -> str:
     return f"syntax error: {python_message}"
 
 
-def _unbalanced(source: str) -> Optional[str]:
+def _unbalanced(source: str) -> str | None:
     """What is wrong with the brackets or quotes of ``source``, with the fix, or None when they balance."""
-    stack: List[Tuple[str, int]] = []
-    quote: Optional[Tuple[str, int]] = None
+    stack: list[tuple[str, int]] = []
+    quote: tuple[str, int] | None = None
     index = 0
     while index < len(source):
         char = source[index]
@@ -53,8 +52,8 @@ def _unbalanced(source: str) -> Optional[str]:
                 f"add a closing {quote[0]}")
     if stack:
         opening, at = stack[-1]
-        return (f"the `{opening}` at character {at + 1} ({_at(source, at)}) is never closed — add `{_CLOSING[opening]}` "
-                "where what it holds ends")
+        return (f"the `{opening}` at character {at + 1} ({_at(source, at)}) is never closed — add "
+                f"`{_CLOSING[opening]}` where what it holds ends")
     return None
 
 

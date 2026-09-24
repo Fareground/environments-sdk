@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, NoReturn, Optional
+from typing import TYPE_CHECKING, Any, NoReturn
 
 from ..actions.book import ACTION_BUDGET, stage_actions
 from ..contract import StageSpec
 from ..errors import ContractError, Issue
 from ..expr import shared_budget
 from ..runtime.perception import is_spectator
-from .snapshot import restore_env
 from ..runtime.turn import Turn
+from .snapshot import restore_env
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -22,17 +23,17 @@ __all__ = ["Previews"]
 class Previews:
     """Previews of an agent's next turn (and the probes they play on); spectator views and frames."""
 
-    def __init__(self, env: "Env"):
+    def __init__(self, env: Env):
         self.env = env
         self.spectator = [name for name, view in env.contract.views.items() if is_spectator(view)]
         #: Spectator views rendered at the end of every round, the last one marked final.
-        self.frames: List[Dict[str, Any]] = []
+        self.frames: list[dict[str, Any]] = []
 
     # -- spectator ---------------------------------------------------------------------
 
-    def spectate(self) -> Dict[str, str]:
+    def spectate(self) -> dict[str, str]:
         env, world = self.env, self.env.world
-        shown: Dict[str, str] = {}
+        shown: dict[str, str] = {}
         with env._lock, world.turn_context(env.seeds.rng("spectator", world.round, len(self.frames)), None):
             for name in self.spectator:
                 with shared_budget(ACTION_BUDGET, f"views.{name}"):
@@ -48,7 +49,7 @@ class Previews:
         world = self.env.world
         if self.frames and self.frames[-1]["round"] == world.round:
             self.frames.pop()  # the run ended at the start of a round: the frame it closed on is final
-        frame: Dict[str, Any] = {"round": world.round, "views": self.spectate()}
+        frame: dict[str, Any] = {"round": world.round, "views": self.spectate()}
         if world.continuous:
             frame["time"] = world.time
         if final:
@@ -57,7 +58,7 @@ class Previews:
 
     # -- preview -------------------------------------------------------------------------
 
-    def preview(self, entity_id: str, stage: Optional[str], participants: Any = None) -> Dict[str, Any]:
+    def preview(self, entity_id: str, stage: str | None, participants: Any = None) -> dict[str, Any]:
         env = self.env
         if env.world.entity(entity_id) is None:
             agents = [e.id for e in env.world.entities.values() if env.contract.is_agent(e.entity_type)]
@@ -78,7 +79,7 @@ class Previews:
         start._begin_round()
         return start.previews.now(entity_id, stage)
 
-    def probe(self, snapshot: Mapping[str, Any], participants: Any = None) -> "Env":
+    def probe(self, snapshot: Mapping[str, Any], participants: Any = None) -> Env:
         """A restored copy of the run to play a preview on (hosts bind their copies here), its agents played by
         ``participants`` — by default the run's built-in and named ones."""
         env = self.env
@@ -93,7 +94,7 @@ class Previews:
         probe.time_limit = env.time_limit
         return probe
 
-    def now(self, entity_id: str, stage: Optional[str]) -> Dict[str, Any]:
+    def now(self, entity_id: str, stage: str | None) -> dict[str, Any]:
         """The turn as it would look in the current state, without playing anything."""
         env = self.env
         actor = env.world.entity(entity_id)
@@ -124,7 +125,7 @@ class Previews:
         turn = Turn(env, env.world.entities[entity_id], spec, reason, spec.turns == "simultaneous", peek=True)
         return env.driver.trivial(turn)
 
-    def turn(self, entity_id: str, spec: StageSpec, reason: str) -> Dict[str, Any]:
+    def turn(self, entity_id: str, spec: StageSpec, reason: str) -> dict[str, Any]:
         env = self.env
         actor = env.world.entities[entity_id]
         turn = Turn(env, actor, spec, reason, spec.turns == "simultaneous", peek=True)
@@ -142,15 +143,15 @@ class Previews:
 
 
 def _plays_free(participant: Any, policies: Mapping[str, Any]) -> bool:
-    """Whether a participant plays the earlier turns of a preview: only the built-in ones that cost nothing and answer at
-    once (random, idle, a contract policy). An LLM, a search algorithm or your own callable is replaced by the agent's
-    default (its type's policy, else random): a preview never makes a paid or slow call."""
+    """Whether a participant plays the earlier turns of a preview: only the built-in ones that cost nothing and answer
+    at once (random, idle, a contract policy). An LLM, a search algorithm or your own callable is replaced by the
+    agent's default (its type's policy, else random): a preview never makes a paid or slow call."""
     if not isinstance(participant, str):
         return False
     return participant in ("random", "idle") or participant.removeprefix("policy:") in policies
 
 
-def _refuse(path: str, message: str, name: str, known: List[str], kind: str) -> NoReturn:
+def _refuse(path: str, message: str, name: str, known: list[str], kind: str) -> NoReturn:
     hint = get_close_matches(name, known, n=1)
     raise ContractError([Issue(path, message, (f"did you mean '{hint[0]}'? " if hint else "")
                                + f"{kind}: {', '.join(known[:20]) or 'none'}")], title="cannot preview")

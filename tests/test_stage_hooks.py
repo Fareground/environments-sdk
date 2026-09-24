@@ -1,10 +1,9 @@
 """Mechanism stage hooks fill in turn settings the author left unset."""
 import pytest
+from family_fixtures import Nothing, scratch_family
 
 import fg_env
 from fg_env.registry import mode
-
-from family_fixtures import Nothing, scratch_family
 
 FAMILY = "test_stage_settings"
 
@@ -13,7 +12,8 @@ FAMILY = "test_stage_settings"
 def hooks():
     with scratch_family(FAMILY):
         mode(FAMILY, "settings", Nothing, "Hooks turn settings onto the author's stage.")(
-            lambda name, config, contract: {"stage_hooks": {"play": {"until": "$world.done", "passes": 5, "who": "$it.active"}}})
+            lambda name, config,
+            contract: {"stage_hooks": {"play": {"until": "$world.done", "passes": 5, "who": "$it.active"}}})
         mode(FAMILY, "bad", Nothing, "Tries to set a field stages don't have.")(
             lambda name, config, contract: {"stage_hooks": {"play": {"colour": "blue"}}})
         yield

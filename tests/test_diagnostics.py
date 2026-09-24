@@ -107,8 +107,8 @@ def test_a_stage_whose_condition_reads_only_what_no_rule_changes_is_reported():
                          types={"buyer": {"agent": True, "props": {"cash": 30, "loaves": 0}}})
     found = fg_env.run(contract, seed=1).diagnostics
     assert [(d["code"], d["message"]) for d in found] == [
-        ("stage_never_runs", "never ran and cannot: its `when` is false and it reads only `$world.phase`, which no rule "
-                             "changes")]
+        ("stage_never_runs", "never ran and cannot: its `when` is false and it reads only `$world.phase`, which no "
+                             "rule changes")]
     changed = _contract(stages=contract["stages"], types=contract["types"],
                         events=[{"at": 9, "do": "$world.phase = 'closed'"}])
     assert fg_env.run(changed, seed=1).diagnostics == []

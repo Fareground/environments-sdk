@@ -47,7 +47,8 @@ def test_failed_baseline_participants_are_not_run_again_for_diagnostics():
 
 @pytest.mark.parametrize("workers", [1, 2])
 def test_job_specific_build_failures_do_not_discard_other_jobs(workers):
-    results = run_jobs(contract("$inputs.capacity == 10"), [Job({"capacity": 5}, None, 3), Job({}, None, 4)], workers=workers)
+    results = run_jobs(contract("$inputs.capacity == 10"), [Job({"capacity": 5}, None, 3), Job({}, None, 4)],
+                       workers=workers)
     assert [r.status for r in results] == ["failed", "completed"]
     assert "capacity must match staffed capacity" in results[0].error
     assert results[1].outputs == {"capacity": 10}

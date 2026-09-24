@@ -10,8 +10,8 @@ __all__ = ["add_game_commands"]
 
 
 def cmd_conformance(args: argparse.Namespace) -> int:
-    from . import _inputs
     from ..game.conformance import conformance
+    from . import _inputs
 
     report = conformance(args.file, sims=args.sims, seed=args.seed, inputs=_inputs(args),
                          simultaneous="turn_based" if args.turn_based else "joint", leak_branches=args.leak_branches,
@@ -21,8 +21,8 @@ def cmd_conformance(args: argparse.Namespace) -> int:
 
 
 def cmd_playthrough(args: argparse.Namespace) -> int:
-    from . import _inputs, _UsageError
     from ..game.playthrough import playthrough, steps_from_text
+    from . import _inputs, _UsageError
 
     steps = None
     if args.steps:
@@ -82,5 +82,6 @@ def add_game_commands(sub: Any) -> None:
     p.add_argument("--turn-based", action="store_true", help="play simultaneous stages one seat at a time")
     p.add_argument("--max-steps", type=int, default=500, help="longest playthrough")
     p.add_argument("--out", help="write the playthrough to this file")
-    p.add_argument("--check", metavar="FILE", help="compare with a golden playthrough; print the diff, exit 1 if changed")
+    p.add_argument("--check", metavar="FILE",
+                   help="compare with a golden playthrough; print the diff, exit 1 if changed")
     p.set_defaults(func=_guarded(cmd_playthrough))

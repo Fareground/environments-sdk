@@ -11,10 +11,11 @@ from __future__ import annotations
 import itertools
 import json
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Set, Tuple
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..actions.book import stage_actions
+from ..world.entity import Entity
 
 if TYPE_CHECKING:
     from .session import ToolResult
@@ -34,7 +35,7 @@ _OMITTED = object()
 _ASSIGNMENT = re.compile(r"(?<![=!<>])=(?!=)")
 
 
-def _tally(reasons: Dict[str, List[Any]], text: str) -> None:
+def _tally(reasons: dict[str, list[Any]], text: str) -> None:
     """Count ``text`` under its cause (numbers and quotes blanked), keeping the first wording in sorted order: agents
     in a sealed stage are refused concurrently, so the order they were refused in is not part of the run."""
     entry = reasons.setdefault(_VARIES.sub("#", text), [0, text])
@@ -45,31 +46,31 @@ def _tally(reasons: Dict[str, List[Any]], text: str) -> None:
 class Diagnosis:
     """The counts one run keeps for its diagnostics."""
 
-    def __init__(self, written: Set[str]):
+    def __init__(self, written: set[str]):
         #: action → {calls, refused, reasons}, plus {unusable, stuck}: refusals when no choice the tool offered could
         #: have worked, and their wordings; {applied, faulted}: times it took effect, and times a rule failed or an
         #: invariant broke as it applied.
-        self.actions: Dict[str, Dict[str, Any]] = {}
+        self.actions: dict[str, dict[str, Any]] = {}
         #: stage → [times reached, times run, agents woken, times it ran every pass without its `until` holding]
-        self.stages: Dict[str, List[int]] = {}
+        self.stages: dict[str, list[int]] = {}
         #: agent type → {wakes, able, rounds, last_round, reasons}
-        self.agents: Dict[str, Dict[str, Any]] = {}
+        self.agents: dict[str, dict[str, Any]] = {}
         #: stage → [overwrites, first example]
-        self.overwrites: Dict[str, List[Any]] = {}
+        self.overwrites: dict[str, list[Any]] = {}
         #: `each` effect path → [overwrites, first example]
-        self.loop_overwrites: Dict[str, List[Any]] = {}
+        self.loop_overwrites: dict[str, list[Any]] = {}
         #: Path of a rule that failed (or invariant that broke) while an agent's action applied → [times, first error]
-        self.faults: Dict[str, List[Any]] = {}
+        self.faults: dict[str, list[Any]] = {}
         #: Policy rule path → [times it acted, times its call was refused, the last refusal]
-        self.policy_rules: Dict[str, List[Any]] = {}
+        self.policy_rules: dict[str, list[Any]] = {}
         #: Names of properties written since the world was built (shared with the world, which adds to it).
         self.written = written
         #: The turn number and actions already probed in it (not saved: snapshots fall between turns).
-        self._probed: Tuple[int, Set[str]] = (0, set())
+        self._probed: tuple[int, set[str]] = (0, set())
 
     # -- actions ---------------------------------------------------------------------
 
-    def called(self, turn: "Turn", name: str, args: Any, result: "ToolResult") -> None:
+    def called(self, turn: Turn, name: str, args: Any, result: ToolResult) -> None:
         """A tool call finished: count it against its action; when it was refused, check whether any choice the
         tool offered could have worked."""
         env = turn.env
@@ -100,7 +101,7 @@ class Diagnosis:
         entry["refused"] += 1
         _tally(entry["reasons"], text)
 
-    def faulted(self, path: str, error: str, action: Optional[str] = None) -> None:
+    def faulted(self, path: str, error: str, action: str | None = None) -> None:
         """A rule at ``path`` failed, or the invariant at ``path`` broke, while an agent's action applied (which was
         refused and undone) — the contract action ``action``, when known."""
         entry = self.faults.setdefault(path, [0, error])
@@ -108,7 +109,7 @@ class Diagnosis:
         if action is not None:
             self._action(action)["faulted"] += 1
 
-    def policy_rule(self, path: str, refusal: Optional[str] = None) -> None:
+    def policy_rule(self, path: str, refusal: str | None = None) -> None:
         """The coded policy rule at ``path`` acted, or (given ``refusal``) its call was refused."""
         entry = self.policy_rules.setdefault(path, [0, 0, ""])
         if refusal is None:
@@ -117,11 +118,11 @@ class Diagnosis:
             entry[1] += 1
             entry[2] = refusal
 
-    def _action(self, name: str) -> Dict[str, Any]:
+    def _action(self, name: str) -> dict[str, Any]:
         return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {},
                                               "applied": 0, "faulted": 0})
 
-    def _first_probe(self, turn: "Turn", name: str) -> bool:
+    def _first_probe(self, turn: Turn, name: str) -> bool:
         if self._probed[0] != turn.number:
             self._probed = (turn.number, set())
         if name in self._probed[1]:
@@ -138,7 +139,7 @@ class Diagnosis:
         counts[2] += woke
         counts[3] += capped
 
-    def offered(self, turn: "Turn", has_action: bool) -> None:
+    def offered(self, turn: Turn, has_action: bool) -> None:
         """A fresh turn's tools were read: note whether the agent had any action it could take, and if not why."""
         if turn.actions_left < turn.max_actions or turn.intents:
             return
@@ -166,13 +167,13 @@ class Diagnosis:
 
     # -- saving ----------------------------------------------------------------------
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"actions": _copy(self.actions), "stages": _copy(self.stages), "agents": _copy(self.agents),
                 "overwrites": _copy(self.overwrites), "loop_overwrites": _copy(self.loop_overwrites),
                 "faults": _copy(self.faults), "policy_rules": _copy(self.policy_rules),
                 "written": sorted(self.written)}
 
-    def load(self, data: Optional[Dict[str, Any]]) -> None:
+    def load(self, data: dict[str, Any] | None) -> None:
         """Take the counts of :meth:`to_dict` (the written names in place: the world holds the same set)."""
         data = data or {}
         self.actions, self.stages = _copy(data.get("actions", {})), _copy(data.get("stages", {}))
@@ -197,7 +198,7 @@ def _copy(value: Any) -> Any:
     return value
 
 
-def usable(turn: "Turn", name: str) -> Optional[bool]:
+def usable(turn: Turn, name: str) -> bool | None:
     """Whether any choice the action's tool offers right now would succeed: tried on a copy of the change that is
     rolled back. True as soon as one works; False only when every parameter could be tried and none worked; None
     when that cannot be told (the action is not offered, a parameter is free text or unbounded, or there are too
@@ -222,12 +223,12 @@ def usable(turn: "Turn", name: str) -> Optional[bool]:
     return False if complete else None
 
 
-def _axes(schema: Dict[str, Any]) -> Optional[Tuple[Dict[str, List[Any]], bool]]:
+def _axes(schema: dict[str, Any]) -> tuple[dict[str, list[Any]], bool] | None:
     """The values to try for each parameter, and whether they cover every parameter. None when a required parameter
     cannot be listed (nothing can be tried without it); an optional one that cannot be listed is left out, so trying
     the rest proves only that something works, never that nothing does."""
     required = set(schema.get("required") or [])
-    axes: Dict[str, List[Any]] = {}
+    axes: dict[str, list[Any]] = {}
     complete = True
     for key, prop in (schema.get("properties") or {}).items():
         values = _values(prop)
@@ -240,7 +241,7 @@ def _axes(schema: Dict[str, Any]) -> Optional[Tuple[Dict[str, List[Any]], bool]]
     return axes, complete
 
 
-def _values(prop: Dict[str, Any]) -> Optional[List[Any]]:
+def _values(prop: dict[str, Any]) -> list[Any] | None:
     if "enum" in prop:
         return list(prop["enum"])
     kind, low, high = prop.get("type"), prop.get("minimum"), prop.get("maximum")
@@ -265,7 +266,7 @@ class SealedWrites:
         self.diagnosis = diagnosis
         self.writer = ""
         self.action = ""
-        self._last: Dict[Any, Any] = {}
+        self._last: dict[Any, Any] = {}
 
     def assigned(self, owner: Any, prop: str, rest: Sequence[Any], value: Any, source: str) -> None:
         """``owner.prop`` (at element path ``rest``) was assigned ``value`` by the current choice."""
@@ -289,10 +290,10 @@ class LoopWrites:
         self.world, self.path, self.body = world, path, body
         self.item: Any = None
         self.position = 0
-        self._last: Dict[Any, Any] = {}
+        self._last: dict[Any, Any] = {}
 
     @classmethod
-    def start(cls, world: Any, effect: Dict[str, Any], path: str) -> Optional["LoopWrites"]:
+    def start(cls, world: Any, effect: dict[str, Any], path: str) -> LoopWrites | None:
         """Watch a loop's writes, unless the run keeps no diagnosis or writes are already watched."""
         if world.diagnosis is None or world.watched_writes is not None:
             return None
@@ -310,8 +311,8 @@ class LoopWrites:
         self._last[key] = (self.position, value)
         if before is None or before[0] == self.position or _same(before[1], value):
             return
-        self.world.diagnosis.overwrote(self.path, f"`{source}` ran for several items with different values, so only the "
-                                                  "last item's value is kept", loop=True)
+        self.world.diagnosis.overwrote(self.path, f"`{source}` ran for several items with different values, so only "
+                                                  "the last item's value is kept", loop=True)
 
 
 def _same(a: Any, b: Any) -> bool:

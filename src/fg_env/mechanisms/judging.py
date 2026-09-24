@@ -10,23 +10,24 @@ from __future__ import annotations
 
 import re
 import statistics
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from functools import partial
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..world.entity import Entity
 from ..assets.delivery import Attachment, attached_ids, entry_assets
 from ..assets.multimodal import host_attachments
 from ..errors import RunError
 from ..expr import Untrusted
+from ..expr.template import format_value
 from ..host import allowlist
 from ..host.common import NAME, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
 from ..registry import MechanismError, family_action, mode
-from ..expr.template import format_value
+from ..world.entity import Entity
 from ..world.live import Abort, _plain
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
@@ -48,10 +49,10 @@ class Criterion(BaseModel):
 
     description: str = Field("", description="What this criterion rewards.")
     weight: float = Field(1.0, gt=0, description="Relative weight in the total.")
-    scale: Tuple[float, float] = Field((1, 10), description="[lowest, highest] score.")
+    scale: tuple[float, float] = Field((1, 10), description="[lowest, highest] score.")
 
     @model_validator(mode="after")
-    def _ordered(self) -> "Criterion":
+    def _ordered(self) -> Criterion:
         if not self.scale[0] < self.scale[1]:
             raise ValueError("scale is [low, high] with low below high")
         return self
@@ -63,8 +64,8 @@ class Seat(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(..., description="The judge's name (it is asked as this judge).")
-    host: Optional[str] = Field(None, description="Host answering for this judge (default: the mechanism's host).")
-    model: Optional[str] = Field(None, description="Model hint passed to the host.")
+    host: str | None = Field(None, description="Host answering for this judge (default: the mechanism's host).")
+    model: str | None = Field(None, description="Model hint passed to the host.")
 
 
 class JudgeConfig(BaseModel):
@@ -72,33 +73,40 @@ class JudgeConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    criteria: Dict[str, Criterion] = Field(..., min_length=1, description="{criterion: {description, weight, scale}}.")
+    criteria: dict[str, Criterion] = Field(..., min_length=1, description="{criterion: {description, weight, scale}}.")
     instructions: str = Field("", description="What the judge is judging and how (plain text).")
     host: str = Field("judge", description="Host evaluator name.")
-    model: Optional[str] = Field(None, description="Model hint passed to the host.")
-    panel: List[Seat] = Field(default_factory=list, description="Several judges; scores are aggregated per criterion.")
-    aggregate: Literal["mean", "median", "trimmed_mean"] = Field("mean", description="How a panel's scores combine (trimmed_mean drops the highest and lowest with 3+ judges).")
+    model: str | None = Field(None, description="Model hint passed to the host.")
+    panel: list[Seat] = Field(default_factory=list, description="Several judges; scores are aggregated per criterion.")
+    aggregate: Literal["mean", "median", "trimmed_mean"] = Field("mean", description="How a panel's scores combine "
+                                                                                     "(trimmed_mean drops the highest "
+                                                                                     "and lowest with 3+ judges).")
     out_of: float = Field(10, gt=0, description="The total is the weighted rubric score on a 0..out_of scale.")
-    who: Optional[str] = Field(None, description="Type of the entities judged (for `into` and blind aliases).")
-    into: Optional[str] = Field(None, description="Number property on `who` that accumulates each total.")
-    record: Optional[str] = Field(None, description="Judge every new entry of this record automatically.")
+    who: str | None = Field(None, description="Type of the entities judged (for `into` and blind aliases).")
+    into: str | None = Field(None, description="Number property on `who` that accumulates each total.")
+    record: str | None = Field(None, description="Judge every new entry of this record automatically.")
     field: str = Field("text", description="The judged field of `record` entries.")
-    stage: Optional[str] = Field(None, description="Judge new `record` entries at the end of this stage (default: at the end of every round).")
+    stage: str | None = Field(None,
+                              description="Judge new `record` entries at the end of this stage (default: at the end of "
+                                          "every round).")
     context_last: int = Field(0, ge=0, le=50, description="Earlier `record` entries shown to the judge as context.")
     blind: bool = Field(False, description="The judge sees 'Participant A/B/…' instead of names.")
     visible: str = Field("all", description="Who reads the scores: 'all' or an expression over $viewer and $it.")
     notify: bool = Field(True, description="Deliver scores to agents as news.")
-    fallback: Optional[Literal["midpoint"]] = Field(None, description="Without an evaluator: score every criterion at its midpoint, so every entry ties; the run's diagnostics report it (default: stop with an error).")
+    fallback: Literal["midpoint"] | None = Field(None,
+                                                 description="Without an evaluator: score every criterion at its "
+                                                             "midpoint, so every entry ties; the run's diagnostics "
+                                                             "report it (default: stop with an error).")
 
 
 @dataclass
 class _Item:
     text: str
-    subject: Optional[Entity]
-    target: Optional[int] = None
-    context: List[Dict[str, str]] = field(default_factory=list)
+    subject: Entity | None
+    target: int | None = None
+    context: list[dict[str, str]] = field(default_factory=list)
     #: Assets the judge receives with the text (`attach`, or a judged entry's files).
-    assets: List[str] = field(default_factory=list)
+    assets: list[str] = field(default_factory=list)
 
 
 @mode("host", "judge", JudgeConfig,
@@ -110,7 +118,7 @@ class _Item:
            example={"record": "speeches", "who": "debater", "into": "score",
                     "criteria": {"logic": {"weight": 2}, "evidence": {"scale": [1, 5]}},
                     "instructions": "Judge each debate speech on its merits."})
-def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     records = contract.get("records") or {}
     if config.who is not None:
         type_list(contract, config.who, "who")
@@ -119,7 +127,7 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
     if name in records:
         raise MechanismError(f"a record named '{name}' already exists; the judge posts its verdicts there",
                              "rename the judge or the record")
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "world": {"host_tape": tape_prop(), f"{name}_totals": {"type": "map", "default": {}}},
         "records": {name: {
             "fields": {"subject": "text", "name": "text", "target": "int", "scores": "map", "total": "number",
@@ -131,7 +139,8 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
         fragment["types"] = {config.who: {"props": {config.into: {"type": "number", "default": 0}}}}
     if config.record is None:
         if config.stage is not None:
-            raise MechanismError("`stage` judges new entries of `record`, and no record is set", "set `record`", "stage")
+            raise MechanismError("`stage` judges new entries of `record`, and no record is set", "set `record`",
+                                 "stage")
         return fragment
     source = records.get(config.record)
     if not isinstance(source, Mapping):
@@ -149,10 +158,10 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
 
 @family_action("host", ("judge",), "judge", keys=("text", "subject", "entry", "context", "attach"),
                example='{"host": "speeches", "action": "judge", "text": "$params.text", "subject": "$actor"}  '
-                       '(score `text`, or a record `entry`, with the judge; the verdict goes to the record speeches and '
-                       'its totals; without either, judge the new entries of its `record`; `attach` gives the judge '
-                       'files, and a judged entry brings its own)')
-def _judge_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+                       '(score `text`, or a record `entry`, with the judge; the verdict goes to the record speeches '
+                       'and its totals; without either, judge the new entries of its `record`; `attach` gives the '
+                       'judge files, and a judged entry brings its own)')
+def _judge_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
     config = config_of(world, name, JUDGE, JudgeConfig, where)
@@ -171,7 +180,7 @@ def _judge_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
         raise RunError(f"give `text` or `entry` (the judge '{name}' has no `record` to judge)", where)
 
 
-def _given(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], config: JudgeConfig, where: str) -> _Item:
+def _given(runner: Any, effect: dict[str, Any], vars: dict[str, Any], config: JudgeConfig, where: str) -> _Item:
     world = runner.world
     if "entry" in effect:
         entry = runner.eval(effect["entry"], vars)
@@ -187,7 +196,7 @@ def _given(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], config: Ju
         subject = world.entity(value)
         if value is not None and subject is None:
             raise RunError(f"`subject` must be an entity, got {format_value(value)}", where)
-    context: List[Dict[str, str]] = []
+    context: list[dict[str, str]] = []
     if "context" in effect:
         value = runner.eval(effect["context"], vars)
         for item in value if isinstance(value, list) else [value]:
@@ -202,7 +211,7 @@ def _given(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], config: Ju
 def _entry_item(world: Any, config: JudgeConfig, entry: Mapping[str, Any]) -> _Item:
     text = entry.get(config.field)
     subject = world.entities.get(entry.get("author"))
-    context: List[Dict[str, str]] = []
+    context: list[dict[str, str]] = []
     if config.record is not None and config.context_last:
         earlier = [e for e in world.records(config.record) if e["seq"] < entry["seq"] and e.get("to") is None]
         for e in earlier[-config.context_last:]:
@@ -213,7 +222,7 @@ def _entry_item(world: Any, config: JudgeConfig, entry: Mapping[str, Any]) -> _I
     return _Item(text if isinstance(text, str) else format_value(text), subject, entry["seq"], context, files)
 
 
-def _unjudged(world: Any, name: str, config: JudgeConfig) -> List[_Item]:
+def _unjudged(world: Any, name: str, config: JudgeConfig) -> list[_Item]:
     assert config.record is not None
     rows = world.records(config.record)
     cursor = int(world.props.get(f"{name}_cursor") or 0)
@@ -237,8 +246,9 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
     criteria = [{"name": key, "description": c.description, "weight": c.weight, "min": c.scale[0], "max": c.scale[1]}
                 for key, c in config.criteria.items()]
     text = hide(item.text)
-    fallback: Optional[Callable[[], Dict[str, Any]]] = partial(_midpoint, config) if config.fallback == "midpoint" else None
-    answers: List[Tuple[str, Dict[str, Any]]] = []
+    fallback: Callable[[], dict[str, Any]] | None = (partial(_midpoint, config) if config.fallback == "midpoint"
+                                                     else None)
+    answers: list[tuple[str, dict[str, Any]]] = []
     files, hashes = _files(world, item.assets)
     for seat in seats:
         request = plain({"judge": seat.name, "model": seat.model or config.model, "instructions": config.instructions,
@@ -265,7 +275,7 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
             world.set_prop(item.subject, config.into, round(prop_of(item.subject, config.into, 0) + total, 6))
 
 
-def _files(world: Any, ids: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+def _files(world: Any, ids: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
     """A host request's `attachments` and the call identity's file hashes (both empty without files)."""
     assets = world.assets.of(ids)
     if not assets:
@@ -274,18 +284,19 @@ def _files(world: Any, ids: List[str]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
             {"assets": [asset.hash for asset in assets]})
 
 
-def _ask_judge(request: Dict[str, Any], adapter: Any) -> Any:
+def _ask_judge(request: dict[str, Any], adapter: Any) -> Any:
     return adapter.judge(request)
 
 
 def total_score(scores: Mapping[str, float], config: JudgeConfig) -> float:
     """The weighted rubric score on a 0..out_of scale."""
     weight = sum(c.weight for c in config.criteria.values())
-    earned = sum(c.weight * (scores[key] - c.scale[0]) / (c.scale[1] - c.scale[0]) for key, c in config.criteria.items())
+    earned = sum(c.weight * (scores[key] - c.scale[0]) / (c.scale[1] - c.scale[0])
+                 for key, c in config.criteria.items())
     return round(config.out_of * earned / weight, 4)
 
 
-def _verdict(answer: Any, config: JudgeConfig) -> Dict[str, Any]:
+def _verdict(answer: Any, config: JudgeConfig) -> dict[str, Any]:
     if not isinstance(answer, Mapping):
         raise HostError("a verdict is an object {scores, rationale}")
     extra = sorted(set(answer) - {"scores", "rationale"})
@@ -306,16 +317,17 @@ def _verdict(answer: Any, config: JudgeConfig) -> Dict[str, Any]:
     rationale = answer.get("rationale", "")
     if not isinstance(rationale, str):
         raise HostError("rationale must be text")
-    return {"scores": {key: scores[key] for key in config.criteria}, "rationale": clip(rationale.strip(), RATIONALE_MAX)}
+    return {"scores": {key: scores[key] for key in config.criteria},
+            "rationale": clip(rationale.strip(), RATIONALE_MAX)}
 
 
-def _midpoint(config: JudgeConfig) -> Dict[str, Any]:
+def _midpoint(config: JudgeConfig) -> dict[str, Any]:
     return {"scores": {key: (c.scale[0] + c.scale[1]) / 2 for key, c in config.criteria.items()},
             "rationale": "No evaluator was available; every criterion was scored at its midpoint.",
             "stand_in": True}  # a live verdict never carries it: validation allows only scores and rationale
 
 
-def _aggregate(values: List[float], how: str) -> float:
+def _aggregate(values: list[float], how: str) -> float:
     if how == "median":
         result = statistics.median(values)
     elif how == "trimmed_mean" and len(values) >= 3:
@@ -325,7 +337,7 @@ def _aggregate(values: List[float], how: str) -> float:
     return round(float(result), 6)
 
 
-def _aliases(world: Any, config: JudgeConfig) -> Dict[str, str]:
+def _aliases(world: Any, config: JudgeConfig) -> dict[str, str]:
     if config.who is not None:
         pool = [e for e in world.entities.values() if world.is_a(e.entity_type, config.who)]
     else:
@@ -343,7 +355,7 @@ def _letters(index: int) -> str:
 
 
 def _anonymize(world: Any, text: str, aliases: Mapping[str, str]) -> str:
-    names: List[Tuple[str, str]] = []
+    names: list[tuple[str, str]] = []
     for entity_id, alias in aliases.items():
         entity = world.entities[entity_id]
         names += [(entity.name, alias), (entity_id, alias)]
@@ -363,20 +375,23 @@ class AllowRule(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     effect: Literal["set", "set_world", "transfer", "move", "news"] = Field(..., description="The change it allows.")
-    target: str = Field("actor", description="set/move: 'actor' or an expression over $actor giving the entities it may touch.")
-    prop: Optional[str] = Field(None, description="set/set_world/transfer: the property.")
-    min: Optional[float] = Field(None, description="Lowest value a number may become.")
-    max: Optional[float] = Field(None, description="Highest value a number may become.")
-    delta: Optional[float] = Field(None, ge=0, description="Largest change of a number in one attempt.")
-    values: Optional[List[Any]] = Field(None, description="The only values it may set.")
+    target: str = Field("actor",
+                        description="set/move: 'actor' or an expression over $actor giving the entities it may touch.")
+    prop: str | None = Field(None, description="set/set_world/transfer: the property.")
+    min: float | None = Field(None, description="Lowest value a number may become.")
+    max: float | None = Field(None, description="Highest value a number may become.")
+    delta: float | None = Field(None, ge=0, description="Largest change of a number in one attempt.")
+    values: list[Any] | None = Field(None, description="The only values it may set.")
     max_chars: int = Field(200, ge=1, le=4000, description="Longest text it may set or spread as news.")
     giver: str = Field("actor", alias="from", description="transfer: 'actor' or an expression giving who may give.")
-    to: Optional[str] = Field(None, description="transfer: expression giving who may receive ('actor' works); move: 'adjacent' or an expression over $actor and $it giving places.")
-    amount: Optional[float] = Field(None, gt=0, description="transfer: most that may move from one giver in one attempt.")
+    to: str | None = Field(None,
+                           description="transfer: expression giving who may receive ('actor' works); move: 'adjacent' "
+                                       "or an expression over $actor and $it giving places.")
+    amount: float | None = Field(None, gt=0, description="transfer: most that may move from one giver in one attempt.")
     description: str = Field("", description="Shown to the game master.")
 
     @model_validator(mode="after")
-    def _complete(self) -> "AllowRule":
+    def _complete(self) -> AllowRule:
         needs = {"set": ("prop",), "set_world": ("prop",), "transfer": ("prop", "to", "amount"), "move": ("to",),
                  "news": ()}[self.effect]
         missing = [key for key in needs if getattr(self, key) is None]
@@ -392,20 +407,23 @@ class GameMasterConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    who: Union[str, List[str]] = Field(..., description="Agent type(s) that may attempt things.")
-    allow: List[AllowRule] = Field(..., min_length=1, description="Every change the game master may make.")
+    who: str | list[str] = Field(..., description="Agent type(s) that may attempt things.")
+    allow: list[AllowRule] = Field(..., min_length=1, description="Every change the game master may make.")
     host: str = Field("game_master", description="Host game master name.")
-    model: Optional[str] = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description="Model hint passed to the host.")
     tool: str = Field("attempt", description="Name of the free-text tool.")
     description: str = Field("", description="Tool description (default explains the tool).")
     max_chars: int = Field(500, ge=1, le=4000, description="Longest attempt text, in characters.")
     rules: str = Field("", description="How the world works, for the game master (plain text).")
-    context: Dict[str, str] = Field(default_factory=dict, description="{name: expression over $actor} values shown to the game master.")
+    context: dict[str, str] = Field(default_factory=dict,
+                                    description="{name: expression over $actor} values shown to the game master.")
     max_effects: int = Field(4, ge=1, le=20, description="Most changes one attempt may cause.")
-    per_turn: Optional[int] = Field(1, ge=1, description="Attempts per turn.")
+    per_turn: int | None = Field(1, ge=1, description="Attempts per turn.")
     terminal: bool = Field(True, description="An attempt ends the turn.")
     visible: str = Field("all", description="Who reads the attempt log: 'all' or an expression over $viewer and $it.")
-    fallback: Optional[Literal["refuse"]] = Field(None, description="Without a host: refuse every attempt (default: stop with an error).")
+    fallback: Literal["refuse"] | None = Field(None,
+                                               description="Without a host: refuse every attempt (default: stop with "
+                                                           "an error).")
 
 
 @mode("host", "game_master", GameMasterConfig,
@@ -419,7 +437,7 @@ class GameMasterConfig(BaseModel):
                               {"effect": "transfer", "prop": "gold", "to": "$filter(adventurer, $it.id != $actor.id)",
                                "amount": 5},
                               {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_chars": 160}]})
-def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     by = type_list(contract, config.who, "who")
     if not NAME.match(config.tool):
         raise MechanismError(f"tool must be a tool name, got {config.tool!r}", None, "tool")
@@ -436,7 +454,7 @@ def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[s
             raise MechanismError("`adjacent` needs a graph or grid space", None, f"allow[{index}].to")
     description = config.description or ("Try something, described in your own words. The game master decides "
                                          "what happens, within the rules of this world.")
-    action: Dict[str, Any] = {
+    action: dict[str, Any] = {
         "by": by if len(by) > 1 else by[0], "description": description, "terminal": config.terminal,
         "params": {"text": {"type": "text", "max_len": config.max_chars, "description": "What you try to do."}},
         "do": [{"host": name, "action": "resolve", "text": "$params.text"}], "outcome": f"{{$actor.{name}_told}}",
@@ -454,15 +472,15 @@ def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[s
     }
 
 
-def _absent() -> Dict[str, Any]:
+def _absent() -> dict[str, Any]:
     return {"refuse": "No game master is present."}
 
 
 @family_action("host", ("game_master",), "resolve", keys=("text", "attach"), required=("text",),
-               example='{"host": "gm", "action": "resolve", "text": "$params.text"}  (the game master resolves the actor\'s '
-                       'attempt; changes apply only within its allow-list, and $actor.gm_told says what happened; '
-                       '`attach` gives it files)')
-def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"host": "gm", "action": "resolve", "text": "$params.text"}  (the game master resolves the '
+                       'actor\'s attempt; changes apply only within its allow-list, and $actor.gm_told says what '
+                       'happened; `attach` gives it files)')
+def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
     config = config_of(world, name, GAME_MASTER, GameMasterConfig, where)
@@ -474,7 +492,8 @@ def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
         raise RunError(f"`text` must be text, got {format_value(text)}", where)
     rules = allowlist.resolve_rules(runner, config.allow, vars, f"mechanisms.{name}")
     context = {key: _plain(runner.eval(expr, vars)) for key, expr in config.context.items()}
-    attached = attached_ids(world, effect["attach"], world.scope(**vars), f"{where}.attach") if "attach" in effect else []
+    attached = (attached_ids(world, effect["attach"], world.scope(**vars), f"{where}.attach") if "attach" in effect
+                else [])
     files, hashes = _files(world, attached)
     request = plain({"game_master": name, "model": config.model, "rules": config.rules,
                      "actor": {"id": actor.id, "name": actor.name, "type": actor.entity_type,
@@ -495,7 +514,8 @@ def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
     changes = [change.summary for change in plan.changes] if refusal is None else []
     narration = Untrusted(plan.narration) if plan.narration and refusal is None else None
     if refusal is not None:
-        told = f"The game master did not allow that: {format_value(refusal) if isinstance(refusal, Untrusted) else refusal}"
+        told = ("The game master did not allow that: "
+                f"{format_value(refusal) if isinstance(refusal, Untrusted) else refusal}")
     else:
         told = f"The game master: {format_value(narration)}" if narration else "The game master lets it happen."
         if changes:
@@ -506,4 +526,5 @@ def _resolve_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
 
 
 # Host building blocks that are not judgments register alongside: host tools and personas.
-from ..host import personas as _personas, tools as _tools  # noqa: E402,F401
+from ..host import personas as _personas  # noqa: E402,F401
+from ..host import tools as _tools  # noqa: E402,F401

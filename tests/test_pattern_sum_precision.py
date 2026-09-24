@@ -1,7 +1,7 @@
 """Composed net quantities preserve residuals despite offsetting large drivers."""
-from decimal import Decimal, localcontext
 import itertools
 import json
+from decimal import Decimal, localcontext
 
 import pytest
 

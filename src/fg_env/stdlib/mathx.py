@@ -3,7 +3,8 @@ from __future__ import annotations
 
 import bisect
 import math
-from typing import Any, Callable, List
+from collections.abc import Callable
+from typing import Any
 
 from ..expr import MAX_INT_BITS, Call, charge, function
 from ._args import fail, int_arg, list_arg, number_arg, present_numbers
@@ -67,14 +68,16 @@ def _sign(call: Call) -> int:
     return (x > 0) - (x < 0)
 
 
-@function("interp(x, xs, ys)", "Piecewise-linear y at x through the points (xs, ys); xs strictly increasing; flat beyond the ends.",
+@function("interp(x, xs, ys)",
+          "Piecewise-linear y at x through the points (xs, ys); xs strictly increasing; flat beyond the ends.",
           min_args=3, max_args=3)
 def _interp(call: Call) -> float:
     x = number_arg(call, 0)
     xs = present_numbers(call, list_arg(call, 1, "a list of x points"), "the x points")
     ys = present_numbers(call, list_arg(call, 2, "a list of y points"), "the y points")
     if not xs or len(xs) != len(ys):
-        raise fail(call, f"xs and ys must be non-empty lists of the same length (got {len(xs)} and {len(ys)}), without nulls")
+        raise fail(call,
+                   f"xs and ys must be non-empty lists of the same length (got {len(xs)} and {len(ys)}), without nulls")
     if any(b <= a for a, b in zip(xs, xs[1:])):
         raise fail(call, "xs must be strictly increasing")
     if x <= xs[0]:
@@ -87,7 +90,7 @@ def _interp(call: Call) -> float:
     return ys[lo] + (ys[hi] - ys[lo]) * t
 
 
-def _whole_numbers(call: Call) -> List[int]:
+def _whole_numbers(call: Call) -> list[int]:
     values = [int_arg(call, i, what="a whole number") for i in range(len(call))]
     for value in values:
         if abs(value).bit_length() > MAX_INT_BITS:
@@ -114,7 +117,8 @@ def _bits_of_log(log_value: float) -> float:
     return log_value / math.log(2)
 
 
-@function("factorial(n)", "n! for a whole number n ≥ 0 (limited by the whole-number size limit).", min_args=1, max_args=1)
+@function("factorial(n)", "n! for a whole number n ≥ 0 (limited by the whole-number size limit).", min_args=1,
+          max_args=1)
 def _factorial(call: Call) -> int:
     n = int_arg(call, 0, low=0, what="a whole number n")
     if _bits_of_log(math.lgamma(n + 1)) > MAX_INT_BITS:
@@ -140,7 +144,7 @@ def _pi(call: Call) -> float:
     return math.pi
 
 
-def _logits(call: Call) -> List[float]:
+def _logits(call: Call) -> list[float]:
     values = list_arg(call, 0, "a list of numbers")
     numbers = present_numbers(call, values, "the scores")
     if len(numbers) != len(values):
@@ -148,14 +152,15 @@ def _logits(call: Call) -> List[float]:
     return [float(v) for v in numbers]
 
 
-def logsumexp(values: List[float]) -> float:
+def logsumexp(values: list[float]) -> float:
     top = max(values)
     return top + math.log(math.fsum(math.exp(v - top) for v in values))
 
 
-@function("softmax(scores, temperature?)", "Probabilities proportional to e^(score / temperature) (default temperature 1); sums to 1.",
+@function("softmax(scores, temperature?)",
+          "Probabilities proportional to e^(score / temperature) (default temperature 1); sums to 1.",
           min_args=1, max_args=2)
-def _softmax(call: Call) -> List[float]:
+def _softmax(call: Call) -> list[float]:
     scores = _logits(call)
     temperature = number_arg(call, 1, 1.0, what="the temperature")
     if temperature <= 0:
@@ -169,7 +174,8 @@ def _softmax(call: Call) -> List[float]:
     return [math.exp(s - norm) for s in scaled]
 
 
-@function("logsumexp(scores)", "ln(Σ e^score), computed without overflow; null for an empty list.", min_args=1, max_args=1)
+@function("logsumexp(scores)", "ln(Σ e^score), computed without overflow; null for an empty list.", min_args=1,
+          max_args=1)
 def _logsumexp(call: Call) -> Any:
     scores = _logits(call)
     return logsumexp(scores) if scores else None

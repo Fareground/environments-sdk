@@ -12,7 +12,6 @@ import hashlib
 import os
 import threading
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 from .kinds import HARD_MAX_BYTES
 
@@ -22,10 +21,10 @@ __all__ = ["HASH_DIGITS", "digest", "keep_bytes", "keep_path", "provide", "read"
 HASH_DIGITS = 32
 
 _LOCK = threading.Lock()
-_BYTES: Dict[str, bytes] = {}
-_PATHS: Dict[str, Path] = {}
+_BYTES: dict[str, bytes] = {}
+_PATHS: dict[str, Path] = {}
 #: Folders handed over with provide(), scanned by hash on first need.
-_FOLDERS: List[Path] = []
+_FOLDERS: list[Path] = []
 
 
 class BlobMissing(LookupError):
@@ -50,7 +49,7 @@ def keep_path(key: str, path: Path) -> None:
         _PATHS.setdefault(key, path)
 
 
-def provide(folder: Union[str, "os.PathLike[str]"]) -> int:
+def provide(folder: str | os.PathLike[str]) -> int:
     """Make every file in ``folder`` (not its subfolders) available by content hash, e.g. the asset folder of a run
     saved on another machine. Returns how many files it holds."""
     base = Path(folder)
@@ -88,7 +87,7 @@ def read(key: str) -> bytes:
     raise BlobMissing(f"no file with hash {key} is available in this process")
 
 
-def _scan(folder: Path, key: str) -> Optional[bytes]:
+def _scan(folder: Path, key: str) -> bytes | None:
     named = [path for path in folder.glob(f"{key}*") if path.is_file() and not path.is_symlink()]
     for path in named + [p for p in sorted(folder.iterdir()) if p not in named]:
         if not path.is_file() or path.is_symlink():
@@ -102,7 +101,7 @@ def _scan(folder: Path, key: str) -> Optional[bytes]:
     return None
 
 
-def _read_file(path: Path) -> Optional[bytes]:
+def _read_file(path: Path) -> bytes | None:
     try:
         if path.stat().st_size > HARD_MAX_BYTES:
             return None

@@ -12,8 +12,9 @@ body scans. Once-per-round scans are never reported.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
 from ..effects.statements import statement_parts
 from ..expr import ExprError, compile_expr, is_expr
@@ -33,7 +34,7 @@ _TABLE_FIX = "`$lookup($inputs.{table}, field, value)` finds the matching rows t
 
 @dataclass(frozen=True)
 class _Scan:
-    table: Optional[str]  # the input table read, or None for a type
+    table: str | None  # the input table read, or None for a type
     visited: str
     how: str
 
@@ -47,22 +48,23 @@ class _Work:
 
 
 class _Scans:
-    def __init__(self, checker: "_Checker"):
+    def __init__(self, checker: _Checker):
         self.checker = checker
         self.c = checker.c
         self.scanners = checker.collection_funcs
         self.tables = {name for name, spec in self.c.inputs.items() if spec.type == "table"}
-        self.def_scans: Dict[str, List[_Scan]] = {}
+        self.def_scans: dict[str, list[_Scan]] = {}
 
     # -- what an expression scans ------------------------------------------------------
 
-    def scans(self, source: str, busy: Tuple[str, ...] = ()) -> List[_Scan]:
+    def scans(self, source: str, busy: tuple[str, ...] = ()) -> list[_Scan]:
         """Every scan in expression ``source``, its defs' scans included."""
         try:
             compiled = compile_expr(source)
         except ExprError:
             return []  # the checker reports the syntax error
-        found = [_Scan(None, f"every {symbol}", f"${name}({symbol}, …)") for name, symbol in sorted(compiled.calls, key=str)
+        found = [_Scan(None, f"every {symbol}", f"${name}({symbol}, …)")
+                 for name, symbol in sorted(compiled.calls, key=str)
                  if name in self.scanners and symbol in self.c.types]
         found += [_Scan(table, f"every row of $inputs.{table}", f"${name}($inputs.{table}, …)")
                   for name, table in _TABLE_SCAN.findall(source) if name in self.scanners and table in self.tables]
@@ -81,8 +83,9 @@ class _Scans:
         for scan in self.scans(source):
             if scan.table is None and not work.types:
                 continue
-            self.checker.warn(path, f"{scan.how} visits {scan.visited} for {work.each}, so the work grows with the square "
-                                    "of their number", _TABLE_FIX.format(table=scan.table) if scan.table else _TYPE_FIX)
+            self.checker.warn(path, f"{scan.how} visits {scan.visited} for {work.each}, so the work grows with the "
+                                    "square of their number",
+                              _TABLE_FIX.format(table=scan.table) if scan.table else _TYPE_FIX)
 
     def statement(self, source: str, path: str, work: _Work) -> None:
         try:
@@ -96,7 +99,7 @@ class _Scans:
 
     # -- where work repeats ------------------------------------------------------------
 
-    def effects(self, effects: Any, path: str, work: Optional[_Work], seen: Set[str]) -> None:
+    def effects(self, effects: Any, path: str, work: _Work | None, seen: set[str]) -> None:
         """Walk an effect list; expressions are reported when ``work`` names the repeated work around them."""
         items = [effects] if isinstance(effects, (str, dict)) else effects if isinstance(effects, list) else []
         for index, effect in enumerate(items):
@@ -122,13 +125,13 @@ class _Scans:
             if work is not None and isinstance(block, str) and block in self.c.blocks and block not in seen:
                 self.effects(self.c.blocks[block].do, f"blocks.{block}.do", work, seen | {block})
 
-    def recurring_blocks(self) -> List[str]:
+    def recurring_blocks(self) -> list[str]:
         """Blocks that schedule themselves again through `after` (directly or through other blocks)."""
         edges = {name: list(_calls(spec.do, False)) for name, spec in self.c.blocks.items()}
 
         def returns(start: str) -> bool:
             stack = list(edges[start])
-            visited: Set[Tuple[str, bool]] = set()
+            visited: set[tuple[str, bool]] = set()
             while stack:
                 node, timed = stack.pop()
                 if node == start and timed:
@@ -167,7 +170,7 @@ class _Scans:
                     self.report(leaf, leaf_path, _Work(f"each member of population[{index}]"))
 
 
-def _leaves(raw: Any, path: str) -> Iterable[Tuple[str, Any]]:
+def _leaves(raw: Any, path: str) -> Iterable[tuple[str, Any]]:
     if isinstance(raw, dict):
         for key, item in raw.items():
             yield from _leaves(item, f"{path}.{key}")
@@ -178,7 +181,7 @@ def _leaves(raw: Any, path: str) -> Iterable[Tuple[str, Any]]:
         yield path, raw
 
 
-def _calls(effects: Any, timed: bool) -> Iterable[Tuple[str, bool]]:
+def _calls(effects: Any, timed: bool) -> Iterable[tuple[str, bool]]:
     """``(block, reached through after)`` for every block an effect list runs."""
     items = [effects] if isinstance(effects, dict) else effects if isinstance(effects, list) else []
     for effect in items:
@@ -191,6 +194,6 @@ def _calls(effects: Any, timed: bool) -> Iterable[Tuple[str, bool]]:
                 yield from _calls(effect[key], timed or "after" in effect)
 
 
-def check_scans(checker: "_Checker") -> None:
+def check_scans(checker: _Checker) -> None:
     """Warn about scans that repeat for every entity, row or arrival (see the module notes)."""
     _Scans(checker).run()

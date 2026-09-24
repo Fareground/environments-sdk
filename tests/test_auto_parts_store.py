@@ -32,7 +32,8 @@ def test_the_store_is_demand_and_replenishment_modes_reading_patterns_with_no_ha
         "shop": ("economy", "demand"), "reorder": ("economy", "replenishment")}
     assert not {"events", "metrics", "outputs", "records"} & set(contract)
     outputs = fg_env.load(CONTRACT, seed=1, inputs={"weeks": 2}).run().outputs
-    assert {"shop_fill_rate", "shop_fill_rate_by_group", "reorder_profit", "reorder_average_stock_value"} <= set(outputs)
+    assert ({"shop_fill_rate", "shop_fill_rate_by_group", "reorder_profit", "reorder_average_stock_value"}
+            <= set(outputs))
 
 
 def test_the_bundled_sales_and_purchase_order_histories_are_exactly_what_the_truth_arm_records():
@@ -71,12 +72,14 @@ def test_fitting_the_bundled_history_recovers_the_truth_and_reproduces_the_shipp
 def test_the_service_level_policy_serves_more_demand_and_earns_more_than_the_lean_rule():
     exp = fg_env.experiment(CONTRACT, arms=["lean", "service"], runs=4, seed=3)
     lean, service = ([run.outputs for run in exp.arms[arm].runs] for arm in ("lean", "service"))
-    assert statistics.fmean(o["shop_fill_rate"] for o in service) > statistics.fmean(o["shop_fill_rate"] for o in lean) + 0.05
+    assert (statistics.fmean(o["shop_fill_rate"] for o in service) > statistics.fmean(o["shop_fill_rate"] for o in lean)
+            + 0.05)
     assert all(s["reorder_profit"] > l["reorder_profit"] for s, l in zip(service, lean))  # the same luck in both arms
     assert statistics.fmean(o["reorder_average_stock_value"] for o in service) > \
         statistics.fmean(o["reorder_average_stock_value"] for o in lean)
     assert [o["shop_demand"] for o in service] != [] and all(
-        s["shop_fill_rate_by_group"]["batteries"] >= l["shop_fill_rate_by_group"]["batteries"] for s, l in zip(service, lean))
+        s["shop_fill_rate_by_group"]["batteries"] >= l["shop_fill_rate_by_group"]["batteries"]
+        for s, l in zip(service, lean))
 
 
 def test_the_owner_report_recommends_the_service_policy_when_95_percent_of_demand_must_be_served():
@@ -86,7 +89,8 @@ def test_the_owner_report_recommends_the_service_policy_when_95_percent_of_deman
     recommendation = text.split("## Recommendation", 1)[1].split("##", 1)[0]
     assert "Choose order up to the expected demand" in recommendation
     assert "the store's current rule" in text.split("## Risks", 1)[1].split("##", 1)[0]  # the lean rule misses 95%
-    assert "parameters are estimated from the data; the analyst report lists them" in text and "lead_noise_sd" not in text
+    assert ("parameters are estimated from the data; the analyst report lists them" in text
+            and "lead_noise_sd" not in text)
 
 
 def test_dearer_premium_tiers_move_sales_to_the_value_tier():
@@ -103,12 +107,13 @@ def test_dearer_premium_tiers_move_sales_to_the_value_tier():
 
 
 def test_the_fitted_demand_can_be_decomposed_and_described():
-    parts = fg_env.analysis.decompose(CONTRACT, "demand", key="BAT-TOY-V", rounds=3, inputs={"parameter_uncertainty": 0})
+    parts = fg_env.analysis.decompose(CONTRACT, "demand", key="BAT-TOY-V", rounds=3,
+                                      inputs={"parameter_uncertainty": 0})
     assert [set(row["factors"]) for row in parts.rows] == [{"growth", "season"}] * 3
     first = parts.rows[0]
-    assert first["total"] == pytest.approx(first["factors"]["growth"] * first["factors"]["season"]
-                                           * next(r["scale"] for r in json.loads(CONTRACT.read_text())["inputs"]["demand_fit"]["default"]
-                                                  if r["sku"] == "BAT-TOY-V"))
+    rows = json.loads(CONTRACT.read_text())["inputs"]["demand_fit"]["default"]
+    scale = next(r["scale"] for r in rows if r["sku"] == "BAT-TOY-V")
+    assert first["total"] == pytest.approx(first["factors"]["growth"] * first["factors"]["season"] * scale)
     text = fg_env.analysis.describe(CONTRACT).markdown
     assert "### World patterns" in text and "`$pattern.promo(key)`" in text and "fitted from $inputs.history" in text
 

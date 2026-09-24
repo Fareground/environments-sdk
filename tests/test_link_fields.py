@@ -23,10 +23,12 @@ TOWN = {
         "plain": {},
     },
     "links": [{"relation": "trusts", "rows": "$inputs.edges"},
-              {"relation": "knows", "among": "person", "graph": "complete", "props": {"met": "{$from.name} & {$to.name}"}}],
+              {"relation": "knows", "among": "person", "graph": "complete",
+               "props": {"met": "{$from.name} & {$to.name}"}}],
     "actions": {
         "befriend": {"by": "person", "params": {"who": {"type": "entity", "of": "person"}, "note": "text"},
-                     "do": [{"link": "trusts", "from": "$actor", "to": "$params.who", "props": {"note": "$params.note"}}]},
+                     "do": [{"link": "trusts", "from": "$actor", "to": "$params.who",
+                             "props": {"note": "$params.note"}}]},
         "bump": {"by": "person", "params": {"who": {"type": "entity", "of": "person",
                                                     "where": "$link($actor, $it, trusts) != null"}},
                  "do": ["$link($actor, $params.who, trusts).value += 0.3",
@@ -37,7 +39,8 @@ TOWN = {
                                   {"unlink": "trusts", "from": "$actor", "to": "$params.who"}, {"fail": "no"}]},
         "wait": {"by": "person", "do": []},
     },
-    "views": {"trust": {"for": "person", "of": "$links($actor, trusts)", "show": "{target.name} via {channel} since {since}"}},
+    "views": {"trust": {"for": "person", "of": "$links($actor, trusts)",
+                        "show": "{target.name} via {channel} since {since}"}},
     "outputs": {"ana_ben": "$link(ana, ben, trusts).value", "channel": "$link(ana, ben, trusts).channel"},
 }
 
@@ -55,7 +58,8 @@ def test_links_carry_typed_fields_with_defaults_over_from_and_to():
     env = fg_env.load(TOWN, seed=1)
     assert _link(env, "ana", "ben", "trusts") == {
         "source": "ana", "target": "ben", "kind": "trusts", "value": 0.4,
-        "since": 0, "channel": "work", "gap": 10, "note": ""}  # the row's `channel` column fills that field; `comment` is not a field
+        "since": 0, "channel": "work", "gap": 10,
+        "note": ""}  # the row's `channel` column fills that field; `comment` is not a field
     assert _link(env, "cy", "ana", "knows")["met"] == "Ana & Cy"  # symmetric: one link, ends sorted by id
     assert env.world.link_view("ana", "cy", "knows") == env.world.link_view("cy", "ana", "knows")
 
@@ -72,7 +76,8 @@ def test_the_link_effect_creates_with_defaults_and_updates_only_what_it_names():
 
     env.run(play, rounds=2)
     made = _link(env, "ben", "cy", "trusts")
-    assert (made["value"], made["since"], made["channel"], made["gap"]) == (0.5, 1, "online", 0)  # relation default value
+    # relation default value
+    assert (made["value"], made["since"], made["channel"], made["gap"]) == (0.5, 1, "online", 0)
     assert isinstance(made["note"], fg_env.expr.Untrusted)
     kept = _link(env, "ana", "ben", "trusts")
     assert (kept["value"], kept["since"], kept["channel"], kept["note"]) == (0.4, 0, "work", "again")
@@ -132,7 +137,8 @@ def test_unlink_removes_fields_and_a_new_link_starts_from_defaults():
     env.run("idle", rounds=1)
     assert env.world.link_view("ana", "ben", "trusts") is None and ("ana", "ben") not in env.world.link_fields["trusts"]
     env.run("idle", rounds=1)
-    assert _link(env, "ana", "ben", "trusts")["channel"] == "online" and _link(env, "ana", "ben", "trusts")["since"] == 2
+    assert (_link(env, "ana", "ben", "trusts")["channel"] == "online" and _link(env, "ana", "ben", "trusts")["since"]
+            == 2)
 
 
 def test_a_run_split_by_a_snapshot_keeps_every_link_field_and_its_provenance():
@@ -163,7 +169,8 @@ def test_the_checker_validates_link_field_names_types_and_uses():
     contract["relations"]["trusts"]["props"]["mood"] = {"type": "enum", "default": "x"}
     contract["links"][1]["props"]["colour"] = "red"
     contract["actions"]["befriend"]["do"][0]["props"]["nope"] = 1
-    contract["actions"]["plain"] = {"by": "person", "do": [{"link": "plain", "from": "ana", "to": "ben", "props": {"x": 1}}]}
+    contract["actions"]["plain"] = {"by": "person",
+                                    "do": [{"link": "plain", "from": "ana", "to": "ben", "props": {"x": 1}}]}
     found = _errors(contract)
     for issue in [
         ("relations.trusts.props.value", "'value' is built into every link"),

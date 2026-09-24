@@ -1,7 +1,7 @@
 """Per-agent statistics: every turn and committed action is billed to its agent, and snapshots keep the split."""
-import fg_env
-
 from test_runtime import SHOP
+
+import fg_env
 
 #: Two agents; `a` acts in a sequential stage, both submit in a simultaneous stage.
 DUEL = {
@@ -25,7 +25,8 @@ def test_agent_stats_add_up_to_the_run_totals_in_sequential_and_simultaneous_sta
     assert result.ok, result.summary()
     assert list(result.agent_stats) == ["a", "b"]
     assert result.agent_stats["a"]["wakes"] == 4 and result.agent_stats["b"]["wakes"] == 2  # a: 2 solo + 2 together
-    assert result.agent_stats["a"]["actions"] == 4 and result.agent_stats["b"]["actions"] == 2  # sealed commits count too
+    assert (result.agent_stats["a"]["actions"] == 4 and result.agent_stats["b"]["actions"]
+            == 2)  # sealed commits count too
     for key in ("wakes", "calls", "actions", "invalid_calls", "idle_turns"):
         assert _sum(result.agent_stats, key) == result.stats[key], key
 

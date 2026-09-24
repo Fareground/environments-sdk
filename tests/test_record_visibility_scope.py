@@ -2,10 +2,10 @@
 import pytest
 
 import fg_env
+from fg_env.errors import RunError
 from fg_env.expr import compile_expr, truthy
 from fg_env.expr.base import _held, shared_budget
 from fg_env.expr.calls import FUNCTIONS, FunctionSpec
-from fg_env.errors import RunError
 
 
 def world(rule):

@@ -19,15 +19,16 @@ from __future__ import annotations
 
 import copy
 import weakref
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any
 
 from pydantic import Field, ValidationError
 
-from ..world.entity import Entity
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
 from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from . import _common as common
 from ._common import Config
 
@@ -40,13 +41,17 @@ class OrderConfig(Config):
     """Who acts in which order."""
 
     who: str = Field(..., description="Agent type whose order this is (subtypes included).")
-    by: Optional[str] = Field(None, description="Initiative ($it): highest first (see ascending); seats break ties.")
+    by: str | None = Field(None, description="Initiative ($it): highest first (see ascending); seats break ties.")
     ascending: bool = Field(False, description="Lowest initiative first.")
     rotate: bool = Field(False, description="The first seat moves one place each round.")
     snake: bool = Field(False, description="Reverse the order every other round (snake draft).")
-    skip: Optional[str] = Field(None, description="Agents who sit out ($it): folded, bankrupt, eliminated.")
-    stage: Optional[Dict[str, Any]] = Field(None, description="Declare a stage (ordinary stage fields) using this order; its name defaults to the mechanism's.")
-    extra_turns: bool = Field(False, description="Also declare <name>_extra after the stage for extra turns granted with the extra_turn action.")
+    skip: str | None = Field(None, description="Agents who sit out ($it): folded, bankrupt, eliminated.")
+    stage: dict[str, Any] | None = Field(None,
+                                         description="Declare a stage (ordinary stage fields) using this order; its "
+                                                     "name defaults to the mechanism's.")
+    extra_turns: bool = Field(False,
+                              description="Also declare <name>_extra after the stage for extra turns granted with the "
+                                          "extra_turn action.")
     max_extra: int = Field(3, ge=1, description="Most extra turns one agent can chain in a round.")
     views: bool = Field(True, description="Show agents this round's order.")
 
@@ -57,13 +62,13 @@ class OrderConfig(Config):
       "this round's order.",
       example={"who": "player", "by": "$it.speed", "skip": "$it.folded", "rotate": True,
                "stage": {"actions": ["bet", "fold"], "turns": "sequential"}})
-def _expand(name: str, cfg: OrderConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand(name: str, cfg: OrderConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     common.types_in(contract, cfg.who, "who")
     if not _agent(contract, cfg.who):
         raise MechanismError(f"'{cfg.who}' is not an agent type", f"set types.{cfg.who}.agent: true", "who")
     if cfg.extra_turns and cfg.stage is None:
         raise MechanismError("extra_turns needs `stage`", "declare the stage here", "extra_turns")
-    fragment: Dict[str, Any] = {}
+    fragment: dict[str, Any] = {}
     if cfg.views:
         fragment["views"] = {name: {"for": cfg.who, "title": "Turn order",
                                     "show": f"{{$join($map($turn_order('{name}'), $it.name), ', ')}}"}}
@@ -97,7 +102,7 @@ def _expand(name: str, cfg: OrderConfig, contract: Mapping[str, Any]) -> Dict[st
     return fragment
 
 
-def _both(a: Optional[str], b: Optional[str]) -> Optional[str]:
+def _both(a: str | None, b: str | None) -> str | None:
     if a is None or b is None:
         return a or b
     return f"({a}) and ({b})"
@@ -114,7 +119,7 @@ def _agent(contract: Mapping[str, Any], type_name: str) -> bool:
     return False
 
 
-def _validated(stage: Dict[str, Any], field: str) -> Dict[str, Any]:
+def _validated(stage: dict[str, Any], field: str) -> dict[str, Any]:
     try:
         StageSpec.model_validate(stage)
     except ValidationError as exc:
@@ -125,7 +130,7 @@ def _validated(stage: Dict[str, Any], field: str) -> Dict[str, Any]:
     return stage
 
 
-def _stage_action_names(contract: Mapping[str, Any], stage: Mapping[str, Any]) -> List[str]:
+def _stage_action_names(contract: Mapping[str, Any], stage: Mapping[str, Any]) -> list[str]:
     listed = stage.get("actions", "all")
     if listed == "all":
         return list(contract.get("actions") or {})
@@ -149,10 +154,10 @@ def _only_among(contract: Mapping[str, Any], action: str, among: str) -> bool:
 # Run time
 # ---------------------------------------------------------------------------
 
-_ORDERS: "weakref.WeakKeyDictionary[Any, Dict[str, Tuple[Any, List[str]]]]" = weakref.WeakKeyDictionary()
+_ORDERS: weakref.WeakKeyDictionary[Any, dict[str, tuple[Any, list[str]]]] = weakref.WeakKeyDictionary()
 
 
-def ordered(world: Any, name: str, where: str) -> List[Entity]:
+def ordered(world: Any, name: str, where: str) -> list[Entity]:
     """This round's order for the order mechanism ``name`` (skipped agents left out)."""
     cfg = common.config(world, name, KEY, OrderConfig, where)
     state = (world.journal.version, world.round, world.stage)
@@ -187,7 +192,8 @@ def ordered(world: Any, name: str, where: str) -> List[Entity]:
     return members
 
 
-@function("turn_rank(entity, order)", "The entity's place (0 = first) in this round's turn order; skipped agents come last.",
+@function("turn_rank(entity, order)",
+          "The entity's place (0 = first) in this round's turn order; skipped agents come last.",
           min_args=2, max_args=2)
 def _turn_rank(call: Call) -> int:
     world: Any = call.scope.world
@@ -202,25 +208,27 @@ def _turn_rank(call: Call) -> int:
     return ids.index(entity.id) if entity.id in ids else len(ids)
 
 
-@function("turn_order(order)", "The agents in this round's turn order (skipped agents left out).", min_args=1, max_args=1)
-def _turn_order(call: Call) -> List[Entity]:
+@function("turn_order(order)", "The agents in this round's turn order (skipped agents left out).", min_args=1,
+          max_args=1)
+def _turn_order(call: Call) -> list[Entity]:
     try:
         return ordered(call.scope.world, str(call.arg(0)), call.source)
     except RunError as exc:
         raise ExprError(str(exc), call.source) from None
 
 
-def _check_extra(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+def _check_extra(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     name = effect["flow"]
     if not common.parsed(checker.c.mechanisms[name], OrderConfig).extra_turns:
-        return [(f"{path}.flow", f"turn order '{name}' does not allow extra turns", f"set mechanisms.{name}.extra_turns: true")]
+        return [(f"{path}.flow", f"turn order '{name}' does not allow extra turns",
+                 f"set mechanisms.{name}.extra_turns: true")]
     return []
 
 
 @family_action("flow", ("order",), "extra_turn", keys=("who",), required=("who",), check=_check_extra,
                example='{"flow": "initiative", "action": "extra_turn", "who": "$actor"}  (the agent takes another turn '
                        'this round)')
-def _extra_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _extra_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["flow"]
     cfg = common.config(world, name, KEY, OrderConfig, where)

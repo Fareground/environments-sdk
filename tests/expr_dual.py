@@ -15,8 +15,9 @@ from __future__ import annotations
 import copy
 import gc
 import threading
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any, Callable, Dict, Iterator, List, Tuple
+from typing import Any
 
 from expr_oracle import compile_oracle
 
@@ -27,10 +28,10 @@ from fg_env.sampling.seeds import DrawSite
 from fg_env.stdlib import tables
 
 #: Every difference found: ``(expression, what differed)``.
-MISMATCHES: List[Tuple[str, str]] = []
+MISMATCHES: list[tuple[str, str]] = []
 _ORIGINAL = expr_compile.Expr.__call__
 _MODE = threading.local()
-_ORACLES: Dict[str, Any] = {}
+_ORACLES: dict[str, Any] = {}
 _BUDGET_FIELDS = ("hold", "used", "limit", "cap", "label", "shared")
 _UNSET = object()
 #: What a world's pattern runtime derives once and keeps (parameters, rows, keys, random paths).
@@ -44,16 +45,16 @@ def _oracle(source: str) -> Any:
     return found
 
 
-def _outcome(run: Callable[[], Any]) -> Tuple[str, Any]:
+def _outcome(run: Callable[[], Any]) -> tuple[str, Any]:
     try:
         return "value", run()
     except Exception as exc:  # noqa: BLE001 — every error is part of the outcome compared
         return "error", exc
 
 
-def _streams(world: Any) -> List[Any]:
+def _streams(world: Any) -> list[Any]:
     """Every random stream an evaluation over ``world`` may draw from."""
-    found: List[Any] = []
+    found: list[Any] = []
     candidates = [world.__dict__.get("rng"), world.__dict__.get("_rng")]
     if hasattr(world, "_here"):
         candidates += [getattr(world._here(), "rng", None), getattr(world._local, "rng", None)]
@@ -65,8 +66,8 @@ def _streams(world: Any) -> List[Any]:
     return found
 
 
-def _capture(world: Any) -> Dict[str, Any]:
-    state: Dict[str, Any] = {"budget": tuple(getattr(_BUDGET, name) for name in _BUDGET_FIELDS)}
+def _capture(world: Any) -> dict[str, Any]:
+    state: dict[str, Any] = {"budget": tuple(getattr(_BUDGET, name) for name in _BUDGET_FIELDS)}
     if world is None:
         return state
     state["streams"] = [(rng, rng.getstate()) for rng in _streams(world)]
@@ -81,7 +82,8 @@ def _capture(world: Any) -> Dict[str, Any]:
         orders = turn_order._ORDERS.get(world)
         social = world.__dict__.get("_social_cache")
         state["caches"] = (None if orders is None else dict(orders),
-                           None if social is None else {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()})
+                           None if social is None
+                           else {k: dict(v) if isinstance(v, dict) else v for k, v in social.items()})
         indexes = tables._INDEXES.get(world)
         state["indexes"] = None if indexes is None else dict(indexes)
         patterns = world.__dict__.get("patterns")
@@ -90,7 +92,7 @@ def _capture(world: Any) -> Dict[str, Any]:
     return state
 
 
-def _restore(world: Any, state: Dict[str, Any]) -> None:
+def _restore(world: Any, state: dict[str, Any]) -> None:
     for name, value in zip(_BUDGET_FIELDS, state["budget"]):
         setattr(_BUDGET, name, value)
     if world is None:
@@ -162,7 +164,7 @@ def same(a: Any, b: Any) -> bool:
         return a is b
 
 
-def _same_outcome(old: Tuple[str, Any], new: Tuple[str, Any]) -> bool:
+def _same_outcome(old: tuple[str, Any], new: tuple[str, Any]) -> bool:
     if old[0] != new[0]:
         return False
     if old[0] == "value":
@@ -173,7 +175,7 @@ def _same_outcome(old: Tuple[str, Any], new: Tuple[str, Any]) -> bool:
     return not isinstance(a, ExprError) or (a.detail, a.source) == (b.detail, b.source)
 
 
-def _left_behind(state: Dict[str, Any]) -> Tuple[Any, ...]:
+def _left_behind(state: dict[str, Any]) -> tuple[Any, ...]:
     streams = tuple(saved for _, saved in state.get("streams", []))
     counters = state.get("counters", (None, None, None))[1:]
     defs = state.get("defs")
@@ -217,7 +219,7 @@ def _dual_call(self: Any, scope: Any) -> Any:
 
 
 @contextmanager
-def dual_evaluation() -> Iterator[List[Tuple[str, str]]]:
+def dual_evaluation() -> Iterator[list[tuple[str, str]]]:
     """Inside the block every expression is evaluated both ways; yields the list differences are added to."""
     expr_compile.Expr.__call__ = _dual_call  # type: ignore[method-assign]
     try:

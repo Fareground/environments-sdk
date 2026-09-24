@@ -13,8 +13,8 @@ characters and whitespace), escaped punctuation (``\\.``), ``\\n \\t``, anchors 
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 from functools import lru_cache
-from typing import Callable, List, Optional, Sequence, Tuple
 
 __all__ = ["PatternError", "Program", "compile_pattern", "search", "MAX_PATTERN", "MAX_PROGRAM", "MAX_REPEAT"]
 
@@ -25,8 +25,8 @@ MAX_PROGRAM = 4_096
 #: Largest count in ``{m,n}``.
 MAX_REPEAT = 1_000
 
-Ranges = Tuple[Tuple[str, str], ...]
-Instruction = Tuple  # ("char", ranges, negated) | ("split", a, b) | ("jmp", a) | ("bol",) | ("eol",) | ("match",)
+Ranges = tuple[tuple[str, str], ...]
+Instruction = tuple  # ("char", ranges, negated) | ("split", a, b) | ("jmp", a) | ("bol",) | ("eol",) | ("match",)
 
 _DIGIT: Ranges = (("0", "9"),)
 _WORD: Ranges = (("a", "z"), ("A", "Z"), ("0", "9"), ("_", "_"))
@@ -53,7 +53,7 @@ class _Parser:
     def error(self, message: str) -> PatternError:
         return PatternError(f"{message} at position {self.i} of the pattern")
 
-    def peek(self) -> Optional[str]:
+    def peek(self) -> str | None:
         return self.p[self.i] if self.i < len(self.p) else None
 
     def parse(self) -> tuple:
@@ -70,7 +70,7 @@ class _Parser:
         return branches[0] if len(branches) == 1 else ("alt", branches)
 
     def concat(self) -> tuple:
-        items: List[tuple] = []
+        items: list[tuple] = []
         while self.peek() not in (None, "|", ")"):
             items.append(self.quantified())
         return ("cat", items)
@@ -82,7 +82,8 @@ class _Parser:
             if self.peek() == "{" and not self._counted_ahead():
                 break
             if quantified:
-                raise self.error("a quantifier cannot follow another quantifier (lazy and possessive forms are not supported)")
+                raise self.error("a quantifier cannot follow another quantifier (lazy and possessive forms are not "
+                                 "supported)")
             if node[0] in ("bol", "eol"):
                 raise self.error("an anchor cannot be repeated")
             node = self.quantifier(node)
@@ -164,7 +165,7 @@ class _Parser:
         negated = self.peek() == "^"
         if negated:
             self.i += 1
-        ranges: List[Tuple[str, str]] = []
+        ranges: list[tuple[str, str]] = []
         first = True
         while True:
             ch = self.peek()
@@ -189,7 +190,7 @@ class _Parser:
                 ranges.append((low, low))
         return ("set", tuple(ranges), negated)
 
-    def _class_char(self, ranges: List[Tuple[str, str]]) -> Optional[str]:
+    def _class_char(self, ranges: list[tuple[str, str]]) -> str | None:
         """One class member: a character (returned) or a shorthand (added to ``ranges``, None returned)."""
         ch = self.p[self.i]
         self.i += 1
@@ -205,7 +206,7 @@ class _Parser:
 
 class _Emitter:
     def __init__(self) -> None:
-        self.code: List[list] = []
+        self.code: list[list] = []
 
     def emit(self, *instruction: object) -> int:
         if len(self.code) >= MAX_PROGRAM:
@@ -241,7 +242,7 @@ class _Emitter:
             self._counted(node[1], node[2], node[3])
 
     def _alternation(self, branches: Sequence[tuple]) -> None:
-        jumps: List[int] = []
+        jumps: list[int] = []
         for branch in branches[:-1]:
             split = self.emit("split", 0, 0)
             self.node(branch)
@@ -251,7 +252,7 @@ class _Emitter:
         for jump in jumps:
             self.code[jump][1] = len(self.code)
 
-    def _counted(self, item: tuple, low: int, high: Optional[int]) -> None:
+    def _counted(self, item: tuple, low: int, high: int | None) -> None:
         for _ in range(low):
             self.node(item)
         if high is None:
@@ -281,7 +282,7 @@ def search(program: Program, text: str, spend: Callable[[int], None]) -> bool:
     """True when the pattern occurs anywhere in ``text``. ``spend(n)`` is told the work done."""
     size = len(text)
 
-    def add(threads: List[int], seen: set, pc: int, pos: int) -> None:
+    def add(threads: list[int], seen: set, pc: int, pos: int) -> None:
         stack = [pc]
         while stack:
             pc = stack.pop()
@@ -304,7 +305,7 @@ def search(program: Program, text: str, spend: Callable[[int], None]) -> bool:
             else:
                 threads.append(pc)
 
-    threads: List[int] = []
+    threads: list[int] = []
     seen: set = set()
     for pos in range(size + 1):
         add(threads, seen, 0, pos)  # a match may start at any position
@@ -314,7 +315,7 @@ def search(program: Program, text: str, spend: Callable[[int], None]) -> bool:
         if pos == size:
             break
         ch = text[pos]
-        following: List[int] = []
+        following: list[int] = []
         following_seen: set = set()
         for pc in threads:
             step = program[pc]

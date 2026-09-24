@@ -10,8 +10,9 @@ to the second instead of being dropped at the hand-over.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..api import ContractLike
 from ..runtime.measure import RunResult, _usable_output
@@ -22,7 +23,7 @@ from .stats import Estimate, estimate, mean, numeric, quantile, sd, t_quantile
 __all__ = ["compare", "Comparison", "welch", "chain", "ChainResult"]
 
 
-def welch(a: Sequence[float], b: Sequence[float], level: float = 0.95) -> Dict[str, Any]:
+def welch(a: Sequence[float], b: Sequence[float], level: float = 0.95) -> dict[str, Any]:
     """Difference of means (b − a) with Welch's unequal-variance t interval."""
     if len(a) < 2 or len(b) < 2:
         raise ValueError("Welch's interval needs at least two values on each side")
@@ -38,11 +39,11 @@ def welch(a: Sequence[float], b: Sequence[float], level: float = 0.95) -> Dict[s
 
 @dataclass
 class Comparison:
-    labels: Tuple[str, str]
+    labels: tuple[str, str]
     paired: bool
-    outputs: Dict[str, Dict[str, Any]]
-    series: Dict[str, Dict[str, Any]]
-    notes: List[str] = field(default_factory=list)
+    outputs: dict[str, dict[str, Any]]
+    series: dict[str, dict[str, Any]]
+    notes: list[str] = field(default_factory=list)
     level: float = 0.95
 
     def report(self) -> str:
@@ -64,12 +65,12 @@ class Comparison:
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"labels": list(self.labels), "paired": self.paired, "outputs": self.outputs, "series": self.series,
                 "notes": self.notes, "level": self.level}
 
 
-def compare(a: Any, b: Any, *, labels: Tuple[str, str] = ("a", "b"), level: float = 0.95) -> Comparison:
+def compare(a: Any, b: Any, *, labels: tuple[str, str] = ("a", "b"), level: float = 0.95) -> Comparison:
     """Compare results, matching shared unique seeds and excluding invalid outputs per pair.
 
     Unmatched seeds are omitted when shared seeds exist; disjoint samples use an
@@ -88,12 +89,13 @@ def compare(a: Any, b: Any, *, labels: Tuple[str, str] = ("a", "b"), level: floa
     if not runs_a or not runs_b:
         raise ValueError("each side needs at least one completed run")
     la, lb = labels
-    notes: List[str] = []
+    notes: list[str] = []
     for label, raw, runs in ((la, raw_a, runs_a), (lb, raw_b, runs_b)):
         if len(raw) != len(runs):
             notes.append(f"{label}: excluded {len(raw) - len(runs)} failed run(s)")
         if len({r.seed for r in runs}) != len(runs):
-            raise ValueError(f"{label}: duplicate seeds cannot identify independent runs or unique pairs; use distinct seeds")
+            raise ValueError(f"{label}: duplicate seeds cannot identify independent runs or unique pairs; use distinct "
+                             "seeds")
     by_b = {r.seed: r for r in runs_b}
     common = [r for r in runs_a if r.seed in by_b]
     paired = bool(common)
@@ -102,7 +104,7 @@ def compare(a: Any, b: Any, *, labels: Tuple[str, str] = ("a", "b"), level: floa
         if omitted:
             notes.append(f"paired by shared seeds: excluded {omitted} unmatched run(s)")
         runs_a, runs_b = common, [by_b[r.seed] for r in common]
-    outputs: Dict[str, Dict[str, Any]] = {}
+    outputs: dict[str, dict[str, Any]] = {}
     names_b = {key for run in runs_b for key in run.outputs}
     names = dict.fromkeys(key for run in runs_a for key in run.outputs if key in names_b)
     for name in names:
@@ -125,7 +127,7 @@ def compare(a: Any, b: Any, *, labels: Tuple[str, str] = ("a", "b"), level: floa
             outputs[name] = _numeric_row(name, xa, xb, la, lb, paired, single, level, notes)
         elif all(isinstance(r.outputs[name], str) for r in valid_a + valid_b):
             outputs[name] = {"counts": {la: _counts(valid_a, name), lb: _counts(valid_b, name)}}
-    series: Dict[str, Dict[str, Any]] = {}
+    series: dict[str, dict[str, Any]] = {}
     for name in [k for k in runs_a[0].series if k in runs_b[0].series]:
         pa, pb = _mean_path(runs_a, name), _mean_path(runs_b, name)
         length = min(len(pa), len(pb))
@@ -134,10 +136,11 @@ def compare(a: Any, b: Any, *, labels: Tuple[str, str] = ("a", "b"), level: floa
     return Comparison(labels, paired, outputs, series, notes, level)
 
 
-def _numeric_row(name: str, xa: List[Any], xb: List[Any], la: str, lb: str, paired: bool, single: bool,
-                 level: float, notes: List[str]) -> Dict[str, Any]:
+def _numeric_row(name: str, xa: list[Any], xb: list[Any], la: str, lb: str, paired: bool, single: bool,
+                 level: float, notes: list[str]) -> dict[str, Any]:
     ma, mb = mean(xa), mean(xb)
-    row: Dict[str, Any] = {la: ma, lb: mb, "n_a": len(xa), "n_b": len(xb), "difference": mb - ma, "relative": (mb - ma) / abs(ma) if ma else None}
+    row: dict[str, Any] = {la: ma, lb: mb, "n_a": len(xa), "n_b": len(xb), "difference": mb - ma,
+                           "relative": (mb - ma) / abs(ma) if ma else None}
     if single:
         return row
     if paired:
@@ -153,15 +156,15 @@ def _numeric_row(name: str, xa: List[Any], xb: List[Any], la: str, lb: str, pair
     return row
 
 
-def _counts(runs: Sequence[RunResult], name: str) -> Dict[str, int]:
-    out: Dict[str, int] = {}
+def _counts(runs: Sequence[RunResult], name: str) -> dict[str, int]:
+    out: dict[str, int] = {}
     for r in runs:
         key = str(r.outputs.get(name))
         out[key] = out.get(key, 0) + 1
     return out
 
 
-def _mean_path(runs: Sequence[RunResult], name: str) -> List[float]:
+def _mean_path(runs: Sequence[RunResult], name: str) -> list[float]:
     paths = [runner.series(r, name) for r in runs]
     length = min(len(p) for p in paths) if paths else 0
     return [mean([p[t] for p in paths]) for t in range(length)]
@@ -173,10 +176,10 @@ class ChainResult:
     second: str
     runs: int
     level: float
-    bindings: Dict[str, Dict[str, Any]]
-    scenarios: Dict[str, Dict[str, Any]]
-    envelope: Dict[str, Dict[str, float]]
-    notes: List[str] = field(default_factory=list)
+    bindings: dict[str, dict[str, Any]]
+    scenarios: dict[str, dict[str, Any]]
+    envelope: dict[str, dict[str, float]]
+    notes: list[str] = field(default_factory=list)
 
     def report(self) -> str:
         lines = [f"Chain {self.first} → {self.second}: {self.runs} run(s) per stage, {self.level:.0%} range"]
@@ -190,15 +193,15 @@ class ChainResult:
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"first": self.first, "second": self.second, "runs": self.runs, "level": self.level,
                 "bindings": self.bindings, "scenarios": self.scenarios, "envelope": self.envelope, "notes": self.notes}
 
 
 def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *, runs: int = 10, level: float = 0.9,
-          uncertainty: bool = True, first_inputs: Optional[Mapping[str, Any]] = None,
-          second_inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
-          second_participants: Any = None, rounds: Optional[int] = None, second_rounds: Optional[int] = None,
+          uncertainty: bool = True, first_inputs: Mapping[str, Any] | None = None,
+          second_inputs: Mapping[str, Any] | None = None, participants: Any = None,
+          second_participants: Any = None, rounds: int | None = None, second_rounds: int | None = None,
           seed: int = 0, workers: int = 1, data_dir: Any = None, second_data_dir: Any = None,
           hosts: Any = None) -> ChainResult:
     """Run ``first``, bind its outputs into ``second``'s inputs (``{second_input: first_output}``), run ``second``.
@@ -221,11 +224,12 @@ def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *,
     for target in bind:
         spec = runner.input_spec(two, target)
         if spec.type not in ("number", "int", "bool"):
-            raise ValueError(f"input '{target}' of the second contract is {spec.type}; only number, int and bool can be bound")
+            raise ValueError(f"input '{target}' of the second contract is {spec.type}; only number, int and bool can "
+                             "be bound")
     first_runs = runner.run_jobs(one, [runner.Job(dict(first_inputs or {}), None, s) for s in seeds],
                                  participants=participants, rounds=rounds, workers=workers, hosts=hosts)
     tail = (1.0 - level) / 2.0
-    bindings: Dict[str, Dict[str, Any]] = {}
+    bindings: dict[str, dict[str, Any]] = {}
     for target, measure in measures.items():
         values = [v for v in (runner.value(r, measure) for r in first_runs) if v is not None]
         if not values:
@@ -233,14 +237,14 @@ def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *,
         bindings[target] = {"output": bind[target], "low": quantile(values, tail), "point": mean(values),
                             "high": quantile(values, 1.0 - tail), "n": len(values)}
     labels = ("low", "point", "high") if uncertainty else ("point",)
-    notes: List[str] = []
+    notes: list[str] = []
     cells = [({**dict(second_inputs or {}), **{t: _bound(two, t, b[label], notes) for t, b in bindings.items()}}, None)
              for label in labels]
     jobs = runner.jobs_for(cells, seeds)
     grouped = runner.by_cell(jobs, runner.run_jobs(two, jobs, participants=second_participants, rounds=second_rounds,
                                                    workers=workers, hosts=hosts), len(cells))
     measured = runner.numeric_measures(two, [r for cell in grouped for r in cell])
-    scenarios: Dict[str, Dict[str, Any]] = {}
+    scenarios: dict[str, dict[str, Any]] = {}
     for label, (inputs, _), cell in zip(labels, cells, grouped):
         summary = {m: estimate([v for v in (runner.value(r, ("outputs", m)) for r in cell) if v is not None]).to_dict()
                    for m in measured}
@@ -254,7 +258,7 @@ def chain(first: ContractLike, second: ContractLike, bind: Mapping[str, str], *,
     return ChainResult(one.name, two.name, runs, level, bindings, scenarios, envelope, sorted(set(notes)))
 
 
-def _bound(contract: Any, name: str, raw: float, notes: List[str]) -> Any:
+def _bound(contract: Any, name: str, raw: float, notes: list[str]) -> Any:
     spec = contract.inputs[name]
     if spec.type == "bool":
         return raw >= 0.5

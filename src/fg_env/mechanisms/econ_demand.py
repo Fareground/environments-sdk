@@ -10,14 +10,25 @@ segment. The round's work (prices, returns, sales) and the stock actions are in 
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..expr import Call, ExprError, compile_expr, function
 from ..patterns.base import KINDS
 from ..registry import MechanismError, mode
-from .econ_base import DEMAND, EPS, compiles, config_of, props, register_config, require_currency, require_types, valid_name
+from .econ_base import (
+    DEMAND,
+    EPS,
+    compiles,
+    config_of,
+    props,
+    register_config,
+    require_currency,
+    require_types,
+    valid_name,
+)
 
 __all__ = ["DemandConfig", "SegmentSpec", "FactorRef", "ReturnsSpec", "segments_of", "RECORD_FIELDS"]
 
@@ -28,21 +39,24 @@ class FactorRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     pattern: str = Field(..., description="A declared pattern.")
-    key: Optional[str] = Field(None, description="Its key, as an expression over $it (default: the item, for a pattern with keys).")
-    driver: Optional[str] = Field(None, description="For a response (elasticity, saturation …): what it is called with, as an "
-                                                    "expression over $it and $price (default: $price, the price paid).")
+    key: str | None = Field(None,
+                            description="Its key, as an expression over $it (default: the item, for a pattern with "
+                                        "keys).")
+    driver: str | None = Field(None, description="For a response (elasticity, saturation …): what it is called with, "
+                                                 "as an expression over $it and $price (default: $price, the price "
+                                                 "paid).")
 
 
 #: A number, an expression over ``$it`` and ``$price``, a pattern's name, or a pattern read.
-Factor = Union[float, str, FactorRef]
+Factor = float | str | FactorRef
 
 _RATE = ("Expected units a round for each item before its factors: a number, an expression over $it, or a pattern "
          "(its name, or {pattern, key}; a keyed pattern reads the item).")
-_FACTORS = ("Multipliers of the rate, each a pattern name, {pattern, key, driver} or an expression over $it and $price: "
-            "a response (elasticity) is called with its driver (default $price), a cross_price pattern with every "
-            "item's price, any other pattern (season, promotion, trend) is read for the item.")
-_NOISE = ("A counts pattern drawing whole units around the expected demand (Poisson when omitted). An unkeyed one gives "
-          "every item and segment its own draw.")
+_FACTORS = ("Multipliers of the rate, each a pattern name, {pattern, key, driver} or an expression over $it and "
+            "$price: a response (elasticity) is called with its driver (default $price), a cross_price pattern with "
+            "every item's price, any other pattern (season, promotion, trend) is read for the item.")
+_NOISE = ("A counts pattern drawing whole units around the expected demand (Poisson when omitted). An unkeyed one "
+          "gives every item and segment its own draw.")
 
 
 class ReturnsSpec(BaseModel):
@@ -50,9 +64,9 @@ class ReturnsSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    rate: Union[float, str] = Field(..., description="Share of units sold that come back (number or expression over $it).")
-    delay: Union[int, str] = Field(1, description="Rounds until they come back (number or expression over $it).")
-    restock: Union[float, str] = Field(1.0, description="Share of returned units fit to sell again; the rest are scrapped.")
+    rate: float | str = Field(..., description="Share of units sold that come back (number or expression over $it).")
+    delay: int | str = Field(1, description="Rounds until they come back (number or expression over $it).")
+    restock: float | str = Field(1.0, description="Share of returned units fit to sell again; the rest are scrapped.")
 
 
 class SegmentSpec(BaseModel):
@@ -61,12 +75,12 @@ class SegmentSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     rate: Factor = Field(..., description=_RATE)
-    factors: List[Factor] = Field([], description=_FACTORS)
-    noise: Optional[str] = Field(None, description=_NOISE)
-    price: Optional[str] = Field(None, description="What the segment pays per unit, as an expression over $it and $price "
-                                                   "(the item's price): \"$price * 0.85\". Default $price.")
-    where: Optional[str] = Field(None, description="Only items where this holds ($it).")
-    returns: Optional[ReturnsSpec] = Field(None, description="Units this segment sends back: {rate, delay, restock}.")
+    factors: list[Factor] = Field([], description=_FACTORS)
+    noise: str | None = Field(None, description=_NOISE)
+    price: str | None = Field(None, description="What the segment pays per unit, as an expression over $it and $price "
+                                                "(the item's price): \"$price * 0.85\". Default $price.")
+    where: str | None = Field(None, description="Only items where this holds ($it).")
+    returns: ReturnsSpec | None = Field(None, description="Units this segment sends back: {rate, delay, restock}.")
 
 
 class DemandConfig(BaseModel):
@@ -74,102 +88,119 @@ class DemandConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    items: str = Field(..., description="Entity type of the items (one entity per SKU or product, e.g. a population from a table).")
+    items: str = Field(...,
+                       description="Entity type of the items (one entity per SKU or product, e.g. a population from a "
+                                   "table).")
     rate: Factor = Field(..., description=_RATE + " This is the main segment; `segments` adds others.")
-    factors: List[Factor] = Field([], description=_FACTORS)
-    noise: Optional[str] = Field(None, description=_NOISE)
-    returns: Optional[ReturnsSpec] = Field(None, description="Units the main segment sends back: {rate, delay, restock}.")
-    stock: Optional[str] = Field(None, description="Int property of each item holding the units on hand; sales are capped by "
-                                                   "it (generated when the type lacks it). Without it all demand is served.")
-    price: Union[float, str] = Field("$it.price", description="Each item's price this round, as an expression over $it; read at "
-                                                              "the start of every round into <name>_price.")
-    promotion: Union[float, str] = Field(0.0, description="Each item's promotion depth this round (0.2 = 20% off), as an "
-                                                          "expression over $it; read into <name>_promo before `price`, so the "
-                                                          "price and a promotion pattern (input $it.<name>_promo) can use it.")
-    cost: Union[float, str] = Field(0.0, description="Unit cost of an item (expression over $it), for margins.")
-    group: Optional[str] = Field(None, description="Each item's group (a category), as an expression over $it, for totals by group.")
+    factors: list[Factor] = Field([], description=_FACTORS)
+    noise: str | None = Field(None, description=_NOISE)
+    returns: ReturnsSpec | None = Field(None, description="Units the main segment sends back: {rate, delay, restock}.")
+    stock: str | None = Field(None, description="Int property of each item holding the units on hand; sales are "
+                                                "capped by it (generated when the type lacks it). Without it all "
+                                                "demand is served.")
+    price: float | str = Field("$it.price", description="Each item's price this round, as an expression over $it; "
+                                                        "read at the start of every round into <name>_price.")
+    promotion: float | str = Field(0.0, description="Each item's promotion depth this round (0.2 = 20% off), as an "
+                                                    "expression over $it; read into <name>_promo before `price`, so "
+                                                    "the price and a promotion pattern (input $it.<name>_promo) can "
+                                                    "use it.")
+    cost: float | str = Field(0.0, description="Unit cost of an item (expression over $it), for margins.")
+    group: str | None = Field(None,
+                              description="Each item's group (a category), as an expression over $it, for totals by "
+                                          "group.")
     segment: str = Field("retail", description="Name of the main segment.")
-    segments: Dict[str, SegmentSpec] = Field({}, description="Further segments with their own demand — bulk buyers, channels: "
-                                                             "{name: {rate, factors, noise, price, where, returns}}, served after "
-                                                             "the main one, in the order listed.")
-    substitutes: Optional[str] = Field(None, description="Items a customer who finds an item out of stock tries instead, in "
-                                                         "order: an expression over $it giving ids or entities ([$it.sibling]).")
-    spill: Union[float, str] = Field(0.0, description="Share of unmet demand that tries the substitutes (expression over $it).")
-    backorder: Union[float, str] = Field(0.0, description="Share of the demand still unmet that waits for stock (a backorder, "
-                                                          "served first when stock arrives) instead of leaving.")
+    segments: dict[str, SegmentSpec] = Field({}, description="Further segments with their own demand — bulk buyers, "
+                                                             "channels: {name: {rate, factors, noise, price, where, "
+                                                             "returns}}, served after the main one, in the order "
+                                                             "listed.")
+    substitutes: str | None = Field(None, description="Items a customer who finds an item out of stock tries instead, "
+                                                      "in order: an expression over $it giving ids or entities "
+                                                      "([$it.sibling]).")
+    spill: float | str = Field(0.0,
+                               description="Share of unmet demand that tries the substitutes (expression over $it).")
+    backorder: float | str = Field(0.0, description="Share of the demand still unmet that waits for stock (a "
+                                                    "backorder, served first when stock arrives) instead of leaving.")
     recent: int = Field(8, ge=1, description="Rounds of sales each item keeps in <name>_recent, oldest first.")
-    account: Optional[str] = Field(None, description="Entity id whose ledger balance receives revenue and pays refunds.")
-    currency: Optional[str] = Field(None, description="The ledger currency of `account`.")
-    record: Union[bool, str] = Field(False, description="Post each item's round, per segment, to the record <name>_history "
-                                                        "(true, or an expression over $inputs): the columns fit_patterns reads.")
+    account: str | None = Field(None, description="Entity id whose ledger balance receives revenue and pays refunds.")
+    currency: str | None = Field(None, description="The ledger currency of `account`.")
+    record: bool | str = Field(False, description="Post each item's round, per segment, to the record <name>_history "
+                                                  "(true, or an expression over $inputs): the columns fit_patterns "
+                                                  "reads.")
 
 
 register_config(DEMAND, DemandConfig)
 
 #: Columns of ``<name>_history`` besides one per factor driver.
-RECORD_FIELDS: Dict[str, str] = {"time": "text", "item": "text", "segment": "text", "units": "int", "stockout": "int",
+RECORD_FIELDS: dict[str, str] = {"time": "text", "item": "text", "segment": "text", "units": "int", "stockout": "int",
                                  "demand": "int", "lost": "int", "stock": "int", "price": "number", "promo": "number"}
 _OBSERVATIONS = ("counts", "measurement", "censored", "missing")
 #: Measures of ``$demand_totals`` and the item property each sums (the rest are derived).
 _ITEM_TOTALS = {"demand": "demand_total", "served": "served_total", "substituted": "substituted_total",
-                "backordered": "backordered_total", "lost": "lost_total", "spill_in": "spill_in_total", "sold": "sold_total",
+                "backordered": "backordered_total", "lost": "lost_total", "spill_in": "spill_in_total",
+                "sold": "sold_total",
                 "returned": "returned_total", "revenue": "revenue", "refunds": "refunds", "cogs": "cogs"}
 _DERIVED = ("fill_rate", "net_revenue", "margin")
 #: Totals kept per segment.
 SEGMENT_TOTALS = ("demand", "served", "sold", "lost", "returned", "revenue", "refunds", "cogs")
 
 
-def segments_of(config: DemandConfig) -> Dict[str, SegmentSpec]:
+def segments_of(config: DemandConfig) -> dict[str, SegmentSpec]:
     """Every segment, the main one first."""
     main = SegmentSpec(rate=config.rate, factors=config.factors, noise=config.noise, returns=config.returns)
     return {config.segment: main, **config.segments}
 
 
-_DOC = ("Customers' demand for stocked items, drawn from patterns and served from stock. Each round an item's expected "
-        "demand is `rate` × `factors` (patterns: base, season, trend, price elasticity with its driver, promotion, "
-        "cross-price substitution, drivers), a counts pattern (`noise`) draws the units, and sales are capped by `stock`: "
-        "unmet demand partly buys `substitutes` (`spill`), partly waits (`backorder`) and the rest is lost — true demand "
-        "and lost sales are kept apart. `segments` add bulk buyers or channels with their own rate, price, items and "
-        "`returns` (rate, delay, restock). Prices and promotions are read at the start of the round, sales at its end; "
-        "revenue goes to a ledger `account`. Item props <name>_price, _promo, _expected, _variance (of this round's demand), "
-        "_demand, _sold, _lost, _stockout, _backlog, _recent and totals; outputs <name>_demand, _sold, _lost, _fill_rate, "
-        "_revenue, _margin, _returned, by item and by `group`; metrics per round. Stock changes only through sales, "
-        "returns and the `receive`/`remove` actions (invariant $stock_conserved). `record` posts <name>_history rows "
-        "(time, item, segment, units, stockout, demand, lost, stock, price, promo, each driver) ready for fit_patterns.")
+_DOC = ("Customers' demand for stocked items, drawn from patterns and served from stock. Each round an item's "
+        "expected demand is `rate` × `factors` (patterns: base, season, trend, price elasticity with its driver, "
+        "promotion, cross-price substitution, drivers), a counts pattern (`noise`) draws the units, and sales are "
+        "capped by `stock`: unmet demand partly buys `substitutes` (`spill`), partly waits (`backorder`) and the rest "
+        "is lost — true demand and lost sales are kept apart. `segments` add bulk buyers or channels with their own "
+        "rate, price, items and `returns` (rate, delay, restock). Prices and promotions are read at the start of the "
+        "round, sales at its end; revenue goes to a ledger `account`. Item props <name>_price, _promo, _expected, "
+        "_variance (of this round's demand), _demand, _sold, _lost, _stockout, _backlog, _recent and totals; outputs "
+        "<name>_demand, _sold, _lost, _fill_rate, _revenue, _margin, _returned, by item and by `group`; metrics per "
+        "round. Stock changes only through sales, returns and the `receive`/`remove` actions (invariant "
+        "$stock_conserved). `record` posts <name>_history rows (time, item, segment, units, stockout, demand, lost, "
+        "stock, price, promo, each driver) ready for fit_patterns.")
 
 
 @mode("economy", "demand", DemandConfig, _DOC,
       example={"items": "sku", "stock": "stock", "price": "$it.list_price * (1 - $it.shop_promo)",
                "promotion": "0.2 if $pattern.promo_week($it.category) > 0 else 0", "cost": "$it.unit_cost",
                "group": "$it.category", "rate": "demand",
-               "factors": [{"pattern": "price_effect", "key": "$it.category", "driver": "$price / $it.list_price"}, "promo"],
+               "factors": [{"pattern": "price_effect", "key": "$it.category", "driver": "$price / $it.list_price"},
+                           "promo"],
                "noise": "sales", "substitutes": "[$it.sibling]", "spill": 0.3,
                "segments": {"repair_shops": {"rate": "$it.shop_rate", "price": "$price * 0.85"}}})
-def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     items = config.items
     require_types(contract, [items], "items")
     segments = segments_of(config)
     if config.segment in config.segments:
-        raise MechanismError(f"'{config.segment}' is the main segment and a listed segment", "rename one of them", "segments")
+        raise MechanismError(f"'{config.segment}' is the main segment and a listed segment", "rename one of them",
+                             "segments")
     patterns = contract.get("patterns") or {}
-    drivers: List[str] = []
+    drivers: list[str] = []
     for segment, spec in segments.items():
         path = "" if segment == config.segment else f"segments.{segment}."
         if not valid_name(segment):
-            raise MechanismError(f"segment '{segment}' is not a valid name", "use letters, digits and _", f"{path}".rstrip(".") or "segment")
+            raise MechanismError(f"segment '{segment}' is not a valid name", "use letters, digits and _",
+                                 f"{path}".rstrip(".") or "segment")
         drivers += _check_segment(spec, patterns, path)
     for field in ("price", "promotion", "cost", "group", "substitutes", "spill", "backorder", "record"):
         compiles(getattr(config, field), field)
     if (config.account is None) != (config.currency is None):
-        raise MechanismError("`account` and `currency` go together", "give both to pay revenue into a ledger, or neither", "account")
+        raise MechanismError("`account` and `currency` go together",
+                             "give both to pay revenue into a ledger, or neither", "account")
     if config.currency is not None:
         require_currency(contract, config.currency)
     if config.stock is not None and not valid_name(config.stock):
         raise MechanismError(f"'{config.stock}' is not a property name", "use letters, digits and _", "stock")
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {items: {"props": _item_props(name, config)}},
         "world": _world_props(name, config),
-        "events": [{"name": f"{name}: prices and returns", "phase": "start", "do": [{"economy": name, "action": "open"}]},
+        "events": [{"name": f"{name}: prices and returns", "phase": "start",
+                    "do": [{"economy": name, "action": "open"}]},
                    {"name": f"{name}: sales", "phase": "end", "do": [{"economy": name, "action": "trade"}]}],
         "metrics": {f"{name}_{measure}": {"expr": f"$sum({items}, $it.{name}_{measure})", "unit": "units"}
                     for measure in ("demand", "sold", "lost")},
@@ -178,20 +209,20 @@ def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any])
     if config.stock is not None:
         fragment["metrics"][f"{name}_stock"] = {"expr": f"$sum({items}, $it.{config.stock})", "unit": "units"}
         fragment["invariants"] = [{"expr": f"$stock_conserved('{name}')", "check": "round",
-                                   "why": f"Stock of {items} changes only by {name}'s sales and returns and its receive and "
-                                          "remove actions."}]
+                                   "why": f"Stock of {items} changes only by {name}'s sales and returns and its "
+                                          "receive and remove actions."}]
     if config.record is not False:
         clash = [d for d in drivers if d in RECORD_FIELDS]
         if clash:
-            raise MechanismError(f"a factor driver is recorded in a column named after its pattern, and '{clash[0]}' is "
-                                 "already a column", "rename the pattern", "record")
+            raise MechanismError(f"a factor driver is recorded in a column named after its pattern, and '{clash[0]}' "
+                                 "is already a column", "rename the pattern", "record")
         fields = {**RECORD_FIELDS, **{driver: "number" for driver in drivers}}
         fragment["records"] = {f"{name}_history": {"fields": fields, "notify": False,
                                                    "description": f"Every item's round per segment ({name})."}}
     return fragment
 
 
-def _check_segment(spec: SegmentSpec, patterns: Mapping[str, Any], path: str) -> List[str]:
+def _check_segment(spec: SegmentSpec, patterns: Mapping[str, Any], path: str) -> list[str]:
     """Check one segment's reads; returns the patterns whose drivers are recorded."""
     drivers = []
     for field, factor in [("rate", spec.rate), *[(f"factors[{i}]", f) for i, f in enumerate(spec.factors)]]:
@@ -205,13 +236,15 @@ def _check_segment(spec: SegmentSpec, patterns: Mapping[str, Any], path: str) ->
         kind = _pattern_kind(patterns, ref.pattern, where)
         if kind in _OBSERVATIONS:
             raise MechanismError(f"'{ref.pattern}' is a {kind} pattern, which observes demand rather than scaling it",
-                                 "name a counts pattern as `noise`" if kind == "counts" else "remove it from the factors", where)
+                                 "name a counts pattern as `noise`" if kind == "counts"
+                                 else "remove it from the factors", where)
         compiles(ref.key, f"{where}.key")
         compiles(ref.driver, f"{where}.driver")
         if ref.driver is not None and ref.pattern not in drivers:
             drivers.append(ref.pattern)
     if spec.noise is not None and _pattern_kind(patterns, spec.noise, f"{path}noise") != "counts":
-        raise MechanismError(f"'{spec.noise}' is not a counts pattern", "declare {\"kind\": \"counts\", ...} and name it", f"{path}noise")
+        raise MechanismError(f"'{spec.noise}' is not a counts pattern",
+                             "declare {\"kind\": \"counts\", ...} and name it", f"{path}noise")
     compiles(spec.price, f"{path}price")
     compiles(spec.where, f"{path}where")
     if spec.returns is not None:
@@ -220,31 +253,38 @@ def _check_segment(spec: SegmentSpec, patterns: Mapping[str, Any], path: str) ->
     return drivers
 
 
-def _pattern_kind(patterns: Mapping[str, Any], name: str, where: str) -> Optional[str]:
+def _pattern_kind(patterns: Mapping[str, Any], name: str, where: str) -> str | None:
     spec = patterns.get(name)
     if not isinstance(spec, Mapping):
         listed = ", ".join(patterns) or "none"
-        raise MechanismError(f"'{name}' is not a declared pattern", f"patterns: {listed} (or write an expression with $)", where)
+        raise MechanismError(f"'{name}' is not a declared pattern",
+                             f"patterns: {listed} (or write an expression with $)", where)
     kind = spec.get("kind")
     return kind if isinstance(kind, str) and kind in KINDS else None
 
 
-def _item_props(name: str, config: DemandConfig) -> Dict[str, Any]:
+def _item_props(name: str, config: DemandConfig) -> dict[str, Any]:
     whole = {"type": "int", "default": 0, "min": 0}
     amount = {"type": "number", "default": 0.0}
-    out: Dict[str, Any] = {
+    out: dict[str, Any] = {
         f"{name}_price": {**amount, "description": "Price this round."},
         f"{name}_promo": {**amount, "description": "Promotion depth this round."},
         f"{name}_expected": {**amount, "description": "Expected demand this round, every segment."},
         f"{name}_variance": {**amount, "description": "Variance of this round's demand."},
         f"{name}_demand": {**whole, "description": "Units asked for this round."},
-        f"{name}_sold": {**whole, "description": "Units sold this round (to its own customers, as a substitute, and backorders filled)."},
+        f"{name}_sold": {**whole,
+                         "description": "Units sold this round (to its own customers, as a substitute, and backorders "
+                                        "filled)."},
         f"{name}_lost": {**whole, "description": "Units of this round's demand that bought nothing."},
-        f"{name}_stockout": {"type": "bool", "default": False, "description": "Demand went unmet from stock this round."},
+        f"{name}_stockout": {"type": "bool", "default": False,
+                             "description": "Demand went unmet from stock this round."},
         f"{name}_backlog": {**whole, "description": "Units on backorder."},
-        f"{name}_recent": {"type": "list", "default": [], "description": "Units sold in the last rounds, oldest first."},
-        f"{name}_expected_recent": {"type": "list", "default": [], "description": "Expected demand in the last rounds, oldest first."},
-        f"{name}_variance_recent": {"type": "list", "default": [], "description": "Its variance in the last rounds, oldest first."},
+        f"{name}_recent": {"type": "list", "default": [],
+                           "description": "Units sold in the last rounds, oldest first."},
+        f"{name}_expected_recent": {"type": "list", "default": [],
+                           "description": "Expected demand in the last rounds, oldest first."},
+        f"{name}_variance_recent": {"type": "list", "default": [],
+                           "description": "Its variance in the last rounds, oldest first."},
         f"{name}_rounds_out": {**whole, "description": "Rounds with unmet demand."},
     }
     for measure, prop in _ITEM_TOTALS.items():
@@ -254,21 +294,23 @@ def _item_props(name: str, config: DemandConfig) -> Dict[str, Any]:
     return out
 
 
-def _world_props(name: str, config: DemandConfig) -> Dict[str, Any]:
-    out: Dict[str, Any] = {
-        f"{name}_returns": {"type": "list", "default": [], "description": "Returns on their way: [round due, item, segment, units, unit price]."},
+def _world_props(name: str, config: DemandConfig) -> dict[str, Any]:
+    out: dict[str, Any] = {
+        f"{name}_returns": {"type": "list", "default": [],
+                            "description": "Returns on their way: [round due, item, segment, units, unit price]."},
         f"{name}_segments": {"type": "map", "default": {}, "description": "Totals per segment."},
     }
     if config.stock is not None:
         out[f"{name}_stock_start"] = {"type": "number", "default": f"$sum({config.items}, $it.{config.stock})",
                                       "description": "Units on hand when the run began."}
-        out[f"{name}_stock_flows"] = {"type": "map", "default": {}, "description": "Units that entered (+) or left (−) stock, by flow."}
+        out[f"{name}_stock_flows"] = {"type": "map", "default": {},
+                                      "description": "Units that entered (+) or left (−) stock, by flow."}
     return out
 
 
-def _outputs(name: str, config: DemandConfig) -> Dict[str, Any]:
+def _outputs(name: str, config: DemandConfig) -> dict[str, Any]:
     formats = {"fill_rate": "pct", "revenue": "money"}  # the headline outcomes reports lead with
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for measure in ("demand", "sold", "lost", "fill_rate", "revenue", "margin", "returned"):
         out[f"{name}_{measure}"] = {"expr": f"$demand_totals('{name}', '{measure}')", "type": "number",
                                     **({"format": formats[measure]} if measure in formats else {})}
@@ -276,10 +318,12 @@ def _outputs(name: str, config: DemandConfig) -> Dict[str, Any]:
         out[f"{name}_{measure}_by_item"] = {"expr": f"$demand_totals('{name}', '{measure}', 'item')", "type": "map"}
     if config.group is not None:
         for measure in ("sold", "lost", "fill_rate", "revenue", "margin"):
-            out[f"{name}_{measure}_by_group"] = {"expr": f"$demand_totals('{name}', '{measure}', 'group')", "type": "map"}
+            out[f"{name}_{measure}_by_group"] = {"expr": f"$demand_totals('{name}', '{measure}', 'group')",
+                                                 "type": "map"}
     if config.segments:
         for measure in ("sold", "fill_rate", "revenue", "returned"):
-            out[f"{name}_{measure}_by_segment"] = {"expr": f"$demand_totals('{name}', '{measure}', 'segment')", "type": "map"}
+            out[f"{name}_{measure}_by_segment"] = {"expr": f"$demand_totals('{name}', '{measure}', 'segment')",
+                                                   "type": "map"}
     return out
 
 
@@ -299,7 +343,7 @@ def _value(measure: str, totals: Mapping[str, float]) -> float:
     return round(value, 2) if measure in ("revenue", "refunds", "cogs") else value
 
 
-def totals(world: Any, name: str, measure: str, by: Optional[str], where: str) -> Any:
+def totals(world: Any, name: str, measure: str, by: str | None, where: str) -> Any:
     """A demand mechanism's total of ``measure``, overall or ``{key: total}`` by item, group or segment."""
     config: DemandConfig = config_of(world, name, DEMAND, where)
     known = [*_ITEM_TOTALS, *_DERIVED]
@@ -318,7 +362,7 @@ def totals(world: Any, name: str, measure: str, by: Optional[str], where: str) -
         raise ExprError(f"$demand_totals: `by` is item, group or segment, got {by!r}", where)
     if by == "group" and config.group is None:
         raise ExprError(f"$demand_totals: '{name}' declares no `group`", where)
-    grouped: Dict[Any, Dict[str, float]] = {}
+    grouped: dict[Any, dict[str, float]] = {}
     group = compile_expr(config.group) if by == "group" and config.group else None
     for item in world.entities_of(config.items):
         key = None if by is None else item.id if by == "item" else group(world.scope(it=item))  # type: ignore[misc]
@@ -331,8 +375,9 @@ def totals(world: Any, name: str, measure: str, by: Optional[str], where: str) -
 
 
 @function("demand_totals(mechanism, measure, by?)",
-          "A demand mechanism's run total: demand, served, substituted, backordered, lost, spill_in, sold, returned, revenue, "
-          "refunds, cogs, fill_rate, net_revenue or margin — overall, or {key: total} by 'item', 'group' or 'segment'.",
+          "A demand mechanism's run total: demand, served, substituted, backordered, lost, spill_in, sold, returned, "
+          "revenue, refunds, cogs, fill_rate, net_revenue or margin — overall, or {key: total} by 'item', 'group' "
+          "or 'segment'.",
           min_args=2, max_args=3)
 def _demand_totals(call: Call) -> Any:
     name, measure, by = call.arg(0), call.arg(1), call.arg(2)

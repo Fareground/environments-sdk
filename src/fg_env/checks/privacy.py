@@ -5,12 +5,13 @@ is shown or offered, and any agent's in text sent to several. These checks repor
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, List, Mapping, Optional, Set
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING
 
 from .. import contract as C
 from ..actions.book import stage_actions
-from ..expr import Expr, ExprError, compile_expr
 from ..actions.reads import inspect_rule
+from ..expr import Expr, ExprError, compile_expr
 from ..expr.template import compile_template
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ __all__ = ["PrivacyChecks"]
 class PrivacyChecks:
     """Private properties in views, tools, outcomes, announcements and news (mixed into the contract checker)."""
 
-    def _private_action(self: "_Checker", spec: C.ActionSpec, types: Types, path: str) -> None:  # type: ignore[misc]
+    def _private_action(self: _Checker, spec: C.ActionSpec, types: Types, path: str) -> None:  # type: ignore[misc]
         """An action's announcement is sent to everyone; its outcome, `why`s and parameters' bounds, defaults and
         choices are what its actor is shown or offered, where a chosen agent's private property is refused whenever
         the actor chooses another agent; a requirement that reads one answers yes or no for free."""
@@ -31,7 +32,8 @@ class PrivacyChecks:
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
         texts = {"outcome": spec.outcome}
         for pname, param in spec.params.items():
-            texts.update({f"params.{pname}.{key}": getattr(param, key) for key in ("min", "max", "min_items", "max_items", "default", "values")})
+            texts.update({f"params.{pname}.{key}": getattr(param, key)
+                          for key in ("min", "max", "min_items", "max_items", "default", "values")})
             texts[f"params.{pname}.invalid"] = param.invalid
         for index, condition in enumerate(spec.when):
             texts[f"when[{index}].why"] = condition.why
@@ -52,7 +54,7 @@ class PrivacyChecks:
                           "decide by what the actor may know, or test it in `do` instead (`{\"if\": ..., \"then\": "
                           "[{\"fail\": ...}]}`): a refusal from `do` that read a private value spends the action")
 
-    def _sealed_announced(self: "_Checker", stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
+    def _sealed_announced(self: _Checker, stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
         """A simultaneous stage announces each sealed choice to everyone by its action's name as it commits (unless
         the action is private or says what to announce): with more than one to choose from, each agent's choice —
         a secret ballot's vote — is public."""
@@ -70,10 +72,10 @@ class PrivacyChecks:
                           "`announce`")
                 return
 
-    def _secret_subtypes(self: "_Checker") -> None:  # type: ignore[misc]
+    def _secret_subtypes(self: _Checker) -> None:  # type: ignore[misc]
         """An agent subtype with private actions of its own, of a type agents may inspect: inspect names each agent's
         type, so everyone can tell who is one."""
-        warned: Set[str] = set()
+        warned: set[str] = set()
         for name, spec in self.c.actions.items():
             for kind in [spec.by] if isinstance(spec.by, str) else spec.by:
                 if not spec.private or kind in warned or kind not in self.c.types or not self.c.is_agent(kind):
@@ -87,8 +89,8 @@ class PrivacyChecks:
                           f"if being a {kind} is a secret, keep it in a private property of {root} instead of a "
                           "subtype (the roles mechanism deals out hidden roles)")
 
-    def _shared_text(self: "_Checker", source: Optional[str], path: str, types: Types,  # type: ignore[misc]
-                     params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
+    def _shared_text(self: _Checker, source: str | None, path: str, types: Types,  # type: ignore[misc]
+                     params: Mapping[str, C.ParamSpec] | None = None) -> None:
         """Text sent to several agents (an announcement, news, an entry every agent reads) may read no agent's private
         property, not even the actor's own: the engine refuses it."""
         read = self._agent_private_reads(_expressions(source), types, params or {})
@@ -99,12 +101,12 @@ class PrivacyChecks:
                        "$actor.cash\"` in `do`, then `{$shown}`; in an event, a property that is not private), or "
                        "send it `to` the owner alone")
 
-    def _agent_private_reads(self: "_Checker", expressions: Iterable[Expr], types: Types,  # type: ignore[misc]
-                             params: Mapping[str, C.ParamSpec], items: bool = True) -> Set[str]:
+    def _agent_private_reads(self: _Checker, expressions: Iterable[Expr], types: Types,  # type: ignore[misc]
+                             params: Mapping[str, C.ParamSpec], items: bool = True) -> set[str]:
         """The reads of an agent's private property in ``expressions``: from a typed root (``types``), a chosen
         entity (``$params.<name>.<prop>``) or (``items``) the items of a type (``$sum(player, $it.cash)``), which
         may be guarded to the reader's own."""
-        read: Set[str] = set()
+        read: set[str] = set()
         for expr in expressions:
             for chain in expr.paths:
                 param = params.get(chain[1]) if chain[0] == "params" and len(chain) > 2 else None
@@ -121,18 +123,18 @@ class PrivacyChecks:
                     read.add(f"{chain[1]} of every {kind} (in ${function})")
         return read
 
-    def _fetched_private_reads(self: "_Checker", expressions: Iterable[Expr]) -> Set[str]:  # type: ignore[misc]
+    def _fetched_private_reads(self: _Checker, expressions: Iterable[Expr]) -> set[str]:  # type: ignore[misc]
         """The reads of a private property of some agent type from an entity a function fetched
         (``$entity(bo).cash``, ``$first(player).cash``): whose it is shows only at run time."""
         agents = self.c.agent_types()
         return {f"${chain[0]}(…).{chain[1]}" for expr in expressions for chain in expr.call_paths
                 if len(chain) > 1 and self._agent_private(agents, chain[1])}
 
-    def _agent_private(self: "_Checker", kinds: Iterable[str], field: str) -> bool:  # type: ignore[misc]
+    def _agent_private(self: _Checker, kinds: Iterable[str], field: str) -> bool:  # type: ignore[misc]
         return any(kind in self.c.types and self.c.is_agent(kind) and (prop := self.c.props_of(kind).get(field))
                    is not None and prop.private for kind in kinds)
 
-    def _private_listing(self: "_Checker", view: C.ViewSpec, path: str) -> None:  # type: ignore[misc]
+    def _private_listing(self: _Checker, view: C.ViewSpec, path: str) -> None:  # type: ignore[misc]
         """A view listing every entity of a type by a private property (shown or sorted by) shows each reader
         everyone's; with a `where`, or through a def, it may: reading another agent's is an error at run time."""
         of = str(view.of)
@@ -145,24 +147,26 @@ class PrivacyChecks:
         shown = self._private_fields(expressions, of)
         if shown and view.where is None:
             self.error(path, f"shows (or sorts by) private {', '.join(shown)} of every {of} to each reader",
-                       "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field out")
+                       "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field "
+                       "out")
         elif shown and self.c.is_agent(of):
             self._private_warning(path, ", ".join(shown))
         self._private_via_defs(expressions, path)
 
-    def _private_warning(self: "_Checker", path: str, read: str) -> None:  # type: ignore[misc]
+    def _private_warning(self: _Checker, path: str, read: str) -> None:  # type: ignore[misc]
         self.warn(path, f"reads private {read}: what an agent is shown or offered may read only its own private "
                         "properties, and reading another agent's there is an error at run time",
                   "guard the read with `$it.id == $actor.id`, or work out what the agent may learn in game logic "
                   "(an action's do, an event) and show that")
 
-    def _private_via_defs(self: "_Checker", expressions: Iterable[Expr], path: str) -> None:  # type: ignore[misc]
+    def _private_via_defs(self: _Checker, expressions: Iterable[Expr], path: str) -> None:  # type: ignore[misc]
         """Warn when ``expressions`` call defs (directly or through other defs) that read agents' private properties
         from their arguments or the entities they loop over: whose they read shows only at run time."""
-        private = {prop for kind in self.c.agent_types() for prop, spec in self.c.props_of(kind).items() if spec.private}
+        private = {prop for kind in self.c.agent_types() for prop, spec in self.c.props_of(kind).items()
+                   if spec.private}
         pending = [name for expr in expressions for name in (expr.functions | expr.roots) if name in self.c.defs]
-        seen: Set[str] = set()
-        read: Set[str] = set()
+        seen: set[str] = set()
+        read: set[str] = set()
         while pending:
             name = pending.pop()
             if name in seen:
@@ -179,7 +183,7 @@ class PrivacyChecks:
         if read:
             self._private_warning(path, ", ".join(sorted(read)))
 
-    def _private_filter(self: "_Checker", where: Optional[str], of: str, path: str) -> None:  # type: ignore[misc]
+    def _private_filter(self: _Checker, where: str | None, of: str, path: str) -> None:  # type: ignore[misc]
         """A choice filtered by another agent's private property reveals it: the tool lists only who passes."""
         if where is None or not self.c.is_agent(of):
             return
@@ -195,14 +199,14 @@ class PrivacyChecks:
         else:
             self._private_via_defs([compile_expr(where)], path)
 
-    def _private_fields(self: "_Checker", expressions: Iterable[Expr], of: str) -> List[str]:  # type: ignore[misc]
+    def _private_fields(self: _Checker, expressions: Iterable[Expr], of: str) -> list[str]:  # type: ignore[misc]
         """The private properties of ``of`` that ``expressions`` read from ``$it``."""
         specs = self.c.props_of(of)
         return sorted({chain[1] for expr in expressions for chain in expr.paths
                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
 
 
-def _expressions(text: object) -> List[Expr]:
+def _expressions(text: object) -> list[Expr]:
     """The expressions in a template or expression text; none when it has none, or does not compile (the template
     and expression checks report that)."""
     if not isinstance(text, str) or "$" not in text:

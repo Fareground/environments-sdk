@@ -5,13 +5,13 @@ import time
 from types import SimpleNamespace
 
 import pytest
+from test_author import WORKING, Cut, FakeOpenAI, call, edit, tool_replies, write
+from test_author_honest import EXAMPLES, LEMONADE, authored, lemonade
 
 import fg_env
 from fg_env import host
 from fg_env.host.stubs import StubGameMaster
 from fg_env.participants import RandomAgent
-from test_author import WORKING, Cut, FakeOpenAI, call, edit, tool_replies, write
-from test_author_honest import EXAMPLES, LEMONADE, authored, lemonade
 
 TAVERN = json.loads((EXAMPLES / "host" / "tavern_gm.json").read_text())
 #: The lemonade stand without its view, its winner and its market-clearing event.
@@ -34,7 +34,8 @@ def test_a_working_revision_that_removes_parts_is_not_kept_and_the_model_is_sent
     assert sent_back.startswith("Revision 2 works, but it removed views.market, events.0, outputs.winner")
     assert "save it again to confirm" in sent_back
     assert len(client.sent) == 4  # sent back once; stopping again ends the session
-    assert "kept revision 1 of 2; revision 2 was not kept: it removed views.market, events.0, outputs.winner" in result.summary()
+    assert ("kept revision 1 of 2; revision 2 was not kept: it removed views.market, events.0, "
+            "outputs.winner") in result.summary()
 
 
 def test_saving_the_removal_again_confirms_it():
@@ -62,7 +63,8 @@ def test_a_contract_in_which_no_action_can_ever_succeed_is_not_working():
     rules = lemonade(actions={
         "set_price": {**LEMONADE["actions"]["set_price"],
                       "when": [{"expr": "$params.price > 10", "why": "Prices must be above 10."}]},
-        "pitch": {"by": "seller", "description": "Shout a slogan.", "params": {"text": {"type": "text", "max_len": 100}},
+        "pitch": {"by": "seller", "description": "Shout a slogan.",
+                  "params": {"text": {"type": "text", "max_len": 100}},
                   "when": [{"expr": "$params.text == 'open sesame'", "why": "Wrong words."}],
                   "do": ["$actor.earned += 1"]}})
 

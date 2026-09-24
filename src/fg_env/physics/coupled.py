@@ -6,13 +6,13 @@ They are restored before committing through the normal journaled write API.
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from .model import _CONSTS, _FUNCS
-from .entities import _as_prop, _bounds
 from ..errors import RunError
 from ..expr import compile_expr, truthy
+from .entities import _as_prop, _bounds
 from .integration import integrate
+from .model import _CONSTS, _FUNCS
 from .stochastic import exact_transition
 from .stochastic_integration import integrate_noise
 
@@ -23,7 +23,7 @@ if TYPE_CHECKING:
 _FIXED_ROOTS = frozenset({"world", "inputs", "round", "stage", "arm"})
 
 
-def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
+def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
     from .world import _number, _refresh_reads
 
     model = world.physics
@@ -42,7 +42,7 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
     rates = [model._compiled[name] for name in world_names]
     noises = []
     #: Each entity's reads that nothing evolving can change, worked out once per interval instead of per RK stage.
-    fixed_reads: Dict[Any, Dict[str, float]] = {}
+    fixed_reads: dict[Any, dict[str, float]] = {}
     for index, name in enumerate(world_names):
         if name in model._noise:
             noises.append((index, model._noise[name], world.seeds.rng("physics", "noise", "world", name, world.round)))
@@ -59,7 +59,8 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
             state_names.extend(step.vars)
             for index in range(len(step.vars)):
                 noise_read_names[offset+index] = {name for name, _ in step.reads}
-            y.extend(step._number(entity.properties.get(name), entity, f"{step.path}.vars.{name}") for name in step.vars)
+            y.extend(step._number(entity.properties.get(name), entity, f"{step.path}.vars.{name}")
+                     for name in step.vars)
             bounds.extend(_bounds(world, entity, name) for name in step.vars)
             rates.extend(step.rates)
             for index, expr in step.noise:
@@ -75,7 +76,7 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
         if entities or expr.roots & {"physics", "clock"} or (expr.roots | expr.functions) & set(world.contract.defs):
             dynamic_reads.append((name, expr))
 
-    def publish(values: List[float], time: float) -> None:
+    def publish(values: list[float], time: float) -> None:
         for index, name in enumerate(world_names):
             model.variables[name].value = values[index]
         for step, entity, offset in entities:
@@ -86,12 +87,12 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
             world.time = clock_time - (start + dt - time) / spec.dt
         world.touch()
 
-    entity_spaces: Dict[Any, Dict[str, Any]] = {}
-    last_values: Optional[List[float]] = None
-    last_time: Optional[float] = None
-    last_spaces: List[Dict[str, Any]] = []
+    entity_spaces: dict[Any, dict[str, Any]] = {}
+    last_values: list[float] | None = None
+    last_time: float | None = None
+    last_spaces: list[dict[str, Any]] = []
 
-    def namespaces(values: List[float], time: float) -> List[Dict[str, Any]]:
+    def namespaces(values: list[float], time: float) -> list[dict[str, Any]]:
         nonlocal last_values, last_time, last_spaces
         if values is last_values and time == last_time:
             return last_spaces
@@ -115,10 +116,10 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
         last_values, last_time, last_spaces = values, time, spaces
         return spaces
 
-    def slope(values: List[float], time: float) -> List[float]:
+    def slope(values: list[float], time: float) -> list[float]:
         return [expr.eval(ns) for expr, ns in zip(rates, namespaces(values, time))]
 
-    def coefficients(values: List[float], time: float) -> Any:
+    def coefficients(values: list[float], time: float) -> Any:
         spaces = namespaces(values, time)
         f = [expr.eval(ns) for expr, ns in zip(rates, spaces)]
         g = [0.0]*len(values)
@@ -126,7 +127,7 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
             g[index] = expr.eval(spaces[index])
         return f, g
 
-    def noise_derivatives(values: List[float], time: float) -> List[float]:
+    def noise_derivatives(values: list[float], time: float) -> list[float]:
         spaces = namespaces(values, time)
         result = [0.0]*len(values)
         for index, expr, _ in noises:
@@ -156,7 +157,8 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
                 spaces = namespaces(y, t)
                 exact = independent and all(
                     not (expr._names & (set(world_names)-{world_names[index]} | {"t"}))
-                    and exact_transition(rates[index], expr, world_names[index], spaces[index], y[index], h, 0) is not None
+                    and exact_transition(rates[index], expr, world_names[index], spaces[index], y[index], h,
+                                         0) is not None
                     for index, expr, _ in noises)
             if noises and not exact:
                 nxt = integrate_noise(coefficients, y, t, h, {index: rng for index, _, rng in noises},
@@ -166,7 +168,8 @@ def integrate_coupled(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
                 if exact:
                     spaces = namespaces(y, t)
                     for index, expr, rng in noises:
-                        value = exact_transition(rates[index], expr, world_names[index], spaces[index], y[index], h, rng.gauss(0, 1))
+                        value = exact_transition(rates[index], expr, world_names[index], spaces[index], y[index], h,
+                                                 rng.gauss(0, 1))
                         assert value is not None
                         nxt[index] = value
             for index, (low, high) in enumerate(bounds):

@@ -3,14 +3,13 @@ a call refused for its arguments changes nothing — so a refusal can never be u
 Checked on every example and on generated contracts; ``FG_ENV_SLOW=1`` plays every adversary everywhere."""
 import os
 
+import _fuzz
 import pytest
+from _adversaries import ADVERSARIES, played, probing
+from _leaks import EXAMPLES, SMALL
 
 import fg_env
 from fg_env.participants import RandomAgent
-
-import _fuzz
-from _adversaries import ADVERSARIES, played, probing
-from _leaks import EXAMPLES, SMALL
 
 SLOW = bool(os.environ.get("FG_ENV_SLOW"))
 NAMES = list(ADVERSARIES)

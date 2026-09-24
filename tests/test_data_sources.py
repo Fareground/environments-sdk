@@ -96,13 +96,14 @@ def test_experiments_read_sources_in_worker_processes(tmp_path):
 
 
 def test_mechanisms_add_rules_text_and_clock_defaults_without_overriding_the_author():
-    from fg_env.registry import mode
-
     from family_fixtures import Nothing, scratch_family
+
+    from fg_env.registry import mode
 
     with scratch_family("test_rulebook"):
         mode("test_rulebook", "rules", Nothing, "Adds its rules and a clock default.")(
-            lambda name, config, contract: {"brief": {"rules": "Mechanism rules."}, "clock": {"unit": "hour", "rounds": 99}})
+            lambda name, config,
+            contract: {"brief": {"rules": "Mechanism rules."}, "clock": {"unit": "hour", "rounds": 99}})
         contract = {"name": "Rules", "brief": {"rules": "Author rules."}, "clock": {"rounds": 2},
                     "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
                     "mechanisms": {"book": {"kind": "test_rulebook", "mode": "rules"}},
@@ -157,4 +158,5 @@ def test_typed_table_fields_parse_csv_and_default_missing_columns(tmp_path):
     {"type": "map", "fields": {"x": {"type": "enum", "values": []}}},
 ])
 def test_invalid_input_controls_and_nested_specs_are_rejected(spec):
-    assert any(issue.severity == "error" for issue in fg_env.check({"name": "Invalid controls", "types": {}, "inputs": {"value": spec}}))
+    assert any(issue.severity == "error"
+               for issue in fg_env.check({"name": "Invalid controls", "types": {}, "inputs": {"value": spec}}))

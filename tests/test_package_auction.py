@@ -3,14 +3,13 @@ import itertools
 import random
 
 import pytest
+from test_mech_markets import play, props, replies_of
 
 import fg_env
 from fg_env.errors import ContractError
 from fg_env.expr import ExprError, compile_expr
 from fg_env.mechanisms import auctions
 from fg_env.mechanisms.package_auction import PackageBid, SearchLimit, best_allocation, settle
-
-from test_mech_markets import play, props, replies_of
 
 
 def _bids(*rows):
@@ -75,13 +74,15 @@ def test_package_winners_function_reads_bids_as_data_and_explains_bad_ones():
                       "surplus": 10.0, "revenue": 8.0}
     for source, message in [("$package_winners([{bidder: a, price: 3}])", "must be a map with bidder, items and price"),
                             ("$package_winners([{bidder: a, items: [x, x], price: 3}])", "distinct item names"),
-                            ("$package_winners([{bidder: a, items: [x], price: 3}], 0, cheap)", "payment must be one of")]:
+                            ("$package_winners([{bidder: a, items: [x], price: 3}], 0, cheap)",
+                             "payment must be one of")]:
         with pytest.raises(ExprError, match=message):
             compile_expr(source)(env.world.scope())
 
 
 def spectrum(**config):
-    mechanism = {"kind": "market", "mode": "auction", "format": "combinatorial", "who": "bidder", "item": "spectrum licences",
+    mechanism = {"kind": "market", "mode": "auction", "format": "combinatorial", "who": "bidder",
+                 "item": "spectrum licences",
                  "items": ["north", "south", "east"], "reserve": 5, "reserves": {"east": 50}, **config}
     return {"name": "Spectrum", "clock": {"rounds": 3}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
             "entities": {t: {"type": "bidder"} for t in "abc"}, "mechanisms": {"house": mechanism}}
@@ -91,9 +92,11 @@ def test_combinatorial_lot_sells_packages_at_vcg_prices_refunds_escrow_and_keeps
     assert not [i for i in fg_env.check(spectrum()) if i.severity == "error"]
     env, replies = play(spectrum(), {
         (1, "a"): [("house_bid", {"package": ["north", "south"], "price": 60})],
-        (1, "b"): [("house_bid", {"package": ["north"], "price": 20}), ("house_bid", {"package": ["north"], "price": 35}),
+        (1, "b"): [("house_bid", {"package": ["north"], "price": 20}),
+                   ("house_bid", {"package": ["north"], "price": 35}),
                    ("house_bid", {"package": ["south"], "price": 10})],
-        (1, "c"): [("house_bid", {"package": ["south"], "price": 30}), ("house_bid", {"package": ["east"], "price": 40})],
+        (1, "c"): [("house_bid", {"package": ["south"], "price": 30}),
+                   ("house_bid", {"package": ["east"], "price": 40})],
     })
     assert [r.ok for r in replies_of(replies, "b")] == [True, True, True]  # the second bid replaced the first
     below_reserve = replies_of(replies, "c")[1]
@@ -127,7 +130,8 @@ def test_package_bids_are_escrowed_at_the_highest_one_and_limited_per_bidder():
     assert seen[("north",)].ok and seen[("south",)].ok and seen["escrow"] == 45
     assert not seen[("north", "south")].ok and "already hold 2 package bids" in seen[("north", "south")].text
     assert not seen[("west",)].ok
-    assert props(env, "a")["cash"] == 95 and props(env, "a")["house_items"] == ["south"]  # won south alone at the reserve
+    assert (props(env, "a")["cash"] == 95 and props(env, "a")["house_items"]
+            == ["south"])  # won south alone at the reserve
     assert not auctions.audit(env.world, "house")
 
 

@@ -12,13 +12,14 @@ from __future__ import annotations
 import copy
 import json
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..expr.template import format_value
+from ..world.entity import Entity
 from ..world.live import prop_type
 
 __all__ = ["Rule", "Change", "Plan", "resolve_rules", "describe", "validate", "apply", "MAX_NARRATION"]
@@ -28,7 +29,7 @@ MAX_NARRATION = 2000
 _EPSILON = 1e-9
 _SHOWN = 60
 
-_KEYS: Dict[str, frozenset] = {
+_KEYS: dict[str, frozenset] = {
     "set": frozenset({"effect", "target", "prop", "value"}),
     "set_world": frozenset({"effect", "prop", "value"}),
     "transfer": frozenset({"effect", "prop", "from", "to", "amount"}),
@@ -43,16 +44,16 @@ class Rule:
 
     index: int
     effect: str
-    prop: Optional[str] = None
-    targets: Tuple[str, ...] = ()
-    receivers: Tuple[str, ...] = ()
-    places: Dict[str, List[Any]] = field(default_factory=dict)
-    low: Optional[float] = None
-    high: Optional[float] = None
-    delta: Optional[float] = None
-    values: Optional[List[Any]] = None
+    prop: str | None = None
+    targets: tuple[str, ...] = ()
+    receivers: tuple[str, ...] = ()
+    places: dict[str, list[Any]] = field(default_factory=dict)
+    low: float | None = None
+    high: float | None = None
+    delta: float | None = None
+    values: list[Any] | None = None
     max_chars: int = 200
-    amount: Optional[float] = None
+    amount: float | None = None
     description: str = ""
 
 
@@ -61,19 +62,19 @@ class Change:
     effect: str
     rule: int
     summary: str
-    target: Optional[str] = None
-    prop: Optional[str] = None
+    target: str | None = None
+    prop: str | None = None
     value: Any = None
-    receiver: Optional[str] = None
+    receiver: str | None = None
     amount: float = 0.0
     place: Any = None
-    text: Optional[str] = None
+    text: str | None = None
 
 
 @dataclass
 class Plan:
     narration: str
-    changes: List[Change]
+    changes: list[Change]
 
 
 # ---------------------------------------------------------------------------
@@ -81,9 +82,9 @@ class Plan:
 # ---------------------------------------------------------------------------
 
 
-def resolve_rules(runner: Any, allow: Sequence[Any], vars: Dict[str, Any], where: str) -> List[Rule]:
+def resolve_rules(runner: Any, allow: Sequence[Any], vars: dict[str, Any], where: str) -> list[Rule]:
     world = runner.world
-    rules: List[Rule] = []
+    rules: list[Rule] = []
     for index, spec in enumerate(allow):
         path = f"{where}.allow[{index}]"
         rule = Rule(index, spec.effect, spec.prop, low=spec.min, high=spec.max, delta=spec.delta,
@@ -95,12 +96,13 @@ def resolve_rules(runner: Any, allow: Sequence[Any], vars: Dict[str, Any], where
             rule.targets = _entity_ids(runner, spec.giver, vars, path)
             rule.receivers = _entity_ids(runner, spec.to, vars, path)
         if spec.effect == "move":
-            rule.places = {target: _places(runner, world.entities[target], spec.to, vars, path) for target in rule.targets}
+            rule.places = {target: _places(runner, world.entities[target], spec.to, vars, path)
+                           for target in rule.targets}
         rules.append(rule)
     return rules
 
 
-def _entity_ids(runner: Any, raw: str, vars: Dict[str, Any], path: str) -> Tuple[str, ...]:
+def _entity_ids(runner: Any, raw: str, vars: dict[str, Any], path: str) -> tuple[str, ...]:
     world = runner.world
     if raw == "actor":
         actor = vars.get("actor")
@@ -112,7 +114,7 @@ def _entity_ids(runner: Any, raw: str, vars: Dict[str, Any], path: str) -> Tuple
     if isinstance(value, str) and world.is_type(value):
         value = world.entities_of(value)
     items = value if isinstance(value, (list, tuple)) else [value]
-    out: List[str] = []
+    out: list[str] = []
     for item in items:
         if item is None:
             continue
@@ -124,7 +126,7 @@ def _entity_ids(runner: Any, raw: str, vars: Dict[str, Any], path: str) -> Tuple
     return tuple(out)
 
 
-def _places(runner: Any, entity: Entity, raw: Optional[str], vars: Dict[str, Any], path: str) -> List[Any]:
+def _places(runner: Any, entity: Entity, raw: str | None, vars: dict[str, Any], path: str) -> list[Any]:
     world = runner.world
     space = world.space
     if raw == "adjacent":
@@ -145,11 +147,11 @@ def _places(runner: Any, entity: Entity, raw: Optional[str], vars: Dict[str, Any
     return [copy.deepcopy(v) for v in value]
 
 
-def describe(rules: Sequence[Rule]) -> List[Dict[str, Any]]:
+def describe(rules: Sequence[Rule]) -> list[dict[str, Any]]:
     """The resolved rules as the host reads them."""
     out = []
     for rule in rules:
-        item: Dict[str, Any] = {"rule": rule.index, "effect": rule.effect}
+        item: dict[str, Any] = {"rule": rule.index, "effect": rule.effect}
         if rule.description:
             item["description"] = rule.description
         if rule.prop is not None:
@@ -174,7 +176,7 @@ def describe(rules: Sequence[Rule]) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def validate(world: Any, rules: Sequence[Rule], proposal: Any, max_effects: int) -> Tuple[Plan, Optional[str]]:
+def validate(world: Any, rules: Sequence[Rule], proposal: Any, max_effects: int) -> tuple[Plan, str | None]:
     """``(plan, None)`` when every effect fits the rules, else ``(empty plan, reason)``."""
     empty = Plan("", [])
     if not isinstance(proposal, Mapping):
@@ -195,8 +197,8 @@ def validate(world: Any, rules: Sequence[Rule], proposal: Any, max_effects: int)
         return empty, "effects must be a list"
     if len(effects) > max_effects:
         return empty, f"at most {max_effects} effect(s) are allowed per attempt, got {len(effects)}"
-    changes: List[Change] = []
-    used: Dict[Tuple[Any, ...], float] = {}
+    changes: list[Change] = []
+    used: dict[tuple[Any, ...], float] = {}
     for position, raw in enumerate(effects):
         change, problem = _one(world, rules, raw, used)
         if change is None:
@@ -207,10 +209,10 @@ def validate(world: Any, rules: Sequence[Rule], proposal: Any, max_effects: int)
 
 #: What a rule check gives: the change, or the problem; the usage key; and whether the rule was the right
 #: one for this effect (its target, giver and property matched), so the refusal names the closest rule.
-_Checked = Tuple[Optional[Change], str, Tuple[Any, ...], bool]
+_Checked = tuple[Change | None, str, tuple[Any, ...], bool]
 
 
-def _one(world: Any, rules: Sequence[Rule], raw: Any, used: Dict[Tuple[Any, ...], float]) -> Tuple[Optional[Change], str]:
+def _one(world: Any, rules: Sequence[Rule], raw: Any, used: dict[tuple[Any, ...], float]) -> tuple[Change | None, str]:
     if not isinstance(raw, Mapping):
         return None, "each effect is an object"
     kind = raw.get("effect")
@@ -219,7 +221,8 @@ def _one(world: Any, rules: Sequence[Rule], raw: Any, used: Dict[Tuple[Any, ...]
     keys = set(raw)
     if keys != _KEYS[kind]:
         extra, missing = sorted(keys - _KEYS[kind]), sorted(_KEYS[kind] - keys)
-        parts = ([f"unexpected {_shown(extra)}"] if extra else []) + ([f"missing {', '.join(missing)}"] if missing else [])
+        parts = ([f"unexpected {_shown(extra)}"] if extra else []) + (["missing "
+                                                                       f"{', '.join(missing)}"] if missing else [])
         return None, f"`{kind}` takes exactly {', '.join(sorted(_KEYS[kind]))} ({'; '.join(parts)})"
     candidates = [rule for rule in rules if rule.effect == kind]
     if not candidates:
@@ -235,11 +238,12 @@ def _one(world: Any, rules: Sequence[Rule], raw: Any, used: Dict[Tuple[Any, ...]
     return None, closest
 
 
-def _check_set(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[Any, ...], float]) -> _Checked:
+def _check_set(world: Any, rule: Rule, raw: Mapping[str, Any], used: dict[tuple[Any, ...], float]) -> _Checked:
     target, prop = raw["target"], raw["prop"]
     key = ("set", target, prop)
     if not isinstance(target, str) or target not in rule.targets:
-        return None, f"target {_shown(target)} may not be changed (allowed: {', '.join(rule.targets) or 'none'})", key, False
+        return (None, f"target {_shown(target)} may not be changed (allowed: {', '.join(rule.targets) or 'none'})", key,
+                False)
     if prop != rule.prop:
         return None, f"property {_shown(prop)} may not be changed (allowed: {rule.prop})", key, False
     if key in used:
@@ -258,7 +262,7 @@ def _check_set(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[
                   target=target, prop=prop, value=value), "", key, True
 
 
-def _check_set_world(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[Any, ...], float]) -> _Checked:
+def _check_set_world(world: Any, rule: Rule, raw: Mapping[str, Any], used: dict[tuple[Any, ...], float]) -> _Checked:
     prop = raw["prop"]
     key = ("set_world", prop)
     if prop != rule.prop:
@@ -276,7 +280,7 @@ def _check_set_world(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[
                   value=value), "", key, True
 
 
-def _check_transfer(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[Any, ...], float]) -> _Checked:
+def _check_transfer(world: Any, rule: Rule, raw: Mapping[str, Any], used: dict[tuple[Any, ...], float]) -> _Checked:
     prop, giver, receiver, amount = raw["prop"], raw["from"], raw["to"], raw["amount"]
     key = ("transfer", rule.index, giver)
     if prop != rule.prop:
@@ -302,11 +306,11 @@ def _check_transfer(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[T
             return None, f"{party.name} holds no number {prop}", key, True
         if prop_type(spec) == "int" and float(amount) != int(amount):
             return None, f"{prop} moves in whole numbers, got {_shown(amount)}", key, True
-    return Change("transfer", rule.index, f"{source.name} gave {target.name} {format_value(amount)} {prop}", target=giver,
-                  prop=prop, receiver=receiver, amount=float(amount)), "", key, True
+    return Change("transfer", rule.index, f"{source.name} gave {target.name} {format_value(amount)} {prop}",
+                  target=giver, prop=prop, receiver=receiver, amount=float(amount)), "", key, True
 
 
-def _check_move(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[Any, ...], float]) -> _Checked:
+def _check_move(world: Any, rule: Rule, raw: Mapping[str, Any], used: dict[tuple[Any, ...], float]) -> _Checked:
     target, destination = raw["target"], raw["to"]
     key = ("move", target)
     if not isinstance(target, str) or target not in rule.targets:
@@ -323,9 +327,9 @@ def _check_move(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple
     return None, f"{_shown(destination)} is not a destination {target} may reach (allowed: {allowed})", key, True
 
 
-def _check_news(world: Any, rule: Rule, raw: Mapping[str, Any], used: Dict[Tuple[Any, ...], float]) -> _Checked:
+def _check_news(world: Any, rule: Rule, raw: Mapping[str, Any], used: dict[tuple[Any, ...], float]) -> _Checked:
     text = raw["text"]
-    key: Tuple[Any, ...] = ("news",)
+    key: tuple[Any, ...] = ("news",)
     if key in used:
         return None, "only one news item is allowed per attempt", key, True
     if not isinstance(text, str) or not text.strip() or len(text) > rule.max_chars:
@@ -337,7 +341,7 @@ _CHECKS = {"set": _check_set, "set_world": _check_set_world, "transfer": _check_
            "news": _check_news}
 
 
-def _value(spec: Any, rule: Rule, current: Any, value: Any, label: str) -> Tuple[Any, str]:
+def _value(spec: Any, rule: Rule, current: Any, value: Any, label: str) -> tuple[Any, str]:
     kind = prop_type(spec)
     if rule.values is not None and not any(_canonical(value) == _canonical(v) for v in rule.values):
         return None, f"{label} may only become one of {', '.join(format_value(v) for v in rule.values)}"

@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Iterator, Mapping
 from dataclasses import fields
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Union
+from typing import TYPE_CHECKING, Any, Union
 
 if TYPE_CHECKING:
     from .measure import RunResult
@@ -59,7 +60,7 @@ def _save_assets(index: Mapping[str, Any], path: PathLike) -> None:
             raise ValueError(f"cannot save asset '{row['id']}' with the result: {exc}") from None
 
 
-def save_result(result: "RunResult", path: PathLike) -> None:
+def save_result(result: RunResult, path: PathLike) -> None:
     data = result.to_dict()
     _save_assets(data.get("assets") or {}, path)
     with open(path, "w", encoding="utf-8") as handle:
@@ -72,7 +73,7 @@ def save_result(result: "RunResult", path: PathLike) -> None:
             handle.write("\n")
 
 
-def _lines(data: Mapping[str, Any]) -> Iterator[Dict[str, Any]]:
+def _lines(data: Mapping[str, Any]) -> Iterator[dict[str, Any]]:
     exposures = data["exposures"]
     header = {key: value for key, value in data.items() if key not in ("events", "exposures")}
     yield {"fg_env_result": RESULT_FORMAT, **header, "exposures": bool(exposures)}
@@ -88,7 +89,7 @@ def _lines(data: Mapping[str, Any]) -> Iterator[Dict[str, Any]]:
         yield {"start": exposures["start"]}
 
 
-def load_result(path: PathLike) -> "RunResult":
+def load_result(path: PathLike) -> RunResult:
     shown = str(path)
     try:
         text = Path(path).read_text(encoding="utf-8")
@@ -109,7 +110,7 @@ def load_result(path: PathLike) -> "RunResult":
     return result_from_dict(data, shown)
 
 
-def _from_lines(text: str, shown: str) -> Dict[str, Any]:
+def _from_lines(text: str, shown: str) -> dict[str, Any]:
     lines = []
     for number, raw in enumerate(text.splitlines(), 1):
         if raw.strip():
@@ -121,10 +122,10 @@ def _from_lines(text: str, shown: str) -> Dict[str, Any]:
         raise ValueError(f"'{shown}' does not start with a result header; pass a .jsonl file written by result.save()")
     data = {key: value for key, value in lines[0][1].items() if key != "exposures"}
     recorded = lines[0][1].get("exposures", False)
-    events: List[Any] = []
-    texts: Dict[str, str] = {}
-    wakes: List[Any] = []
-    chance: List[Any] = []
+    events: list[Any] = []
+    texts: dict[str, str] = {}
+    wakes: list[Any] = []
+    chance: list[Any] = []
     start: Any = None
     for number, line in lines[1:]:
         if isinstance(line, dict) and "event" in line:
@@ -145,7 +146,7 @@ def _from_lines(text: str, shown: str) -> Dict[str, Any]:
     return data
 
 
-def result_from_dict(data: Any, source: str = "the result") -> "RunResult":
+def result_from_dict(data: Any, source: str = "the result") -> RunResult:
     """A :class:`RunResult` from its ``to_dict()`` form (a saved file's content)."""
     from .measure import RunResult
 

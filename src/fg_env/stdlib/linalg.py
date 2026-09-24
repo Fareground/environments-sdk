@@ -7,12 +7,13 @@ Whole-number determinants are exact (fraction-free elimination); everything else
 from __future__ import annotations
 
 import math
-from typing import Any, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
 from ..expr import MAX_INT_BITS, MAX_LIST_LEN, Call, _describe, charge, function
 from ._args import check_len, fail, int_arg, list_arg
 
-Matrix = List[List[Any]]
+Matrix = list[list[Any]]
 
 #: A pivot smaller than this share of the matrix's largest entry (times its size) counts as zero.
 SINGULAR_TOLERANCE = 1e-12
@@ -29,7 +30,7 @@ def _number(call: Call, value: Any, where: str) -> Any:
     return value
 
 
-def _vector(call: Call, index: int, what: str) -> List[Any]:
+def _vector(call: Call, index: int, what: str) -> list[Any]:
     values = list_arg(call, index, f"{what} (a list of numbers)")
     if not values:
         raise fail(call, f"{what} is empty")
@@ -73,7 +74,8 @@ def _scale(matrix: Matrix) -> float:
     return max((abs(v) for row in matrix for v in row), default=0.0)
 
 
-@function("dot(xs, ys)", "Inner product of two equal-length lists of numbers: Σ xs[i] × ys[i] (use $matmul for matrices).",
+@function("dot(xs, ys)",
+          "Inner product of two equal-length lists of numbers: Σ xs[i] × ys[i] (use $matmul for matrices).",
           min_args=2, max_args=2)
 def _dot(call: Call) -> Any:
     if _is_matrix(call.arg(0)) or _is_matrix(call.arg(1)):
@@ -130,7 +132,7 @@ def _identity(call: Call) -> Matrix:
     return [[1 if r == c else 0 for c in range(n)] for r in range(n)]
 
 
-def eliminate(matrix: Sequence[Sequence[float]], extra: Sequence[Sequence[float]]) -> Optional[List[List[float]]]:
+def eliminate(matrix: Sequence[Sequence[float]], extra: Sequence[Sequence[float]]) -> list[list[float]] | None:
     """Solve ``matrix`` × X = ``extra`` (square ``matrix``, ``extra`` with one row per row of it) by Gauss–Jordan
     elimination with partial pivoting. ``None`` when ``matrix`` is singular. No budget: callers charge the work."""
     n = len(matrix)
@@ -150,7 +152,7 @@ def eliminate(matrix: Sequence[Sequence[float]], extra: Sequence[Sequence[float]
     return [row[n:] for row in rows]
 
 
-def _eliminate(call: Call, matrix: Matrix, extra: Matrix, what: str) -> List[List[float]]:
+def _eliminate(call: Call, matrix: Matrix, extra: Matrix, what: str) -> list[list[float]]:
     charge(len(matrix) ** 2 * (len(matrix) + len(extra[0])), call.source)
     solved = eliminate(matrix, extra)
     if solved is None:
@@ -165,14 +167,16 @@ def _inverse(call: Call) -> Matrix:
     return _eliminate(call, matrix, [[1.0 if r == c else 0.0 for c in range(n)] for r in range(n)], "the matrix")
 
 
-@function("linsolve(a, b)", "x such that a × x = b, for a square matrix a and a list b (or a matrix b, solved column by column).",
+@function("linsolve(a, b)",
+          "x such that a × x = b, for a square matrix a and a list b (or a matrix b, solved column by column).",
           min_args=2, max_args=2)
 def _linsolve(call: Call) -> Any:
     a = _square(call, 0, "a")
     columns = _is_matrix(call.arg(1))
     b = _matrix(call, 1, "b") if columns else [[v] for v in _vector(call, 1, "b")]
     if len(b) != len(a):
-        raise fail(call, f"b must have {len(a)} {'rows' if columns else 'numbers'} to match a ({_shape(a)}), got {len(b)}")
+        raise fail(call,
+                   f"b must have {len(a)} {'rows' if columns else 'numbers'} to match a ({_shape(a)}), got {len(b)}")
     solved = _eliminate(call, a, b, "a")
     return solved if columns else [row[0] for row in solved]
 
@@ -226,7 +230,7 @@ def _det(call: Call) -> Any:
     return det
 
 
-def cholesky(cov: Matrix) -> Tuple[List[List[float]], str]:
+def cholesky(cov: Matrix) -> tuple[list[list[float]], str]:
     """Lower-triangular L with L × Lᵀ = cov for a symmetric positive semi-definite matrix.
 
     Returns ``(L, "")``, or ``([], reason)`` when ``cov`` is not a valid covariance matrix. A zero
@@ -260,11 +264,12 @@ def cholesky(cov: Matrix) -> Tuple[List[List[float]], str]:
 @function("mvnormal(means, cov)", "A list of normal numbers with these means and covariance matrix (correlated draws; "
           "cov must be symmetric positive semi-definite). In population props, draw once and read parts with $it: "
           "{\"z\": \"$mvnormal([0, 0], [[1, 0.6], [0.6, 1]])\", \"a\": \"$it.z[0]\"}.", min_args=2, max_args=2)
-def _mvnormal(call: Call) -> List[float]:
+def _mvnormal(call: Call) -> list[float]:
     means = _vector(call, 0, "the means")
     cov = _square(call, 1, "the covariance matrix")
     if len(cov) != len(means):
-        raise fail(call, f"the covariance matrix must be {len(means)}×{len(means)} to match the means, got {_shape(cov)}")
+        raise fail(call,
+                   f"the covariance matrix must be {len(means)}×{len(means)} to match the means, got {_shape(cov)}")
     charge(len(cov) ** 3, call.source)
     lower, reason = cholesky(cov)
     if reason:

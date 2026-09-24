@@ -58,7 +58,8 @@ COURT = {
     "actions": {
         "speak": {"by": "lawyer", "do": ["$world.log += $actor.id + ' speaks'"], "terminal": True},
         "object": {"by": "lawyer", "do": ["$world.log += $actor.id + ' objects'",
-                                         {"wake": "$entity(j)", "now": True, "why": "An objection needs a ruling now."}]},
+                                         {"wake": "$entity(j)", "now": True,
+                                          "why": "An objection needs a ruling now."}]},
         "rule": {"by": "judge", "do": ["$world.log += 'judge rules'"], "terminal": True},
         "wait": {"by": "judge", "terminal": True},
     },

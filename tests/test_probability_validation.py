@@ -23,7 +23,8 @@ def contract(surface, probability, dynamic=False):
     return c
 
 
-@pytest.mark.parametrize('surface,path', [('action', 'actions.attempt.chance'), ('policy', 'policies.p.rules[0].chance')])
+@pytest.mark.parametrize('surface,path',
+                         [('action', 'actions.attempt.chance'), ('policy', 'policies.p.rules[0].chance')])
 @pytest.mark.parametrize('value', [-0.1, 1.1, 80, float('inf'), float('nan'), True])
 def test_invalid_literal_probabilities_are_rejected_at_the_authored_field(surface, path, value):
     issues = [i for i in fg_env.check(contract(surface, value), rounds=0) if i.severity == 'error']

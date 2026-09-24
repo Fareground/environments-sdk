@@ -7,32 +7,30 @@ Generated from public exports in `fg_env`. Start with `check`, `load`, `run` and
 ## `load`
 
 ```pyi
-load(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, strict: 'bool' = False, parallel: 'int' = 8, data_dir: 'DataDir' = None, hosts: 'Any' = None, exposures: 'bool' = False, chance: 'Any' = None, calibrate: 'bool' = True, events: 'bool' = True) -> 'Env'
+load(source: 'ContractLike', *, inputs: 'Mapping[str, Any] | None' = None, seed: 'int | None' = None, arm: 'str | None' = None, strict: 'bool' = False, parallel: 'int' = 8, data_dir: 'DataDir' = None, hosts: 'Any' = None, exposures: 'bool' = False, chance: 'Any' = None, calibrate: 'bool' = True, events: 'bool' = True) -> 'Env'
 ```
 
 Check a contract and build a runnable :class:`Env`.
 
-Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
-also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
-Inputs with a ``source`` and the contract's ``assets`` read their files from ``data_dir`` (default: the contract
-file's folder).
-``hosts`` (a :class:`~fg_env.host.Hosts` or a mapping of host name to adapter) answers the
-judgment the contract asks of a host; build-time host work (personas) is done before round 1.
-``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
-contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
-default: drawn from the seeded stream) or a callable given each :class:`~fg_env.effects.chance.ChanceNode`
-that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
-enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
-(``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
-``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
-still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
-flat however long it plays; everything the run does is the same (a contract that reads `$events` or `$seen` keeps
-its log).
+Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True`` also rejects warnings.
+``seed`` defaults to a fresh one (readable as ``env.seed``). Inputs with a ``source`` and the contract's ``assets``
+read their files from ``data_dir`` (default: the contract file's folder). ``hosts`` (a :class:`~fg_env.host.Hosts`
+or a mapping of host name to adapter) answers the judgment the contract asks of a host; build-time host work
+(personas) is done before round 1. ``exposures=True`` records what every agent was shown on every wake
+(``result.exposures``); a contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects:
+``"sampled"`` (the default: drawn from the seeded stream) or a callable given each
+:class:`~fg_env.effects.chance.ChanceNode` that returns the index of the outcome to take (a fixed deal, duplicate
+formats); :func:`fg_env.rl.game` enumerates chance for search. A contract with a ``calibration`` section fits its
+inputs with pilot sessions first (``env.calibration`` is the report); ``calibrate=False`` skips that, as
+``fg_env.check``'s smoke play does. ``events=False`` keeps no event log, for a big crowd played for many rounds:
+``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
+news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
+that reads `$events` or `$seen` keeps its log).
 
 ## `run`
 
 ```pyi
-run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, on_event: 'Any' = None, strict: 'bool' = False, data_dir: 'DataDir' = None, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, exposures: 'bool' = False, budget: 'Optional[Mapping[str, Any]]' = None, events: 'bool' = True) -> 'RunResult'
+run(source: 'ContractLike', participants: 'Any' = None, *, inputs: 'Mapping[str, Any] | None' = None, seed: 'int | None' = None, arm: 'str | None' = None, rounds: 'int | None' = None, on_event: 'Any' = None, strict: 'bool' = False, data_dir: 'DataDir' = None, hosts: 'Any' = None, time_limit: 'float | None' = None, exposures: 'bool' = False, budget: 'Mapping[str, Any] | None' = None, events: 'bool' = True) -> 'RunResult'
 ```
 
 Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
@@ -44,23 +42,23 @@ request — raises :class:`RunError` saying what failed and how to fix it; its `
 ## `check`
 
 ```pyi
-check(source: 'ContractLike', rounds: 'Optional[int]' = None, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'List[Issue]'
+check(source: 'ContractLike', rounds: 'int | None' = None, seed: 'int' = 0, *, data_dir: 'DataDir' = None, hosts: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None) -> 'list[Issue]'
 ```
 
 Every problem in a contract, errors first then warnings. Never raises for contract problems: a missing file
 or text that is not JSON is an issue too.
 
-A contract without errors is also built and played, so problems that only appear with real values (sampling,
-later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
+A contract without errors is also built and played, so problems that only appear with real values (sampling, later
+rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
 everything they are shown, once with agents that choose boundary values (a parameter's least value, zero, its
-greatest), once with every agent idle (a turn that passes without an action, as when a model
-times out or refuses, must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
-those that can take every action it takes). An action called in these plays that never once succeeded is
-reported too. By default each play lasts up to 12 rounds (fewer when the run ends
-sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
-statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);
-``hosts`` answers what the contract asks of a host during those plays. ``inputs`` checks a configured scenario
-without editing its defaults; supplied inputs are validated even with ``rounds=0``, and the plays exercise them.
+greatest), once with every agent idle (a turn that passes without an action, as when a model times out or refuses,
+must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
+those that can take every action it takes). An action called in these plays that never once succeeded is reported
+too. By default each play lasts up to 12 rounds (fewer when the run ends sooner) and all of them share a few
+seconds; ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a ``source`` are
+read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract asks of a host
+during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied inputs are
+validated even with ``rounds=0``, and the plays exercise them.
 
 ## `parse`
 
@@ -76,7 +74,7 @@ contract file's folder, so every run, check and analysis of it finds them.
 ## `expand`
 
 ```pyi
-expand(source: 'ContractLike', *, mechanisms: 'bool' = False) -> 'Dict[str, Any]'
+expand(source: 'ContractLike', *, mechanisms: 'bool' = False) -> 'dict[str, Any]'
 ```
 
 The contract data the engine reads: imports merged and macros expanded (and, with
@@ -88,7 +86,7 @@ Raises :class:`ContractError` for problems found while expanding; ``check`` repo
 ## `experiment`
 
 ```pyi
-experiment(source: 'ContractLike', *, runs: 'int' = 10, arms: 'Optional[List[str]]' = None, seed: 'int' = 0, inputs: 'Optional[Mapping[str, Any]]' = None, participants: 'Any' = None, participants_for: 'Optional[Callable[[int, Optional[str]], Any]]' = None, rounds: 'Optional[int]' = None, workers: 'int' = 1, data_dir: 'Any' = None, branch_at: 'Optional[int]' = None, budget: 'Optional[Mapping[str, Any]]' = None, exposures: 'bool' = False, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ExperimentResult'
+experiment(source: 'ContractLike', *, runs: 'int' = 10, arms: 'list[str] | None' = None, seed: 'int' = 0, inputs: 'Mapping[str, Any] | None' = None, participants: 'Any' = None, participants_for: 'Callable[[int, str | None], Any] | None' = None, rounds: 'int | None' = None, workers: 'int' = 1, data_dir: 'Any' = None, branch_at: 'int | None' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ExperimentResult'
 ```
 
 Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
@@ -115,7 +113,7 @@ error, and the rest of the experiment carries on.
 ## `fork`
 
 ```pyi
-fork(contract: 'ContractLike', snapshot: 'Mapping[str, Any]', *, arm: 'Any' = KEEP_ARM, inputs: 'Optional[Mapping[str, Any]]' = None, patch: 'Optional[Mapping[str, Any]]' = None, to: 'Optional[ContractLike]' = None, seed: 'Optional[int]' = None, effects: 'Optional[List[Any]]' = None, parallel: 'int' = 8, hosts: 'Any' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> "'Env'"
+fork(contract: 'ContractLike', snapshot: 'Mapping[str, Any]', *, arm: 'Any' = KEEP_ARM, inputs: 'Mapping[str, Any] | None' = None, patch: 'Mapping[str, Any] | None' = None, to: 'ContractLike | None' = None, seed: 'int | None' = None, effects: 'list[Any] | None' = None, parallel: 'int' = 8, hosts: 'Any' = None, data_dir: 'str | os.PathLike[str] | None' = None) -> 'Env'
 ```
 
 A run continuing ``snapshot`` (taken with ``contract``) under changes.
@@ -144,18 +142,18 @@ it be garbage collected) to discard it.
 ## `guide`
 
 ```pyi
-guide(part: 'Optional[str]' = None) -> 'str'
+guide(part: 'str | None' = None) -> 'str'
 ```
 
 The map of every part, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
-``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group (``"functions.stats"``),
-a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for everything.
-With no part, the map of every part; start with ``guide("authoring")``.
+``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group
+(``"functions.stats"``), a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for
+everything. With no part, the map of every part; start with ``guide("authoring")``.
 
 ## `schema`
 
 ```pyi
-schema() -> 'Dict[str, Any]'
+schema() -> 'dict[str, Any]'
 ```
 
 JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning).
@@ -163,7 +161,7 @@ JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning).
 ## `new`
 
 ```pyi
-new(template: 'str' = 'blank', path: "Union[str, 'os.PathLike[str]', None]" = None, *, name: 'Optional[str]' = None, overwrite: 'bool' = False) -> 'Dict[str, Any]'
+new(template: 'str' = 'blank', path: 'str | os.PathLike[str] | None' = None, *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'dict[str, Any]'
 ```
 
 A ready-to-run contract from a template (blank, game, market, simulation, social).
@@ -174,7 +172,7 @@ replaces the contract's name (default: the template's, or the file name when a p
 ## `author`
 
 ```pyi
-author(brief: 'str', model: 'str', *, client: 'Any' = None, out: 'Optional[str]' = None, budget: 'Optional[Mapping[str, float]]' = None, progress: 'Optional[Callable[[str], None]]' = None) -> 'AuthorResult'
+author(brief: 'str', model: 'str', *, client: 'Any' = None, out: 'str | None' = None, budget: 'Mapping[str, float] | None' = None, progress: 'Callable[[str], None] | None' = None) -> 'AuthorResult'
 ```
 
 Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an environment for ``brief``; returns an
@@ -183,14 +181,15 @@ Have ``model`` (``"anthropic:<model>"`` or ``"openai:<model>"``) write an enviro
 ``out`` is where the contract is written (nothing is written when None): each time a revision is kept, and at the
 end; when none works, the latest is written beside it as ``<name>.not-working.json``. ``budget`` caps ``tokens``
 (input + output, a cache read counting :data:`CACHED_WEIGHT` of one and a cache write :data:`CACHE_WRITE_WEIGHT`),
-model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and server errors are
-retried with backoff; a provider error that persists or that retrying cannot fix does not raise: the loop stops
-(``result.stop`` says why) and keeps what already works.
+model ``calls`` and wall-clock ``seconds``, by default :data:`DEFAULT_BUDGET`. ``client`` replaces the official
+client made from the environment; ``progress`` is called with one line per model call. Rate limits, overload and
+server errors are retried with backoff; a provider error that persists or that retrying cannot fix does not raise:
+the loop stops (``result.stop`` says why) and keeps what already works.
 
 ## `Env`
 
 ```pyi
-Env(contract: 'Contract', inputs: 'Dict[str, Any]', seed: 'int', arm: 'Optional[str]' = None, parallel: 'int' = 8, exposures: 'bool' = False, assets: 'Optional[AssetStore]' = None, events: 'bool' = True)
+Env(contract: 'Contract', inputs: 'dict[str, Any]', seed: 'int', arm: 'str | None' = None, parallel: 'int' = 8, exposures: 'bool' = False, assets: 'AssetStore | None' = None, events: 'bool' = True)
 ```
 
 A loaded environment. Create with :func:`fg_env.load`; run with :meth:`run`; copy with :meth:`clone`
@@ -199,7 +198,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```pyi
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: Dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: Optional[fg_env.contract.world.Space] = None, world: Dict[str, fg_env.contract.world.PropSpec] = <factory>, types: Dict[str, fg_env.contract.world.TypeSpec], entities: Dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: List[fg_env.contract.world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: List[fg_env.contract.world.LinkSpec] = <factory>, physics: Optional[fg_env.contract.world.PhysicsSpec] = None, feeds: Dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: List[fg_env.contract.rules.StageSpec] = <factory>, views: Dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: List[fg_env.contract.rules.EventSpec] = <factory>, triggers: List[fg_env.contract.rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: List[fg_env.contract.measure.EndSpec] = <factory>, arms: Dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: Optional[fg_env.contract.measure.CalibrationSpec] = None, game: Optional[fg_env.contract.game.GameSpec] = None, invariants: List[fg_env.contract.measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
+Contract(*, fg_env: str = '1', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: list[fg_env.contract.world.PopulationSpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: list[fg_env.contract.world.LinkSpec] = <factory>, physics: fg_env.contract.world.PhysicsSpec | None = None, feeds: dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: dict[str, dict[str, typing.Any]] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, triggers: list[fg_env.contract.rules.TriggerSpec] = <factory>, policies: dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: fg_env.contract.measure.CalibrationSpec | None = None, game: fg_env.contract.game.GameSpec | None = None, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.
@@ -207,7 +206,7 @@ An environment: world, people, rules, what agents see, what is measured.
 ## `RunResult`
 
 ```pyi
-RunResult(status: 'str', ended_by: 'Optional[str]', rounds: 'int', seed: 'int', arm: 'Optional[str]', inputs: 'Dict[str, Any]', outputs: 'Dict[str, Any]', metrics: 'Dict[str, Any]', series: 'Dict[str, List[Any]]', winner: 'Any' = None, error: 'Optional[str]' = None, time: 'Optional[float]' = None, returns: 'Dict[str, float]' = <factory>, output_issues: 'List[Dict[str, Any]]' = <factory>, stats: 'Dict[str, Any]' = <factory>, agent_stats: 'Dict[str, Dict[str, Any]]' = <factory>, events: 'List[Dict[str, Any]]' = <factory>, exposures: 'Dict[str, Any]' = <factory>, frames: 'List[Dict[str, Any]]' = <factory>, host_tape: 'Dict[str, Any]' = <factory>, budget: 'Dict[str, Any]' = <factory>, formats: 'Dict[str, str]' = <factory>, diagnostics: 'List[Dict[str, str]]' = <factory>, clock: 'Dict[str, Any]' = <factory>, assets: 'Dict[str, Any]' = <factory>, state: 'Dict[str, Any]' = <factory>) -> None
+RunResult(status: 'str', ended_by: 'str | None', rounds: 'int', seed: 'int', arm: 'str | None', inputs: 'dict[str, Any]', outputs: 'dict[str, Any]', metrics: 'dict[str, Any]', series: 'dict[str, list[Any]]', winner: 'Any' = None, error: 'str | None' = None, time: 'float | None' = None, returns: 'dict[str, float]' = <factory>, output_issues: 'list[dict[str, Any]]' = <factory>, stats: 'dict[str, Any]' = <factory>, agent_stats: 'dict[str, dict[str, Any]]' = <factory>, events: 'list[dict[str, Any]]' = <factory>, exposures: 'dict[str, Any]' = <factory>, frames: 'list[dict[str, Any]]' = <factory>, host_tape: 'dict[str, Any]' = <factory>, budget: 'dict[str, Any]' = <factory>, formats: 'dict[str, str]' = <factory>, diagnostics: 'list[dict[str, str]]' = <factory>, clock: 'dict[str, Any]' = <factory>, assets: 'dict[str, Any]' = <factory>, state: 'dict[str, Any]' = <factory>) -> None
 ```
 
 Everything a run produced. ``outputs`` follows the contract's output contract.
@@ -215,15 +214,15 @@ Everything a run produced. ``outputs`` follows the contract's output contract.
 ## `ExperimentResult`
 
 ```pyi
-ExperimentResult(arms: 'Dict[str, ArmResult]', seeds: 'List[int]', rounds: 'Optional[int]' = None) -> None
+ExperimentResult(arms: 'dict[str, ArmResult]', seeds: 'list[int]', rounds: 'int | None' = None) -> None
 ```
 
-ExperimentResult(arms: 'Dict[str, ArmResult]', seeds: 'List[int]', rounds: 'Optional[int]' = None)
+ExperimentResult(arms: 'dict[str, ArmResult]', seeds: 'list[int]', rounds: 'int | None' = None)
 
 ## `Wake`
 
 ```pyi
-Wake(turn: "'Turn'")
+Wake(turn: 'Turn')
 ```
 
 One agent's turn. Obtained from the runtime; never constructed directly.
@@ -231,7 +230,7 @@ One agent's turn. Obtained from the runtime; never constructed directly.
 ## `ToolResult`
 
 ```pyi
-ToolResult(ok: 'bool', text: 'str', ended: 'bool' = False, data: 'Dict[str, Any]' = <factory>, attachments: 'List[Attachment]' = <factory>) -> None
+ToolResult(ok: 'bool', text: 'str', ended: 'bool' = False, data: 'dict[str, Any]' = <factory>, attachments: 'list[Attachment]' = <factory>) -> None
 ```
 
 What a tool call did. ``text`` is written for the agent; ``ended`` means the turn is over.
@@ -239,7 +238,7 @@ What a tool call did. ``text`` is written for the agent; ``ended`` means the tur
 ## `Issue`
 
 ```pyi
-Issue(path: 'str', message: 'str', fix: 'Optional[str]' = None, severity: 'str' = 'error') -> None
+Issue(path: 'str', message: 'str', fix: 'str | None' = None, severity: 'str' = 'error') -> None
 ```
 
 One problem found in a contract or its inputs.
@@ -247,7 +246,7 @@ One problem found in a contract or its inputs.
 ## `ContractError`
 
 ```pyi
-ContractError(issues: 'List[Issue]', title: 'str' = 'contract is invalid')
+ContractError(issues: 'list[Issue]', title: 'str' = 'contract is invalid')
 ```
 
 The contract is invalid. ``issues`` lists every error found (not just the first).
@@ -255,7 +254,7 @@ The contract is invalid. ``issues`` lists every error found (not just the first)
 ## `InputError`
 
 ```pyi
-InputError(issues: 'List[Issue]')
+InputError(issues: 'list[Issue]')
 ```
 
 Run inputs do not match the contract's declared inputs.
@@ -263,7 +262,7 @@ Run inputs do not match the contract's declared inputs.
 ## `RunError`
 
 ```pyi
-RunError(message: 'str', path: 'Optional[str]' = None)
+RunError(message: 'str', path: 'str | None' = None)
 ```
 
 A run could not continue. ``path`` names the contract element that failed.
@@ -271,7 +270,7 @@ A run could not continue. ``path`` names the contract element that failed.
 ## `InvariantViolation`
 
 ```pyi
-InvariantViolation(message: 'str', path: 'Optional[str]' = None, why: 'str' = '')
+InvariantViolation(message: 'str', path: 'str | None' = None, why: 'str' = '')
 ```
 
 A declared invariant stopped holding. Broken by an agent's action, the action is refused and undone; broken by
@@ -280,7 +279,7 @@ anything else, the run fails closed. ``why`` is the invariant's own reason (empt
 ## `FatalRunError`
 
 ```pyi
-FatalRunError(message: 'str', path: 'Optional[str]' = None)
+FatalRunError(message: 'str', path: 'str | None' = None)
 ```
 
 A failure outside the contract's rules — a host failed or cannot be asked, a replay stopped matching its
@@ -294,7 +293,7 @@ A snapshot cannot be restored into this contract.
 ## `list_engines`
 
 ```pyi
-list_engines(*, available: 'Optional[bool]' = None) -> 'list[EngineSpec]'
+list_engines(*, available: 'bool | None' = None) -> 'list[EngineSpec]'
 ```
 
 List behavioral engines, optionally filtered by implementation availability.
@@ -302,7 +301,7 @@ List behavioral engines, optionally filtered by implementation availability.
 ## `clone_engine`
 
 ```pyi
-clone_engine(engine_id: 'str', destination: 'Union[str, Path]', *, name: 'Optional[str]' = None, overwrite: 'bool' = False) -> 'Path'
+clone_engine(engine_id: 'str', destination: 'str | Path', *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'Path'
 ```
 
 Clone a reusable engine contract into a project-owned JSON file.
@@ -333,7 +332,7 @@ Never acts.
 ### `participants.PolicyAgent`
 
 ```pyi
-PolicyAgent(contract: "'Contract'", name: 'str', seed: 'int' = 0)
+PolicyAgent(contract: 'Contract', name: 'str', seed: 'int' = 0)
 ```
 
 Runs a coded policy from the contract's ``policies`` section: the first rule whose condition
@@ -342,7 +341,7 @@ holds, whose action is legal and whose arguments are valid is taken.
 ### `participants.anthropic`
 
 ```pyi
-anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
+anthropic(client: 'Any', model: 'str', *, max_tokens: 'int' = 16000, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Collection[str] | None' = None, retry_truncated: 'bool' = True, extra: 'Mapping[str, Any] | None' = None) -> 'Participant'
 ```
 
 An LLM participant using an ``anthropic.Anthropic()`` client.
@@ -382,7 +381,7 @@ participant never ends the turn itself: the engine closes it and reports that th
 ### `participants.openai`
 
 ```pyi
-openai(client: 'Any', model: 'str', *, max_tokens: 'Optional[int]' = None, reasoning_effort: 'Optional[str]' = None, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Optional[Collection[str]]' = None, retry_truncated: 'bool' = True, extra: 'Optional[Mapping[str, Any]]' = None) -> 'Participant'
+openai(client: 'Any', model: 'str', *, max_tokens: 'int | None' = None, reasoning_effort: 'str | None' = None, max_steps: 'int' = 8, system: 'str' = '', retries: 'int' = 4, media: 'Collection[str] | None' = None, retry_truncated: 'bool' = True, extra: 'Mapping[str, Any] | None' = None) -> 'Participant'
 ```
 
 An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools).
@@ -390,13 +389,13 @@ An LLM participant using an ``openai.OpenAI()``-compatible client (chat completi
 ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
 ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
 the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it, or
-with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries, failures, refusals (a
-``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
-(``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for :func:`anthropic`;
-arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and counted as invalid
-calls. Files are sent as
-``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
-for text only); files from tool results follow the tool messages in one user message.
+with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries,
+failures, refusals (a ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting,
+truncated replies (``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for
+:func:`anthropic`; arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and
+counted as invalid calls. Files are sent as ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``:
+default image, pdf, audio and text; ``()`` for text only); files from tool results follow the tool messages in one
+user message.
 
 ### `participants.replay`
 
@@ -404,16 +403,16 @@ for text only); files from tool results follow the tool messages in one user mes
 replay(recording: 'Any', fallback: 'Any' = None) -> 'Participant'
 ```
 
-A participant that plays a recorded run's steps again, turn by turn, checking every wake against the
-recording (``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must
-record exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that
-participant plays on. Usually you want ``fg_env.analysis.trace(recording).replay(contract)``, which also replays the host
+A participant that plays a recorded run's steps again, turn by turn, checking every wake against the recording
+(``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must record
+exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that participant
+plays on. Usually you want ``fg_env.analysis.trace(recording).replay(contract)``, which also replays the host
 answers and compares the outcome.
 
 ### `participants.resolve_participant`
 
 ```pyi
-resolve_participant(value: 'Any', contract: "'Contract'", seed: 'int', path: 'str' = 'participants') -> 'Participant'
+resolve_participant(value: 'Any', contract: 'Contract', seed: 'int', path: 'str' = 'participants') -> 'Participant'
 ```
 
 The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``.
@@ -440,7 +439,7 @@ Analysis: turn a contract and its runs into findings, reports and readable recor
 ### `analysis.fit_patterns`
 
 ```pyi
-fit_patterns(contract: 'ContractLike', *, data_dir: 'Union[str, Path, None]' = None, inputs: 'Optional[Mapping[str, Any]]' = None) -> 'FitResult'
+fit_patterns(contract: 'ContractLike', *, data_dir: 'str | Path | None' = None, inputs: 'Mapping[str, Any] | None' = None) -> 'FitResult'
 ```
 
 Estimate every pattern that declares ``fit`` and return the contract with the estimates written back.
@@ -451,7 +450,7 @@ Data files are read from ``data_dir`` (default: the contract file's folder). ``i
 ### `analysis.FitResult`
 
 ```pyi
-FitResult(contract: 'Dict[str, Any]', fits: 'List[PatternFit]', priors: 'Dict[str, Dict[str, Any]]' = <factory>) -> None
+FitResult(contract: 'dict[str, Any]', fits: 'list[PatternFit]', priors: 'dict[str, dict[str, Any]]' = <factory>) -> None
 ```
 
 The fitted contract (data, like the one given), a report per pattern, and the estimates as priors.
@@ -459,7 +458,7 @@ The fitted contract (data, like the one given), a report per pattern, and the es
 ### `analysis.decompose`
 
 ```pyi
-decompose(source: 'Union[ContractLike, Any]', pattern: 'str', *, key: 'Any' = None, rounds: 'Optional[Union[int, Sequence[int]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, data_dir: 'Any' = None, estimates: 'bool' = False) -> 'Decomposition'
+decompose(source: 'ContractLike | Any', pattern: 'str', *, key: 'Any' = None, rounds: 'int | Sequence[int] | None' = None, inputs: 'Mapping[str, Any] | None' = None, seed: 'int' = 0, data_dir: 'Any' = None, estimates: 'bool' = False) -> 'Decomposition'
 ```
 
 Decompose a ``product`` or ``sum`` pattern into its factors (see the module).
@@ -471,7 +470,7 @@ fitted parameters at their estimates, without the draws their standard errors (`
 ### `analysis.Decomposition`
 
 ```pyi
-Decomposition(pattern: 'str', key: 'Optional[str]', kind: 'str', rows: 'List[Dict[str, Any]]' = <factory>) -> None
+Decomposition(pattern: 'str', key: 'str | None', kind: 'str', rows: 'list[dict[str, Any]]' = <factory>) -> None
 ```
 
 Each round: the total, every factor's value, and what each factor adds.
@@ -479,7 +478,7 @@ Each round: the total, every factor's value, and what each factor adds.
 ### `analysis.report`
 
 ```pyi
-report(source: 'Any', audience: 'str' = 'owner', *, contract: 'Optional[ContractLike]' = None, validation: 'Optional[ValidationResult]' = None, optimisation: 'Optional[OptimisationResult]' = None, objective: 'Optional[str]' = None, require: 'Optional[Mapping[str, Any]]' = None, control: 'Optional[str]' = None, data_dir: 'Any' = None) -> 'Report'
+report(source: 'Any', audience: 'str' = 'owner', *, contract: 'ContractLike | None' = None, validation: 'ValidationResult | None' = None, optimisation: 'OptimisationResult | None' = None, objective: 'str | None' = None, require: 'Mapping[str, Any] | None' = None, control: 'str | None' = None, data_dir: 'Any' = None) -> 'Report'
 ```
 
 A plain-language report of ``source``: a :class:`~fg_env.RunResult` (or a list of them), an experiment, a sweep,
@@ -491,15 +490,15 @@ is the arm differences are measured against (default: the first).
 ### `analysis.Report`
 
 ```pyi
-Report(title: 'str', audience: 'str', kind: 'str', sections: 'List[Section]', recommendation: 'Optional[Dict[str, Any]]' = None, notes: 'List[str]' = <factory>) -> None
+Report(title: 'str', audience: 'str', kind: 'str', sections: 'list[Section]', recommendation: 'dict[str, Any] | None' = None, notes: 'list[str]' = <factory>) -> None
 ```
 
-Report(title: 'str', audience: 'str', kind: 'str', sections: 'List[Section]', recommendation: 'Optional[Dict[str, Any]]' = None, notes: 'List[str]' = <factory>)
+Report(title: 'str', audience: 'str', kind: 'str', sections: 'list[Section]', recommendation: 'dict[str, Any] | None' = None, notes: 'list[str]' = <factory>)
 
 ### `analysis.describe`
 
 ```pyi
-describe(contract: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, data_dir: 'Any' = None) -> 'Description'
+describe(contract: 'ContractLike', *, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, data_dir: 'Any' = None) -> 'Description'
 ```
 
 Describe ``contract`` (with ``inputs`` and ``arm`` applied). Counts that need the built world (players,
@@ -509,15 +508,15 @@ built — a required input is missing, say — they are reported as unknown with
 ### `analysis.Description`
 
 ```pyi
-Description(name: 'str', markdown: 'str', metadata: 'Dict[str, Any]') -> None
+Description(name: 'str', markdown: 'str', metadata: 'dict[str, Any]') -> None
 ```
 
-Description(name: 'str', markdown: 'str', metadata: 'Dict[str, Any]')
+Description(name: 'str', markdown: 'str', metadata: 'dict[str, Any]')
 
 ### `analysis.trace`
 
 ```pyi
-trace(source: 'TraceSource') -> "'Trace'"
+trace(source: 'TraceSource') -> 'Trace'
 ```
 
 A recorded run to read: a :class:`RunResult`, its ``to_dict()``, or a file written by ``result.save()``.
@@ -535,7 +534,7 @@ A recorded run. ``wakes`` are the exposure records in engine order; ``texts`` ho
 ### `analysis.sweep`
 
 ```pyi
-sweep(contract: 'ContractLike', params: 'Mapping[str, ParamSpec]', *, runs: 'int' = 5, outputs: 'Optional[Sequence[str]]' = None, arms: 'Optional[Sequence[Optional[str]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, design: 'str' = 'factorial', samples: 'Optional[int]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'SweepResult'
+sweep(contract: 'ContractLike', params: 'Mapping[str, ParamSpec]', *, runs: 'int' = 5, outputs: 'Sequence[str] | None' = None, arms: 'Sequence[str | None] | None' = None, inputs: 'Mapping[str, Any] | None' = None, design: 'str' = 'factorial', samples: 'int | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'SweepResult'
 ```
 
 Run the contract across combinations of inputs.
@@ -551,15 +550,15 @@ measured outputs (default: every numeric or yes/no output). ``data_dir`` is wher
 ### `analysis.SweepResult`
 
 ```pyi
-SweepResult(contract: 'str', design: 'str', params: 'Dict[str, List[Any]]', arms: 'List[Optional[str]]', measures: 'List[str]', seeds: 'List[int]', cells: 'List[SweepCell]', rounds: 'Optional[int]' = None, _effects: 'Dict[str, Dict[str, Dict[str, Any]]]' = <factory>) -> None
+SweepResult(contract: 'str', design: 'str', params: 'dict[str, list[Any]]', arms: 'list[str | None]', measures: 'list[str]', seeds: 'list[int]', cells: 'list[SweepCell]', rounds: 'int | None' = None, _effects: 'dict[str, dict[str, dict[str, Any]]]' = <factory>) -> None
 ```
 
-SweepResult(contract: 'str', design: 'str', params: 'Dict[str, List[Any]]', arms: 'List[Optional[str]]', measures: 'List[str]', seeds: 'List[int]', cells: 'List[SweepCell]', rounds: 'Optional[int]' = None, _effects: 'Dict[str, Dict[str, Dict[str, Any]]]' = <factory>)
+SweepResult(contract: 'str', design: 'str', params: 'dict[str, list[Any]]', arms: 'list[str | None]', measures: 'list[str]', seeds: 'list[int]', cells: 'list[SweepCell]', rounds: 'int | None' = None, _effects: 'dict[str, dict[str, dict[str, Any]]]' = <factory>)
 
 ### `analysis.sensitivity`
 
 ```pyi
-sensitivity(contract: 'ContractLike', inputs: 'InputRanges', output: 'str', *, method: 'str' = 'oat', runs: 'int' = 5, baseline: 'Optional[Mapping[str, Any]]' = None, delta: 'float' = 0.1, trajectories: 'int' = 6, levels: 'int' = 4, samples: 'int' = 20, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, level: 'float' = 0.95, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'SensitivityResult'
+sensitivity(contract: 'ContractLike', inputs: 'InputRanges', output: 'str', *, method: 'str' = 'oat', runs: 'int' = 5, baseline: 'Mapping[str, Any] | None' = None, delta: 'float' = 0.1, trajectories: 'int' = 6, levels: 'int' = 4, samples: 'int' = 20, arm: 'str | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, level: 'float' = 0.95, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'SensitivityResult'
 ```
 
 Rank ``inputs`` by their influence on ``output`` (an output or a metric's final value).
@@ -572,15 +571,15 @@ inputs with a ``source`` are read (default: the contract file's folder); ``hosts
 ### `analysis.SensitivityResult`
 
 ```pyi
-SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ranking: 'List[Dict[str, Any]]', details: 'Dict[str, Any]' = <factory>) -> None
+SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ranking: 'list[dict[str, Any]]', details: 'dict[str, Any]' = <factory>) -> None
 ```
 
-SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ranking: 'List[Dict[str, Any]]', details: 'Dict[str, Any]' = <factory>)
+SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ranking: 'list[dict[str, Any]]', details: 'dict[str, Any]' = <factory>)
 
 ### `analysis.calibrate`
 
 ```pyi
-calibrate(contract: 'ContractLike', targets: 'Any', params: 'Mapping[str, Mapping[str, Any]]', *, runs: 'int' = 5, budget: 'int' = 30, holdout: 'Optional[int]' = None, method: 'str' = 'auto', inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, test: 'Any' = None, folds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'CalibrationResult'
+calibrate(contract: 'ContractLike', targets: 'Any', params: 'Mapping[str, Mapping[str, Any]]', *, runs: 'int' = 5, budget: 'int' = 30, holdout: 'int | None' = None, method: 'str' = 'auto', inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, test: 'Any' = None, folds: 'int | None' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'CalibrationResult'
 ```
 
 Search ``params`` (``{input: {"low", "high", "log"?}}``) so the contract matches ``targets``.
@@ -599,15 +598,15 @@ host requests (feeds, judges) in every run.
 ### `analysis.CalibrationResult`
 
 ```pyi
-CalibrationResult(contract: 'str', params: 'Dict[str, Any]', method: 'str', fit: 'float', targets: 'List[Dict[str, Any]]', validation: 'Dict[str, Any]', uncertainty: 'Dict[str, Dict[str, Any]]', evaluations: 'int', history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>, cases: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None, plausible: 'List[Dict[str, Any]]' = <factory>, pooled: 'List[Dict[str, Any]]' = <factory>) -> None
+CalibrationResult(contract: 'str', params: 'dict[str, Any]', method: 'str', fit: 'float', targets: 'list[dict[str, Any]]', validation: 'dict[str, Any]', uncertainty: 'dict[str, dict[str, Any]]', evaluations: 'int', history: 'list[dict[str, Any]]' = <factory>, notes: 'list[str]' = <factory>, cases: 'list[str]' = <factory>, holdout: 'dict[str, Any] | None' = None, plausible: 'list[dict[str, Any]]' = <factory>, pooled: 'list[dict[str, Any]]' = <factory>) -> None
 ```
 
-CalibrationResult(contract: 'str', params: 'Dict[str, Any]', method: 'str', fit: 'float', targets: 'List[Dict[str, Any]]', validation: 'Dict[str, Any]', uncertainty: 'Dict[str, Dict[str, Any]]', evaluations: 'int', history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>, cases: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None, plausible: 'List[Dict[str, Any]]' = <factory>, pooled: 'List[Dict[str, Any]]' = <factory>)
+CalibrationResult(contract: 'str', params: 'dict[str, Any]', method: 'str', fit: 'float', targets: 'list[dict[str, Any]]', validation: 'dict[str, Any]', uncertainty: 'dict[str, dict[str, Any]]', evaluations: 'int', history: 'list[dict[str, Any]]' = <factory>, notes: 'list[str]' = <factory>, cases: 'list[str]' = <factory>, holdout: 'dict[str, Any] | None' = None, plausible: 'list[dict[str, Any]]' = <factory>, pooled: 'list[dict[str, Any]]' = <factory>)
 
 ### `analysis.score`
 
 ```pyi
-score(forecasts: 'Sequence[Any]', outcomes: 'Sequence[Any]', *, kind: 'str' = 'auto', climatology: 'Any' = None, bins: 'int' = 10, nominal: 'Optional[float]' = None, epsilon: 'float' = 1e-15) -> 'Dict[str, Any]'
+score(forecasts: 'Sequence[Any]', outcomes: 'Sequence[Any]', *, kind: 'str' = 'auto', climatology: 'Any' = None, bins: 'int' = 10, nominal: 'float | None' = None, epsilon: 'float' = 1e-15) -> 'dict[str, Any]'
 ```
 
 Every applicable score for a set of forecasts against what happened.
@@ -670,7 +669,7 @@ It is the mean absolute error generalised to a whole distribution, in the outcom
 ### `analysis.interval_coverage`
 
 ```pyi
-interval_coverage(intervals: 'Sequence[Tuple[float, float]]', outcomes: 'Sequence[float]', nominal: 'Optional[float]' = None) -> 'Dict[str, Any]'
+interval_coverage(intervals: 'Sequence[tuple[float, float]]', outcomes: 'Sequence[float]', nominal: 'float | None' = None) -> 'dict[str, Any]'
 ```
 
 How often outcomes fall inside their intervals (ends included), with a Wilson interval.
@@ -678,7 +677,7 @@ How often outcomes fall inside their intervals (ends included), with a Wilson in
 ### `analysis.reliability`
 
 ```pyi
-reliability(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'List[ReliabilityBin]'
+reliability(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'list[ReliabilityBin]'
 ```
 
 Non-empty bins of equal width over [0, 1]; a forecast of exactly 1 falls in the last bin.
@@ -694,7 +693,7 @@ Expected calibration error: bin-size-weighted |mean forecast − observed freque
 ### `analysis.murphy`
 
 ```pyi
-murphy(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'Dict[str, float]'
+murphy(probabilities: 'Sequence[float]', outcomes: 'Sequence[Any]', bins: 'int' = 10) -> 'dict[str, float]'
 ```
 
 Brier = reliability − resolution + uncertainty (+ a within-bin residual).
@@ -706,7 +705,7 @@ identity is exact when forecasts inside a bin are equal; ``residual`` holds the 
 ### `analysis.skill_score`
 
 ```pyi
-skill_score(value: 'float', reference: 'float', perfect: 'float' = 0.0) -> 'Optional[float]'
+skill_score(value: 'float', reference: 'float', perfect: 'float' = 0.0) -> 'float | None'
 ```
 
 1 − (score − perfect)/(reference − perfect): 1 perfect, 0 no better than the reference, < 0 worse.
@@ -714,7 +713,7 @@ skill_score(value: 'float', reference: 'float', perfect: 'float' = 0.0) -> 'Opti
 ### `analysis.backtest`
 
 ```pyi
-backtest(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', output: 'str', *, runs: 'int' = 10, threshold: 'Optional[float]' = None, climatology: 'Any' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, bins: 'int' = 10, test: 'Any' = None, folds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'BacktestResult'
+backtest(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', output: 'str', *, runs: 'int' = 10, threshold: 'float | None' = None, climatology: 'Any' = None, arm: 'str | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, bins: 'int' = 10, test: 'Any' = None, folds: 'int | None' = None, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'BacktestResult'
 ```
 
 Score the contract's forecasts of ``output`` against each case's known ``outcome``.
@@ -734,15 +733,15 @@ answers host requests (feeds, judges) in every run.
 ### `analysis.BacktestResult`
 
 ```pyi
-BacktestResult(contract: 'str', output: 'str', kind: 'str', runs: 'int', cases: 'List[Dict[str, Any]]', scores: 'Dict[str, Any]', notes: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None) -> None
+BacktestResult(contract: 'str', output: 'str', kind: 'str', runs: 'int', cases: 'list[dict[str, Any]]', scores: 'dict[str, Any]', notes: 'list[str]' = <factory>, holdout: 'dict[str, Any] | None' = None) -> None
 ```
 
-BacktestResult(contract: 'str', output: 'str', kind: 'str', runs: 'int', cases: 'List[Dict[str, Any]]', scores: 'Dict[str, Any]', notes: 'List[str]' = <factory>, holdout: 'Optional[Dict[str, Any]]' = None)
+BacktestResult(contract: 'str', output: 'str', kind: 'str', runs: 'int', cases: 'list[dict[str, Any]]', scores: 'dict[str, Any]', notes: 'list[str]' = <factory>, holdout: 'dict[str, Any] | None' = None)
 
 ### `analysis.precision`
 
 ```pyi
-precision(contract: 'ContractLike', output: 'str', *, target_se: 'Optional[float]' = None, relative_se: 'Optional[float]' = None, max_runs: 'int' = 100, batch: 'int' = 5, min_runs: 'Optional[int]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, level: 'float' = 0.95, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'PrecisionResult'
+precision(contract: 'ContractLike', output: 'str', *, target_se: 'float | None' = None, relative_se: 'float | None' = None, max_runs: 'int' = 100, batch: 'int' = 5, min_runs: 'int | None' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, level: 'float' = 0.95, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'PrecisionResult'
 ```
 
 Add runs ``batch`` at a time until the standard error of ``output``'s mean is small enough.
@@ -755,15 +754,15 @@ target can be declared met, so a few identical early runs cannot end the search.
 ### `analysis.PrecisionResult`
 
 ```pyi
-PrecisionResult(contract: 'str', output: 'str', converged: 'bool', runs: 'int', estimate: 'Estimate', target_se: 'float', trace: 'List[Dict[str, Any]]', runs_needed: 'Optional[int]') -> None
+PrecisionResult(contract: 'str', output: 'str', converged: 'bool', runs: 'int', estimate: 'Estimate', target_se: 'float', trace: 'list[dict[str, Any]]', runs_needed: 'int | None') -> None
 ```
 
-PrecisionResult(contract: 'str', output: 'str', converged: 'bool', runs: 'int', estimate: 'Estimate', target_se: 'float', trace: 'List[Dict[str, Any]]', runs_needed: 'Optional[int]')
+PrecisionResult(contract: 'str', output: 'str', converged: 'bool', runs: 'int', estimate: 'Estimate', target_se: 'float', trace: 'list[dict[str, Any]]', runs_needed: 'int | None')
 
 ### `analysis.behavior_checks`
 
 ```pyi
-behavior_checks(contract: 'ContractLike', *, runs: 'int' = 4, rounds: 'Optional[int]' = None, seed: 'int' = 0, participants: 'Any' = 'random', inputs: 'Optional[Mapping[str, Any]]' = None, test_inputs: 'Optional[Sequence[str]]' = None, perturb: 'float' = 0.5, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, boundaries: 'bool' = False, max_boundary_cases: 'int' = 24) -> 'CheckReport'
+behavior_checks(contract: 'ContractLike', *, runs: 'int' = 4, rounds: 'int | None' = None, seed: 'int' = 0, participants: 'Any' = 'random', inputs: 'Mapping[str, Any] | None' = None, test_inputs: 'Sequence[str] | None' = None, perturb: 'float' = 0.5, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, boundaries: 'bool' = False, max_boundary_cases: 'int' = 24) -> 'CheckReport'
 ```
 
 Run ``runs`` seeds with random agents (plus one set per varied input) and report findings.
@@ -783,23 +782,23 @@ exhaustive combination search or evidence that the business model matches its br
 ### `analysis.CheckReport`
 
 ```pyi
-CheckReport(contract: 'str', runs: 'int', rounds: 'Optional[int]', findings: 'List[Finding]', tested_inputs: 'List[str]', untested_inputs: 'List[str]') -> None
+CheckReport(contract: 'str', runs: 'int', rounds: 'int | None', findings: 'list[Finding]', tested_inputs: 'list[str]', untested_inputs: 'list[str]') -> None
 ```
 
-CheckReport(contract: 'str', runs: 'int', rounds: 'Optional[int]', findings: 'List[Finding]', tested_inputs: 'List[str]', untested_inputs: 'List[str]')
+CheckReport(contract: 'str', runs: 'int', rounds: 'int | None', findings: 'list[Finding]', tested_inputs: 'list[str]', untested_inputs: 'list[str]')
 
 ### `analysis.Finding`
 
 ```pyi
-Finding(code: 'str', severity: 'str', subject: 'str', message: 'str', evidence: 'Dict[str, Any]' = <factory>) -> None
+Finding(code: 'str', severity: 'str', subject: 'str', message: 'str', evidence: 'dict[str, Any]' = <factory>) -> None
 ```
 
-Finding(code: 'str', severity: 'str', subject: 'str', message: 'str', evidence: 'Dict[str, Any]' = <factory>)
+Finding(code: 'str', severity: 'str', subject: 'str', message: 'str', evidence: 'dict[str, Any]' = <factory>)
 
 ### `analysis.highlights`
 
 ```pyi
-highlights(result: 'RunResult', *, top: 'int' = 5, metrics: 'Optional[Sequence[str]]' = None) -> 'List[Highlight]'
+highlights(result: 'RunResult', *, top: 'int' = 5, metrics: 'Sequence[str] | None' = None) -> 'list[Highlight]'
 ```
 
 The ``top`` most notable moments of a run, most surprising first (ties: earliest first).
@@ -820,15 +819,15 @@ when the run shows it — and its results. Rounds are named in the clock's terms
 ### `analysis.Highlight`
 
 ```pyi
-Highlight(kind: 'str', round: 'int', subject: 'str', score: 'float', text: 'str', data: 'Dict[str, Any]' = <factory>) -> None
+Highlight(kind: 'str', round: 'int', subject: 'str', score: 'float', text: 'str', data: 'dict[str, Any]' = <factory>) -> None
 ```
 
-Highlight(kind: 'str', round: 'int', subject: 'str', score: 'float', text: 'str', data: 'Dict[str, Any]' = <factory>)
+Highlight(kind: 'str', round: 'int', subject: 'str', score: 'float', text: 'str', data: 'dict[str, Any]' = <factory>)
 
 ### `analysis.drivers`
 
 ```pyi
-drivers(runs: 'Any', output: 'str', *, focus: 'Any' = None, threshold: 'Optional[float]' = None, include: 'Sequence[str]' = ('inputs', 'metrics', 'outputs', 'actions', 'end'), permutations: 'int' = 500, alpha: 'float' = 0.05, top: 'int' = 10, seed: 'int' = 0) -> 'DriversResult'
+drivers(runs: 'Any', output: 'str', *, focus: 'Any' = None, threshold: 'float | None' = None, include: 'Sequence[str]' = ('inputs', 'metrics', 'outputs', 'actions', 'end'), permutations: 'int' = 500, alpha: 'float' = 0.05, top: 'int' = 10, seed: 'int' = 0) -> 'DriversResult'
 ```
 
 Features that separate runs where ``output`` hits the focus from runs where it does not.
@@ -841,23 +840,23 @@ common value (or ``focus``). ``include`` picks feature groups: inputs (and arm),
 ### `analysis.DriversResult`
 
 ```pyi
-DriversResult(output: 'str', focus: 'str', n: 'int', base_rate: 'float', drivers: 'List[Driver]', tested: 'int', permutations: 'int', alpha: 'float', notes: 'List[str]' = <factory>) -> None
+DriversResult(output: 'str', focus: 'str', n: 'int', base_rate: 'float', drivers: 'list[Driver]', tested: 'int', permutations: 'int', alpha: 'float', notes: 'list[str]' = <factory>) -> None
 ```
 
-DriversResult(output: 'str', focus: 'str', n: 'int', base_rate: 'float', drivers: 'List[Driver]', tested: 'int', permutations: 'int', alpha: 'float', notes: 'List[str]' = <factory>)
+DriversResult(output: 'str', focus: 'str', n: 'int', base_rate: 'float', drivers: 'list[Driver]', tested: 'int', permutations: 'int', alpha: 'float', notes: 'list[str]' = <factory>)
 
 ### `analysis.Driver`
 
 ```pyi
-Driver(feature: 'str', kind: 'str', lift: 'float', p_value: 'float', high_rate: 'float', low_rate: 'float', n_high: 'int', n_low: 'int', split: 'Optional[float]' = None) -> None
+Driver(feature: 'str', kind: 'str', lift: 'float', p_value: 'float', high_rate: 'float', low_rate: 'float', n_high: 'int', n_low: 'int', split: 'float | None' = None) -> None
 ```
 
-Driver(feature: 'str', kind: 'str', lift: 'float', p_value: 'float', high_rate: 'float', low_rate: 'float', n_high: 'int', n_low: 'int', split: 'Optional[float]' = None)
+Driver(feature: 'str', kind: 'str', lift: 'float', p_value: 'float', high_rate: 'float', low_rate: 'float', n_high: 'int', n_low: 'int', split: 'float | None' = None)
 
 ### `analysis.compare`
 
 ```pyi
-compare(a: 'Any', b: 'Any', *, labels: 'Tuple[str, str]' = ('a', 'b'), level: 'float' = 0.95) -> 'Comparison'
+compare(a: 'Any', b: 'Any', *, labels: 'tuple[str, str]' = ('a', 'b'), level: 'float' = 0.95) -> 'Comparison'
 ```
 
 Compare results, matching shared unique seeds and excluding invalid outputs per pair.
@@ -868,15 +867,15 @@ independent comparison. Notes identify exclusions and numeric rows give sample s
 ### `analysis.Comparison`
 
 ```pyi
-Comparison(labels: 'Tuple[str, str]', paired: 'bool', outputs: 'Dict[str, Dict[str, Any]]', series: 'Dict[str, Dict[str, Any]]', notes: 'List[str]' = <factory>, level: 'float' = 0.95) -> None
+Comparison(labels: 'tuple[str, str]', paired: 'bool', outputs: 'dict[str, dict[str, Any]]', series: 'dict[str, dict[str, Any]]', notes: 'list[str]' = <factory>, level: 'float' = 0.95) -> None
 ```
 
-Comparison(labels: 'Tuple[str, str]', paired: 'bool', outputs: 'Dict[str, Dict[str, Any]]', series: 'Dict[str, Dict[str, Any]]', notes: 'List[str]' = <factory>, level: 'float' = 0.95)
+Comparison(labels: 'tuple[str, str]', paired: 'bool', outputs: 'dict[str, dict[str, Any]]', series: 'dict[str, dict[str, Any]]', notes: 'list[str]' = <factory>, level: 'float' = 0.95)
 
 ### `analysis.chain`
 
 ```pyi
-chain(first: 'ContractLike', second: 'ContractLike', bind: 'Mapping[str, str]', *, runs: 'int' = 10, level: 'float' = 0.9, uncertainty: 'bool' = True, first_inputs: 'Optional[Mapping[str, Any]]' = None, second_inputs: 'Optional[Mapping[str, Any]]' = None, participants: 'Any' = None, second_participants: 'Any' = None, rounds: 'Optional[int]' = None, second_rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, second_data_dir: 'Any' = None, hosts: 'Any' = None) -> 'ChainResult'
+chain(first: 'ContractLike', second: 'ContractLike', bind: 'Mapping[str, str]', *, runs: 'int' = 10, level: 'float' = 0.9, uncertainty: 'bool' = True, first_inputs: 'Mapping[str, Any] | None' = None, second_inputs: 'Mapping[str, Any] | None' = None, participants: 'Any' = None, second_participants: 'Any' = None, rounds: 'int | None' = None, second_rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, second_data_dir: 'Any' = None, hosts: 'Any' = None) -> 'ChainResult'
 ```
 
 Run ``first``, bind its outputs into ``second``'s inputs (``{second_input: first_output}``), run ``second``.
@@ -891,10 +890,10 @@ requests in the runs of both.
 ### `analysis.ChainResult`
 
 ```pyi
-ChainResult(first: 'str', second: 'str', runs: 'int', level: 'float', bindings: 'Dict[str, Dict[str, Any]]', scenarios: 'Dict[str, Dict[str, Any]]', envelope: 'Dict[str, Dict[str, float]]', notes: 'List[str]' = <factory>) -> None
+ChainResult(first: 'str', second: 'str', runs: 'int', level: 'float', bindings: 'dict[str, dict[str, Any]]', scenarios: 'dict[str, dict[str, Any]]', envelope: 'dict[str, dict[str, float]]', notes: 'list[str]' = <factory>) -> None
 ```
 
-ChainResult(first: 'str', second: 'str', runs: 'int', level: 'float', bindings: 'Dict[str, Dict[str, Any]]', scenarios: 'Dict[str, Dict[str, Any]]', envelope: 'Dict[str, Dict[str, float]]', notes: 'List[str]' = <factory>)
+ChainResult(first: 'str', second: 'str', runs: 'int', level: 'float', bindings: 'dict[str, dict[str, Any]]', scenarios: 'dict[str, dict[str, Any]]', envelope: 'dict[str, dict[str, float]]', notes: 'list[str]' = <factory>)
 
 ### `analysis.statistic`
 
@@ -911,7 +910,7 @@ An analysis cannot produce a result: every run failed, or a request is impossibl
 ### `analysis.validate`
 
 ```pyi
-validate(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', *, runs: 'int' = 10, levels: 'Sequence[float]' = (0.8, 0.95), season: 'Optional[int]' = None, baselines: 'Sequence[str]' = ('last', 'mean', 'seasonal'), test: 'Any' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ValidationResult'
+validate(contract: 'ContractLike', cases: 'Sequence[Mapping[str, Any]]', *, runs: 'int' = 10, levels: 'Sequence[float]' = (0.8, 0.95), season: 'int | None' = None, baselines: 'Sequence[str]' = ('last', 'mean', 'seasonal'), test: 'Any' = None, arm: 'str | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, hosts: 'Any' = None, uncertainty: 'Any' = None) -> 'ValidationResult'
 ```
 
 Check the contract's forecasts against each case's ``actuals`` (see the module notes).
@@ -926,15 +925,15 @@ not knowing them.
 ### `analysis.ValidationResult`
 
 ```pyi
-ValidationResult(contract: 'str', runs: 'int', levels: 'List[float]', cases: 'List[str]', measures: 'Dict[str, Dict[str, Any]]', rows: 'List[Dict[str, Any]]', warnings: 'List[str]' = <factory>, notes: 'List[str]' = <factory>) -> None
+ValidationResult(contract: 'str', runs: 'int', levels: 'list[float]', cases: 'list[str]', measures: 'dict[str, dict[str, Any]]', rows: 'list[dict[str, Any]]', warnings: 'list[str]' = <factory>, notes: 'list[str]' = <factory>) -> None
 ```
 
-ValidationResult(contract: 'str', runs: 'int', levels: 'List[float]', cases: 'List[str]', measures: 'Dict[str, Dict[str, Any]]', rows: 'List[Dict[str, Any]]', warnings: 'List[str]' = <factory>, notes: 'List[str]' = <factory>)
+ValidationResult(contract: 'str', runs: 'int', levels: 'list[float]', cases: 'list[str]', measures: 'dict[str, dict[str, Any]]', rows: 'list[dict[str, Any]]', warnings: 'list[str]' = <factory>, notes: 'list[str]' = <factory>)
 
 ### `analysis.optimise`
 
 ```pyi
-optimise(contract: 'ContractLike', decisions: 'Mapping[str, Any]', objective: 'Any', constraints: 'Any' = (), *, runs: 'int' = 10, seed: 'int' = 0, method: 'str' = 'auto', budget: 'int' = 50, workers: 'int' = 1, confidence: 'float' = 0.9, uncertainty: 'Any' = None, holdout_seeds: 'Optional[int]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, participants: 'Any' = None, rounds: 'Optional[int]' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'OptimisationResult'
+optimise(contract: 'ContractLike', decisions: 'Mapping[str, Any]', objective: 'Any', constraints: 'Any' = (), *, runs: 'int' = 10, seed: 'int' = 0, method: 'str' = 'auto', budget: 'int' = 50, workers: 'int' = 1, confidence: 'float' = 0.9, uncertainty: 'Any' = None, holdout_seeds: 'int | None' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, participants: 'Any' = None, rounds: 'int | None' = None, data_dir: 'Any' = None, hosts: 'Any' = None) -> 'OptimisationResult'
 ```
 
 Search ``decisions`` for the best ``objective`` subject to ``constraints`` (see the module notes).
@@ -950,10 +949,10 @@ frontier) frontier. ``holdout_seeds`` (default ``runs``; 0 skips it) fresh seeds
 ### `analysis.OptimisationResult`
 
 ```pyi
-OptimisationResult(contract: 'str', method: 'str', decisions: 'List[str]', objectives: 'List[str]', constraints: 'List[str]', runs: 'int', seed: 'int', evaluations: 'int', total_runs: 'int', best: 'Optional[Dict[str, Any]]' = None, feasible: 'bool' = False, verdict: 'str' = 'infeasible', confidence: 'float' = 0.9, estimates: 'Optional[Dict[str, Any]]' = None, runner_up: 'Optional[Dict[str, Any]]' = None, holdout: 'Optional[Dict[str, Any]]' = None, sensitivity: 'List[Dict[str, Any]]' = <factory>, frontier: 'List[Dict[str, Any]]' = <factory>, history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>) -> None
+OptimisationResult(contract: 'str', method: 'str', decisions: 'list[str]', objectives: 'list[str]', constraints: 'list[str]', runs: 'int', seed: 'int', evaluations: 'int', total_runs: 'int', best: 'dict[str, Any] | None' = None, feasible: 'bool' = False, verdict: 'str' = 'infeasible', confidence: 'float' = 0.9, estimates: 'dict[str, Any] | None' = None, runner_up: 'dict[str, Any] | None' = None, holdout: 'dict[str, Any] | None' = None, sensitivity: 'list[dict[str, Any]]' = <factory>, frontier: 'list[dict[str, Any]]' = <factory>, history: 'list[dict[str, Any]]' = <factory>, notes: 'list[str]' = <factory>) -> None
 ```
 
-OptimisationResult(contract: 'str', method: 'str', decisions: 'List[str]', objectives: 'List[str]', constraints: 'List[str]', runs: 'int', seed: 'int', evaluations: 'int', total_runs: 'int', best: 'Optional[Dict[str, Any]]' = None, feasible: 'bool' = False, verdict: 'str' = 'infeasible', confidence: 'float' = 0.9, estimates: 'Optional[Dict[str, Any]]' = None, runner_up: 'Optional[Dict[str, Any]]' = None, holdout: 'Optional[Dict[str, Any]]' = None, sensitivity: 'List[Dict[str, Any]]' = <factory>, frontier: 'List[Dict[str, Any]]' = <factory>, history: 'List[Dict[str, Any]]' = <factory>, notes: 'List[str]' = <factory>)
+OptimisationResult(contract: 'str', method: 'str', decisions: 'list[str]', objectives: 'list[str]', constraints: 'list[str]', runs: 'int', seed: 'int', evaluations: 'int', total_runs: 'int', best: 'dict[str, Any] | None' = None, feasible: 'bool' = False, verdict: 'str' = 'infeasible', confidence: 'float' = 0.9, estimates: 'dict[str, Any] | None' = None, runner_up: 'dict[str, Any] | None' = None, holdout: 'dict[str, Any] | None' = None, sensitivity: 'list[dict[str, Any]]' = <factory>, frontier: 'list[dict[str, Any]]' = <factory>, history: 'list[dict[str, Any]]' = <factory>, notes: 'list[str]' = <factory>)
 
 ## `fg_env.rl`
 
@@ -975,7 +974,7 @@ Agents in the loop: a contract as a game, a Gymnasium or PettingZoo environment,
 ### `rl.game`
 
 ```pyi
-game(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, arm: 'Optional[str]' = None, players: 'Optional[Sequence[str]]' = None, others: 'Any' = None, chance: 'str' = 'explicit', simultaneous: 'str' = 'joint', dry_run: 'bool' = True, max_combinations: 'int' = 10000, hosts: 'Any' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> 'Game'
+game(source: 'ContractLike', *, inputs: 'Mapping[str, Any] | None' = None, seed: 'int' = 0, arm: 'str | None' = None, players: 'Sequence[str] | None' = None, others: 'Any' = None, chance: 'str' = 'explicit', simultaneous: 'str' = 'joint', dry_run: 'bool' = True, max_combinations: 'int' = 10000, hosts: 'Any' = None, data_dir: 'str | os.PathLike[str] | None' = None) -> 'Game'
 ```
 
 A contract as a game for search, solving and learning code.
@@ -993,7 +992,7 @@ A contract as a game for search, solving and learning code.
 ### `rl.Game`
 
 ```pyi
-Game(root: 'Env', *, players: 'Optional[Sequence[str]]', others: 'Any', chance: 'str', turn_based: 'bool', dry_run: 'bool', limit: 'int')
+Game(root: 'Env', *, players: 'Sequence[str] | None', others: 'Any', chance: 'str', turn_based: 'bool', dry_run: 'bool', limit: 'int')
 ```
 
 A contract as a game: seats, a numbered action space, and states to search from.
@@ -1004,7 +1003,7 @@ node when chance is explicit); agents that are not seats are played by ``others`
 ### `rl.GameState`
 
 ```pyi
-GameState(game: "'Game'", run: 'Union[Branch, Run]', history: 'List[Dict[str, Any]]', previous: 'Optional[List[float]]' = None, legal: 'Optional[Dict[int, Legal]]' = None, path: 'bytes' = b'')
+GameState(game: 'Game', run: 'Branch | Run', history: 'list[dict[str, Any]]', previous: 'list[float] | None' = None, legal: 'dict[int, Legal] | None' = None, path: 'bytes' = b'')
 ```
 
 One state of a :class:`~fg_env.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
@@ -1013,7 +1012,7 @@ give new independent states. Players are seat indices (``game.players[i]`` is th
 ### `rl.conformance`
 
 ```pyi
-conformance(source: 'Union[ContractLike, Game]', *, sims: 'int' = 20, seed: 'int' = 0, inputs: 'Optional[Mapping[str, Any]]' = None, simultaneous: 'str' = 'joint', leak_branches: 'int' = 2, max_steps: 'int' = 1000, resume: 'bool' = True) -> 'ConformanceReport'
+conformance(source: 'ContractLike | Game', *, sims: 'int' = 20, seed: 'int' = 0, inputs: 'Mapping[str, Any] | None' = None, simultaneous: 'str' = 'joint', leak_branches: 'int' = 2, max_steps: 'int' = 1000, resume: 'bool' = True) -> 'ConformanceReport'
 ```
 
 Check a game (a contract, or a :class:`Game` from :func:`fg_env.rl.game`) over ``sims`` seeded random playouts.
@@ -1025,7 +1024,7 @@ also covers sealed choices. ``leak_branches`` is how many steps of each playout 
 ### `rl.ConformanceReport`
 
 ```pyi
-ConformanceReport(game: 'str', sims: 'int', decisions: 'int' = 0, chance_nodes: 'int' = 0, checks: 'Dict[str, int]' = <factory>, issues: 'List[ConformanceIssue]' = <factory>) -> None
+ConformanceReport(game: 'str', sims: 'int', decisions: 'int' = 0, chance_nodes: 'int' = 0, checks: 'dict[str, int]' = <factory>, issues: 'list[ConformanceIssue]' = <factory>) -> None
 ```
 
 What :func:`conformance` checked and found.
@@ -1033,7 +1032,7 @@ What :func:`conformance` checked and found.
 ### `rl.playthrough`
 
 ```pyi
-playthrough(source: 'Union[ContractLike, Game]', *, seed: 'int' = 0, steps: 'Optional[Sequence[Mapping[str, Any]]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, simultaneous: 'str' = 'joint', max_steps: 'int' = 500) -> 'str'
+playthrough(source: 'ContractLike | Game', *, seed: 'int' = 0, steps: 'Sequence[Mapping[str, Any]] | None' = None, inputs: 'Mapping[str, Any] | None' = None, simultaneous: 'str' = 'joint', max_steps: 'int' = 500) -> 'str'
 ```
 
 The playthrough text of one game: ``steps`` when given (see :mod:`.steps`), else random ones from ``seed``.
@@ -1041,7 +1040,7 @@ The playthrough text of one game: ``steps`` when given (see :mod:`.steps`), else
 ### `rl.gym`
 
 ```pyi
-gym(source: 'ContractLike', agent: 'str', *, others: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, action_ids: 'bool' = False, hosts: 'Any' = None, render_mode: 'Optional[str]' = None, data_dir: "Union[str, 'os.PathLike[str]', None]" = None) -> 'GymEnv'
+gym(source: 'ContractLike', agent: 'str', *, others: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, seed: 'int | None' = None, max_steps: 'int | None' = None, action_ids: 'bool' = False, hosts: 'Any' = None, render_mode: 'str | None' = None, data_dir: 'str | os.PathLike[str] | None' = None) -> 'GymEnv'
 ```
 
 One agent (an entity id) of a contract as a Gymnasium-style environment; ``others`` play the rest.
@@ -1053,7 +1052,7 @@ that many calls; ``action_ids=True`` accepts integer action ids and adds ``legal
 ### `rl.GymEnv`
 
 ```pyi
-GymEnv(root: 'Env', agent: 'str', *, others: 'Any', max_steps: 'Optional[int]', action_ids: 'bool', hosts: 'Any', render_mode: 'Optional[str]')
+GymEnv(root: 'Env', agent: 'str', *, others: 'Any', max_steps: 'int | None', action_ids: 'bool', hosts: 'Any', render_mode: 'str | None')
 ```
 
 One agent of a contract as a Gymnasium-style environment. Create with :func:`fg_env.rl.gym`.
@@ -1061,7 +1060,7 @@ One agent of a contract as a Gymnasium-style environment. Create with :func:`fg_
 ### `rl.pettingzoo_aec`
 
 ```pyi
-pettingzoo_aec(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, render_mode: 'Optional[str]' = None) -> 'AECGame'
+pettingzoo_aec(source: 'ContractLike', *, inputs: 'Mapping[str, Any] | None' = None, seed: 'int | None' = None, max_steps: 'int | None' = None, render_mode: 'str | None' = None) -> 'AECGame'
 ```
 
 A contract as a PettingZoo AEC environment (simultaneous stages one seat at a time; needs game.returns).
@@ -1069,7 +1068,7 @@ A contract as a PettingZoo AEC environment (simultaneous stages one seat at a ti
 ### `rl.pettingzoo_parallel`
 
 ```pyi
-pettingzoo_parallel(source: 'ContractLike', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'Optional[int]' = None, max_steps: 'Optional[int]' = None, render_mode: 'Optional[str]' = None) -> 'ParallelGame'
+pettingzoo_parallel(source: 'ContractLike', *, inputs: 'Mapping[str, Any] | None' = None, seed: 'int | None' = None, max_steps: 'int | None' = None, render_mode: 'str | None' = None) -> 'ParallelGame'
 ```
 
 A contract as a PettingZoo parallel environment (needs game.returns).
@@ -1077,7 +1076,7 @@ A contract as a PettingZoo parallel environment (needs game.returns).
 ### `rl.tournament`
 
 ```pyi
-tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Optional[Sequence[str]]' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'Optional[int]' = None, others: 'Any' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, rounds: 'Optional[int]' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Optional[Mapping[str, Any]]' = None, exposures: 'bool' = False) -> 'TournamentResult'
+tournament(contract: 'ContractLike', entrants: 'Mapping[str, Any]', *, seats: 'Sequence[str] | None' = None, pairing: 'str' = 'round_robin', games: 'int' = 1, score: 'ScoreSpec' = None, rating: 'str' = 'elo', swiss_rounds: 'int | None' = None, others: 'Any' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, rounds: 'int | None' = None, seed: 'int' = 0, workers: 'int' = 1, data_dir: 'Any' = None, budget: 'Mapping[str, Any] | None' = None, exposures: 'bool' = False) -> 'TournamentResult'
 ```
 
 Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
@@ -1096,18 +1095,18 @@ number, or a winner), an expression over ``$outputs``, ``$metrics``, ``$winner``
 ``$seat_name``, or ``fn(result, seat_id)``. Agents without a seat play ``others`` (default: their
 type's policy, else random).
 
-Standings are ranked by ``rating``: ``elo`` (maximum-likelihood, with 95% intervals) or ``glicko2``;
-both are reported, with win/draw/loss, points and score means. ``evaluation`` adds the Nash average,
-α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
-entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
-undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
-``budget`` caps each game on its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in
-every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
+Standings are ranked by ``rating``: ``elo`` (maximum-likelihood, with 95% intervals) or ``glicko2``; both are
+reported, with win/draw/loss, points and score means. ``evaluation`` adds the Nash average, α-Rank and a Schulze
+vote, which stay meaningful when skill is not transitive; ``returns`` gives every entrant's score in every seat, and
+each standing's ``cost`` its turns, calls, invalid calls, timeouts, undone turns and model tokens. A callable
+entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
+its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
+(``result.runs[i].exposures``, events kept), each a trace to read or replay.
 
 ### `rl.TournamentResult`
 
 ```pyi
-TournamentResult(contract: 'str', pairing: 'str', rating: 'str', score: 'str', seats: 'List[str]', entrants: 'List[str]', games_per_seating: 'int', standings: 'List[Dict[str, Any]]', head_to_head: 'Dict[str, Dict[str, Dict[str, int]]]', returns: 'Dict[str, Dict[str, Dict[str, Any]]]', seat_points: 'Dict[str, Dict[str, Any]]', evaluation: 'Dict[str, Any]', games: 'List[Dict[str, Any]]', runs: 'List[RunResult]' = <factory>, notes: 'List[str]' = <factory>) -> None
+TournamentResult(contract: 'str', pairing: 'str', rating: 'str', score: 'str', seats: 'list[str]', entrants: 'list[str]', games_per_seating: 'int', standings: 'list[dict[str, Any]]', head_to_head: 'dict[str, dict[str, dict[str, int]]]', returns: 'dict[str, dict[str, dict[str, Any]]]', seat_points: 'dict[str, dict[str, Any]]', evaluation: 'dict[str, Any]', games: 'list[dict[str, Any]]', runs: 'list[RunResult]' = <factory>, notes: 'list[str]' = <factory>) -> None
 ```
 
 ``standings`` is best first by ``rating``. ``evaluation`` holds the margin matrix, the Nash average, α-Rank
@@ -1116,7 +1115,7 @@ and the Schulze vote; ``returns[entrant][seat]`` the score in each seat; ``games
 ### `rl.evaluate`
 
 ```pyi
-evaluate(suite: 'Any', *, focal: 'Any', background: 'Any' = None, baseline: 'Any' = None, seats: 'Any' = None, score: 'ScoreSpec' = None, modes: 'Optional[Mapping[str, float]]' = None, inputs: 'Optional[Mapping[str, Any]]' = None, arm: 'Optional[str]' = None, runs: 'int' = 10, rounds: 'Optional[int]' = None, budget: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0, workers: 'int' = 1, exposures: 'bool' = False) -> 'EvaluationResult'
+evaluate(suite: 'Any', *, focal: 'Any', background: 'Any' = None, baseline: 'Any' = None, seats: 'Any' = None, score: 'ScoreSpec' = None, modes: 'Mapping[str, float] | None' = None, inputs: 'Mapping[str, Any] | None' = None, arm: 'str | None' = None, runs: 'int' = 10, rounds: 'int | None' = None, budget: 'Mapping[str, Any] | None' = None, seed: 'int' = 0, workers: 'int' = 1, exposures: 'bool' = False) -> 'EvaluationResult'
 ```
 
 How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
@@ -1141,7 +1140,7 @@ given by name.
 ### `rl.EvaluationResult`
 
 ```pyi
-EvaluationResult(focal: 'str', runs: 'int', seed: 'int', scenarios: 'List[Dict[str, Any]]', modes: 'Dict[str, Dict[str, Any]]', tags: 'Dict[str, Dict[str, Any]]', splits: 'Dict[str, Dict[str, Any]]', overall: 'Dict[str, Any]', pairs: 'List[Dict[str, Any]]', notes: 'List[str]' = <factory>, results: "List['RunResult']" = <factory>) -> None
+EvaluationResult(focal: 'str', runs: 'int', seed: 'int', scenarios: 'list[dict[str, Any]]', modes: 'dict[str, dict[str, Any]]', tags: 'dict[str, dict[str, Any]]', splits: 'dict[str, dict[str, Any]]', overall: 'dict[str, Any]', pairs: 'list[dict[str, Any]]', notes: 'list[str]' = <factory>, results: 'list[RunResult]' = <factory>) -> None
 ```
 
 ``scenarios``: one row per scenario and mode. ``modes``, ``tags``, ``splits`` (``in_sample`` / ``held_out``,
@@ -1177,7 +1176,7 @@ An engine is defined but its reusable implementation is not shipped yet.
 ### `engines.EngineSpec`
 
 ```pyi
-EngineSpec(id: 'str', title: 'str', summary: 'str', description: 'str', status: 'str', path: 'Optional[str]' = None, resources: 'Tuple[str, ...]' = ()) -> None
+EngineSpec(id: 'str', title: 'str', summary: 'str', description: 'str', status: 'str', path: 'str | None' = None, resources: 'tuple[str, ...]' = ()) -> None
 ```
 
 One reusable human-interaction engine.
@@ -1193,7 +1192,7 @@ Return the engine catalog shipped with the installed SDK version.
 ### `engines.list_engines`
 
 ```pyi
-list_engines(*, available: 'Optional[bool]' = None) -> 'list[EngineSpec]'
+list_engines(*, available: 'bool | None' = None) -> 'list[EngineSpec]'
 ```
 
 List behavioral engines, optionally filtered by implementation availability.
@@ -1209,7 +1208,7 @@ Resolve one behavioral engine by its stable id.
 ### `engines.clone`
 
 ```pyi
-clone(engine_id: 'str', destination: 'Union[str, Path]', *, name: 'Optional[str]' = None, overwrite: 'bool' = False) -> 'Path'
+clone(engine_id: 'str', destination: 'str | Path', *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'Path'
 ```
 
 Clone a reusable engine contract into a project-owned JSON file.
@@ -1217,7 +1216,7 @@ Clone a reusable engine contract into a project-owned JSON file.
 ### `engines.load`
 
 ```pyi
-load(engine_id: 'str', *, inputs: 'Optional[Mapping[str, Any]]' = None, seed: 'int' = 0) -> 'Any'
+load(engine_id: 'str', *, inputs: 'Mapping[str, Any] | None' = None, seed: 'int' = 0) -> 'Any'
 ```
 
 Load a reusable engine as :class:`fg_env.Env`.
@@ -1234,23 +1233,23 @@ without coupling the SDK to a particular database.
 ### `personas.PersonaSample`
 
 ```pyi
-PersonaSample(people: 'Tuple[Dict[str, Any], ...]', provenance: 'SamplingProvenance') -> None
+PersonaSample(people: 'tuple[dict[str, Any], ...]', provenance: 'SamplingProvenance') -> None
 ```
 
-PersonaSample(people: 'Tuple[Dict[str, Any], ...]', provenance: 'SamplingProvenance')
+PersonaSample(people: 'tuple[dict[str, Any], ...]', provenance: 'SamplingProvenance')
 
 ### `personas.SamplingProvenance`
 
 ```pyi
-SamplingProvenance(source: 'str', source_version: 'Optional[str]', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'Dict[str, Any]', group_by: 'Optional[str]', weight_field: 'Optional[str]', fixed_ids: 'Tuple[str, ...]', sampled_ids: 'Tuple[str, ...]') -> None
+SamplingProvenance(source: 'str', source_version: 'str | None', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'dict[str, Any]', group_by: 'str | None', weight_field: 'str | None', fixed_ids: 'tuple[str, ...]', sampled_ids: 'tuple[str, ...]') -> None
 ```
 
-SamplingProvenance(source: 'str', source_version: 'Optional[str]', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'Dict[str, Any]', group_by: 'Optional[str]', weight_field: 'Optional[str]', fixed_ids: 'Tuple[str, ...]', sampled_ids: 'Tuple[str, ...]')
+SamplingProvenance(source: 'str', source_version: 'str | None', seed: 'int', run: 'int', resampled: 'bool', requested: 'int', selected: 'int', pool_size: 'int', constraints: 'dict[str, Any]', group_by: 'str | None', weight_field: 'str | None', fixed_ids: 'tuple[str, ...]', sampled_ids: 'tuple[str, ...]')
 
 ### `personas.sample_records`
 
 ```pyi
-sample_records(records: 'Iterable[Mapping[str, Any]]', *, size: 'int', seed: 'int' = 0, run: 'int' = 0, resample: 'bool' = True, constraints: 'Optional[Mapping[str, Constraint]]' = None, fixed: 'Optional[Iterable[Mapping[str, Any]]]' = None, id_field: 'str' = 'id', group_by: 'Optional[str]' = None, weight_field: 'Optional[str]' = None, source: 'str' = 'records', source_version: 'Optional[str]' = None) -> 'PersonaSample'
+sample_records(records: 'Iterable[Mapping[str, Any]]', *, size: 'int', seed: 'int' = 0, run: 'int' = 0, resample: 'bool' = True, constraints: 'Mapping[str, Constraint] | None' = None, fixed: 'Iterable[Mapping[str, Any]] | None' = None, id_field: 'str' = 'id', group_by: 'str | None' = None, weight_field: 'str | None' = None, source: 'str' = 'records', source_version: 'str | None' = None) -> 'PersonaSample'
 ```
 
 Sample role-neutral personas with replacement disabled and full provenance.
@@ -1264,7 +1263,7 @@ to choose fixed-cohort repetition or a fresh cohort per run explicitly.
 ### `personas.assign_labels`
 
 ```pyi
-assign_labels(records: 'Iterable[Mapping[str, Any]]', labels: 'Sequence[Tuple[str, float]]', *, field: 'str' = 'role', seed: 'int' = 0) -> 'List[Dict[str, Any]]'
+assign_labels(records: 'Iterable[Mapping[str, Any]]', labels: 'Sequence[tuple[str, float]]', *, field: 'str' = 'role', seed: 'int' = 0) -> 'list[dict[str, Any]]'
 ```
 
 Assign labels by proportional shares using largest remainder, then shuffle.
@@ -1274,7 +1273,7 @@ Assign labels by proportional shares using largest remainder, then shuffle.
 ### `Env.preview`
 
 ```pyi
-preview(self, entity_id: 'str', stage: 'Optional[str]' = None, participants: 'Any' = None) -> 'Dict[str, Any]'
+preview(self, entity_id: 'str', stage: 'str | None' = None, participants: 'Any' = None) -> 'dict[str, Any]'
 ```
 
 What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
@@ -1290,17 +1289,17 @@ skipped, as the run skips it.
 ### `Env.run`
 
 ```pyi
-run(self, participants: 'Any' = None, *, rounds: 'Optional[int]' = None, stop: "Optional[Callable[['Env'], bool]]" = None, on_event: 'Optional[Callable[[Dict[str, Any]], None]]' = None, raise_errors: 'bool' = False, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, budget: 'Optional[Mapping[str, Any]]' = None) -> 'RunResult'
+run(self, participants: 'Any' = None, *, rounds: 'int | None' = None, stop: 'Callable[[Env], bool] | None' = None, on_event: 'Callable[[dict[str, Any]], None] | None' = None, raise_errors: 'bool' = False, hosts: 'Any' = None, time_limit: 'float | None' = None, budget: 'Mapping[str, Any] | None' = None) -> 'RunResult'
 ```
 
 Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 
-``participants`` is a callable for every agent, or a mapping from entity id, type or
-``"*"`` to a participant (a callable — plain or ``async def`` — ``"random"``, ``"idle"``,
-``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
-participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
-adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
-stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use :meth:`arun`.
+``participants`` is a callable for every agent, or a mapping from entity id, type or ``"*"`` to a participant (a
+callable — plain or ``async def`` — ``"random"``, ``"idle"``, ``"policy:<name>"``). Agents without one use their
+type's ``policy`` or ``"random"``. Every participant is offered the contract's in-turn host tools; ``hosts``
+binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn
+for stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
+:meth:`arun`.
 
 ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
 continues exactly where it stopped on the next call; finishing a round that was
@@ -1309,7 +1308,7 @@ stopped part-way counts as one of ``rounds``.
 ### `Env.arun`
 
 ```pyi
-arun(self, participants: 'Any' = None, *, rounds: 'Optional[int]' = None, stop: "Optional[Callable[['Env'], bool]]" = None, on_event: 'Optional[Callable[[Dict[str, Any]], None]]' = None, raise_errors: 'bool' = False, hosts: 'Any' = None, time_limit: 'Optional[float]' = None, budget: 'Optional[Mapping[str, Any]]' = None) -> 'RunResult'
+arun(self, participants: 'Any' = None, *, rounds: 'int | None' = None, stop: 'Callable[[Env], bool] | None' = None, on_event: 'Callable[[dict[str, Any]], None] | None' = None, raise_errors: 'bool' = False, hosts: 'Any' = None, time_limit: 'float | None' = None, budget: 'Mapping[str, Any] | None' = None) -> 'RunResult'
 ```
 
 :meth:`run` as a coroutine, for use inside a running event loop.
@@ -1330,7 +1329,7 @@ Run exactly one round (or finish the round a stopped run is in).
 ### `Env.snapshot`
 
 ```pyi
-snapshot(self) -> 'Dict[str, Any]'
+snapshot(self) -> 'dict[str, Any]'
 ```
 
 Everything needed to continue this run later, as JSON-safe data: between rounds, or stopped part-way
@@ -1339,7 +1338,7 @@ through a round (``run(stop=...)``).
 ### `Env.restore`
 
 ```pyi
-restore(contract: 'Any', snapshot: 'Mapping[str, Any]', parallel: 'int' = 8, hosts: 'Any' = None, data_dir: 'Any' = None) -> "'Env'"
+restore(contract: 'Any', snapshot: 'Mapping[str, Any]', parallel: 'int' = 8, hosts: 'Any' = None, data_dir: 'Any' = None) -> 'Env'
 ```
 
 Continue a run from :meth:`snapshot`. ``contract`` is the contract it was taken with
@@ -1350,7 +1349,7 @@ The contract's files are found again in its folder (or ``data_dir``) and checked
 ### `Env.clone`
 
 ```pyi
-clone(self) -> "'Env'"
+clone(self) -> 'Env'
 ```
 
 An independent copy of this run now, continuing exactly as it would.
@@ -1361,7 +1360,7 @@ copied by replaying it, so the copy stops at the same point. Inside a turn, use 
 ### `Env.fork`
 
 ```pyi
-fork(self, **changes: 'Any') -> "'Env'"
+fork(self, **changes: 'Any') -> 'Env'
 ```
 
 A new run continuing this one from now under changes, leaving this run untouched: another ``arm``
@@ -1375,7 +1374,7 @@ with a :class:`~fg_env.ContractError` listing each problem and its fix. See :fun
 ### `Env.entity`
 
 ```pyi
-entity(self, entity_id: 'str') -> 'Optional[Dict[str, Any]]'
+entity(self, entity_id: 'str') -> 'dict[str, Any] | None'
 ```
 
 A copy of one entity: ``{id, name, type, alive, at, props}``, or None.
@@ -1383,7 +1382,7 @@ A copy of one entity: ``{id, name, type, alive, at, props}``, or None.
 ### `Env.entities`
 
 ```pyi
-entities(self, type_name: 'Optional[str]' = None, alive: 'bool' = True) -> 'List[Dict[str, Any]]'
+entities(self, type_name: 'str | None' = None, alive: 'bool' = True) -> 'list[dict[str, Any]]'
 ```
 
 Copies of entities, optionally of one type (subtypes included) and only alive ones.
@@ -1399,7 +1398,7 @@ result(self) -> 'RunResult'
 ### `Env.spectate`
 
 ```pyi
-spectate(self) -> 'Dict[str, str]'
+spectate(self) -> 'dict[str, str]'
 ```
 
 Every spectator view (``"for": "spectator"``) rendered against the world now, by name. Changes

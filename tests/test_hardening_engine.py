@@ -189,7 +189,8 @@ def test_preview_changes_nothing_and_shows_earlier_seats():
     before = json.dumps(env.snapshot(), sort_keys=True)
     preview = env.preview("member_3")  # earlier seats are played on a copy with built-in participants
     assert preview["update"].startswith("Round 2 of 3")
-    assert f"Member 1: «{SAMPLE_TEXT}»" in preview["update"]  # member_1's round-2 post, made on the copy before member_3's turn
+    assert ("Member 1: "
+            f"«{SAMPLE_TEXT}»") in preview["update"]  # member_1's round-2 post, made on the copy before member_3's turn
     assert json.dumps(env.snapshot(), sort_keys=True) == before
     env.run(_talker, stop=lambda e: e.world.stage is not None)
     count = env._turn_count
@@ -325,7 +326,8 @@ def test_experiments_keep_every_run_and_report_paired_deltas():
 
 def test_views_never_reveal_events_addressed_to_someone_else():
     contract = {**TALK, "views": {"log": {"for": "member", "title": "Log", "show": "{$len($events(action))} actions"}},
-                "actions": {**TALK["actions"], "whisper": {"by": "member", "private": True, "do": ["$actor.said += 1"]}}}
+                "actions": {**TALK["actions"],
+                            "whisper": {"by": "member", "private": True, "do": ["$actor.said += 1"]}}}
     env = fg_env.load(contract, seed=1)
     seen = {}
 
@@ -437,7 +439,8 @@ def test_arithmetic_overflow_in_a_rule_is_the_rule_s_error_not_the_participant_s
             wake.end()
 
         result = env.run(play)
-        assert result.error is None, action  # the action is refused and undone: the rule's error, reported to its author
+        # the action is refused and undone: the rule's error, reported to its author
+        assert result.error is None, action
         message = next(d["message"] for d in result.diagnostics if d["code"] == "action_rule_failed")
         assert expected in message and "participant" not in message, (action, message)
         assert "digits" not in message and len(message) < 400, message

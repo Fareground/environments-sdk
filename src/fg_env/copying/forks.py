@@ -14,20 +14,21 @@ declared unchanged; an edited one counts as new.
 from __future__ import annotations
 
 import os
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from ..api import ContractLike, _merge, apply_arm, contract_source, default_data_dir, located, parse
-from ..world.build import _rounds
 from ..checks import BASE, _Checker, check_contract, parse_contract
 from ..contract import Contract, PropSpec
+from ..contract.inputs import resolve_inputs
 from ..errors import ContractError, Issue, RunError, SnapshotError
 from ..expr import ExprError, compile_expr, is_expr
-from ..contract.inputs import resolve_inputs
-from ..world.links import _fields as link_fields
 from ..sampling.seeds import SeedTree
-from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
-from ..world.live import Abort, SdkWorld, _copy
+from ..world.build import _rounds
 from ..world.defaults import default_order
+from ..world.links import _fields as link_fields
+from ..world.live import Abort, SdkWorld, _copy
+from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -39,9 +40,9 @@ _NAMED_IDS = 5
 
 
 def fork(contract: ContractLike, snapshot: Mapping[str, Any], *, arm: Any = KEEP_ARM,
-         inputs: Optional[Mapping[str, Any]] = None, patch: Optional[Mapping[str, Any]] = None,
-         to: Optional[ContractLike] = None, seed: Optional[int] = None, effects: Optional[List[Any]] = None,
-         parallel: int = 8, hosts: Any = None, data_dir: Union[str, "os.PathLike[str]", None] = None) -> "Env":
+         inputs: Mapping[str, Any] | None = None, patch: Mapping[str, Any] | None = None,
+         to: ContractLike | None = None, seed: int | None = None, effects: list[Any] | None = None,
+         parallel: int = 8, hosts: Any = None, data_dir: str | os.PathLike[str] | None = None) -> Env:
     """A run continuing ``snapshot`` (taken with ``contract``) under changes.
 
     * ``arm`` — another declared arm (``None`` for none); its patch applies and its inputs are set. Inputs
@@ -60,9 +61,9 @@ def fork(contract: ContractLike, snapshot: Mapping[str, Any], *, arm: Any = KEEP
                  parallel=parallel, hosts=hosts, data_dir=data_dir)
 
 
-def fork_env(env: "Env", *, arm: Any = KEEP_ARM, inputs: Optional[Mapping[str, Any]] = None,
-             patch: Optional[Mapping[str, Any]] = None, contract: Optional[ContractLike] = None,
-             seed: Optional[int] = None, effects: Optional[List[Any]] = None) -> "Env":
+def fork_env(env: Env, *, arm: Any = KEEP_ARM, inputs: Mapping[str, Any] | None = None,
+             patch: Mapping[str, Any] | None = None, contract: ContractLike | None = None,
+             seed: int | None = None, effects: list[Any] | None = None) -> Env:
     """``env.fork``: :func:`fork` from the live run's current state (``contract`` is a whole replacement)."""
     from ..host.hosts import hosts_for
     from ..runtime.env import Env
@@ -80,10 +81,10 @@ def fork_env(env: "Env", *, arm: Any = KEEP_ARM, inputs: Optional[Mapping[str, A
     return forked
 
 
-def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm: Any, inputs: Optional[Mapping[str, Any]],
-          patch: Optional[Mapping[str, Any]], to: Optional[ContractLike], seed: Optional[int],
-          effects: Optional[List[Any]], parallel: int, hosts: Any, data_dir: Any,
-          unarmed_source: Optional[Contract] = None) -> "Env":
+def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm: Any, inputs: Mapping[str, Any] | None,
+          patch: Mapping[str, Any] | None, to: ContractLike | None, seed: int | None,
+          effects: list[Any] | None, parallel: int, hosts: Any, data_dir: Any,
+          unarmed_source: Contract | None = None) -> Env:
     old, unarmed = matching_contract(contract, snapshot)
     if "part_way" in snapshot:
         raise SnapshotError(f"this snapshot was taken part-way through round {snapshot.get('round')}, and changes "
@@ -95,7 +96,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     old_arm = snapshot.get("arm")
     new_arm = old_arm if arm is KEEP_ARM else arm
     if new_arm is not None and new_arm not in base.arms:
-        raise ContractError([Issue("arm", f"'{new_arm}' is not a declared arm", f"arms: {', '.join(base.arms) or 'none'}")],
+        raise ContractError([Issue("arm", f"'{new_arm}' is not a declared arm",
+                                   f"arms: {', '.join(base.arms) or 'none'}")],
                             title="the fork cannot be made")
     # Continuing the same arm keeps the current rules, including earlier patches.
     # A different arm or replacement contract deliberately selects a new rule base.
@@ -139,8 +141,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     return env
 
 
-def _inputs(unarmed: Contract, base: Contract, snapshot: Mapping[str, Any], old_arm: Optional[str],
-            new_arm: Optional[str], given: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+def _inputs(unarmed: Contract, base: Contract, snapshot: Mapping[str, Any], old_arm: str | None,
+            new_arm: str | None, given: Mapping[str, Any] | None) -> dict[str, Any]:
     merged = {key: value for key, value in decode(snapshot["inputs"]).items() if key in base.inputs}
     if new_arm != old_arm:
         for key, value in (unarmed.arms[old_arm].inputs if old_arm in unarmed.arms else {}).items():
@@ -154,14 +156,15 @@ def _inputs(unarmed: Contract, base: Contract, snapshot: Mapping[str, Any], old_
 # -- compatibility ---------------------------------------------------------------------------------------
 
 
-def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> List[Issue]:
+def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> list[Issue]:
     """Everything in ``snapshot``'s state that ``new`` cannot hold, each with its fix."""
-    issues: List[Issue] = []
+    issues: list[Issue] = []
     if old.clock.mode != new.clock.mode:
-        issues.append(Issue("clock.mode", f"cannot change from {old.clock.mode} to {new.clock.mode} part-way through a run",
+        issues.append(Issue("clock.mode",
+                            f"cannot change from {old.clock.mode} to {new.clock.mode} part-way through a run",
                             "keep the clock mode the run started with"))
     probe = SdkWorld(new, decode(snapshot["inputs"]), SeedTree(0))
-    missing_types: Dict[str, List[str]] = {}
+    missing_types: dict[str, list[str]] = {}
     for row in snapshot["entities"]:
         kind = row["type"]
         if kind not in new.types:
@@ -182,7 +185,8 @@ def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> 
         if not edges:
             continue
         if kind not in new.relations:
-            issues.append(Issue(f"relations.{kind}", f"is gone, but {len(edges)} links of it exist", "keep the relation"))
+            issues.append(Issue(f"relations.{kind}", f"is gone, but {len(edges)} links of it exist",
+                                "keep the relation"))
             continue
         if kind in old.relations and old.relations[kind].symmetric != new.relations[kind].symmetric:
             issues.append(Issue(f"relations.{kind}.symmetric", "cannot change while links of it exist",
@@ -198,7 +202,7 @@ def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> 
     return issues
 
 
-def _pending(issues: List[Issue], old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> None:
+def _pending(issues: list[Issue], old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> None:
     """Pending code survives a fork, even when its originating event or action is replaced."""
     before, after = _Checker(old), _Checker(new)
     for index, (_, _, encoded) in enumerate(snapshot["scheduled"]):
@@ -217,12 +221,13 @@ def _pending(issues: List[Issue], old: Contract, new: Contract, snapshot: Mappin
         existing = {(issue.path, issue.message) for issue in before.issues if issue.severity == "error"}
         for issue in after.issues:
             if issue.severity == "error" and (issue.path, issue.message) not in existing:
-                issues.append(Issue(issue.path, f"pending rule from {item.get('path', 'an earlier rule')}: {issue.message}",
+                issues.append(Issue(issue.path,
+                                    f"pending rule from {item.get('path', 'an earlier rule')}: {issue.message}",
                                     "keep its dependencies until the pending work finishes" +
                                     (f"; {issue.fix}" if issue.fix else "")))
 
 
-def _values(issues: List[Issue], specs: Mapping[str, PropSpec], values: Mapping[str, Any], path: str, owner: str,
+def _values(issues: list[Issue], specs: Mapping[str, PropSpec], values: Mapping[str, Any], path: str, owner: str,
             probe: SdkWorld) -> None:
     for prop, value in values.items():
         spec = specs.get(prop)
@@ -236,7 +241,7 @@ def _values(issues: List[Issue], specs: Mapping[str, PropSpec], values: Mapping[
                                                   f"{problem}", "keep a declaration that accepts the current value"))
 
 
-def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> Optional[str]:
+def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> str | None:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         if spec.min is not None and value < spec.min:
             return f"below the minimum {spec.min:g}"
@@ -249,7 +254,7 @@ def _refused(probe: SdkWorld, spec: PropSpec, value: Any) -> Optional[str]:
     return None
 
 
-def _records(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any]) -> None:
+def _records(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any]) -> None:
     from ..checks.roots import ENTRY_FIELDS
 
     for name, rows in snapshot["records"].items():
@@ -259,13 +264,13 @@ def _records(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any]) ->
         if spec is None:
             issues.append(Issue(f"records.{name}", f"is gone, but it holds {len(rows)} entries", "keep the record"))
             continue
-        held: Set[str] = {key for row in rows for key in row if not key.startswith("$")} - set(ENTRY_FIELDS)
+        held: set[str] = {key for row in rows for key in row if not key.startswith("$")} - set(ENTRY_FIELDS)
         for field in sorted(held - set(spec.fields)):
             issues.append(Issue(f"records.{name}.fields.{field}", "is gone, but entries hold values for it",
                                 "keep the field"))
 
 
-def _physics(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any]) -> None:
+def _physics(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any]) -> None:
     held = snapshot.get("physics")
     if not held:
         return
@@ -279,7 +284,7 @@ def _physics(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any]) ->
             issues.append(Issue(f"physics.vars.{name}", "is gone, but the run holds its value", "keep the variable"))
 
 
-def _clock(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any], probe: SdkWorld) -> None:
+def _clock(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any], probe: SdkWorld) -> None:
     try:
         rounds = _rounds(probe)
     except (RunError, ExprError) as exc:
@@ -293,8 +298,8 @@ def _clock(issues: List[Issue], new: Contract, snapshot: Mapping[str, Any], prob
 # -- rebuilding ------------------------------------------------------------------------------------------
 
 
-def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any], inputs: Dict[str, Any],
-             arm: Optional[str], parallel: int) -> "Env":
+def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any], inputs: dict[str, Any],
+             arm: str | None, parallel: int) -> Env:
     data = dict(snapshot)
     data["inputs"], data["arm"] = encode(inputs), arm
     data["fired_once"] = _remap(old.events, new.events, snapshot["fired_once"])
@@ -329,7 +334,7 @@ def _has_time_left(world: SdkWorld) -> bool:
     return world.round < world.rounds
 
 
-def _fill(env: "Env", new: Contract) -> None:
+def _fill(env: Env, new: Contract) -> None:
     """Give every entity and the world the properties the new contract adds, from their declarations."""
     world = env.world
     for entity in world.entities.values():
@@ -363,7 +368,7 @@ def _default(world: SdkWorld, spec: PropSpec, path: str, **vars: Any) -> Any:
         raise RunError(refusal.reason, f"{path}.default") from None
 
 
-def _physics_params(env: "Env", old: Contract, new: Contract) -> None:
+def _physics_params(env: Env, old: Contract, new: Contract) -> None:
     """Params whose declaration changed take the new value; unchanged ones keep what the run holds."""
     model, spec = env.world.physics, new.physics
     if model is None or spec is None:
@@ -382,11 +387,11 @@ def _physics_params(env: "Env", old: Contract, new: Contract) -> None:
         model.params.setdefault(name, 0.0)
 
 
-def _pairs(old: Sequence[Any], new: Sequence[Any], indices: Sequence[int]) -> List[Tuple[int, int]]:
+def _pairs(old: Sequence[Any], new: Sequence[Any], indices: Sequence[int]) -> list[tuple[int, int]]:
     """``(old index, new index)`` for each listed old item still declared unchanged in ``new``."""
     dumps = [item.model_dump(by_alias=True) for item in new]
-    used: Set[int] = set()
-    out: List[Tuple[int, int]] = []
+    used: set[int] = set()
+    out: list[tuple[int, int]] = []
     for index in indices:
         if not 0 <= index < len(old):
             continue
@@ -399,7 +404,7 @@ def _pairs(old: Sequence[Any], new: Sequence[Any], indices: Sequence[int]) -> Li
     return out
 
 
-def _remap(old: Sequence[Any], new: Sequence[Any], indices: Sequence[int]) -> List[int]:
+def _remap(old: Sequence[Any], new: Sequence[Any], indices: Sequence[int]) -> list[int]:
     return sorted(j for _, j in _pairs(old, new, indices))
 
 

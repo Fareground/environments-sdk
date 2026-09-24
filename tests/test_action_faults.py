@@ -92,7 +92,8 @@ INVARIANT = {
     "types": {"p": {"agent": True, "props": {"c": 0}}},
     "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
     "invariants": [{"expr": "$all(p, $it.c <= 5)", "why": "nobody may hold more than 5"}],
-    "actions": {"add": {"by": "p", "params": {"n": {"type": "int", "min": 1, "max": 10}}, "do": "$actor.c += $params.n"}},
+    "actions": {"add": {"by": "p", "params": {"n": {"type": "int", "min": 1, "max": 10}},
+                        "do": "$actor.c += $params.n"}},
     "stages": [{"name": "play", "max_actions": 5}],
     "outputs": {"total": "$sum(p, $it.c)"},
 }
@@ -138,7 +139,8 @@ SEALED = {
     "stages": [{"name": "bid", "turns": "simultaneous", "order": "seat"}],  # a commits first
     "actions": {
         "add": {"by": "p", "params": {"n": {"type": "int", "min": 1, "max": 5}}, "do": "$actor.c += $params.n"},
-        "div": {"by": "p", "params": {"n": "number"}, "do": ["$actor.c += 1", "$world.x = 10 / ($params.n - $actor.c)"]},
+        "div": {"by": "p", "params": {"n": "number"},
+                "do": ["$actor.c += 1", "$world.x = 10 / ($params.n - $actor.c)"]},
     },
 }
 
@@ -214,7 +216,8 @@ def test_a_failed_action_undoes_every_kind_of_change_it_made():
          "actions": {"mess": {"by": "p", "do": [
              "$world.total += 1", "$world.tags += x", {"create": "token", "count": 2}, {"post": "chat", "text": "hi"},
              {"emit": "news", "say": "it happened"}, {"link": "trusts", "from": "$actor", "to": "$entity(b)"},
-             {"move": "$actor", "to": "$entity(away)"}, {"transfer": "cash", "from": "$actor", "to": "$entity(b)", "amount": 5},
+             {"move": "$actor", "to": "$entity(away)"},
+             {"transfer": "cash", "from": "$actor", "to": "$entity(b)", "amount": 5},
              {"after": 1, "do": ["$world.total += 1000"]}, {"remove": "$entity(b)"}, {"fail": "boom"}]}},
          "outputs": {"total": "$world.total"}}
     env = fg_env.load(c, seed=1)

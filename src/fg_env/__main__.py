@@ -7,10 +7,9 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import List, Optional
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="fg-env",
         description="Fareground Environment SDK — check, run, preview and experiment with environment contracts",

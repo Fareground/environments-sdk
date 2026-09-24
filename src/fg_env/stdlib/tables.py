@@ -7,19 +7,20 @@ is kept for the run (inputs never change during a run); any other list is indexe
 from __future__ import annotations
 
 import weakref
-from typing import Any, Dict, Hashable, List, Tuple
+from collections.abc import Hashable
+from typing import Any
 
 from ..expr import Call, _describe, charge, function
 from ._args import fail
 
 __all__ = ["rows_by"]
 
-Index = Dict[Hashable, List[Any]]
+Index = dict[Hashable, list[Any]]
 #: Indexes of input tables per run: ``{world: {(id(table), fields): index}}``; dropped with the run.
-_INDEXES: "weakref.WeakKeyDictionary[Any, Dict[Tuple[int, Tuple[str, ...]], Index]]" = weakref.WeakKeyDictionary()
+_INDEXES: weakref.WeakKeyDictionary[Any, dict[tuple[int, tuple[str, ...]], Index]] = weakref.WeakKeyDictionary()
 
 
-def _fields(call: Call, index: int) -> Tuple[str, ...]:
+def _fields(call: Call, index: int) -> tuple[str, ...]:
     raw = call.arg(index)
     names = raw if isinstance(raw, (list, tuple)) else [raw]
     if not names or not all(isinstance(name, str) and name for name in names):
@@ -27,7 +28,7 @@ def _fields(call: Call, index: int) -> Tuple[str, ...]:
     return tuple(names)
 
 
-def _table(call: Call) -> List[Any]:
+def _table(call: Call) -> list[Any]:
     table = call.arg(0)
     if not isinstance(table, list):
         hint = "; for entities use $filter" if isinstance(table, str) and call.scope.world.is_type(table) else ""
@@ -43,12 +44,12 @@ def _key(value: Any, call: Call) -> Hashable:
     return value  # type: ignore[no-any-return]
 
 
-def rows_by(call: Call, table: List[Any], fields: Tuple[str, ...]) -> Index:
+def rows_by(call: Call, table: list[Any], fields: tuple[str, ...]) -> Index:
     """``{key: rows}`` for ``table`` keyed by ``fields`` (one field's value, or a tuple of several)."""
     world = call.scope.world
     inputs = getattr(world, "inputs", None) or {}
     shared = any(table is value for value in inputs.values())
-    cache: Dict[Tuple[int, Tuple[str, ...]], Index] = {}
+    cache: dict[tuple[int, tuple[str, ...]], Index] = {}
     if shared:
         try:
             cache = _INDEXES.setdefault(world, {})
@@ -65,7 +66,9 @@ def rows_by(call: Call, table: List[Any], fields: Tuple[str, ...]) -> Index:
         try:
             key = _key(row[fields[0]] if len(fields) == 1 else tuple(row[f] for f in fields), call)
         except KeyError as missing:
-            raise fail(call, f"row {position} has no field {missing} (fields: {', '.join(map(str, row)) or 'none'})") from None
+            raise fail(call,
+                       f"row {position} has no field {missing} (fields: "
+                       f"{', '.join(map(str, row)) or 'none'})") from None
         built.setdefault(key, []).append(row)
     if shared:
         cache[(id(table), fields)] = built
@@ -77,7 +80,7 @@ def rows_by(call: Call, table: List[Any], fields: Tuple[str, ...]) -> Index:
           "$lookup($inputs.sales, sku, $row.sku) finds them through an index built once per run instead of scanning "
           "the table for every SKU. `field` may be a list of fields with `key` a list of values.",
           min_args=3, max_args=3)
-def _lookup(call: Call) -> List[Any]:
+def _lookup(call: Call) -> list[Any]:
     fields = _fields(call, 1)
     index = rows_by(call, _table(call), fields)
     raw = call.arg(2)

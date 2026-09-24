@@ -1,16 +1,17 @@
 """Set operations on lists (order of first appearance kept) and copies of maps with keys added or removed."""
 from __future__ import annotations
 
-from typing import Any, Dict, Hashable, Iterable, List
+from collections.abc import Hashable, Iterable
+from typing import Any
 
-from ..expr import Untrusted, Call, _describe, charge, check_size, function, map_key
-from .core import _keyed
+from ..expr import Call, Untrusted, _describe, charge, check_size, function, map_key
 from ._args import fail, key_of, map_arg, sequence_arg
+from .core import _keyed
 
 
-def _distinct(items: Iterable[Any]) -> Dict[Hashable, Any]:
+def _distinct(items: Iterable[Any]) -> dict[Hashable, Any]:
     """Items by identity in first-seen order; equal text that is participant text keeps that marker."""
-    out: Dict[Hashable, Any] = {}
+    out: dict[Hashable, Any] = {}
     for item in items:
         key = key_of(item)
         if key not in out:
@@ -21,29 +22,29 @@ def _distinct(items: Iterable[Any]) -> Dict[Hashable, Any]:
 
 
 @function("union(a, b)", "Items in either list, each once, in order of first appearance.", min_args=2, max_args=2)
-def _union(call: Call) -> List[Any]:
+def _union(call: Call) -> list[Any]:
     return check_size(list(_distinct(sequence_arg(call, 0) + sequence_arg(call, 1)).values()), call.source)
 
 
 @function("intersect(a, b)", "Items of `a` that are also in `b`, each once, in `a`'s order.", min_args=2, max_args=2)
-def _intersect(call: Call) -> List[Any]:
+def _intersect(call: Call) -> list[Any]:
     other = _distinct(sequence_arg(call, 1))
     return [item for key, item in _distinct(sequence_arg(call, 0)).items() if key in other]
 
 
 @function("difference(a, b)", "Items of `a` that are not in `b`, each once, in `a`'s order.", min_args=2, max_args=2)
-def _difference(call: Call) -> List[Any]:
+def _difference(call: Call) -> list[Any]:
     other = _distinct(sequence_arg(call, 1))
     return [item for key, item in _distinct(sequence_arg(call, 0)).items() if key not in other]
 
 
 @function("merge(map, map, ...)", "One map from several; a key in a later map wins.", min_args=2)
-def _merge(call: Call) -> Dict[Any, Any]:
+def _merge(call: Call) -> dict[Any, Any]:
     entries = [entry for index in range(len(call)) for entry in map_arg(call, index).items()]
     return check_size(_keyed(entries), call.source)
 
 
-def _key_list(call: Call, index: int) -> List[Any]:
+def _key_list(call: Call, index: int) -> list[Any]:
     value = call.arg(index)
     if isinstance(value, (list, tuple)):
         charge(len(value), call.source)
@@ -55,20 +56,21 @@ def _key_list(call: Call, index: int) -> List[Any]:
 
 @function("without(map, keys)", "A copy of the map without `keys` (one key or a list); missing keys are ignored.",
           min_args=2, max_args=2)
-def _without(call: Call) -> Dict[Any, Any]:
+def _without(call: Call) -> dict[Any, Any]:
     source = map_arg(call, 0)
     drop = set(_key_list(call, 1))
     return {key: source[key] for key in source if key not in drop}
 
 
-@function("pick_keys(map, keys)", "A map with only `keys` (one key or a list), in the order given; missing keys are skipped.",
+@function("pick_keys(map, keys)",
+          "A map with only `keys` (one key or a list), in the order given; missing keys are skipped.",
           min_args=2, max_args=2)
-def _pick_keys(call: Call) -> Dict[Any, Any]:
+def _pick_keys(call: Call) -> dict[Any, Any]:
     source = map_arg(call, 0)
     stored = {key: key for key in source}
     return {stored[key]: source[key] for key in _key_list(call, 1) if key in source}
 
 
 @function("items(map)", "The entries of a map as [key, value] pairs.", min_args=1, max_args=1)
-def _items(call: Call) -> List[List[Any]]:
+def _items(call: Call) -> list[list[Any]]:
     return check_size([[key, value] for key, value in map_arg(call, 0).items()], call.source)

@@ -161,7 +161,7 @@ A string with `$name` in it is an expression; other strings are text.
 An action's `when` holds requirements: `["$actor.coins > 0", {"expr": "$params.amount <= $world.cap", "why": "Too
 much."}]`. Requirements over `$actor` decide whether the tool is offered; ones that read `$params` refuse a call
 with their `why`.
-'''
+'''  # noqa: E501 — guide text: each line is shown as written
 
 READ_NEXT = '''
 ## Read next, only when you need it

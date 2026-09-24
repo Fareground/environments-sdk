@@ -8,19 +8,20 @@ frames, recorded host answers — and nothing it does reaches the original.
 from __future__ import annotations
 
 import weakref
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Set, Type, TypeVar, Union
+from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..actions.book import ToolSpec
 from ..effects.chance import ChanceNode
 from ..errors import RunError, SnapshotError
-from ..runtime.measure import RunResult
 from ..participants import Participant
+from ..runtime.env import Env
+from ..runtime.measure import RunResult
+from ..runtime.returns import seat_returns
+from ..runtime.session import END_TURN, ToolResult
 from .pilot import Pilot, PilotedEnv
 from .replay import Playback, Tape, reseed
-from ..runtime.returns import seat_returns
-from ..runtime.env import Env
-from ..runtime.session import END_TURN, ToolResult
 from .snapshot import restore_state, take_snapshot
 
 if TYPE_CHECKING:
@@ -37,11 +38,11 @@ class Decision:
 
     kind: str
     round: int
-    actor: Optional[str] = None
-    stage: Optional[str] = None
+    actor: str | None = None
+    stage: str | None = None
     #: A sealed turn of a simultaneous stage (choices commit when every agent has chosen).
     simultaneous: bool = False
-    chance: Optional[ChanceNode] = None
+    chance: ChanceNode | None = None
 
 
 class Branch:
@@ -58,7 +59,7 @@ class Branch:
     # -- what it waits for -------------------------------------------------------------------------
 
     @property
-    def pending(self) -> Optional[Decision]:
+    def pending(self) -> Decision | None:
         """The decision the copy waits for, or None when it has finished or stopped."""
         pause = self._pilot.pause
         if pause is None:
@@ -70,7 +71,7 @@ class Branch:
         return Decision("turn", turn.round, turn.actor.id, turn.stage.name, turn.staged)
 
     @property
-    def tools(self) -> List[ToolSpec]:
+    def tools(self) -> list[ToolSpec]:
         """The tools of the paused turn."""
         return list(self._turn_read(lambda wake: wake.tools))
 
@@ -88,12 +89,12 @@ class Branch:
 
     # -- deciding ----------------------------------------------------------------------------------
 
-    def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> Optional[ToolResult]:
+    def call(self, name: str, args: dict[str, Any] | None = None) -> ToolResult | None:
         """Make a tool call in the paused turn. Returns its result, or None when the call now waits on a
         decision inside it (a chance outcome, another agent's reaction): see :attr:`pending`."""
         return self._pilot.call(name, args)
 
-    def end(self) -> Optional[ToolResult]:
+    def end(self) -> ToolResult | None:
         """End the paused turn."""
         return self._pilot.call(END_TURN, {})
 
@@ -101,20 +102,20 @@ class Branch:
         """Let ``participant`` (any plain participant callable) take the rest of the paused turn."""
         self._pilot.play(participant)
 
-    def choose(self, outcome: Union[int, str]) -> Optional[ToolResult]:
+    def choose(self, outcome: int | str) -> ToolResult | None:
         """Give the paused chance node an outcome, by index or label."""
         pause = self._pilot._expect("chance")
         assert pause.node is not None
         return self._pilot.choose(outcome_index(pause.node, outcome))
 
-    def advance(self) -> Optional[Decision]:
+    def advance(self) -> Decision | None:
         """Continue a stopped copy until its next decision (or its end); returns :attr:`pending`."""
         if not self._pilot.running and not self._pilot.env.finished:
             self._pilot.stop = None
             self._pilot.start()
         return self.pending
 
-    def run(self, participants: Any = None, *, rounds: Optional[int] = None) -> RunResult:
+    def run(self, participants: Any = None, *, rounds: int | None = None) -> RunResult:
         """Play on without pausing: every agent (the ones you controlled too) is played by ``participants``
         (as in ``Env.run``), for ``rounds`` more rounds or to the end. Chance is sampled from here on."""
         pilot = self._pilot
@@ -135,7 +136,7 @@ class Branch:
             pilot.start()
         return self.result()
 
-    def clone(self, *, seed: Optional[int] = None, same_luck: bool = True) -> "Branch":
+    def clone(self, *, seed: int | None = None, same_luck: bool = True) -> Branch:
         """Another independent copy at this same moment (exact by default; ``same_luck=False`` or ``seed``
         gives it fresh luck from here on)."""
         pilot = self._pilot
@@ -163,20 +164,20 @@ class Branch:
     def round(self) -> int:
         return int(self._pilot.read(lambda: self._pilot.env.world.round))
 
-    def entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    def entity(self, entity_id: str) -> dict[str, Any] | None:
         return self._pilot.read(lambda: self._pilot.env.entity(entity_id))
 
-    def entities(self, type_name: Optional[str] = None, alive: bool = True) -> List[Dict[str, Any]]:
+    def entities(self, type_name: str | None = None, alive: bool = True) -> list[dict[str, Any]]:
         return self._pilot.read(lambda: self._pilot.env.entities(type_name, alive))
 
     @property
-    def props(self) -> Dict[str, Any]:
+    def props(self) -> dict[str, Any]:
         return self._pilot.read(lambda: self._pilot.env.props)
 
     def result(self) -> RunResult:
         return self._pilot.read(self._pilot.env.result)
 
-    def returns(self) -> Dict[str, float]:
+    def returns(self) -> dict[str, float]:
         """Each seat's return so far (the contract's ``game.returns``); ``{}`` when none is declared."""
         env = self._pilot.env
         return self._pilot.read(lambda: seat_returns(env.contract, env.world))
@@ -186,7 +187,7 @@ class Branch:
         self._closer.detach()
         self._pilot.close()
 
-    def __enter__(self) -> "Branch":
+    def __enter__(self) -> Branch:
         return self
 
     def __exit__(self, *exc: Any) -> None:
@@ -205,10 +206,11 @@ class Branch:
         self._pilot.read(lambda: reseed(turn, seed))
 
 
-def outcome_index(node: ChanceNode, outcome: Union[int, str]) -> int:
+def outcome_index(node: ChanceNode, outcome: int | str) -> int:
     """The index of a possible outcome given by index or label."""
     for item in node.possible:
-        if (isinstance(outcome, int) and not isinstance(outcome, bool) and item.index == outcome) or item.label == outcome:
+        if ((isinstance(outcome, int) and not isinstance(outcome, bool) and item.index == outcome) or item.label
+            == outcome):
             return item.index
     listed = ", ".join(f"{item.index} ({item.label})" for item in node.possible)
     raise ValueError(f"{outcome!r} is not a possible outcome of chance '{node.name}' (possible: {listed})")
@@ -217,15 +219,15 @@ def outcome_index(node: ChanceNode, outcome: Union[int, str]) -> int:
 # -- making copies ------------------------------------------------------------------------------------
 
 
-def copy_pilot(source: Env, tape: Tape, turn_count: int, base: Optional[Mapping[str, Any]], *,
-               controlled: Set[str], explicit: bool, participants: Any = None, checkpoints: bool = False) -> Pilot:
+def copy_pilot(source: Env, tape: Tape, turn_count: int, base: Mapping[str, Any] | None, *,
+               controlled: set[str], explicit: bool, participants: Any = None, checkpoints: bool = False) -> Pilot:
     """A pilot for a fresh copy of ``source`` that will replay ``tape`` from ``base``."""
     env = fresh_copy(source, base, participants, PilotedEnv)
     return Pilot(env, playback=Playback(tape, turn_count), controlled=controlled, explicit=explicit,
                  checkpoints=checkpoints)
 
 
-def fresh_copy(source: Env, base: Optional[Mapping[str, Any]], participants: Any, kind: Type[_Copy]) -> _Copy:
+def fresh_copy(source: Env, base: Mapping[str, Any] | None, participants: Any, kind: type[_Copy]) -> _Copy:
     """A new run of ``kind`` built like ``source`` — from ``base`` (a snapshot), else from its build — bound to its
     hosts and to ``participants`` (default: its named participants)."""
     if base is None:
@@ -242,8 +244,8 @@ def fresh_copy(source: Env, base: Optional[Mapping[str, Any]], participants: Any
     return env
 
 
-def clone_turn(turn: "Turn", *, participants: Any = None, seed: Optional[int] = None,
-               same_luck: bool = False, controlled: Optional[Set[str]] = None, explicit: bool = False) -> Branch:
+def clone_turn(turn: Turn, *, participants: Any = None, seed: int | None = None,
+               same_luck: bool = False, controlled: set[str] | None = None, explicit: bool = False) -> Branch:
     """A copy of ``turn``'s run paused in that turn (see :meth:`Wake.clone`). ``controlled`` names every agent
     the copy pauses for from this turn on (default: the turn's own agent); ``explicit`` makes chance nodes from this
     turn on wait for :meth:`Branch.choose` (the copy's past plays back as it happened)."""

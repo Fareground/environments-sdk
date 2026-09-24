@@ -12,18 +12,20 @@ from __future__ import annotations
 
 import queue
 import threading
+from collections.abc import Callable
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
-from typing import AbstractSet, Any, Callable, List, Optional, Tuple
+from typing import Any
 
-from ..world.entity import Entity
 from ..effects.chance import ChanceNode, sample
-from ..runtime.driving import Driver
 from ..errors import RunError
 from ..expr import ExprError
 from ..participants import Participant
-from .replay import Playback
+from ..runtime.driving import Driver
 from ..runtime.env import Env
 from ..runtime.session import ToolResult, Wake
+from ..world.entity import Entity
+from .replay import Playback
 
 __all__ = ["PilotedEnv", "Pilot", "Pause"]
 
@@ -37,8 +39,8 @@ class Pause:
     """What a paused run is waiting for: a turn's next call, or a chance node's outcome."""
 
     kind: str
-    wake: Optional[Wake] = None
-    node: Optional[ChanceNode] = None
+    wake: Wake | None = None
+    node: ChanceNode | None = None
 
 
 class PilotedEnv(Env):
@@ -47,7 +49,7 @@ class PilotedEnv(Env):
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.driver: Driver = _SeatDriver(self)
-        self.pilot: Optional[Pilot] = None
+        self.pilot: Pilot | None = None
         #: The seed the world was built with (a copy may later draw its luck from another seed).
         self.build_seed = self.seed
 
@@ -78,7 +80,7 @@ class _SeatDriver(Driver):
 
 
 class _Seat:
-    def __init__(self, pilot: "Pilot", inner: Participant):
+    def __init__(self, pilot: Pilot, inner: Participant):
         self.pilot = pilot
         self.inner = inner
 
@@ -90,7 +92,7 @@ class Pilot:
     """Runs ``env`` with ``playback`` first, pausing for turns of ``controlled`` agents and, when
     ``explicit``, for chance nodes."""
 
-    def __init__(self, env: PilotedEnv, *, playback: Optional[Playback] = None, controlled: AbstractSet[str] = frozenset(),
+    def __init__(self, env: PilotedEnv, *, playback: Playback | None = None, controlled: AbstractSet[str] = frozenset(),
                  explicit: bool = False, checkpoints: bool = False):
         self.env = env
         self.playback = playback
@@ -98,14 +100,14 @@ class Pilot:
         self.explicit = explicit
         self.checkpoints = checkpoints
         #: Stop condition for the current session (checked at every safe point).
-        self.stop: Optional[Callable[[Env], bool]] = None
+        self.stop: Callable[[Env], bool] | None = None
         #: The run's pending pauses, innermost last (a reaction or a chance node can wait inside a call).
-        self.stack: List[Pause] = []
+        self.stack: list[Pause] = []
         self.running = False
-        self._commands: "queue.SimpleQueue[Tuple[str, Any]]" = queue.SimpleQueue()
-        self._events: "queue.SimpleQueue[Tuple[Any, ...]]" = queue.SimpleQueue()
-        self._thread: Optional[threading.Thread] = None
-        self._crash: Optional[BaseException] = None
+        self._commands: queue.SimpleQueue[tuple[str, Any]] = queue.SimpleQueue()
+        self._events: queue.SimpleQueue[tuple[Any, ...]] = queue.SimpleQueue()
+        self._thread: threading.Thread | None = None
+        self._crash: BaseException | None = None
         env.pilot = self
         if explicit or (playback is not None and playback.has_picks):
             env.world.chance_picker = self._pick
@@ -113,7 +115,7 @@ class Pilot:
     # -- controller side ------------------------------------------------------------------------
 
     @property
-    def pause(self) -> Optional[Pause]:
+    def pause(self) -> Pause | None:
         return self.stack[-1] if self.stack else None
 
     def start(self) -> None:
@@ -135,7 +137,7 @@ class Pilot:
             return value
         raise value
 
-    def call(self, name: str, args: Any) -> Optional[ToolResult]:
+    def call(self, name: str, args: Any) -> ToolResult | None:
         """A tool call in the paused turn; None when the call itself paused (a reaction or chance inside it)."""
         pause = self._expect("turn")
         assert pause.wake is not None
@@ -151,7 +153,7 @@ class Pilot:
         self._commands.put(("do", lambda: participant(wake)))
         self._settle()
 
-    def choose(self, index: int) -> Optional[ToolResult]:
+    def choose(self, index: int) -> ToolResult | None:
         """Give the paused chance node its outcome."""
         self._expect("chance")
         self.stack.pop()
@@ -196,10 +198,10 @@ class Pilot:
             raise RuntimeError(f"the copy is waiting for {what}, not a {kind}")
         return pause
 
-    def _settle(self) -> Optional[ToolResult]:
+    def _settle(self) -> ToolResult | None:
         """Handle the run's messages until it waits for the controller again or its session ends.
         Returns the result of the call that completed, if one did."""
-        result: Optional[ToolResult] = None
+        result: ToolResult | None = None
         while True:
             message = self._events.get()
             kind = message[0]

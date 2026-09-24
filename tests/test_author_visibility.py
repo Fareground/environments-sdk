@@ -23,7 +23,8 @@ def test_summary_shows_the_end_state_and_metric_tail():
     assert "state at the end:" in lines
     assert f"  world: footfall={result.outputs['sold']}" in lines
     shop_rows = [line for line in lines if line.startswith("    corner:")]
-    assert shop_rows and "stock=" in shop_rows[0] and "margin=0.25" in shop_rows[0]  # private props too: the author's view
+    assert (shop_rows and "stock=" in shop_rows[0]
+            and "margin=0.25" in shop_rows[0])  # private props too: the author's view
     assert "  shopper (7 alive, first 3):" in lines
     assert sum(line.startswith("    shopper_") for line in lines) == 3
     assert any(line.startswith("  stock: ") and "→" in line for line in lines)

@@ -6,12 +6,12 @@ reads the values as they were), then swap it in as one journaled change.
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr, truthy
-from ..world.geometry import SpaceError
 from ..registry import effect_op
+from ..world.geometry import SpaceError
 
 __all__: list = []
 
@@ -19,8 +19,8 @@ _MODES = ("set", "diffuse", "decay")
 _SKIP = object()
 
 
-def _check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, str]]:
-    issues: List[Tuple[str, str, str]] = []
+def _check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str]]:
+    issues: list[tuple[str, str, str]] = []
     space = checker.c.space
     layers = space.layers if space is not None else {}
     name = effect.get("layer")
@@ -48,12 +48,12 @@ def _check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, s
 
 
 @effect_op("layer", ("set", "at", "where", "diffuse", "decay"),
-           '{"layer": "sugar", "set": "$min($value + 1, 4)"}  (every cell: `$cell` is its position, `$value` its value, '
-           'all reading the old values; `"at": "$it.at"` sets one cell, `"where"` limits which) · '
+           '{"layer": "sugar", "set": "$min($value + 1, 4)"}  (every cell: `$cell` is its position, `$value` its '
+           'value, all reading the old values; `"at": "$it.at"` sets one cell, `"where"` limits which) · '
            '{"layer": "scent", "diffuse": 0.1} (each cell hands that share out to its neighbours) · '
            '{"layer": "scent", "decay": 0.05}',
            literal=("set", "where"), check=_check)
-def _layer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _layer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     space = runner.world.space
     name = effect["layer"]
     if space is None or name not in space.layers.specs:
@@ -75,7 +75,7 @@ def _layer(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
         raise RunError(str(exc), where) from None
 
 
-def _set(runner: Any, space: Any, name: str, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _set(runner: Any, space: Any, name: str, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     raw, geometry, layers = effect["set"], space.geometry, space.layers
     value = compile_expr(raw) if is_expr(raw) else None
     condition = compile_expr(effect["where"]) if "where" in effect else None

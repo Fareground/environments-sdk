@@ -11,9 +11,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from ..patterns.runtime import PatternsView
 from ..world.entity import Entity
 from ..world.links import Link
-from ..patterns.runtime import PatternsView
 from ..world.parts import ClockView, Entry, LogEvent, PhysicsView, PropsView
 
 __all__ = ["CAPTURE_VERSION", "freeze", "thaw"]

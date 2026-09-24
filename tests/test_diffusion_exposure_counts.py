@@ -4,7 +4,6 @@ import json
 
 import fg_env
 
-
 CONTRACT = {
     "name": "Overlapping outreach and network influence",
     "clock": {"rounds": 4},
@@ -20,7 +19,8 @@ CONTRACT = {
         "outreach": {"by": "operator", "do": [
             {"social": "spread", "action": "expose", "item": "product", "who": ["audience", "audience"]}]},
         "step": {"by": "operator", "do": [{"social": "spread", "action": "step"}]},
-        "seed_other": {"by": "operator", "do": [{"social": "spread", "action": "seed", "item": "product", "who": "s2"}]},
+        "seed_other": {"by": "operator",
+                       "do": [{"social": "spread", "action": "seed", "item": "product", "who": "s2"}]},
     },
     "stages": [{"name": "round", "turns": "sequential", "max_actions": 5, "max_calls": 8}],
     "outputs": {"reach": "$reach(product)", "exposures": "$exposures(audience, product)",

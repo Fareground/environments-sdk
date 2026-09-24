@@ -2,13 +2,13 @@
 from __future__ import annotations
 
 import math
-from typing import Callable, List, Optional
+from collections.abc import Callable
 
-Slope = Callable[[List[float], float], List[float]]
+Slope = Callable[[list[float], float], list[float]]
 
 
-def integrate(slope: Slope, values: List[float], start: float, dt: float,
-              substeps: int = 4, rtol: float = 1e-7, atol: float = 1e-10) -> List[float]:
+def integrate(slope: Slope, values: list[float], start: float, dt: float,
+              substeps: int = 4, rtol: float = 1e-7, atol: float = 1e-10) -> list[float]:
     """Refine RK4 steps until step doubling establishes the requested local error.
 
     Initial substeps remain an upper step-size bound. Accuracy failures raise;
@@ -23,7 +23,7 @@ def integrate(slope: Slope, values: List[float], start: float, dt: float,
     ceiling = dt / substeps
     h = ceiling
 
-    def step(v: List[float], at: float, width: float, first: Optional[List[float]] = None) -> List[float]:
+    def step(v: list[float], at: float, width: float, first: list[float] | None = None) -> list[float]:
         a = slope(v, at) if first is None else first
         b = slope([x + width*k/2 for x, k in zip(v, a)], at + width/2)
         c = slope([x + width*k/2 for x, k in zip(v, b)], at + width/2)

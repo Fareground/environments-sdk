@@ -5,10 +5,10 @@ import sys
 import types
 
 import pytest
+from game_contracts import NIM
 
 import fg_env
 from fg_env import ContractError
-from game_contracts import NIM
 
 
 def _episode(env, seed, action):

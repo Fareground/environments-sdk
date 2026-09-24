@@ -21,14 +21,15 @@ from __future__ import annotations
 
 import json
 import threading
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
+from ..copying.replay import apply_step
 from ..effects.chance import ChanceNode, sample
 from ..errors import FatalRunError, RunError, SnapshotError
-from ..runtime.measure import RunResult
 from ..participants import Participant, resolve_participant
-from ..copying.replay import apply_step
+from ..runtime.measure import RunResult
 from ..runtime.session import Wake
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ _ENDING = ("status", "ended_by", "rounds", "winner", "outputs", "returns", "metr
 class ReplayDivergence(FatalRunError):
     """The replay stopped matching its recording; ``divergence`` says where and how."""
 
-    def __init__(self, divergence: Dict[str, Any]):
+    def __init__(self, divergence: dict[str, Any]):
         self.divergence = divergence
         super().__init__(divergence["message"])
 
@@ -67,15 +68,15 @@ class Replayer:
             raise ValueError("this recording has no steps to replay (it was saved by an older engine); record the run "
                              "again with exposures=True")
         self.fallback = fallback
-        self.divergence: Optional[Dict[str, Any]] = None
+        self.divergence: dict[str, Any] | None = None
         self._recorded = {wake["turn"]: wake for wake in self.trace.wakes}
         exposures = self.trace.result.exposures
         held = (exposures.get("start") or {}).get("exposures") or {}
         #: Turns and chance picks the recording's start already holds (a fork's history) are never played again.
         self._played: set = {wake["turn"] for wake in self.trace.wakes[:held.get("wakes", 0)]}
-        self._picks: List[Dict[str, Any]] = list(exposures.get("chance") or [])[held.get("chance", 0):]
+        self._picks: list[dict[str, Any]] = list(exposures.get("chance") or [])[held.get("chance", 0):]
         self._picked = 0
-        self._live: Optional[Participant] = None
+        self._live: Participant | None = None
         self._lock = threading.Lock()
 
     def __call__(self, wake: Wake) -> Any:
@@ -85,7 +86,8 @@ class Replayer:
             turn = wake._turn
             if turn.exposure is None:
                 raise RunError("a replay checks every turn against its recording, so the replaying run must record "
-                               "exposures: load it with exposures=True (fg_env.analysis.trace(recording).replay(contract) does)",
+                               "exposures: load it with exposures=True "
+                               "(fg_env.analysis.trace(recording).replay(contract) does)",
                                f"participant:{turn.actor.id}")
             recorded = self._recorded.get(turn.number)
             found = self._check_wake(turn, recorded)
@@ -100,7 +102,7 @@ class Replayer:
                 raise ReplayDivergence(found)
         return self._fallback(wake)
 
-    def unplayed(self) -> Optional[Dict[str, Any]]:
+    def unplayed(self) -> dict[str, Any] | None:
         """The first recorded turn the replay never reached, as a divergence (None when every one was played)."""
         left = [wake for number, wake in sorted(self._recorded.items()) if number not in self._played]
         if not left:
@@ -138,7 +140,7 @@ class Replayer:
 
         return choose
 
-    def unpicked(self) -> Optional[Dict[str, Any]]:
+    def unpicked(self) -> dict[str, Any] | None:
         """The first recorded chance pick the replay never reached, as a divergence (None when every one was played)."""
         if not self._picks:
             return None
@@ -149,20 +151,21 @@ class Replayer:
 
     # -- checking a turn -------------------------------------------------------------------
 
-    def _check_wake(self, turn: "Turn", recorded: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _check_wake(self, turn: Turn, recorded: Mapping[str, Any] | None) -> dict[str, Any] | None:
         here = {"turn": turn.number, "entity": turn.actor.id, "round": turn.round, "stage": turn.stage.name}
         if recorded is None:
             last = max(self._recorded, default=0)
             return {**here, "wake": None, "what": "turn",
                     "message": f"{_label(here)}: the recording has no such turn (its last turn is {last})"}
         self._played.add(turn.number)
-        if [recorded[key] for key in ("entity", "round", "stage")] != [here[key] for key in ("entity", "round", "stage")]:
+        if ([recorded[key] for key in ("entity", "round", "stage")]
+            != [here[key] for key in ("entity", "round", "stage")]):
             return {**_at(recorded), "what": "turn", "expected": _at(recorded), "got": here,
                     "message": f"{_label(here)}: the recording's turn {turn.number} woke {recorded['entity']} in round "
                                f"{recorded['round']}, stage {recorded['stage']}"}
         return None
 
-    def _play(self, wake: Wake, recorded: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+    def _play(self, wake: Wake, recorded: Mapping[str, Any]) -> dict[str, Any] | None:
         """Play the turn's steps, checking each against the recording as soon as it is done."""
         turn = wake._turn
         made = _effective(recorded["calls"])
@@ -184,7 +187,7 @@ class Replayer:
             wake.record_usage(**late)
         return self._ending_differs(turn, recorded, made)
 
-    def _read_differs(self, turn: "Turn", recorded: Mapping[str, Any], kind: str) -> Optional[Dict[str, Any]]:
+    def _read_differs(self, turn: Turn, recorded: Mapping[str, Any], kind: str) -> dict[str, Any] | None:
         now, texts = self._live_record(turn)
         if kind == "tools":
             before, after = recorded["tool_sets"][:1], now["tool_sets"][:1]
@@ -194,8 +197,8 @@ class Replayer:
             return None
         return self._text_differs(recorded, kind, shown, seen, texts)
 
-    def _calls_differ(self, turn: "Turn", recorded: Mapping[str, Any], made: List[Mapping[str, Any]],
-                      checked: int) -> Tuple[Optional[Dict[str, Any]], int]:
+    def _calls_differ(self, turn: Turn, recorded: Mapping[str, Any], made: list[Mapping[str, Any]],
+                      checked: int) -> tuple[dict[str, Any] | None, int]:
         now, texts = self._live_record(turn)
         calls = _effective(now["calls"])
         for index in range(checked, len(calls)):
@@ -205,8 +208,8 @@ class Replayer:
                 return self._call_differs(recorded, index + 1, made[index], calls[index], texts), index
         return None, len(calls)
 
-    def _ending_differs(self, turn: "Turn", recorded: Mapping[str, Any],
-                        made: List[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+    def _ending_differs(self, turn: Turn, recorded: Mapping[str, Any],
+                        made: list[Mapping[str, Any]]) -> dict[str, Any] | None:
         live = self._live_record(turn)[0]
         played = len(_effective(live["calls"]))
         if played != len(made):
@@ -223,19 +226,19 @@ class Replayer:
         return None
 
     @staticmethod
-    def _live_record(turn: "Turn") -> Tuple[Dict[str, Any], Mapping[str, str]]:
+    def _live_record(turn: Turn) -> tuple[dict[str, Any], Mapping[str, str]]:
         """The replayed turn's exposure record so far, and the replaying run's texts."""
         assert turn.exposure is not None and turn.env.world.exposures is not None
         return turn.exposure.record, turn.env.world.exposures.texts
 
     @staticmethod
-    def _count_differs(recorded: Mapping[str, Any], before: int, now: int) -> Dict[str, Any]:
+    def _count_differs(recorded: Mapping[str, Any], before: int, now: int) -> dict[str, Any]:
         return {**_at(recorded), "what": "call", "call": min(before, now) + 1, "expected": before, "got": now,
                 "message": f"{_label(recorded)}: the recording made {before} call(s) in this turn and the replay {now} "
                            f"(the turn went differently after call {min(before, now)})"}
 
-    def _text_differs(self, recorded: Mapping[str, Any], key: str, before: Optional[Mapping[str, Any]],
-                      after: Optional[Mapping[str, Any]], texts: Mapping[str, str]) -> Dict[str, Any]:
+    def _text_differs(self, recorded: Mapping[str, Any], key: str, before: Mapping[str, Any] | None,
+                      after: Mapping[str, Any] | None, texts: Mapping[str, str]) -> dict[str, Any]:
         old = self.trace.texts.get(before["hash"], "") if before else None
         new = texts.get(after["hash"], "") if after else None
         if old is None or new is None:
@@ -245,8 +248,8 @@ class Replayer:
         return {**_at(recorded), "what": key, "expected": old, "got": new,
                 "message": f"{_label(recorded)}: the {key} differs from the recording — {what}"}
 
-    def _tools_differ(self, recorded: Mapping[str, Any], before: List[str], after: List[str],
-                      texts: Mapping[str, str]) -> Dict[str, Any]:
+    def _tools_differ(self, recorded: Mapping[str, Any], before: list[str], after: list[str],
+                      texts: Mapping[str, str]) -> dict[str, Any]:
         old = json.loads(self.trace.texts[before[0]]) if before and before[0] in self.trace.texts else []
         new = json.loads(texts[after[0]]) if after else []
         names, now_names = [t["name"] for t in old], [t["name"] for t in new]
@@ -258,7 +261,7 @@ class Replayer:
                 "message": f"{_label(recorded)}: the tools offered differ from the recording — {what}"}
 
     def _call_differs(self, recorded: Mapping[str, Any], index: int, before: Mapping[str, Any],
-                      after: Mapping[str, Any], texts: Mapping[str, str]) -> Dict[str, Any]:
+                      after: Mapping[str, Any], texts: Mapping[str, str]) -> dict[str, Any]:
         old = {"ok": before["ok"], "ended": before["ended"], "text": self.trace.texts.get(before["result"], "")}
         new = {"ok": after["ok"], "ended": after["ended"], "text": texts.get(after["result"], "")}
         args = json.dumps(before["args"], ensure_ascii=False)
@@ -282,7 +285,7 @@ class ReplayResult:
     difference: ``what``, where, ``expected``/``got`` and a ``message``). ``result`` is the replayed run."""
 
     result: RunResult
-    divergence: Optional[Dict[str, Any]]
+    divergence: dict[str, Any] | None
 
     @property
     def ok(self) -> bool:
@@ -299,12 +302,12 @@ class ReplayResult:
     def __str__(self) -> str:
         return self.message
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"ok": self.ok, "message": self.message, "divergence": self.divergence,
                 "result": self.result.to_dict(events=False)}
 
 
-def replay_run(recording: "Trace", contract: Any, *, fallback: Any = None, hosts: Optional[Mapping[str, Any]] = None,
+def replay_run(recording: Trace, contract: Any, *, fallback: Any = None, hosts: Mapping[str, Any] | None = None,
                data_dir: Any = None) -> ReplayResult:
     """Play ``contract`` again from ``recording``: its seed, inputs, arm, budget and turn time limits, the recorded
     steps (:class:`Replayer`), chance picks and host answers. ``hosts`` (host name → adapter) answers host calls the
@@ -338,13 +341,13 @@ def replay_run(recording: "Trace", contract: Any, *, fallback: Any = None, hosts
     return ReplayResult(result, divergence)
 
 
-def _from_start(recording: "Trace", contract: Any, start: Mapping[str, Any], hosts: Any) -> "Env":
+def _from_start(recording: Trace, contract: Any, start: Mapping[str, Any], hosts: Any) -> Env:
     """A forked run's start restored into ``contract``: the snapshot it continued from, its exposure log rebuilt from
     the recording's first entries."""
     from ..api import apply_arm, parse
+    from ..copying.snapshot import _restore_rule_origin, contract_hash, restore_state
     from ..host.hosts import bind
     from ..runtime.env import Env
-    from ..copying.snapshot import restore_state, contract_hash, _restore_rule_origin
 
     counts = start.get("exposures") or {"wakes": 0, "chance": 0}
     held = {"texts": dict(recording.texts), "wakes": recording.wakes[:counts["wakes"]],
@@ -370,21 +373,21 @@ def _from_start(recording: "Trace", contract: Any, start: Mapping[str, Any], hos
     return env
 
 
-def _run_time_limit(recording: "Trace", contract: Any) -> Optional[float]:
+def _run_time_limit(recording: Trace, contract: Any) -> float | None:
     """The run-wide turn time limit the recording was made with: the one its wakes show in stages that set none."""
     staged = {stage.name for stage in contract.stage_list() if stage.time_limit is not None}
     found = {wake["time_limit"] for wake in recording.wakes if "time_limit" in wake and wake["stage"] not in staged}
     return next(iter(found)) if len(found) == 1 else None
 
 
-def _failure(recorded: RunResult, result: RunResult) -> Optional[Dict[str, Any]]:
+def _failure(recorded: RunResult, result: RunResult) -> dict[str, Any] | None:
     if result.status != "failed" or (recorded.status == "failed" and recorded.error == result.error):
         return None
     return {"what": "failed", "round": result.rounds, "expected": recorded.error, "got": result.error,
             "message": f"the replay failed in round {result.rounds}: {result.error}"}
 
 
-def _events(recorded: RunResult, result: RunResult) -> Optional[Dict[str, Any]]:
+def _events(recorded: RunResult, result: RunResult) -> dict[str, Any] | None:
     before, now = _plain(recorded.events), _plain(result.events)
     for old, new in zip(before, now):
         if old != new:
@@ -400,7 +403,7 @@ def _events(recorded: RunResult, result: RunResult) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _ending(recorded: RunResult, result: RunResult) -> Optional[Dict[str, Any]]:
+def _ending(recorded: RunResult, result: RunResult) -> dict[str, Any] | None:
     for key in _ENDING:
         old, new = _plain(getattr(recorded, key)), _plain(getattr(result, key))
         if old != new:
@@ -416,12 +419,13 @@ def _pick_label(pick: Mapping[str, Any], number: int) -> str:
     return f"chance pick {number} ({pick['chance']} at {pick['site']}, round {pick['round']})"
 
 
-def _pick_differs(recorded: Mapping[str, Any], node: ChanceNode, number: int) -> Optional[Dict[str, Any]]:
+def _pick_differs(recorded: Mapping[str, Any], node: ChanceNode, number: int) -> dict[str, Any] | None:
     """How chance pick ``number`` of the recording does not fit the chance node the replay reached, or None."""
     index = recorded["index"]
     if [recorded["chance"], recorded["site"]] != [node.name, node.site]:
         what = f"the replay reached the chance node {node.name} at {node.site} instead"
-    elif not any(outcome.index == index for outcome in node.possible) or node.outcomes[index].label != recorded["label"]:
+    elif (not any(outcome.index == index for outcome in node.possible) or node.outcomes[index].label
+          != recorded["label"]):
         possible = ", ".join(f"{outcome.index} ({outcome.label})" for outcome in node.possible)
         what = f"the recording chose {index} ({recorded['label']}), which is not an outcome now (possible: {possible})"
     else:
@@ -431,12 +435,12 @@ def _pick_differs(recorded: Mapping[str, Any], node: ChanceNode, number: int) ->
             "message": f"{_pick_label(recorded, number)}: {what}"}
 
 
-def _effective(calls: List[Mapping[str, Any]]) -> List[Mapping[str, Any]]:
+def _effective(calls: list[Mapping[str, Any]]) -> list[Mapping[str, Any]]:
     """The calls that reached an open turn (refusals after the turn was over change nothing and are not steps)."""
     return [call for call in calls if call.get("error") not in _AFTER_THE_TURN]
 
 
-def _outcome_of(call: Mapping[str, Any]) -> List[Any]:
+def _outcome_of(call: Mapping[str, Any]) -> list[Any]:
     return [call["tool"], call["args"], call["ok"], call["ended"], call["result"]]
 
 
@@ -444,12 +448,12 @@ def _plain(value: Any) -> Any:
     return json.loads(json.dumps(value, default=str, ensure_ascii=False))
 
 
-def _at(wake: Mapping[str, Any]) -> Dict[str, Any]:
+def _at(wake: Mapping[str, Any]) -> dict[str, Any]:
     return {"turn": wake["turn"], "wake": wake.get("wake"), "entity": wake["entity"], "round": wake["round"],
             "stage": wake["stage"]}
 
 
-def _files(delivered: List[Mapping[str, Any]]) -> str:
+def _files(delivered: list[Mapping[str, Any]]) -> str:
     return ", ".join(f"{item['id']} ({item['hash'][:8]}, {item['in']})" for item in delivered) or "none"
 
 

@@ -10,17 +10,17 @@ values (see _fuzz.py); for the examples only their naturally distinctive private
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Set
+from typing import Any
 
 import fg_env
-from fg_env.participants import RandomAgent
 from fg_env.expr.template import format_value
+from fg_env.participants import RandomAgent
 
 #: The shortest rendering that counts as distinctive: shorter numbers and words recur by chance.
 DISTINCT = 5
 
 
-def _renderings(value: Any) -> Set[str]:
+def _renderings(value: Any) -> set[str]:
     if isinstance(value, bool) or value is None:
         return set()
     if isinstance(value, (int, float)):  # as the engine shows numbers: plain (2 decimals at most) and as money
@@ -48,15 +48,15 @@ class Scanner:
         rules = dict(source if source is not None else contract.model_dump(mode="json"))
         rules.pop("entities", None)  # where secrets are planted; every other part of the contract is common knowledge
         self.known = json.dumps(rules, default=str)
-        self.leaks: List[str] = []
-        self.hidden: Dict[str, str] = {}
+        self.leaks: list[str] = []
+        self.hidden: dict[str, str] = {}
         self.turns = 0
         self.result: Any = None
 
-    def secrets(self, viewer: str) -> Dict[str, str]:
+    def secrets(self, viewer: str) -> dict[str, str]:
         """Distinctive renderings of every other agent's private values, each naming whose it is."""
         entities = self.env.entities(alive=False)
-        public: Set[str] = set()
+        public: set[str] = set()
         for entity in entities:
             public |= {entity["id"], str(entity["name"])}  # handles every agent may be shown
             hidden = self.private.get(entity["type"], set())
@@ -81,10 +81,10 @@ class Scanner:
         self._scan(wake, shown, "turn")
         return self.inner(_Watched(wake, self))
 
-    def _tools(self, wake: Any) -> List[str]:
+    def _tools(self, wake: Any) -> list[str]:
         return [f"{tool.name}: {tool.description} {json.dumps(tool.input_schema)}" for tool in wake.tools]
 
-    def _reads(self, wake: Any) -> List[str]:
+    def _reads(self, wake: Any) -> list[str]:
         """Every view and every offered entity, rotating by turn, until the turn's free reads run out."""
         calls = []
         for tool in wake.tools:
@@ -101,7 +101,7 @@ class Scanner:
             texts.append(result.text)
         return texts
 
-    def _scan(self, wake: Any, texts: List[str], where: str) -> None:
+    def _scan(self, wake: Any, texts: list[str], where: str) -> None:
         for text in texts:
             for needle, owner in self.hidden.items():
                 if re.search(rf"(?<![\w.,]){re.escape(needle)}(?![\w]|[.,]\d)", text):

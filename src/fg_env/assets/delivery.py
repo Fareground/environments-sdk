@@ -10,7 +10,8 @@ still knows what was shown.
 from __future__ import annotations
 
 import base64
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
 from ..expr import ExprError, Untrusted, compile_expr
@@ -56,16 +57,16 @@ class Attachment:
     def read(self) -> bytes:
         return self._store.data(self._asset)
 
-    def text(self) -> Optional[str]:
+    def text(self) -> str | None:
         return self._store.text(self._asset)
 
     def base64(self) -> str:
         return base64.b64encode(self.read()).decode("ascii")
 
-    def to_dict(self, data: bool = False) -> Dict[str, Any]:
+    def to_dict(self, data: bool = False) -> dict[str, Any]:
         """Plain JSON: metadata, plus the content (``data``: base64, or ``text`` for text files) when asked."""
         asset = self._asset
-        out: Dict[str, Any] = {"id": asset.id, "type": asset.kind, "media_type": asset.media_type,
+        out: dict[str, Any] = {"id": asset.id, "type": asset.kind, "media_type": asset.media_type,
                                "name": str.__str__(asset.name), "size": asset.size, "hash": asset.hash}
         for key in ("caption", "alt"):
             if getattr(asset, key):
@@ -95,7 +96,7 @@ def references(store: AssetStore, ids: Sequence[str]) -> str:
     return " ".join(reference(asset) for asset in store.of(ids))
 
 
-def attached_ids(world: "SdkWorld", source: str, scope: Any, path: str) -> List[str]:
+def attached_ids(world: SdkWorld, source: str, scope: Any, path: str) -> list[str]:
     """The asset ids an `attach` expression gives: an id, a `$asset(...)` map, an entity's asset, a list, or null."""
     try:
         value = compile_expr(source)(scope)
@@ -104,9 +105,9 @@ def attached_ids(world: "SdkWorld", source: str, scope: Any, path: str) -> List[
     return ids_of(world.assets, value, path)
 
 
-def ids_of(store: AssetStore, value: Any, path: str) -> List[str]:
+def ids_of(store: AssetStore, value: Any, path: str) -> list[str]:
     items = value if isinstance(value, (list, tuple)) else [value]
-    out: List[str] = []
+    out: list[str] = []
     for item in items:
         if isinstance(item, Mapping) and "id" in item and "hash" in item:
             item = item["id"]
@@ -123,7 +124,7 @@ def ids_of(store: AssetStore, value: Any, path: str) -> List[str]:
     return out
 
 
-def entry_assets(world: "SdkWorld", record: str, entry: Mapping[str, Any]) -> List[str]:
+def entry_assets(world: SdkWorld, record: str, entry: Mapping[str, Any]) -> list[str]:
     """The assets a record entry carries in its `asset` fields."""
     fields = world.contract.records[record].fields
     return [str.__str__(entry[name]) for name, kind in fields.items()

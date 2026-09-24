@@ -6,10 +6,10 @@ import time
 
 import pytest
 
-from fg_env.world.entity import Entity
 from fg_env.expr import FUNCTIONS, ExprError, Scope, Untrusted, World, evaluate
 from fg_env.guides import guide
 from fg_env.stdlib import regex
+from fg_env.world.entity import Entity
 
 APPROX = 1e-9
 
@@ -42,9 +42,11 @@ def same(actual, expected):
     if isinstance(expected, float):
         return actual == pytest.approx(expected, abs=APPROX)
     if isinstance(expected, list):
-        return isinstance(actual, list) and len(actual) == len(expected) and all(same(a, e) for a, e in zip(actual, expected))
+        return (isinstance(actual, list) and len(actual) == len(expected)
+                and all(same(a, e) for a, e in zip(actual, expected)))
     if isinstance(expected, dict):
-        return isinstance(actual, dict) and list(actual) == list(expected) and all(same(actual[k], v) for k, v in expected.items())
+        return (isinstance(actual, dict) and list(actual) == list(expected)
+                and all(same(actual[k], v) for k, v in expected.items()))
     return actual == expected and type(actual) is type(expected) or (actual is None and expected is None)
 
 
@@ -468,7 +470,8 @@ def test_map_keys_keep_their_participant_marker():
     assert isinstance(next(iter(picked)), Untrusted)
     merged = ev("$merge({alias: 0}, $m)", m={key: 1})
     assert merged == {"alias": 1} and isinstance(next(iter(merged)), Untrusted)
-    assert ev("$union([alias], $l)", l=[key]) == ["alias"] and isinstance(ev("$union([alias], $l)", l=[key])[0], Untrusted)
+    assert (ev("$union([alias], $l)", l=[key]) == ["alias"]
+            and isinstance(ev("$union([alias], $l)", l=[key])[0], Untrusted))
 
 
 # --- distributions -------------------------------------------------------------------------------
@@ -476,7 +479,8 @@ def test_map_keys_keep_their_participant_marker():
 DRAWS = [
     "$binomial(20, 0.3)", "$binomial(5000, 0.7)", "$geometric(0.25)", "$gamma(2, 3)", "$weibull(2, 1)",
     "$triangular(0, 10, 5)", "$dirichlet([1, 2, 3])", "$multinomial(10, [1, 1, 2])", "$multinomial(4, {x: 1, y: 3})",
-    "$zipf(50, 1.1)", "$truncnormal(0, 1, -1, 2)", "$truncnormal(0, 1, 40, 41)", "$dice('3d6+2')", "$dice('4d6kh3 - d4')",
+    "$zipf(50, 1.1)", "$truncnormal(0, 1, -1, 2)", "$truncnormal(0, 1, 40, 41)", "$dice('3d6+2')",
+    "$dice('4d6kh3 - d4')",
 ]
 
 

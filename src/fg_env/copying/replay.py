@@ -10,7 +10,7 @@ participants reproduces the run exactly: the same state, random streams, turn nu
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
 from ..sampling.seeds import SeedTree
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 __all__ = ["Origin", "Tape", "Playback", "apply_step", "reseed"]
 
-Entry = Tuple[Any, ...]
+Entry = tuple[Any, ...]
 
 
 class Origin:
@@ -29,15 +29,15 @@ class Origin:
     __slots__ = ("base", "start", "tape", "checkpoint_due", "staged", "unarmed")
 
     def __init__(self, contract: Any):
-        self.base: Optional[Dict[str, Any]] = None
+        self.base: dict[str, Any] | None = None
         #: Where the run's recording replays from when its build cannot rebuild it: the snapshot a fork continued
         #: from, exposures given as counts (see :func:`~fg_env.copying.snapshot.recording_start`); None otherwise.
-        self.start: Optional[Dict[str, Any]] = None
+        self.start: dict[str, Any] | None = None
         self.tape = Tape()
         #: Take a fresh base at the next round start (the run was copied part-way through a round).
         self.checkpoint_due = False
         #: The sealed turns of the simultaneous stage being played.
-        self.staged: List[Any] = []
+        self.staged: list[Any] = []
         #: The contract before its arm was applied (forks switch arms from it).
         self.unarmed = contract
 
@@ -57,11 +57,11 @@ class Tape:
     def __init__(self) -> None:
         self._lock = threading.Lock()
         #: turn number → (actor id, what the participant did, in order)
-        self.turns: Dict[int, Tuple[str, List[Entry]]] = {}
+        self.turns: dict[int, tuple[str, list[Entry]]] = {}
         #: Turns in progress (a participant is deciding, or a reaction runs inside one of its calls).
-        self.open: Set[int] = set()
+        self.open: set[int] = set()
         #: Outcomes chance pickers chose, in order.
-        self.picks: List[int] = []
+        self.picks: list[int] = []
         #: Safe points passed since the base (see ``Env.run(stop=...)``).
         self.points = 0
 
@@ -81,7 +81,7 @@ class Tape:
         with self._lock:
             self.picks.append(index)
 
-    def copy(self) -> "Tape":
+    def copy(self) -> Tape:
         with self._lock:
             out = Tape()
             out.turns = {number: (actor, list(entries)) for number, (actor, entries) in self.turns.items()}
@@ -115,7 +115,7 @@ class Playback:
     def has_picks(self) -> bool:
         return bool(self._picks)
 
-    def play(self, wake: "Wake") -> bool:
+    def play(self, wake: Wake) -> bool:
         """Play a turn's recorded steps into ``wake``; False when the tape holds none for it."""
         turn = wake._turn
         recorded = self._turns.pop(turn.number, None)
@@ -134,7 +134,7 @@ class Playback:
         return True
 
 
-def apply_step(wake: "Wake", entry: Entry) -> None:
+def apply_step(wake: Wake, entry: Entry) -> None:
     """Do one recorded step in ``wake``: a read, a call, reported usage, a reseed or a timeout."""
     kind = entry[0]
     if kind == "brief":

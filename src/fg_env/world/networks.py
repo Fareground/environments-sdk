@@ -4,11 +4,11 @@ from __future__ import annotations
 import math
 import random
 from collections import deque
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from ..expr import Call, ExprError, charge, function
 
-__all__: List[str] = []
+__all__: list[str] = []
 
 
 def _relation(call: Call, index: int) -> str:
@@ -28,22 +28,23 @@ def _id(call: Call, value: Any) -> str:
     raise ExprError(f"${call.name}: expected an entity or id, got {value!r}", call.source)
 
 
-def _adjacent(call: Call, kind: str) -> Dict[str, Dict[str, int]]:
+def _adjacent(call: Call, kind: str) -> dict[str, dict[str, int]]:
     world: Any = call.scope.world
     alive = {eid for eid, e in world.entities.items() if e.alive}
     return {a: {b: c for b, c in row.items() if b in alive} for a, row in world.adjacent[kind].items() if a in alive}
 
 
-@function("degree(entity, relation)", "How many living entities `entity` is linked with by `relation` (either direction).",
-          min_args=2, max_args=2)
+@function("degree(entity, relation)",
+          "How many living entities `entity` is linked with by `relation` (either direction).", min_args=2, max_args=2)
 def _degree(call: Call) -> int:
     kind = _relation(call, 1)
     return len(_adjacent(call, kind).get(_id(call, call.arg(0)), {}))
 
 
-@function("hops(a, b, relation)", "Fewest links between a and b along `relation` (either direction); null when unreachable.",
+@function("hops(a, b, relation)",
+          "Fewest links between a and b along `relation` (either direction); null when unreachable.",
           min_args=3, max_args=3)
-def _hops(call: Call) -> Optional[int]:
+def _hops(call: Call) -> int | None:
     kind = _relation(call, 2)
     start, goal = _id(call, call.arg(0)), _id(call, call.arg(1))
     graph = _adjacent(call, kind)
@@ -62,16 +63,17 @@ def _hops(call: Call) -> Optional[int]:
     return None
 
 
-@function("components(type, relation)", "Groups of entities of `type` connected by `relation`, largest first (lists of entities).",
+@function("components(type, relation)",
+          "Groups of entities of `type` connected by `relation`, largest first (lists of entities).",
           min_args=2, max_args=2)
-def _components(call: Call) -> List[List[Any]]:
+def _components(call: Call) -> list[list[Any]]:
     kind = _relation(call, 1)
     members = call.collection(0)
     ids = {m.id for m in members}
     graph = _adjacent(call, kind)
     by_id = {m.id: m for m in members}
-    seen: Set[str] = set()
-    groups: List[List[Any]] = []
+    seen: set[str] = set()
+    groups: list[list[Any]] = []
     for member in members:
         if member.id in seen:
             continue
@@ -90,8 +92,8 @@ def _components(call: Call) -> List[List[Any]]:
     return groups
 
 
-@function("clustering(entity, relation)", "Share of an entity's neighbour pairs that are linked to each other (0 to 1).",
-          min_args=2, max_args=2)
+@function("clustering(entity, relation)",
+          "Share of an entity's neighbour pairs that are linked to each other (0 to 1).", min_args=2, max_args=2)
 def _clustering(call: Call) -> float:
     kind = _relation(call, 1)
     graph = _adjacent(call, kind)
@@ -113,13 +115,14 @@ def _keyed_rng(call: Call, key: Any) -> random.Random:
     return random.Random(seeds.derive("keyed", *[p.id if hasattr(p, "entity_type") else str(p) for p in parts]))
 
 
-@function("random_for(key)", "Uniform number in [0, 1) fixed by `key` (an entity, text or list): the same key gives the same draw "
-          "in every arm of an experiment, however many other draws happen.", min_args=1, max_args=1)
+@function("random_for(key)", "Uniform number in [0, 1) fixed by `key` (an entity, text or list): the same key gives "
+          "the same draw in every arm of an experiment, however many other draws happen.", min_args=1, max_args=1)
 def _random_for(call: Call) -> float:
     return _keyed_rng(call, call.arg(0)).random()
 
 
-@function("normal_for(key, mean, sd)", "Normal draw fixed by `key` (aligned across experiment arms).", min_args=3, max_args=3)
+@function("normal_for(key, mean, sd)", "Normal draw fixed by `key` (aligned across experiment arms).", min_args=3,
+          max_args=3)
 def _normal_for(call: Call) -> float:
     mean, sd = call.number(1), call.number(2)
     if sd < 0 or not math.isfinite(sd):

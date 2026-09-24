@@ -1,19 +1,20 @@
 """Candidate record notifications; live visibility is still checked by the world."""
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
+from collections.abc import Iterable, Mapping
+from typing import Any
 
 from ..contract import Contract
-from .record_index import FALLBACK, entry_key, viewer_key
 from .parts import Entry, LogEvent
+from .record_index import FALLBACK, entry_key, viewer_key
 
-Key = Tuple[Optional[str], Any]
+Key = tuple[str | None, Any]
 
 
 class RecordEvents:
     def __init__(self, events: Iterable[LogEvent], entries: Mapping[int, Entry], contract: Contract):
         self.rules = {name: spec.visible for name, spec in contract.records.items()}
-        self.groups: Dict[Optional[str], Dict[Any, List[LogEvent]]] = {}
+        self.groups: dict[str | None, dict[Any, list[LogEvent]]] = {}
         for event in events:
             if event.kind == "record":
                 self.add(event, entries)
@@ -38,8 +39,8 @@ class RecordEvents:
         if not owners:
             del self.groups[record]
 
-    def candidates(self, contract: Contract, viewer: Any) -> List[LogEvent]:
-        out: List[LogEvent] = []
+    def candidates(self, contract: Contract, viewer: Any) -> list[LogEvent]:
+        out: list[LogEvent] = []
         for record, owners in self.groups.items():
             spec = contract.records.get(record) if record is not None else None
             key = viewer_key(spec.visible, viewer) if spec is not None else FALLBACK

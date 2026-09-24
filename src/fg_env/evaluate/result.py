@@ -1,8 +1,9 @@
 """The evaluation result: focal score, baseline score and their paired difference, broken down every useful way."""
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any
 
 from ..analysis.stats import estimate
 from ..tournament.result import _columns, _estimate
@@ -29,14 +30,14 @@ class EvaluationResult:
     focal: str
     runs: int
     seed: int
-    scenarios: List[Dict[str, Any]]
-    modes: Dict[str, Dict[str, Any]]
-    tags: Dict[str, Dict[str, Any]]
-    splits: Dict[str, Dict[str, Any]]
-    overall: Dict[str, Any]
-    pairs: List[Dict[str, Any]]
-    notes: List[str] = field(default_factory=list)
-    results: List["RunResult"] = field(default_factory=list)
+    scenarios: list[dict[str, Any]]
+    modes: dict[str, dict[str, Any]]
+    tags: dict[str, dict[str, Any]]
+    splits: dict[str, dict[str, Any]]
+    overall: dict[str, Any]
+    pairs: list[dict[str, Any]]
+    notes: list[str] = field(default_factory=list)
+    results: list[RunResult] = field(default_factory=list)
 
     def summary(self) -> str:
         lines = [f"Evaluation of {self.focal}: {len({row['scenario'] for row in self.scenarios})} scenario(s), "
@@ -57,21 +58,21 @@ class EvaluationResult:
         lines += [f"note: {note}" for note in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"focal": self.focal, "runs": self.runs, "seed": self.seed, "scenarios": self.scenarios,
                 "modes": self.modes, "tags": self.tags, "splits": self.splits, "overall": self.overall,
                 "pairs": self.pairs, "notes": self.notes,
                 "results": [r.to_dict(events=bool(r.exposures)) for r in self.results]}
 
 
-def summarize(cases: Sequence["Scenario"], pairs: Sequence[Dict[str, Any]], *, focal: str, runs: int,
-              seed: int, results: Sequence["RunResult"] = ()) -> EvaluationResult:
+def summarize(cases: Sequence[Scenario], pairs: Sequence[dict[str, Any]], *, focal: str, runs: int,
+              seed: int, results: Sequence[RunResult] = ()) -> EvaluationResult:
     by_name = {case.name: case for case in cases}
     rows = []
     for case in cases:
         for mode in case.modes:
             chosen = [p for p in pairs if p["scenario"] == case.name and p["mode"] == mode]
-            seat_scores: Dict[str, List[float]] = {seat: [] for seat in case.seats}
+            seat_scores: dict[str, list[float]] = {seat: [] for seat in case.seats}
             for pair in chosen:
                 for seat, value in (pair["seat_scores"] or {}).items():
                     seat_scores[seat].append(value)
@@ -86,11 +87,13 @@ def summarize(cases: Sequence["Scenario"], pairs: Sequence[Dict[str, Any]], *, f
     splits = {"in_sample": _pool([p for p in pairs if not by_name[p["scenario"]].held_out]), "held_out": _pool(held)} \
         if held else {}
     unscored = [p for p in pairs if p["difference"] is None]
-    notes = [f"{len(unscored)} of {len(pairs)} run pair(s) were left out (first: {unscored[0]['note']})"] if unscored else []
-    return EvaluationResult(focal, runs, seed, rows, modes, tags, splits, _pool(pairs), list(pairs), notes, list(results))
+    notes = ([f"{len(unscored)} of {len(pairs)} run pair(s) were left out (first: {unscored[0]['note']})"] if unscored
+             else [])
+    return EvaluationResult(focal, runs, seed, rows, modes, tags, splits, _pool(pairs), list(pairs), notes,
+                            list(results))
 
 
-def _pool(pairs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
+def _pool(pairs: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     scored = [p for p in pairs if p["difference"] is not None]
     difference = estimate([p["difference"] for p in scored])
     return {"n": len(scored), "focal": estimate([p["focal"] for p in scored]).to_dict(),
@@ -99,13 +102,13 @@ def _pool(pairs: Sequence[Mapping[str, Any]]) -> Dict[str, Any]:
             "cost": {side: _cost([p["cost"][side] for p in pairs]) for side in ("focal", "baseline")}}
 
 
-def _cost(bills: Sequence[Mapping[str, int]]) -> Dict[str, Any]:
-    total: Dict[str, Any] = {key: sum(bill[key] for bill in bills) for key in COST_FIELDS}
+def _cost(bills: Sequence[Mapping[str, int]]) -> dict[str, Any]:
+    total: dict[str, Any] = {key: sum(bill[key] for bill in bills) for key in COST_FIELDS}
     total["invalid_rate"] = round(total["invalid_calls"] / total["calls"], 3) if total["calls"] else 0.0
     return total
 
 
-def _cells(pool: Mapping[str, Any]) -> List[str]:
+def _cells(pool: Mapping[str, Any]) -> list[str]:
     return [_estimate(pool["focal"]), _estimate(pool["baseline"]), _estimate(pool["difference"]), _verdict(pool)]
 
 
@@ -115,10 +118,11 @@ def _verdict(pool: Mapping[str, Any]) -> str:
     return "clear" if pool["clear"] else "within noise"
 
 
-def _cost_lines(cost: Mapping[str, Mapping[str, Any]]) -> List[str]:
-    table = [["cost (focal seats)", "turns", "tool calls", "invalid", "timeouts", "LLM calls", "tokens in", "tokens out"]]
+def _cost_lines(cost: Mapping[str, Mapping[str, Any]]) -> list[str]:
+    table = [["cost (focal seats)", "turns", "tool calls", "invalid", "timeouts", "LLM calls", "tokens in",
+              "tokens out"]]
     for side in ("focal", "baseline"):
-        c: Optional[Mapping[str, Any]] = cost.get(side)
+        c: Mapping[str, Any] | None = cost.get(side)
         if c is None:
             continue
         table.append([side, str(c["wakes"]), str(c["calls"]), f"{c['invalid_calls']} ({c['invalid_rate']:.0%})",

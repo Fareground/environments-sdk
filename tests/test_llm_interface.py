@@ -6,13 +6,13 @@ import threading
 import time
 from types import SimpleNamespace as NS
 
-import fg_env
-from fg_env import host, participants
-
 from test_host_tape import PITCH, _Anthropic, pitcher
 from test_llm_failures import EmptyThenBidding
 from test_llm_participants import FakeAnthropic, FakeOpenAI
 from test_runtime import AUCTION, SHOP
+
+import fg_env
+from fg_env import host, participants
 
 
 class SlowBidder:

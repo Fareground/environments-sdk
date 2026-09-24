@@ -1,4 +1,5 @@
-"""LLM participants: :func:`anthropic` and :func:`openai` drive an agent's turn with a model's tool calls on your own client.
+"""LLM participants: :func:`anthropic` and :func:`openai` drive an agent's turn with a model's tool calls on your own
+client.
 
 The loop sends the turn's brief, update and tools, runs each tool call the model makes through the turn, and sends the
 results back until the turn ends; it retries rate limits and overload with backoff, keeps the prompt prefix cacheable,
@@ -12,12 +13,13 @@ import os
 import random
 import threading
 import time
-from typing import TYPE_CHECKING, Any, Callable, Collection, Dict, List, Mapping, Optional
+from collections.abc import Callable, Collection, Mapping
+from typing import TYPE_CHECKING, Any
 
 from ..actions.schemas import ToolSpec
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
-from ..runtime.budget import tokens_of
 from ..errors import RunError
+from ..runtime.budget import tokens_of
 from ..runtime.measure import Stats
 from ..runtime.session import END_TURN, ToolResult, Wake
 
@@ -65,7 +67,7 @@ class _LLMUsage:
         self.out_of_steps = 0
         self.no_tool_replies = 0
 
-    def to_dict(self) -> Dict[str, int]:
+    def to_dict(self) -> dict[str, int]:
         return dict(self.__dict__)
 
 
@@ -103,7 +105,8 @@ def _tokens(*parts: Any) -> int:
 
 def _chars(value: Any) -> int:
     if isinstance(value, Mapping):
-        return sum(len(str(key)) + _chars(item) for key, item in value.items() if key not in ("data", "file_data", "url"))
+        return sum(len(str(key)) + _chars(item) for key, item in value.items()
+                   if key not in ("data", "file_data", "url"))
     if isinstance(value, (list, tuple)):
         return sum(_chars(item) for item in value)
     return len(str(value))
@@ -117,11 +120,11 @@ class _TurnTools:
 
     def __init__(self, wake: Wake, provider: str):
         self._convert = ToolSpec.to_anthropic if provider == "anthropic" else ToolSpec.to_openai
-        self.names: List[str] = []
-        self.definitions: List[Dict[str, Any]] = []
+        self.names: list[str] = []
+        self.definitions: list[dict[str, Any]] = []
         self._add(wake.tools)
 
-    def _add(self, tools: List[ToolSpec]) -> None:
+    def _add(self, tools: list[ToolSpec]) -> None:
         for tool in tools:
             if tool.name not in self.names:
                 self.names.append(tool.name)
@@ -152,7 +155,7 @@ def _may_end(wake: Wake) -> bool:
     return any(tool.name == END_TURN for tool in wake.tools)
 
 
-def _add_user_text(messages: List[Dict[str, Any]], text: str) -> None:
+def _add_user_text(messages: list[dict[str, Any]], text: str) -> None:
     """Add ``text`` to the user message the conversation ends with (a reply with no content keeps no assistant turn)."""
     last = messages[-1]
     content = last["content"]
@@ -207,7 +210,7 @@ def _backoff(attempt: int, exc: BaseException) -> float:
 _JITTER = random.Random()
 
 
-def _retry_after(exc: BaseException) -> Optional[float]:
+def _retry_after(exc: BaseException) -> float | None:
     headers = getattr(getattr(exc, "response", None), "headers", None)
     try:
         value = float(headers.get("retry-after")) if headers is not None else None
@@ -235,7 +238,7 @@ def _over(wake: Wake) -> bool:
     return wake.done or (left is not None and left <= 0)
 
 
-def _extra(extra: Optional[Mapping[str, Any]], sent: Collection[str]) -> Dict[str, Any]:
+def _extra(extra: Mapping[str, Any] | None, sent: Collection[str]) -> dict[str, Any]:
     """The ``extra`` request fields, refusing any of the fields the participant sends itself (``sent``)."""
     if extra is None:
         return {}
@@ -258,7 +261,7 @@ class _LLMParticipant:
     CALL = ""
 
     def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int,
-                 media: frozenset = frozenset(), retry_truncated: bool = True, extra: Optional[Dict[str, Any]] = None):
+                 media: frozenset = frozenset(), retry_truncated: bool = True, extra: dict[str, Any] | None = None):
         if isinstance(retries, bool) or not isinstance(retries, int) or retries < 0:
             raise ValueError(f"retries must be a whole number ≥ 0, got {retries!r}")
         if isinstance(max_steps, bool) or not isinstance(max_steps, int) or max_steps < 1:
@@ -294,7 +297,7 @@ class _LLMParticipant:
     def _turn(self, wake: Wake) -> None:
         raise NotImplementedError
 
-    def _follow_up(self, wake: Wake, truncated: bool, asked: bool) -> Optional[str]:
+    def _follow_up(self, wake: Wake, truncated: bool, asked: bool) -> str | None:
         """What to tell a model whose reply called no tool, or None to end the loop: one follow-up per turn — the
         short retry after a truncated reply (when ``retry_truncated``), else the nudge naming the tools offered. A
         reply that still calls no tool after the nudge, in a turn that took no action, is counted
@@ -314,7 +317,7 @@ class _LLMParticipant:
             self._record(wake, out_of_steps=1)
 
     @staticmethod
-    def _dispatch(wake: Wake, name: Any, args: Any) -> Optional[ToolResult]:
+    def _dispatch(wake: Wake, name: Any, args: Any) -> ToolResult | None:
         """Run one tool call of a reply, or None when an earlier call of the same reply ended the turn: leftover
         calls are answered without reaching the engine, so they are never counted."""
         if wake.done:
@@ -401,7 +404,7 @@ class _Anthropic(_LLMParticipant):
     CALL = "client.messages.create"
 
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
-                 media: frozenset, retry_truncated: bool, extra: Optional[Mapping[str, Any]]):
+                 media: frozenset, retry_truncated: bool, extra: Mapping[str, Any] | None):
         sent = ("model", "messages", "tools", "system", "max_tokens")
         super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
         self.max_tokens = max_tokens
@@ -410,7 +413,7 @@ class _Anthropic(_LLMParticipant):
         text = (self.system + "\n\n" if self.system else "") + wake.brief
         parts = anthropic_parts(wake.attachments, self.media) if self.media else []
         opening: Any = [{"type": "text", "text": wake.update}, *parts] if parts else wake.update
-        messages: List[Dict[str, Any]] = [{"role": "user", "content": opening}]
+        messages: list[dict[str, Any]] = [{"role": "user", "content": opening}]
         offered = _TurnTools(wake, "anthropic")
         asked = False
         for _ in range(self.max_steps):
@@ -418,7 +421,7 @@ class _Anthropic(_LLMParticipant):
                 return
             tools = offered.definitions
             head = _tokens(tools, text)
-            system: List[Dict[str, Any]] = [{"type": "text", "text": text}]
+            system: list[dict[str, Any]] = [{"type": "text", "text": text}]
             if head >= _CACHE_MIN_TOKENS:
                 system[0]["cache_control"] = {"type": "ephemeral"}
             prompt = head + _tokens(messages)
@@ -470,7 +473,7 @@ class _Anthropic(_LLMParticipant):
                      cache_write_tokens=number("cache_creation_input_tokens"))
 
 
-def _add_changes(result: Dict[str, Any], changes: str) -> None:
+def _add_changes(result: dict[str, Any], changes: str) -> None:
     """Add what changed in the legal tools to the text of a tool result."""
     if not changes:
         return
@@ -481,7 +484,7 @@ def _add_changes(result: Dict[str, Any], changes: str) -> None:
         result["content"] = [{**content[0], "text": content[0]["text"] + changes}, *content[1:]]
 
 
-def _cached(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+def _cached(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """``messages`` with a cache breakpoint on the latest one, so the turn's next call reads all of it from the prompt
     cache (``messages`` itself is left as it is: only one breakpoint follows the conversation)."""
     last = messages[-1]
@@ -491,7 +494,7 @@ def _cached(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [*messages[:-1], {**last, "content": blocks}]
 
 
-def _reply_blocks(blocks: Any, truncated: bool) -> List[Dict[str, Any]]:
+def _reply_blocks(blocks: Any, truncated: bool) -> list[dict[str, Any]]:
     """A reply's content blocks as they are sent back: without empty text (the API refuses it), and — for a reply cut
     off at ``max_tokens`` — without its tool calls, whose arguments may be cut off too (none of them is made)."""
     content = [_block_dict(block) for block in blocks]
@@ -500,7 +503,7 @@ def _reply_blocks(blocks: Any, truncated: bool) -> List[Dict[str, Any]]:
             and not (truncated and block.get("type") == "tool_use")]
 
 
-def _block_dict(block: Any) -> Dict[str, Any]:
+def _block_dict(block: Any) -> dict[str, Any]:
     kind = getattr(block, "type", None) or (block.get("type") if isinstance(block, Mapping) else "")
     if kind == "text":
         return {"type": "text", "text": _field(block, "text") or ""}
@@ -517,8 +520,8 @@ def _field(block: Any, name: str) -> Any:
 
 
 def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: int = 8, system: str = "",
-              retries: int = 4, media: Optional[Collection[str]] = None, retry_truncated: bool = True,
-              extra: Optional[Mapping[str, Any]] = None) -> Participant:
+              retries: int = 4, media: Collection[str] | None = None, retry_truncated: bool = True,
+              extra: Mapping[str, Any] | None = None) -> Participant:
     """An LLM participant using an ``anthropic.Anthropic()`` client.
 
     The model is shown one tool list for the whole turn: the tools legal when the turn starts. A call to one that is no
@@ -561,15 +564,16 @@ class _OpenAI(_LLMParticipant):
     CLIENT = "openai.OpenAI()"
     CALL = "client.chat.completions.create"
 
-    def __init__(self, client: Any, model: str, max_tokens: Optional[int], reasoning_effort: Optional[str],
+    def __init__(self, client: Any, model: str, max_tokens: int | None, reasoning_effort: str | None,
                  max_steps: int, system: str, retries: int, media: frozenset, retry_truncated: bool,
-                 extra: Optional[Mapping[str, Any]]):
-        if max_tokens is not None and (isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens < 1):
+                 extra: Mapping[str, Any] | None):
+        if max_tokens is not None and (isinstance(max_tokens, bool) or not isinstance(max_tokens, int) or max_tokens
+                                       < 1):
             raise ValueError(f"max_tokens must be a whole number ≥ 1 (or None), got {max_tokens!r}")
         if reasoning_effort is not None and not isinstance(reasoning_effort, str):
             raise ValueError(f"reasoning_effort must be text such as 'low' (or None), got {reasoning_effort!r}")
         #: Sent only when set, so a client that does not know a field never receives it.
-        self.options: Dict[str, Any] = {key: value for key, value in (("max_completion_tokens", max_tokens),
+        self.options: dict[str, Any] = {key: value for key, value in (("max_completion_tokens", max_tokens),
                                                                       ("reasoning_effort", reasoning_effort))
                                         if value is not None}
         sent = ["model", "messages", "tools", *self.options, *(["max_tokens"] if max_tokens is not None else [])]
@@ -577,7 +581,7 @@ class _OpenAI(_LLMParticipant):
 
     def _turn(self, wake: Wake) -> None:
         parts = openai_parts(wake.attachments, self.media) if self.media else []
-        messages: List[Dict[str, Any]] = [
+        messages: list[dict[str, Any]] = [
             {"role": "system", "content": (self.system + "\n\n" if self.system else "") + wake.brief},
             {"role": "user", "content": [{"type": "text", "text": wake.update}, *parts] if parts else wake.update},
         ]
@@ -599,8 +603,9 @@ class _OpenAI(_LLMParticipant):
             truncated = finish == "length"
             if truncated:
                 self._record(wake, truncated=1)
-            calls = [] if truncated else list(getattr(message, "tool_calls", None) or [])  # cut-off arguments are not made
-            assistant: Dict[str, Any] = {"role": "assistant", "content": getattr(message, "content", None) or ""}
+            calls = [] if truncated else list(getattr(message, "tool_calls", None)
+                                              or [])  # cut-off arguments are not made
+            assistant: dict[str, Any] = {"role": "assistant", "content": getattr(message, "content", None) or ""}
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
                 if follow is None:
@@ -612,7 +617,7 @@ class _OpenAI(_LLMParticipant):
                                         "function": {"name": c.function.name, "arguments": c.function.arguments}}
                                        for c in calls]
             messages.append(assistant)
-            files: List[Dict[str, Any]] = []
+            files: list[dict[str, Any]] = []
             for c in calls:
                 try:
                     args = json.loads(c.function.arguments or "{}")
@@ -625,8 +630,9 @@ class _OpenAI(_LLMParticipant):
                 messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
             messages[-1]["content"] += offered.changes(wake)
             if files:  # tool messages carry text only: the files follow in one user message
-                messages.append({"role": "user", "content": [{"type": "text", "text": "Files from the tool results above:"},
-                                                             *files]})
+                messages.append({"role": "user",
+                                 "content": [{"type": "text", "text": "Files from the tool results above:"},
+                                             *files]})
         self._out_of_steps(wake)
 
     def _count(self, wake: Wake, usage: Any) -> None:
@@ -644,21 +650,21 @@ class _OpenAI(_LLMParticipant):
         return not choices or getattr(choices[0], "finish_reason", None) == "error"
 
 
-def openai(client: Any, model: str, *, max_tokens: Optional[int] = None, reasoning_effort: Optional[str] = None,
-           max_steps: int = 8, system: str = "", retries: int = 4, media: Optional[Collection[str]] = None,
-           retry_truncated: bool = True, extra: Optional[Mapping[str, Any]] = None) -> Participant:
+def openai(client: Any, model: str, *, max_tokens: int | None = None, reasoning_effort: str | None = None,
+           max_steps: int = 8, system: str = "", retries: int = 4, media: Collection[str] | None = None,
+           retry_truncated: bool = True, extra: Mapping[str, Any] | None = None) -> Participant:
     """An LLM participant using an ``openai.OpenAI()``-compatible client (chat completions + tools).
 
     ``max_tokens`` caps each reply (sent as ``max_completion_tokens``) and ``reasoning_effort`` (``"low"``,
     ``"medium"``, ``"high"``) is passed on to reasoning models; each is sent only when given. A server that knows only
     the older ``max_tokens`` field takes ``extra={"max_tokens": 1024}`` instead. A response with no choices in it, or
-    with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries, failures, refusals (a
-    ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting, truncated replies
-    (``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for :func:`anthropic`;
-    arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and counted as invalid
-    calls. Files are sent as
-    ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``: default image, pdf, audio and text; ``()``
-    for text only); files from tool results follow the tool messages in one user message.
+    with ``finish_reason`` ``error`` (OpenRouter sends both now and then), is retried like an overload. Retries,
+    failures, refusals (a ``refusal`` message or ``finish_reason`` ``content_filter``), ``extra``, usage accounting,
+    truncated replies (``finish_reason`` ``length``), ``retry_truncated`` and the one tool list per turn work as for
+    :func:`anthropic`; arguments that are not a JSON object (or not valid JSON, which the refusal says) are refused and
+    counted as invalid calls. Files are sent as ``image_url`` data URLs, ``file`` and ``input_audio`` parts (``media``:
+    default image, pdf, audio and text; ``()`` for text only); files from tool results follow the tool messages in one
+    user message.
     """
     return _OpenAI(client, model, max_tokens, reasoning_effort, max_steps, system, retries,
                    media_set(media, OPENAI_MEDIA, OPENAI_MEDIA), retry_truncated, extra)

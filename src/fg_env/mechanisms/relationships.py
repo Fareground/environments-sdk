@@ -1,11 +1,13 @@
-"""Relationships and factions, modes of the ``groups`` family: decaying trust with threshold events; alliances and ``$allies``.
+"""Relationships and factions, modes of the ``groups`` family: decaying trust with threshold events; alliances and
+``$allies``.
 
 .. code-block:: json
 
     "mechanisms": {
       "bonds": {"kind": "groups", "mode": "relationships", "relations": {"trust": {"baseline": 0, "decay": 0.1,
                 "thresholds": [{"at": 0.7, "direction": "above", "say": "{$from.name} now trusts {$to.name}."}]}}},
-      "blocs": {"kind": "groups", "mode": "factions", "who": "nation", "factions": {"entente": {"members": ["fr", "uk"]}},
+      "blocs": {"kind": "groups", "mode": "factions", "who": "nation", "factions": {"entente": {"members": ["fr",
+      "uk"]}},
                 "alliances": true}}
 
 ``relationships`` manages relations (declaring them unless the author already did): every round
@@ -20,14 +22,15 @@ an alliance forms when both factions have proposed it.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple
+from collections.abc import Callable, Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, config_data, family_action, mode
+from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import NAME, check_expr, config_of, eid, entity, named_use, require_type, seat_order
@@ -45,10 +48,12 @@ class Threshold(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     at: float
-    direction: Literal["above", "below"] = Field("above", description="Fires when the value rises to/above, or falls to/below, `at`.")
+    direction: Literal["above", "below"] = Field("above",
+                                                 description="Fires when the value rises to/above, or falls to/below, "
+                                                             "`at`.")
     say: str = Field("", description="News text (template over $from, $to, $value).")
     to: Literal["none", "from", "to", "both", "all"] = Field("both", description="Who reads the news.")
-    do: List[Any] = Field(default_factory=list, description="Effects when it fires ($from, $to, $value).")
+    do: list[Any] = Field(default_factory=list, description="Effects when it fires ($from, $to, $value).")
     once: bool = Field(False, description="Fire at most once per pair; otherwise again after crossing back.")
 
 
@@ -63,7 +68,7 @@ class RelationDynamics(BaseModel):
     max: float = 1.0
     symmetric: bool = False
     description: str = ""
-    thresholds: List[Threshold] = Field(default_factory=list)
+    thresholds: list[Threshold] = Field(default_factory=list)
 
 
 class RelationshipsConfig(BaseModel):
@@ -71,7 +76,9 @@ class RelationshipsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    relations: Dict[str, RelationDynamics] = Field(..., description="{relation: {baseline, decay, min, max, symmetric, thresholds}}.")
+    relations: dict[str, RelationDynamics] = Field(...,
+                                                   description="{relation: {baseline, decay, min, max, symmetric, "
+                                                               "thresholds}}.")
     phase: Literal["start", "end"] = Field("end", description="When relations decay each round.")
 
 
@@ -80,7 +87,8 @@ class RelationshipsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _check_thresholds(runner: Any, name: str, relation: str, spec: RelationDynamics, a: str, b: str, where: str) -> None:
+def _check_thresholds(runner: Any, name: str, relation: str, spec: RelationDynamics, a: str, b: str,
+                      where: str) -> None:
     world = runner.world
     value = world.relation(a, b, relation)
     if value is None or not spec.thresholds:
@@ -100,7 +108,8 @@ def _check_thresholds(runner: Any, name: str, relation: str, spec: RelationDynam
             _fire(runner, name, relation, threshold, a, b, value, where)
 
 
-def _fire(runner: Any, name: str, relation: str, threshold: Threshold, a: str, b: str, value: float, where: str) -> None:
+def _fire(runner: Any, name: str, relation: str, threshold: Threshold, a: str, b: str, value: float,
+          where: str) -> None:
     world = runner.world
     local = {"from": world.entities.get(a), "to": world.entities.get(b), "value": value}
     if threshold.say:
@@ -112,8 +121,8 @@ def _fire(runner: Any, name: str, relation: str, threshold: Threshold, a: str, b
         runner.run(threshold.do, local, f"mechanisms.{name}.relations.{relation}.thresholds.do")
 
 
-def _relate_check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
-    issues: List[Tuple[str, str, Optional[str]]] = []
+def _relate_check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
+    issues: list[tuple[str, str, str | None]] = []
     if ("add" in effect) == ("set" in effect):
         issues.append((path, "`groups.relate` takes exactly one of `add` or `set`",
                        "add changes the value by an amount; set replaces it"))
@@ -123,22 +132,24 @@ def _relate_check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple
     except ValidationError:  # the config's own errors are reported against the mechanism
         return issues
     if isinstance(relation, str) and relation not in relations:
-        issues.append((f"{path}.relation", f"'{relation}' is not a relation of {name}", f"relations: {', '.join(relations)}"))
+        issues.append((f"{path}.relation", f"'{relation}' is not a relation of {name}",
+                       f"relations: {', '.join(relations)}"))
     return issues
 
 
 @family_action("groups", ("relationships",), "relate", keys=("relation", "from", "to", "add", "set"),
                required=("relation", "from", "to"), literal=("relation",), check=_relate_check,
-               example='{"groups": "bonds", "action": "relate", "relation": "trust", "from": "$actor", "to": "$params.partner", '
-                       '"add": 0.2}  (change a relation by `add`, which stops at its min/max, or replace it with `set`; a missing '
-                       'link starts at its baseline; thresholds fire)')
-def _relate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"groups": "bonds", "action": "relate", "relation": "trust", "from": "$actor", "to": '
+                       '"$params.partner", "add": 0.2}  (change a relation by `add`, which stops at its min/max, or '
+                       'replace it with `set`; a missing link starts at its baseline; thresholds fire)')
+def _relate_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name, relation = effect["groups"], effect["relation"]
     config = config_of(world, name, RELATIONSHIPS, RelationshipsConfig)
     spec = config.relations.get(relation)
     if spec is None:
-        raise RunError(f"'{relation}' is not a relation of {name} (relations: {', '.join(config.relations)})", f"{where}.relation")
+        raise RunError(f"'{relation}' is not a relation of {name} (relations: {', '.join(config.relations)})",
+                       f"{where}.relation")
     if ("add" in effect) == ("set" in effect):
         raise RunError("`groups.relate` takes exactly one of `add` or `set`", where)
     a = entity(world, runner.eval(effect["from"], vars), f"{where}.from")
@@ -159,7 +170,7 @@ def _relate_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
 @family_action("groups", ("relationships",), "tick", internal=True,
                example='{"groups": "bonds", "action": "tick"}  (one round of decay toward baselines, then thresholds; '
                        'generated for you)')
-def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _tick_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["groups"]
     config = config_of(world, name, RELATIONSHIPS, RelationshipsConfig)
@@ -183,8 +194,8 @@ def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
       "$relation(a, b, kind).",
       example={"relations": {"trust": {"baseline": 0, "decay": 0.1, "thresholds": [
           {"at": 0.7, "say": "{$from.name} now trusts {$to.name}."}]}}})
-def _expand_relationships(name: str, config: RelationshipsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
-    relations: Dict[str, Any] = {}
+def _expand_relationships(name: str, config: RelationshipsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
+    relations: dict[str, Any] = {}
     for relation, spec in config.relations.items():
         if not NAME.match(relation):
             raise MechanismError(f"'{relation}' is not a valid relation name", "use letters, digits and _", "relations")
@@ -196,7 +207,8 @@ def _expand_relationships(name: str, config: RelationshipsConfig, contract: Mapp
             if threshold.say:
                 _check_template(threshold.say, f"relations.{relation}.thresholds[{index}].say")
     return {"relations": relations,
-            "world": {f"{name}_crossed": {"type": "map", "default": {}, "description": "Thresholds currently crossed."}},
+            "world": {f"{name}_crossed": {"type": "map", "default": {},
+                                          "description": "Thresholds currently crossed."}},
             "events": [{"name": f"{name}_tick", "phase": config.phase, "do": [{"groups": name, "action": "tick"}]}]}
 
 
@@ -220,7 +232,7 @@ class FactionSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     title: str = ""
-    members: List[str] = Field(default_factory=list)
+    members: list[str] = Field(default_factory=list)
     open: bool = Field(False, description="Anyone may join without an invitation.")
 
 
@@ -230,8 +242,8 @@ class FactionsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     who: str = Field(..., description="Agent type that belongs to factions.")
-    factions: Dict[str, FactionSpec] = Field(default_factory=dict, description="{id: {title, members, open}}.")
-    allies: List[List[str]] = Field(default_factory=list, description="Starting alliances as [faction, faction] pairs.")
+    factions: dict[str, FactionSpec] = Field(default_factory=dict, description="{id: {title, members, open}}.")
+    allies: list[list[str]] = Field(default_factory=list, description="Starting alliances as [faction, faction] pairs.")
     one: bool = Field(True, description="An agent belongs to at most one faction.")
     found: bool = Field(False, description="Members may found new factions.")
     alliances: bool = Field(True, description="Offer tools to propose and break alliances between factions.")
@@ -239,11 +251,11 @@ class FactionsConfig(BaseModel):
     tools: ToolsSetting = tools_field()
 
 
-def _factions(world: Any, name: str) -> Dict[str, Dict[str, Any]]:
+def _factions(world: Any, name: str) -> dict[str, dict[str, Any]]:
     return world.props.get(name) or {}
 
 
-def _mine(factions: Mapping[str, Mapping[str, Any]], agent: str) -> List[str]:
+def _mine(factions: Mapping[str, Mapping[str, Any]], agent: str) -> list[str]:
     return [f for f, spec in factions.items() if agent in spec["members"]]
 
 
@@ -255,7 +267,8 @@ def allies(world: Any, name: str, a: str, b: str) -> bool:
     return any(f == g or g in factions[f]["allies"] for f in mine for g in theirs)
 
 
-@function("allies(a, b, mechanism?)", "True when a and b share a faction or belong to allied factions (groups factions mode).",
+@function("allies(a, b, mechanism?)",
+          "True when a and b share a faction or belong to allied factions (groups factions mode).",
           min_args=2, max_args=3)
 def _allies_fn(call: Call) -> bool:
     world: Any = call.scope.world
@@ -264,13 +277,13 @@ def _allies_fn(call: Call) -> bool:
 
 
 @function("faction_of(agent, mechanism?)", "Ids of the factions the agent belongs to.", min_args=1, max_args=2)
-def _faction_of_fn(call: Call) -> List[str]:
+def _faction_of_fn(call: Call) -> list[str]:
     world: Any = call.scope.world
     return _mine(_factions(world, named_use(call, FACTIONS, 1)), eid(call.arg(0), call.source))
 
 
 @function("factions(mechanism?)", "Every faction: [{id, title, members, allies, open}].", min_args=0, max_args=1)
-def _factions_fn(call: Call) -> List[Dict[str, Any]]:
+def _factions_fn(call: Call) -> list[dict[str, Any]]:
     world: Any = call.scope.world
     return [{"id": f, "title": spec["title"], "members": list(spec["members"]), "allies": list(spec["allies"]),
              "open": spec["open"]} for f, spec in _factions(world, named_use(call, FACTIONS, 0)).items()]
@@ -278,7 +291,7 @@ def _factions_fn(call: Call) -> List[Dict[str, Any]]:
 
 @function("joinable(agent, mechanism?)", "Factions the agent may join now: open ones and those it was invited to.",
           min_args=1, max_args=2)
-def _joinable_fn(call: Call) -> List[str]:
+def _joinable_fn(call: Call) -> list[str]:
     world: Any = call.scope.world
     name = named_use(call, FACTIONS, 1)
     config = config_of(world, name, FACTIONS, FactionsConfig)
@@ -286,7 +299,8 @@ def _joinable_fn(call: Call) -> List[str]:
     factions = _factions(world, name)
     if config.one and _mine(factions, agent):
         return []
-    return [f for f, spec in factions.items() if agent not in spec["members"] and (spec["open"] or agent in spec["invited"])]
+    return [f for f, spec in factions.items() if agent not in spec["members"]
+            and (spec["open"] or agent in spec["invited"])]
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +308,11 @@ def _joinable_fn(call: Call) -> List[str]:
 # ---------------------------------------------------------------------------
 
 #: action → (keys it needs, keys it may take, example keys, what it does). The agent is `who`, default $actor.
-_FACTION_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], str, str]] = {
+_FACTION_ACTIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...], str, str]] = {
     "join": (("in",), (), '"in": "$params.faction"', "join a faction that is open or invited you"),
     "leave": (("in",), (), '"in": "$params.faction"', "leave a faction"),
-    "invite": (("in", "guest"), (), '"in": "$params.faction", "guest": "$params.guest"', "invite `guest` into your faction"),
+    "invite": (("in", "guest"), (), '"in": "$params.faction", "guest": "$params.guest"',
+               "invite `guest` into your faction"),
     "found": ((), ("title",), '"title": "$params.title"', "found a new faction with `who` as its first member"),
     "ally": (("in", "other"), (), '"in": "$params.faction", "other": "$params.other"',
              "propose an alliance with `other`, or accept the one it proposed"),
@@ -308,12 +323,13 @@ _FACTION_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], str, str]] =
 }
 
 
-def _faction_runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
-    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _faction_runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str], None]:
+    def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["groups"]
         config = config_of(world, name, FACTIONS, FactionsConfig)
-        who = entity(world, runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor"), where, config.who)
+        who = entity(world, runner.eval(effect["who"], vars) if "who" in effect else vars.get("actor"), where,
+                     config.who)
         factions = {f: {**spec, "members": list(spec["members"]), "invited": list(spec["invited"]),
                         "allies": list(spec["allies"]), "proposals": list(spec["proposals"])}
                     for f, spec in _factions(world, name).items()}
@@ -359,13 +375,14 @@ def _faction_runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any
 def _register_faction_actions() -> None:
     for action, (needs, takes, fields, doc) in _FACTION_ACTIONS.items():
         example = '{"groups": "blocs", "action": "' + action + '", ' + fields + f"}}  ({doc})"
-        family_action("groups", ("factions",), action, keys=(*needs, *takes, "who"), required=needs, example=example)(_faction_runner(action))
+        family_action("groups", ("factions",), action, keys=(*needs, *takes, "who"), required=needs,
+                      example=example)(_faction_runner(action))
 
 
 _register_faction_actions()
 
 
-def _found(world: Any, name: str, config: FactionsConfig, factions: Dict[str, Any], who: Entity, title: Any) -> None:
+def _found(world: Any, name: str, config: FactionsConfig, factions: dict[str, Any], who: Entity, title: Any) -> None:
     if not config.found:
         raise Abort("New factions cannot be founded here.")
     if config.one and _mine(factions, who.id):
@@ -376,11 +393,12 @@ def _found(world: Any, name: str, config: FactionsConfig, factions: Dict[str, An
     while f"faction_{n}" in factions:
         n += 1
     fid = f"faction_{n}"
-    factions[fid] = {"title": title or "", "members": [who.id], "invited": [], "allies": [], "proposals": [], "open": False}
+    factions[fid] = {"title": title or "", "members": [who.id], "invited": [], "allies": [], "proposals": [],
+                     "open": False}
     world.emit(name, f"{who.name} founded faction {fid}.", actor=who.id, data={"mechanism": name, "faction": fid})
 
 
-def _join(world: Any, name: str, config: FactionsConfig, factions: Dict[str, Any], who: Entity, fid: str,
+def _join(world: Any, name: str, config: FactionsConfig, factions: dict[str, Any], who: Entity, fid: str,
           consent: bool) -> None:
     spec = factions[fid]
     if who.id in spec["members"]:
@@ -399,7 +417,7 @@ def _join(world: Any, name: str, config: FactionsConfig, factions: Dict[str, Any
     world.emit(name, f"{who.name} joined faction {fid}.", actor=who.id, data={"mechanism": name, "faction": fid})
 
 
-def _ally(world: Any, name: str, factions: Dict[str, Any], fid: str, other: str, who: Entity) -> None:
+def _ally(world: Any, name: str, factions: dict[str, Any], fid: str, other: str, who: Entity) -> None:
     if other in factions[fid]["allies"]:
         raise Abort(f"{fid} and {other} are already allied.")
     if fid in factions[other]["proposals"]:
@@ -416,7 +434,7 @@ def _ally(world: Any, name: str, factions: Dict[str, Any], fid: str, other: str,
                actor=who.id, to=tuple(factions[other]["members"]), data={"mechanism": name, "proposal": [fid, other]})
 
 
-def _break(world: Any, name: str, factions: Dict[str, Any], fid: str, other: str, who: Entity) -> None:
+def _break(world: Any, name: str, factions: dict[str, Any], fid: str, other: str, who: Entity) -> None:
     if other not in factions[fid]["allies"]:
         raise Abort(f"{fid} and {other} are not allied.")
     factions[fid]["allies"].remove(other)
@@ -433,24 +451,25 @@ _FACTION_LINE = ("{id}{$' — ' if $it.title else ''}{$it.title or ''}: {$len($i
 @mode("groups", "factions", FactionsConfig,
       "Factions and alliances: membership with invitations (or open factions), founding, and alliances that form when "
       "both factions propose them. State in the world prop `<name>`; tools `<name>_join`, `<name>_leave`, "
-      "`<name>_invite`, `<name>_found`, `<name>_ally`, `<name>_break_alliance`, and the same actions of the `groups` op "
-      "for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent); with several factions "
-      "mechanisms, name one as the last argument ($factions('guilds')).",
+      "`<name>_invite`, `<name>_found`, `<name>_ally`, `<name>_break_alliance`, and the same actions of the `groups` "
+      "op for effects. Read with $allies(a, b), $faction_of(agent), $factions(), $joinable(agent); with several "
+      "factions mechanisms, name one as the last argument ($factions('guilds')).",
       example={"who": "nation", "factions": {"entente": {"members": ["fr", "uk"]}, "central": {"members": ["de"]}}})
-def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
-    state: Dict[str, Any] = {}
+    state: dict[str, Any] = {}
     for fid, spec in config.factions.items():
         if not NAME.match(fid):
             raise MechanismError(f"'{fid}' is not a valid faction id", "use letters, digits and _", "factions")
         state[fid] = {"title": spec.title, "members": list(dict.fromkeys(spec.members)), "invited": [], "allies": [],
                       "proposals": [], "open": spec.open}
     if config.one:
-        seen: Dict[str, str] = {}
+        seen: dict[str, str] = {}
         for fid, spec in state.items():
             for member in spec["members"]:
                 if member in seen:
-                    raise MechanismError(f"'{member}' is in both {seen[member]} and {fid}", "set one: false to allow it", "factions")
+                    raise MechanismError(f"'{member}' is in both {seen[member]} and {fid}",
+                                         "set one: false to allow it", "factions")
                 seen[member] = fid
     for pair in config.allies:
         if len(pair) != 2 or pair[0] == pair[1] or any(f not in state for f in pair):
@@ -459,42 +478,54 @@ def _expand_factions(name: str, config: FactionsConfig, contract: Mapping[str, A
             if b not in state[a]["allies"]:
                 state[a]["allies"].append(b)
     members = config.who
-    actions: Dict[str, Any] = {}
+    actions: dict[str, Any] = {}
     if config.joining:
         actions[f"{name}_join"] = {"by": members, "description": "Join a faction that is open or invited you.",
                                    "params": {"faction": {"type": "enum", "values": f"$joinable($actor, '{name}')"}},
-                                   "when": [{"expr": f"$len($joinable($actor, '{name}')) > 0", "why": "No faction will take you now."}],
+                                   "when": [{"expr": f"$len($joinable($actor, '{name}')) > 0",
+                                             "why": "No faction will take you now."}],
                                    "do": [{"groups": name, "action": "join", "in": "$params.faction"}]}
         actions[f"{name}_leave"] = {"by": members, "description": "Leave a faction.",
                                     "params": {"faction": {"type": "enum", "values": f"$faction_of($actor, '{name}')"}},
-                                    "when": [{"expr": f"$len($faction_of($actor, '{name}')) > 0", "why": "You are in no faction."}],
+                                    "when": [{"expr": f"$len($faction_of($actor, '{name}')) > 0",
+                                              "why": "You are in no faction."}],
                                     "do": [{"groups": name, "action": "leave", "in": "$params.faction"}]}
         actions[f"{name}_invite"] = {"by": members, "description": "Invite someone into your faction.",
                                      "params": {"faction": {"type": "enum", "values": f"$faction_of($actor, '{name}')"},
-                                                "guest": {"type": "entity", "of": members, "description": "Who to invite."}},
-                                     "when": [{"expr": f"$len($faction_of($actor, '{name}')) > 0", "why": "You are in no faction."}],
-                                     "do": [{"groups": name, "action": "invite", "in": "$params.faction", "guest": "$params.guest"}],
+                                                "guest": {"type": "entity", "of": members,
+                                                          "description": "Who to invite."}},
+                                     "when": [{"expr": f"$len($faction_of($actor, '{name}')) > 0",
+                                               "why": "You are in no faction."}],
+                                     "do": [{"groups": name, "action": "invite", "in": "$params.faction",
+                                             "guest": "$params.guest"}],
                                      "private": True, "outcome": "Invitation sent to {$params.guest.name}."}
     if config.found:
         actions[f"{name}_found"] = {"by": members, "description": "Found a new faction with you as its first member.",
                                     "params": {"title": {"type": "text", "max_len": 60, "default": ""}},
-                                    "do": [{"groups": name, "action": "found", "title": "$params.title"}], "per_round": 1}
+                                    "do": [{"groups": name, "action": "found", "title": "$params.title"}],
+                                    "per_round": 1}
     if config.alliances:
         mine = f"$faction_of($actor, '{name}')"
         actions[f"{name}_ally"] = {
-            "by": members, "description": "Propose an alliance between your faction and another, or accept one proposed to you.",
+            "by": members,
+            "description": "Propose an alliance between your faction and another, or accept one proposed to you.",
             "params": {"faction": {"type": "enum", "values": mine},
-                       "other": {"type": "enum", "values": f"$filter($map($factions('{name}'), $it.id), not ($it in {mine}))"}},
-            "when": [{"expr": f"$len({mine}) > 0 and $len($factions('{name}')) > 1", "why": "You need a faction and another to ally with."}],
+                       "other": {"type": "enum",
+                  "values": f"$filter($map($factions('{name}'), $it.id), not ($it in {mine}))"}},
+            "when": [{"expr": f"$len({mine}) > 0 and $len($factions('{name}')) > 1",
+                      "why": "You need a faction and another to ally with."}],
             "do": [{"groups": name, "action": "ally", "in": "$params.faction", "other": "$params.other"}]}
         actions[f"{name}_break_alliance"] = {
             "by": members, "description": "End an alliance of your faction.",
             "params": {"faction": {"type": "enum", "values": mine},
-                       "other": {"type": "enum", "values": f"$flatten($map($filter($factions('{name}'), $it.id in {mine}), $it.allies))"}},
+                       "other": {"type": "enum",
+                                 "values": f"$flatten($map($filter($factions('{name}'), $it.id in {mine}), "
+                                           "$it.allies))"}},
             "when": [{"expr": f"$len($flatten($map($filter($factions('{name}'), $it.id in {mine}), $it.allies))) > 0",
                       "why": "Your faction has no alliances."}],
             "do": [{"groups": name, "action": "break_alliance", "in": "$params.faction", "other": "$params.other"}]}
-    return {"world": {name: {"type": "map", "default": state, "description": "Factions: members, invitations, alliances."}},
+    return {"world": {name: {"type": "map", "default": state,
+                             "description": "Factions: members, invitations, alliances."}},
             "actions": actions,
             "views": {name: {"for": members, "title": "Factions", "of": f"$factions('{name}')", "show": _FACTION_LINE,
                              "empty": "There are no factions."}}}

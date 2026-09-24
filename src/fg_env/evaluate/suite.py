@@ -10,9 +10,10 @@ from __future__ import annotations
 import json
 import math
 import os
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..api import default_data_dir, load, parse
 from ..contract import Contract
@@ -34,15 +35,15 @@ class Scenario:
 
     name: str
     contract: Contract
-    data_dir: Optional[Path]
+    data_dir: Path | None
     inputs: Mapping[str, Any]
-    arm: Optional[str]
-    seats: Tuple[str, ...]
+    arm: str | None
+    seats: tuple[str, ...]
     scorer: SeatScorer
     background: Any
     baseline: Any
     modes: Mapping[str, float]
-    tags: Tuple[str, ...]
+    tags: tuple[str, ...]
     held_out: bool
 
     def focal_seats(self, mode: str) -> int:
@@ -55,7 +56,7 @@ class Scenario:
         return self.baseline if self.baseline is not None else self.background
 
 
-def scenarios(suite: Any, defaults: Mapping[str, Any], focal: Any) -> List[Scenario]:
+def scenarios(suite: Any, defaults: Mapping[str, Any], focal: Any) -> list[Scenario]:
     """Every scenario of ``suite``, checked (contract, seats, modes, score and participants) before anything runs."""
     entries, folder = _entries(suite)
     if not entries:
@@ -68,7 +69,7 @@ def scenarios(suite: Any, defaults: Mapping[str, Any], focal: Any) -> List[Scena
     return built
 
 
-def _entries(suite: Any) -> Tuple[List[Any], Optional[Path]]:
+def _entries(suite: Any) -> tuple[list[Any], Path | None]:
     if isinstance(suite, Contract):
         return [suite], None
     if isinstance(suite, (str, os.PathLike)) and not str(suite).lstrip().startswith("{"):
@@ -91,7 +92,7 @@ def _json_file(path: Path) -> Any:
         return None  # not a readable suite: parsed as a contract, which reports the problem precisely
 
 
-def _listed(data: Mapping[str, Any], where: str) -> List[Any]:
+def _listed(data: Mapping[str, Any], where: str) -> list[Any]:
     extra = [key for key in data if key != "scenarios"]
     if extra:
         raise ValueError(f"{where} has unknown field(s) {', '.join(extra)}; a suite is {{\"scenarios\": [...]}}")
@@ -101,13 +102,14 @@ def _listed(data: Mapping[str, Any], where: str) -> List[Any]:
     return listed
 
 
-def _scenario(entry: Any, defaults: Mapping[str, Any], focal: Any, folder: Optional[Path], index: int) -> Scenario:
+def _scenario(entry: Any, defaults: Mapping[str, Any], focal: Any, folder: Path | None, index: int) -> Scenario:
     if not (isinstance(entry, Mapping) and "contract" in entry):
         entry = {"contract": entry}
     label = str(entry.get("name") or f"scenario {index + 1}")
     unknown = [key for key in entry if key not in SCENARIO_FIELDS]
     if unknown:
-        raise ValueError(f"{label}: unknown field(s) {', '.join(map(str, unknown))} (fields: {', '.join(SCENARIO_FIELDS)})")
+        raise ValueError(f"{label}: unknown field(s) {', '.join(map(str, unknown))} (fields: "
+                         f"{', '.join(SCENARIO_FIELDS)})")
 
     def field(key: str) -> Any:
         return entry[key] if key in entry else defaults.get(key)
@@ -144,7 +146,7 @@ def _check_participant(probe: Env, seat: str, role: str, player: Any) -> None:
         raise ValueError(f"{role}: {exc}") from None
 
 
-def _seats(value: Any, probe: Env, agents: Mapping[str, str]) -> List[str]:
+def _seats(value: Any, probe: Env, agents: Mapping[str, str]) -> list[str]:
     shown = ", ".join(list(agents)[:20]) or "none"
     if value is None:
         if not agents:
@@ -170,13 +172,13 @@ def _seats(value: Any, probe: Env, agents: Mapping[str, str]) -> List[str]:
     return listed
 
 
-def _modes(value: Any) -> Dict[str, float]:
+def _modes(value: Any) -> dict[str, float]:
     if value is None:
         return dict(DEFAULT_MODES)
     if not isinstance(value, Mapping) or not value:
         raise ValueError(f"modes must map a mode name to the share of seats the focal participant takes, like "
                          f"{{'resident': 0.75, 'visitor': 0.25}}; got {value!r}")
-    modes: Dict[str, float] = {}
+    modes: dict[str, float] = {}
     for name, share in value.items():
         if not isinstance(name, str) or not name:
             raise ValueError(f"mode names are non-empty text, got {name!r}")
@@ -186,7 +188,7 @@ def _modes(value: Any) -> Dict[str, float]:
     return modes
 
 
-def _tags(value: Any) -> Tuple[str, ...]:
+def _tags(value: Any) -> tuple[str, ...]:
     if value is None:
         return ()
     listed = [value] if isinstance(value, str) else value

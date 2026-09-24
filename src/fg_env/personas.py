@@ -11,43 +11,43 @@ import copy
 import hashlib
 import math
 import random
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any
 
-
-Constraint = Union[Any, Sequence[Any], Callable[[Any], bool]]
+Constraint = Any | Sequence[Any] | Callable[[Any], bool]
 
 
 @dataclass(frozen=True)
 class SamplingProvenance:
     source: str
-    source_version: Optional[str]
+    source_version: str | None
     seed: int
     run: int
     resampled: bool
     requested: int
     selected: int
     pool_size: int
-    constraints: Dict[str, Any]
-    group_by: Optional[str]
-    weight_field: Optional[str]
-    fixed_ids: Tuple[str, ...]
-    sampled_ids: Tuple[str, ...]
+    constraints: dict[str, Any]
+    group_by: str | None
+    weight_field: str | None
+    fixed_ids: tuple[str, ...]
+    sampled_ids: tuple[str, ...]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return asdict(self)
 
 
 @dataclass(frozen=True)
 class PersonaSample:
-    people: Tuple[Dict[str, Any], ...]
+    people: tuple[dict[str, Any], ...]
     provenance: SamplingProvenance
 
-    def records(self) -> List[Dict[str, Any]]:
+    def records(self) -> list[dict[str, Any]]:
         """Return mutable copies suitable for assigning roles/models per run."""
         return [copy.deepcopy(person) for person in self.people]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"people": self.records(), "provenance": self.provenance.to_dict()}
 
 
@@ -88,7 +88,8 @@ def _derived_seed(seed: int, run: int, resample: bool) -> int:
     return int.from_bytes(digest[:8], "big")
 
 
-def _weighted_order(items: List[Tuple[str, List[Dict[str, Any]], float]], rng: random.Random) -> List[Tuple[str, List[Dict[str, Any]], float]]:
+def _weighted_order(items: list[tuple[str, list[dict[str, Any]], float]],
+                    rng: random.Random) -> list[tuple[str, list[dict[str, Any]], float]]:
     keyed = []
     for item in items:
         weight = item[2]
@@ -100,10 +101,10 @@ def _weighted_order(items: List[Tuple[str, List[Dict[str, Any]], float]], rng: r
 
 
 def sample_records(records: Iterable[Mapping[str, Any]], *, size: int, seed: int = 0, run: int = 0,
-                   resample: bool = True, constraints: Optional[Mapping[str, Constraint]] = None,
-                   fixed: Optional[Iterable[Mapping[str, Any]]] = None, id_field: str = "id",
-                   group_by: Optional[str] = None, weight_field: Optional[str] = None,
-                   source: str = "records", source_version: Optional[str] = None) -> PersonaSample:
+                   resample: bool = True, constraints: Mapping[str, Constraint] | None = None,
+                   fixed: Iterable[Mapping[str, Any]] | None = None, id_field: str = "id",
+                   group_by: str | None = None, weight_field: str | None = None,
+                   source: str = "records", source_version: str | None = None) -> PersonaSample:
     """Sample role-neutral personas with replacement disabled and full provenance.
 
     ``fixed`` participants are always first and count toward ``size``.  ``group_by``
@@ -131,9 +132,10 @@ def sample_records(records: Iterable[Mapping[str, Any]], *, size: int, seed: int
         raise ValueError("persona pool contains duplicate ids")
     needed = size - len(fixed_people)
     if len(candidates) < needed:
-        raise ValueError(f"only {len(candidates) + len(fixed_people)} matching personas are available; {size} requested")
+        raise ValueError(f"only {len(candidates) + len(fixed_people)} matching personas are available; {size} "
+                         "requested")
 
-    grouped: Dict[str, List[Dict[str, Any]]] = {}
+    grouped: dict[str, list[dict[str, Any]]] = {}
     for record in candidates:
         key = str(_read(record, group_by)) if group_by else _identity(record, id_field)
         grouped.setdefault(key, []).append(record)
@@ -176,8 +178,8 @@ def sample_records(records: Iterable[Mapping[str, Any]], *, size: int, seed: int
     return PersonaSample(tuple(sampled), provenance)
 
 
-def assign_labels(records: Iterable[Mapping[str, Any]], labels: Sequence[Tuple[str, float]], *,
-                  field: str = "role", seed: int = 0) -> List[Dict[str, Any]]:
+def assign_labels(records: Iterable[Mapping[str, Any]], labels: Sequence[tuple[str, float]], *,
+                  field: str = "role", seed: int = 0) -> list[dict[str, Any]]:
     """Assign labels by proportional shares using largest remainder, then shuffle."""
     people = [copy.deepcopy(dict(record)) for record in records]
     if not labels:

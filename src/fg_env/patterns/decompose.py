@@ -8,8 +8,9 @@ the run's current round, which also covers factors that carry state from the run
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
+from typing import Any
 
 from ..api import ContractLike, load
 from ..errors import ContractError, Issue
@@ -17,8 +18,8 @@ from ..expr import ExprError
 from . import timebase as tb
 from .base import KINDS
 from .compose import operand_key, operand_names
-from .runtime import Ctx, key_text
 from .product_math import scaled_product, unscale
+from .runtime import Ctx, key_text
 
 __all__ = ["decompose", "Decomposition"]
 
@@ -28,9 +29,9 @@ class Decomposition:
     """Each round: the total, every factor's value, and what each factor adds."""
 
     pattern: str
-    key: Optional[str]
+    key: str | None
     kind: str
-    rows: List[Dict[str, Any]] = field(default_factory=list)
+    rows: list[dict[str, Any]] = field(default_factory=list)
 
     def table(self, digits: int = 3) -> str:
         """The decomposition as a plain-text table, one line per round."""
@@ -42,11 +43,12 @@ class Decomposition:
         lines = [" | ".join(header)]
         for row in self.rows:
             cells = [str(row["round"]), row.get("date") or "", _fmt(row["total"], digits)]
-            cells += [f"{_fmt(row['factors'][name], digits)} ({_fmt(row['adds'][name], digits, sign=True)})" for name in names]
+            cells += [f"{_fmt(row['factors'][name], digits)} ({_fmt(row['adds'][name], digits, sign=True)})"
+                      for name in names]
             lines.append(" | ".join(cells))
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"pattern": self.pattern, "key": self.key, "kind": self.kind, "rows": self.rows}
 
 
@@ -57,8 +59,8 @@ def _fmt(value: Any, digits: int, sign: bool = False) -> str:
     return f"+{text}" if sign and value >= 0 else text
 
 
-def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None, rounds: Optional[Union[int, Sequence[int]]] = None,
-              inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, data_dir: Any = None,
+def decompose(source: ContractLike | Any, pattern: str, *, key: Any = None, rounds: int | Sequence[int] | None = None,
+              inputs: Mapping[str, Any] | None = None, seed: int = 0, data_dir: Any = None,
               estimates: bool = False) -> Decomposition:
     """Decompose a ``product`` or ``sum`` pattern into its factors (see the module).
 
@@ -75,7 +77,8 @@ def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None
     cfg = runtime.configs.get(pattern)
     where = f"decompose('{pattern}')"
     if cfg is None:
-        raise ContractError([Issue(where, f"'{pattern}' is not a declared pattern", f"patterns: {', '.join(runtime.configs) or 'none'}")])
+        raise ContractError([Issue(where, f"'{pattern}' is not a declared pattern",
+                                   f"patterns: {', '.join(runtime.configs) or 'none'}")])
     if KINDS[cfg.kind].shape != "composite":
         raise ContractError([Issue(where, f"'{pattern}' is a {cfg.kind} pattern; decompose reads products and sums",
                                    "decompose the product or sum that combines it")])
@@ -95,17 +98,18 @@ def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None
             result.rows.append(_row(runtime, pattern, text, t, number, env, live))
         except ExprError as exc:
             raise ContractError([Issue(where, exc.detail, "check factor values and scales; decompose a live run "
-                                                          "(fg_env.analysis.decompose(env, …)) for stateful factors")]) from None
+                                                          "(fg_env.analysis.decompose(env, …)) for stateful "
+                                                          "factors")]) from None
     return result
 
 
-def _row(runtime: Any, pattern: str, key: Optional[str], t: float, number: int, env: Any, live: bool) -> Dict[str, Any]:
+def _row(runtime: Any, pattern: str, key: str | None, t: float, number: int, env: Any, live: bool) -> dict[str, Any]:
     source = f"decompose('{pattern}')"
     ctx = Ctx(runtime, pattern, key, t, source)
     cfg: Any = ctx.cfg
     total = runtime.evaluate(pattern, key, [], t, source)
-    factors: Dict[str, Any] = {}
-    adds: Dict[str, Any] = {}
+    factors: dict[str, Any] = {}
+    adds: dict[str, Any] = {}
     weights = ctx.numbers("weights") if cfg.kind == "sum" and cfg.weights is not None else None
     for index, name in enumerate(operand_names(cfg)):
         other = runtime.configs[name]
@@ -131,7 +135,8 @@ def _row(runtime: Any, pattern: str, key: Optional[str], t: float, number: int, 
             else:
                 without = without_zero
             if not math.isfinite(without):
-                raise ExprError(f"'{name}' contribution is outside the finite numeric range; rescale the factors", source)
+                raise ExprError(f"'{name}' contribution is outside the finite numeric range; rescale the factors",
+                                source)
             if low is not None:
                 without = max(low, without)
             if high is not None:

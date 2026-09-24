@@ -4,13 +4,14 @@ import threading
 import time
 from pathlib import Path
 
+from test_time_limits import _with_stage
+
 import fg_env
 from fg_env import host
 from fg_env.host.stubs import StubTools
 
-from test_time_limits import _with_stage
-
-COUNCIL = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json").read_text())
+COUNCIL = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json")
+                     .read_text())
 #: Seconds a turn may take, and how long the slow answer and the late report take: well past the limit.
 LIMIT, LATE = 0.2, 0.6
 

@@ -10,7 +10,8 @@ LINEAR = {"name": "Linear", "clock": {"rounds": 1}, "types": {"t": {"props": {"v
                      "scale": {"type": "number", "default": 10, "min": 0, "max": 100}},
           "outputs": {"y": {"type": "number", "expr": "$inputs.scale * $inputs.p"},
                       "k": {"type": "number", "expr": "$inputs.k"}},
-          "arms": {"base": {"description": "as written"}, "double": {"description": "twice the scale", "inputs": {"scale": 20}}}}
+          "arms": {"base": {"description": "as written"},
+                   "double": {"description": "twice the scale", "inputs": {"scale": 20}}}}
 
 #: Each quarter's true p differs from 1.0 by these shares; a forecast that treats p as known misses all but one.
 DEVIATIONS = [-0.12, -0.05, 0.0, 0.03, 0.08, -0.02, 0.1, -0.09, 0.04, 0.06]

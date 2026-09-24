@@ -29,7 +29,8 @@ from __future__ import annotations
 import copy
 import json
 import re
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
+from collections.abc import Iterator, Mapping
+from typing import Any
 
 from ..errors import ContractError, Issue
 
@@ -49,7 +50,7 @@ _FIX = 'write {"for": [values], "as": "name", "make": {...}}'
 
 
 class _MacroError(Exception):
-    def __init__(self, path: str, message: str, fix: Optional[str] = None):
+    def __init__(self, path: str, message: str, fix: str | None = None):
         super().__init__(message)
         self.path, self.fix = path, fix
 
@@ -89,38 +90,42 @@ def _join(path: str, key: str) -> str:
 
 class _Expander:
     def __init__(self) -> None:
-        self.issues: List[Issue] = []
+        self.issues: list[Issue] = []
         self.items = 0
         self.nodes = 0
 
     # -- walking -----------------------------------------------------------------
 
-    def walk(self, value: Any, env: Dict[str, Any], path: str, depth: int) -> Any:
+    def walk(self, value: Any, env: dict[str, Any], path: str, depth: int) -> Any:
         self.nodes += 1
         if self.nodes > MAX_MACRO_NODES:
-            raise ContractError([Issue(path or "(contract)", f"macros would make the contract larger than {MAX_MACRO_NODES:,} values",
+            raise ContractError([Issue(path or "(contract)",
+                                       f"macros would make the contract larger than {MAX_MACRO_NODES:,} values",
                                        "generate less, or split the environment")])
         if isinstance(value, str):
             return self.text(value, env, path) if env else value
         if isinstance(value, list):
-            out: List[Any] = []
+            out: list[Any] = []
             for index, item in enumerate(value):
                 where = f"{path}[{index}]"
                 if is_macro(item):
-                    out.extend(self.attempt(lambda item=item, where=where: [v for _, v in self.loop(item, env, where, depth)], []))
+                    out.extend(self.attempt(lambda item=item,
+                                            where=where: [v for _, v in self.loop(item, env, where, depth)], []))
                 else:
                     out.append(self.walk(item, env, where, depth))
             return out
         if isinstance(value, Mapping):
             if is_macro(value):
-                self.issues.append(Issue(path or "(contract)", "a macro makes list items or map entries, not a single value",
+                self.issues.append(Issue(path or "(contract)",
+                                         "a macro makes list items or map entries, not a single value",
                                          "put it inside a list, or under a key such as \"bet_{street}\""))
                 return value
-            mapped: Dict[str, Any] = {}
+            mapped: dict[str, Any] = {}
             for key, item in value.items():
                 where = _join(path, str(key))
                 if is_macro(item):
-                    self.attempt(lambda key=key, item=item, where=where: self.entries(mapped, key, item, env, where, depth), None)
+                    self.attempt(lambda key=key, item=item,
+                                 where=where: self.entries(mapped, key, item, env, where, depth), None)
                     continue
                 name = self.attempt(lambda key=key, where=where: self.text(key, env, where), key) if env else key
                 if not isinstance(name, str):
@@ -137,14 +142,15 @@ class _Expander:
             self.issues.append(Issue(exc.path, str(exc), exc.fix))
             return fallback
 
-    def put(self, mapped: Dict[str, Any], name: str, value: Any, where: str) -> None:
+    def put(self, mapped: dict[str, Any], name: str, value: Any, where: str) -> None:
         if name in mapped:
-            self.issues.append(Issue(where, f"'{name}' is given twice (a macro and another entry, or two macros, make it)",
+            self.issues.append(Issue(where,
+                                     f"'{name}' is given twice (a macro and another entry, or two macros, make it)",
                                      "give each generated entry a distinct name"))
             return
         mapped[name] = value
 
-    def entries(self, mapped: Dict[str, Any], key: str, macro: Mapping[str, Any], env: Dict[str, Any], where: str,
+    def entries(self, mapped: dict[str, Any], key: str, macro: Mapping[str, Any], env: dict[str, Any], where: str,
                 depth: int) -> None:
         """A macro under a map key: entries named by the key when it holds a loop placeholder, else a list."""
         loop_names = self.loop_names(macro, where)
@@ -160,19 +166,21 @@ class _Expander:
                 raise _MacroError(where, f"a generated key must be text, but its placeholder gives {_kind(name)}")
             self.put(mapped, name, made, where)
 
-    def loop_names(self, macro: Mapping[str, Any], where: str) -> List[str]:
+    def loop_names(self, macro: Mapping[str, Any], where: str) -> list[str]:
         """Every variable a macro and the macros nested in its ``make`` define."""
-        names: List[str] = []
+        names: list[str] = []
         current: Any = macro
         while is_macro(current):
             names += [current[k] for k in ("as", "index") if isinstance(current.get(k), str)]
             current = current.get("make")
         return names
 
-    def loop(self, macro: Mapping[str, Any], env: Dict[str, Any], where: str, depth: int) -> Iterator[Tuple[Dict[str, Any], Any]]:
+    def loop(self, macro: Mapping[str, Any], env: dict[str, Any], where: str,
+             depth: int) -> Iterator[tuple[dict[str, Any], Any]]:
         """``(variables, made value)`` for each value of the loop, nested loops flattened."""
         if depth >= MAX_MACRO_DEPTH:
-            raise _MacroError(where, f"macros are nested more than {MAX_MACRO_DEPTH} deep", "flatten the loops into data")
+            raise _MacroError(where, f"macros are nested more than {MAX_MACRO_DEPTH} deep",
+                              "flatten the loops into data")
         unknown = sorted(set(macro) - _KEYS)
         if unknown:
             raise _MacroError(_join(where, unknown[0]), "is not a macro field",
@@ -184,7 +192,8 @@ class _Expander:
         name = self.variable(macro, "as", env, where)
         index_name = self.variable(macro, "index", env, where) if macro.get("index") is not None else None
         if index_name is not None and index_name == name:
-            raise _MacroError(_join(where, "index"), f"`index` and `as` both name '{name}'", "give the position its own name")
+            raise _MacroError(_join(where, "index"), f"`index` and `as` both name '{name}'",
+                              "give the position its own name")
         values = self.values(macro["for"], env, _join(where, "for"), depth)
         make = macro["make"]
         for position, value in enumerate(values):
@@ -200,7 +209,7 @@ class _Expander:
                                   "generate less, or split the environment")
             yield inner, self.walk(copy.deepcopy(make), inner, _join(where, "make"), depth + 1)
 
-    def variable(self, macro: Mapping[str, Any], key: str, env: Dict[str, Any], where: str) -> str:
+    def variable(self, macro: Mapping[str, Any], key: str, env: dict[str, Any], where: str) -> str:
         name = macro.get(key)
         at = _join(where, key)
         if name is None:
@@ -208,15 +217,17 @@ class _Expander:
         if not isinstance(name, str) or not _NAME.match(name):
             raise _MacroError(at, f"must be a name of letters, digits and _, got {json.dumps(name)}", 'e.g. "street"')
         if name in env:
-            raise _MacroError(at, f"'{name}' is already a variable of an enclosing macro", "give the inner loop its own name")
+            raise _MacroError(at, f"'{name}' is already a variable of an enclosing macro",
+                              "give the inner loop its own name")
         return name
 
-    def values(self, source: Any, env: Dict[str, Any], where: str, depth: int) -> List[Any]:
+    def values(self, source: Any, env: dict[str, Any], where: str, depth: int) -> list[Any]:
         if isinstance(source, str):
             resolved = self.text(source, env, where) if env else source
             if not isinstance(resolved, list):
-                raise _MacroError(where, f"must be a list, a range or a placeholder giving a list; {json.dumps(source)} "
-                                         f"gives {_kind(resolved)}", 'e.g. ["flop", "turn"] or {"range": [1, 4]}')
+                raise _MacroError(where, "must be a list, a range or a placeholder giving a list; "
+                                         f"{json.dumps(source)} gives {_kind(resolved)}",
+                                  'e.g. ["flop", "turn"] or {"range": [1, 4]}')
             return resolved
         if isinstance(source, list):
             return list(self.walk(source, env, where, depth))
@@ -225,13 +236,18 @@ class _Expander:
         raise _MacroError(where, f"must be a list, a range or a placeholder giving a list, got {_kind(source)}",
                           'e.g. ["flop", "turn"], {"range": 3} or {"range": [1, 4]}')
 
-    def range(self, spec: Any, env: Dict[str, Any], where: str) -> List[int]:
+    def range(self, spec: Any, env: dict[str, Any], where: str) -> list[int]:
         bounds = spec if isinstance(spec, list) else [spec]
         bounds = [self.text(b, env, where) if isinstance(b, str) and env else b for b in bounds]
         if not 1 <= len(bounds) <= 3 or not all(isinstance(b, int) and not isinstance(b, bool) for b in bounds):
-            raise _MacroError(where, f"must be a whole number n (0..n-1) or [start, end] or [start, end, step], got {json.dumps(spec)}",
+            raise _MacroError(where,
+                              "must be a whole number n (0..n-1) or [start, end] or [start, end, step], got "
+                              f"{json.dumps(spec)}",
                               'e.g. {"range": [1, 4]} gives 1, 2, 3')
-        start, end, step = (0, bounds[0], 1) if len(bounds) == 1 else (bounds[0], bounds[1], bounds[2] if len(bounds) == 3 else 1)
+        if len(bounds) == 1:
+            start, end, step = 0, bounds[0], 1
+        else:
+            start, end, step = bounds[0], bounds[1], bounds[2] if len(bounds) == 3 else 1
         if step == 0:
             raise _MacroError(where, "the step cannot be 0")
         count = max(0, -(-(end - start) // step))
@@ -241,20 +257,20 @@ class _Expander:
 
     # -- placeholders -------------------------------------------------------------
 
-    def text(self, source: str, env: Dict[str, Any], where: str) -> Any:
+    def text(self, source: str, env: dict[str, Any], where: str) -> Any:
         """``source`` with loop placeholders replaced; a lone placeholder gives the value itself."""
         whole = _PLACEHOLDER.fullmatch(source)
         if whole is not None and whole.group(1) in env:
             return copy.deepcopy(self.lookup(whole, env, where))
 
-        def replace(match: "re.Match[str]") -> str:
+        def replace(match: re.Match[str]) -> str:
             if match.group(1) not in env:
                 return match.group(0)
             return _written(self.lookup(match, env, where))
 
         return _PLACEHOLDER.sub(replace, source)
 
-    def lookup(self, match: "re.Match[str]", env: Dict[str, Any], where: str) -> Any:
+    def lookup(self, match: re.Match[str], env: dict[str, Any], where: str) -> Any:
         name, fields, sign, amount = match.groups()
         value = env[name]
         reached = name
@@ -273,7 +289,8 @@ class _Expander:
             reached = f"{reached}.{part}"
         if sign:
             if isinstance(value, bool) or not isinstance(value, int):
-                raise _MacroError(where, f"{match.group(0)}: only a whole number can be offset; {reached} is {_kind(value)}")
+                raise _MacroError(where,
+                                  f"{match.group(0)}: only a whole number can be offset; {reached} is {_kind(value)}")
             value = value + int(amount) if sign == "+" else value - int(amount)
         return value
 

@@ -3,7 +3,8 @@
 .. code-block:: json
 
     "trial": {"kind": "flow", "mode": "procedure", "phases": {...}, "stack": {"who": ["attorney", "judge"], "kinds": {
-        "exhibit": {"tool": false, "params": {"name": "text"}, "responders": "$is($it, attorney) and $it.id != $item.by",
+        "exhibit": {"tool": false, "params": {"name": "text"}, "responders": "$is($it, attorney) and $it.id !=
+        $item.by",
                     "resolve": ["$world.admitted += $params.name"]},
         "objection": {"starts": false, "on": ["exhibit"], "who": "attorney", "responders": "$is($it, judge)",
                       "resolve": [{"if": "$world.sustained", "then": [{"flow": "trial", "action": "counter"}]}]},
@@ -30,14 +31,15 @@ body, not by effects; a stack item's ``resolve`` may still act on a deliberation
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, truthy
 from ..expr.template import compile_template, format_value
+from ..world.entity import Entity
 from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects
@@ -54,49 +56,73 @@ class StackKind(Config):
 
     title: str = Field("", description="What it is called, in plain words (default: the kind's name).")
     description: str = Field("", description="Tool description (default: generated from the rules).")
-    who: Union[str, List[str], None] = Field(None, description="Agent type(s) that may push it (default: the stack's `who`).")
-    params: Dict[str, Any] = Field(default_factory=dict, description="Tool params (ordinary param specs), kept on the item as $params.")
+    who: str | list[str] | None = Field(None,
+                                        description="Agent type(s) that may push it (default: the stack's `who`).")
+    params: dict[str, Any] = Field(default_factory=dict,
+                                   description="Tool params (ordinary param specs), kept on the item as $params.")
     starts: bool = Field(True, description="It may be pushed onto an empty stack.")
-    on: List[str] = Field(default_factory=list, description="Kinds it may be pushed on top of (answer).")
-    when: Optional[str] = Field(None, description="Extra condition to push it ($actor, $top: the item it would answer, or null).")
+    on: list[str] = Field(default_factory=list, description="Kinds it may be pushed on top of (answer).")
+    when: str | None = Field(None,
+                             description="Extra condition to push it ($actor, $top: the item it would answer, or "
+                                         "null).")
     why: str = Field("", description="What the agent is told when it may not push it.")
-    responders: str = Field("$it.id != $item.by", description="Who owes it an answer while it is on top: an expression over $it (an agent) and $item.")
+    responders: str = Field("$it.id != $item.by",
+                            description="Who owes it an answer while it is on top: an expression over $it (an agent) "
+                                        "and $item.")
     show: str = Field("", description="How the item reads after its title (template over $item, $params, $actor).")
-    on_push: Effects = Field(default_factory=list, description="Effects when it is pushed, e.g. paying a cost ($actor, $params, $item, $below).")
-    resolve: Effects = Field(default_factory=list, description="Effects when it resolves ($actor = who pushed it, $params, $item, $below).")
+    on_push: Effects = Field(default_factory=list,
+                             description="Effects when it is pushed, e.g. paying a cost ($actor, $params, $item, "
+                                         "$below).")
+    resolve: Effects = Field(default_factory=list,
+                             description="Effects when it resolves ($actor = who pushed it, $params, $item, $below).")
     countered: Effects = Field(default_factory=list, description="Effects when it is countered instead of resolving.")
-    tool: bool = Field(True, description="Generate the `<name>_<kind>` tool; false = pushed only by the push action in your actions.")
+    tool: bool = Field(True,
+                       description="Generate the `<name>_<kind>` tool; false = pushed only by the push action in your "
+                                   "actions.")
 
 
 class StackConfig(Config):
     """A response stack: items agents answer, resolved last in, first out."""
 
-    who: Union[str, List[str]] = Field(..., description="Agent type(s) that answer items (and push them unless a kind says `who`).")
-    kinds: Dict[str, StackKind] = Field(..., description="{kind: {title, who, params, starts, on, when, why, responders, show, on_push, resolve, countered, tool}}.")
-    reopen: bool = Field(True, description="An item that comes back to the top (the one above resolved or was countered) gets a fresh response window.")
-    silence: Literal["pass", "wait"] = Field("pass", description="Ending a window turn without acting: pass, or keep owing an answer.")
-    unanswered: Literal["pass", "wait"] = Field("pass", description="Answers still owed when the window stage ends: pass (the stack resolves), or wait for the next round.")
+    who: str | list[str] = Field(...,
+                                 description="Agent type(s) that answer items (and push them unless a kind says "
+                                             "`who`).")
+    kinds: dict[str, StackKind] = Field(...,
+                                        description="{kind: {title, who, params, starts, on, when, why, responders, "
+                                                    "show, on_push, resolve, countered, tool}}.")
+    reopen: bool = Field(True,
+                         description="An item that comes back to the top (the one above resolved or was countered) "
+                                     "gets a fresh response window.")
+    silence: Literal["pass", "wait"] = Field("pass",
+                                             description="Ending a window turn without acting: pass, or keep owing an "
+                                                         "answer.")
+    unanswered: Literal["pass", "wait"] = Field("pass",
+                                                description="Answers still owed when the window stage ends: pass (the "
+                                                            "stack resolves), or wait for the next round.")
     max_depth: int = Field(16, ge=1, le=64, description="Most items on the stack at once.")
     passes: int = Field(12, ge=1, le=100, description="Most passes of the window stage per round.")
-    stage: Optional[str] = Field(None, description="Hold windows in this declared stage instead of a generated `<name>_stack` stage.")
+    stage: str | None = Field(None,
+                              description="Hold windows in this declared stage instead of a generated `<name>_stack` "
+                                          "stage.")
     views: bool = Field(True, description="Show the agents the stack while it holds items.")
 
     @model_validator(mode="after")
-    def _shape(self) -> "StackConfig":
+    def _shape(self) -> StackConfig:
         if not self.kinds:
             raise ValueError("a stack needs at least one kind")
         for kind, spec in self.kinds.items():
             for below in spec.on:
                 if below not in self.kinds:
-                    raise ValueError(f"kind '{kind}': '{below}' in `on` is not a kind ({common.suggest(below, self.kinds)})")
+                    raise ValueError(f"kind '{kind}': '{below}' in `on` is not a kind "
+                                     f"({common.suggest(below, self.kinds)})")
         if not any(spec.starts for spec in self.kinds.values()):
             raise ValueError("no kind `starts` a stack, so nothing can ever be pushed")
         return self
 
-    def player_types(self) -> List[str]:
+    def player_types(self) -> list[str]:
         return [self.who] if isinstance(self.who, str) else list(self.who)
 
-    def pushers(self, kind: str) -> List[str]:
+    def pushers(self, kind: str) -> list[str]:
         who = self.kinds[kind].who
         return self.player_types() if who is None else ([who] if isinstance(who, str) else list(who))
 
@@ -109,26 +135,28 @@ class StackConfig(Config):
 # ---------------------------------------------------------------------------
 
 
-def _items(world: Any, name: str) -> List[Dict[str, Any]]:
+def _items(world: Any, name: str) -> list[dict[str, Any]]:
     raw = world.props.get(f"{name}_stack") or {}
-    return [{**item, "responders": list(item["responders"]), "passed": list(item["passed"])} for item in raw.get("items", [])]
+    return [{**item, "responders": list(item["responders"]), "passed": list(item["passed"])}
+            for item in raw.get("items", [])]
 
 
-def _save(world: Any, name: str, items: List[Dict[str, Any]], issued: Optional[int] = None) -> None:
+def _save(world: Any, name: str, items: list[dict[str, Any]], issued: int | None = None) -> None:
     raw = world.props.get(f"{name}_stack") or {}
     world.set_world(f"{name}_stack", {"items": items, "next": raw.get("next", 1) if issued is None else issued})
 
 
 def _emit(world: Any, name: str, text: str, act: str, item: Mapping[str, Any], **extra: Any) -> None:
-    world.emit(f"{name}_stack", text, data={"mechanism": name, "act": act, "item": item["id"], "kind": item["kind"]}, **extra)
+    world.emit(f"{name}_stack", text, data={"mechanism": name, "act": act, "item": item["id"], "kind": item["kind"]},
+               **extra)
 
 
-def _waiting(world: Any, item: Mapping[str, Any]) -> List[str]:
+def _waiting(world: Any, item: Mapping[str, Any]) -> list[str]:
     entities = world.entities
     return [r for r in item["responders"] if r not in item["passed"] and r in entities and entities[r].alive]
 
 
-def _view(world: Any, cfg: StackConfig, item: Optional[Mapping[str, Any]]) -> Optional[Dict[str, Any]]:
+def _view(world: Any, cfg: StackConfig, item: Mapping[str, Any] | None) -> dict[str, Any] | None:
     """An item as expressions read it."""
     if item is None:
         return None
@@ -138,10 +166,11 @@ def _view(world: Any, cfg: StackConfig, item: Optional[Mapping[str, Any]]) -> Op
             "waiting": _waiting(world, item)}
 
 
-def _vars(world: Any, cfg: StackConfig, item: Mapping[str, Any], below: Optional[Mapping[str, Any]]) -> Dict[str, Any]:
+def _vars(world: Any, cfg: StackConfig, item: Mapping[str, Any], below: Mapping[str, Any] | None) -> dict[str, Any]:
     view = _view(world, cfg, item)
     assert view is not None
-    return {"actor": world.entities.get(item["by"]), "params": view["params"], "item": view, "below": _view(world, cfg, below)}
+    return {"actor": world.entities.get(item["by"]), "params": view["params"], "item": view,
+            "below": _view(world, cfg, below)}
 
 
 def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], by: bool = True) -> str:
@@ -158,7 +187,7 @@ def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], by: bool = 
     return f"{text}: {shown}" if shown.strip() else text
 
 
-def _names(world: Any, ids: List[str]) -> str:
+def _names(world: Any, ids: list[str]) -> str:
     return ", ".join(world.entities[i].name for i in ids if i in world.entities) or "nobody"
 
 
@@ -167,7 +196,7 @@ def _names(world: Any, ids: List[str]) -> str:
 # ---------------------------------------------------------------------------
 
 
-def refusal(world: Any, name: str, cfg: StackConfig, kind: str, actor: Entity) -> Optional[str]:
+def refusal(world: Any, name: str, cfg: StackConfig, kind: str, actor: Entity) -> str | None:
     """Why ``actor`` may not push ``kind`` now, or None when it may."""
     spec = cfg.kinds[kind]
     title = cfg.title(kind)
@@ -184,7 +213,8 @@ def refusal(world: Any, name: str, cfg: StackConfig, kind: str, actor: Entity) -
             return f"A {title} cannot answer the {cfg.title(top['kind'])} on top of the stack."
         if actor.id not in _waiting(world, top):
             return f"You do not owe the {cfg.title(top['kind'])} [{top['id']}] an answer."
-    if spec.when is not None and not truthy(compile_expr(spec.when)(world.scope(actor=actor, top=_view(world, cfg, top)))):
+    if (spec.when is not None
+        and not truthy(compile_expr(spec.when)(world.scope(actor=actor, top=_view(world, cfg, top))))):
         return spec.why or f"You cannot push a {title} now."
     return None
 
@@ -199,15 +229,16 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
         raise RunError(f"params must be a map of the kind's params, got {params!r}", f"{where}.params")
     unknown = sorted(set(params) - set(spec.params))
     if unknown:
-        raise RunError(f"kind '{kind}' has no params {unknown} (params: {', '.join(spec.params) or 'none'})", f"{where}.params")
+        raise RunError(f"kind '{kind}' has no params {unknown} (params: {', '.join(spec.params) or 'none'})",
+                       f"{where}.params")
     items = _items(world, name)
     issued = int((world.props.get(f"{name}_stack") or {}).get("next", 1))
     below = items[-1] if items else None
     if below is not None:
         below["passed"].append(actor.id)  # pushing an answer is this agent's answer to the item below
-    item: Dict[str, Any] = {"id": issued, "kind": kind, "by": actor.id, "params": common.freeze(dict(params)),
-                            "capture_version": common.CAPTURE_VERSION, "on": below["id"] if below else None, "round": world.round,
-                            "responders": [], "passed": []}
+    item: dict[str, Any] = {"id": issued, "kind": kind, "by": actor.id, "params": common.freeze(dict(params)),
+                            "capture_version": common.CAPTURE_VERSION, "on": below["id"] if below else None,
+                            "round": world.round, "responders": [], "passed": []}
     view = _view(world, cfg, item)
     at = f"mechanisms.{name}.stack.kinds.{kind}"
     for player in common.carriers(world, cfg.player_types()):
@@ -221,7 +252,8 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     runner.run(spec.on_push, _vars(world, cfg, item, below), f"{at}.on_push")
     waiting = _waiting(world, item)
     tail = f" Waiting on {_names(world, waiting)} to answer." if waiting else ""
-    _emit(world, name, f"{actor.name} pushes {_describe(world, cfg, item, by=False)}.{tail}", "push", item, actor=actor.id)
+    _emit(world, name, f"{actor.name} pushes {_describe(world, cfg, item, by=False)}.{tail}", "push", item,
+          actor=actor.id)
     _settle(runner, name, cfg, where)
 
 
@@ -237,7 +269,8 @@ def _answer(runner: Any, name: str, cfg: StackConfig, actor: Entity, action: str
         return
     top["passed"].append(actor.id)
     _save(world, name, items)
-    _emit(world, name, f"{actor.name} lets the {cfg.title(top['kind'])} [{top['id']}] stand.", "pass", top, actor=actor.id)
+    _emit(world, name, f"{actor.name} lets the {cfg.title(top['kind'])} [{top['id']}] stand.", "pass", top,
+          actor=actor.id)
     _settle(runner, name, cfg, where)
 
 
@@ -297,13 +330,14 @@ def _close(runner: Any, name: str, cfg: StackConfig, where: str) -> None:
         waiting = _waiting(world, top)
         top["passed"] += waiting
         _save(world, name, items)
-        _emit(world, name, f"Time is up: {_names(world, waiting)} let the {cfg.title(top['kind'])} [{top['id']}] stand.",
+        _emit(world, name,
+              f"Time is up: {_names(world, waiting)} let the {cfg.title(top['kind'])} [{top['id']}] stand.",
               "timeout", top)
         _settle(runner, name, cfg, where)
     raise RunError(f"the {name} stack kept growing while it was closed (a loop?)", where)
 
 
-def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapping[str, Any], vars: Dict[str, Any],
+def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapping[str, Any], vars: dict[str, Any],
              where: str) -> None:
     """One stack action of the flow op: push, pass, idle, counter or close."""
     world = runner.world
@@ -327,7 +361,8 @@ def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapp
     if action == "push":
         kind = effect["item"]
         if kind not in cfg.kinds:
-            raise RunError(f"'{kind}' is not a kind of the {name} stack ({common.suggest(str(kind), cfg.kinds)})", f"{where}.item")
+            raise RunError(f"'{kind}' is not a kind of the {name} stack ({common.suggest(str(kind), cfg.kinds)})",
+                           f"{where}.item")
         _push(runner, name, cfg, kind, actor, runner.eval(effect.get("params") or {}, vars), where)
     else:
         _answer(runner, name, cfg, actor, action, where)
@@ -338,7 +373,7 @@ def run_step(runner: Any, name: str, cfg: StackConfig, action: str, effect: Mapp
 # ---------------------------------------------------------------------------
 
 
-def check_push(name: str, cfg: StackConfig, effect: Mapping[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+def check_push(name: str, cfg: StackConfig, effect: Mapping[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     """Problems with a push action: the item must be a kind of the stack."""
     item = effect.get("item")
     if item in cfg.kinds:
@@ -371,7 +406,8 @@ def read_stack(call: Call, name: str, cfg: StackConfig) -> Any:
     if arity is None:
         raise ExprError(f"$stack: read must be one of {', '.join(READS)}, got {read!r}", call.source)
     if not arity[0] <= len(call) <= arity[1]:
-        extra = {"waiting": " (and optionally an agent)", "can_push": " a kind and an agent", "text": " (and optionally a viewer)"}
+        extra = {"waiting": " (and optionally an agent)", "can_push": " a kind and an agent",
+                 "text": " (and optionally a viewer)"}
         raise ExprError(f"$stack: `{read}` takes the procedure name{extra.get(read, '')}", call.source)
     items = _items(world, name)
     if read == "items":
@@ -384,39 +420,43 @@ def read_stack(call: Call, name: str, cfg: StackConfig) -> Any:
     if read == "can_push":
         kind = call.arg(2)
         if kind not in cfg.kinds:
-            raise ExprError(f"$stack: '{kind}' is not a kind of the {name} stack ({common.suggest(str(kind), cfg.kinds)})", call.source)
+            raise ExprError(f"$stack: '{kind}' is not a kind of the {name} stack "
+                            f"({common.suggest(str(kind), cfg.kinds)})", call.source)
         return refusal(world, name, cfg, kind, _entity_arg(call, 3)) is None
     return _text(world, name, cfg, _entity_arg(call, 2) if len(call) > 2 else None)
 
 
-def _text(world: Any, name: str, cfg: StackConfig, viewer: Optional[Entity]) -> str:
+def _text(world: Any, name: str, cfg: StackConfig, viewer: Entity | None) -> str:
     items = _items(world, name)
     if not items:
         return "The stack is empty."
     lines = [f"{'Top' if depth == 0 else 'Below'}: {_describe(world, cfg, item)}"
-             + (f" (answers [{item['on']}])" if item["on"] is not None else "") for depth, item in enumerate(reversed(items))]
+             + (f" (answers [{item['on']}])" if item["on"] is not None else "")
+             for depth, item in enumerate(reversed(items))]
     waiting = _waiting(world, items[-1])
     lines.append(f"Waiting on: {_names(world, waiting)}.")
     if viewer is not None and viewer.id in waiting:
-        options = [cfg.title(k) for k, spec in cfg.kinds.items() if spec.tool and refusal(world, name, cfg, k, viewer) is None]
+        options = [cfg.title(k) for k, spec in cfg.kinds.items() if spec.tool
+                   and refusal(world, name, cfg, k, viewer) is None]
         lines.append("You may answer with " + (", ".join(options) + " or pass." if options else "a pass."))
     return "\n".join(lines)
 
 
-def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     """The sections a procedure's stack adds: its state, tools, window stage (or hook) and view."""
     for type_name in cfg.player_types():
         require_type(contract, type_name, "stack.who", agent=True)
     for kind, spec in cfg.kinds.items():
         at = f"stack.kinds.{kind}"
         if not common.NAME.match(kind):
-            raise common.MechanismError(f"kind name '{kind}' must start with a letter and use letters, digits and _", None, at)
+            raise common.MechanismError(f"kind name '{kind}' must start with a letter and use letters, digits and _",
+                                        None, at)
         for type_name in cfg.pushers(kind) if spec.who is not None else ():
             require_type(contract, type_name, f"{at}.who", agent=True)
         check_expr(spec.when, f"{at}.when", ("actor", "top"))
         check_expr(spec.responders, f"{at}.responders", ("it", "item"))
     op = {"flow": name}
-    actions: Dict[str, Any] = {}
+    actions: dict[str, Any] = {}
     for kind, spec in cfg.kinds.items():
         if not spec.tool:
             continue
@@ -424,23 +464,26 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> Di
         answers = f" It answers a {' or '.join(cfg.title(k) for k in spec.on)} on top of the stack." if spec.on else ""
         actions[f"{name}_{kind}"] = {
             "by": cfg.pushers(kind),
-            "description": spec.description or f"Push a {title} onto the stack.{answers}" + ("" if spec.starts else " It cannot start a stack."),
-            "params": spec.params,
-            "when": [{"expr": f"$stack({name}, can_push, {kind}, $actor)", "why": spec.why or f"You cannot push a {title} now."}],
+            "description": spec.description or f"Push a {title} onto the stack.{answers}"
+            + ("" if spec.starts else " It cannot start a stack."), "params": spec.params,
+            "when": [{"expr": f"$stack({name}, can_push, {kind}, $actor)",
+                      "why": spec.why or f"You cannot push a {title} now."}],
             "do": [{**op, "action": "push", "item": kind, "params": {p: f"$params.{p}" for p in spec.params}}],
             "outcome": f"You pushed a {title}.", "private": True, "terminal": True,
         }
     players = cfg.player_types()
     actions[f"{name}_pass"] = {
         "by": players, "description": "Let the item on top of the stack stand without answering it.",
-        "when": [{"expr": f"$stack({name}, waiting, $actor)", "why": "Nothing on the stack is waiting for your answer."}],
+        "when": [{"expr": f"$stack({name}, waiting, $actor)",
+                  "why": "Nothing on the stack is waiting for your answer."}],
         "do": [{**op, "action": "pass"}], "outcome": "You let it stand.", "private": True, "terminal": True,
     }
-    window: Dict[str, Any] = {"on_exit": [{**op, "action": "close"}]}
+    window: dict[str, Any] = {"on_exit": [{**op, "action": "close"}]}
     if cfg.silence == "pass":
         window["on_idle"] = [{**op, "action": "idle"}]
-    fragment: Dict[str, Any] = {
-        "world": {f"{name}_stack": {"type": "map", "default": {"items": [], "next": 1}, "description": "The stack: its items, bottom first."}},
+    fragment: dict[str, Any] = {
+        "world": {f"{name}_stack": {"type": "map", "default": {"items": [], "next": 1},
+                                    "description": "The stack: its items, bottom first."}},
         "actions": actions,
     }
     if cfg.stage is None:
@@ -451,6 +494,7 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> Di
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": list(actions), **window}}
     if cfg.views:
-        fragment["views"] = {f"{name}_stack": {"for": players, "title": "The stack", "when": f"$stack({name}, top) != null",
+        fragment["views"] = {f"{name}_stack": {"for": players, "title": "The stack",
+                                               "when": f"$stack({name}, top) != null",
                                                "show": f"{{$stack({name}, text, $actor)}}", "bullet": False}}
     return fragment

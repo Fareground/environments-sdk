@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
@@ -33,35 +34,36 @@ _MISSED = {">=": "below", ">": "at or below", "<=": "above", "<": "at or above"}
 @dataclass
 class Table:
     title: str
-    columns: List[str]
-    rows: List[List[str]]
+    columns: list[str]
+    rows: list[list[str]]
 
     def markdown(self) -> str:
         head = "| " + " | ".join(self.columns) + " |"
         rule = "|" + "|".join("---" for _ in self.columns) + "|"
         return "\n".join([f"**{self.title}**", "", head, rule, *("| " + " | ".join(row) + " |" for row in self.rows)])
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"title": self.title, "columns": self.columns, "rows": self.rows}
 
 
 @dataclass
 class Section:
     title: str
-    lines: List[str] = field(default_factory=list)
-    tables: List[Table] = field(default_factory=list)
+    lines: list[str] = field(default_factory=list)
+    tables: list[Table] = field(default_factory=list)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"title": self.title, "lines": self.lines, "tables": [t.to_dict() for t in self.tables]}
 
 
-def _ranged(namer: Namer, measure: str, option: Option) -> Optional[str]:
+def _ranged(namer: Namer, measure: str, option: Option) -> str | None:
     found = summary(option.values(measure))
     if found is None:
         return None
     if found.n == 1 or math.isclose(found.low, found.high):
         return namer.value(measure, found.median)
-    return f"{namer.value(measure, found.median)} (80% range {namer.value(measure, found.low)}–{namer.value(measure, found.high)})"
+    return (f"{namer.value(measure, found.median)} (80% range "
+            f"{namer.value(measure, found.low)}–{namer.value(measure, found.high)})")
 
 
 def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], queues: Sequence[QueueView],
@@ -70,7 +72,8 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
     section = Section("Recommendation" if confident else "What the model says")
     subject = choice.best or (ev.options[0] if len(ev.options) == 1 else None)
     if choice.goal is not None and choice.best is None and ev.options:
-        wanted = "; ".join(f"{namer.name(r.measure)} {r.op} {namer.value(r.measure, r.value)}" for r in choice.requirements)
+        wanted = "; ".join(f"{namer.name(r.measure)} {r.op} {namer.value(r.measure, r.value)}"
+                           for r in choice.requirements)
         if choice.excluded:
             section.lines.append("No option has complete valid evidence meeting the decision rule.")
         else:
@@ -90,15 +93,18 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
         if expected:
             section.lines.append("Expected: " + "; ".join(expected) + ".")
         if ev.kind == "run":
-            section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for one.")
+            section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
+                                 "one.")
     if choice.goal is None and len(ev.options) > 1:
-        section.lines.append("No decision rule was given (objective and require), so the options are compared, not ranked.")
+        section.lines.append("No decision rule was given (objective and require), so the options are compared, not "
+                             "ranked.")
     if len(ev.options) > 1:
         section.tables.append(outcomes(ev, choice, namer, measures, sure))
     for view in queues:
         if subject is not None and view.staff(subject):
             section.tables.append(Table("Staffing plan", ["When", view.server_word.capitalize(), "Customers",
-                                                          "Service level (80% range)", f"Worst {unit_word(view.clock)}"],
+                                                          "Service level (80% range)",
+                                                          f"Worst {unit_word(view.clock)}"],
                                         view.plan_rows(subject, namer)))
     return section
 
@@ -157,7 +163,7 @@ def _named(text: str, measures: Mapping[str, Any], namer: Namer) -> str:
     return re.sub(r"\bin day (\d+)", r"on day \1", text)
 
 
-def _differences(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], owner: bool) -> List[str]:
+def _differences(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], owner: bool) -> list[str]:
     """Each option's clear paired difference from the control. An owner reads the outcomes the decision is judged on
     (its requirements, else its goal), strongest first; a difference that is the same in every run is the option
     itself (a staffing cost), not a cause, and is left to the analyst."""
@@ -186,7 +192,7 @@ def _differences(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[
     return [text for _, text in ranked[: _OWNER_ITEMS if owner else None]]
 
 
-def _sweep_drivers(ev: Evidence, namer: Namer, measures: Sequence[str], owner: bool) -> List[str]:
+def _sweep_drivers(ev: Evidence, namer: Namer, measures: Sequence[str], owner: bool) -> list[str]:
     assert ev.sweep is not None
     out = []
     for measure, effects in ev.sweep.main_effects().items():
@@ -213,7 +219,7 @@ def _sweep_drivers(ev: Evidence, namer: Namer, measures: Sequence[str], owner: b
     return out
 
 
-def _representative(option: Optional[Option], choice: Choice, measures: Sequence[str]) -> Any:
+def _representative(option: Option | None, choice: Choice, measures: Sequence[str]) -> Any:
     if option is None or not option.runs:
         return None
     measure = choice.goal.measure if choice.goal else (measures[0] if measures else None)
@@ -254,7 +260,8 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
                                      "a typical run.")
             unserved = summary(best.values(f"{view.name}_callbacks_unserved"))
             if unserved is not None and unserved.median > 0:
-                section.lines.append(f"About {unserved.median:.0f} callbacks are still waiting at the end of a typical run.")
+                section.lines.append(f"About {unserved.median:.0f} callbacks are still waiting at the end of a typical "
+                                     "run.")
     for option in ev.options:
         if option is best or option.label in choice.feasible:
             continue
@@ -277,7 +284,7 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
     return section
 
 
-def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> List[str]:
+def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> list[str]:
     """What the data check found that a plan should allow for: ranges too narrow, forecasts that run high or low. The
     analyst reads the check's own warnings."""
     assert ev.validation is not None
@@ -288,8 +295,8 @@ def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> List[str]:
         accuracy = found.get("held_out") or found["overall"]
         for level, row in (accuracy.get("coverage") or {}).items():
             if math.isclose(float(level), 0.8) and row["coverage_ci95"][1] < row["nominal"]:
-                out.append(f"Ranges for {namer.name(measure)} are too narrow: its 80% ranges held {row['coverage']:.0%} "
-                           "of actual values, so plan with a margin.")
+                out.append(f"Ranges for {namer.name(measure)} are too narrow: its 80% ranges held "
+                           f"{row['coverage']:.0%} of actual values, so plan with a margin.")
         if bias_verdict(accuracy) and accuracy.get("bias") is not None:
             out.append(f"{namer.name(measure).capitalize()} forecasts run {abs(accuracy['bias']):.0%} "
                        f"{'high' if accuracy['bias'] > 0 else 'low'}.")
@@ -312,9 +319,11 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
         shown = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
         section.lines.append(f"{spec.description.rstrip('.')}, set to {shown}." if owner else
                              f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
-    fitted = [name for name, spec in contract.inputs.items() if "fitted by fg_env.analysis.fit_patterns" in spec.description]
+    fitted = [name for name, spec in contract.inputs.items()
+              if "fitted by fg_env.analysis.fit_patterns" in spec.description]
     if fitted:
-        count = f"{len(fitted)} {plural('parameter', len(fitted))} {'is' if len(fitted) == 1 else 'are'} estimated from the data"
+        count = (f"{len(fitted)} {plural('parameter', len(fitted))} {'is' if len(fitted) == 1 else 'are'} estimated "
+                 "from the data")
         section.lines.append(f"{count}; the analyst report lists them." if owner else f"{count}: {', '.join(fitted)}.")
     if contract.description and not section.lines:
         section.lines.append(contract.description)
@@ -325,18 +334,21 @@ def fit(ev: Evidence, namer: Namer) -> Section:
     section = Section("How well it matched the data")
     validation = ev.validation
     if validation is None:
-        section.lines.append("Not checked against data here: pass validation=fg_env.analysis.validate(contract, cases).")
+        section.lines.append("Not checked against data here: pass validation=fg_env.analysis.validate(contract, "
+                             "cases).")
         return section
     for measure, found in validation.measures.items():
         held = found.get("held_out")
         accuracy = held or found["overall"]
         where = "held-out" if held else "historical"
         wape, bias = accuracy.get("wape"), accuracy.get("bias")
-        text = f"{namer.name(measure).capitalize()}: off by {wape:.0%} on average over {accuracy['n']} {where} value(s)" \
+        text = (f"{namer.name(measure).capitalize()}: off by {wape:.0%} on average over {accuracy['n']} {where} "
+                "value(s)") \
             if wape is not None else f"{namer.name(measure).capitalize()}: {accuracy['n']} {where} value(s)"
         if bias is not None:
             text += f"; forecasts ran {abs(bias):.0%} {'high' if bias > 0 else 'low'}" if bias_verdict(accuracy) \
-                else "; no clear bias" if abs(bias) < 0.005 else f"; no clear bias ({abs(bias):.0%} {'high' if bias > 0 else 'low'}, within noise)"
+                else "; no clear bias" if abs(bias) < 0.005 else (f"; no clear bias ({abs(bias):.0%} "
+                                                                  f"{'high' if bias > 0 else 'low'}, within noise)")
         coverage = _coverage(accuracy)
         if coverage is not None:
             text += f"; its 80% ranges held {coverage:.0%} of actual values"
@@ -345,7 +357,7 @@ def fit(ev: Evidence, namer: Namer) -> Section:
     return section
 
 
-def _coverage(accuracy: Mapping[str, Any]) -> Optional[float]:
+def _coverage(accuracy: Mapping[str, Any]) -> float | None:
     for level, found in (accuracy.get("coverage") or {}).items():
         if math.isclose(float(level), 0.8):
             return float(found["coverage"])
@@ -356,14 +368,14 @@ def method(ev: Evidence, namer: Namer, choice: Choice) -> Section:
     section = Section("Method")
     runs = [len(o.runs) for o in ev.options]
     if runs:
-        section.lines.append(f"{sum(runs)} run(s) over {len(ev.options)} option(s); runs of different options share seeds "
-                             "(common random numbers), so differences come from the options, not from luck.")
+        section.lines.append(f"{sum(runs)} run(s) over {len(ev.options)} option(s); runs of different options share "
+                             "seeds (common random numbers), so differences come from the options, not from luck.")
     section.lines.append("Ranges hold the middle 80% of runs (10th to 90th percentile); differences are paired over "
                          "shared seeds, with 95% t intervals.")
     if choice.goal is not None:
         rule = ", ".join(f"{r.measure} {r.op} {r.value:g}" for r in choice.requirements) or "no requirement"
-        section.lines.append(f"Decision rule: {choice.goal.direction} {choice.goal.measure} subject to {rule} (on means); "
-                             f"options meeting it: {', '.join(choice.feasible) or 'none'}.")
+        section.lines.append(f"Decision rule: {choice.goal.direction} {choice.goal.measure} subject to {rule} (on "
+                             f"means); options meeting it: {', '.join(choice.feasible) or 'none'}.")
     if ev.options:
         measures = sorted({k for o in ev.options for r in o.runs for k, v in r.outputs.items()
                            if isinstance(v, (int, float)) and not isinstance(v, bool)})

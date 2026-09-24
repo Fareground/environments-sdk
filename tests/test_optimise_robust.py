@@ -76,8 +76,10 @@ def test_each_key_must_hold_with_confidence_and_the_tightest_keys_are_named_as_b
 
 def test_at_most_some_keys_may_miss_so_the_plan_is_cheaper_than_one_where_each_holds():
     each = fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", ["each sl_by_slot >= 0.9"], runs=12, budget=120)
-    some = fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", ["at most 1 of sl_by_slot < 0.9"], runs=12, budget=120)
-    assert some.verdict == "feasible" and some.estimates["objectives"][0]["value"] < each.estimates["objectives"][0]["value"]
+    some = fg_env.analysis.optimise(SLOTS, STAFF, "minimise cost", ["at most 1 of sl_by_slot < 0.9"], runs=12,
+                                    budget=120)
+    assert (some.verdict == "feasible" and some.estimates["objectives"][0]["value"]
+            < each.estimates["objectives"][0]["value"])
     (row,) = some.estimates["constraints"]
     assert row["keys_needed"] == 3 and row["value"] <= 1
 

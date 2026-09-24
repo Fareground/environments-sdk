@@ -7,8 +7,9 @@ in batches until an estimate is as precise as asked, and shows how it converged.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
 from ..api import ContractLike
 from . import runner
@@ -30,52 +31,56 @@ class BacktestResult:
     output: str
     kind: str
     runs: int
-    cases: List[Dict[str, Any]]
-    scores: Dict[str, Any]
-    notes: List[str] = field(default_factory=list)
+    cases: list[dict[str, Any]]
+    scores: dict[str, Any]
+    notes: list[str] = field(default_factory=list)
     #: Scores on held-out cases against a climatology from the other cases (``test`` or ``folds``), else ``None``.
-    holdout: Optional[Dict[str, Any]] = None
+    holdout: dict[str, Any] | None = None
 
     def report(self) -> str:
         s = self.scores
-        lines = [f"Backtest of {self.output} in {self.contract}: {len(self.cases)} case(s) × {self.runs} run(s), {self.kind}"]
+        lines = [f"Backtest of {self.output} in {self.contract}: {len(self.cases)} case(s) × {self.runs} run(s), "
+                 f"{self.kind}"]
         if self.kind == "binary":
             clim = s["climatology"]
-            lines.append(f"Brier {s['brier']:.4f} (climatology {clim['brier']:.4f}{', in-sample' if clim['in_sample'] else ''}), "
-                         f"skill {_pct(s['skill'])}, log loss {s['log_loss']:.4f}, ECE {s['ece']:.4f}")
+            lines.append(f"Brier {s['brier']:.4f} (climatology "
+                         f"{clim['brier']:.4f}{', in-sample' if clim['in_sample'] else ''}), skill {_pct(s['skill'])}, "
+                         f"log loss {s['log_loss']:.4f}, ECE {s['ece']:.4f}")
             m = s["murphy"]
-            lines.append(f"Murphy: reliability {m['reliability']:.4f}, resolution {m['resolution']:.4f}, uncertainty {m['uncertainty']:.4f}")
+            lines.append(f"Murphy: reliability {m['reliability']:.4f}, resolution {m['resolution']:.4f}, uncertainty "
+                         f"{m['uncertainty']:.4f}")
         elif self.kind == "categorical":
-            lines.append(f"Brier {s['brier']:.4f}, log loss {s['log_loss']:.4f}, accuracy {s['accuracy']:.0%}, skill {_pct(s['skill'])}")
+            lines.append(f"Brier {s['brier']:.4f}, log loss {s['log_loss']:.4f}, accuracy {s['accuracy']:.0%}, skill "
+                         f"{_pct(s['skill'])}")
         else:
             cov = s["coverage"]
-            lines.append(f"CRPS {s['crps']:.4g} (climatology {s['climatology']['crps']:.4g}), skill {_pct(s['skill'])}, "
-                         f"median abs error {s['mae_of_median']:.4g}, {cov['nominal']:.0%} interval coverage {cov['coverage']:.0%}")
+            lines.append(f"CRPS {s['crps']:.4g} (climatology {s['climatology']['crps']:.4g}), skill "
+                         f"{_pct(s['skill'])}, median abs error {s['mae_of_median']:.4g}, {cov['nominal']:.0%} "
+                         f"interval coverage {cov['coverage']:.0%}")
         for case in self.cases:
             lines.append(f"  {case['name']}: forecast {case['forecast_text']}, outcome {case['outcome']}")
         if self.holdout:
             h, metric = self.holdout, self.holdout["metric"]
             o = h["out_of_sample"]
             how = "held-out cases" if h["method"] == "test" else f"{len(h['splits'])}-fold cross-validation"
-            lines.append(f"Out of sample ({how}, "
-                         f"climatology from the other cases): {metric} {o[metric]:.4g} (reference {o['reference']:.4g}), "
-                         f"skill {_pct(o['skill'])} over {o['n']} case(s)")
+            lines.append(f"Out of sample ({how}, climatology from the other cases): {metric} {o[metric]:.4g} "
+                         f"(reference {o['reference']:.4g}), skill {_pct(o['skill'])} over {o['n']} case(s)")
             for row in h["splits"]:
-                lines.append(f"  {row['label']}, held out {', '.join(row['test'])}: {metric} {row['scores'][metric]:.4g}, "
-                             f"skill {_pct(row['scores']['skill'])}")
+                lines.append(f"  {row['label']}, held out {', '.join(row['test'])}: {metric} "
+                             f"{row['scores'][metric]:.4g}, skill {_pct(row['scores']['skill'])}")
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "output": self.output, "kind": self.kind, "runs": self.runs,
                 "cases": self.cases, "scores": self.scores, "notes": self.notes, "holdout": self.holdout}
 
 
-def _pct(value: Optional[float]) -> str:
+def _pct(value: float | None) -> str:
     return "n/a" if value is None else f"{value:+.0%}"
 
 
-def _case_kind(outcomes: Sequence[Any], threshold: Optional[float]) -> str:
+def _case_kind(outcomes: Sequence[Any], threshold: float | None) -> str:
     if all(isinstance(o, bool) for o in outcomes):
         return "binary"
     if all(is_number(o) for o in outcomes):
@@ -86,9 +91,9 @@ def _case_kind(outcomes: Sequence[Any], threshold: Optional[float]) -> str:
 
 
 def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output: str, *, runs: int = 10,
-             threshold: Optional[float] = None, climatology: Any = None, arm: Optional[str] = None,
-             participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
-             bins: int = 10, test: Any = None, folds: Optional[int] = None, data_dir: Any = None,
+             threshold: float | None = None, climatology: Any = None, arm: str | None = None,
+             participants: Any = None, rounds: int | None = None, seed: int = 0, workers: int = 1,
+             bins: int = 10, test: Any = None, folds: int | None = None, data_dir: Any = None,
              hosts: Any = None, uncertainty: Any = None) -> BacktestResult:
     """Score the contract's forecasts of ``output`` against each case's known ``outcome``.
 
@@ -114,7 +119,8 @@ def backtest(contract: ContractLike, cases: Sequence[Mapping[str, Any]], output:
     for i, case in enumerate(cases):
         if not isinstance(case, Mapping) or "outcome" not in case:
             raise ValueError(f"case {i} needs an 'outcome' (and usually 'inputs')")
-    parts = splits(case_names(cases), test=test, folds=folds, seed=seed) if test is not None or folds is not None else []
+    parts = (splits(case_names(cases), test=test, folds=folds, seed=seed) if test is not None or folds is not None
+             else [])
     outcomes = [case["outcome"] for case in cases]
     kind = _case_kind(outcomes, threshold)
     if kind == "categorical" and threshold is not None:
@@ -165,7 +171,7 @@ def _climatology(kind: str, events: Sequence[Any]) -> Any:
     if kind == "binary":
         return sum(1 for e in events if e) / len(events)
     if kind == "categorical":
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for e in events:
             counts[str(e)] = counts.get(str(e), 0) + 1
         return {k: c / len(events) for k, c in counts.items()}
@@ -173,7 +179,7 @@ def _climatology(kind: str, events: Sequence[Any]) -> Any:
 
 
 def _held_out(kind: str, forecasts: Sequence[Any], events: Sequence[Any], parts: Sequence[Split], names: Sequence[str],
-              climatology: Any, bins: int, epsilon: float, nominal: Optional[float], method: str) -> Dict[str, Any]:
+              climatology: Any, bins: int, epsilon: float, nominal: float | None, method: str) -> dict[str, Any]:
     """Every split's held-out cases scored against a climatology from its training cases, pooled over splits."""
     metric = _METRIC[kind]
     rows, value, reference, count = [], 0.0, 0.0, 0
@@ -193,7 +199,7 @@ def _held_out(kind: str, forecasts: Sequence[Any], events: Sequence[Any], parts:
                               "skill": skill_score(pooled, pooled_reference)}}
 
 
-def _forecast(kind: str, raw: List[Any], threshold: Optional[float], name: str) -> tuple:
+def _forecast(kind: str, raw: list[Any], threshold: float | None, name: str) -> tuple:
     if not raw:
         raise runner.AnalysisError(f"{name}: every run failed, so there is no forecast")
     expected = "a finite number" if kind == "ensemble" or threshold is not None else \
@@ -213,14 +219,16 @@ def _forecast(kind: str, raw: List[Any], threshold: Optional[float], name: str) 
         p = sum(flags) / len(flags)
         return p, f"{p:.0%}"
     if kind == "categorical":
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for v in raw:
             counts[str(v)] = counts.get(str(v), 0) + 1
         dist = {k: c / len(raw) for k, c in sorted(counts.items(), key=lambda kv: -kv[1])}
         return dist, ", ".join(f"{k} {p:.0%}" for k, p in list(dist.items())[:3])
     values = [float(v) for v in raw]
     tail = (1 - _ENSEMBLE_LEVEL) / 2
-    return values, f"median {quantile(values, 0.5):.4g} ({_ENSEMBLE_LEVEL:.0%}: {quantile(values, tail):.4g}–{quantile(values, 1 - tail):.4g})"
+    return (values,
+            f"median {quantile(values, 0.5):.4g} ({_ENSEMBLE_LEVEL:.0%}: "
+            f"{quantile(values, tail):.4g}–{quantile(values, 1 - tail):.4g})")
 
 
 @dataclass
@@ -231,8 +239,8 @@ class PrecisionResult:
     runs: int
     estimate: Estimate
     target_se: float
-    trace: List[Dict[str, Any]]
-    runs_needed: Optional[int]
+    trace: list[dict[str, Any]]
+    runs_needed: int | None
 
     def report(self) -> str:
         state = "reached" if self.converged else "not reached"
@@ -244,16 +252,16 @@ class PrecisionResult:
                                                  if t["mean"] is not None))
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "output": self.output, "converged": self.converged, "runs": self.runs,
                 "estimate": self.estimate.to_dict(), "target_se": self.target_se, "trace": self.trace,
                 "runs_needed": self.runs_needed}
 
 
-def precision(contract: ContractLike, output: str, *, target_se: Optional[float] = None,
-              relative_se: Optional[float] = None, max_runs: int = 100, batch: int = 5, min_runs: Optional[int] = None,
-              inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, participants: Any = None,
-              rounds: Optional[int] = None, seed: int = 0, workers: int = 1, level: float = 0.95,
+def precision(contract: ContractLike, output: str, *, target_se: float | None = None,
+              relative_se: float | None = None, max_runs: int = 100, batch: int = 5, min_runs: int | None = None,
+              inputs: Mapping[str, Any] | None = None, arm: str | None = None, participants: Any = None,
+              rounds: int | None = None, seed: int = 0, workers: int = 1, level: float = 0.95,
               data_dir: Any = None, hosts: Any = None) -> PrecisionResult:
     """Add runs ``batch`` at a time until the standard error of ``output``'s mean is small enough.
 
@@ -273,8 +281,8 @@ def precision(contract: ContractLike, output: str, *, target_se: Optional[float]
     parsed = runner.as_contract(contract, data_dir)
     measure = runner.resolve_measure(parsed, output)
     z = normal_quantile(1.0 - (1.0 - level) / 2.0)
-    values: List[Any] = []
-    trace: List[Dict[str, Any]] = []
+    values: list[Any] = []
+    trace: list[dict[str, Any]] = []
     done = 0
     current = estimate([], level)
     required = float(goal)
@@ -282,8 +290,8 @@ def precision(contract: ContractLike, output: str, *, target_se: Optional[float]
         while done < max_runs:
             size = min(batch, max_runs - done)
             jobs = [runner.Job(dict(inputs or {}), arm, s) for s in runner.run_seeds(seed, size, start=done)]
-            results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds, workers=workers, pool=pool,
-                                      hosts=hosts)
+            results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds, workers=workers,
+                                      pool=pool, hosts=hosts)
             values += [runner.raw_value(r, measure) for r in results if r.status != "failed"]
             done += size
             current = _estimate(values, level, z)
@@ -298,7 +306,7 @@ def precision(contract: ContractLike, output: str, *, target_se: Optional[float]
     return PrecisionResult(parsed.name, output, False, done, current, required, trace, needed)
 
 
-def _estimate(values: List[Any], level: float, z: float) -> Estimate:
+def _estimate(values: list[Any], level: float, z: float) -> Estimate:
     if values and all(isinstance(v, bool) for v in values):
         p = proportion(values, level)
         assert p.low is not None and p.high is not None

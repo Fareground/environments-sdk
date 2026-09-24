@@ -12,8 +12,18 @@ from fg_env.actions.book import MAX_SAFE_INT, TEXT_MAX_LEN
 from fg_env.contract import ActionSpec
 from fg_env.errors import ContractError, RunError
 from fg_env.expr import (
-    EVAL_BUDGET, FUNCTIONS, MAX_INT_BITS, MAX_LIST_LEN, MAX_RANGE, MAX_TEXT_LEN, ExprError, Scope, Untrusted,
-    compile_expr, evaluate, shared_budget,
+    EVAL_BUDGET,
+    FUNCTIONS,
+    MAX_INT_BITS,
+    MAX_LIST_LEN,
+    MAX_RANGE,
+    MAX_TEXT_LEN,
+    ExprError,
+    Scope,
+    Untrusted,
+    compile_expr,
+    evaluate,
+    shared_budget,
 )
 from fg_env.expr.template import format_value, render
 
@@ -214,7 +224,8 @@ def test_contract_ceilings_reject_typos_with_a_fix(patch, path):
 
 
 def test_generous_values_stay_allowed():
-    fg_env.parse({**_MINIMAL, "clock": {"rounds": 100_000}, "stages": [{"name": "s", "passes": 1_000, "max_calls": 200}]})
+    fg_env.parse({**_MINIMAL, "clock": {"rounds": 100_000},
+                  "stages": [{"name": "s", "passes": 1_000, "max_calls": 200}]})
 
 
 @pytest.mark.parametrize("effect, path", [

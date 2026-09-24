@@ -26,7 +26,8 @@ def _choices(wake):
 def test_tool_choices_refresh_after_a_change_in_the_same_turn_and_for_the_next_agent():
     contract = {**BASE, "stages": [{"name": "play", "turns": "sequential", "max_actions": 3}],
                 "actions": {"take": {"by": "player", "params": {
-        "item": {"type": "entity", "of": "thing", "where": "$it.owner == ''"}}, "do": ["$params.item.owner = $actor.id"]}}}
+        "item": {"type": "entity", "of": "thing", "where": "$it.owner == ''"}},
+                                     "do": ["$params.item.owner = $actor.id"]}}}
     env = fg_env.load(contract, seed=1)
     seen = {}
 

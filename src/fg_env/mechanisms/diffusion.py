@@ -26,14 +26,15 @@ Randomness comes from the world's seeded stream; all state is the world prop ``<
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from collections.abc import Callable, Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, tainted
 from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from ._social import NAME, check_expr, config_of, edges, eid, ids, require_type, seat_order, uses_of
 
 __all__ = ["DiffusionConfig"]
@@ -48,28 +49,42 @@ class DiffusionConfig(BaseModel):
 
     who: str = Field(..., description="Entity type the items spread among (subtypes included).")
     over: str = Field(..., description="Relation the items travel along (e.g. follows).")
-    flow: Literal["along", "against", "both"] = Field("both", description="along: from → to; against: to → from (followers hear the followed); both.")
-    model: Literal["cascade", "threshold"] = Field("cascade", description="cascade (independent cascade) | threshold (linear threshold).")
-    p: Union[float, str] = Field(0.1, description="Cascade: chance one adopter convinces one neighbour (number or expression over $from, $to, $item).")
-    persistent: bool = Field(False, description="Cascade: every adopter keeps trying to convince its neighbours at every step (default: one chance, right after adopting).")
-    threshold: Union[float, str] = Field(0.5, description="Threshold: share of informing neighbours needed (number, expression over $it and $item, or \"random\").")
+    flow: Literal["along", "against", "both"] = Field("both",
+                                                      description="along: from → to; against: to → from (followers "
+                                                                  "hear the followed); both.")
+    model: Literal["cascade", "threshold"] = Field("cascade",
+                                                   description="cascade (independent cascade) | threshold (linear "
+                                                               "threshold).")
+    p: float | str = Field(0.1,
+                           description="Cascade: chance one adopter convinces one neighbour (number or expression over "
+                                       "$from, $to, $item).")
+    persistent: bool = Field(False,
+                             description="Cascade: every adopter keeps trying to convince its neighbours at every step "
+                                         "(default: one chance, right after adopting).")
+    threshold: float | str = Field(0.5,
+                                   description="Threshold: share of informing neighbours needed (number, expression "
+                                               "over $it and $item, or \"random\").")
     weighted: bool = Field(False, description="Threshold: weigh neighbours by link value.")
-    seeds: Dict[str, List[str]] = Field(default_factory=dict, description="Items adopted from the start: {item: [ids]}.")
-    phase: Optional[Literal["start", "end"]] = Field("end", description="Spread every round in this phase; null: only through the `step` action.")
+    seeds: dict[str, list[str]] = Field(default_factory=dict,
+                                        description="Items adopted from the start: {item: [ids]}.")
+    phase: Literal["start", "end"] | None = Field("end",
+                                                  description="Spread every round in this phase; null: only through "
+                                                              "the `step` action.")
     steps: int = Field(1, ge=1, le=100, description="Spread steps per round.")
-    on_adopt: List[Any] = Field(default_factory=list, description="Effects for each new adopter ($it, $item, and $from for a cascade).")
+    on_adopt: list[Any] = Field(default_factory=list,
+                                description="Effects for each new adopter ($it, $item, and $from for a cascade).")
 
 
-def _fresh(adopted: Optional[List[str]] = None) -> Dict[str, Any]:
+def _fresh(adopted: list[str] | None = None) -> dict[str, Any]:
     seeds = list(dict.fromkeys(adopted or []))
     return {"adopted": {s: 0 for s in seeds}, "exposed": {}, "rejected": {}, "frontier": seeds, "thresholds": {}}
 
 
-def _items(world: Any, name: str) -> Dict[str, Any]:
+def _items(world: Any, name: str) -> dict[str, Any]:
     return world.props.get(name) or {}
 
 
-def _find(world: Any, item: str) -> Optional[Dict[str, Any]]:
+def _find(world: Any, item: str) -> dict[str, Any] | None:
     """The state of ``item`` in whichever diffusion mechanism holds it."""
     for name in uses_of(world.contract.mechanisms, KIND):
         state = _items(world, name).get(item)
@@ -78,7 +93,7 @@ def _find(world: Any, item: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def _item_key(value: Any, source: Optional[str]) -> str:
+def _item_key(value: Any, source: str | None) -> str:
     if isinstance(value, Entity):
         return value.id
     if not isinstance(value, str) or not value or tainted(value):
@@ -86,7 +101,7 @@ def _item_key(value: Any, source: Optional[str]) -> str:
     return value
 
 
-def state_of(state: Optional[Mapping[str, Any]], agent_id: str) -> str:
+def state_of(state: Mapping[str, Any] | None, agent_id: str) -> str:
     if state is None:
         return "unaware"
     if agent_id in state["rejected"]:
@@ -110,7 +125,8 @@ def _reach_fn(call: Call) -> int:
     return len(set(state["adopted"]) | set(state["exposed"]) | set(state["rejected"]))
 
 
-@function("adopter_count(item)", "How many agents currently hold an item (adopted, not rejected).", min_args=1, max_args=1)
+@function("adopter_count(item)", "How many agents currently hold an item (adopted, not rejected).", min_args=1,
+          max_args=1)
 def _adopter_count_fn(call: Call) -> int:
     state = _find(call.scope.world, _item_key(call.arg(0), call.source))
     return len(state["adopted"]) if state is not None else 0
@@ -127,13 +143,13 @@ def _exposures_fn(call: Call) -> int:
     return int(state["exposed"].get(eid(call.arg(0), call.source), 0)) if state is not None else 0
 
 
-@function("heard(agent, mechanism?)", "Items an agent is aware of: [{item, state, exposures}], in the order they started.",
-          min_args=1, max_args=2)
-def _heard_fn(call: Call) -> List[Dict[str, Any]]:
+@function("heard(agent, mechanism?)",
+          "Items an agent is aware of: [{item, state, exposures}], in the order they started.", min_args=1, max_args=2)
+def _heard_fn(call: Call) -> list[dict[str, Any]]:
     world: Any = call.scope.world
     agent = eid(call.arg(0), call.source)
     names = [str(call.arg(1))] if len(call) > 1 else uses_of(world.contract.mechanisms, KIND)
-    out: List[Dict[str, Any]] = []
+    out: list[dict[str, Any]] = []
     for name in names:
         for item, state in _items(world, name).items():
             current = state_of(state, agent)
@@ -147,7 +163,7 @@ def _heard_fn(call: Call) -> List[Dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 #: action → (the keys it needs, the keys it may take, what it does).
-_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], str]] = {
+_ACTIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...], str]] = {
     "step": ((), ("item",), "spread every item (or only `item`) one step now"),
     "seed": (("item", "who"), (), "the agents in `who` hold the item from now on, without running on_adopt"),
     "adopt": (("item", "who"), (), "the agents in `who` adopt the item (unless they rejected it), running on_adopt"),
@@ -156,8 +172,8 @@ _ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], str]] = {
 }
 
 
-def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
-    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str], None]:
+    def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["social"]
         config = config_of(world, name, KIND, DiffusionConfig)
@@ -188,13 +204,14 @@ def _register_actions() -> None:
     for action, (needs, may, doc) in _ACTIONS.items():
         fields = "".join(f', "{key}": "{"moon" if key == "item" else "$params.who"}"' for key in (*needs, *may))
         example = '{"social": "rumor", "action": "' + action + f'"{fields}}}  ({doc})'
-        family_action("social", ("diffusion",), action, keys=(*needs, *may), required=needs, example=example)(_runner(action))
+        family_action("social", ("diffusion",), action, keys=(*needs, *may), required=needs,
+                      example=example)(_runner(action))
 
 
 _register_actions()
 
 
-def _copy(state: Mapping[str, Any]) -> Dict[str, Any]:
+def _copy(state: Mapping[str, Any]) -> dict[str, Any]:
     return {"adopted": dict(state["adopted"]), "exposed": dict(state["exposed"]), "rejected": dict(state["rejected"]),
             "frontier": list(state["frontier"]), "thresholds": dict(state["thresholds"])}
 
@@ -204,11 +221,11 @@ def _eligible(world: Any, config: DiffusionConfig, agent_id: str) -> bool:
     return found is not None and found.alive and world.is_a(found.entity_type, config.who)
 
 
-def _apply(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any], item: str, act: str,
-           agents: List[str], where: str) -> None:
+def _apply(runner: Any, name: str, config: DiffusionConfig, items: dict[str, Any], item: str, act: str,
+           agents: list[str], where: str) -> None:
     state = items[item]
     world = runner.world
-    adopted: Dict[str, Optional[str]] = {}
+    adopted: dict[str, str | None] = {}
     for agent in agents:
         if act == "expose":
             if agent not in state["adopted"]:
@@ -226,8 +243,8 @@ def _apply(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any
     _publish(runner, name, config, items, item, adopted, where)
 
 
-def _publish(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any], item: str,
-             adopted: Mapping[str, Optional[str]], where: str) -> None:
+def _publish(runner: Any, name: str, config: DiffusionConfig, items: dict[str, Any], item: str,
+             adopted: Mapping[str, str | None], where: str) -> None:
     """Publish a batch before callbacks; carry nested callback changes into later steps."""
     world = runner.world
     world.set_world(name, items)
@@ -241,17 +258,18 @@ def _publish(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, A
         items.update(current)
 
 
-def _adopted(runner: Any, name: str, config: DiffusionConfig, item: str, agent: str, source: Optional[str], where: str) -> None:
+def _adopted(runner: Any, name: str, config: DiffusionConfig, item: str, agent: str, source: str | None,
+             where: str) -> None:
     if not config.on_adopt:
         return
     world = runner.world
-    local: Dict[str, Any] = {"it": world.entities[agent], "item": item}
+    local: dict[str, Any] = {"it": world.entities[agent], "item": item}
     if source is not None:
         local["from"] = world.entities.get(source)
     runner.run(config.on_adopt, local, f"mechanisms.{name}.on_adopt")
 
 
-def _informers(world: Any, config: DiffusionConfig, agent: str, towards: bool) -> List[str]:
+def _informers(world: Any, config: DiffusionConfig, agent: str, towards: bool) -> list[str]:
     """Agents ``agent`` passes items to (``towards``) or hears items from, in seat order."""
     out, into = edges(world, config.over)
     along = out.get(agent, []) if towards else into.get(agent, [])
@@ -267,7 +285,7 @@ def _number(value: Any, what: str, where: str) -> float:
     return float(value)
 
 
-def _step(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any], item: str, where: str) -> None:
+def _step(runner: Any, name: str, config: DiffusionConfig, items: dict[str, Any], item: str, where: str) -> None:
     for _ in range(config.steps):
         if config.model == "cascade":
             adopted = _cascade(runner, name, config, items[item], item, where)
@@ -276,10 +294,11 @@ def _step(runner: Any, name: str, config: DiffusionConfig, items: Dict[str, Any]
         _publish(runner, name, config, items, item, adopted, where)
 
 
-def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, where: str) -> Dict[str, Optional[str]]:
+def _cascade(runner: Any, name: str, config: DiffusionConfig, state: dict[str, Any], item: str,
+             where: str) -> dict[str, str | None]:
     world = runner.world
     p_expr = compile_expr(config.p) if isinstance(config.p, str) else None
-    convinced: Dict[str, Optional[str]] = {}
+    convinced: dict[str, str | None] = {}
     for source in list(state["adopted"]) if config.persistent else state["frontier"]:
         if source not in state["adopted"] or not _eligible(world, config, source):
             continue
@@ -297,13 +316,14 @@ def _cascade(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, A
     return convinced
 
 
-def _threshold(runner: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, where: str) -> Dict[str, Optional[str]]:
+def _threshold(runner: Any, name: str, config: DiffusionConfig, state: dict[str, Any], item: str,
+               where: str) -> dict[str, str | None]:
     world = runner.world
     adopted = state["adopted"]
     candidates = dict.fromkeys(t for a in adopted if _eligible(world, config, a)
                                for t in _informers(world, config, a, towards=True))
     order = seat_order(world)
-    joining: List[str] = []
+    joining: list[str] = []
     for agent in sorted(candidates, key=lambda a: order.get(a, 0)):
         if agent in adopted or agent in state["rejected"]:
             continue
@@ -330,11 +350,13 @@ def _weight(world: Any, config: DiffusionConfig, source: str, target: str) -> fl
         value = world.relation(target, source, config.over)
     else:
         forward = world.relation(source, target, config.over)
-        value = forward if config.flow == "along" or forward is not None else world.relation(target, source, config.over)
+        value = (forward if config.flow == "along" or forward is not None
+                 else world.relation(target, source, config.over))
     return max(0.0, float(value or 0.0))
 
 
-def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: Dict[str, Any], item: str, agent: str) -> float:
+def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: dict[str, Any], item: str,
+                  agent: str) -> float:
     if agent in state["thresholds"]:
         return float(state["thresholds"][agent])
     if config.threshold == "random":
@@ -353,13 +375,14 @@ def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: Dict[st
 
 
 @mode("social", "diffusion", DiffusionConfig,
-           "Items (rumors, ideas, products) spreading over a relation by independent cascade or linear threshold, with "
-           "per-agent states (unaware, exposed, adopted, rejected) and exposure counts in the world prop `<name>`. Steps "
-           "every round (in `phase`) or on demand with the `step` action; `on_adopt` effects run per adopter. Read it with "
-           "$reach(item), $adopter_count(item), $spread_state(agent, item), $exposures(agent, item), $heard(agent).",
+           "Items (rumors, ideas, products) spreading over a relation by independent cascade or linear threshold, "
+           "with per-agent states (unaware, exposed, adopted, rejected) and exposure counts in the world prop "
+           "`<name>`. Steps every round (in `phase`) or on demand with the `step` action; `on_adopt` effects run per "
+           "adopter. Read it with $reach(item), $adopter_count(item), $spread_state(agent, item), $exposures(agent, "
+           "item), $heard(agent).",
            example={"who": "account", "over": "follows", "flow": "against", "model": "cascade", "p": 0.1,
                     "seeds": {"rumor": ["u1"]}})
-def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who")
     check_expr(config.p, "p", ("from", "to", "item"))
     if config.threshold != "random":
@@ -370,10 +393,11 @@ def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> 
     for item in config.seeds:
         if not NAME.match(item):
             raise MechanismError(f"'{item}' is not a valid item name", "use letters, digits and _", "seeds")
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "world": {name: {"type": "map", "default": {item: _fresh(seeds) for item, seeds in config.seeds.items()},
                          "description": "Spread state per item: adopted, exposed, rejected, frontier, thresholds."}},
     }
     if config.phase is not None:
-        fragment["events"] = [{"name": f"{name}_spread", "phase": config.phase, "do": [{"social": name, "action": "step"}]}]
+        fragment["events"] = [{"name": f"{name}_spread", "phase": config.phase,
+                               "do": [{"social": name, "action": "step"}]}]
     return fragment

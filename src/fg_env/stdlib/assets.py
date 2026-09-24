@@ -1,10 +1,10 @@
 """`$asset(ref)`: an asset's metadata in expressions."""
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any
 
-from ..expr import Call, ExprError, _describe, function
 from ..assets.store import SUBMITTED
+from ..expr import Call, ExprError, _describe, function
 
 __all__ = ["asset_info"]
 
@@ -20,7 +20,7 @@ def _asset(call: Call) -> Any:
     return asset_info(call.scope.world, ref, call.source)
 
 
-def asset_info(world: Any, ref: Any, source: Optional[str]) -> Dict[str, Any]:
+def asset_info(world: Any, ref: Any, source: str | None) -> dict[str, Any]:
     store: Any = getattr(world, "assets", None)
     if isinstance(ref, dict) and "id" in ref:
         ref = ref["id"]

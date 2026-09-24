@@ -3,7 +3,8 @@ element spec and length bounds of list parameters."""
 from __future__ import annotations
 
 import reprlib
-from typing import Any, Callable, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from ..contract import MAX_LIST_ITEMS, ParamSpec
 from ..errors import RunError
@@ -50,7 +51,7 @@ def _item_spec(param: ParamSpec) -> ParamSpec:
     return ParamSpec(type="text", max_len=param.max_len)
 
 
-def _list_bounds(param: ParamSpec, count: Callable[[Any, str], Optional[int]]) -> Tuple[int, int]:
+def _list_bounds(param: ParamSpec, count: Callable[[Any, str], int | None]) -> tuple[int, int]:
     """A list parameter's fewest and most elements. ``count(raw, key)`` resolves a bound (a number or an expression;
     None when it cannot be known yet)."""
     low = count(param.min_items, "min_items") if param.min_items is not None else None
@@ -58,7 +59,7 @@ def _list_bounds(param: ParamSpec, count: Callable[[Any, str], Optional[int]]) -
     return low or 0, min(high if high is not None else MAX_LIST_ITEMS, MAX_LIST_ITEMS)
 
 
-def _item_count(value: Any, path: str) -> Optional[int]:
+def _item_count(value: Any, path: str) -> int | None:
     """A resolved `min_items` / `max_items`: a whole number ≥ 0 (None stays unknown)."""
     if value is None:
         return None

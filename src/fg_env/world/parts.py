@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Callable, Dict, FrozenSet, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from ..expr import ExprError
 
@@ -18,7 +19,7 @@ __all__ = ["Entry", "LogEvent", "Journal", "PropsView", "PhysicsView", "ClockVie
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
-def private_metrics(contract: "Contract", private: FrozenSet[str]) -> FrozenSet[str]:
+def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[str]:
     """The metrics worked out from agents' private properties: those whose expression — or a def or metric it
     reads — names one (``private``, the names agent types keep private). Read by name, so a metric that only might
     read one counts too: showing it to agents is refused, and a metric that must be shown reads no private name."""
@@ -39,9 +40,9 @@ def private_metrics(contract: "Contract", private: FrozenSet[str]) -> FrozenSet[
 class Entry(dict):
     """One record entry. ``author`` reads as the authoring entity."""
 
-    world: "SdkWorld"
+    world: SdkWorld
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         if name == "author":
             author = self.get("author")
             return self.world.entities.get(author) if author else None
@@ -58,24 +59,24 @@ class LogEvent:
     round: int
     kind: str
     text: str = ""
-    actor: Optional[str] = None
-    to: Optional[Tuple[str, ...]] = None
-    data: Dict[str, Any] = field(default_factory=dict)
-    stage: Optional[str] = None
+    actor: str | None = None
+    to: tuple[str, ...] | None = None
+    data: dict[str, Any] = field(default_factory=dict)
+    stage: str | None = None
     #: Clock time when it happened (continuous clock only).
-    time: Optional[float] = None
+    time: float | None = None
 
     def visible_to(self, entity_id: str) -> bool:
         return self.to is None or entity_id in self.to
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         if name in ("seq", "round", "kind", "text", "actor", "stage", "time"):
             return getattr(self, name)
         if name in self.data:
             return self.data[name]
         raise ExprError(f"event has no field '{name}'", source)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         out = {"seq": self.seq, "round": self.round, "kind": self.kind}
         for key in ("text", "actor", "stage"):
             value = getattr(self, key)
@@ -93,10 +94,10 @@ class LogEvent:
 class PropsView:
     """``$world`` — global properties, readable and assignable."""
 
-    def __init__(self, world: "SdkWorld"):
+    def __init__(self, world: SdkWorld):
         self._world = world
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         values = self._world.props
         if name not in values:
             known = ", ".join(sorted(values)) or "none declared"
@@ -107,10 +108,10 @@ class PropsView:
 class PhysicsView:
     """``$physics`` — current values of physics variables and params."""
 
-    def __init__(self, world: "SdkWorld"):
+    def __init__(self, world: SdkWorld):
         self._world = world
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         model = self._world.physics
         if model is None:
             raise ExprError("this environment declares no physics", source)
@@ -122,10 +123,10 @@ class PhysicsView:
 
 
 class ClockView:
-    def __init__(self, world: "SdkWorld"):
+    def __init__(self, world: SdkWorld):
         self._world = world
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         w = self._world
         if name == "round":
             return w.round
@@ -145,12 +146,13 @@ class ClockView:
             return w.now()
         if name == "horizon":
             return w.horizon
-        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label, time, horizon)", source)
+        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label, time, horizon)",
+                        source)
 
 
 class Journal:
     def __init__(self) -> None:
-        self._undo: List[Callable[[], object]] = []
+        self._undo: list[Callable[[], object]] = []
         #: Bumped by every change and every undo: equal versions mean an unchanged world.
         self.version = 0
         #: Open :meth:`held` blocks, and whether a :meth:`clear` inside them waits for them to finish.

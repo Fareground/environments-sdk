@@ -7,7 +7,8 @@ change; the world swaps the list in as one journaled change.
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List
+from collections.abc import Callable
+from typing import Any
 
 from ..contract import LAYER_TYPES, LayerSpec
 from ..expr import is_expr
@@ -20,10 +21,10 @@ Start = Callable[[str, Any], Any]
 
 
 class Layers:
-    def __init__(self, geometry: Geometry, specs: Dict[str, LayerSpec], start: Start):
+    def __init__(self, geometry: Geometry, specs: dict[str, LayerSpec], start: Start):
         self.geometry = geometry
         self.specs = specs
-        self.values: Dict[str, List[Any]] = {}
+        self.values: dict[str, list[Any]] = {}
         if specs and geometry.kind == "plane":
             raise SpaceError("layers need a grid or a graph (a plane has no cells)")
         for name, spec in specs.items():
@@ -60,7 +61,7 @@ class Layers:
             value = int(value)
         return value
 
-    def diffused(self, name: str, rate: float) -> List[Any]:
+    def diffused(self, name: str, rate: float) -> list[Any]:
         """Every cell hands ``rate`` of its value out equally to its neighbourhood (a grid cell at an edge
         that does not wrap keeps the shares of the neighbours it lacks; a place shares among its neighbours)."""
         values = self._numeric(name, "diffuse")
@@ -79,12 +80,12 @@ class Layers:
                 out[other] += share
         return self._kept(name, out)
 
-    def decayed(self, name: str, rate: float) -> List[Any]:
+    def decayed(self, name: str, rate: float) -> list[Any]:
         """Every cell loses ``rate`` of its value."""
         keep = 1.0 - rate
         return self._kept(name, [value * keep for value in self._numeric(name, "decay")])
 
-    def _kept(self, name: str, values: List[float]) -> List[float]:
+    def _kept(self, name: str, values: list[float]) -> list[float]:
         """Diffused or decayed values held within the layer's min/max. The engine computed them, not a rule the
         author can guard (float rounding at a bound, a decay under a positive min), so like integrated physics they
         stay inside the bounds instead of being refused."""
@@ -93,7 +94,7 @@ class Layers:
         high = math.inf if spec.max is None else spec.max
         return [min(max(value, low), high) for value in values]
 
-    def _numeric(self, name: str, what: str) -> List[Any]:
+    def _numeric(self, name: str, what: str) -> list[Any]:
         if self.spec(name).type != "number":
             raise SpaceError(f"`{what}` needs a number layer; '{name}' is {self.spec(name).type}")
         return self.values[name]

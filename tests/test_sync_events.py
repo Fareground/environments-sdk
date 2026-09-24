@@ -72,7 +72,8 @@ def test_items_that_agree_may_write_the_same_property():
 
 
 def test_a_refused_item_drops_only_its_own_writes():
-    env = fg_env.load(_row({"sync": True, "do": ["$it.x *= 10", {"if": "$it.x == 2", "then": [{"fail": "Not this one."}]}]}),
+    env = fg_env.load(_row({"sync": True,
+                            "do": ["$it.x *= 10", {"if": "$it.x == 2", "then": [{"fail": "Not this one."}]}]}),
                       seed=1)
     result = env.run()
     assert [e["props"]["x"] for e in env.entities("box")] == [10, 2, 30, 40]

@@ -11,25 +11,26 @@ from __future__ import annotations
 
 import datetime as _dt
 import re
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any
 
 from ..api import load
-from ..runtime.clock_words import period_label, plural, sub_day, unit_word
-from ..runtime.measure import RunResult
 from ..mechanisms._common import condition
 from ..mechanisms.econ_base import DEMAND, config_of, props
 from ..mechanisms.econ_demand_trade import number_of, plan, read_term
 from ..patterns.decompose import decompose
+from ..runtime.clock_words import period_label, plural, sub_day, unit_word
+from ..runtime.measure import RunResult
 from .pattern_effects import Effects, Factor, clauses, factor_of
 
 __all__ = ["demand_lines"]
 
 _GROUP_PROP = re.compile(r"^\s*\$it\.([A-Za-z_][A-Za-z0-9_]*)\s*$")
 #: ``(demand mechanism, segment, group)`` → what every factor added there.
-Tallies = Dict[Tuple[str, str, str], Effects]
+Tallies = dict[tuple[str, str, str], Effects]
 
 
-def demand_lines(contract: Any, run: Optional[RunResult], limit: Optional[int]) -> List[str]:
+def demand_lines(contract: Any, run: RunResult | None, limit: int | None) -> list[str]:
     """For each demand (and segment): its size over the horizon and what each pattern adds, shared by every group or
     per group, largest groups first (at most ``limit`` groups each)."""
     names = [name for name, raw in (contract.mechanisms.items() if contract is not None else ())
@@ -39,7 +40,7 @@ def demand_lines(contract: Any, run: Optional[RunResult], limit: Optional[int]) 
     tallies, factors, group_words = _replay(contract, run, names)
     unit = unit_word(run.clock)
     horizon = f"{run.rounds} {plural(unit, run.rounds)}"
-    out: List[str] = []
+    out: list[str] = []
     for name in names:
         segments = list(dict.fromkeys(segment for n, segment, _ in tallies if n == name))
         for segment in segments:
@@ -49,8 +50,8 @@ def demand_lines(contract: Any, run: Optional[RunResult], limit: Optional[int]) 
     return out
 
 
-def _segment_lines(head: str, groups: Dict[str, Effects], factors: Mapping[str, Factor], group_word: Optional[str],
-                   unit: str, horizon: str, limit: Optional[int]) -> List[str]:
+def _segment_lines(head: str, groups: dict[str, Effects], factors: Mapping[str, Factor], group_word: str | None,
+                   unit: str, horizon: str, limit: int | None) -> list[str]:
     told = {group: clauses(effects, factors, unit, horizon) for group, effects in groups.items()}
     if not any(told.values()):
         return []
@@ -77,14 +78,14 @@ def _sentence(text: str) -> str:
     return text[:1].upper() + text[1:] + "."
 
 
-def _group_name(value: str, word: Optional[str]) -> str:
+def _group_name(value: str, word: str | None) -> str:
     """``model 17`` for a code, ``brake pads`` for a name."""
     if word and any(ch.isdigit() for ch in value):
         return f"{word} {value}"
     return value.replace("_", " ")
 
 
-def _replay(contract: Any, run: RunResult, names: List[str]) -> Tuple[Tallies, Dict[str, Factor], Dict[str, str]]:
+def _replay(contract: Any, run: RunResult, names: list[str]) -> tuple[Tallies, dict[str, Factor], dict[str, str]]:
     env = load(contract, seed=run.seed, arm=run.arm if run.arm in contract.arms else None, inputs=run.inputs)
     env.world.patterns.at_estimates()
     runner, world = env.effects, env.world
@@ -92,7 +93,7 @@ def _replay(contract: Any, run: RunResult, names: List[str]) -> Tuple[Tallies, D
     group_words = {name: found.group(1).replace("_", " ") for name, config in uses
                    if config.group and (found := _GROUP_PROP.match(str(config.group)))}
     tallies: Tallies = {}
-    factors: Dict[str, Factor] = {}
+    factors: dict[str, Factor] = {}
     for round_ in range(1, run.rounds + 1):
         if env.finished:
             break
@@ -103,9 +104,10 @@ def _replay(contract: Any, run: RunResult, names: List[str]) -> Tuple[Tallies, D
             prices = {item.id: float(props(item)[f"{name}_price"]) for item in items}
             for segment in plan(world, name, config):
                 for item in items:
-                    scope: Dict[str, Any] = {"it": item, "price": prices[item.id]}
+                    scope: dict[str, Any] = {"it": item, "price": prices[item.id]}
                     where = f"mechanisms.{name}" if segment.main else f"mechanisms.{name}.segments.{segment.name}"
-                    if segment.spec.where is not None and not condition(world, segment.spec.where, f"{where}.where", **scope):
+                    if (segment.spec.where is not None
+                        and not condition(world, segment.spec.where, f"{where}.where", **scope)):
                         continue
                     if segment.spec.price is not None:
                         scope["price"] = number_of(runner, segment.spec.price, scope, where, low=0)
@@ -125,7 +127,7 @@ def _replay(contract: Any, run: RunResult, names: List[str]) -> Tuple[Tallies, D
     return tallies, factors, group_words
 
 
-def _rate_factors(env: Any, runner: Any, term: Any, item: Any, scope: Dict[str, Any]) -> Dict[str, float]:
+def _rate_factors(env: Any, runner: Any, term: Any, item: Any, scope: dict[str, Any]) -> dict[str, float]:
     """A product rate's own factors (a season, a trend) as the run read them this round."""
     pattern = getattr(term, "pattern", None)
     if pattern is None or env.world.patterns.configs[pattern].kind != "product":
@@ -136,7 +138,7 @@ def _rate_factors(env: Any, runner: Any, term: Any, item: Any, scope: Dict[str, 
             if isinstance(value, (int, float)) and not isinstance(value, bool)}
 
 
-def _date(value: Any) -> Optional[_dt.date]:
+def _date(value: Any) -> _dt.date | None:
     try:
         return _dt.date.fromisoformat(str(value)[:10]) if value else None
     except ValueError:
@@ -144,7 +146,7 @@ def _date(value: Any) -> Optional[_dt.date]:
 
 
 def _slot(contract: Any, pattern: str, clock: Mapping[str, Any], round_: int, rounds: int,
-          date: Optional[_dt.date]) -> Optional[Tuple[str, str]]:
+          date: _dt.date | None) -> tuple[str, str] | None:
     """The calendar slot a round falls in for a seasonal pattern, and how a sentence names it."""
     period = (contract.patterns.get(pattern) or {}).get("period")
     if period == "year" and date is not None:

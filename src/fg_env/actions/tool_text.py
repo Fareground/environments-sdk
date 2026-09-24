@@ -11,8 +11,9 @@ refusal names what the agent can call in the form its tools take (``Use hall wit
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from functools import lru_cache
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 __all__ = ["text_limit", "cut_text", "usage_limits", "shared_description", "shared_param", "compact_ids",
            "offer_text", "free_reads"]
@@ -40,7 +41,8 @@ def text_limit(max_len: int, overflow: str = "refuse") -> str:
 
 
 def cut_text(text: str, limit: int) -> str:
-    """``text`` cut to at most ``limit`` characters: after the last sentence that fits, else at the last word that fits."""
+    """``text`` cut to at most ``limit`` characters: after the last sentence that fits, else at the last word that fits.
+    """
     if len(text) <= limit:
         return text
     head = text[:limit + 1]  # one character more: a sentence ending exactly at the limit is followed by a space
@@ -51,7 +53,7 @@ def cut_text(text: str, limit: int) -> str:
     return (text[:space] if space > 0 else text[:limit]).rstrip()
 
 
-def usage_limits(per_turn: Optional[int], per_round: Optional[int]) -> str:
+def usage_limits(per_turn: int | None, per_round: int | None) -> str:
     """``Once per turn.`` / ``At most 3 times per round.`` — empty when the action has no cap."""
     parts = [f"{_times(count)} per {period}" for count, period in ((per_turn, "turn"), (per_round, "round"))
              if count is not None]
@@ -70,7 +72,7 @@ def free_reads(allowance: int) -> str:
     return f"Free: up to {allowance} reads (looks and inspects) per turn do not use a tool call."
 
 
-def offer_text(plain: Sequence[str], shared: Sequence[Tuple[str, Sequence[str]]]) -> str:
+def offer_text(plain: Sequence[str], shared: Sequence[tuple[str, Sequence[str]]]) -> str:
     """What an agent can call now, as its tools take it: ``plain`` actions by name, ``shared`` as (tool, choices)."""
     parts = [f"Available actions: {', '.join(plain)}."] if plain else []
     parts += [f"Use {tool} with action: {_or_list(choices)}." for tool, choices in shared]
@@ -81,7 +83,7 @@ def _or_list(items: Sequence[str]) -> str:
     return items[0] if len(items) == 1 else f"{', '.join(items[:-1])} or {items[-1]}"
 
 
-def shared_description(group: str, members: Sequence[Tuple[str, str, Sequence[str]]], staged: bool) -> str:
+def shared_description(group: str, members: Sequence[tuple[str, str, Sequence[str]]], staged: bool) -> str:
     """The description of a shared tool: ``members`` are (choice name, description, arguments) of the legal actions."""
     lines = [f"{group.replace('_', ' ').capitalize()}: choose one `action` and pass only the arguments it takes. "
              "Only these actions are available now:"]
@@ -93,16 +95,16 @@ def shared_description(group: str, members: Sequence[Tuple[str, str, Sequence[st
     return "\n".join(lines)
 
 
-def shared_param(entries: Sequence[Tuple[str, Dict[str, Any]]], total: int) -> Dict[str, Any]:
+def shared_param(entries: Sequence[tuple[str, dict[str, Any]]], total: int) -> dict[str, Any]:
     """One property of a shared tool from the schemas of the actions taking it (``entries``: choice name, schema)."""
-    shapes: List[Dict[str, Any]] = []
+    shapes: list[dict[str, Any]] = []
     for _, schema in entries:
         bare = {key: value for key, value in schema.items() if key != "description"}
         if bare not in shapes:
             shapes.append(bare)
     merged = dict(shapes[0]) if len(shapes) == 1 else _merged(shapes)
-    out: Dict[str, Any] = merged if merged is not None else {"anyOf": shapes}
-    described: Dict[str, List[str]] = {}
+    out: dict[str, Any] = merged if merged is not None else {"anyOf": shapes}
+    described: dict[str, list[str]] = {}
     for who, schema in entries:
         own = _narrower(schema, out) if len(shapes) > 1 and merged is not None else ""
         text = " ".join(part for part in (schema.get("description", ""), own) if part)
@@ -119,14 +121,14 @@ def shared_param(entries: Sequence[Tuple[str, Dict[str, Any]]], total: int) -> D
     return out
 
 
-def _merged(shapes: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def _merged(shapes: Sequence[dict[str, Any]]) -> dict[str, Any] | None:
     """One schema accepting what each of ``shapes`` accepts, when they share a type; None when they do not."""
     kinds = {shape.get("type") for shape in shapes}
     if len(kinds) != 1 or None in kinds:
         return None
-    out: Dict[str, Any] = {"type": kinds.pop()}
+    out: dict[str, Any] = {"type": kinds.pop()}
     if all("enum" in shape for shape in shapes):
-        joined: List[Any] = []
+        joined: list[Any] = []
         for shape in shapes:
             joined.extend(value for value in shape["enum"] if value not in joined)
         out["enum"] = joined
@@ -141,7 +143,7 @@ def _merged(shapes: Sequence[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     return out
 
 
-def _narrower(schema: Dict[str, Any], merged: Dict[str, Any]) -> str:
+def _narrower(schema: dict[str, Any], merged: dict[str, Any]) -> str:
     """How ``schema`` constrains its value more than the merged schema does, in words."""
     parts = []
     enum = schema.get("enum")
@@ -158,7 +160,7 @@ def _narrower(schema: Dict[str, Any], merged: Dict[str, Any]) -> str:
 
 def compact_ids(ids: Sequence[str]) -> str:
     """Ids as short text: runs of numbered ids become ranges (``u1–u150``); a very long listing is cut with a count."""
-    parts: List[str] = []
+    parts: list[str] = []
     first = last = prefix = ""  # the current run of consecutive numbered ids: its ends, their text and last number
     number = length = 0
     for key in ids:
@@ -181,7 +183,7 @@ def compact_ids(ids: Sequence[str]) -> str:
     return ", ".join(parts)
 
 
-def _close_run(parts: List[str], first: str, last: str, length: int) -> None:
+def _close_run(parts: list[str], first: str, last: str, length: int) -> None:
     """A run of more than two consecutive ids as a range; a shorter one id by id."""
     if length > 2:
         parts.append(f"{first}–{last}")
@@ -192,7 +194,7 @@ def _close_run(parts: List[str], first: str, last: str, length: int) -> None:
 
 
 @lru_cache(maxsize=1 << 16)
-def _numbered(key: str) -> Tuple[str, str]:
+def _numbered(key: str) -> tuple[str, str]:
     """``key`` split into its text and its trailing digits ("" when it has none) — without a pattern match for the
     usual ASCII digits, and kept per id: every turn's tools list and split the same candidates' ids again."""
     stem = key.rstrip("0123456789")

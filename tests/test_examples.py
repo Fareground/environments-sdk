@@ -19,7 +19,8 @@ FIRST_EVENTS = 10
 
 
 def _stable(value):
-    """Floats to 10 significant digits: Python 3.12 made float sum() more exact, and goldens must hold on every supported Python."""
+    """Floats to 10 significant digits: Python 3.12 made float sum() more exact, and goldens must hold on every
+    supported Python."""
     if isinstance(value, float):
         return float(f"{value:.10g}")
     if isinstance(value, list):

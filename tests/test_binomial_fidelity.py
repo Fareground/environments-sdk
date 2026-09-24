@@ -1,8 +1,8 @@
 """Count distributions preserve binomial asymmetry and stable large-n probabilities."""
-from decimal import Decimal, localcontext
 import json
 import math
 import random
+from decimal import Decimal, localcontext
 
 import pytest
 

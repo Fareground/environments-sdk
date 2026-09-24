@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, Hashable, List, Optional
+from collections.abc import Hashable
+from typing import Any
 
 from ..expr import MAX_LIST_LEN, Call, ExprError, _describe, _entity_id, charge
 
@@ -33,8 +34,8 @@ def optional_text(call: Call, index: int, default: str, what: str = "text") -> s
     return text_arg(call, index, what)
 
 
-def int_arg(call: Call, index: int, default: Optional[int] = None, *, low: Optional[int] = None,
-            high: Optional[int] = None, what: str = "a whole number") -> int:
+def int_arg(call: Call, index: int, default: int | None = None, *, low: int | None = None,
+            high: int | None = None, what: str = "a whole number") -> int:
     """Argument ``index`` as a whole number (``3.0`` is accepted) within [low, high]."""
     if index >= len(call) or (default is not None and call.arg(index) is None):
         if default is None:
@@ -52,8 +53,8 @@ def int_arg(call: Call, index: int, default: Optional[int] = None, *, low: Optio
     return number
 
 
-def number_arg(call: Call, index: int, default: Optional[float] = None, *, low: Optional[float] = None,
-               high: Optional[float] = None, what: str = "a number") -> Any:
+def number_arg(call: Call, index: int, default: float | None = None, *, low: float | None = None,
+               high: float | None = None, what: str = "a number") -> Any:
     """Argument ``index`` as a finite number within [low, high]."""
     if index >= len(call) or (default is not None and call.arg(index) is None):
         if default is None:
@@ -78,7 +79,7 @@ def probability(call: Call, value: Any, what: str) -> float:
     return float(value)
 
 
-def list_arg(call: Call, index: int, what: str = "a list") -> List[Any]:
+def list_arg(call: Call, index: int, what: str = "a list") -> list[Any]:
     """Argument ``index`` as a list (an entity type name gives its entities). Null is an error."""
     value = call.arg(index)
     if isinstance(value, (list, tuple)):
@@ -89,14 +90,14 @@ def list_arg(call: Call, index: int, what: str = "a list") -> List[Any]:
     raise fail(call, f"argument {index + 1} must be {what}, got {_describe(value)}")
 
 
-def sequence_arg(call: Call, index: int) -> List[Any]:
+def sequence_arg(call: Call, index: int) -> list[Any]:
     """Argument ``index`` as a list; null reads as an empty list (like the collection functions)."""
     if call.arg(index) is None:
         return []
     return list_arg(call, index)
 
 
-def map_arg(call: Call, index: int) -> Dict[Any, Any]:
+def map_arg(call: Call, index: int) -> dict[Any, Any]:
     value = call.arg(index)
     if not isinstance(value, dict):
         raise fail(call, f"argument {index + 1} must be a map like {{a: 1}}, got {_describe(value)}")
@@ -114,7 +115,7 @@ def key_of(value: Any) -> Hashable:
     return value
 
 
-def present_numbers(call: Call, values: List[Any], what: str = "values") -> List[Any]:
+def present_numbers(call: Call, values: list[Any], what: str = "values") -> list[Any]:
     """The numbers in ``values`` with nulls skipped (like the built-in aggregates)."""
     out = []
     for value in values:
@@ -127,7 +128,7 @@ def present_numbers(call: Call, values: List[Any], what: str = "values") -> List
     return out
 
 
-def series_arg(call: Call, index: int, what: str = "series") -> List[Any]:
+def series_arg(call: Call, index: int, what: str = "series") -> list[Any]:
     """Argument ``index`` as a complete list of numbers: positions matter, so a null is an error."""
     values = list_arg(call, index, f"a {what} (a list of numbers)")
     for position, value in enumerate(values):

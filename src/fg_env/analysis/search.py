@@ -20,21 +20,21 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
+from collections.abc import Callable, Sequence
 
 from . import unit_search
 from .assessment import Key
 from .decisions import DecisionSpace, Point
 from .goals import dominates
-from .unit_search import BudgetExhausted
 from .stats import latin_hypercube
+from .unit_search import BudgetExhausted
 
 __all__ = ["METHODS", "grid", "sampled", "local", "race", "simplex", "cross_entropy", "frontier"]
 
-Score = Callable[[Sequence[Point], int], List[Key]]
+Score = Callable[[Sequence[Point], int], list[Key]]
 Loss = Callable[[Point], float]
 #: Objectives signed so larger is better, or ``None`` for a decision that does not pass the constraints.
-Signed = Callable[[Sequence[Point], int], List[Optional[List[float]]]]
+Signed = Callable[[Sequence[Point], int], list[list[float] | None]]
 
 METHODS = ("grid", "random", "lhs", "local", "race", "nelder_mead", "cross_entropy", "frontier")
 #: Decisions left when a race stops halving.
@@ -53,7 +53,7 @@ def grid(space: DecisionSpace, score: Score, budget: int, runs: int) -> None:
     score(space.grid(), runs)
 
 
-def _samples(space: DecisionSpace, count: int, rng: random.Random, design: str) -> List[Point]:
+def _samples(space: DecisionSpace, count: int, rng: random.Random, design: str) -> list[Point]:
     units = latin_hypercube(count, space.dims, rng) if design == "lhs" and count > 0 else \
         [[rng.random() for _ in range(space.dims)] for _ in range(count)]
     seen = {space.start(): None}
@@ -70,7 +70,7 @@ def sampled(space: DecisionSpace, score: Score, budget: int, runs: int, rng: ran
 
 
 def _descend(space: DecisionSpace, score: Score, runs: int, current: Point, best: Key,
-             moves_for: Callable[[Point, int], List[Point]]) -> Tuple[Point, Key, bool]:
+             moves_for: Callable[[Point, int], list[Point]]) -> tuple[Point, Key, bool]:
     """One pass over the coordinates: the best of each coordinate's moves replaces the current decision if better."""
     improved = False
     for i in range(space.dims):
@@ -115,8 +115,8 @@ def local(space: DecisionSpace, score: Score, budget: int, runs: int) -> None:
         return
 
 
-def _at_steps(moves: Callable[[Point, int, Sequence[float]], List[Point]], steps: Sequence[float]
-              ) -> Callable[[Point, int], List[Point]]:
+def _at_steps(moves: Callable[[Point, int, Sequence[float]], list[Point]], steps: Sequence[float]
+              ) -> Callable[[Point, int], list[Point]]:
     return lambda point, i: moves(point, i, steps)
 
 
@@ -140,7 +140,7 @@ def frontier(space: DecisionSpace, signed: Signed, budget: int, runs: int, rng: 
     """Latin-hypercube samples on part of the budget, then every undominated decision's neighbours — each coordinate a
     smallest step either way, and its blocks — until no undominated decision is left unexplored."""
     steps = [axis.last_step() for axis in space.axes]
-    values: Dict[Point, Optional[List[float]]] = {}
+    values: dict[Point, list[float] | None] = {}
 
     def look(points: Sequence[Point]) -> None:
         fresh = [p for p in dict.fromkeys(points) if p not in values]
@@ -149,7 +149,7 @@ def frontier(space: DecisionSpace, signed: Signed, budget: int, runs: int, rng: 
 
     try:
         look(_samples(space, max(1, math.floor(budget * _FRONTIER_SAMPLED)) - 1, rng, "lhs"))
-        explored: Set[Point] = set()
+        explored: set[Point] = set()
         while True:
             passing = {p: v for p, v in values.items() if v is not None}
             front = [p for p, v in passing.items() if not any(dominates(w, v) for w in passing.values())]

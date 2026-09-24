@@ -1,4 +1,5 @@
-"""`fg-env author BRIEF --model <provider>:<model>`: have an LLM write a working contract from a plain-language brief."""
+"""`fg-env author BRIEF --model <provider>:<model>`: have an LLM write a working contract from a plain-language brief.
+"""
 from __future__ import annotations
 
 import argparse
@@ -42,5 +43,6 @@ def add_author_command(sub: Any) -> None:
                                               f"{CACHED_WEIGHT:g} of one and a cache write {CACHE_WRITE_WEIGHT:g} "
                                               f"(default: {DEFAULT_BUDGET['tokens']})")
     p.add_argument("--calls", type=int, help=f"most model calls to make (default: {DEFAULT_BUDGET['calls']})")
-    p.add_argument("--seconds", type=float, help=f"most wall-clock seconds to take (default: {DEFAULT_BUDGET['seconds']})")
+    p.add_argument("--seconds", type=float,
+                   help=f"most wall-clock seconds to take (default: {DEFAULT_BUDGET['seconds']})")
     p.set_defaults(func=_guarded(cmd_author))

@@ -17,12 +17,13 @@ from __future__ import annotations
 import hashlib
 import os
 import random
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from ...api import load
+from ...copying.snapshot import contract_hash, encode
 from ...errors import RunError
 from ...runtime.session import END_TURN, Wake
-from ...copying.snapshot import contract_hash, encode
 from ..game import Game
 from ..observe import digest, information_state
 from ..space import COMBINATION_LIMIT, Action, legal_calls
@@ -40,7 +41,7 @@ __all__ = ["ALGORITHMS", "algorithm_participant"]
 ALGORITHMS = ("mcts", "ismcts", "minimax", "cfr")
 
 
-def algorithm_participant(value: str, contract: "Contract", seed: int) -> Optional[Callable[[Wake], Any]]:
+def algorithm_participant(value: str, contract: Contract, seed: int) -> Callable[[Wake], Any] | None:
     """The participant a string like ``"mcts:1000"`` names, or None when it names no algorithm."""
     name, _, argument = value.partition(":")
     if name not in ALGORITHMS:
@@ -77,7 +78,7 @@ class _Games:
     """One :class:`Game` per contract, inputs, arm and seed a participant plays in."""
 
     def __init__(self) -> None:
-        self._games: Dict[Tuple[str, str, Optional[str], int], Game] = {}
+        self._games: dict[tuple[str, str, str | None, int], Game] = {}
 
     def of(self, wake: Wake) -> Game:
         env = wake._turn.env
@@ -136,7 +137,8 @@ def mirror(wake: Wake, game: Game) -> GameState:
     if actor.id not in game.players:
         raise RunError(f"'{actor.id}' is not one of the game's seats", "participants.ismcts")
     seat = game.seat(actor.id)
-    events = [(event.kind, event.actor, dict(event.data)) for event in env.world.log if event.kind in ("chance", "action")]
+    events = [(event.kind, event.actor, dict(event.data)) for event in env.world.log
+              if event.kind in ("chance", "action")]
     target = information_state(env, actor, turn)
     state = game.new_initial_state()
     try:
@@ -153,7 +155,8 @@ def mirror(wake: Wake, game: Game) -> GameState:
                            "participants.ismcts")
     except (ValueError, RunError) as exc:
         state.close()
-        raise RunError(f"ismcts could not rebuild the game at {actor.id}'s turn: {exc}", "participants.ismcts") from None
+        raise RunError(f"ismcts could not rebuild the game at {actor.id}'s turn: {exc}",
+                       "participants.ismcts") from None
     return state
 
 
@@ -173,7 +176,7 @@ class PolicyPlayer:
         self.seed = seed
         self._iterations = int(source) if source.isdigit() else None
         self._policy = None if self._iterations is not None else TabularPolicy.load(source)
-        self._solved: Dict[str, TabularPolicy] = {}
+        self._solved: dict[str, TabularPolicy] = {}
         self._games = _Games()
 
     def __call__(self, wake: Wake) -> None:
@@ -199,7 +202,8 @@ class PolicyPlayer:
                 return
             result = wake.call(chosen.tool, dict(chosen.args))
             if not result.ok:
-                raise RunError(f"the policy chose {chosen.text}, which the run refused: {result.text}", "participants.cfr")
+                raise RunError(f"the policy chose {chosen.text}, which the run refused: {result.text}",
+                               "participants.cfr")
 
     def _policy_for(self, wake: Wake) -> TabularPolicy:
         if self._policy is not None:

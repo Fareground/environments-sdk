@@ -8,8 +8,6 @@ number of seats. Both are 0 exactly at a Nash equilibrium.
 """
 from __future__ import annotations
 
-from typing import Dict, List, Tuple, Union
-
 from ..game import Game
 from .policy import TabularPolicy
 from .tree import Chance, Decision, GameTree, Node, Terminal, extract_tree
@@ -17,15 +15,15 @@ from .tree import Chance, Decision, GameTree, Node, Terminal, extract_tree
 __all__ = ["policy_values", "best_response_value", "best_response", "nash_conv", "exploitability"]
 
 
-def _tree(source: Union[GameTree, Game]) -> GameTree:
+def _tree(source: GameTree | Game) -> GameTree:
     return source if isinstance(source, GameTree) else extract_tree(source)
 
 
-def policy_values(source: Union[GameTree, Game], policy: TabularPolicy) -> List[float]:
+def policy_values(source: GameTree | Game, policy: TabularPolicy) -> list[float]:
     """Every seat's expected return when all seats play ``policy``."""
     tree = _tree(source)
 
-    def value(node: Node) -> List[float]:
+    def value(node: Node) -> list[float]:
         if isinstance(node, Terminal):
             return list(node.returns)
         if isinstance(node, Chance):
@@ -43,14 +41,14 @@ class _BestResponder:
     def __init__(self, tree: GameTree, policy: TabularPolicy, player: int):
         self.policy = policy
         self.player = player
-        self.members: Dict[str, List[Tuple[Decision, float]]] = {}
-        self.best: Dict[str, int] = {}
-        self.values: Dict[int, float] = {}
+        self.members: dict[str, list[tuple[Decision, float]]] = {}
+        self.best: dict[str, int] = {}
+        self.values: dict[int, float] = {}
         self._collect(tree.root, 1.0)
 
     def _collect(self, node: Node, reach: float) -> None:
         """Group the player's decision nodes by information state, with the reach of chance and the other seats."""
-        stack: List[Tuple[Node, float]] = [(node, reach)]
+        stack: list[tuple[Node, float]] = [(node, reach)]
         while stack:
             current, weight = stack.pop()
             if isinstance(current, Chance):
@@ -63,7 +61,7 @@ class _BestResponder:
                     probabilities = self._probabilities(current)
                     stack.extend((child, weight * p) for p, child in zip(probabilities, current.children))
 
-    def _probabilities(self, node: Decision) -> List[float]:
+    def _probabilities(self, node: Decision) -> list[float]:
         return self.policy.probabilities(node.infoset, [action.text for action in node.actions])
 
     def value(self, node: Node) -> float:
@@ -79,7 +77,8 @@ class _BestResponder:
             if node.player == self.player:
                 result = self.value(node.children[self.action(node.infoset)])
             else:
-                result = sum(p * self.value(child) for p, child in zip(self._probabilities(node), node.children) if p > 0)
+                result = sum(p * self.value(child) for p, child in zip(self._probabilities(node), node.children) if p
+                             > 0)
         self.values[id(node)] = result
         return result
 
@@ -87,12 +86,13 @@ class _BestResponder:
         if infoset not in self.best:
             members = self.members[infoset]
             count = len(members[0][0].children)
-            scores = [sum(weight * self.value(node.children[index]) for node, weight in members) for index in range(count)]
+            scores = [sum(weight * self.value(node.children[index]) for node, weight in members)
+                      for index in range(count)]
             self.best[infoset] = max(range(count), key=lambda index: scores[index])
         return self.best[infoset]
 
 
-def best_response(source: Union[GameTree, Game], policy: TabularPolicy, player: int) -> TabularPolicy:
+def best_response(source: GameTree | Game, policy: TabularPolicy, player: int) -> TabularPolicy:
     """Seat ``player``'s deterministic best response to everyone else playing ``policy``."""
     tree = _tree(source)
     responder = _BestResponder(tree, policy, player)
@@ -104,20 +104,20 @@ def best_response(source: Union[GameTree, Game], policy: TabularPolicy, player: 
     return TabularPolicy(table, tree.game)
 
 
-def best_response_value(source: Union[GameTree, Game], policy: TabularPolicy, player: int) -> float:
+def best_response_value(source: GameTree | Game, policy: TabularPolicy, player: int) -> float:
     """What seat ``player`` gets by best responding while every other seat plays ``policy``."""
     tree = _tree(source)
     return _BestResponder(tree, policy, player).value(tree.root)
 
 
-def nash_conv(source: Union[GameTree, Game], policy: TabularPolicy) -> float:
+def nash_conv(source: GameTree | Game, policy: TabularPolicy) -> float:
     """Σ over seats of (best-response value − the policy's value): 0 at a Nash equilibrium."""
     tree = _tree(source)
     values = policy_values(tree, policy)
     return sum(best_response_value(tree, policy, seat) - values[seat] for seat in range(tree.num_players))
 
 
-def exploitability(source: Union[GameTree, Game], policy: TabularPolicy) -> float:
+def exploitability(source: GameTree | Game, policy: TabularPolicy) -> float:
     """NashConv divided by the number of seats (in two-player zero-sum games: the average gain from best responding)."""
     tree = _tree(source)
     return nash_conv(tree, policy) / tree.num_players

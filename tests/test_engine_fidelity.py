@@ -78,7 +78,8 @@ def test_the_network_seeds_are_an_input_checked_against_the_people():
 
 
 def test_more_seeds_reach_more_people():
-    assert mean("network", "adoption_rate", {"seeds": ["p1"]}) < mean("network", "adoption_rate", {"seeds": ["p1", "p4"]})
+    assert (mean("network", "adoption_rate", {"seeds": ["p1"]})
+            < mean("network", "adoption_rate", {"seeds": ["p1", "p4"]}))
 
 
 def test_trust_above_one_is_refused_at_input():
@@ -174,7 +175,8 @@ def _parties(**changes):
 
 def test_coded_negotiators_trade_off_the_issues_they_care_least_about():
     """Party A cares most about scope, party B about amount and timing: conceding the issues each cares least about
-    gives both a deal worth far more than meeting halfway on every issue (50, 50, 6 is worth 13.8 to the two together)."""
+    gives both a deal worth far more than meeting halfway on every issue (50, 50, 6 is worth 13.8 to the two together).
+    """
     deals = [run("negotiation", seed=seed).outputs for seed in SEEDS]
     assert all(o["deal_signed"] and min(o["surplus"].values()) > 0 for o in deals)
     assert all(sum(o["surplus"].values()) > 30 for o in deals), [o["surplus"] for o in deals]
@@ -217,8 +219,10 @@ def test_the_evidence_moves_the_verdict():
         return verdicts.count("liable") / len(verdicts)
 
     as_given = liable_share(default("dispute", "exhibits"))
-    weak_plaintiff = liable_share(_exhibits(lambda row: row["strength"] / 3 if row["side"] == "plaintiff" else row["strength"]))
-    weak_defense = liable_share(_exhibits(lambda row: row["strength"] / 3 if row["side"] == "defense" else row["strength"]))
+    weak_plaintiff = liable_share(_exhibits(lambda row: row["strength"] / 3 if row["side"] == "plaintiff"
+                                            else row["strength"]))
+    weak_defense = liable_share(_exhibits(lambda row: row["strength"] / 3 if row["side"] == "defense"
+                                          else row["strength"]))
     assert weak_plaintiff < as_given - 0.4 and weak_plaintiff < weak_defense
 
 

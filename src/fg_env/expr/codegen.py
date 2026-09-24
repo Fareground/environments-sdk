@@ -26,12 +26,13 @@ call, a missing root).
 from __future__ import annotations
 
 import ast
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from .base import _BUDGET, ExprError
 from .calls import FUNCTIONS, Call, EqualityGuard, Evaluator
 from .scope import Scope
-from .values import _BINARY, _COMPARE, _ENTITY_FIELDS, _Entity, _add, _eq, _in, _index, _mul, _number, _pow, attr
+from .values import _BINARY, _COMPARE, _ENTITY_FIELDS, _add, _Entity, _eq, _in, _index, _mul, _number, _pow, attr
 
 __all__ = ["Codegen"]
 
@@ -62,7 +63,7 @@ def _root(scope: Scope, name: str, source: str) -> Any:
     return scope.root(name, source)
 
 
-def _call_def(scope: Scope, name: str, values: List[Any], source: str) -> Any:
+def _call_def(scope: Scope, name: str, values: list[Any], source: str) -> Any:
     budget = _BUDGET  # the def body is nested work: it charges the caller's budget
     budget.hold += 1
     try:
@@ -91,13 +92,14 @@ def _plus(value: Any, source: str) -> Any:
     return 1 * _number(value, source)
 
 
-def _helpers() -> Dict[str, Any]:
+def _helpers() -> dict[str, Any]:
     """Everything compiled code may name besides its own constants and functions."""
     from ..world.parts import PropsView  # the world's parts import the language: bound on first compile
 
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
-        "_enumerate": enumerate, "_sum": sum, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope, "_Call": Call,
+        "_enumerate": enumerate, "_sum": sum, "_Entity": _Entity, "_PropsView": PropsView, "_Scope": Scope,
+        "_Call": Call,
         "_attr": attr, "_index": _index, "_caller": _caller, "_root": _root, "_call_def": _call_def, "_arity": _arity,
         "_negate": _negate, "_plus": _plus, "_add": _add, "_sub": _BINARY[ast.Sub], "_mul": _mul,
         "_truediv": _BINARY[ast.Div], "_floordiv": _BINARY[ast.FloorDiv], "_mod": _BINARY[ast.Mod], "_pow": _pow,
@@ -106,11 +108,11 @@ def _helpers() -> Dict[str, Any]:
     }
 
 
-_HELPERS: Optional[Dict[str, Any]] = None
-_INLINED: Optional[Dict[Any, str]] = None
+_HELPERS: dict[str, Any] | None = None
+_INLINED: dict[Any, str] | None = None
 
 
-def _inlined() -> Dict[Any, str]:
+def _inlined() -> dict[Any, str]:
     """The implementations whose per-item loop is compiled inline, by the loop they run."""
     global _INLINED
     if _INLINED is None:
@@ -129,11 +131,11 @@ class _Function:
 
     def __init__(self, name: str):
         self.name = name
-        self.lines: List[str] = []
+        self.lines: list[str] = []
         self.temps = 0
         self.reads_roots = False
         #: Property name constant → the local that says whether some agent keeps that property private.
-        self.hidden: Dict[str, str] = {}
+        self.hidden: dict[str, str] = {}
 
     def hides(self, key: str) -> str:
         """The local, set once per call, that is true when property ``key`` needs a visibility check."""
@@ -157,9 +159,9 @@ class _Item:
         self.item, self.position, self.outer, self.scope = item, position, outer, scope
 
 
-def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
+def _chain(node: ast.AST) -> tuple[str, ...] | None:
     """``$a.b.c`` → ``("a", "b", "c")``; None when the chain does not start at a root."""
-    fields: List[str] = []
+    fields: list[str] = []
     while isinstance(node, ast.Attribute):
         fields.append(node.attr)
         node = node.value
@@ -168,20 +170,22 @@ def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
     return None
 
 
-def _call_chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
-    """``$first(xs).b.c`` → ``("first", "b", "c")``: fields read from what a function returned; None for anything else."""
-    fields: List[str] = []
+def _call_chain(node: ast.AST) -> tuple[str, ...] | None:
+    """``$first(xs).b.c`` → ``("first", "b", "c")``: fields read from what a function returned; None for anything else.
+    """
+    fields: list[str] = []
     while isinstance(node, ast.Attribute):
         fields.append(node.attr)
         node = node.value
-    if fields and isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX):
+    if (fields and isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+        and node.func.id.startswith(_FUNC_PREFIX)):
         return (node.func.id[len(_FUNC_PREFIX):], *reversed(fields))
     return None
 
 
-def _entity_chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
+def _entity_chain(node: ast.AST) -> tuple[str, ...] | None:
     """``$entity(a).b`` → ``("entity(a)", "b")``: a field of the entity a bare id names; None for anything else."""
-    fields: List[str] = []
+    fields: list[str] = []
     while isinstance(node, ast.Attribute):
         fields.append(node.attr)
         node = node.value
@@ -210,14 +214,14 @@ class Codegen:
         self.comparisons: set = set()
         self.item_comparisons: set = set()
         self.methods: set = set()
-        self._namespace: Dict[str, Any] = {}
-        self._strings: Dict[str, str] = {}
-        self._written: List[_Function] = []
+        self._namespace: dict[str, Any] = {}
+        self._strings: dict[str, str] = {}
+        self._written: list[_Function] = []
         self._fn = _Function("")
         self._depth = 0
-        self._item: Optional[_Item] = None
-        self._arguments: List[Tuple[str, List[str]]] = []
-        self._guards: List[Tuple[str, str, str, str, FrozenSet[str]]] = []
+        self._item: _Item | None = None
+        self._arguments: list[tuple[str, list[str]]] = []
+        self._guards: list[tuple[str, str, str, str, frozenset[str]]] = []
 
     # -- output ----------------------------------------------------------------------------------------
 
@@ -371,9 +375,10 @@ class Codegen:
     _Tuple = _List
 
     def _Dict(self, node: ast.Dict) -> str:
-        keys: List[str] = []
+        keys: list[str] = []
         for key in node.keys:
-            if isinstance(key, ast.Constant) and isinstance(key.value, (str, int, float)) and not isinstance(key.value, bool):
+            if (isinstance(key, ast.Constant) and isinstance(key.value, (str, int, float))
+                and not isinstance(key.value, bool)):
                 keys.append(str(key.value))
             elif isinstance(key, ast.Name) and not key.id.startswith("__"):
                 keys.append(key.id)
@@ -421,7 +426,7 @@ class Codegen:
         self._depth = depth
         return value
 
-    def _word(self, node: ast.AST) -> List[str]:
+    def _word(self, node: ast.AST) -> list[str]:
         if isinstance(node, ast.Name) and not node.id.startswith("__") and node.id not in _LITERAL_NAMES:
             return [node.id]
         if isinstance(node, (ast.List, ast.Tuple)):
@@ -463,7 +468,7 @@ class Codegen:
             return f"{left} {symbol} {right} if {numbers} else {helper}({left}, {right}, {source})"
         return f"{'not ' if op is ast.NotIn else ''}_in({left}, {right}, {source})"
 
-    def _guard(self, node: ast.AST, op: type) -> Optional[Tuple[str, str, FrozenSet[str]]]:
+    def _guard(self, node: ast.AST, op: type) -> tuple[str, str, frozenset[str]] | None:
         """``(field, value function, roots)`` of the :class:`EqualityGuard` a comparison ``$it.field == value``
         (``op`` Eq) or ``$it.field != value`` (``op`` NotEq), either way round, makes, if any."""
         if not (isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], op)):
@@ -492,7 +497,7 @@ class Codegen:
         self._depth -= 1
         return value
 
-    def _per_item(self, name: str, symbol: Optional[str], write: Callable[[], str]) -> str:
+    def _per_item(self, name: str, symbol: str | None, write: Callable[[], str]) -> str:
         """``write()`` a per-item argument: its ``$it``, ``$i`` and ``$outer`` are bound by the function, not the
         caller, so what it reads of them is recorded as the call's item paths."""
         saved = (self.roots, self.paths, self.comparisons)
@@ -508,7 +513,8 @@ class Codegen:
         return written
 
     def _method(self, func: ast.Attribute, nodes: Sequence[ast.AST]) -> str:
-        """``$root.name(args)``: the root's value answers the call (``expr_call``), e.g. ``$pattern.season($it.sku)``."""
+        """``$root.name(args)``: the root's value answers the call (``expr_call``), e.g. ``$pattern.season($it.sku)``.
+        """
         assert isinstance(func.value, ast.Name)
         root, name = func.value.id[len(_ROOT_PREFIX):], func.attr
         self.paths.add((root, name))
@@ -544,7 +550,8 @@ class Codegen:
             self._line(f"if scope.world is not None and scope.world.defines({key}):")
             self._depth += 1
             values = [self.node(arg) for arg in node.args]
-            self._line(f"{value} = scope.world.call_def({key}, [{', '.join(values)}], {source}, scope.vars.get('viewer'))")
+            self._line(f"{value} = scope.world.call_def({key}, [{', '.join(values)}], {source}, "
+                       "scope.vars.get('viewer'))")
             self._depth -= 1
             self._line("else:")
             self._line(f"    _arity({self._const(spec.signature)}, {source})")
@@ -563,8 +570,8 @@ class Codegen:
             loop = None
         scope = self._scope()
         self._line(f"if {scope}.world is not None and {scope}.world.defines({key}):  # the contract's own def wins")
-        self._line(f"    {value} = {scope}.world.call_def({key}, [{', '.join(f'{m}({scope})' for m in members)}], {source}, "
-                   f"{scope}.vars.get('viewer'))")
+        self._line(f"    {value} = {scope}.world.call_def({key}, [{', '.join(f'{m}({scope})' for m in members)}], "
+                   f"{source}, {scope}.vars.get('viewer'))")
         self._line("else:")
         self._depth += 1
         if loop is None:
@@ -576,8 +583,8 @@ class Codegen:
         self._depth -= 1
         return value
 
-    def _loop(self, loop: str, condition: ast.AST, name: str, symbol: Optional[str],
-              call: Tuple[str, str, str, str]) -> None:
+    def _loop(self, loop: str, condition: ast.AST, name: str, symbol: str | None,
+              call: tuple[str, str, str, str]) -> None:
         """The per-item loop of ``$any``/``$all``/``$count``/``$filter``/``$pick`` with ``condition`` inline, as the
         registered implementation runs it: the collection, then the items to try (every item for ``$all``)."""
         key, arguments, value, source = call
@@ -601,8 +608,8 @@ class Codegen:
         self._depth -= 1
 
 
-    def _aggregate(self, kind: str, nodes: Sequence[ast.AST], name: str, symbol: Optional[str],
-                   call: Tuple[str, str, str, str]) -> None:
+    def _aggregate(self, kind: str, nodes: Sequence[ast.AST], name: str, symbol: str | None,
+                   call: tuple[str, str, str, str]) -> None:
         """Inline sum/avg item expressions, preserving filter-before-map evaluation.
 
         Mapping keeps the filtered collection's indices. Numeric validation still

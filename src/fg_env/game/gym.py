@@ -15,16 +15,17 @@ agent is played by participants. Gymnasium is not required; when it is installed
 from __future__ import annotations
 
 import os
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
+from typing import Any
 
 from ..api import ContractLike, load
 from ..copying.branch import Branch, copy_pilot
-from ..errors import ContractError, Issue, RunError
 from ..copying.replay import Tape
-from ..runtime.returns import seat_ids, seat_returns, seat_rewards
+from ..errors import ContractError, Issue, RunError
 from ..runtime.env import Env
-from ..sampling.seeds import SeedTree, mint_seed
+from ..runtime.returns import seat_ids, seat_returns, seat_rewards
 from ..runtime.session import ToolResult
+from ..sampling.seeds import SeedTree, mint_seed
 
 __all__ = ["GymEnv", "gym"]
 
@@ -41,15 +42,17 @@ class GymEnv(_Base):  # type: ignore[misc]
 
     metadata = {"render_modes": ["ansi"]}
 
-    def __init__(self, root: Env, agent: str, *, others: Any, max_steps: Optional[int], action_ids: bool,
-                 hosts: Any, render_mode: Optional[str]):
+    def __init__(self, root: Env, agent: str, *, others: Any, max_steps: int | None, action_ids: bool,
+                 hosts: Any, render_mode: str | None):
         contract = root.contract
         issues = []
         if agent not in root.world.entities or not contract.is_agent(root.world.entities[agent].entity_type):
             issues.append(Issue("agent", f"'{agent}' is not an agent of this contract",
-                                f"agents: {', '.join(e.id for e in root.world.entities.values() if contract.is_agent(e.entity_type))}"))
+                                "agents: " + ", ".join(e.id for e in root.world.entities.values()
+                                                       if contract.is_agent(e.entity_type))))
         elif agent not in seat_ids(contract, root.world):
-            issues.append(Issue("game.players", f"'{agent}' is not one of the game's seats", "add its type to game.players"))
+            issues.append(Issue("game.players", f"'{agent}' is not one of the game's seats",
+                                "add its type to game.players"))
         if contract.game is None or contract.game.returns is None:
             issues.append(Issue("game.returns", "is needed: rewards come from what the agent scores",
                                 'e.g. "game": {"returns": "$actor.cash"}'))
@@ -70,15 +73,15 @@ class GymEnv(_Base):  # type: ignore[misc]
             self._space = ActionSpace(root)
         self._tree = SeedTree(root.seed)
         self._episode = 0
-        self._branch: Optional[Branch] = None
+        self._branch: Branch | None = None
         self._steps = 0
         self._return = 0.0
-        self._turn_number: Optional[int] = None
+        self._turn_number: int | None = None
 
     # -- the Gymnasium interface ---------------------------------------------------------------------
 
-    def reset(self, *, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None
-              ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def reset(self, *, seed: int | None = None, options: Mapping[str, Any] | None = None
+              ) -> tuple[dict[str, Any], dict[str, Any]]:
         if seed is not None:
             self._tree, self._episode = SeedTree(seed), 0
         episode_seed = self._tree.derive("episode", self._episode)
@@ -101,7 +104,7 @@ class GymEnv(_Base):  # type: ignore[misc]
         self._turn_number = None
         return self._observation(None), self._info(None)
 
-    def step(self, action: Any) -> Tuple[Dict[str, Any], float, bool, bool, Dict[str, Any]]:
+    def step(self, action: Any) -> tuple[dict[str, Any], float, bool, bool, dict[str, Any]]:
         branch = self._branch
         if branch is None:
             raise RuntimeError("call reset() before step()")
@@ -139,7 +142,7 @@ class GymEnv(_Base):  # type: ignore[misc]
         env = branch._pilot.env
         return branch._pilot.read(lambda: seat_returns(self._root.contract, env.world, [self.agent]))[self.agent]
 
-    def _call(self, action: Any) -> Tuple[str, Dict[str, Any]]:
+    def _call(self, action: Any) -> tuple[str, dict[str, Any]]:
         if isinstance(action, int) and not isinstance(action, bool):
             if self._space is None:
                 raise ValueError("action ids need fg_env.rl.gym(..., action_ids=True)")
@@ -157,7 +160,7 @@ class GymEnv(_Base):  # type: ignore[misc]
         raise ValueError(f"an action is a tool call {{'tool': name, 'args': {{...}}}}, (name, args), a tool name or "
                          f"an action id, got {action!r}")
 
-    def _observation(self, result: Optional[ToolResult]) -> Dict[str, Any]:
+    def _observation(self, result: ToolResult | None) -> dict[str, Any]:
         branch = self._branch
         assert branch is not None
         me = branch.entity(self.agent)
@@ -170,14 +173,14 @@ class GymEnv(_Base):  # type: ignore[misc]
         fresh = result is None or number != self._turn_number
         self._turn_number = number
         text = branch.update if fresh or result is None else result.text
-        tools: List[Dict[str, Any]] = [tool.to_dict() for tool in branch.tools]
+        tools: list[dict[str, Any]] = [tool.to_dict() for tool in branch.tools]
         return {"text": text, "brief": branch.brief, "tools": tools, "me": me, "round": pending.round,
                 "stage": pending.stage}
 
-    def _info(self, result: Optional[ToolResult]) -> Dict[str, Any]:
+    def _info(self, result: ToolResult | None) -> dict[str, Any]:
         branch = self._branch
         assert branch is not None
-        info: Dict[str, Any] = {"returns": branch.returns(), "steps": self._steps,
+        info: dict[str, Any] = {"returns": branch.returns(), "steps": self._steps,
                                 "result": None if result is None else {"ok": result.ok, "text": result.text,
                                                                        "data": dict(result.data)}}
         if self._space is not None and branch.pending is not None:
@@ -191,10 +194,10 @@ class GymEnv(_Base):  # type: ignore[misc]
         return info
 
 
-def gym(source: ContractLike, agent: str, *, others: Any = None, inputs: Optional[Mapping[str, Any]] = None,
-        arm: Optional[str] = None, seed: Optional[int] = None, max_steps: Optional[int] = None,
-        action_ids: bool = False, hosts: Any = None, render_mode: Optional[str] = None,
-        data_dir: Union[str, "os.PathLike[str]", None] = None) -> GymEnv:
+def gym(source: ContractLike, agent: str, *, others: Any = None, inputs: Mapping[str, Any] | None = None,
+        arm: str | None = None, seed: int | None = None, max_steps: int | None = None,
+        action_ids: bool = False, hosts: Any = None, render_mode: str | None = None,
+        data_dir: str | os.PathLike[str] | None = None) -> GymEnv:
     """One agent (an entity id) of a contract as a Gymnasium-style environment; ``others`` play the rest.
 
     ``seed`` seeds the episodes (``reset(seed=...)`` reseeds them); ``max_steps`` truncates an episode after

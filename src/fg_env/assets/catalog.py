@@ -8,13 +8,22 @@ which bytes it was given.
 from __future__ import annotations
 
 import os
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Union
 
 from ..errors import ContractError, Issue
 from . import blobs
-from .kinds import (EXTENSIONS, HARD_MAX_BYTES, KINDS, MAX_BYTES, MAX_CATALOG_BYTES, MAX_FOLDER_FILES, agrees,
-                    kind_of_name)
+from .kinds import (
+    EXTENSIONS,
+    HARD_MAX_BYTES,
+    KINDS,
+    MAX_BYTES,
+    MAX_CATALOG_BYTES,
+    MAX_FOLDER_FILES,
+    agrees,
+    kind_of_name,
+)
 from .store import Asset, AssetStore
 
 if TYPE_CHECKING:
@@ -26,18 +35,18 @@ Folder = Union[str, "os.PathLike[str]", None]
 
 
 class _Problem(Exception):
-    def __init__(self, path: str, message: str, fix: Optional[str] = None):
+    def __init__(self, path: str, message: str, fix: str | None = None):
         super().__init__(message)
         self.issue = Issue(path, message, fix)
 
 
-def asset_columns(contract: "Contract") -> List[Tuple[str, str]]:
+def asset_columns(contract: Contract) -> list[tuple[str, str]]:
     """``(input, column)`` for every table input column of type `asset`."""
     return [(name, column) for name, spec in contract.inputs.items()
             for column, kind in (spec.columns or {}).items() if kind == "asset"]
 
 
-def resolve_assets(contract: "Contract", inputs: Mapping[str, Any], folder: Folder) -> AssetStore:
+def resolve_assets(contract: Contract, inputs: Mapping[str, Any], folder: Folder) -> AssetStore:
     """The run's catalog. Raises :class:`ContractError` listing every problem with its path."""
     columns = asset_columns(contract)
     store = AssetStore(resolved=True)
@@ -47,7 +56,7 @@ def resolve_assets(contract: "Contract", inputs: Mapping[str, Any], folder: Fold
         raise ContractError([Issue("assets", "the contract's files need a folder to be read from",
                                    "load the contract from its file (its folder is used) or pass data_dir=")])
     base = Path(folder).resolve()
-    issues: List[Issue] = []
+    issues: list[Issue] = []
     total = [0]
     for name, spec in contract.assets.items():
         path = f"assets.{name}"
@@ -76,7 +85,7 @@ def resolve_assets(contract: "Contract", inputs: Mapping[str, Any], folder: Fold
     return store
 
 
-def _add(store: AssetStore, asset: Asset, path: str, issues: List[Issue]) -> None:
+def _add(store: AssetStore, asset: Asset, path: str, issues: list[Issue]) -> None:
     if asset.id in store.assets:
         issues.append(Issue(path, f"asset id '{asset.id}' is declared twice", "rename one of them"))
     else:
@@ -99,11 +108,12 @@ def _relative(raw: Any, path: str) -> str:
 def _inside(base: Path, relative: str, path: str) -> Path:
     target = (base / relative).resolve()
     if target != base and base not in target.parents:
-        raise _Problem(path, f"'{relative}' leads outside the contract's folder", "keep the file inside it (no links out)")
+        raise _Problem(path, f"'{relative}' leads outside the contract's folder",
+                       "keep the file inside it (no links out)")
     return target
 
 
-def _kind(spec_type: Optional[str], name: str, path: str) -> Tuple[str, str]:
+def _kind(spec_type: str | None, name: str, path: str) -> tuple[str, str]:
     declared = kind_of_name(name)
     if spec_type is None:
         return declared
@@ -117,7 +127,7 @@ def _kind(spec_type: Optional[str], name: str, path: str) -> Tuple[str, str]:
     return declared
 
 
-def _file(base: Path, asset_id: str, raw: str, spec: Any, path: str, total: List[int]) -> Asset:
+def _file(base: Path, asset_id: str, raw: str, spec: Any, path: str, total: list[int]) -> Asset:
     relative = _relative(raw, path)
     target = _inside(base, relative, path)
     if not target.is_file():
@@ -132,11 +142,13 @@ def _file(base: Path, asset_id: str, raw: str, spec: Any, path: str, total: List
         raise _Problem(path, f"'{relative}' is empty", "replace it with the real file")
     total[0] += size
     if total[0] > MAX_CATALOG_BYTES:
-        raise _Problem(path, f"the contract's files add up to more than {MAX_CATALOG_BYTES:,} bytes", "carry fewer files")
+        raise _Problem(path, f"the contract's files add up to more than {MAX_CATALOG_BYTES:,} bytes",
+                       "carry fewer files")
     try:
         data = target.read_bytes()
     except OSError as exc:
-        raise _Problem(path, f"cannot read '{relative}': {exc.strerror or exc}", "check that the file is readable") from None
+        raise _Problem(path, f"cannot read '{relative}': {exc.strerror or exc}",
+                       "check that the file is readable") from None
     mismatch = agrees((kind, media_type), data)
     if mismatch:
         raise _Problem(path, f"'{relative}' {mismatch}", "fix the file or its extension")
@@ -149,7 +161,7 @@ def _file(base: Path, asset_id: str, raw: str, spec: Any, path: str, total: List
                  path=relative, describe=spec.describe if spec is not None else None)
 
 
-def _folder(base: Path, name: str, spec: Any, path: str, total: List[int]) -> List[Asset]:
+def _folder(base: Path, name: str, spec: Any, path: str, total: list[int]) -> list[Asset]:
     relative = _relative(spec.folder, f"{path}.folder")
     target = _inside(base, relative, f"{path}.folder")
     if not target.is_dir():

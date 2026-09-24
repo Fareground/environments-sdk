@@ -3,19 +3,19 @@ hooks and time limits, and committing sealed choices."""
 from __future__ import annotations
 
 import bisect
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
-from ..actions.faults import guarded
 from ..actions.book import stage_actions
-from .budget import is_seconds
-from ..world.build import whole_setting
-from .clock_math import advance_time
+from ..actions.faults import guarded
 from ..contract import MAX_STAGE_PASSES, StageSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
-from .measure import Stats
+from ..world.build import whole_setting
+from ..world.entity import Entity
+from .budget import is_seconds
+from .clock_math import advance_time
 from .diagnosis import SealedWrites
+from .measure import Stats
 from .rounds import _Point, _Steps
 from .turn import Turn
 
@@ -28,7 +28,7 @@ __all__ = ["RunStages"]
 class RunStages:
     """Stage and turn running of a run (mixed into :class:`~fg_env.runtime.env.Env`)."""
 
-    def _run_stage(self: "Env", stage: StageSpec, resumed: bool = False) -> _Steps:  # type: ignore[misc]
+    def _run_stage(self: Env, stage: StageSpec, resumed: bool = False) -> _Steps:  # type: ignore[misc]
         world, where = self.world, self._where
         path = f"stages.{stage.name}"
         if not resumed:
@@ -71,7 +71,7 @@ class RunStages:
                 self.diagnosis.stage(stage.name, capped=1)  # every pass ran and `until` still did not hold
         self._atomic(stage.on_exit, {}, f"{path}.on_exit")
 
-    def _stage_runs(self: "Env", stage: StageSpec) -> bool:  # type: ignore[misc]
+    def _stage_runs(self: Env, stage: StageSpec) -> bool:  # type: ignore[misc]
         if stage.when is None:
             return True
         try:
@@ -79,7 +79,8 @@ class RunStages:
         except ExprError as exc:
             raise RunError(str(exc), f"stages.{stage.name}.when") from None
 
-    def _eligible(self: "Env", stage: StageSpec, ordered: bool = True, pass_index: int = 0) -> List[Entity]:  # type: ignore[misc]
+    def _eligible(self: Env, stage: StageSpec, ordered: bool = True,  # type: ignore[misc]
+                  pass_index: int = 0) -> list[Entity]:
         """Agents woken in ``stage`` (in its pass ``pass_index``), in turn order. ``ordered=False`` skips ordering (no
         random draws)."""
         world = self.world
@@ -109,7 +110,8 @@ class RunStages:
             raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
         return agents
 
-    def _woken(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int) -> List[Entity]:  # type: ignore[misc]
+    def _woken(self: Env, stage: StageSpec, agents: list[Entity],  # type: ignore[misc]
+               pass_index: int) -> list[Entity]:
         """The ``agents`` that the stage's `who` wakes. Each is decided with luck of its own (the stage, round, pass and
         agent), so who else is alive never shifts it, and asking again (a preview) gives the same answer."""
         world, who = self.world, compile_expr(stage.who)
@@ -121,13 +123,13 @@ class RunStages:
                     woken.append(agent)
         return woken
 
-    def _shuffle(self: "Env", stage: StageSpec, agents: List[Any]) -> None:  # type: ignore[misc]
+    def _shuffle(self: Env, stage: StageSpec, agents: list[Any]) -> None:  # type: ignore[misc]
         """Put ``agents`` (or their turns) in a random order drawn from the stage's own stream."""
         with self.world.drawing_at(f"stages.{stage.name}.order"):
             self.world.rng.shuffle(agents)
         self.world.journal.clear()  # the draw is the round's: nothing undoes it, and the run may pause after it
 
-    def _reason(self: "Env", actor: Entity, stage: StageSpec, pass_index: int) -> Optional[str]:  # type: ignore[misc]
+    def _reason(self: Env, actor: Entity, stage: StageSpec, pass_index: int) -> str | None:  # type: ignore[misc]
         requested = self.world.wake_requests.pop(actor.id, None)
         memory = self._memory(actor.id)
         if stage.quiet == "skip" and requested is None and pass_index > 0:
@@ -139,7 +141,7 @@ class RunStages:
             return "Everyone chooses at the same time."
         return "Your turn again." if pass_index and self._turned_here(memory.cursor, stage) else "It is your turn."
 
-    def _turned_here(self: "Env", cursor: int, stage: StageSpec) -> bool:  # type: ignore[misc]
+    def _turned_here(self: Env, cursor: int, stage: StageSpec) -> bool:  # type: ignore[misc]
         """Whether the agent whose last turn ended at log position ``cursor`` had it in this visit of ``stage``: the
         latest event then was this round's, in this stage."""
         log = self.world.log
@@ -148,7 +150,8 @@ class RunStages:
             return False
         return log[at].round == self.world.round and log[at].stage == stage.name
 
-    def _sequential(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:  # type: ignore[misc]
+    def _sequential(self: Env, stage: StageSpec, agents: list[Entity], pass_index: int,  # type: ignore[misc]
+                    resumed: bool = False) -> _Steps:
         where = self._where
         for position in range(where.position if resumed else 0, len(agents)):
             actor = agents[position]
@@ -177,13 +180,13 @@ class RunStages:
             memory.turns += 1
             self._flush_events()
 
-    def _scheduled(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int) -> _Steps:  # type: ignore[misc]
+    def _scheduled(self: Env, stage: StageSpec, agents: list[Entity], pass_index: int) -> _Steps:  # type: ignore[misc]
         """Continuous clock: every agent whose wake time has come takes a turn, earliest first. Its
         next wake is now plus the duration of what it did, or the stage interval if it did nothing
         timed — unless something during the turn already scheduled it later."""
         world = self.world
         now = world.time
-        due: List[Tuple[float, int, Entity]] = []
+        due: list[tuple[float, int, Entity]] = []
         for position, actor in enumerate(agents):
             at = world.wake_at.get(actor.id)
             if at is None:
@@ -199,7 +202,8 @@ class RunStages:
                 continue
             reason = self._reason(actor, stage, pass_index)
             if reason is None:
-                world.set_wake_at(actor.id, advance_time(now, self._interval(stage, actor), f"stages.{stage.name}.interval"))
+                world.set_wake_at(actor.id,
+                                  advance_time(now, self._interval(stage, actor), f"stages.{stage.name}.interval"))
                 continue
             if not self._wake_hook(stage, actor):
                 continue
@@ -217,7 +221,8 @@ class RunStages:
             memory.turns += 1
             self._flush_events()
 
-    def _after_turn(self: "Env", stage: StageSpec, turn: Turn, acted: bool, stop_when_ended: bool = False) -> None:  # type: ignore[misc]
+    def _after_turn(self: Env, stage: StageSpec, turn: Turn, acted: bool,  # type: ignore[misc]
+                    stop_when_ended: bool = False) -> None:
         """A played turn is over: record a timeout (running `on_timeout`), or — for a living agent that took no
         action — report one that had to act and did not, then run the stage's `on_idle`."""
         actor = turn.actor
@@ -230,7 +235,7 @@ class RunStages:
         if stage.on_idle:
             self._atomic(stage.on_idle, {"actor": actor}, f"stages.{stage.name}.on_idle")
 
-    def _timed_out(self: "Env", turn: Turn) -> bool:  # type: ignore[misc]
+    def _timed_out(self: Env, turn: Turn) -> bool:  # type: ignore[misc]
         """Record a turn that ran out of time (a `timeout` event) and run the stage's `on_timeout`.
         True when `on_timeout` took the place of `on_idle`."""
         if not turn.timed_out:
@@ -246,7 +251,7 @@ class RunStages:
             self._atomic(stage.on_timeout, {"actor": actor}, f"stages.{stage.name}.on_timeout")
         return True
 
-    def _time_limit(self: "Env", stage: StageSpec, actor: Entity) -> Optional[float]:  # type: ignore[misc]
+    def _time_limit(self: Env, stage: StageSpec, actor: Entity) -> float | None:  # type: ignore[misc]
         """Wall-clock seconds ``actor`` has for a turn in ``stage``: the stage's `time_limit`, else the run's."""
         raw = stage.time_limit
         if raw is None:
@@ -262,24 +267,24 @@ class RunStages:
             raise RunError(f"must be a number of seconds > 0 (or null for the run's limit), got {value!r}", path)
         return float(value)
 
-    def _wake_hook(self: "Env", stage: StageSpec, actor: Entity) -> bool:  # type: ignore[misc]
+    def _wake_hook(self: Env, stage: StageSpec, actor: Entity) -> bool:  # type: ignore[misc]
         """Run the stage's ``on_wake`` for ``actor`` before its turn; False when it no longer takes the turn."""
         if stage.on_wake:
             self._atomic(stage.on_wake, {"actor": actor}, f"stages.{stage.name}.on_wake")
         return actor.alive and not self._ended()
 
-    def _turn_end_hook(self: "Env", stage: StageSpec, actor: Entity) -> None:  # type: ignore[misc]
+    def _turn_end_hook(self: Env, stage: StageSpec, actor: Entity) -> None:  # type: ignore[misc]
         """Run the stage's ``on_turn_end`` for ``actor`` after its turn (and its actions) are done."""
         if stage.on_turn_end and actor.alive and not self._ended():
             self._atomic(stage.on_turn_end, {"actor": actor}, f"stages.{stage.name}.on_turn_end")
 
-    def _interval(self: "Env", stage: StageSpec, actor: Entity) -> float:  # type: ignore[misc]
+    def _interval(self: Env, stage: StageSpec, actor: Entity) -> float:  # type: ignore[misc]
         value = self._stage_time(stage.interval, self.contract.clock.tick, f"stages.{stage.name}.interval", actor=actor)
         if value <= 0:
             raise RunError(f"interval must be greater than 0, got {value}", f"stages.{stage.name}.interval")
         return value
 
-    def _stage_time(self: "Env", raw: Any, default: float, path: str, **vars: Any) -> float:  # type: ignore[misc]
+    def _stage_time(self: Env, raw: Any, default: float, path: str, **vars: Any) -> float:  # type: ignore[misc]
         if raw is None:
             return default
         try:
@@ -290,12 +295,13 @@ class RunStages:
             raise RunError(f"must be a time ≥ 0, got {value!r}", path)
         return float(value)
 
-    def _simultaneous(self: "Env", stage: StageSpec, agents: List[Entity], pass_index: int, resumed: bool = False) -> _Steps:  # type: ignore[misc]
+    def _simultaneous(self: Env, stage: StageSpec, agents: list[Entity], pass_index: int,  # type: ignore[misc]
+                      resumed: bool = False) -> _Steps:
         if resumed:
             turns = list(self.origin.staged)
             yield from self.driver.drive_steps(turns, together=True, resume=self._where.position)
         else:
-            reasons: Dict[str, str] = {}
+            reasons: dict[str, str] = {}
             for actor in agents:
                 reason = self._reason(actor, stage, pass_index)
                 if reason is not None:
@@ -305,7 +311,8 @@ class RunStages:
                     del reasons[actor.id]
             if reasons:
                 yield _Point(stage, dict(reasons))
-            turns = [Turn(self, actor, stage, reasons[actor.id], staged=True) for actor in agents if actor.id in reasons]
+            turns = [Turn(self, actor, stage, reasons[actor.id], staged=True) for actor in agents
+                     if actor.id in reasons]
             cursor = self.world.log[-1].seq if self.world.log else 0
             for turn in turns:
                 memory = self._memory(turn.actor.id)
@@ -320,7 +327,7 @@ class RunStages:
                     turn.exposure.close(turn)
         self._flush_events()
 
-    def _commit_choices(self: "Env", stage: StageSpec, turns: List[Turn]) -> _Steps:  # type: ignore[misc]
+    def _commit_choices(self: Env, stage: StageSpec, turns: list[Turn]) -> _Steps:  # type: ignore[misc]
         """Commit each agent's sealed choices in turn order — without an `order`, in a random order, since the first to
         commit wins a contested item; atomic stages commit or undo each agent's as a whole."""
         if stage.order is None and len(turns) > 1:
@@ -349,18 +356,18 @@ class RunStages:
             self.world.watched_writes = None
         yield from ()
 
-    def _tally(self: "Env", actor_id: str, stats: Stats) -> None:  # type: ignore[misc]
+    def _tally(self: Env, actor_id: str, stats: Stats) -> None:  # type: ignore[misc]
         """Add numbers to the run's totals and to the agent's own (callers hold the lock)."""
         self.stats.add(stats)
         self.agent_stats.setdefault(actor_id, Stats()).add(stats)
 
-    def _settle_choices(self: "Env", turn: Turn, mark: int, applied: int) -> bool:  # type: ignore[misc]
+    def _settle_choices(self: Env, turn: Turn, mark: int, applied: int) -> bool:  # type: ignore[misc]
         """An atomic simultaneous stage: keep one agent's committed choices when they meet `valid`, else undo
         them all and tell the agent why — also when a rule fails or an invariant breaks as they commit. True when
         the agent's choices stand."""
         world, stage = self.world, turn.stage
 
-        def commit() -> Optional[str]:
+        def commit() -> str | None:
             with world.turn_context(None, turn.pending):
                 why = turn.invalid() if applied else None
             if why is None:
@@ -383,7 +390,8 @@ class RunStages:
             turn.stats.undone_turns = 1
         return False
 
-    def _commit_intent(self: "Env", turn: Turn, name: str, args: Dict[str, Any], deferred: bool = False) -> int:  # type: ignore[misc]
+    def _commit_intent(self: Env, turn: Turn, name: str, args: dict[str, Any],  # type: ignore[misc]
+                       deferred: bool = False) -> int:
         """Apply one sealed choice; 1 when it applied. ``deferred`` (atomic stages) leaves the commit to the
         whole turn's settling. A rule that fails or an invariant it breaks refuses the choice alone."""
         actor, world = turn.actor, self.world
@@ -402,7 +410,8 @@ class RunStages:
                 self.happenings.react(turn.stage)
             return applied
 
-    def _apply_intent(self: "Env", turn: Turn, name: str, args: Dict[str, Any], deferred: bool) -> int:  # type: ignore[misc]
+    def _apply_intent(self: Env, turn: Turn, name: str, args: dict[str, Any],  # type: ignore[misc]
+                      deferred: bool) -> int:
         actor, world = turn.actor, self.world
         blocked = self.actions.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
         params, problem = ({}, blocked) if blocked else self.actions.validate(actor, name, args)

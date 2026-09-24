@@ -1,8 +1,8 @@
 """Relative demand/category weights preserve mass, scale and conditional shares."""
-from decimal import Decimal
 import json
 import math
 import random
+from decimal import Decimal
 
 import pytest
 

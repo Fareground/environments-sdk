@@ -26,8 +26,9 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..api import ContractLike
 from ..runtime.measure import RunResult
@@ -63,10 +64,10 @@ _SIMPLEX_METHODS = ("local", "race", "nelder_mead", "cross_entropy")
 _PARETO_METHODS = ("grid", "random", "lhs", "frontier")
 _INPUT = re.compile(r"\$inputs\.([A-Za-z_][A-Za-z0-9_]*)")
 
-Seeds = Tuple[int, ...]
+Seeds = tuple[int, ...]
 
 
-def _inputs_read(goals: Sequence[Any]) -> Optional[FrozenSet[str]]:
+def _inputs_read(goals: Sequence[Any]) -> frozenset[str] | None:
     """The inputs the objectives' and constraints' expressions read (``None``: an expression reads them otherwise, so a
     run keeps all). A contract's data tables live in its inputs, and a search keeps every run it makes."""
     texts = [goal.measure.text for goal in goals]
@@ -81,19 +82,19 @@ class _Trials:
 
     contract: Any
     space: DecisionSpace
-    fixed: Dict[str, Any]
-    arm: Optional[str]
+    fixed: dict[str, Any]
+    arm: str | None
     participants: Any
-    rounds: Optional[int]
+    rounds: int | None
     workers: int
     pool: Any
     hosts: Any
-    seeds: List[int]
-    draws: Optional[List[Dict[str, Any]]]
+    seeds: list[int]
+    draws: list[dict[str, Any]] | None
     #: The inputs a kept run holds on to (``None``: all of them); see :func:`_inputs_read`.
-    read: Optional[FrozenSet[str]]
+    read: frozenset[str] | None
     count: int = 0
-    _runs: Dict[Point, Dict[int, RunResult]] = field(default_factory=dict)
+    _runs: dict[Point, dict[int, RunResult]] = field(default_factory=dict)
 
     def ensure(self, points: Sequence[Point], indices: Seeds) -> None:
         """Run whatever is missing of ``points`` × the seeds at ``indices``, all in one batch."""
@@ -115,7 +116,7 @@ class _Trials:
             self._runs[job.tags["point"]][job.tags["run"]] = kept
         self.count += len(jobs)
 
-    def results(self, point: Point, indices: Seeds) -> List[RunResult]:
+    def results(self, point: Point, indices: Seeds) -> list[RunResult]:
         self.ensure([point], indices)
         return [self._runs[point][i] for i in indices]
 
@@ -128,19 +129,19 @@ class _Scorer:
     """Scores decisions for the search methods on the search seeds, within the budget of distinct decisions."""
 
     trials: _Trials
-    objectives: List[Objective]
-    constraints: List[Constraint]
+    objectives: list[Objective]
+    constraints: list[Constraint]
     budget: int
     runs: int
     tree: SeedTree
     #: What the search asks of a constraint: the confidence, with the search's margin.
     searching: Standard
     #: Distinct decisions scored, in order, and the most search seeds each was scored on.
-    order: List[Point] = field(default_factory=list)
-    depth: Dict[Point, int] = field(default_factory=dict)
+    order: list[Point] = field(default_factory=list)
+    depth: dict[Point, int] = field(default_factory=dict)
     exhausted: bool = False
-    _assessed: Dict[Tuple[Point, Seeds, Standard], Assessment] = field(default_factory=dict)
-    _scale: Optional[float] = None
+    _assessed: dict[tuple[Point, Seeds, Standard], Assessment] = field(default_factory=dict)
+    _scale: float | None = None
 
     def assessment(self, point: Point, indices: Seeds, standard: Standard) -> Assessment:
         key = (point, indices, standard)
@@ -153,7 +154,7 @@ class _Scorer:
     def searched(self, point: Point, count: int) -> Assessment:
         return self.assessment(point, tuple(range(count)), self.searching)
 
-    def score(self, points: Sequence[Point], count: int) -> List[Key]:
+    def score(self, points: Sequence[Point], count: int) -> list[Key]:
         distinct = list(dict.fromkeys(points))
         allowed, new = [], 0
         for point in distinct:
@@ -171,10 +172,10 @@ class _Scorer:
             raise BudgetExhausted()
         return [keys[point] for point in points]
 
-    def signed(self, points: Sequence[Point], count: int) -> List[Optional[List[float]]]:
+    def signed(self, points: Sequence[Point], count: int) -> list[list[float] | None]:
         """Each decision's objectives signed so larger is better, or ``None`` when it does not pass the constraints."""
         self.score(points, count)
-        out: List[Optional[List[float]]] = []
+        out: list[list[float] | None] = []
         for point in points:
             a = self.searched(point, count)
             out.append(_signed(a) if a.feasible else None)
@@ -194,9 +195,9 @@ class _Scorer:
 
 def optimise(contract: ContractLike, decisions: Mapping[str, Any], objective: Any, constraints: Any = (), *,
              runs: int = 10, seed: int = 0, method: str = "auto", budget: int = 50, workers: int = 1,
-             confidence: float = 0.9, uncertainty: Any = None, holdout_seeds: Optional[int] = None,
-             inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, participants: Any = None,
-             rounds: Optional[int] = None, data_dir: Any = None, hosts: Any = None) -> OptimisationResult:
+             confidence: float = 0.9, uncertainty: Any = None, holdout_seeds: int | None = None,
+             inputs: Mapping[str, Any] | None = None, arm: str | None = None, participants: Any = None,
+             rounds: int | None = None, data_dir: Any = None, hosts: Any = None) -> OptimisationResult:
     """Search ``decisions`` for the best ``objective`` subject to ``constraints`` (see the module notes).
 
     ``decisions``: ``{input: {low, high, step?} | [values] | {length|keys, low, high, step?, monotone?, sum?}}``.
@@ -281,8 +282,8 @@ class _Study:
 
     contract: str
     space: DecisionSpace
-    objectives: List[Objective]
-    constraints: List[Constraint]
+    objectives: list[Objective]
+    constraints: list[Constraint]
     trials: _Trials
     scorer: _Scorer
     runs: int
@@ -293,7 +294,7 @@ class _Study:
     #: What the choice must show: every constraint at its confidence, no margin.
     judging: Standard
     #: How many confirmation seeds each finalist has run on.
-    confirmed: Dict[Point, int] = field(default_factory=dict)
+    confirmed: dict[Point, int] = field(default_factory=dict)
 
     @property
     def search_seeds(self) -> Seeds:
@@ -308,7 +309,7 @@ class _Study:
         extra = 2 * self.runs + self.held
         return tuple(range(self.runs, 2 * self.runs)) + tuple(range(extra, extra + count - self.runs))
 
-    def _complete(self) -> List[Point]:
+    def _complete(self) -> list[Point]:
         """Decisions scored on every search seed (a race scores most of them on fewer)."""
         return [p for p in self.scorer.order if self.scorer.depth[p] >= self.runs]
 
@@ -334,11 +335,11 @@ class _Study:
             unsettled = [p for p in unsettled if self._confirming(p).verdict == "borderline"]
             count = min(most, 2 * count)
 
-    def _finalists(self) -> List[Point]:
+    def _finalists(self) -> list[Point]:
         """The search's ranking confirmed batch by batch until a batch holds a decision that meets the constraints
         there with confidence (a borderline decision that only passed on the search seeds rarely does)."""
         ranked = sorted(self._complete(), key=lambda p: rank(self.scorer.searched(p, self.runs)))
-        confirmed: List[Point] = []
+        confirmed: list[Point] = []
         for first in range(0, min(len(ranked), _FINALISTS * _CONFIRMATION_BATCHES), _FINALISTS):
             batch = ranked[first:first + _FINALISTS]
             self._confirm(batch)
@@ -360,13 +361,13 @@ class _Study:
         result.total_runs = self.trials.count
         return result
 
-    def _holdout(self, best: Point, second: Optional[Point], chosen: Assessment) -> Optional[Dict[str, Any]]:
+    def _holdout(self, best: Point, second: Point | None, chosen: Assessment) -> dict[str, Any] | None:
         if not self.held:
             return None
         seeds = self.held_seeds
         self.trials.ensure([best] + ([second] if second is not None else []), seeds)
         fresh = self.scorer.assessment(best, seeds, self.judging)
-        out: Dict[str, Any] = {"seeds": self.held, "best": fresh.to_dict(), "verdict": fresh.verdict}
+        out: dict[str, Any] = {"seeds": self.held, "best": fresh.to_dict(), "verdict": fresh.verdict}
         reasons = []
         clearly = [c["constraint"] for c in fresh.constraints if c["clearly_missed"]]
         if clearly and chosen.verdict != "infeasible":
@@ -375,7 +376,8 @@ class _Study:
                                      if not c["met"] and not c["clearly_missed"]]
         objective, now, was = self.objectives[0], fresh.objectives[0], chosen.objectives[0]
         if now["value"] is not None and was["low"] is not None and (
-                objective.sense > 0 and now["value"] < was["low"] or objective.sense < 0 and now["value"] > was["high"]):
+                objective.sense > 0 and now["value"] < was["low"] or objective.sense < 0 and now["value"]
+                > was["high"]):
             reasons.append(f"the objective on fresh seeds ({now['value']:.4g}) falls outside the confirmation's 95% "
                            f"interval ({was['low']:.4g} to {was['high']:.4g})")
         if second is not None:
@@ -390,7 +392,7 @@ class _Study:
         out.update(seed_luck=bool(reasons), reasons=reasons)
         return out
 
-    def _sensitivity(self, best: Point) -> List[Dict[str, Any]]:
+    def _sensitivity(self, best: Point) -> list[dict[str, Any]]:
         seeds = self.search_seeds
         base = self.trials.results(best, seeds)
         rows = []
@@ -409,7 +411,7 @@ class _Study:
                                               "verdict": c["verdict"]} for c in a.constraints]})
         return rows
 
-    def _history(self) -> List[Dict[str, Any]]:
+    def _history(self) -> list[dict[str, Any]]:
         rows = []
         for point in self.scorer.order:
             a = self.scorer.searched(point, self.scorer.depth[point])
@@ -419,7 +421,7 @@ class _Study:
                          "verdict": a.verdict, "rank": rank(a)[1]})
         return rows
 
-    def _notes(self, best: Point, chosen: Assessment) -> List[str]:
+    def _notes(self, best: Point, chosen: Assessment) -> list[str]:
         notes = []
         for name, where in self.space.at_edges(best).items():
             place = f" at {', '.join(where)}" if where else ""
@@ -457,7 +459,7 @@ class _Study:
         frontier = _front(feasible, {p: _signed(assessed[p]) for p in feasible})
         frontier.sort(key=lambda p: -_signed(assessed[p])[0])
         notes = []
-        fresh: Dict[Point, Assessment] = {}
+        fresh: dict[Point, Assessment] = {}
         if self.held and frontier:
             self.trials.ensure(frontier, self.held_seeds)
             fresh = {p: self.scorer.assessment(p, self.held_seeds, self.judging) for p in frontier}
@@ -481,9 +483,9 @@ class _Study:
         return result
 
 
-def _signed(a: Assessment) -> List[float]:
+def _signed(a: Assessment) -> list[float]:
     return [s * o["value"] for s, o in zip(a.senses, a.objectives)]
 
 
-def _front(points: Sequence[Point], values: Mapping[Point, List[float]]) -> List[Point]:
+def _front(points: Sequence[Point], values: Mapping[Point, list[float]]) -> list[Point]:
     return [p for p in points if not any(dominates(values[q], values[p]) for q in points if q != p)]

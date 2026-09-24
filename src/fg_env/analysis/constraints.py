@@ -19,16 +19,17 @@ Every constraint is judged three ways from its runs:
 A decision meets its constraints with confidence when every one is confident, is infeasible when one is clearly missed,
 and borderline in between. Per key, the counts of confident and plausible keys decide the same way; every key reports
 its *slack* (how many standard errors it sits on the right side of the bound), and the *binding* keys are those not
-confident plus those within one standard error of the tightest — the keys that decide the plan. A search may ask for more than the confidence:
-``margin`` multiplies the one-sided bound's distance (see :mod:`.optimise`).
+confident plus those within one standard error of the tightest — the keys that decide the plan. A search may ask for
+more than the confidence: ``margin`` multiplies the one-sided bound's distance (see :mod:`.optimise`).
 """
 from __future__ import annotations
 
 import math
 import random
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from ..runtime.measure import RunResult
 from .goals import Measure, Stat, stat_prefix
@@ -62,17 +63,17 @@ class Constraint:
     op: str
     bound: float
     stat: Stat
-    share: Optional[float] = None  # the share of runs it must hold in; None = a statistic over runs
-    confidence: Optional[float] = None  # stated in the text; None = the optimiser's
+    share: float | None = None  # the share of runs it must hold in; None = a statistic over runs
+    confidence: float | None = None  # stated in the text; None = the optimiser's
     #: Per key: None for one number per run, else "each", "least" or "most" (with ``count``).
-    keys: Optional[str] = None
+    keys: str | None = None
     count: int = 0
 
     def holds(self, value: float) -> bool:
         return bool(_COMPARE[self.op](value, self.bound))
 
 
-def parse_constraints(contract: Any, constraints: Any) -> List[Constraint]:
+def parse_constraints(contract: Any, constraints: Any) -> list[Constraint]:
     items = [constraints] if isinstance(constraints, str) else list(constraints or [])
     return [_constraint(contract, text) for text in items]
 
@@ -110,7 +111,7 @@ def _constraint(contract: Any, text: Any) -> Constraint:
                       confidence, keys, count)
 
 
-def _split_comparison(body: str, text: str) -> Tuple[str, str, str]:
+def _split_comparison(body: str, text: str) -> tuple[str, str, str]:
     """The last top-level comparison: ``left op right`` (brackets and quotes skipped)."""
     depth, quote, found = 0, "", None
     i = 0
@@ -137,10 +138,10 @@ def _split_comparison(body: str, text: str) -> Tuple[str, str, str]:
     return body[:at].strip(), op, body[at + len(op):].strip()
 
 
-def check(c: Constraint, runs: Sequence[RunResult], standard: Standard, rng: random.Random) -> Dict[str, Any]:
+def check(c: Constraint, runs: Sequence[RunResult], standard: Standard, rng: random.Random) -> dict[str, Any]:
     """One constraint over a decision's runs: the estimate with its 95% interval and the three verdicts."""
     level = c.confidence if c.confidence is not None else standard.confidence
-    row: Dict[str, Any] = {"constraint": c.text, "bound": c.bound, "op": c.op, "confidence": level}
+    row: dict[str, Any] = {"constraint": c.text, "bound": c.bound, "op": c.op, "confidence": level}
     if c.keys is None:
         values = [v for v in c.measure.per_run(runs) if v is not None]
         row["n"] = len(values)
@@ -150,7 +151,7 @@ def check(c: Constraint, runs: Sequence[RunResult], standard: Standard, rng: ran
     return {**row, **_keyed(c, runs, level, standard.margin, rng)}
 
 
-_EMPTY: Dict[str, Any] = {"value": None, "low": None, "high": None, "met": False, "passes": False, "confident": False,
+_EMPTY: dict[str, Any] = {"value": None, "low": None, "high": None, "met": False, "passes": False, "confident": False,
                           "clearly_missed": False, "verdict": "infeasible", "shortfall": None, "violation": None}
 
 
@@ -158,8 +159,8 @@ def _verdict(confident: bool, missed: bool) -> str:
     return "feasible" if confident else ("infeasible" if missed else "borderline")
 
 
-def _judge(c: Constraint, op: str, values: List[float], level: float, margin: float,
-           rng: random.Random) -> Dict[str, Any]:
+def _judge(c: Constraint, op: str, values: list[float], level: float, margin: float,
+           rng: random.Random) -> dict[str, Any]:
     compare = _COMPARE[op]
     if c.share is not None:
         return _judge_share(c, compare, values, level, margin)
@@ -184,7 +185,7 @@ def _judge(c: Constraint, op: str, values: List[float], level: float, margin: fl
             "violation": 0.0 if passes else max(abs(c.bound - reached) / scale, 1e-12)}
 
 
-def _judge_share(c: Constraint, compare: Any, values: List[float], level: float, margin: float) -> Dict[str, Any]:
+def _judge_share(c: Constraint, compare: Any, values: list[float], level: float, margin: float) -> dict[str, Any]:
     assert c.share is not None
     n = len(values)
     held = sum(1 for v in values if compare(v, c.bound))
@@ -202,7 +203,7 @@ def _judge_share(c: Constraint, compare: Any, values: List[float], level: float,
             "violation": max(0.0, c.share - cautious)}
 
 
-def _slack(room: float, se: Optional[float]) -> float:
+def _slack(room: float, se: float | None) -> float:
     """How far a value is on the right side of its bound (negative: the wrong side), in standard errors; a value without
     noise is infinitely far unless it sits exactly on the bound."""
     if se:
@@ -220,10 +221,10 @@ def _wilson_side(successes: int, n: int, z: float, lower: bool) -> float:
 
 
 def _keyed(c: Constraint, runs: Sequence[RunResult], level: float, margin: float,
-           rng: random.Random) -> Dict[str, Any]:
+           rng: random.Random) -> dict[str, Any]:
     """Each key judged on its own (an *at most* through its complement), then counted against how many must hold."""
     per_run = c.measure.per_run_keyed(runs)
-    order: Dict[str, None] = {}
+    order: dict[str, None] = {}
     for keyed in per_run:
         order.update(dict.fromkeys(keyed or {}))
     op = _COMPLEMENT[c.op] if c.keys == "most" else c.op
@@ -246,8 +247,8 @@ def _keyed(c: Constraint, runs: Sequence[RunResult], level: float, margin: float
     tightest = min(r["slack"] for r in rows)
     binding = [r["key"] for r in rows if not r["confident"] or r["slack"] <= tightest + 1]
     return {"n": min(r["n"] for r in rows), "value": met if c.keys != "most" else len(rows) - met,
-            "keys_holding": met, "keys_needed": need, "keys_total": len(rows), "low": None, "high": None, "met": met >= need,
-            "passes": passing >= need, "confident": confident, "clearly_missed": missed,
+            "keys_holding": met, "keys_needed": need, "keys_total": len(rows), "low": None, "high": None,
+            "met": met >= need, "passes": passing >= need, "confident": confident, "clearly_missed": missed,
             "verdict": _verdict(confident, missed), "shortfall": math.fsum(shortfalls[:max(0, need - met)]),
             "violation": math.fsum(gaps[:max(0, need - passing)]), "binding": binding,
             "keys": [{k: r[k] for k in ("key", "value", "low", "high", "slack", "met", "confident", "clearly_missed",

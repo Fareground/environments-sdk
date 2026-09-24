@@ -4,13 +4,14 @@ import copy
 import threading
 import time
 
+from test_host_judge import DEBATE, speaker
+from test_runtime import AUCTION, SHOP
+from test_time_limits import GAME
+
 import fg_env
 from fg_env import host
 from fg_env.host.stubs import StubEvaluator
 from fg_env.participants import RandomAgent
-from test_host_judge import DEBATE, speaker
-from test_runtime import AUCTION, SHOP
-from test_time_limits import GAME
 
 LUCK = {
     "name": "Luck",

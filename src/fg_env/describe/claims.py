@@ -5,7 +5,8 @@ author learns which properties are asserted rather than verified.
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Mapping
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from ..errors import Issue
 
@@ -25,7 +26,7 @@ def _space_size(metadata: Mapping[str, Any]) -> Any:
 
 
 #: Claimable property → (how to read the derived value, the evidence key that explains it).
-CLAIMS: Dict[str, tuple] = {
+CLAIMS: dict[str, tuple] = {
     "dynamics": (lambda m: m["dynamics"], "dynamics"),
     "chance_mode": (lambda m: m["chance_mode"], "chance_mode"),
     "information": (lambda m: m["information"], "information"),
@@ -39,9 +40,9 @@ CLAIMS: Dict[str, tuple] = {
 }
 
 
-def claim_issues(metadata: Mapping[str, Any], claims: Mapping[str, Any], path: str = "game") -> List[Issue]:
+def claim_issues(metadata: Mapping[str, Any], claims: Mapping[str, Any], path: str = "game") -> list[Issue]:
     """Issues for ``claims`` (property → claimed value) that ``metadata`` contradicts or cannot verify."""
-    issues: List[Issue] = []
+    issues: list[Issue] = []
     for key, claimed in claims.items():
         where = f"{path}.{key}"
         if key not in CLAIMS:

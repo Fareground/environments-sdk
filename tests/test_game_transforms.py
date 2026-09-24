@@ -3,11 +3,20 @@ adapters and the game benchmark."""
 import random
 
 import pytest
+from game_contracts import GAMES
 
 import fg_env
-from fg_env.game import (CHANCE, SIMULTANEOUS, bench_game, misere, pettingzoo_aec, pettingzoo_parallel, repeated,
-                         zero_sum_check, zerosum)
-from game_contracts import GAMES
+from fg_env.game import (
+    CHANCE,
+    SIMULTANEOUS,
+    bench_game,
+    misere,
+    pettingzoo_aec,
+    pettingzoo_parallel,
+    repeated,
+    zero_sum_check,
+    zerosum,
+)
 
 PD = GAMES / "prisoners_dilemma.json"
 
@@ -33,7 +42,8 @@ def test_misere_negates_returns_and_bounds_and_zerosum_centres_them():
     flipped = misere(GAMES / "chicken.json")
     assert flipped["game"]["min_return"] == -1 and flipped["game"]["max_return"] == 10
     state = fg_env.rl.game(flipped).new_initial_state()
-    state.apply_actions({0: {"tool": "drive", "args": {"move": "straight"}}, 1: {"tool": "drive", "args": {"move": "swerve"}}})
+    state.apply_actions({0: {"tool": "drive", "args": {"move": "straight"}},
+                         1: {"tool": "drive", "args": {"move": "swerve"}}})
     assert state.returns() == [-1.0, 1.0]
     centred = zerosum(PD)
     check = zero_sum_check(centred, playouts=8)

@@ -1,4 +1,5 @@
-"""run_jobs: one batch runner for experiments and analyses; the same seeds give the same runs in process and in workers."""
+"""run_jobs: one batch runner for experiments and analyses; the same seeds give the same runs in process and in workers.
+"""
 from pathlib import Path
 
 import fg_env
@@ -19,7 +20,8 @@ def test_run_jobs_matches_experiment_in_process_threads_and_workers():
                                    arms=[arm] if arm else None)
     runs = next(iter(experiment.arms.values())).runs
     assert all(r.status != "failed" for r in serial), [r.error for r in serial]
-    assert [r.outputs for r in serial] == [r.outputs for r in processes] == [r.outputs for r in threads] == [r.outputs for r in runs]
+    assert ([r.outputs for r in serial] == [r.outputs for r in processes] == [r.outputs for r in threads]
+            == [r.outputs for r in runs])
 
 
 def test_a_job_that_fails_on_its_own_is_kept_and_events_can_be_dropped():

@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..api import ContractLike
 from ..runtime.measure import RunResult
@@ -29,9 +30,9 @@ class Finding:
     severity: str  # error | warning | info
     subject: str
     message: str
-    evidence: Dict[str, Any] = field(default_factory=dict)
+    evidence: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"code": self.code, "severity": self.severity, "subject": self.subject, "message": self.message,
                 "evidence": self.evidence}
 
@@ -40,16 +41,16 @@ class Finding:
 class CheckReport:
     contract: str
     runs: int
-    rounds: Optional[int]
-    findings: List[Finding]
-    tested_inputs: List[str]
-    untested_inputs: List[str]
+    rounds: int | None
+    findings: list[Finding]
+    tested_inputs: list[str]
+    untested_inputs: list[str]
 
     @property
     def ok(self) -> bool:
         return not any(f.severity == "error" for f in self.findings)
 
-    def codes(self) -> List[Tuple[str, str]]:
+    def codes(self) -> list[tuple[str, str]]:
         return [(f.code, f.subject) for f in self.findings]
 
     def report(self) -> str:
@@ -64,13 +65,13 @@ class CheckReport:
                          f"{', '.join(self.untested_inputs)}")
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "runs": self.runs, "rounds": self.rounds, "ok": self.ok,
                 "findings": [f.to_dict() for f in self.findings], "tested_inputs": self.tested_inputs,
                 "untested_inputs": self.untested_inputs}
 
 
-def _variants(contract: Any, name: str, base: Any, perturb: float) -> List[Any]:
+def _variants(contract: Any, name: str, base: Any, perturb: float) -> list[Any]:
     spec = contract.inputs[name]
     if spec.type == "bool":
         return [not base] if isinstance(base, bool) else [True, False]
@@ -108,9 +109,9 @@ def _fingerprint(result: RunResult) -> str:
                        "status": result.status}, sort_keys=True, default=str)
 
 
-def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[int] = None, seed: int = 0,
-                    participants: Any = "random", inputs: Optional[Mapping[str, Any]] = None,
-                    test_inputs: Optional[Sequence[str]] = None, perturb: float = 0.5,
+def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: int | None = None, seed: int = 0,
+                    participants: Any = "random", inputs: Mapping[str, Any] | None = None,
+                    test_inputs: Sequence[str] | None = None, perturb: float = 0.5,
                     workers: int = 1, data_dir: Any = None, hosts: Any = None,
                     boundaries: bool = False, max_boundary_cases: int = 24) -> CheckReport:
     """Run ``runs`` seeds with random agents (plus one set per varied input) and report findings.
@@ -135,7 +136,7 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     base_inputs = dict(inputs or {})
     seeds = runner.run_seeds(seed, runs)
     baseline_jobs = [runner.Job(base_inputs, None, s) for s in seeds]
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     baseline = runner.run_jobs(parsed, baseline_jobs, participants=participants, rounds=rounds, workers=workers,
                                events=True, hosts=hosts, require_success=False)
     if all(r.status == "failed" for r in baseline):
@@ -184,7 +185,7 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: Optional[i
     return CheckReport(parsed.name, runs, rounds, findings, tested, untested)
 
 
-def _failures(results: Sequence[RunResult]) -> List[Finding]:
+def _failures(results: Sequence[RunResult]) -> list[Finding]:
     failed = [r for r in results if r.status == "failed"]
     if not failed:
         return []
@@ -192,7 +193,7 @@ def _failures(results: Sequence[RunResult]) -> List[Finding]:
                     f"{failed[0].error}", {"seeds": [r.seed for r in failed], "error": failed[0].error})]
 
 
-def _incomplete(results: Sequence[RunResult], subject: str = "(run)") -> List[Finding]:
+def _incomplete(results: Sequence[RunResult], subject: str = "(run)") -> list[Finding]:
     unfinished = [r for r in results if r.status not in ("completed", "ended", "failed")]
     if not unfinished:
         return []
@@ -203,12 +204,12 @@ def _incomplete(results: Sequence[RunResult], subject: str = "(run)") -> List[Fi
                      "statuses": [r.status for r in unfinished]})]
 
 
-def _rounds_note(rounds: Optional[int]) -> str:
+def _rounds_note(rounds: int | None) -> str:
     return f" (runs were capped at {rounds} round(s); it may only happen later)" if rounds else ""
 
 
-def _output_errors(runs: Sequence[RunResult], varied: Optional[Mapping[str, Any]] = None) -> List[Finding]:
-    issues: Dict[str, List[Tuple[int, str]]] = {}
+def _output_errors(runs: Sequence[RunResult], varied: Mapping[str, Any] | None = None) -> list[Finding]:
+    issues: dict[str, list[tuple[int, str]]] = {}
     for r in runs:
         for issue in r.output_issues:
             issues.setdefault(issue["path"], []).append((r.seed, issue["message"]))
@@ -217,7 +218,7 @@ def _output_errors(runs: Sequence[RunResult], varied: Optional[Mapping[str, Any]
     for path, observations in issues.items():
         seeds = list(dict.fromkeys(seed for seed, _ in observations))
         messages = [message for _, message in observations]
-        evidence: Dict[str, Any] = {"messages": messages[:5], "seeds": seeds}
+        evidence: dict[str, Any] = {"messages": messages[:5], "seeds": seeds}
         if varied:
             evidence["inputs"] = dict(varied)
         out.append(Finding("output_issue", "error", path,
@@ -226,7 +227,7 @@ def _output_errors(runs: Sequence[RunResult], varied: Optional[Mapping[str, Any]
     return out
 
 
-def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[int]) -> List[Finding]:
+def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: int | None) -> list[Finding]:
     out = _output_errors(runs)
     rejected = {finding.subject for finding in out}
     if len(runs) < 2:
@@ -247,7 +248,7 @@ def _output_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[
     return out
 
 
-def _metric_findings(contract: Any, runs: Sequence[RunResult]) -> List[Finding]:
+def _metric_findings(contract: Any, runs: Sequence[RunResult]) -> list[Finding]:
     out = []
     for name in contract.metrics:
         seen = {json.dumps(v, sort_keys=True, default=str) for r in runs for v in r.series.get(name, [])}
@@ -259,8 +260,8 @@ def _metric_findings(contract: Any, runs: Sequence[RunResult]) -> List[Finding]:
     return out
 
 
-def _action_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[int]) -> List[Finding]:
-    taken: Dict[str, List[bool]] = {}
+def _action_findings(contract: Any, runs: Sequence[RunResult], rounds: int | None) -> list[Finding]:
+    taken: dict[str, list[bool]] = {}
     for r in runs:
         for event in r.events:
             if event.get("kind") == "action":
@@ -299,7 +300,7 @@ def _stage_has_actions(stage: Any) -> bool:
     return bool(actions)
 
 
-def _stage_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[int]) -> List[Finding]:
+def _stage_findings(contract: Any, runs: Sequence[RunResult], rounds: int | None) -> list[Finding]:
     acted = {e.get("stage") for r in runs for e in r.events if e.get("kind") == "action"}
     out = []
     for stage in contract.stages:
@@ -312,13 +313,13 @@ def _stage_findings(contract: Any, runs: Sequence[RunResult], rounds: Optional[i
 
 
 def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Sequence[RunResult], seeds: Sequence[int],
-                    test_inputs: Optional[Sequence[str]], perturb: float, participants: Any, rounds: Optional[int],
-                    workers: int, hosts: Any) -> Tuple[List[str], List[str], List[Finding]]:
+                    test_inputs: Sequence[str] | None, perturb: float, participants: Any, rounds: int | None,
+                    workers: int, hosts: Any) -> tuple[list[str], list[str], list[Finding]]:
     names = list(test_inputs) if test_inputs is not None else list(contract.inputs)
     for name in names:
         runner.input_spec(contract, name)
     tested, untested = [], []
-    plan: List[Tuple[str, Any]] = []
+    plan: list[tuple[str, Any]] = []
     for name in names:
         spec = contract.inputs[name]
         if name in base_inputs or spec.type not in _SCALAR_TYPES:
@@ -338,10 +339,10 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
                               hosts=hosts, require_success=False)
     grouped = runner.by_cell(jobs, results, len(cells))
     base_prints = [_fingerprint(r) if r.status != "failed" and not r.output_issues else None for r in baseline]
-    changed: Dict[str, List[Any]] = {}
-    broke: Dict[str, List[Tuple[Any, str, int]]] = {}
-    unfinished: Dict[str, List[RunResult]] = {}
-    compared: Dict[str, int] = {}
+    changed: dict[str, list[Any]] = {}
+    broke: dict[str, list[tuple[Any, str, int]]] = {}
+    unfinished: dict[str, list[RunResult]] = {}
+    compared: dict[str, int] = {}
     findings = []
     for (name, v), cell in zip(plan, grouped):
         findings += _output_errors(cell, {name: v})
@@ -360,7 +361,8 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
             value, error, _ = broke[name][0]
             failed_seeds = [s for v, _, s in broke[name] if v == value]
             findings.append(Finding("input_breaks_runs", "error", f"inputs.{name}",
-                                    f"Setting it to {value!r} made runs fail: {error}.", {"value": value, "error": error, "seeds": failed_seeds}))
+                                    f"Setting it to {value!r} made runs fail: {error}.",
+                                    {"value": value, "error": error, "seeds": failed_seeds}))
         elif (name not in changed and name not in unfinished
               and compared.get(name, 0) == len(seeds) * len(tried)):
             findings.append(Finding("input_has_no_effect", "warning", f"inputs.{name}",

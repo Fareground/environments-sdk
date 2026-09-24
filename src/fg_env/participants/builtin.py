@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Callable, Mapping
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from ..effects.runner import each_items
 from ..errors import ContractError, Issue, RunError
-from ..sampling.probability import is_probability
 from ..expr import ExprError, compile_expr, resolve, truthy
-from ..sampling.seeds import LazyStream
 from ..runtime.session import Wake
+from ..sampling.probability import is_probability
+from ..sampling.seeds import LazyStream
 from .llm import PROVIDERS, official_participant
 
 if TYPE_CHECKING:
@@ -59,8 +60,8 @@ class RandomAgent:
 SAMPLE_TEXT = "I would like to try this and see what happens next."
 
 
-def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]:
-    args: Dict[str, Any] = {}
+def sample_args(schema: Mapping[str, Any], rng: random.Random) -> dict[str, Any]:
+    args: dict[str, Any] = {}
     for name, prop in (schema.get("properties") or {}).items():
         if "enum" in prop:
             if prop["enum"]:
@@ -90,7 +91,7 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
     return args
 
 
-def _fill_dependent(wake: Wake, tool: str, args: Dict[str, Any], rng: random.Random) -> Dict[str, Any]:
+def _fill_dependent(wake: Wake, tool: str, args: dict[str, Any], rng: random.Random) -> dict[str, Any]:
     """``args`` with each choice that depends on earlier arguments (``where: $it.id != $params.a.id``, ``values:
     $params.army.exits``) drawn from the choices that qualify given them: a schema can only list every candidate."""
     from ..errors import RunError
@@ -112,7 +113,7 @@ def _fill_dependent(wake: Wake, tool: str, args: Dict[str, Any], rng: random.Ran
     return {**filled, "action": args["action"]} if name != tool else filled
 
 
-def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> Optional[List[Any]]:
+def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> list[Any] | None:
     item = prop.get("items") or {}
     low = int(prop.get("minItems", 0))
     high = max(low, min(int(prop.get("maxItems", low + 3)), low + 3))
@@ -124,7 +125,7 @@ def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> Optional[List[A
                 return None
             return rng.sample(list(pool), rng.randint(low, min(high, len(pool))))
         return [rng.choice(pool) for _ in range(rng.randint(low, high))] if pool else ([] if low == 0 else None)
-    out: List[Any] = []
+    out: list[Any] = []
     for _ in range(rng.randint(low, high)):
         value = sample_args({"properties": {"x": item}}, rng).get("x")
         if value is not None and not (unique and value in out):
@@ -150,7 +151,7 @@ class PolicyAgent:
     #: always beats is still reported. Check's smoke play sets it; the policy acts the same either way.
     _probe_later = False
 
-    def __init__(self, contract: "Contract", name: str, seed: int = 0):
+    def __init__(self, contract: Contract, name: str, seed: int = 0):
         if name not in contract.policies:
             raise ValueError(f"no policy '{name}' in the contract (policies: {', '.join(contract.policies) or 'none'})")
         self.name = name
@@ -188,7 +189,7 @@ class PolicyAgent:
             wake.end()
 
     @staticmethod
-    def _items(turn: Any, each: str, scope: Any, path: str) -> List[Any]:
+    def _items(turn: Any, each: str, scope: Any, path: str) -> list[Any]:
         world = turn.env.world
         if each in turn.env.contract.types:
             return list(world.entities_of(each))
@@ -221,7 +222,7 @@ class PolicyAgent:
         return "skipped"  # this rule does not fit right now; try the next one
 
     def _choose(self, wake: Wake, index: int, scope: Any,
-                rng: Any) -> Union[None, str, Tuple[Dict[str, Any], Optional[str]]]:
+                rng: Any) -> None | str | tuple[dict[str, Any], str | None]:
         """Whether a rule applies now: None (it does not), "passed", or its arguments and why they are invalid."""
         turn, rule, path = wake._turn, self.spec.rules[index], f"policies.{self.name}.rules[{index}]"
         try:
@@ -285,7 +286,7 @@ def _as_ids(value: Any) -> Any:
     return value.id if hasattr(value, "entity_type") else value
 
 
-def resolve_participant(value: Any, contract: "Contract", seed: int, path: str = "participants") -> Participant:
+def resolve_participant(value: Any, contract: Contract, seed: int, path: str = "participants") -> Participant:
     """The participant ``value`` names; an unknown name raises :class:`~fg_env.ContractError` at ``path``."""
     if callable(value):
         return value
@@ -308,17 +309,20 @@ def resolve_participant(value: Any, contract: "Contract", seed: int, path: str =
     named = ["random", "idle", *(f"policy:{name}" for name in contract.policies)]
     hint = get_close_matches(str(value), named, n=1)
     raise ContractError([Issue(path, f"unknown participant {value!r}", (f"did you mean '{hint[0]}'? " if hint else "")
-                               + "use a callable, 'random', 'idle', 'policy:<name>', 'anthropic:<model>', 'openai:<model>', "
-                               "or a game algorithm: 'mcts:<simulations>', 'ismcts:<simulations>', 'minimax[:<depth>]', "
-                               f"'cfr:<policy.json>' or 'cfr:<iterations>' (policies: {', '.join(contract.policies) or 'none'})")],
+                               + "use a callable, 'random', 'idle', 'policy:<name>', 'anthropic:<model>', "
+                                 "'openai:<model>', "
+                               "or a game algorithm: 'mcts:<simulations>', 'ismcts:<simulations>', "
+                               "'minimax[:<depth>]', "
+                               "'cfr:<policy.json>' or 'cfr:<iterations>' (policies: "
+                               f"{', '.join(contract.policies) or 'none'})")],
                         title="participants are invalid")
 
 
 def replay(recording: Any, fallback: Any = None) -> Participant:
-    """A participant that plays a recorded run's steps again, turn by turn, checking every wake against the
-    recording (``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must
-    record exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that
-    participant plays on. Usually you want ``fg_env.analysis.trace(recording).replay(contract)``, which also replays the host
+    """A participant that plays a recorded run's steps again, turn by turn, checking every wake against the recording
+    (``recording``: a result with exposures, its dict, a saved file, or a trace); the run it plays in must record
+    exposures. On the first difference the run fails with the divergence, or — given ``fallback`` — that participant
+    plays on. Usually you want ``fg_env.analysis.trace(recording).replay(contract)``, which also replays the host
     answers and compares the outcome."""
     from ..trace.rerun import Replayer
 

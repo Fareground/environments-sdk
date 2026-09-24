@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, Tuple
+from typing import Any
 
 from ..runtime.measure import RunResult
 from .constraints import Constraint, Standard, check
@@ -13,16 +14,16 @@ from .goals import Objective
 __all__ = ["Assessment", "Key", "assess", "rank"]
 
 #: A candidate's place: (tier, then lower is better within the tier, then a tie-break); see :func:`rank`.
-Key = Tuple[int, float, float]
+Key = tuple[int, float, float]
 
 
 @dataclass(frozen=True)
 class Assessment:
     """One candidate on one set of seeds: objective and constraint values with intervals and verdicts."""
 
-    objectives: Tuple[Dict[str, Any], ...]
-    constraints: Tuple[Dict[str, Any], ...]
-    senses: Tuple[int, ...]
+    objectives: tuple[dict[str, Any], ...]
+    constraints: tuple[dict[str, Any], ...]
+    senses: tuple[int, ...]
     runs: int
     failed: int
 
@@ -48,7 +49,7 @@ class Assessment:
         """How far the constraints are from passing, each shortfall on its own scale, added up."""
         return math.fsum(c["violation"] for c in self.constraints if c["violation"] is not None)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"objectives": list(self.objectives), "constraints": list(self.constraints), "feasible": self.feasible,
                 "verdict": self.verdict, "runs": self.runs, "failed": self.failed}
 

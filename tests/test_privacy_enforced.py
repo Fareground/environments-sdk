@@ -68,7 +68,8 @@ def test_a_view_cannot_show_or_sort_by_anothers_private_property_whatever_its_wh
 
 
 def test_an_agent_reads_its_own_private_properties_and_logic_reads_everyones():
-    view = {"of": "player", "where": "$it.alive", "show": "{$it.name}{$': ' + $text($it.cash) if $it.id == $actor.id else ''}"}
+    view = {"of": "player", "where": "$it.alive",
+            "show": "{$it.name}{$': ' + $text($it.cash) if $it.id == $actor.id else ''}"}
     result, seen = play(with_(views={"mine": view, "role": {"show": "You are {$actor.role}."}}))
     assert result.status == "completed", result.error
     assert "- ann: 10" in seen["update"] and "- bob\n" in seen["update"] and "You are good." in seen["update"]
@@ -100,7 +101,8 @@ def test_a_bound_read_from_a_chosen_entitys_private_property_refuses_without_rev
 
 def test_outcome_text_reveals_only_what_game_logic_worked_out():
     peek = {"by": "player", "params": {"target": {"type": "entity", "of": "player"}}}
-    direct = with_(actions={"peek": {**peek, "do": [], "outcome": "{$params.target.name} is {$get($params.target, 'role')}."}})
+    direct = with_(actions={"peek": {**peek, "do": [],
+                                     "outcome": "{$params.target.name} is {$get($params.target, 'role')}."}})
     worked_out = with_(actions={"peek": {**peek, "do": ["$seen = $params.target.role"],
                                          "outcome": "{$params.target.name} is {$seen}."}})
     _, seen = play(direct, [("peek", {"target": "bob"})])
@@ -173,7 +175,8 @@ def test_an_announcement_cannot_read_an_agents_private_property_not_even_the_act
 
 
 def test_an_announcement_reveals_what_game_logic_worked_out():
-    c = with_(actions={"brag": {"by": "player", "do": ["$shown = $actor.cash"], "announce": "{$actor.name} holds {$shown}."}})
+    c = with_(actions={"brag": {"by": "player", "do": ["$shown = $actor.cash"],
+                                "announce": "{$actor.name} holds {$shown}."}})
     result, _ = play(c, [("brag", {})])
     assert result.status == "completed", result.error
     assert any(e.get("text") == "ann holds 10." for e in result.events)
@@ -183,7 +186,8 @@ def test_an_announcement_reveals_what_game_logic_worked_out():
 def test_news_cannot_read_an_agents_private_property_unless_sent_only_to_that_agent():
     event_say = with_()
     event_say["events"] = [{"phase": "start", "do": [], "say": "Bob holds {$entity(bob).cash}."}]
-    to_everyone = with_(actions={"wave": {"by": "player", "do": [{"emit": "x", "say": "Bob holds {$entity(bob).cash}."}]}})
+    to_everyone = with_(actions={"wave": {"by": "player",
+                                          "do": [{"emit": "x", "say": "Bob holds {$entity(bob).cash}."}]}})
     own_to_everyone = with_(actions={"wave": {"by": "player", "do": [{"emit": "x", "say": "I hold {$actor.cash}."}]}})
     to_bob = with_(actions={"wave": {"by": "player", "do": [
         {"emit": "x", "say": "You hold {$entity(bob).cash}.", "to": "$entity(bob)"}]}})

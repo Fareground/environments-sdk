@@ -14,12 +14,13 @@ An account is an entity property (``Account(entity, "cash")``) or a world proper
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, List, Mapping, Optional, Tuple
+from typing import Any
 
-from ..world.entity import Entity
-from ..registry import use_key
 from ..expr.template import format_value
+from ..registry import use_key
+from ..world.entity import Entity
 from ..world.live import Abort
 
 __all__ = ["Account", "EPS", "move", "balance", "clean", "whole", "market_places"]
@@ -47,10 +48,10 @@ _HELD = {
 }
 
 
-def market_places(mechanisms: Mapping[str, Any], currency: str) -> Tuple[List[str], List[str]]:
+def market_places(mechanisms: Mapping[str, Any], currency: str) -> tuple[list[str], list[str]]:
     """The entity and world properties where the declared markets of ``currency`` hold money."""
-    entity_props: List[str] = []
-    world_props: List[str] = []
+    entity_props: list[str] = []
+    world_props: list[str] = []
     for name, raw in (mechanisms or {}).items():
         held = _HELD.get(use_key(raw) or "")
         if held is not None and raw.get("currency", "cash") == currency:
@@ -63,7 +64,7 @@ def market_places(mechanisms: Mapping[str, Any], currency: str) -> Tuple[List[st
 class Account:
     """Where value sits: an entity's property, or a world property when ``entity`` is None."""
 
-    entity: Optional[Entity]
+    entity: Entity | None
     prop: str
 
     def label(self) -> str:
@@ -81,7 +82,8 @@ def balance(world: Any, account: Account) -> float:
 
 def _store(world: Any, account: Account, value: float) -> None:
     number: Any = clean(value)
-    spec = world.prop_spec(account.entity, account.prop) if account.entity is not None else world.contract.world.get(account.prop)
+    spec = (world.prop_spec(account.entity, account.prop) if account.entity is not None
+            else world.contract.world.get(account.prop))
     if spec is not None and (spec.type == "int" or (spec.type is None and isinstance(spec.default, int)
                                                     and not isinstance(spec.default, bool) and whole(number))):
         number = int(round(number))

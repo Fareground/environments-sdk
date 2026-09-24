@@ -1,11 +1,10 @@
 """Stage on_wake runs before each agent's turn (so the turn reflects it) and on_turn_end after it."""
 import pytest
+from family_fixtures import Nothing, scratch_family
 
 import fg_env
 from fg_env.mechanisms import expand_mechanisms
 from fg_env.registry import mode
-
-from family_fixtures import Nothing, scratch_family
 
 
 def _contract(turns):
@@ -14,7 +13,8 @@ def _contract(turns):
             "entities": {"ann": {"type": "player"}, "bo": {"type": "player"}},
             "actions": {"peek": {"by": "player", "terminal": True, "do": ["$actor.acted = $actor.ends"],
                                  "outcome": "wakes {$actor.wakes} ends {$actor.ends}"}},
-            "stages": [{"name": "play", "turns": turns, "on_wake": ["$actor.wakes += 1"], "on_turn_end": ["$actor.ends += 1"]}]}
+            "stages": [{"name": "play", "turns": turns, "on_wake": ["$actor.wakes += 1"],
+                        "on_turn_end": ["$actor.ends += 1"]}]}
 
 
 def test_sequential_turns_see_on_wake_and_on_turn_end_follows_every_turn():
@@ -49,7 +49,8 @@ def upkeep():
 
 
 def test_mechanisms_can_append_to_turn_hooks(upkeep):
-    data, issues = expand_mechanisms({**_contract("sequential"), "mechanisms": {"upkeep": {"kind": "test_upkeep", "mode": "wake"}}})
+    data, issues = expand_mechanisms({**_contract("sequential"),
+                                      "mechanisms": {"upkeep": {"kind": "test_upkeep", "mode": "wake"}}})
     assert issues == []
     stage = data["stages"][0]
     assert stage["on_wake"] == ["$actor.wakes += 1", "$actor.wakes += 10"]

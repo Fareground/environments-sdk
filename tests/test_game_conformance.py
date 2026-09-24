@@ -6,10 +6,10 @@ import copy
 import os
 
 import pytest
+from game_contracts import GAMES, load_game
 
 import fg_env
 from fg_env.game import game
-from game_contracts import GAMES, load_game
 
 EXAMPLES = sorted(GAMES.glob("*.json"))
 SIMS = 12 if os.environ.get("FG_ENV_SLOW") else 2

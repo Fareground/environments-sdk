@@ -11,8 +11,8 @@ __all__ = ["add_new_command"]
 
 
 def cmd_new(args: argparse.Namespace) -> int:
-    from ..errors import ContractError
     from ..authoring.scaffold import TEMPLATES, new
+    from ..errors import ContractError
 
     if args.engine:
         return _clone(args)
@@ -39,7 +39,8 @@ def _clone(args: argparse.Namespace) -> int:
     from ..engines import EngineNotFound, clone, get
 
     if args.file is not None:
-        print(f"error: with --engine give only the file to write, not {args.template!r} and {args.file!r}", file=sys.stderr)
+        print(f"error: with --engine give only the file to write, not {args.template!r} and {args.file!r}",
+              file=sys.stderr)
         return 1
     path = Path(args.template or f"{args.engine}.json")
     try:
@@ -68,20 +69,23 @@ def cmd_engines(args: argparse.Namespace) -> int:
     width = max(len(engine.id) for engine in engines)
     for engine in engines:
         print(f"{engine.id:<{width}}  {engine.summary}")
-    print("\nstart from one: fg-env new --engine <id> my_env.json (a complete contract to edit, with coded participants)")
+    print("\nstart from one: fg-env new --engine <id> my_env.json (a complete contract to edit, with coded "
+          "participants)")
     return 0
 
 
 def add_new_command(sub: Any) -> None:
     from ..authoring.scaffold import TEMPLATES
 
-    p = sub.add_parser("new", help="write a ready-to-run contract from a template (" + ", ".join(TEMPLATES) + ") or, with "
-                                   "--engine, from an engine (fg-env engines lists them)")
-    p.add_argument("template", nargs="?", help=" | ".join(f"{name} ({about})" for name, (about, _) in TEMPLATES.items()))
+    p = sub.add_parser("new", help="write a ready-to-run contract from a template (" + ", ".join(TEMPLATES) + ") or, "
+                                   "with --engine, from an engine (fg-env engines lists them)")
+    p.add_argument("template", nargs="?",
+                   help=" | ".join(f"{name} ({about})" for name, (about, _) in TEMPLATES.items()))
     p.add_argument("file", nargs="?", help="where to write it (default: <template>.json)")
     p.add_argument("--engine", metavar="ID", help="start from an engine instead: fg-env new --engine <id> [file]")
     p.add_argument("--force", action="store_true", help="replace the file if it exists")
     p.set_defaults(func=cmd_new)
 
-    p = sub.add_parser("engines", help="list the engines: complete, runnable scenarios to start from with fg-env new --engine")
+    p = sub.add_parser("engines",
+                       help="list the engines: complete, runnable scenarios to start from with fg-env new --engine")
     p.set_defaults(func=cmd_engines)

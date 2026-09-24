@@ -7,8 +7,9 @@ accuracy), ensembles of numbers (CRPS, interval coverage) and explicit intervals
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from .stats import is_number, mean, quantile, wilson
 
@@ -32,7 +33,7 @@ class ReliabilityBin:
     observed_low: float
     observed_high: float
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"low": self.low, "high": self.high, "n": self.n, "mean_forecast": self.mean_forecast,
                 "observed": self.observed, "observed_ci95": [self.observed_low, self.observed_high]}
 
@@ -62,7 +63,7 @@ def brier(probabilities: Sequence[float], outcomes: Sequence[Any]) -> float:
     return mean([(_probability(p) - _event(o)) ** 2 for p, o in zip(probabilities, outcomes)])
 
 
-def _distribution(forecast: Mapping[Any, float]) -> Dict[str, float]:
+def _distribution(forecast: Mapping[Any, float]) -> dict[str, float]:
     if not isinstance(forecast, Mapping) or not forecast:
         raise ValueError(f"a category forecast must be a non-empty mapping of category → probability, got {forecast!r}")
     out = {str(k): _probability(v) for k, v in forecast.items()}
@@ -125,8 +126,8 @@ def crps(ensembles: Sequence[Sequence[float]], observations: Sequence[float]) ->
     return mean([crps_ensemble(e, o) for e, o in zip(ensembles, observations)])
 
 
-def interval_coverage(intervals: Sequence[Tuple[float, float]], outcomes: Sequence[float],
-                      nominal: Optional[float] = None) -> Dict[str, Any]:
+def interval_coverage(intervals: Sequence[tuple[float, float]], outcomes: Sequence[float],
+                      nominal: float | None = None) -> dict[str, Any]:
     """How often outcomes fall inside their intervals (ends included), with a Wilson interval."""
     _pairs(intervals, outcomes)
     hits, widths = 0, []
@@ -138,7 +139,7 @@ def interval_coverage(intervals: Sequence[Tuple[float, float]], outcomes: Sequen
         widths.append(high - low)
     n = len(outcomes)
     low_ci, high_ci = wilson(hits, n)
-    out: Dict[str, Any] = {"n": n, "coverage": hits / n, "coverage_ci95": [low_ci, high_ci],
+    out: dict[str, Any] = {"n": n, "coverage": hits / n, "coverage_ci95": [low_ci, high_ci],
                            "mean_width": mean(widths)}
     if nominal is not None:
         out["nominal"] = nominal
@@ -147,12 +148,13 @@ def interval_coverage(intervals: Sequence[Tuple[float, float]], outcomes: Sequen
     return out
 
 
-def reliability(probabilities: Sequence[float], outcomes: Sequence[Any], bins: int = DEFAULT_BINS) -> List[ReliabilityBin]:
+def reliability(probabilities: Sequence[float], outcomes: Sequence[Any],
+                bins: int = DEFAULT_BINS) -> list[ReliabilityBin]:
     """Non-empty bins of equal width over [0, 1]; a forecast of exactly 1 falls in the last bin."""
     _pairs(probabilities, outcomes)
     if bins < 1:
         raise ValueError("bins must be at least 1")
-    grouped: Dict[int, List[Tuple[float, int]]] = {}
+    grouped: dict[int, list[tuple[float, int]]] = {}
     for p, o in zip(probabilities, outcomes):
         q = _probability(p)
         index = min(bins - 1, int(math.floor(q * bins + 1e-9)))
@@ -174,7 +176,7 @@ def ece(probabilities: Sequence[float], outcomes: Sequence[Any], bins: int = DEF
     return math.fsum(b.n * abs(b.mean_forecast - b.observed) for b in table) / n
 
 
-def murphy(probabilities: Sequence[float], outcomes: Sequence[Any], bins: int = DEFAULT_BINS) -> Dict[str, float]:
+def murphy(probabilities: Sequence[float], outcomes: Sequence[Any], bins: int = DEFAULT_BINS) -> dict[str, float]:
     """Brier = reliability − resolution + uncertainty (+ a within-bin residual).
 
     reliability: calibration error (lower is better); resolution: how much forecasts separate
@@ -192,7 +194,7 @@ def murphy(probabilities: Sequence[float], outcomes: Sequence[Any], bins: int = 
             "residual": score - (rel - res + unc), "base_rate": base}
 
 
-def skill_score(value: float, reference: float, perfect: float = 0.0) -> Optional[float]:
+def skill_score(value: float, reference: float, perfect: float = 0.0) -> float | None:
     """1 − (score − perfect)/(reference − perfect): 1 perfect, 0 no better than the reference, < 0 worse."""
     if reference == perfect:
         return None
@@ -210,8 +212,8 @@ def _kind(forecasts: Sequence[Any]) -> str:
 
 
 def score(forecasts: Sequence[Any], outcomes: Sequence[Any], *, kind: str = "auto",
-          climatology: Any = None, bins: int = DEFAULT_BINS, nominal: Optional[float] = None,
-          epsilon: float = DEFAULT_EPSILON) -> Dict[str, Any]:
+          climatology: Any = None, bins: int = DEFAULT_BINS, nominal: float | None = None,
+          epsilon: float = DEFAULT_EPSILON) -> dict[str, Any]:
     """Every applicable score for a set of forecasts against what happened.
 
     ``kind``: ``binary`` (probabilities of a yes/no event), ``categorical`` (mappings of
@@ -235,7 +237,7 @@ def score(forecasts: Sequence[Any], outcomes: Sequence[Any], *, kind: str = "aut
 
 
 def _score_binary(forecasts: Sequence[Any], outcomes: Sequence[Any], climatology: Any, bins: int,
-                  epsilon: float) -> Dict[str, Any]:
+                  epsilon: float) -> dict[str, Any]:
     events = [_event(o) for o in outcomes]
     in_sample = climatology is None
     base = mean(events) if in_sample else _probability(climatology)
@@ -251,16 +253,17 @@ def _score_binary(forecasts: Sequence[Any], outcomes: Sequence[Any], climatology
 
 
 def _score_categorical(forecasts: Sequence[Any], outcomes: Sequence[Any], climatology: Any,
-                       epsilon: float) -> Dict[str, Any]:
+                       epsilon: float) -> dict[str, Any]:
     in_sample = climatology is None
     if in_sample:
-        counts: Dict[str, int] = {}
+        counts: dict[str, int] = {}
         for o in outcomes:
             counts[str(o)] = counts.get(str(o), 0) + 1
         reference_dist = {k: v / len(outcomes) for k, v in counts.items()}
     else:
         reference_dist = _distribution(climatology)
-    hits = sum(1 for f, o in zip(forecasts, outcomes) if max(_distribution(f).items(), key=lambda kv: kv[1])[0] == str(o))
+    hits = sum(1 for f, o in zip(forecasts, outcomes) if max(_distribution(f).items(), key=lambda kv: kv[1])[0]
+               == str(o))
     value = brier_multiclass(forecasts, outcomes)
     reference = brier_multiclass([reference_dist] * len(outcomes), outcomes)
     return {"kind": "categorical", "n": len(outcomes), "brier": value,
@@ -270,7 +273,7 @@ def _score_categorical(forecasts: Sequence[Any], outcomes: Sequence[Any], climat
 
 
 def _score_ensemble(forecasts: Sequence[Any], outcomes: Sequence[Any], climatology: Any,
-                    nominal: Optional[float]) -> Dict[str, Any]:
+                    nominal: float | None) -> dict[str, Any]:
     level = 0.8 if nominal is None else nominal
     tail = (1.0 - level) / 2.0
     ensembles = [[float(m) for m in f if is_number(m)] for f in forecasts]

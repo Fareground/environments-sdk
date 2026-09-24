@@ -6,8 +6,6 @@ average policy converges to a Nash equilibrium; :func:`~.best_response.exploitab
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional, Union
-
 from ..game import Game
 from .policy import TabularPolicy
 from .tree import Chance, Decision, GameTree, Node, Terminal, extract_tree
@@ -18,16 +16,16 @@ __all__ = ["CFRSolver", "solve"]
 class CFRSolver:
     """Tabular CFR (``plus=False``) or CFR+ (``plus=True``) on a game tree (or a game, whose tree is extracted)."""
 
-    def __init__(self, source: Union[GameTree, Game], *, plus: bool = False):
+    def __init__(self, source: GameTree | Game, *, plus: bool = False):
         self.tree = source if isinstance(source, GameTree) else extract_tree(source)
         self.plus = plus
         self.iteration = 0
         infosets = self.tree.infosets()
-        self._actions: Dict[str, List[str]] = {key: texts for key, (_, texts) in infosets.items()}
-        self._regrets: Dict[str, List[float]] = {key: [0.0] * len(texts) for key, texts in self._actions.items()}
-        self._totals: Dict[str, List[float]] = {key: [0.0] * len(texts) for key, texts in self._actions.items()}
+        self._actions: dict[str, list[str]] = {key: texts for key, (_, texts) in infosets.items()}
+        self._regrets: dict[str, list[float]] = {key: [0.0] * len(texts) for key, texts in self._actions.items()}
+        self._totals: dict[str, list[float]] = {key: [0.0] * len(texts) for key, texts in self._actions.items()}
 
-    def iterate(self, iterations: int = 1) -> "CFRSolver":
+    def iterate(self, iterations: int = 1) -> CFRSolver:
         """Run ``iterations`` more iterations (each updates every seat once, in seat order)."""
         if isinstance(iterations, bool) or not isinstance(iterations, int) or iterations < 0:
             raise ValueError(f"iterations must be a whole number ≥ 0, got {iterations!r}")
@@ -52,7 +50,7 @@ class CFRSolver:
                                   [1.0 / len(texts)] * len(texts)))
         return TabularPolicy(table, self.tree.game)
 
-    def _strategy(self, key: str) -> List[float]:
+    def _strategy(self, key: str) -> list[float]:
         regrets = self._regrets[key]
         positive = [value if value > 0 else 0.0 for value in regrets]
         whole = sum(positive)
@@ -81,7 +79,7 @@ class CFRSolver:
         return value
 
 
-def solve(source: Union[GameTree, Game], iterations: int, *, plus: bool = True,
-          solver: Optional[CFRSolver] = None) -> TabularPolicy:
+def solve(source: GameTree | Game, iterations: int, *, plus: bool = True,
+          solver: CFRSolver | None = None) -> TabularPolicy:
     """The average policy after ``iterations`` of CFR+ (or CFR with ``plus=False``)."""
     return (solver or CFRSolver(source, plus=plus)).iterate(iterations).average_policy()

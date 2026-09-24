@@ -1,4 +1,5 @@
-"""How each kind is estimated from rows — simple, documented estimators; what they do not estimate is assumed as declared.
+"""How each kind is estimated from rows — simple, documented estimators; what they do not estimate is assumed as
+declared.
 
 | kind | estimated | method | assumed |
 |---|---|---|---|
@@ -19,12 +20,13 @@
 | hazard | rate, or shape and scale, or values | event share; maximum likelihood by Nelder–Mead; share per age | span |
 
 A value column is divided by the patterns in ``adjust`` first (for counts, their product is the expected value).
-"""
+"""  # noqa: E501 — guide text: each line is shown as written
 from __future__ import annotations
 
 import math
 import statistics
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
 from . import timebase as tb
 from .fit import Estimate, Problem, Row
@@ -33,8 +35,8 @@ from .signals import _matches
 
 __all__ = ["ESTIMATORS"]
 
-Estimator = Callable[[Problem, Optional[str]], Estimate]
-ESTIMATORS: Dict[str, Estimator] = {}
+Estimator = Callable[[Problem, str | None], Estimate]
+ESTIMATORS: dict[str, Estimator] = {}
 _PERIOD_SLOTS = {"year": 12, "week": 7, "day": 24}
 
 
@@ -46,14 +48,14 @@ def estimator(*kinds: str) -> Callable[[Estimator], Estimator]:
     return register
 
 
-def _series(problem: Problem) -> List[Row]:
+def _series(problem: Problem) -> list[Row]:
     rows = sorted((row for row in problem.rows if not row.censored), key=lambda row: row.t)
     if len(rows) < 3:
         raise ValueError(f"{len(rows)} usable row(s) is too few")
     return rows
 
 
-def _values(problem: Problem, rows: Sequence[Row]) -> List[float]:
+def _values(problem: Problem, rows: Sequence[Row]) -> list[float]:
     return [row.y / problem.adjustment(row) for row in rows]
 
 
@@ -73,7 +75,7 @@ def _origin(problem: Problem) -> float:
 
 
 @estimator("trend")
-def _trend(problem: Problem, key: Optional[str]) -> Estimate:
+def _trend(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     tau = [row.t - _origin(problem) for row in rows]
@@ -91,8 +93,9 @@ def _trend(problem: Problem, key: Optional[str]) -> Estimate:
                         [start * math.exp(fit.coef[1] * t) for t, _ in pairs])
     span = (max(tau) - min(tau)) or 1.0
 
-    def sse(p: List[float]) -> float:
-        return sum((v - p[0] / (1 + math.exp(max(-700.0, min(700.0, -p[2] * (t - p[1])))))) ** 2 for t, v in zip(tau, y))
+    def sse(p: list[float]) -> float:
+        return sum((v - p[0] / (1 + math.exp(max(-700.0, min(700.0, -p[2] * (t - p[1])))))) ** 2
+                   for t, v in zip(tau, y))
 
     best, _ = nelder_mead(sse, [max(y) * 1.05, statistics.median(tau), 8 / span], step=0.2)
     curve = [best[0] / (1 + math.exp(max(-700.0, min(700.0, -best[2] * (t - best[1]))))) for t in tau]
@@ -101,7 +104,7 @@ def _trend(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("seasonal")
-def _seasonal(problem: Problem, key: Optional[str]) -> Estimate:
+def _seasonal(problem: Problem, key: str | None) -> Estimate:
     cfg = problem.cfg
     rows = _series(problem)
     y = _values(problem, rows)
@@ -111,7 +114,7 @@ def _seasonal(problem: Problem, key: Optional[str]) -> Estimate:
         slots = len(declared) if isinstance(declared, list) and declared else _PERIOD_SLOTS.get(str(cfg.period))
         if not slots:
             raise ValueError("declare `profile` with one value per slot so fit knows how many to estimate")
-        groups: List[List[float]] = [[] for _ in range(slots)]
+        groups: list[list[float]] = [[] for _ in range(slots)]
         for row, value in zip(rows, y):
             groups[tb.slot(problem.clock, row.t, cfg.period, slots)].append(value)
         empty = [i for i, g in enumerate(groups) if not g]
@@ -121,7 +124,8 @@ def _seasonal(problem: Problem, key: Optional[str]) -> Estimate:
         if multiply and overall <= 0:
             raise ValueError("a multiplicative profile needs values above 0")
         profile = [statistics.fmean(g) / overall if multiply else statistics.fmean(g) - overall for g in groups]
-        errors = [(statistics.stdev(g) / math.sqrt(len(g)) / (overall if multiply else 1)) if len(g) > 1 else 0.0 for g in groups]
+        errors = [(statistics.stdev(g) / math.sqrt(len(g)) / (overall if multiply else 1)) if len(g) > 1 else 0.0
+                  for g in groups]
         base = overall
         predicted = [(base * profile[tb.slot(problem.clock, row.t, cfg.period, slots)]) if multiply
                      else base + profile[tb.slot(problem.clock, row.t, cfg.period, slots)] for row in rows]
@@ -130,7 +134,8 @@ def _seasonal(problem: Problem, key: Optional[str]) -> Estimate:
                         [f"level {base:.4g} (not part of the pattern)"])
     pairs = max(1, len(cfg.harmonics) if isinstance(cfg.harmonics, list) else 1)
     positions = [tb.position(problem.clock, row.t, cfg.period) for row in rows]
-    design = [[1.0] + [f(2 * math.pi * k * p) for k in range(1, pairs + 1) for f in (math.sin, math.cos)] for p in positions]
+    design = [[1.0] + [f(2 * math.pi * k * p) for k in range(1, pairs + 1) for f in (math.sin, math.cos)]
+              for p in positions]
     level = statistics.fmean(y)
     target = [v / level - 1 if multiply else v - level for v in y]
     fit = least_squares(design, target)
@@ -150,7 +155,7 @@ def _seasonal(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("calendar")
-def _calendar(problem: Problem, key: Optional[str]) -> Estimate:
+def _calendar(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     effects = problem.current("effects", key)
@@ -167,7 +172,8 @@ def _calendar(problem: Problem, key: Optional[str]) -> Estimate:
     values = [math.exp(c) if multiply else c for c in fit.coef[1:]]
     errors = [math.exp(c) * s if multiply else s for c, s in zip(fit.coef[1:], fit.se[1:])]
     fitted_effects = [{**effect, "effect": value} for effect, value in zip(effects, values)]
-    predicted = [math.exp(sum(c * d for c, d in zip(fit.coef, row))) if multiply else sum(c * d for c, d in zip(fit.coef, row))
+    predicted = [math.exp(sum(c * d for c, d in zip(fit.coef, row))) if multiply
+                 else sum(c * d for c, d in zip(fit.coef, row))
                  for row in design]
     notes = [f"{effect['on']}: ±{error:.3g}" for effect, error in zip(effects, errors)]
     return Estimate({"effects": fitted_effects}, {}, "regression on the share of days each effect matches",
@@ -180,7 +186,7 @@ def _calendar(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("elasticity")
-def _elasticity(problem: Problem, key: Optional[str]) -> Estimate:
+def _elasticity(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     reference = problem.current("reference", key)
@@ -201,7 +207,7 @@ def _elasticity(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("promotion")
-def _promotion(problem: Problem, key: Optional[str]) -> Estimate:
+def _promotion(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     depth = [_x(problem, row) for row in rows]
@@ -216,11 +222,12 @@ def _promotion(problem: Problem, key: Optional[str]) -> Estimate:
     fit = least_squares([[1.0, d] for d in depth], y)
     lift = fit.coef[1] / fit.coef[0]
     return Estimate({"lift": lift}, {"lift": abs(lift) * fit.se[1] / abs(fit.coef[1]) if fit.coef[1] else 0.0},
-                    "regression of demand on intensity", ["dip", "retain"], y, [fit.coef[0] + fit.coef[1] * d for d in depth])
+                    "regression of demand on intensity", ["dip", "retain"], y,
+                    [fit.coef[0] + fit.coef[1] * d for d in depth])
 
 
 @estimator("counts")
-def _counts(problem: Problem, key: Optional[str]) -> Estimate:
+def _counts(problem: Problem, key: str | None) -> Estimate:
     rows = problem.rows
     if problem.cfg.dist == "poisson":
         raise ValueError("a poisson pattern has nothing to estimate; use negative_binomial to estimate dispersion")
@@ -229,8 +236,10 @@ def _counts(problem: Problem, key: Optional[str]) -> Estimate:
         raise ValueError("counts need the expected value: `fit.mean` (a column) or `fit.adjust` (patterns)")
     values = [row.y for row in rows]
     k = dispersion(values, means, [row.censored for row in rows])
-    notes = [] if k is not None else ["no over-dispersion: the counts are no noisier than Poisson; dispersion set very large"]
-    return Estimate({"dispersion": k if k is not None else 1e6}, {}, "method of moments", ["dist"], values, means, notes)
+    notes = ([] if k is not None
+             else ["no over-dispersion: the counts are no noisier than Poisson; dispersion set very large"])
+    return Estimate({"dispersion": k if k is not None else 1e6}, {}, "method of moments", ["dist"], values, means,
+                    notes)
 
 
 # ---------------------------------------------------------------------------
@@ -238,7 +247,7 @@ def _counts(problem: Problem, key: Optional[str]) -> Estimate:
 # ---------------------------------------------------------------------------
 
 
-def _steps(problem: Problem, rows: List[Row]) -> float:
+def _steps(problem: Problem, rows: list[Row]) -> float:
     gaps = {round((b.t - a.t) / problem.clock.step, 9) for a, b in zip(rows, rows[1:])}
     if len(gaps) != 1 or 0 in gaps:
         raise ValueError("a random path is fitted from rows one step apart (sorted by time, no gaps)")
@@ -246,7 +255,7 @@ def _steps(problem: Problem, rows: List[Row]) -> float:
 
 
 @estimator("random_walk")
-def _random_walk(problem: Problem, key: Optional[str]) -> Estimate:
+def _random_walk(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     _steps(problem, rows)
     y = _values(problem, rows)
@@ -261,7 +270,7 @@ def _random_walk(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("mean_reversion")
-def _mean_reversion(problem: Problem, key: Optional[str]) -> Estimate:
+def _mean_reversion(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     dt = _steps(problem, rows)
     y = _values(problem, rows)
@@ -279,7 +288,7 @@ def _mean_reversion(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("autoregressive")
-def _autoregressive(problem: Problem, key: Optional[str]) -> Estimate:
+def _autoregressive(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     _steps(problem, rows)
     y = _values(problem, rows)
@@ -296,7 +305,7 @@ def _autoregressive(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("weather")
-def _weather(problem: Problem, key: Optional[str]) -> Estimate:
+def _weather(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     _steps(problem, rows)
     y = _values(problem, rows)
@@ -320,13 +329,13 @@ def _weather(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("draw", "noise")
-def _draw(problem: Problem, key: Optional[str]) -> Estimate:
+def _draw(problem: Problem, key: str | None) -> Estimate:
     values = [row.y for row in problem.rows if not row.censored]
     if len(values) < 3:
         raise ValueError(f"{len(values)} value(s) is too few")
     dist = getattr(problem.cfg, "dist", "normal")
     n, m, s = len(values), statistics.fmean(values), statistics.stdev(values)
-    notes: List[str] = []
+    notes: list[str] = []
     if dist == "normal":
         params, errors = {"mean": m, "sd": s}, {"mean": s / math.sqrt(n)}
     elif dist == "lognormal":
@@ -355,11 +364,11 @@ def _draw(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("carryover")
-def _carryover(problem: Problem, key: Optional[str]) -> Estimate:
+def _carryover(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     drivers = [_x(problem, row) for row in rows]
-    best: Optional[Tuple[float, float, Any, List[float]]] = None
+    best: tuple[float, float, Any, list[float]] | None = None
     for step in range(0, 99):
         retain = step / 100
         stock, carried = 0.0, []
@@ -381,14 +390,14 @@ def _carryover(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("saturation")
-def _saturation(problem: Problem, key: Optional[str]) -> Estimate:
+def _saturation(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     xs = [_x(problem, row) for row in rows]
     form = problem.cfg.form
     top, low = max(y), min(y)
 
-    def curve(p: List[float], x: float) -> float:
+    def curve(p: list[float], x: float) -> float:
         base, limit = p[0], p[1]
         if form == "hill":
             half, shape = abs(p[2]) + 1e-12, abs(p[3]) + 1e-12
@@ -398,7 +407,8 @@ def _saturation(problem: Problem, key: Optional[str]) -> Estimate:
         return base + limit * (1 - math.exp(-max(0.0, x) / (abs(p[2]) + 1e-12)))
 
     start = [low, top - low, statistics.median(xs) or 1.0] + ([1.0] if form != "exponential" else [])
-    best, _ = nelder_mead(lambda p: sum((v - curve(p, x)) ** 2 for x, v in zip(xs, y)), start, step=0.3, iterations=4000)
+    best, _ = nelder_mead(lambda p: sum((v - curve(p, x)) ** 2 for x, v in zip(xs, y)), start, step=0.3,
+                          iterations=4000)
     names = {"hill": ["base", "limit", "half", "shape"], "logistic": ["base", "limit", "midpoint", "steepness"],
              "exponential": ["base", "limit", "scale"]}[form]
     params = {name: (abs(v) if name in ("half", "shape", "scale") else v) for name, v in zip(names, best)}
@@ -407,7 +417,7 @@ def _saturation(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("diffusion")
-def _diffusion(problem: Problem, key: Optional[str]) -> Estimate:
+def _diffusion(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
     output = problem.cfg.output
@@ -422,7 +432,7 @@ def _diffusion(problem: Problem, key: Optional[str]) -> Estimate:
         decay = math.exp(-(p + q) * tau)
         return (1 - decay) / (1 + (q / p) * decay)
 
-    def curve(params: List[float], t: float) -> float:
+    def curve(params: list[float], t: float) -> float:
         p, q, market = abs(params[0]) + 1e-9, abs(params[1]), abs(params[2])
         tau = t - start
         if output == "share":
@@ -442,7 +452,7 @@ def _diffusion(problem: Problem, key: Optional[str]) -> Estimate:
 
 
 @estimator("hazard")
-def _hazard(problem: Problem, key: Optional[str]) -> Estimate:
+def _hazard(problem: Problem, key: str | None) -> Estimate:
     rows = problem.rows
     events = [1.0 if row.y else 0.0 for row in rows]
     ages = [_x(problem, row) for row in rows]
@@ -452,11 +462,11 @@ def _hazard(problem: Problem, key: Optional[str]) -> Estimate:
         raise ValueError(f"{n} row(s) is too few")
     if form == "constant":
         rate = sum(events) / n
-        return Estimate({"rate": rate}, {"rate": math.sqrt(rate * (1 - rate) / n)}, "share of rows with the event", ["span"],
-                        events, [rate] * n)
+        return Estimate({"rate": rate}, {"rate": math.sqrt(rate * (1 - rate) / n)}, "share of rows with the event",
+                        ["span"], events, [rate] * n)
     if form == "table":
         top = int(max(ages))
-        shares: List[float] = []
+        shares: list[float] = []
         for age in range(top + 1):
             at = [e for a, e in zip(ages, events) if int(a) == age]
             shares.append(sum(at) / len(at) if at else (shares[-1] if shares else 0.0))
@@ -471,7 +481,7 @@ def _hazard(problem: Problem, key: Optional[str]) -> Estimate:
         now = survival(age)
         return min(1 - 1e-9, max(1e-9, 1 - survival(age + span) / now)) if now > 0 else 1 - 1e-9
 
-    def loss(p: List[float]) -> float:
+    def loss(p: list[float]) -> float:
         shape, scale = abs(p[0]) + 1e-6, abs(p[1]) + 1e-6
         return -sum(e * math.log(chance(shape, scale, a)) + (1 - e) * math.log(1 - chance(shape, scale, a))
                     for a, e in zip(ages, events))

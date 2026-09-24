@@ -3,10 +3,9 @@ import math
 import statistics
 
 import pytest
+from patterns_helpers import series, world
 
 import fg_env
-
-from patterns_helpers import series, world
 
 
 def _one(patterns, expr, **options):
@@ -74,7 +73,8 @@ def test_negative_binomial_counts_are_overdispersed_by_their_dispersion():
 
 def test_a_larger_expected_count_never_draws_fewer_for_the_same_key_and_round():
     got = series({"c": {"kind": "counts", "dispersion": 3}},
-                 {"low": "$map($range(300), $pattern.c(4, $it))", "high": "$map($range(300), $pattern.c(6, $it))"}, rounds=2)
+                 {"low": "$map($range(300), $pattern.c(4, $it))", "high": "$map($range(300), $pattern.c(6, $it))"},
+                 rounds=2)
     for low, high in zip(got["low"], got["high"]):
         assert all(a <= b for a, b in zip(low, high))
 
@@ -137,14 +137,16 @@ def test_fatigue_wears_response_down_with_repeated_exposure_and_recovers_when_it
 def test_memory_patterns_keep_their_state_per_entity_key():
     contract = world({"a": {"kind": "carryover", "keys": "shop", "input": "$it.spend", "retain": 0.5}},
                      types={"shop": {"props": {"spend": 0.0}}},
-                     entities={"s1": {"type": "shop", "props": {"spend": 2}}, "s2": {"type": "shop", "props": {"spend": 4}}},
+                     entities={"s1": {"type": "shop", "props": {"spend": 2}},
+                               "s2": {"type": "shop", "props": {"spend": 4}}},
                      metrics={"a": "$pattern_values('a')"}, rounds=2)
     assert fg_env.run(contract, "idle", seed=1).series["a"] == [{"s1": 2, "s2": 4}, {"s1": 3, "s2": 6}]
 
 
 def test_a_product_combines_factors_under_their_own_keys_and_a_sum_weighs_them():
     patterns = {
-        "season": {"kind": "seasonal", "period": 2, "table": "$inputs.cats", "column": "cat", "profile": "$row.profile"},
+        "season": {"kind": "seasonal", "period": 2, "table": "$inputs.cats", "column": "cat",
+                   "profile": "$row.profile"},
         "trend": {"kind": "trend", "start": 1, "slope": 0.5},
         "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base",
                    "of": ["trend", {"pattern": "season", "key": "$row.cat"}]},

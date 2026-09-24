@@ -1,13 +1,14 @@
 """Derived candidates for exact reader/record equality; permissions stay live."""
 from __future__ import annotations
 
-from collections import OrderedDict
-from functools import lru_cache
 import re
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from collections import OrderedDict
+from collections.abc import Mapping
+from functools import lru_cache
+from typing import Any
 
 from ..expr import ExprError
-from ..expr.values import attr, _entity_id
+from ..expr.values import _entity_id, attr
 from .parts import Entry
 
 # Unsupported values and unresolved references must still receive ordinary checks.
@@ -20,7 +21,7 @@ def author_only(source: str) -> bool:
 
 
 @lru_cache(maxsize=512)
-def equality_fields(source: str) -> Optional[Tuple[str, str]]:
+def equality_fields(source: str) -> tuple[str, str] | None:
     if author_only(source):
         return "id", "author"
     # Match the entire predicate, without modifying literals or other syntax.
@@ -62,9 +63,9 @@ def entry_key(source: str, row: Entry) -> Any:
 class RecordAuthors:
     """Indexes author-only and simple field-equality records by immutable row data."""
 
-    def __init__(self, rules: Mapping[str, str], rows: Mapping[str, List[Entry]]):
+    def __init__(self, rules: Mapping[str, str], rows: Mapping[str, list[Entry]]):
         self.rules = {name: rule for name, rule in rules.items() if equality_fields(rule) is not None}
-        self.by_record: Dict[str, Dict[Any, OrderedDict[int, Entry]]] = {name: {} for name in self.rules}
+        self.by_record: dict[str, dict[Any, OrderedDict[int, Entry]]] = {name: {} for name in self.rules}
         for name in self.by_record:
             for row in rows.get(name, ()):
                 self.add(name, row)
@@ -89,7 +90,7 @@ class RecordAuthors:
             if not entries:
                 del owners[key]
 
-    def candidates(self, name: str, viewer: Any) -> Optional[List[Entry]]:
+    def candidates(self, name: str, viewer: Any) -> list[Entry] | None:
         owners = self.by_record.get(name)
         if owners is None:
             return None

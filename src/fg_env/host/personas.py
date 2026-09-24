@@ -8,15 +8,16 @@ never writes it again. ``fg_env.host.load`` writes personas before round 1; with
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from functools import partial
-from typing import Any, Callable, Dict, Mapping, Optional
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
-from ..registry import MechanismError, family_action, mode
 from ..expr.template import compile_template, format_value
+from ..registry import MechanismError, family_action, mode
 from .common import NAME, agents_of, clip, config_of, type_list
 from .protocols import HostError
 from .tape import consult, plain, tape_prop
@@ -34,10 +35,12 @@ class PersonaConfig(BaseModel):
     who: str = Field(..., description="Type whose entities get a persona.")
     prompt: str = Field(..., description="What to write, as a template over $it (the entity and its props).")
     host: str = Field("personas", description="Host writer name.")
-    model: Optional[str] = Field(None, description="Model hint passed to the host.")
+    model: str | None = Field(None, description="Model hint passed to the host.")
     prop: str = Field("persona", description="Text property that holds the persona.")
     brief: bool = Field(True, description="Add the persona to the entity's brief.")
-    fallback: Optional[str] = Field(None, description="Template over $it used when no host is bound (default: stop with an error).")
+    fallback: str | None = Field(None,
+                                 description="Template over $it used when no host is bound (default: stop with an "
+                                             "error).")
     max_chars: int = Field(2000, ge=50, le=20_000, description="Longest persona kept (longer text is cut).")
 
 
@@ -46,7 +49,7 @@ class PersonaConfig(BaseModel):
            "stored in the `prop` property and the entity's brief, carried by snapshots, recorded for replay.",
            example={"who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.",
                     "fallback": "A shopper, age {age}."})
-def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     type_list(contract, config.who, "who")
     if not NAME.match(config.prop):
         raise MechanismError(f"prop must be a property name, got {config.prop!r}", None, "prop")
@@ -60,7 +63,8 @@ def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, An
     return {
         "types": {config.who: {"props": {config.prop: {"type": "text", "default": "", "private": True}}}},
         "world": {"host_tape": tape_prop()},
-        "events": [{"name": f"{name}_personas", "at": 1, "phase": "start", "once": True, "do": [{"mind": name, "action": "write"}]}],
+        "events": [{"name": f"{name}_personas", "at": 1, "phase": "start", "once": True,
+                    "do": [{"mind": name, "action": "write"}]}],
     }
 
 
@@ -74,7 +78,7 @@ def generate(world: Any, name: str, where: str) -> int:
         prompt = _render(world, config.prompt, entity, f"mechanisms.{name}.prompt")
         request = plain({"task": "persona", "model": config.model, "prompt": prompt,
                          "entity": {"id": entity.id, "name": entity.name, "type": entity.entity_type}})
-        fallback: Optional[Callable[[], str]] = None
+        fallback: Callable[[], str] | None = None
         if config.fallback is not None:
             fallback = partial(_render, world, config.fallback, entity, f"mechanisms.{name}.fallback")
         text = consult(world, service=config.host, method="write", site=f"mechanisms.{name}", actor=entity.id,
@@ -88,7 +92,7 @@ def generate(world: Any, name: str, where: str) -> int:
     return written
 
 
-def _ask_write(request: Dict[str, Any], adapter: Any) -> Any:
+def _ask_write(request: dict[str, Any], adapter: Any) -> Any:
     return adapter.write(request)
 
 
@@ -121,5 +125,5 @@ def _add_to_brief(world: Any, entity_id: str, line: str) -> None:
 
 @family_action("mind", ("personas",), "write",
                example='{"mind": "lives", "action": "write"}  (write any missing personas now; generated for round 1)')
-def _write(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _write(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     generate(runner.world, effect["mind"], where)

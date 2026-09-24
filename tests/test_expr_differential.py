@@ -19,17 +19,22 @@ import pytest
 from expr_dual import MISMATCHES, dual_evaluation
 from expr_oracle import compile_oracle
 from test_hardening_security import (
-    FUZZ_CASES, FUZZ_SEED, _expr, _mangle, _statement, _world,
+    FUZZ_CASES,
+    FUZZ_SEED,
+    _expr,
+    _mangle,
+    _statement,
+    _world,
 )
 
 import fg_env
-from fg_env.world.entity import Entity
 from fg_env.actions.book import ActionSpec
 from fg_env.effects.statements import split_statement, statement_parts
 from fg_env.errors import RunError
 from fg_env.expr import ExprError, Scope, Untrusted, compile_expr
-from fg_env.game.steps import apply_step, random_step
 from fg_env.expr.template import compile_template, render
+from fg_env.game.steps import apply_step, random_step
+from fg_env.world.entity import Entity
 
 pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 
@@ -41,9 +46,11 @@ FACTS = ("roots", "functions", "symbols", "paths", "calls", "item_paths", "compa
 EDGE_CASES = [
     "", "   ", "$", "$1x", "$x.", "$x._secret", "x.y", "$f", "$count", "$count()", "$count(a, b, c, d)", "$nope(1)",
     "$max(1, 2, 3)", "$len(1, 2)", "true.x", "null[0]", "(3).x", "[1, 2][true]", "{1: 2, 'a': 3, b: 4, 'b': 5}",
-    "{$x: 1}", "{true: 1}", "1j", "b'x'", "...", "$x if $y", "lambda: 1", "[i for i in $x]", "$x[1:2]", "not not not $x",
+    "{$x: 1}", "{true: 1}", "1j", "b'x'", "...", "$x if $y", "lambda: 1", "[i for i in $x]", "$x[1:2]",
+    "not not not $x",
     "-$x", "+$x", "--1", "1 < $x < 3 < $y", "$x == $y == $z", "$x in $y not in $z", "$a and $b or $c and not $d",
-    "10 ** 10 ** 10", "(10 ** 1000) ** 1000", "2 ** 62 * 2 ** 62", "7 // 0", "7 % 0", "7 / 0", "1.5 // 0.5", "10 ** 400 / 1",
+    "10 ** 10 ** 10", "(10 ** 1000) ** 1000", "2 ** 62 * 2 ** 62", "7 // 0", "7 % 0", "7 / 0", "1.5 // 0.5",
+    "10 ** 400 / 1",
     "$x.count", "'a' + 'b'", "'a' * 3", "[1] + [2]", "'x' in 'xyz'", "1 in 'xyz'", "$x.id", "$x.at", "$x.type",
     "$world.board[$it[0]] == $m and $world.board[$it[1]] == $m", "$filter(player, $it.id != $p.id)[0]",
     "$it.owner == $outer.id and $chance(0.5)", "$pick(item, $it.worth > $randint(0, 2))",
@@ -160,7 +167,8 @@ def test_every_operator_on_every_kind_of_operand_evaluates_identically(both_ways
 _THINGS = {
     "name": "Things",
     "types": {"thing": {"props": {"cash": 0, "tag": {"type": "text", "default": ""}}}},
-    "entities": {"a": {"type": "thing", "props": {"cash": 1, "tag": "ab"}}, "b": {"type": "thing", "props": {"cash": 3}},
+    "entities": {"a": {"type": "thing", "props": {"cash": 1, "tag": "ab"}},
+                 "b": {"type": "thing", "props": {"cash": 3}},
                  "c": {"type": "thing", "props": {"cash": 0, "tag": "ab"}}},
     "defs": {"total": {"expr": "$sum(thing, $it.cash)"}},
 }
@@ -175,7 +183,8 @@ _LOOP_CONDITIONS = ["$it.cash > 1", "$it.cash == $x", "$x == $it.cash", "$it.cas
 
 @pytest.mark.parametrize("shadowed", [False, True], ids=["built-in", "shadowed by a def"])
 def test_inlined_collection_loops_evaluate_identically(both_ways, shadowed):
-    contract = dict(_THINGS, defs={**_THINGS["defs"], "any": {"args": ["a", "b"], "expr": "7"}}) if shadowed else _THINGS
+    contract = (dict(_THINGS, defs={**_THINGS["defs"], "any": {"args": ["a", "b"], "expr": "7"}}) if shadowed
+                else _THINGS)
     world = fg_env.load(contract, seed=3).world
     scope = world.scope(x=1, l=[1, 2, 3], m={"a": 1, "b": 0}, e=world.entities["a"], it=world.entities["b"])
     for call in _LOOP_CALLS:

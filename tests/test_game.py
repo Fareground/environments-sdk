@@ -2,12 +2,12 @@
 import copy
 
 import pytest
+from game_contracts import KUHN, MATCHING_PENNIES, NIM, TIC_TAC_TOE
 
 import fg_env
 from fg_env import ContractError
 from fg_env.game import CHANCE, SIMULTANEOUS, TERMINAL
 from fg_env.mechanisms import merge_sections
-from game_contracts import KUHN, MATCHING_PENNIES, NIM, TIC_TAC_TOE
 
 DUEL = {
     "name": "Duel",
@@ -213,7 +213,8 @@ def test_simultaneous_stages_are_joint_nodes_or_turn_based_sequences():
     assert state.legal_actions(1) == [1, 2]
     with pytest.raises(ValueError, match="apply_actions"):
         state.apply_action(1)
-    state.apply_actions({0: {"tool": "show", "args": {"side": "tails"}}, 1: {"tool": "show", "args": {"side": "tails"}}})
+    state.apply_actions({0: {"tool": "show", "args": {"side": "tails"}},
+                         1: {"tool": "show", "args": {"side": "tails"}}})
     assert state.current_player() == TERMINAL and state.returns() == [1.0, -1.0]
     turns = game.as_turn_based()
     heads, tails = turns.new_initial_state(), turns.new_initial_state()

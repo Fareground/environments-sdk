@@ -33,7 +33,8 @@ SHOP = {
             "when": [{"expr": "$actor.cash > 0", "why": "You have no money left."}],
             "do": [
                 "$cost = $params.offer.price * $params.qty",
-                {"if": "$cost > $actor.cash", "then": [{"fail": "That costs {$cost|money}; you have {$actor.cash|money}."}]},
+                {"if": "$cost > $actor.cash",
+                 "then": [{"fail": "That costs {$cost|money}; you have {$actor.cash|money}."}]},
                 "$actor.cash -= $cost",
                 "$params.offer.stock -= $params.qty",
                 "$params.offer.sold += $params.qty",
@@ -185,7 +186,8 @@ def test_experiment_arms_share_seeds():
 
 AUCTION = {
     "name": "Sealed-bid auction",
-    "brief": {"situation": "One painting is sold.", "rules": "Everyone bids once, secretly. Highest bid wins and pays."},
+    "brief": {"situation": "One painting is sold.",
+              "rules": "Everyone bids once, secretly. Highest bid wins and pays."},
     "clock": {"rounds": 1},
     "world": {"winner": {"type": "text", "default": ""}, "price": 0},
     "types": {"bidder": {"agent": True, "props": {"budget": 100, "bid": 0}}},
@@ -197,7 +199,8 @@ AUCTION = {
                 "on_exit": ["$top_bid = $top(bidder, $it.bid, 1)[0]",
                             "$world.winner = $top_bid.name", "$world.price = $top_bid.bid",
                             {"emit": "result", "say": "{$top_bid.name} wins at {$top_bid.bid|money}."}]}],
-    "outputs": {"winner": {"expr": "$world.winner", "type": "text"}, "price": {"expr": "$world.price", "type": "number"}},
+    "outputs": {"winner": {"expr": "$world.winner", "type": "text"},
+                "price": {"expr": "$world.price", "type": "number"}},
 }
 
 

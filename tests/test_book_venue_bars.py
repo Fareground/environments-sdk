@@ -38,7 +38,8 @@ def test_venue_rules_can_be_expressions_over_inputs_resolved_when_the_world_is_b
 
 
 def test_expression_rules_trade_exactly_like_the_same_literal_rules():
-    by_expression = fg_env.run(crowd_book(taker_fee_bps="$inputs.fee", halt_pct="$inputs.fee / 100", bar_rounds="$inputs.bar"),
+    by_expression = fg_env.run(crowd_book(taker_fee_bps="$inputs.fee", halt_pct="$inputs.fee / 100",
+                                          bar_rounds="$inputs.bar"),
                                seed=3).to_dict()
     literal = fg_env.run(crowd_book(taker_fee_bps=5, halt_pct=0.05, bar_rounds=4), seed=3).to_dict()
     assert by_expression["outputs"] == literal["outputs"] and by_expression["series"] == literal["series"]
@@ -75,9 +76,11 @@ def test_bars_of_several_rounds_aggregate_exactly_the_rounds_they_span():
         assert bar["trades"] == sum(r["trades"] for r in span)
         assert bar["vwap"] == pytest.approx(sum(r["vwap"] * r["volume"] for r in span) / bar["volume"])
         kinds = {kind for r in span for kind in r["flow"]}
-        assert bar["flow"] == {k: {s: pytest.approx(sum(r["flow"].get(k, {}).get(s, 0) for r in span)) for s in ("buy", "sell")}
+        assert bar["flow"] == {k: {s: pytest.approx(sum(r["flow"].get(k, {}).get(s, 0) for r in span))
+                                   for s in ("buy", "sell")}
                                for k in kinds}
-    assert by_four.world.props["acme_trades"] == per_round.world.props["acme_trades"]  # bar length never changes trading
+    assert (by_four.world.props["acme_trades"]
+            == per_round.world.props["acme_trades"])  # bar length never changes trading
 
 
 def test_the_bar_in_progress_is_readable_mid_bar():
@@ -118,13 +121,15 @@ def test_a_bar_open_breaker_checked_at_round_end_halts_to_the_end_of_the_bar():
             replies[(wake.round, wake.entity_id, tool)] = wake.call(tool, args)
         wake.end()
 
-    env = fg_env.load(scripted_book(halt_pct=0.03, halt_reference="bar_open", halt_check="round_end", halt_until="bar_end"),
+    env = fg_env.load(scripted_book(halt_pct=0.03, halt_reference="bar_open", halt_check="round_end",
+                                    halt_until="bar_end"),
                       seed=1)
     halted = []
     while not env.finished:
         env.run(participant, rounds=1)
         halted.append(env.world.props["acme_halted"])
-    assert halted == [False, True, True, True, False, False, False, False]  # the mid is 11% off the bar's open after round 2
+    assert halted == [False, True, True, True, False, False, False,
+                      False]  # the mid is 11% off the bar's open after round 2
     assert not replies[(3, "c", "acme_buy")].ok  # halted to the end of the bar
     assert replies[(5, "c", "acme_buy")].ok and "filled 5" in replies[(5, "c", "acme_buy")].text  # the next bar trades
     assert [b["halted"] for b in bars(env)] == [True, False]

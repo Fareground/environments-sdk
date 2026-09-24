@@ -8,10 +8,9 @@ import statistics
 from statistics import NormalDist
 
 import pytest
+from store_fixtures import item, store, with_ledger
 
 import fg_env
-
-from store_fixtures import item, store, with_ledger
 
 
 def reorder(**config):
@@ -39,7 +38,8 @@ def _orders_by_round(contract, rounds, seed=1):
 
 def test_s_S_orders_up_to_S_in_case_packs_once_the_position_falls_to_s_and_orders_arrive_after_their_lead_time():
     contract = store(rounds=30)
-    contract["mechanisms"]["reorder"] = reorder(policy="s_S", reorder_point=20, order_up_to=45, case_pack=4, lead_time=2)
+    contract["mechanisms"]["reorder"] = reorder(policy="s_S", reorder_point=20, order_up_to=45, case_pack=4,
+                                                lead_time=2)
     env, orders = _orders_by_round(contract, 30)
     assert len(orders) >= 4
     for _, _, qty, position in orders:
@@ -72,7 +72,8 @@ def test_the_service_policy_orders_up_to_lead_time_demand_plus_safety_stock_from
         lead = 2 * math.exp(0.25 ** 2 / 2)
         lead_sd = lead * math.sqrt(math.expm1(0.25 ** 2))
         cover = lead + 2
-        target = math.ceil(forecast * cover + NormalDist().inv_cdf(0.9) * math.sqrt(cover * variance + forecast ** 2 * lead_sd ** 2))
+        target = math.ceil(forecast * cover
+                           + NormalDist().inv_cdf(0.9) * math.sqrt(cover * variance + forecast ** 2 * lead_sd ** 2))
         assert p["reorder_target"] == target
         position = p["stock"] - p["shop_backlog"]
         assert p["reorder_on_order"] == max(0, target - position)
@@ -86,8 +87,10 @@ def test_a_higher_service_level_serves_more_demand_and_holds_more_stock():
     contract["arms"] = {"low": {"inputs": {"level": 0.2}}, "high": {"inputs": {"level": 0.98}}}
     exp = fg_env.experiment(contract, arms=["low", "high"], runs=3, seed=3)
     low, high = ([run.outputs for run in exp.arms[arm].runs] for arm in ("low", "high"))
-    assert statistics.fmean(o["shop_fill_rate"] for o in high) > statistics.fmean(o["shop_fill_rate"] for o in low) + 0.03
-    assert statistics.fmean(o["reorder_average_stock_value"] for o in high) > statistics.fmean(o["reorder_average_stock_value"] for o in low)
+    assert (statistics.fmean(o["shop_fill_rate"] for o in high) > statistics.fmean(o["shop_fill_rate"] for o in low)
+            + 0.03)
+    assert (statistics.fmean(o["reorder_average_stock_value"] for o in high)
+            > statistics.fmean(o["reorder_average_stock_value"] for o in low))
     assert [o["shop_demand"] for o in high] == [o["shop_demand"] for o in low]  # the same customers in both arms
 
 
@@ -98,21 +101,25 @@ def test_a_budget_goes_to_the_most_urgent_item_first_and_the_account_pays_for_or
     env = fg_env.load(contract, seed=4)
     env.run("idle", rounds=1)
     a, b = item(env, "a"), item(env, "b")
-    assert a["reorder_last_order"] == 10 and b["reorder_orders"] == 0  # a covers fewer weeks: 10 units at 5 spend all 50
+    assert (a["reorder_last_order"] == 10 and b["reorder_orders"]
+            == 0)  # a covers fewer weeks: 10 units at 5 spend all 50
     assert env.world.props["money_flows"]["reorder_suppliers"]["cash"] == -50
     result = env.run("idle")
     assert result.status != "failed", result.error
-    assert result.outputs["reorder_purchases"] == pytest.approx(-env.world.props["money_flows"]["reorder_suppliers"]["cash"])
+    assert (result.outputs["reorder_purchases"]
+            == pytest.approx(-env.world.props["money_flows"]["reorder_suppliers"]["cash"]))
 
 
 def test_capacity_caps_orders_and_agents_orders_that_do_not_fit_are_refused_with_the_reason():
     contract = store(rounds=2)
     contract["entities"]["ann"] = {"type": "buyer"}
-    contract["mechanisms"]["reorder"] = reorder(policy="manual", who="buyer", case_pack=6, capacity="32 if $it.id == 'a' else 100")
+    contract["mechanisms"]["reorder"] = reorder(policy="manual", who="buyer", case_pack=6,
+                                                capacity="32 if $it.id == 'a' else 100")
     results = []
 
     def ann(wake):  # the refused order is spent: the next is the next turn's
-        results.append(wake.call("reorder_order", {"item": "a", "qty": 5} if wake.round == 1 else {"item": "b", "qty": 1}))
+        results.append(wake.call("reorder_order",
+                                 {"item": "a", "qty": 5} if wake.round == 1 else {"item": "b", "qty": 1}))
 
     env = fg_env.load(contract, seed=5)
     env.run({"buyer": ann}, rounds=2)
@@ -134,7 +141,8 @@ def test_lead_times_drawn_per_order_are_recorded_and_fitted_back_from_the_orders
     assert all(row["lead_time"] == pytest.approx(3 * row["factor"], abs=1e-5) for row in rows)
     fit = copy.deepcopy(contract)
     fit["inputs"]["orders"] = {"type": "table", "default": rows}
-    fit["patterns"]["lead_noise"] = {"kind": "noise", "dist": "lognormal", "fit": {"data": "$inputs.orders", "value": "factor"}}
+    fit["patterns"]["lead_noise"] = {"kind": "noise", "dist": "lognormal",
+                                     "fit": {"data": "$inputs.orders", "value": "factor"}}
     fitted = fg_env.analysis.fit_patterns(fit).contract["inputs"]
     assert fitted["lead_noise_sd"]["default"] == pytest.approx(0.3, abs=0.03)
     assert fitted["lead_noise_mean"]["default"] == pytest.approx(0.0, abs=0.03)
@@ -149,7 +157,8 @@ def test_backorders_accrue_their_cost_and_lower_the_inventory_position():
     env.run("idle", rounds=1)
     a = item(env, "a")
     waiting = a["shop_backlog"]
-    assert waiting > 0 and a["reorder_last_order"] == 5 + waiting  # up to 5 above zero, counting what customers wait for
+    assert (waiting > 0 and a["reorder_last_order"] == 5
+            + waiting)  # up to 5 above zero, counting what customers wait for
     env.run("idle", rounds=1)
     a = item(env, "a")
     assert a["reorder_backorder_cost"] == 2 * (waiting + a["shop_backlog"]) and a["reorder_stockout_cost"] == 0
@@ -159,8 +168,10 @@ def test_backorders_accrue_their_cost_and_lower_the_inventory_position():
     ({"reorder": reorder(policy="s_S", reorder_point=5), "shop": None}, "mechanisms.reorder.demand", "declared after"),
     ({"reorder": reorder(policy="s_S", reorder_point=5)}, "mechanisms.reorder.order_up_to", "needs `order_up_to`"),
     ({"reorder": reorder(policy="just_in_time")}, "mechanisms.reorder.policy", "not a policy"),
-    ({"reorder": reorder(lead_time={"pattern": "sales"}, policy="service")}, "mechanisms.reorder.lead_time.pattern", "not a noise pattern"),
-    ({"reorder": reorder(demand="money", policy="service")}, "mechanisms.reorder.demand", "not a declared economy (demand)"),
+    ({"reorder": reorder(lead_time={"pattern": "sales"}, policy="service")}, "mechanisms.reorder.lead_time.pattern",
+     "not a noise pattern"),
+    ({"reorder": reorder(demand="money", policy="service")}, "mechanisms.reorder.demand",
+     "not a declared economy (demand)"),
 ])
 def test_config_mistakes_are_reported_at_their_field_with_what_to_do(mechanisms, path, words):
     contract = with_ledger(store())
@@ -202,11 +213,13 @@ def test_the_guide_documents_demand_and_replenishment_with_their_actions_and_fun
     demand, replenishment = fg_env.guide("economy.demand"), fg_env.guide("economy.replenishment")
     assert "### `economy.demand`" in demand and "- `receive`" in demand and "- `remove`" in demand
     assert "- `trade`" not in demand and "- `open`" not in demand
-    for field in ("rate", "factors", "noise", "stock", "substitutes", "spill", "backorder", "segments", "returns", "record"):
+    for field in ("rate", "factors", "noise", "stock", "substitutes", "spill", "backorder", "segments", "returns",
+                  "record"):
         assert f"- `{field}`" in demand, field
-    assert "### `economy.replenishment`" in replenishment and "- `order`" in replenishment and "- `review`" not in replenishment
-    for field in ("policy", "reorder_point", "order_up_to", "order_qty", "service_level", "lead_time", "case_pack", "budget",
-                  "capacity", "holding_cost", "stockout_cost", "backorder_cost"):
+    assert ("### `economy.replenishment`" in replenishment and "- `order`" in replenishment
+            and "- `review`" not in replenishment)
+    for field in ("policy", "reorder_point", "order_up_to", "order_qty", "service_level", "lead_time", "case_pack",
+                  "budget", "capacity", "holding_cost", "stockout_cost", "backorder_cost"):
         assert f"- `{field}`" in replenishment, field
     everything = fg_env.guide("all")
     for fn in ("$demand_totals(", "$replenishment_totals(", "$stock_conserved("):

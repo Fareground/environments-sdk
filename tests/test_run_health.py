@@ -120,7 +120,8 @@ LEDGER = {
 def test_wake_me_is_a_copy_the_agent_cannot_change_the_world_through():
     contract = {"name": "Me", "clock": {"rounds": 1},
                 "types": {"p": {"agent": True, "props": {"hand": {"type": "list", "default": [1, 2]}}}},
-                "entities": {"a": {"type": "p"}}, "actions": {"noop": {"by": "p"}}, "outputs": {"hand": "$entity(a).hand"}}
+                "entities": {"a": {"type": "p"}}, "actions": {"noop": {"by": "p"}},
+                "outputs": {"hand": "$entity(a).hand"}}
 
     def cheat(wake):
         wake.me["hand"].extend(["ace"] * 50)
@@ -131,8 +132,10 @@ def test_wake_me_is_a_copy_the_agent_cannot_change_the_world_through():
 def test_agents_poking_each_other_awake_never_fail_the_run():
     contract = {"name": "Poke", "clock": {"rounds": 2}, "world": {"pokes": 0},
                 "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
-                "actions": {"poke": {"by": "p", "params": {"target": {"type": "entity", "of": "p", "where": "$it != $actor"}},
-                                     "do": ["$world.pokes += 1", {"wake": "$params.target", "why": "poked", "now": True}]}},
+                "actions": {"poke": {"by": "p",
+                                     "params": {"target": {"type": "entity", "of": "p", "where": "$it != $actor"}},
+                                     "do": ["$world.pokes += 1",
+                                            {"wake": "$params.target", "why": "poked", "now": True}]}},
                 "outputs": {"pokes": "$world.pokes"}}
 
     def poke(wake):
@@ -202,7 +205,8 @@ def test_auto_skips_sealed_turns_with_nothing_legal():
                 "types": {"p": {"agent": True, "props": {"wolf": False, "kills": 0}}},
                 "entities": {"a": {"type": "p", "props": {"wolf": True}}, "b": {"type": "p"}, "c": {"type": "p"}},
                 "stages": [{"name": "night", "turns": "simultaneous", "auto": True, "actions": ["hunt"]}],
-                "actions": {"hunt": {"by": "p", "when": ["$actor.wolf"], "params": {"k": {"type": "int", "min": 1, "max": 3}},
+                "actions": {"hunt": {"by": "p", "when": ["$actor.wolf"],
+                                     "params": {"k": {"type": "int", "min": 1, "max": 3}},
                                      "do": "$actor.kills += $params.k"}},
                 "outputs": {"kills": "$sum(p, $it.kills)"}}
     woken = []

@@ -6,13 +6,11 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 
 import pytest
+from asset_fixtures import PDF, REPORT, TRIAL, patched, png, trial, wav
 
 import fg_env
-from fg_env import participants
-from fg_env import host
+from fg_env import host, participants
 from fg_env.expr import Untrusted
-
-from asset_fixtures import PDF, REPORT, TRIAL, patched, png, trial, wav
 
 B64_PDF = base64.b64encode(PDF).decode()
 B64_SEAM = base64.b64encode(png(color=(10, 200, 30))).decode()
@@ -30,7 +28,8 @@ class FakeAnthropic:
         self.requests.append(json.loads(json.dumps(request, default=str)))
         blocks = self.script.pop(0) if self.script else []
         content = [NS(type="tool_use", id=f"t{len(self.requests)}{i}", name=name, input=args)
-                   for i, (name, args) in enumerate(blocks)] or [NS(type="text", text='{"scores": {}, "rationale": "ok"}')]
+                   for i, (name, args) in enumerate(blocks)] or [NS(type="text", text='{"scores": {}, "rationale": '
+                                                                                      '"ok"}')]
         return NS(content=content, usage=NS(input_tokens=1, output_tokens=1, cache_read_input_tokens=0,
                                             cache_creation_input_tokens=0))
 
@@ -44,7 +43,8 @@ class FakeOpenAI:
     def create(self, **request):
         self.requests.append(json.loads(json.dumps(request, default=str)))
         calls = self.script.pop(0) if self.script else []
-        tool_calls = [NS(id=f"c{i}", function=NS(name=name, arguments=json.dumps(args))) for i, (name, args) in enumerate(calls)]
+        tool_calls = [NS(id=f"c{i}", function=NS(name=name, arguments=json.dumps(args)))
+                      for i, (name, args) in enumerate(calls)]
         message = NS(content="" if tool_calls else '{"scores": {}, "rationale": "ok"}', tool_calls=tool_calls or None)
         return NS(choices=[NS(message=message)], usage=NS(prompt_tokens=1, completion_tokens=1))
 
@@ -75,7 +75,8 @@ def test_anthropic_participant_sends_document_and_image_blocks_after_the_update(
     ]  # (a prompt this short gets no cache breakpoint: no model caches it)
     result = client.requests[1]["messages"][-1]["content"][0]
     assert result["type"] == "tool_result" and result["content"][0]["type"] == "text"
-    assert result["content"][2] == {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": B64_SEAM}}
+    assert result["content"][2] == {"type": "image",
+                                    "source": {"type": "base64", "media_type": "image/png", "data": B64_SEAM}}
 
 
 def test_a_text_only_model_reads_captions_in_the_text_and_no_file_content(tmp_path):
@@ -84,7 +85,8 @@ def test_a_text_only_model_reads_captions_in_the_text_and_no_file_content(tmp_pa
     env.run({"dana": participants.anthropic(client, "claude-x", media=()), "*": "idle"}, rounds=1)
     first = client.requests[0]["messages"][0]["content"]  # the update's text alone
     assert isinstance(first, str) and '[image seam.png: "Photo seam.png"]' in first
-    assert "Attached: [pdf agreement.pdf" in client.requests[0]["system"][0]["text"] and B64_PDF not in json.dumps(client.requests)
+    assert ("Attached: [pdf agreement.pdf" in client.requests[0]["system"][0]["text"]
+            and B64_PDF not in json.dumps(client.requests))
 
 
 def test_a_text_file_is_sent_as_a_plain_text_document(tmp_path):
@@ -129,7 +131,8 @@ SUBMIT = patched(
     actions={**TRIAL["actions"], "file_photo": {
         "by": "attorney", "params": {"exhibit": {"type": "entity", "of": "exhibit"},
                                      "photo": {"type": "file", "kinds": ["image"], "max_bytes": 5000}},
-        "do": ["$params.exhibit.file = $params.photo", {"post": "evidence", "text": "New photo", "file": "$params.photo"}],
+        "do": ["$params.exhibit.file = $params.photo",
+               {"post": "evidence", "text": "New photo", "file": "$params.photo"}],
         "attach": "$params.photo"}},
     stages=[{"name": "preparation", "actions": ["file_photo", "note"], "max_actions": 3, "max_calls": 12}])
 
@@ -150,7 +153,8 @@ def test_a_tool_call_hands_in_a_file_that_is_stored_by_hash_and_attached_to_an_e
     assert isinstance(stored.name, Untrusted) and got["ok"].attachments[0].read() == photo
     assert "«night <shot>.png»" in got["ok"].text
     call = result.exposures["wakes"][0]["calls"][0]
-    assert call["args"]["photo"] == {"asset": stored.id} and base64.b64encode(photo).decode() not in json.dumps(result.to_dict())
+    assert (call["args"]["photo"] == {"asset": stored.id}
+            and base64.b64encode(photo).decode() not in json.dumps(result.to_dict()))
     assert ["upload", stored.to_dict()] in result.exposures["wakes"][0]["steps"]
     assert fg_env.analysis.trace(result).replay(trial(tmp_path, SUBMIT)).ok
 
@@ -234,7 +238,8 @@ def test_a_game_master_receives_attached_files(tmp_path):
     contract = copy.deepcopy(tavern)
     contract["assets"] = {"map": {"file": "map.png", "caption": "A map of the cellar"}}
     contract["actions"] = {"show_map": {"by": "adventurer", "params": {"text": "text"},
-                                        "do": {"host": "gm", "action": "resolve", "text": "$params.text", "attach": "map"}}}
+                                        "do": {"host": "gm", "action": "resolve", "text": "$params.text",
+                                               "attach": "map"}}}
     (tmp_path / "map.png").write_bytes(png())
     path = tmp_path / "tavern.json"
     path.write_text(json.dumps(contract))
@@ -246,13 +251,16 @@ def test_a_game_master_receives_attached_files(tmp_path):
 
     env = host.load(path, hosts={"game_master": gm}, seed=1)
     host.run(env, {"mira": mira, "*": "idle"}, rounds=1)
-    assert gm.calls[0]["attachments"][0]["name"] == "map.png" and gm.calls[0]["attachments"][0]["caption"] == "A map of the cellar"
+    assert (gm.calls[0]["attachments"][0]["name"] == "map.png" and gm.calls[0]["attachments"][0]["caption"]
+            == "A map of the cellar")
 
 
 def test_reference_host_adapters_send_files_as_multimodal_content():
     request = {"judge": "bench", "text": "Look.", "criteria": [], "attachments": [
-        {"id": "photo", "type": "image", "media_type": "image/png", "name": "p.png", "size": 3, "hash": "h", "data": "AAA="},
-        {"id": "memo", "type": "text", "media_type": "text/plain", "name": "m.txt", "size": 2, "hash": "g", "text": "hi"}]}
+        {"id": "photo", "type": "image", "media_type": "image/png", "name": "p.png", "size": 3, "hash": "h",
+         "data": "AAA="},
+        {"id": "memo", "type": "text", "media_type": "text/plain", "name": "m.txt", "size": 2, "hash": "g",
+         "text": "hi"}]}
     anthropic = FakeAnthropic([])
     host.adapters.anthropic(anthropic, "claude-x").judge(request)
     content = anthropic.requests[0]["messages"][0]["content"]
@@ -275,6 +283,7 @@ def test_reference_host_adapters_describe_a_file():
     client = Answering([])
     answer = host.adapters.anthropic(client, "claude-x").describe(
         {"task": "describe", "asset": {"id": "x"}, "attachments": [
-            {"id": "x", "type": "image", "media_type": "image/png", "name": "x.png", "size": 1, "hash": "h", "data": "AAA="}]})
+            {"id": "x", "type": "image", "media_type": "image/png", "name": "x.png", "size": 1, "hash": "h",
+             "data": "AAA="}]})
     assert answer == {"caption": "A red square", "text": ""}
     assert "file describer" in client.requests[0]["system"]

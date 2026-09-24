@@ -8,12 +8,12 @@ events run after the author's, and an author who needs the closed round (or bar)
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List
+from typing import Any
 
 from .book_rules import CLOSES_WINDOW, Venue, venue
 from .common import fmt, number
-from .order_book import KEY, OrderBookConfig, account, book_config, merge_flow, props_for, release, traders, trip
 from .ledger import clean
+from .order_book import KEY, OrderBookConfig, account, book_config, merge_flow, props_for, release, traders, trip
 
 __all__ = ["open_round", "close_round", "start_price"]
 
@@ -95,11 +95,11 @@ def close_round(world: Any, name: str) -> None:
     last = float(world.props.get(f"{name}_last") or 0)
     if cfg.halt_check == "round_end" and v.halt_pct is not None and not world.props.get(f"{name}_halted"):
         _check_breaker(world, name, v, last)
-    round_bar: Dict[str, Any] = world.props.get(f"{name}_bar") or {}
-    closes: List[float] = list(world.props.get(f"{name}_closes") or []) + [last]
+    round_bar: dict[str, Any] = world.props.get(f"{name}_bar") or {}
+    closes: list[float] = list(world.props.get(f"{name}_closes") or []) + [last]
     world.set_world(f"{name}_closes", closes[-CLOSES_WINDOW:])
     world.set_world(f"{name}_flow", round_bar.get("flow") or {})
-    current: Dict[str, Any] = world.props.get(f"{name}_current_bar") or {}
+    current: dict[str, Any] = world.props.get(f"{name}_current_bar") or {}
     volume = clean(float(current.get("volume", 0)) + float(round_bar.get("volume", 0)))
     notional = clean(float(current.get("notional", 0)) + float(round_bar.get("notional", 0)))
     bar = {"open": current.get("open", round_bar.get("open", last)),
@@ -107,7 +107,8 @@ def close_round(world: Any, name: str) -> None:
            "low": min(current.get("low", last), round_bar.get("low", last)),
            "volume": volume, "notional": notional,
            "trades": int(current.get("trades", 0)) + int(round_bar.get("trades", 0)),
-           "halted": bool(current.get("halted")), "flow": merge_flow(current.get("flow") or {}, round_bar.get("flow") or {})}
+           "halted": bool(current.get("halted")),
+           "flow": merge_flow(current.get("flow") or {}, round_bar.get("flow") or {})}
     if world.round % v.bar_rounds and world.round != world.rounds:
         world.set_world(f"{name}_current_bar", bar, trusted=True)
         return

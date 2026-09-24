@@ -22,17 +22,18 @@ accounts never appear; nor do accounts that block the viewer. Ties go to the new
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Set, Tuple
+from collections.abc import Callable, Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
-from ._social import props, cache, config_of, edges, eid, entity, named_use, require_type, seat_order
+from ._social import cache, config_of, edges, eid, entity, named_use, props, require_type, seat_order
 
 __all__ = ["FeedConfig", "feed"]
 
@@ -57,7 +58,7 @@ class Downrank(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    labels: List[str] = Field(default_factory=list, description="Labels that downrank a post.")
+    labels: list[str] = Field(default_factory=list, description="Labels that downrank a post.")
     factor: float = Field(1.0, ge=0, le=1, description="Score multiplier for a downranked post.")
 
 
@@ -86,23 +87,25 @@ class FeedConfig(BaseModel):
     posts: bool = Field(True, description="Offer a post tool.")
     replies: bool = Field(True, description="Offer a reply tool.")
     reposts: bool = Field(True, description="Offer a repost tool.")
-    reactions: List[str] = Field(default_factory=lambda: ["like"], description="Reactions accounts may give; empty for none.")
+    reactions: list[str] = Field(default_factory=lambda: ["like"],
+                                 description="Reactions accounts may give; empty for none.")
     max_chars: int = Field(280, ge=1, le=4000, description="Longest post, in characters.")
-    per_turn: Optional[int] = Field(1, ge=1, description="Posts, replies and reposts per turn (each).")
+    per_turn: int | None = Field(1, ge=1, description="Posts, replies and reposts per turn (each).")
     feed_size: int = Field(8, ge=1, le=60, description="Posts in a feed.")
     window: int = Field(12, ge=1, description="Rounds a post stays eligible for feeds and trending.")
     discover: bool = Field(False, description="Feeds also rank posts from accounts the viewer does not follow.")
     weights: FeedWeights = Field(default_factory=FeedWeights)
     downrank: Downrank = Field(default_factory=Downrank)
     trending_size: int = Field(5, ge=1, le=60, description="Posts in the trending list.")
-    moderators: Optional[str] = Field(None, description="Agent type that may label posts.")
-    labels: List[str] = Field(default_factory=lambda: ["misleading"], description="Labels moderators may apply.")
+    moderators: str | None = Field(None, description="Agent type that may label posts.")
+    labels: list[str] = Field(default_factory=lambda: ["misleading"], description="Labels moderators may apply.")
     reputation: Reputation = Field(default_factory=Reputation)
-    notify: List[Literal["follow", "reply", "repost", "reaction", "friend", "label"]] = Field(
+    notify: list[Literal["follow", "reply", "repost", "reaction", "friend", "label"]] = Field(
         ["follow", "reply", "repost", "friend", "label"],
         description="What an account is told about: follow, reply, repost, reaction, friend, label.")
     turns: Literal["sequential", "simultaneous"] = Field("simultaneous", description="Turns of the generated stage.")
-    stage: Optional[str] = Field(None, description="Offer the tools during this declared stage instead of a generated one.")
+    stage: str | None = Field(None,
+                              description="Offer the tools during this declared stage instead of a generated one.")
     tools: ToolsSetting = tools_field()
 
 
@@ -111,16 +114,16 @@ class FeedConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-def _use(call: Call, index: int) -> Tuple[str, FeedConfig]:
+def _use(call: Call, index: int) -> tuple[str, FeedConfig]:
     name = named_use(call, KIND, index)
     return name, config_of(call.scope.world, name, KIND, FeedConfig)
 
 
-def _out(world: Any, relation: str, account: str) -> List[str]:
+def _out(world: Any, relation: str, account: str) -> list[str]:
     return edges(world, relation)[0].get(account, [])
 
 
-def _in(world: Any, relation: str, account: str) -> List[str]:
+def _in(world: Any, relation: str, account: str) -> list[str]:
     return edges(world, relation)[1].get(account, [])
 
 
@@ -128,14 +131,14 @@ def _has(world: Any, relation: str, a: str, b: str) -> bool:
     return world.relation(a, b, relation) is not None
 
 
-def _connections(world: Any, name: str, config: FeedConfig, account: str) -> Set[str]:
+def _connections(world: Any, name: str, config: FeedConfig, account: str) -> set[str]:
     linked = set(_out(world, f"{name}_follows", account))
     if config.friends:
         linked |= set(_out(world, f"{name}_friends", account))
     return linked
 
 
-def _recent_posts(world: Any, name: str, config: FeedConfig) -> List[Entity]:
+def _recent_posts(world: Any, name: str, config: FeedConfig) -> list[Entity]:
     """Alive posts born within the window, newest first (cached per state)."""
     found = cache(world, f"{name}:recent")
     if "posts" not in found:
@@ -157,7 +160,7 @@ def _engagement(post: Entity) -> int:
     return int(values.get("reacts", 0)) + 2 * int(values.get("reposts", 0)) + int(values.get("replies", 0))
 
 
-def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: Optional[int] = None) -> List[Entity]:
+def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: int | None = None) -> list[Entity]:
     """The ranked feed ``viewer`` reads now."""
     size = config.feed_size if n is None else n
     found = cache(world, f"{name}:feed")
@@ -169,7 +172,7 @@ def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: Optional[
     if config.mute:
         hidden |= set(_out(world, f"{name}_mutes", viewer.id))
     weights, order = config.weights, seat_order(world)
-    scored: List[Tuple[float, int, Entity]] = []
+    scored: list[tuple[float, int, Entity]] = []
     for post in _recent_posts(world, name, config):
         author = props(post).get("author")
         if author == viewer.id or author in hidden:
@@ -191,7 +194,7 @@ def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: Optional[
     return list(ranked)
 
 
-def _trending(world: Any, name: str, config: FeedConfig, n: int) -> List[Entity]:
+def _trending(world: Any, name: str, config: FeedConfig, n: int) -> list[Entity]:
     order = seat_order(world)
     rows = []
     for post in _recent_posts(world, name, config):
@@ -226,38 +229,38 @@ def _size(call: Call, index: int, default: int) -> int:
     return value
 
 
-@function("feed(viewer, n?, mechanism?)", "The viewer's ranked feed: up to n posts (default feed_size) from the social feed "
-          "mechanism.", min_args=1, max_args=3)
-def _feed_fn(call: Call) -> List[Entity]:
+@function("feed(viewer, n?, mechanism?)", "The viewer's ranked feed: up to n posts (default feed_size) from the "
+          "social feed mechanism.", min_args=1, max_args=3)
+def _feed_fn(call: Call) -> list[Entity]:
     world: Any = call.scope.world
     name, config = _use(call, 2)
     return feed(world, name, config, _account(call), _size(call, 1, config.feed_size))
 
 
-@function("trending(n?, mechanism?)", "Recent posts with the most engagement per round of age (reposts count toward the "
-          "original).", min_args=0, max_args=2)
-def _trending_fn(call: Call) -> List[Entity]:
+@function("trending(n?, mechanism?)", "Recent posts with the most engagement per round of age (reposts count toward "
+          "the original).", min_args=0, max_args=2)
+def _trending_fn(call: Call) -> list[Entity]:
     world: Any = call.scope.world
     name, config = _use(call, 1)
     return _trending(world, name, config, _size(call, 0, config.trending_size))
 
 
 @function("following(account, mechanism?)", "Ids of the accounts this account follows.", min_args=1, max_args=2)
-def _following_fn(call: Call) -> List[str]:
+def _following_fn(call: Call) -> list[str]:
     world: Any = call.scope.world
     name, _ = _use(call, 1)
     return list(_out(world, f"{name}_follows", eid(call.arg(0), call.source)))
 
 
 @function("followers(account, mechanism?)", "Ids of the accounts that follow this account.", min_args=1, max_args=2)
-def _followers_fn(call: Call) -> List[str]:
+def _followers_fn(call: Call) -> list[str]:
     world: Any = call.scope.world
     name, _ = _use(call, 1)
     return list(_in(world, f"{name}_follows", eid(call.arg(0), call.source)))
 
 
-@function("influence(account, mechanism?)", "Followers + friends + reposts received: how far an account's voice carries.",
-          min_args=1, max_args=2)
+@function("influence(account, mechanism?)",
+          "Followers + friends + reposts received: how far an account's voice carries.", min_args=1, max_args=2)
 def _influence_fn(call: Call) -> float:
     world: Any = call.scope.world
     name, config = _use(call, 1)
@@ -267,8 +270,9 @@ def _influence_fn(call: Call) -> float:
                  + int(props(account).get(f"{name}_reposts_received", 0)))
 
 
-@function("insularity(account?, mechanism?)", "Share of an account's connections that are connected to each other (0 diverse "
-          "– 1 echo chamber); without an account, the mean over accounts with at least two connections.", min_args=0, max_args=2)
+@function("insularity(account?, mechanism?)", "Share of an account's connections that are connected to each other (0 "
+          "diverse – 1 echo chamber); without an account, the mean over accounts with at least two connections.",
+          min_args=0, max_args=2)
 def _insularity_fn(call: Call) -> float:
     world: Any = call.scope.world
     name, config = _use(call, 1)
@@ -289,7 +293,7 @@ def _insularity(world: Any, name: str, config: FeedConfig, account: str) -> floa
 
 @function("homophily(prop, mechanism?)", "Share of follow links joining accounts with the same value of `prop` (null "
           "without links).", min_args=1, max_args=2)
-def _homophily_fn(call: Call) -> Optional[float]:
+def _homophily_fn(call: Call) -> float | None:
     world: Any = call.scope.world
     name, config = _use(call, 1)
     prop = str(call.arg(0))
@@ -310,7 +314,7 @@ def _homophily_fn(call: Call) -> Optional[float]:
 # ---------------------------------------------------------------------------
 
 #: action → (the keys it needs, example keys, what it does). `who`, the acting account, defaults to $actor.
-_ACTIONS: Dict[str, Tuple[Tuple[str, ...], str, str]] = {
+_ACTIONS: dict[str, tuple[tuple[str, ...], str, str]] = {
     "post": (("text",), '"text": "$params.text"', "publish a post to the account's followers"),
     "reply": (("target", "text"), '"target": "$params.post", "text": "$params.text"', "reply to a post"),
     "repost": (("target",), '"target": "$params.post"', "repost a post to the account's followers"),
@@ -319,7 +323,8 @@ _ACTIONS: Dict[str, Tuple[Tuple[str, ...], str, str]] = {
     "unfollow": (("account",), '"account": "$params.who"', "stop following an account"),
     "befriend": (("account",), '"account": "$params.who"', "send a friend request, or accept one"),
     "unfriend": (("account",), '"account": "$params.who"', "end a friendship"),
-    "block": (("account",), '"account": "$params.who"', "block an account: neither sees the other, follows are removed"),
+    "block": (("account",), '"account": "$params.who"',
+              "block an account: neither sees the other, follows are removed"),
     "unblock": (("account",), '"account": "$params.who"', "unblock an account"),
     "mute": (("account",), '"account": "$params.who"', "mute an account: its posts leave the feed"),
     "unmute": (("account",), '"account": "$params.who"', "unmute an account"),
@@ -328,8 +333,8 @@ _ACTIONS: Dict[str, Tuple[Tuple[str, ...], str, str]] = {
 }
 
 
-def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
-    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str], None]:
+    def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         world = runner.world
         name = effect["social"]
         config = config_of(world, name, KIND, FeedConfig)
@@ -367,7 +372,8 @@ def _runner(action: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str],
 def _register_actions() -> None:
     for action, (needs, fields, doc) in _ACTIONS.items():
         example = '{"social": "net", "action": "' + action + f'", {fields}}}  ({doc})'
-        family_action("social", ("feed",), action, keys=(*needs, "who"), required=needs, example=example)(_runner(action))
+        family_action("social", ("feed",), action, keys=(*needs, "who"), required=needs,
+                      example=example)(_runner(action))
 
 
 _register_actions()
@@ -390,7 +396,7 @@ def _bump(world: Any, owner: Entity, prop: str, by: float) -> None:
 
 
 def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str, text: Any,
-            parent: Optional[Entity], where: str) -> Entity:
+            parent: Entity | None, where: str) -> Entity:
     if not isinstance(text, str) or not text.strip():
         raise Abort("A post needs some text.")
     if len(text) > config.max_chars:
@@ -402,11 +408,12 @@ def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str
         owner = world.entities.get(props(parent).get("author"))
         if owner is not None:
             _bump(world, owner, f"{name}_reputation", config.reputation.reply)
-            _notify(world, name, config, "reply", author, owner.id, f"{author.name} replied to your post [{parent.id}] with [{post.id}].")
+            _notify(world, name, config, "reply", author, owner.id,
+                    f"{author.name} replied to your post [{parent.id}] with [{post.id}].")
     return post
 
 
-def _new_post(world: Any, name: str, author: Entity, kind: str, text: Any, parent: Optional[Entity], where: str) -> Entity:
+def _new_post(world: Any, name: str, author: Entity, kind: str, text: Any, parent: Entity | None, where: str) -> Entity:
     # Created empty, then filled: participant text must never be read as an expression.
     post = world.create(f"{name}_post", None, f"post by {author.name}", {}, None, world.scope(), where)
     origin = props(parent).get("origin") or props(parent).get("author") if parent is not None else author.id
@@ -453,7 +460,8 @@ def _react(world: Any, name: str, config: FeedConfig, actor: Entity, post: Entit
     if owner is not None and owner.id != actor.id:
         _bump(world, owner, f"{name}_reputation", config.reputation.reaction)
         _bump(world, owner, f"{name}_reactions_received", 1)
-        _notify(world, name, config, "reaction", actor, owner.id, f"{actor.name} reacted {reaction} to your post [{post.id}].")
+        _notify(world, name, config, "reaction", actor, owner.id,
+                f"{actor.name} reacted {reaction} to your post [{post.id}].")
 
 
 def _label(world: Any, name: str, config: FeedConfig, actor: Entity, post: Entity, label: Any) -> None:
@@ -482,7 +490,8 @@ def _relate(world: Any, name: str, config: FeedConfig, actor: Entity, act: str, 
         raise Abort("That is your own account.")
     follows, friends, requests = f"{name}_follows", f"{name}_friends", f"{name}_requests"
     blocks, mutes = f"{name}_blocks", f"{name}_mutes"
-    if act in ("follow", "befriend") and (_has(world, blocks, who.id, actor.id) or _has(world, blocks, actor.id, who.id)):
+    if act in ("follow", "befriend") and (_has(world, blocks, who.id, actor.id)
+                                          or _has(world, blocks, actor.id, who.id)):
         raise Abort(f"You cannot {act} {who.name}.")
     if act == "follow":
         if _has(world, follows, actor.id, who.id):
@@ -506,7 +515,8 @@ def _relate(world: Any, name: str, config: FeedConfig, actor: Entity, act: str, 
             raise Abort(f"You already asked {who.name}; wait for them to accept.")
         else:
             world.link(requests, actor, who, 1, where)
-            _notify(world, name, config, "friend", actor, who.id, f"{actor.name} sent you a friend request (befriend them to accept).")
+            _notify(world, name, config, "friend", actor, who.id,
+                    f"{actor.name} sent you a friend request (befriend them to accept).")
     elif act == "unfriend":
         world.unlink(friends, actor, who, where)
     elif act == "block":
@@ -528,81 +538,97 @@ def _relate(world: Any, name: str, config: FeedConfig, actor: Entity, act: str, 
 # ---------------------------------------------------------------------------
 
 
-_FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.origin)) if $it.kind == 'repost' else "
-              "($' replied to [' + $it.parent + ']' if $it.kind == 'reply' else '')}: {text} · {reacts} reactions · "
-              "{reposts} reposts · {replies} replies{$' · labelled ' + $join($it.labels) if $len($it.labels) > 0 else ''}")
+_FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.origin)) if $it.kind == 'repost' "
+              "else ($' replied to [' + $it.parent + ']' if $it.kind == 'reply' else '')}: {text} · {reacts} "
+              "reactions · {reposts} reposts · {replies} replies{$' · labelled ' + $join($it.labels) if "
+              "$len($it.labels) > 0 else ''}")
 
 
 @mode("social", "feed", FeedConfig,
-           "A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, blocks and "
-           "mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view per account, "
-           "trending, reputation moved by engagement, and moderator labels that downrank posts. Read it with "
-           "$feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), $homophily(prop); "
-           "with several feeds, name one as the last argument ($following($actor, 'net')).",
+           "A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, "
+           "blocks and mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view "
+           "per account, trending, reputation moved by engagement, and moderator labels that downrank posts. Read it "
+           "with $feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), "
+           "$homophily(prop); with several feeds, name one as the last argument ($following($actor, 'net')).",
            example={"who": "account", "feed_size": 6, "moderators": "moderator",
                     "downrank": {"labels": ["misleading"], "factor": 0.2}})
-def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.moderators, "moderators", agent=True)
     if f"{name}_post" in (contract.get("types") or {}):
         raise MechanismError(f"type '{name}_post' is generated by this mechanism", "rename your type", "")
     accounts, post_type = config.who, f"{name}_post"
-    rate: Dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
-    visible = f"$union($ids($feed($actor, null, '{name}')), $ids($trending(null, '{name}')))"  # every post the account is shown: its feed and trending
+    rate: dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
+    visible = (f"$union($ids($feed($actor, null, '{name}')), $ids($trending(null, "
+               f"'{name}')))")  # every post the account is shown: its feed and trending
     in_feed = {"type": "enum", "values": visible, "description": "The [id] of a post in your feed or trending."}
     feed_when = [{"expr": f"$len({visible}) > 0", "why": "There is no post to see: your feed and trending are empty."}]
     text = {"type": "text", "max_len": config.max_chars}
     who = {"type": "entity", "of": accounts, "description": "The account (not yourself)."}
 
-    def act(description: str, do: Dict[str, Any], params: Dict[str, Any], when: Optional[List[Any]] = None,
-            **extra: Any) -> Dict[str, Any]:
+    def act(description: str, do: dict[str, Any], params: dict[str, Any], when: list[Any] | None = None,
+            **extra: Any) -> dict[str, Any]:
         return {"by": accounts, "description": description, "params": params, "when": when or [],
                 "do": [{"social": name, **do}], "private": True, **extra}
 
-    actions: Dict[str, Any] = {}
+    actions: dict[str, Any] = {}
     if config.posts:
         actions[f"{name}_post"] = act("Publish a post to your followers.", {"action": "post", "text": "$params.text"},
                                       {"text": text}, outcome="Posted.", **rate)
     if config.replies:
-        actions[f"{name}_reply"] = act("Reply to a post in your feed or trending.", {"action": "reply", "target": "$params.post", "text": "$params.text"},
-                                       {"post": in_feed, "text": text}, feed_when, outcome="Replied to [{$params.post}].", **rate)
+        actions[f"{name}_reply"] = act("Reply to a post in your feed or trending.",
+                                       {"action": "reply", "target": "$params.post", "text": "$params.text"},
+                                       {"post": in_feed, "text": text}, feed_when,
+                                       outcome="Replied to [{$params.post}].", **rate)
     if config.reposts:
-        actions[f"{name}_repost"] = act("Repost a post from your feed or trending to your followers.", {"action": "repost", "target": "$params.post"},
+        actions[f"{name}_repost"] = act("Repost a post from your feed or trending to your followers.",
+                                        {"action": "repost", "target": "$params.post"},
                                         {"post": in_feed}, feed_when, outcome="Reposted [{$params.post}].", **rate)
     if len(config.reactions) == 1:
         reaction = config.reactions[0]
         actions[f"{name}_{reaction}"] = act(f"React '{reaction}' to a post in your feed or trending.",
                                             {"action": "react", "target": "$params.post", "reaction": reaction},
-                                            {"post": in_feed}, feed_when, outcome=f"You reacted {reaction} to [{{$params.post}}].")
+                                            {"post": in_feed}, feed_when,
+                                            outcome=f"You reacted {reaction} to [{{$params.post}}].")
     elif config.reactions:
         actions[f"{name}_react"] = act("React to a post in your feed or trending.",
                                        {"action": "react", "target": "$params.post", "reaction": "$params.reaction"},
-                                       {"post": in_feed, "reaction": {"type": "enum", "values": list(config.reactions)}},
+                                       {"post": in_feed,
+                                        "reaction": {"type": "enum", "values": list(config.reactions)}},
                                        feed_when, outcome="You reacted {$params.reaction} to [{$params.post}].")
     if config.follows:
-        actions[f"{name}_follow"] = act("Follow an account: its posts reach your feed.", {"action": "follow", "account": "$params.who"},
+        actions[f"{name}_follow"] = act("Follow an account: its posts reach your feed.",
+                                        {"action": "follow", "account": "$params.who"},
                                         {"who": who}, outcome="You follow {$params.who.name}.")
-        actions[f"{name}_unfollow"] = act("Stop following an account.", {"action": "unfollow", "account": "$params.who"},
-                                          {"who": {"type": "enum", "values": f"$following($actor, '{name}')", "description": "An account you follow."}},
-                                          [{"expr": f"$len($following($actor, '{name}')) > 0", "why": "You follow nobody."}],
+        actions[f"{name}_unfollow"] = act("Stop following an account.",
+                                          {"action": "unfollow", "account": "$params.who"},
+                                          {"who": {"type": "enum", "values": f"$following($actor, '{name}')",
+                                                   "description": "An account you follow."}},
+                                          [{"expr": f"$len($following($actor, '{name}')) > 0",
+                                            "why": "You follow nobody."}],
                                           outcome="You unfollowed {$params.who}.")
     if config.friends:
-        actions[f"{name}_befriend"] = act("Send a friend request, or accept one sent to you.", {"action": "befriend", "account": "$params.who"},
+        actions[f"{name}_befriend"] = act("Send a friend request, or accept one sent to you.",
+                                          {"action": "befriend", "account": "$params.who"},
                                           {"who": who}, outcome="Done: {$params.who.name}.")
     if config.block:
         actions[f"{name}_block"] = act("Block an account: neither of you sees the other, follows are removed.",
-                                       {"action": "block", "account": "$params.who"}, {"who": who}, outcome="You blocked {$params.who.name}.")
+                                       {"action": "block", "account": "$params.who"}, {"who": who},
+                                       outcome="You blocked {$params.who.name}.")
     if config.mute:
-        actions[f"{name}_mute"] = act("Mute an account: its posts leave your feed.", {"action": "mute", "account": "$params.who"},
+        actions[f"{name}_mute"] = act("Mute an account: its posts leave your feed.",
+                                      {"action": "mute", "account": "$params.who"},
                                       {"who": who}, outcome="You muted {$params.who.name}.")
     if config.moderators:
         actions[f"{name}_label"] = {"by": config.moderators, "description": "Label a post (and its reposts).",
-                                    "params": {"post": {"type": "entity", "of": post_type, "description": "The post id."},
+                                    "params": {"post": {"type": "entity", "of": post_type,
+                                                        "description": "The post id."},
                                                "label": {"type": "enum", "values": list(config.labels)}},
-                                    "do": [{"social": name, "action": "label", "target": "$params.post", "label": "$params.label"}],
+                                    "do": [{"social": name, "action": "label", "target": "$params.post",
+                                            "label": "$params.label"}],
                                     "outcome": "Labelled [{$params.post.id}] {$params.label}.", "private": True}
     rep = config.reputation
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {
             accounts: {"props": {f"{name}_reputation": {"type": "number", "default": rep.start, "min": 0, "max": 1},
                                  f"{name}_posts": {"type": "int", "default": 0},
@@ -624,17 +650,21 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> Dict[
                       f"{name}_mutes": {"description": "from muted to."}},
         "actions": actions,
         "views": {
-            f"{name}_feed": {"for": accounts, "title": "Your feed", "of": f"$feed($actor, null, '{name}')", "show": _FEED_LINE,
-                             "empty": "Nothing new from the accounts you follow."},
-            f"{name}_profile": {"for": accounts, "show": f"You have {{$len($followers($actor, '{name}'))}} followers, follow "
-                                                        f"{{$len($following($actor, '{name}'))}}, reputation {{{name}_reputation|pct}}."},
-            f"{name}_trending": {"for": [accounts] + ([config.moderators] if config.moderators else []), "title": "Trending",
-                                 "of": f"$trending(null, '{name}')", "show": _FEED_LINE, "empty": "Nothing is trending.", "look": True},
+            f"{name}_feed": {"for": accounts, "title": "Your feed", "of": f"$feed($actor, null, '{name}')",
+                             "show": _FEED_LINE, "empty": "Nothing new from the accounts you follow."},
+            f"{name}_profile": {"for": accounts,
+                                "show": f"You have {{$len($followers($actor, '{name}'))}} followers, follow "
+                                        f"{{$len($following($actor, '{name}'))}}, reputation "
+                                        f"{{{name}_reputation|pct}}."},
+            f"{name}_trending": {"for": [accounts] + ([config.moderators] if config.moderators else []),
+                                 "title": "Trending", "of": f"$trending(null, '{name}')", "show": _FEED_LINE,
+                                 "empty": "Nothing is trending.", "look": True},
         },
     }
     if config.moderators:
         fragment["views"][f"{name}_queue"] = {"for": config.moderators, "title": "Most engaged recent posts",
-                                              "of": f"$trending(10, '{name}')", "show": _FEED_LINE, "empty": "Nothing to review."}
+                                              "of": f"$trending(10, '{name}')", "show": _FEED_LINE,
+                                              "empty": "Nothing to review."}
     names = list(actions)
     if not names:
         return fragment

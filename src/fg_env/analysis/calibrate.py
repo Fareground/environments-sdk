@@ -24,8 +24,9 @@ level the cases share, and the report says so.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..api import ContractLike
 from ..runtime.measure import RunResult
@@ -48,26 +49,26 @@ _DOMINANT_SHARE = 0.75
 @dataclass
 class CalibrationResult:
     contract: str
-    params: Dict[str, Any]
+    params: dict[str, Any]
     method: str
     fit: float
-    targets: List[Dict[str, Any]]
-    validation: Dict[str, Any]
-    uncertainty: Dict[str, Dict[str, Any]]
+    targets: list[dict[str, Any]]
+    validation: dict[str, Any]
+    uncertainty: dict[str, dict[str, Any]]
     evaluations: int
-    history: List[Dict[str, Any]] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    history: list[dict[str, Any]] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
     #: Names of the cases fitted (empty when targets were one mapping).
-    cases: List[str] = field(default_factory=list)
+    cases: list[str] = field(default_factory=list)
     #: Error on held-out cases (``test``) or across cross-validation folds (``folds``); ``None`` without them.
-    holdout: Optional[Dict[str, Any]] = None
+    holdout: dict[str, Any] | None = None
     #: Every evaluated point that fits as well as the best within the objective's noise (inputs together), which
     #: ``uncertainty=`` draws from so forecasts carry the parameters' uncertainty.
-    plausible: List[Dict[str, Any]] = field(default_factory=list)
+    plausible: list[dict[str, Any]] = field(default_factory=list)
     #: Every number target fitted case by case, pooled over the cases at the best fit: the recorded and simulated
     #: pooled levels, the gap's standard error, whether they disagree, and the evaluated inputs closest to the pooled
     #: level.
-    pooled: List[Dict[str, Any]] = field(default_factory=list)
+    pooled: list[dict[str, Any]] = field(default_factory=list)
 
     def report(self) -> str:
         v = self.validation
@@ -81,8 +82,8 @@ class CalibrationResult:
         for check in self.pooled:
             verdict = "DISAGREES with" if check["disagrees"] else "agrees with"
             lines.append(f"  pooled over {check['cases']} case(s) · {check['target']}: simulated "
-                         f"{check['simulated']:.4g} vs recorded {check['goal']:.4g} ± {check['se']:.2g} — {verdict} the "
-                         "recorded level")
+                         f"{check['simulated']:.4g} vs recorded {check['goal']:.4g} ± {check['se']:.2g} — {verdict} "
+                         "the recorded level")
         lines += _holdout_text(self.holdout)
         lines.append("Parameter uncertainty (evaluated points as good as the best, within noise):")
         for name, u in self.uncertainty.items():
@@ -91,14 +92,14 @@ class CalibrationResult:
         lines += [f"note: {n}" for n in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "params": self.params, "method": self.method, "fit": self.fit,
                 "targets": self.targets, "validation": self.validation, "uncertainty": self.uncertainty,
                 "evaluations": self.evaluations, "history": self.history, "notes": self.notes, "cases": self.cases,
                 "holdout": self.holdout, "plausible": self.plausible, "pooled": self.pooled}
 
 
-def _target_text(detail: Dict[str, Any]) -> str:
+def _target_text(detail: dict[str, Any]) -> str:
     where = f"{detail['case']} · " if "case" in detail else ""
     if detail.get("simulated") is None and "rmse" not in detail and "distance" not in detail:
         return f"{where}{detail['target']}: no simulated value"
@@ -107,10 +108,11 @@ def _target_text(detail: Dict[str, Any]) -> str:
     if "distance" in detail:
         return f"{where}{detail['target']}: distribution distance {detail['distance']:.4g}"
     label = f"{detail['stat']} of {detail['target']}" if detail.get("stat") else detail["target"]
-    return f"{where}{label}: simulated {detail['simulated']:.4g} vs target {detail['goal']:.4g} (error {detail['error']:+.1%})"
+    return (f"{where}{label}: simulated {detail['simulated']:.4g} vs target {detail['goal']:.4g} (error "
+            f"{detail['error']:+.1%})")
 
 
-def _holdout_text(holdout: Optional[Dict[str, Any]]) -> List[str]:
+def _holdout_text(holdout: dict[str, Any] | None) -> list[str]:
     if not holdout:
         return []
     rows = holdout["splits"]
@@ -127,10 +129,10 @@ def _holdout_text(holdout: Optional[Dict[str, Any]]) -> List[str]:
 
 
 def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping[str, Any]], *,
-              runs: int = 5, budget: int = 30, holdout: Optional[int] = None, method: str = "auto",
-              inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, participants: Any = None,
-              rounds: Optional[int] = None, seed: int = 0, workers: int = 1, test: Any = None,
-              folds: Optional[int] = None, data_dir: Any = None, hosts: Any = None) -> CalibrationResult:
+              runs: int = 5, budget: int = 30, holdout: int | None = None, method: str = "auto",
+              inputs: Mapping[str, Any] | None = None, arm: str | None = None, participants: Any = None,
+              rounds: int | None = None, seed: int = 0, workers: int = 1, test: Any = None,
+              folds: int | None = None, data_dir: Any = None, hosts: Any = None) -> CalibrationResult:
     """Search ``params`` (``{input: {"low", "high", "log"?}}``) so the contract matches ``targets``.
 
     ``targets``: a mapping of targets, or a list of cases ``{name?, inputs?, arm?, targets}`` (see the
@@ -175,18 +177,19 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
 @dataclass(frozen=True)
 class _Case:
     name: str
-    inputs: Dict[str, Any]
-    arm: Optional[str]
-    goals: List[Target]
+    inputs: dict[str, Any]
+    arm: str | None
+    goals: list[Target]
 
 
-def _cases(contract: Any, targets: Any, inputs: Optional[Mapping[str, Any]], arm: Optional[str],
-           fitted: Sequence[str]) -> Tuple[List[_Case], bool]:
+def _cases(contract: Any, targets: Any, inputs: Mapping[str, Any] | None, arm: str | None,
+           fitted: Sequence[str]) -> tuple[list[_Case], bool]:
     """The cases to fit, and whether they were given as cases (``False`` for one mapping of targets)."""
     if isinstance(targets, Mapping):
         return [_Case("all", dict(inputs or {}), arm, parse_targets(contract, targets))], False
     if isinstance(targets, (str, bytes)) or not isinstance(targets, Sequence) or not targets:
-        raise ValueError("targets must be a mapping of name → target, or a non-empty list of cases {name?, inputs?, targets}")
+        raise ValueError("targets must be a mapping of name → target, or a non-empty list of cases "
+                         "{name?, inputs?, targets}")
     for i, case in enumerate(targets):
         if not isinstance(case, Mapping) or not isinstance(case.get("targets"), Mapping):
             raise ValueError(f"case {i + 1} needs 'targets' (a mapping of name → target) and usually 'inputs'")
@@ -207,7 +210,7 @@ def _cases(contract: Any, targets: Any, inputs: Optional[Mapping[str, Any]], arm
     return _spread_scaled([replace(case, goals=goals) for case, goals in zip(out, scaled)]), True
 
 
-def _spread_scaled(cases: List[_Case]) -> List[_Case]:
+def _spread_scaled(cases: list[_Case]) -> list[_Case]:
     """Cases whose value targets without a ``scale`` are scaled by how much that target varies across the cases,
     when the cases mix several value targets.
 
@@ -215,7 +218,7 @@ def _spread_scaled(cases: List[_Case]) -> List[_Case]:
     own spread, so a rate near 0.05 and a share near 0.85 weigh alike instead of the smaller one counting hundreds of
     times over. A single target keeps ``|goal|`` (its fit reads as a share off, and no weighting is at stake), as does a
     target given once or one that never varies; a pooled target is scaled once, over the cases together."""
-    goals: Dict[str, List[float]] = {}
+    goals: dict[str, list[float]] = {}
     for case in cases:
         for goal in case.goals:
             if goal.kind == "value" and goal.scale is None and not goal.pool:
@@ -233,33 +236,34 @@ class _Problem:
     """Everything fixed during a calibration: the contract, the cases and the parameter space."""
 
     contract: Any
-    cases: List[_Case]
+    cases: list[_Case]
     tagged: bool
-    names: List[str]
-    ranges: Dict[str, Tuple[float, float]]
-    logs: Dict[str, bool]
+    names: list[str]
+    ranges: dict[str, tuple[float, float]]
+    logs: dict[str, bool]
     participants: Any
-    rounds: Optional[int]
+    rounds: int | None
     workers: int
     hosts: Any = None
 
     @property
-    def goals(self) -> List[Target]:
+    def goals(self) -> list[Target]:
         return [goal for case in self.cases for goal in case.goals]
 
-    def subset(self, indices: Sequence[int]) -> "_Problem":
+    def subset(self, indices: Sequence[int]) -> _Problem:
         return replace(self, cases=[self.cases[i] for i in indices])
 
-    def to_inputs(self, unit: Sequence[float]) -> Dict[str, Any]:
+    def to_inputs(self, unit: Sequence[float]) -> dict[str, Any]:
         """A point of the unit cube as input values (log-scaled where asked, rounded for int inputs)."""
         out = {}
         for n, u in zip(self.names, unit):
             low, high = self.ranges[n]
-            raw = math.exp(math.log(low) + u * (math.log(high) - math.log(low))) if self.logs[n] else low + u * (high - low)
+            raw = (math.exp(math.log(low) + u * (math.log(high) - math.log(low))) if self.logs[n] else low
+                   + u * (high - low))
             out[n] = runner.coerce_input(self.contract, n, raw)
         return out
 
-    def run(self, values: Mapping[str, Any], seed: int, start: int, count: int, pool: Any) -> List[List[RunResult]]:
+    def run(self, values: Mapping[str, Any], seed: int, start: int, count: int, pool: Any) -> list[list[RunResult]]:
         """Every case on runs ``start…start+count-1`` at these param values, grouped by case.
 
         Given as cases, each case draws its own seeds (derived from its name, so a case keeps them in any split):
@@ -279,12 +283,12 @@ class _Problem:
         # keeps every evaluated point's runs
         return runner.by_cell(jobs, [replace(r, inputs={}) for r in results], len(self.cases))
 
-    def evaluate(self, runs: Sequence[Sequence[RunResult]]) -> Tuple[float, List[Dict[str, Any]]]:
+    def evaluate(self, runs: Sequence[Sequence[RunResult]]) -> tuple[float, list[dict[str, Any]]]:
         """Weighted RMS of normalized errors over every case's targets, a pooled target counted once over the cases
         (``inf`` when one has no value). Rows: every case's targets in order, then one per pooled target."""
-        details: List[Dict[str, Any]] = []
-        pools: Dict[str, List[Tuple[Target, Dict[str, Any]]]] = {}
-        scored: List[Tuple[float, Optional[float]]] = []
+        details: list[dict[str, Any]] = []
+        pools: dict[str, list[tuple[Target, dict[str, Any]]]] = {}
+        scored: list[tuple[float, float | None]] = []
         for case, case_runs in zip(self.cases, runs):
             _, case_details = evaluate_targets(case.goals, case_runs)
             for goal, detail in zip(case.goals, case_details):
@@ -305,17 +309,19 @@ class _Problem:
 
 def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method: str, seed: int) -> CalibrationResult:
 
-    def objective(unit: Tuple[float, ...]) -> Tuple[float, Any]:
+    def objective(unit: tuple[float, ...]) -> tuple[float, Any]:
         values = problem.to_inputs(unit)
         results = problem.run(values, seed, 0, runs, pool)
         loss, details = problem.evaluate(results)
         return loss, (values, details, results)
 
-    evaluator = unit_search.Evaluator(objective, key=lambda u: tuple(sorted(problem.to_inputs(u).items())), budget=budget)
+    evaluator = unit_search.Evaluator(objective, key=lambda u: tuple(sorted(problem.to_inputs(u).items())),
+                                      budget=budget)
     chosen = _search(method, problem.names, problem.goals, evaluator, budget, seed)
     best = evaluator.best
     if best is None or not math.isfinite(best[1]):
-        raise runner.AnalysisError("no evaluated point produced every target (check the target names and that runs complete)")
+        raise runner.AnalysisError("no evaluated point produced every target (check the target names and that runs "
+                                   "complete)")
     unit, fit, (values, _, best_runs) = best
     notes = []
     single_value = len(problem.names) == 1 and len(problem.goals) == 1 and problem.goals[0].kind == "value"
@@ -341,7 +347,7 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
                              pooled=pooled)
 
 
-def _pooled_notes(checks: Sequence[Dict[str, Any]], best: Mapping[str, Any]) -> List[str]:
+def _pooled_notes(checks: Sequence[dict[str, Any]], best: Mapping[str, Any]) -> list[str]:
     notes = []
     for check in checks:
         if not check["disagrees"]:
@@ -357,12 +363,12 @@ def _pooled_notes(checks: Sequence[Dict[str, Any]], best: Mapping[str, Any]) -> 
     return notes
 
 
-def _fit_notes(problem: _Problem, details: Sequence[Dict[str, Any]], fit: float, fresh: float, noise: float,
-               held: int) -> List[str]:
+def _fit_notes(problem: _Problem, details: Sequence[dict[str, Any]], fit: float, fresh: float, noise: float,
+               held: int) -> list[str]:
     """Plain warnings about a fit: one target making up most of the misfit, and a best point that was seed luck."""
-    notes: List[str] = []
-    misfit: Dict[str, float] = {}
-    weight: Dict[str, float] = {}
+    notes: list[str] = []
+    misfit: dict[str, float] = {}
+    weight: dict[str, float] = {}
     for goal, detail in zip(problem.goals, details):
         if detail.get("error") is not None:
             misfit[goal.name] = misfit.get(goal.name, 0.0) + goal.weight * detail["error"] ** 2
@@ -373,9 +379,9 @@ def _fit_notes(problem: _Problem, details: Sequence[Dict[str, Any]], fit: float,
         share, weight_share = misfit[name] / total, weight[name] / total_weight
         if share >= _DOMINANT_SHARE and weight_share <= 0.5:
             notes.append(f"{name} carries {share:.0%} of the misfit left at the best fit (with {weight_share:.0%} of "
-                         "the weight): the other targets' errors count for more per unit, so the search traded it away; "
-                         "give it more `weight` or a smaller `scale`, or leave `scale` out so mixed targets are scaled "
-                         "by their spread")
+                         "the weight): the other targets' errors count for more per unit, so the search traded it "
+                         "away; give it more `weight` or a smaller `scale`, or leave `scale` out so mixed targets are "
+                         "scaled by their spread")
     if noise > 0 and math.isfinite(fresh) and fresh > fit + _PLAUSIBLE_SE * noise:
         notes.append(f"on {held} fresh seed(s) the fit is {fresh:.4g} against {fit:.4g} on the search seeds (more than "
                      f"{_PLAUSIBLE_SE:g}× the objective's noise of {noise:.2g}): the best point is partly the luck of "
@@ -384,7 +390,7 @@ def _fit_notes(problem: _Problem, details: Sequence[Dict[str, Any]], fit: float,
 
 
 def _held_out(problem: _Problem, parts: Sequence[Split], fits: Sequence[CalibrationResult], pool: Any, runs: int,
-              held: int, method: str, seed: int) -> Dict[str, Any]:
+              held: int, method: str, seed: int) -> dict[str, Any]:
     """Each split's fit scored on its held-out cases, with fresh seeds."""
     rows = []
     for split, fitted in zip(parts, fits):
@@ -399,14 +405,14 @@ def _held_out(problem: _Problem, parts: Sequence[Split], fits: Sequence[Calibrat
             "in_sample": mean([row["in_sample"] for row in rows])}
 
 
-def _search(method: str, names: List[str], goals: List[Target], evaluator: unit_search.Evaluator, budget: int,
+def _search(method: str, names: list[str], goals: list[Target], evaluator: unit_search.Evaluator, budget: int,
             seed: int) -> str:
     dims = len(names)
     iterations = max(1, budget)
     if method in ("auto", "bisection") and dims == 1 and len(goals) == 1 and goals[0].kind == "value":
         target = goals[0]
 
-        def signed(u: float) -> Optional[float]:
+        def signed(u: float) -> float | None:
             _, details, _ = evaluator.detail((u,))
             simulated = details[0].get("simulated")
             return None if simulated is None else simulated - target.goal
@@ -417,7 +423,8 @@ def _search(method: str, names: List[str], goals: List[Target], evaluator: unit_
             raise runner.AnalysisError("bisection needs the output to cross the target between the range ends; "
                                        "widen the range or use method='golden'")
     elif method == "bisection":
-        raise ValueError("bisection fits one param to one number target; use 'golden', 'nelder_mead' or 'cross_entropy'")
+        raise ValueError("bisection fits one param to one number target; use 'golden', 'nelder_mead' or "
+                         "'cross_entropy'")
     if method in ("auto", "golden", "bisection") and dims == 1:
         unit_search.golden_section(evaluator, iterations)
         return "golden"
@@ -433,8 +440,8 @@ def _search(method: str, names: List[str], goals: List[Target], evaluator: unit_
     raise ValueError(f"method must be auto, bisection, golden, nelder_mead or cross_entropy, got {method!r}")
 
 
-def _uncertainty(problem: _Problem, evaluator: unit_search.Evaluator, best_runs: Sequence[Sequence[RunResult]], fit: float,
-                 tree: SeedTree) -> Dict[str, Dict[str, Any]]:
+def _uncertainty(problem: _Problem, evaluator: unit_search.Evaluator, best_runs: Sequence[Sequence[RunResult]],
+                 fit: float, tree: SeedTree) -> dict[str, dict[str, Any]]:
     """Range of each parameter over evaluated points whose fit is within the objective's noise of the best.
 
     The noise is the bootstrap standard error of the best point's objective (resampling each case's runs).

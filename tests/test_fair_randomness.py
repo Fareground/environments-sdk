@@ -1,8 +1,9 @@
 """Randomness cannot be probed: no refusal, dry run, undo or legal-action mask tells an agent how its luck will fall.
 
-A call refused for its arguments or a `when` requirement gives nothing away and costs nothing; a call refused once
-its `do` began has been played: the attempt counts, and any luck it drew is spent. Sealed choices are checked without their luck, which is drawn when they
-commit; an atomic turn is settled by the action that draws, so what the turn does next cannot undo it.
+A call refused for its arguments or a `when` requirement gives nothing away and costs nothing; a call refused once its
+`do` began has been played: the attempt counts, and any luck it drew is spent. Sealed choices are checked without their
+luck, which is drawn when they commit; an atomic turn is settled by the action that draws, so what the turn does next
+cannot undo it.
 """
 import pytest
 
@@ -133,7 +134,8 @@ def test_a_chance_that_breaks_an_atomic_turn_undoes_it_and_ends_it():
 
     fg_env.run(broke, gamble_twice, seed=4)
     lost = [(first, second) for first, second in replies if not first.ok]
-    assert lost and all("undone" in first.text and first.ended and "already over" in second.text for first, second in lost)
+    assert lost and all("undone" in first.text and first.ended and "already over" in second.text
+                        for first, second in lost)
 
 
 def test_legal_action_masks_do_not_depend_on_luck():

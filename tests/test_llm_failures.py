@@ -7,12 +7,11 @@ import warnings
 from types import SimpleNamespace as NS
 
 import pytest
+from test_llm_participants import FailingAnthropic, FakeAnthropic, FakeOpenAI, Flaky
+from test_runtime import AUCTION, SHOP
 
 import fg_env
 from fg_env import participants
-
-from test_llm_participants import FailingAnthropic, FakeAnthropic, FakeOpenAI, Flaky
-from test_runtime import AUCTION, SHOP
 
 ONE_SHOPPER = {"shoppers": 1}
 
@@ -112,7 +111,8 @@ def test_an_openai_refusal_is_counted():
         def create(self, **request):
             self.requests.append(request)
             message = NS(content=None, tool_calls=None, refusal="I can't help with that.")
-            return NS(choices=[NS(message=message, finish_reason="stop")], usage=NS(prompt_tokens=5, completion_tokens=5))
+            return NS(choices=[NS(message=message, finish_reason="stop")],
+                      usage=NS(prompt_tokens=5, completion_tokens=5))
 
     client = Refusing([])
     result = fg_env.run(AUCTION, {"ann": participants.openai(client, "m"), "bo": "idle", "cy": "idle"}, seed=1)
@@ -145,8 +145,8 @@ def test_openai_sends_max_completion_tokens_and_both_pass_extra_request_fields()
     with pytest.raises(ValueError, match="extra cannot set 'max_tokens'"):
         participants.openai(client, "m", max_tokens=500, extra={"max_tokens": 100})
     legacy = FakeOpenAI([[("bid", json.dumps({"amount": 30}))]])  # a server that only knows the older field
-    fg_env.run(AUCTION, {"ann": participants.openai(legacy, "m", extra={"max_tokens": 100}), "bo": "idle", "cy": "idle"},
-               seed=1)
+    fg_env.run(AUCTION,
+               {"ann": participants.openai(legacy, "m", extra={"max_tokens": 100}), "bo": "idle", "cy": "idle"}, seed=1)
     assert legacy.requests[0]["max_tokens"] == 100 and "max_completion_tokens" not in legacy.requests[0]
 
 

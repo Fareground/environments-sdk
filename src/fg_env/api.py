@@ -4,21 +4,22 @@ from __future__ import annotations
 import copy
 import json
 import os
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any, Union
 
 from .assets.catalog import resolve_assets
 from .checks import check_contract, parse_contract
+from .checks.smoke import run_issue, smoke_issues
 from .contract import Contract
+from .contract.inputs import resolve_inputs
+from .contract.macros import expand_macros
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
-from .contract.inputs import resolve_inputs
 from .runtime.calibration import calibrate_at_load
-from .contract.macros import expand_macros
-from .runtime.measure import RunResult
 from .runtime.env import Env
+from .runtime.measure import RunResult
 from .sampling.seeds import mint_seed
-from .checks.smoke import run_issue, smoke_issues
 
 __all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand"]
 
@@ -52,7 +53,7 @@ MAX_IMPORT_DEPTH = 16
 MAX_IMPORTS = 64
 
 
-def _with_imports(data: Any, folder: Path, stack: Tuple[Path, ...]) -> Any:
+def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> Any:
     """``data`` with its macros expanded and its ``imports`` merged in (unchanged when it has neither)."""
     data = expand_macros(data)
     if not isinstance(data, Mapping) or "imports" not in data:
@@ -60,8 +61,8 @@ def _with_imports(data: Any, folder: Path, stack: Tuple[Path, ...]) -> Any:
     return _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
 
 
-def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: Tuple[Path, ...], count: List[int],
-                     where: str) -> Dict[str, Any]:
+def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: tuple[Path, ...], count: list[int],
+                     where: str) -> dict[str, Any]:
     """``data`` (macros already expanded) with its imports merged in. Each file's macros are expanded
     before it is merged, so the importing contract's own entries, generated or written, win."""
     from .mechanisms import merge_sections
@@ -91,7 +92,8 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: T
         fragment = _json(_file_text(target), _shown(str(target)))
         if not isinstance(fragment, dict):
             raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
-        fragment = _resolve_imports(expand_macros(fragment), target.parent, root, (*stack, target), count, f"{path}.imports")
+        fragment = _resolve_imports(expand_macros(fragment), target.parent, root, (*stack, target), count,
+                                    f"{path}.imports")
         for key in ("fg_env", "name", "description"):
             fragment.pop(key, None)
         try:
@@ -102,7 +104,8 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: T
         except MechanismError as exc:
             raise ContractError([Issue(path, f"cannot merge '{_shown(relative)}': {exc}", exc.fix)]) from None
         except (AttributeError, TypeError, ValueError) as exc:
-            raise ContractError([Issue(path, f"cannot merge '{_shown(relative)}': a section has the wrong shape ({exc})",
+            raise ContractError([Issue(path,
+                                       f"cannot merge '{_shown(relative)}': a section has the wrong shape ({exc})",
                                        "compare the imported file with the contract reference")]) from None
     return out
 
@@ -141,9 +144,11 @@ def _json(text: str, where: str) -> Any:
     try:
         return json.loads(text)
     except json.JSONDecodeError as exc:
-        raise ContractError([Issue(where, f"not valid JSON: {exc.msg} at line {exc.lineno} column {exc.colno}")]) from None
+        raise ContractError([Issue(where,
+                                   f"not valid JSON: {exc.msg} at line {exc.lineno} column {exc.colno}")]) from None
     except (ValueError, RecursionError) as exc:  # nested too deeply, or a number too long to read
-        raise ContractError([Issue(where, f"cannot read this JSON: {str(exc)[:_SHOWN] or 'nested too deeply'}")]) from None
+        raise ContractError([Issue(where,
+                                   f"cannot read this JSON: {str(exc)[:_SHOWN] or 'nested too deeply'}")]) from None
 
 
 DataDir = Union[str, "os.PathLike[str]", None]
@@ -166,7 +171,7 @@ def located(contract: Contract, folder: DataDir) -> Contract:
     return moved
 
 
-def expand(source: ContractLike, *, mechanisms: bool = False) -> Dict[str, Any]:
+def expand(source: ContractLike, *, mechanisms: bool = False) -> dict[str, Any]:
     """The contract data the engine reads: imports merged and macros expanded (and, with
     ``mechanisms=True``, every mechanism expanded into ordinary sections too; the ``mechanisms`` block stays,
     since the generated effects read their config there, and loading the result again changes nothing).
@@ -185,7 +190,7 @@ def expand(source: ContractLike, *, mechanisms: bool = False) -> Dict[str, Any]:
     return expanded
 
 
-def _without_unknown_fields(data: Any, issues: List[Issue]) -> Any:
+def _without_unknown_fields(data: Any, issues: list[Issue]) -> Any:
     """Drop fields reported as unknown so the rest of the contract can still be checked."""
     unknown = [i.path for i in issues if i.message.endswith("is not a field here")]
     if len(unknown) != len(issues):
@@ -204,7 +209,7 @@ def _without_unknown_fields(data: Any, issues: List[Issue]) -> Any:
     return data
 
 
-def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional[Contract], List[Issue]]:
+def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Contract | None, list[Issue]]:
     try:
         data = _read(source)
     except ContractError as exc:  # a missing file or text that is not JSON
@@ -225,22 +230,22 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Optional
     return contract, check_contract(contract)
 
 
-def check(source: ContractLike, rounds: Optional[int] = None, seed: int = 0, *, data_dir: DataDir = None,
-          hosts: Any = None, inputs: Optional[Mapping[str, Any]] = None) -> List[Issue]:
+def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, data_dir: DataDir = None,
+          hosts: Any = None, inputs: Mapping[str, Any] | None = None) -> list[Issue]:
     """Every problem in a contract, errors first then warnings. Never raises for contract problems: a missing file
     or text that is not JSON is an issue too.
 
-    A contract without errors is also built and played, so problems that only appear with real values (sampling,
-    later rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
+    A contract without errors is also built and played, so problems that only appear with real values (sampling, later
+    rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
     everything they are shown, once with agents that choose boundary values (a parameter's least value, zero, its
-    greatest), once with every agent idle (a turn that passes without an action, as when a model
-    times out or refuses, must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
-    those that can take every action it takes). An action called in these plays that never once succeeded is
-    reported too. By default each play lasts up to 12 rounds (fewer when the run ends
-    sooner) and all of them share a few seconds; ``rounds`` plays exactly that many rounds instead (0 checks
-    statically only). Inputs with a ``source`` are read from ``data_dir`` (default: the contract file's folder);
-    ``hosts`` answers what the contract asks of a host during those plays. ``inputs`` checks a configured scenario
-    without editing its defaults; supplied inputs are validated even with ``rounds=0``, and the plays exercise them.
+    greatest), once with every agent idle (a turn that passes without an action, as when a model times out or refuses,
+    must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
+    those that can take every action it takes). An action called in these plays that never once succeeded is reported
+    too. By default each play lasts up to 12 rounds (fewer when the run ends sooner) and all of them share a few
+    seconds; ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a ``source`` are
+    read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract asks of a host
+    during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied inputs are
+    validated even with ``rounds=0``, and the plays exercise them.
     """
     contract, issues = _check_all(source, data_dir)
     errors = [i for i in issues if i.severity == "error"]
@@ -250,7 +255,7 @@ def check(source: ContractLike, rounds: Optional[int] = None, seed: int = 0, *, 
             resolve_inputs(contract, inputs, default_data_dir(source, data_dir))
         except ContractError as exc:
             errors.extend(exc.issues)
-    warnings_from_smoke: List[Issue] = []
+    warnings_from_smoke: list[Issue] = []
     if not static and contract is not None and not errors:
         built = contract
         try:
@@ -275,7 +280,7 @@ def apply_arm(contract: Contract, arm: str) -> Contract:
     return located(parse_contract(_merge(contract_source(contract), patch)), contract._folder)
 
 
-def contract_source(contract: Contract) -> Dict[str, Any]:
+def contract_source(contract: Contract) -> dict[str, Any]:
     """The contract as written (mechanisms unexpanded), for re-parsing with changes."""
     if contract._source is not None:
         return copy.deepcopy(contract._source)
@@ -291,7 +296,7 @@ def _merge(base: Any, patch: Any) -> Any:
     return copy.deepcopy(patch)
 
 
-def default_data_dir(source: ContractLike, data_dir: DataDir = None) -> Optional[Path]:
+def default_data_dir(source: ContractLike, data_dir: DataDir = None) -> Path | None:
     """Where input data files and assets are read from: ``data_dir`` when given, else the contract file's folder (a
     parsed contract remembers the folder it was read with)."""
     if data_dir is not None:
@@ -303,34 +308,32 @@ def default_data_dir(source: ContractLike, data_dir: DataDir = None) -> Optional
     return None
 
 
-def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
-         arm: Optional[str] = None, strict: bool = False, parallel: int = 8,
-         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None, calibrate: bool = True,
-         events: bool = True) -> Env:
+def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed: int | None = None,
+         arm: str | None = None, strict: bool = False, parallel: int = 8,
+         data_dir: DataDir = None, hosts: Any = None, exposures: bool = False, chance: Any = None,
+         calibrate: bool = True, events: bool = True) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
-    Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True``
-    also rejects warnings. ``seed`` defaults to a fresh one (readable as ``env.seed``).
-    Inputs with a ``source`` and the contract's ``assets`` read their files from ``data_dir`` (default: the contract
-    file's folder).
-    ``hosts`` (a :class:`~fg_env.host.Hosts` or a mapping of host name to adapter) answers the
-    judgment the contract asks of a host; build-time host work (personas) is done before round 1.
-    ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
-    contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
-    default: drawn from the seeded stream) or a callable given each :class:`~fg_env.effects.chance.ChanceNode`
-    that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
-    enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
-    (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
-    ``events=False`` keeps no event log, for a big crowd played for many rounds: ``result.events`` is empty (``on_event``
-    still streams every event) and the run forgets each event once no agent's news can reach it, so its memory stays
-    flat however long it plays; everything the run does is the same (a contract that reads `$events` or `$seen` keeps
-    its log).
+    Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True`` also rejects warnings.
+    ``seed`` defaults to a fresh one (readable as ``env.seed``). Inputs with a ``source`` and the contract's ``assets``
+    read their files from ``data_dir`` (default: the contract file's folder). ``hosts`` (a :class:`~fg_env.host.Hosts`
+    or a mapping of host name to adapter) answers the judgment the contract asks of a host; build-time host work
+    (personas) is done before round 1. ``exposures=True`` records what every agent was shown on every wake
+    (``result.exposures``); a contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects:
+    ``"sampled"`` (the default: drawn from the seeded stream) or a callable given each
+    :class:`~fg_env.effects.chance.ChanceNode` that returns the index of the outcome to take (a fixed deal, duplicate
+    formats); :func:`fg_env.rl.game` enumerates chance for search. A contract with a ``calibration`` section fits its
+    inputs with pilot sessions first (``env.calibration`` is the report); ``calibrate=False`` skips that, as
+    ``fg_env.check``'s smoke play does. ``events=False`` keeps no event log, for a big crowd played for many rounds:
+    ``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
+    news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
+    that reads `$events` or `$seen` keeps its log).
     """
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
     if blocking or contract is None:
         raise ContractError(blocking or issues)
-    merged: Dict[str, Any] = {}
+    merged: dict[str, Any] = {}
     unarmed = contract
     if arm is not None:
         contract = apply_arm(contract, arm)
@@ -365,11 +368,11 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     return env
 
 
-def run(source: ContractLike, participants: Any = None, *, inputs: Optional[Mapping[str, Any]] = None,
-        seed: Optional[int] = None, arm: Optional[str] = None, rounds: Optional[int] = None,
+def run(source: ContractLike, participants: Any = None, *, inputs: Mapping[str, Any] | None = None,
+        seed: int | None = None, arm: str | None = None, rounds: int | None = None,
         on_event: Any = None, strict: bool = False, data_dir: DataDir = None,
-        hosts: Any = None, time_limit: Optional[float] = None, exposures: bool = False,
-        budget: Optional[Mapping[str, Any]] = None, events: bool = True) -> RunResult:
+        hosts: Any = None, time_limit: float | None = None, exposures: bool = False,
+        budget: Mapping[str, Any] | None = None, events: bool = True) -> RunResult:
     """Load and run in one call: ``fg_env.run("shop.json", {"buyer": "policy:thrifty"}, seed=1)``.
 
     A run that fails — a rule that cannot be evaluated, a participant that raises, a model provider that refuses the

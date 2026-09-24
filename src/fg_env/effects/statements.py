@@ -7,11 +7,10 @@ import json
 import re
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, List, Optional, Tuple
-
-from ..expr import Expr, ExprError, compile_expr, is_expr
+from typing import Any
 
 from ..contract import one_or_many
+from ..expr import Expr, ExprError, compile_expr, is_expr
 
 __all__ = ["RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "capture_roots",
            "structured_capture_roots"]
@@ -24,7 +23,7 @@ RESERVED_ROOTS = frozenset({
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
+def split_statement(source: str) -> tuple[str, str, str] | None:
     """``(left, operator, right)`` for an assignment text, or None when it is not one."""
     depth, quote, i, n = 0, None, 0, len(source)
     while i < n:
@@ -51,7 +50,7 @@ def split_statement(source: str) -> Optional[Tuple[str, str, str]]:
     return None
 
 
-def statement_parts(source: str) -> Tuple[Optional[str], Tuple[Tuple[str, str], ...], Optional[str], str, str]:
+def statement_parts(source: str) -> tuple[str | None, tuple[tuple[str, str], ...], str | None, str, str]:
     """``(base, steps, local, op, value)`` of an assignment; raises :class:`ExprError` if malformed.
 
     ``$total = 3`` → local ``total``. ``$world.board[$r][$c] = x`` → base ``$world`` and steps
@@ -74,7 +73,7 @@ def statement_parts(source: str) -> Tuple[Optional[str], Tuple[Tuple[str, str], 
     return base, steps, None, op, right
 
 
-def _target_steps(left: str, source: str) -> Tuple[str, Tuple[Tuple[str, str], ...]]:
+def _target_steps(left: str, source: str) -> tuple[str, tuple[tuple[str, str], ...]]:
     match = re.match(r"\$[A-Za-z_][A-Za-z0-9_]*", left)
     if match is None:
         raise ExprError("the left side must start with a root like `$actor` or `$world`", source)
@@ -82,7 +81,7 @@ def _target_steps(left: str, source: str) -> Tuple[str, Tuple[Tuple[str, str], .
     if i < len(left) and left[i] == "(":
         i = _closing(left, i, "(", ")", source) + 1
     base = left[:i]
-    steps: List[Tuple[str, str]] = []
+    steps: list[tuple[str, str]] = []
     while i < len(left):
         ch = left[i]
         if ch == ".":
@@ -126,10 +125,10 @@ def _closing(text: str, start: int, opening: str, closing: str, source: str) -> 
 @dataclass(frozen=True)
 class Statement:
     source: str
-    base: Optional[Expr]
+    base: Expr | None
     #: ``("field", name)`` or ``("index", compiled expression)`` steps after the base.
-    steps: Tuple[Tuple[str, Any], ...]
-    local: Optional[str]
+    steps: tuple[tuple[str, Any], ...]
+    local: str | None
     op: str
     value: Expr
 
@@ -149,7 +148,7 @@ def compile_statement(source: str) -> Statement:
 
 
 @lru_cache(maxsize=8_192)
-def capture_roots(sources: Tuple[str, ...]) -> Optional[frozenset[str]]:
+def capture_roots(sources: tuple[str, ...]) -> frozenset[str] | None:
     """External reads of straight-line assignments; calls may read implicit scope."""
     needed: set[str] = set()
     assigned: set[str] = set()
@@ -174,7 +173,7 @@ def capture_roots(sources: Tuple[str, ...]) -> Optional[frozenset[str]]:
 
 
 @lru_cache(maxsize=8_192)
-def structured_capture_roots(source: str) -> Optional[frozenset[str]]:
+def structured_capture_roots(source: str) -> frozenset[str] | None:
     """Conservative reads across control flow; retain all possibly needed outer locals.
 
     Unlike the straight-line analysis, no assignments remove dependencies. This

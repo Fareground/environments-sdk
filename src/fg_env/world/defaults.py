@@ -7,7 +7,8 @@ other through ``$it`` the same way (``"double": "$it.base * 2"``).
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
+from collections.abc import Mapping
+from typing import Any
 
 from ..expr import is_expr
 
@@ -16,7 +17,7 @@ __all__ = ["world_reads", "default_order"]
 _READS = {root: re.compile(rf"\${root}\.([A-Za-z_][A-Za-z0-9_]*)") for root in ("world", "it")}
 
 
-def world_reads(raw: Any, root: str = "world") -> Set[str]:
+def world_reads(raw: Any, root: str = "world") -> set[str]:
     """The properties of ``$<root>`` an expression (or a list or map holding expressions) reads by name."""
     if isinstance(raw, str):
         return set(_READS[root].findall(raw)) if is_expr(raw) else set()
@@ -27,12 +28,13 @@ def world_reads(raw: Any, root: str = "world") -> Set[str]:
     return set()
 
 
-def default_order(defaults: Mapping[str, Any], root: str = "world") -> Tuple[List[str], Optional[List[str]]]:
+def default_order(defaults: Mapping[str, Any], root: str = "world") -> tuple[list[str], list[str] | None]:
     """Property names in evaluation order (each after the properties of ``$<root>`` its value reads), and the first
     circle of values reading each other (``["a", "b", "a"]``), or ``None``. Unrelated properties keep their order."""
-    reads: Dict[str, List[str]] = {name: sorted(world_reads(raw, root) & set(defaults)) for name, raw in defaults.items()}
-    order: List[str] = []
-    state: Dict[str, str] = {}
+    reads: dict[str, list[str]] = {name: sorted(world_reads(raw, root) & set(defaults))
+                                   for name, raw in defaults.items()}
+    order: list[str] = []
+    state: dict[str, str] = {}
     for start in defaults:
         cycle = _visit(start, reads, state, order, [])
         if cycle is not None:
@@ -40,8 +42,8 @@ def default_order(defaults: Mapping[str, Any], root: str = "world") -> Tuple[Lis
     return order, None
 
 
-def _visit(name: str, reads: Mapping[str, List[str]], state: Dict[str, str], order: List[str],
-           path: List[str]) -> Optional[List[str]]:
+def _visit(name: str, reads: Mapping[str, list[str]], state: dict[str, str], order: list[str],
+           path: list[str]) -> list[str] | None:
     if state.get(name) == "done":
         return None
     if state.get(name) == "open":

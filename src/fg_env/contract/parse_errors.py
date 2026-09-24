@@ -6,9 +6,10 @@ value nor the fix. These turn each validation error into an :class:`Issue` a fir
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from difflib import get_close_matches
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
@@ -18,10 +19,11 @@ from ..errors import Issue
 __all__ = ["validation_issues", "shape_issue"]
 
 #: What a pydantic type error expects, and the loc tag a union branch of that type adds.
-_EXPECTED: Dict[str, Tuple[str, str]] = {
+_EXPECTED: dict[str, tuple[str, str]] = {
     "list_type": ("a list", "list"), "dict_type": ("an object", "dict"), "model_type": ("an object", ""),
     "model_attributes_type": ("an object", ""), "string_type": ("text", "str"), "float_type": ("a number", "float"),
-    "float_parsing": ("a number", "float"), "int_type": ("a whole number", "int"), "int_parsing": ("a whole number", "int"),
+    "float_parsing": ("a number", "float"), "int_type": ("a whole number", "int"),
+    "int_parsing": ("a whole number", "int"),
     "int_from_float": ("a whole number", "int"), "bool_type": ("true or false", "bool"),
     "bool_parsing": ("true or false", "bool"),
 }
@@ -29,7 +31,7 @@ _EXPECTED: Dict[str, Tuple[str, str]] = {
 _SHOWN = 60
 
 
-def _all_field_names() -> List[str]:
+def _all_field_names() -> list[str]:
     names = set()
     for obj in vars(C).values():
         if isinstance(obj, type) and issubclass(obj, BaseModel):
@@ -64,7 +66,7 @@ def _got(value: Any) -> str:
     return json.dumps(value)
 
 
-def _loc(error: Mapping[str, Any]) -> List[Any]:
+def _loc(error: Mapping[str, Any]) -> list[Any]:
     """The error's location without pydantic's validator and union-branch tags."""
     loc = [p for p in error["loc"] if not (isinstance(p, str) and ("[" in p or p.startswith("function")))]
     tag = _EXPECTED.get(error["type"], ("", ""))[1]
@@ -80,29 +82,32 @@ def _probability(value: Any) -> str:
     return json.dumps(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else "p"
 
 
-def _fix(path: str, expected: List[str], value: Any) -> Optional[str]:
+def _fix(path: str, expected: list[str], value: Any) -> str | None:
     section = path.split(".")[0].split("[")[0]
     if expected == ["a list"] and isinstance(value, Mapping):
         if path == "stages":
             first = next(iter(value), "morning")
-            return f'write a list, each stage naming itself: [{{"name": "{first}", ...}}, ...] (stages run in list order)'
+            return (f'write a list, each stage naming itself: [{{"name": "{first}", ...}}, ...] (stages run in list '
+                    'order)')
         return "write a list: [ ... ] around the items"
     if expected == ["a list"]:
         return "wrap it in a list: [ ... ]"
     if expected == ["an object"]:
-        return f"write an object {{...}} with the fields guide('{section}') lists" if section in C.Contract.model_fields \
+        return (f"write an object {{...}} with the fields guide('{section}') "
+                "lists") if section in C.Contract.model_fields \
             else "write an object {...}"
     if "a number" in expected or "a whole number" in expected:
-        return "write a whole number without quotes" if "a whole number" in expected else "write a number without quotes"
+        return ("write a whole number without quotes" if "a whole number" in expected
+                else "write a number without quotes")
     if expected == ["true or false"]:
         return "write true or false, without quotes"
     return None
 
 
-def validation_issues(exc: ValidationError) -> List[Issue]:
+def validation_issues(exc: ValidationError) -> list[Issue]:
     """Every structural problem as a plain-worded Issue; a union's alternatives at one path become one Issue."""
-    issues: List[Issue] = []
-    unions: Dict[str, Tuple[List[str], Any]] = {}
+    issues: list[Issue] = []
+    unions: dict[str, tuple[list[str], Any]] = {}
     for error in exc.errors():
         loc = _loc(error)
         path = _path(loc)
@@ -116,13 +121,14 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
             key = str(loc[-1]) if loc else ""
             hint = get_close_matches(key, _FIELD_NAMES, n=1, cutoff=0.7)
             if hint and hint[0] == key:
-                fix: Optional[str] = f"'{key}' belongs to another part of the contract; remove it here"
+                fix: str | None = f"'{key}' belongs to another part of the contract; remove it here"
             else:
                 fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
             if len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
                 fix = 'Use at for scheduled rounds (at=2 or at=[2, 4]); use every for an interval (every=2)'
             elif len(loc) == 3 and loc[0] == "events" and key == "chance":
-                fix = f'an event fires at random through its when: "when": "$chance({_probability(error.get("input"))})"'
+                fix = ('an event fires at random through its when: "when": '
+                       f'"$chance({_probability(error.get("input"))})"')
             elif loc and loc[0] == "inputs" and key == "options":
                 fix = 'For a dropdown use type="enum", values=[...], display="select"; options is not an input field'
             elif (len(loc) >= 5 and loc[0] == "actions" and loc[2] == "params"
@@ -145,9 +151,10 @@ def validation_issues(exc: ValidationError) -> List[Issue]:
     return [_with_guide_part(issue) for issue in issues]
 
 
-def shape_issue(path: str, expected: List[str], value: Any) -> Issue:
+def shape_issue(path: str, expected: list[str], value: Any) -> Issue:
     """``path`` holds ``value`` but must be one of ``expected`` (\"a list\", \"an object\" …), with how to write it."""
-    return _with_guide_part(Issue(path, f"must be {' or '.join(expected)}, got {_got(value)}", _fix(path, expected, value)))
+    return _with_guide_part(Issue(path, f"must be {' or '.join(expected)}, got {_got(value)}",
+                                  _fix(path, expected, value)))
 
 
 def _with_guide_part(issue: Issue) -> Issue:

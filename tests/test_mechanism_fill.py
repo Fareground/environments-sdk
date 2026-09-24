@@ -1,10 +1,9 @@
 """A mechanism fills in what an author-declared type or entity lacks; the author's values win."""
 import pytest
+from family_fixtures import Nothing, scratch_family
 
 from fg_env.mechanisms import expand_mechanisms
 from fg_env.registry import mode
-
-from family_fixtures import Nothing, scratch_family
 
 
 @pytest.fixture
@@ -12,7 +11,8 @@ def badges():
     with scratch_family("test_badges"):
         mode("test_badges", "gold", Nothing, "Adds a badge to players and to ann.")(
             lambda name, config, contract: {
-                "types": {"player": {"description": "Holds a badge.", "agent": False, "props": {"badge": "", "cash": 0}}},
+                "types": {"player": {"description": "Holds a badge.", "agent": False,
+                                     "props": {"badge": "", "cash": 0}}},
                 "entities": {"ann": {"type": "player", "props": {"badge": "gold", "cash": 1}},
                              "vault": {"type": "player", "props": {"badge": "none"}}}})
         yield

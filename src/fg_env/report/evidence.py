@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import math
 import operator
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..analysis.stats import quantile
 from ..analysis.sweep import SweepResult
@@ -28,12 +29,12 @@ class Option:
 
     label: str
     description: str
-    runs: List[RunResult]
-    inputs: Dict[str, Any] = field(default_factory=dict)
+    runs: list[RunResult]
+    inputs: dict[str, Any] = field(default_factory=dict)
     failed: int = 0
-    rounds: Optional[int] = None
+    rounds: int | None = None
 
-    def values(self, measure: str) -> List[float]:
+    def values(self, measure: str) -> list[float]:
         return [float(v) for r in self.runs if _usable_output(r, measure) for v in [r.outputs.get(measure)]
                 if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)]
 
@@ -47,7 +48,7 @@ class Summary:
     high: float
 
 
-def summary(values: Sequence[float]) -> Optional[Summary]:
+def summary(values: Sequence[float]) -> Summary | None:
     """Mean, median and the range holding the middle 80% of ``values``."""
     if not values:
         return None
@@ -65,7 +66,7 @@ class Goal:
         return a < b if self.direction == "min" else a > b
 
 
-_OPS: Dict[str, Callable[[float, float], bool]] = {">=": operator.ge, "<=": operator.le, ">": operator.gt,
+_OPS: dict[str, Callable[[float, float], bool]] = {">=": operator.ge, "<=": operator.le, ">": operator.gt,
                                                    "<": operator.lt}
 
 
@@ -79,7 +80,7 @@ class Requirement:
         return _OPS[self.op](value, self.value)
 
 
-def parse_goal(text: Optional[str]) -> Optional[Goal]:
+def parse_goal(text: str | None) -> Goal | None:
     """``"min:cost"`` or ``"max:profit"``."""
     if text is None:
         return None
@@ -89,7 +90,7 @@ def parse_goal(text: Optional[str]) -> Optional[Goal]:
     return Goal(measure, direction)
 
 
-def parse_requirements(require: Optional[Mapping[str, Any]]) -> List[Requirement]:
+def parse_requirements(require: Mapping[str, Any] | None) -> list[Requirement]:
     """``{"service_level": ">= 0.8"}``: every output that must meet a bound (on its mean over runs)."""
     out = []
     for measure, rule in (require or {}).items():
@@ -108,39 +109,39 @@ def parse_requirements(require: Optional[Mapping[str, Any]]) -> List[Requirement
 @dataclass
 class Evidence:
     kind: str  # run | runs | experiment | sweep | validation
-    options: List[Option]
-    control: Optional[str] = None
-    deltas: Dict[str, Dict[str, Dict[str, Any]]] = field(default_factory=dict)
-    sweep: Optional[SweepResult] = None
-    validation: Optional[ValidationResult] = None
-    contract: Optional[Contract] = None
+    options: list[Option]
+    control: str | None = None
+    deltas: dict[str, dict[str, dict[str, Any]]] = field(default_factory=dict)
+    sweep: SweepResult | None = None
+    validation: ValidationResult | None = None
+    contract: Contract | None = None
     name: str = ""
 
     @property
-    def runs(self) -> List[RunResult]:
+    def runs(self) -> list[RunResult]:
         return [r for option in self.options for r in option.runs]
 
     @property
-    def first(self) -> Optional[RunResult]:
+    def first(self) -> RunResult | None:
         return self.runs[0] if self.runs else None
 
-    def option(self, label: str) -> Optional[Option]:
+    def option(self, label: str) -> Option | None:
         return next((o for o in self.options if o.label == label), None)
 
 
-def _described(contract: Optional[Contract], arm: Optional[str]) -> str:
+def _described(contract: Contract | None, arm: str | None) -> str:
     if contract is not None and arm is not None and arm in contract.arms:
         return contract.arms[arm].description.rstrip(".")
     return ""
 
 
-def _split(runs: Sequence[RunResult]) -> Tuple[List[RunResult], int]:
+def _split(runs: Sequence[RunResult]) -> tuple[list[RunResult], int]:
     kept = [r for r in runs if r.status != "failed"]
     return kept, len(runs) - len(kept)
 
 
-def gather(source: Any, contract: Optional[ContractLike], validation: Optional[ValidationResult],
-           control: Optional[str], data_dir: Any) -> Evidence:
+def gather(source: Any, contract: ContractLike | None, validation: ValidationResult | None,
+           control: str | None, data_dir: Any) -> Evidence:
     """Evidence from a run, a list of runs, an experiment, a sweep or a validation."""
     parsed = parse(contract, data_dir) if contract is not None else None
     if isinstance(source, ValidationResult):
@@ -178,21 +179,21 @@ def gather(source: Any, contract: Optional[ContractLike], validation: Optional[V
 class Choice:
     """The option a decision rule picks, and how every option fared against it."""
 
-    best: Optional[Option]
-    goal: Optional[Goal]
-    requirements: List[Requirement]
+    best: Option | None
+    goal: Goal | None
+    requirements: list[Requirement]
     #: ``{label: {requirement measure: share of runs meeting it}}``.
-    meeting: Dict[str, Dict[str, float]] = field(default_factory=dict)
-    feasible: List[str] = field(default_factory=list)
-    excluded: Dict[str, str] = field(default_factory=dict)
+    meeting: dict[str, dict[str, float]] = field(default_factory=dict)
+    feasible: list[str] = field(default_factory=list)
+    excluded: dict[str, str] = field(default_factory=dict)
 
 
-def choose(options: Sequence[Option], goal: Optional[Goal], requirements: Sequence[Requirement]) -> Choice:
+def choose(options: Sequence[Option], goal: Goal | None, requirements: Sequence[Requirement]) -> Choice:
     """The option whose mean meets every requirement and is best on the goal (none without a goal or a feasible
     option)."""
-    meeting: Dict[str, Dict[str, float]] = {}
-    feasible: List[Option] = []
-    excluded: Dict[str, str] = {}
+    meeting: dict[str, dict[str, float]] = {}
+    feasible: list[Option] = []
+    excluded: dict[str, str] = {}
     for option in options:
         reasons = []
         if option.failed:

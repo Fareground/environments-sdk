@@ -2,13 +2,13 @@
 evaluating number-or-expression config values, and small value helpers."""
 from __future__ import annotations
 
-from typing import Any, Type, TypeVar
+from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
+from ..world.entity import Entity
 from . import _common
 
 __all__ = ["config_of", "number", "entity_of", "lot_floor", "fmt"]
@@ -16,7 +16,7 @@ __all__ = ["config_of", "number", "entity_of", "lot_floor", "fmt"]
 M = TypeVar("M", bound=BaseModel)
 
 
-def config_of(world: Any, name: Any, key: str, model: Type[M], where: str = "mechanisms") -> M:
+def config_of(world: Any, name: Any, key: str, model: type[M], where: str = "mechanisms") -> M:
     """The validated config of the mechanism ``name`` of ``key`` (``market.<mode>``) in the running contract."""
     if not isinstance(name, str):
         raise RunError(f"a market mechanism is named by text, got {name!r}", where)

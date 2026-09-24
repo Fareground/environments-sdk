@@ -4,9 +4,9 @@ import json
 from pathlib import Path
 
 import fg_env
+from fg_env.mechanisms._social import config_of
 from fg_env.mechanisms.card_scoring import poker_hand
 from fg_env.mechanisms.deliberation import KIND, DeliberationConfig, _house
-from fg_env.mechanisms._social import config_of
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 
@@ -33,13 +33,16 @@ def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
     contract = {"name": "Square", "clock": {"rounds": 1}, "types": {"person": {"agent": True}},
                 "entities": {"ann": {"type": "person"}}, "stages": [{"name": "talk"}],
                 "actions": {"say": {"by": "person", "per_turn": 1, "per_round": 3,
-                                    "params": {"text": {"type": "text", "max_len": 400, "description": "What you say."}}}}}
+                                    "params": {"text": {"type": "text", "max_len": 400,
+                                                        "description": "What you say."}}}}}
     say = _first_tools(contract, "ann")["tools"]["say"]
     assert say.description == "Say. Once per turn and at most 3 times per round."
-    assert say.input_schema["properties"]["text"]["description"] == "What you say. Up to 400 characters (about 50 words)."
+    assert (say.input_schema["properties"]["text"]["description"]
+            == "What you say. Up to 400 characters (about 50 words).")
     from fg_env.actions.tool_text import text_limit
 
-    assert text_limit(600) == "Up to 600 characters (about 75 words)." and text_limit(4) == "Up to 4 characters (about 1 word)."
+    assert (text_limit(600) == "Up to 600 characters (about 75 words)." and text_limit(4)
+            == "Up to 4 characters (about 1 word).")
 
 
 def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():
@@ -54,7 +57,8 @@ def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():
 def test_a_later_pass_says_again_only_to_an_agent_that_already_had_a_turn_in_the_stage():
     contract = {"name": "Passes", "clock": {"rounds": 2}, "world": {"open": 0},
                 "types": {"player": {"agent": True, "props": {"joins": 0}}},
-                "entities": {"ann": {"type": "player", "props": {"joins": 0}}, "ben": {"type": "player", "props": {"joins": 1}}},
+                "entities": {"ann": {"type": "player", "props": {"joins": 0}},
+                             "ben": {"type": "player", "props": {"joins": 1}}},
                 "actions": {"move": {"by": "player", "do": ["$world.open = 1"], "terminal": True}},
                 "stages": [{"name": "play", "passes": 2, "who": "$it.joins <= $world.open", "must_act": True}]}
     turns = []
@@ -102,7 +106,8 @@ def test_the_floor_refusal_says_what_to_do_before_and_after_raising_a_hand():
         wake.end()
 
     fg_env.run(_example("town_hall.json"), {"r1": resident}, seed=1, inputs={"residents": 3}, rounds=1)
-    assert texts[0] == "You cannot hall speak now: You do not hold the floor: raise your hand and wait to be recognized."
+    assert (texts[0]
+            == "You cannot hall speak now: You do not hold the floor: raise your hand and wait to be recognized.")
     assert texts[1] == ("Your hand is raised. The chair gives the floor between turns: end your turn now; you will be "
                         "woken when you hold the floor.")
     assert texts[2] == "You cannot hall speak now: Your hand is raised: wait to be recognized."
@@ -198,7 +203,8 @@ def test_sellers_see_their_cash_and_sponsoring_is_bounded_by_what_they_can_pay()
 def test_one_shared_tool_keeps_each_actions_constraints_and_description():
     contract = _farm(2.5)
     contract["mechanisms"]["market"]["tools"] = "one"
-    tool = _first_tools(contract, "ana", inputs={"rounds": 1, "shoppers": 1}, others={"shopper": "idle"})["tools"]["market"]
+    tools = _first_tools(contract, "ana", inputs={"rounds": 1, "shoppers": 1}, others={"shopper": "idle"})["tools"]
+    tool = tools["market"]
     assert "Only these actions are available now:\n- set_price: Change a listing's asking price." in tool.description
     rounds = tool.input_schema["properties"]["rounds"]
     assert "anyOf" not in rounds and rounds["type"] == "integer" and rounds["maximum"] == 20
@@ -208,7 +214,8 @@ def test_one_shared_tool_keeps_each_actions_constraints_and_description():
     social["mechanisms"]["net"]["tools"] = "one"
     net = _first_tools(social, "u1", inputs={"accounts": 30}, rounds=3)["tools"]["net"]
     who = net.input_schema["properties"]["who"]
-    assert "anyOf" not in who and len(who["enum"]) == 30 and "For unfollow: An account you follow. One of:" in who["description"]
+    assert ("anyOf" not in who and len(who["enum"]) == 30
+            and "For unfollow: An account you follow. One of:" in who["description"])
 
 
 def test_an_account_may_reply_to_a_trending_post_it_does_not_follow():
@@ -252,7 +259,8 @@ def _talk(overflow=None):
     return {"name": "Square", "clock": {"rounds": 1}, "types": {"person": {"agent": True}},
             "entities": {"ann": {"type": "person"}}, "stages": [{"name": "talk"}],
             "records": {"chat": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
-            "actions": {"say": {"by": "person", "params": {"text": text}, "do": [{"post": "chat", "text": "$params.text"}],
+            "actions": {"say": {"by": "person", "params": {"text": text},
+                                "do": [{"post": "chat", "text": "$params.text"}],
                                 "outcome": "Said.", "terminal": True}}}
 
 
@@ -263,7 +271,8 @@ def test_long_text_is_refused_by_default_and_cut_after_the_last_sentence_that_fi
     seen = {}
 
     def speaker(wake):
-        seen["description"] = next(t for t in wake.tools if t.name == "say").input_schema["properties"]["text"]["description"]
+        say = next(t for t in wake.tools if t.name == "say")
+        seen["description"] = say.input_schema["properties"]["text"]["description"]
         seen["result"] = wake.call("say", {"text": LONG})
         if not wake.done:
             wake.end()
@@ -273,8 +282,8 @@ def test_long_text_is_refused_by_default_and_cut_after_the_last_sentence_that_fi
     result = fg_env.run(_talk("truncate"), {"ann": speaker}, seed=1)
     assert seen["result"].ok
     assert seen["result"].text == "Said. (Your text was cut to 37 of 85 characters; the rest was not said.)"
-    assert seen["description"] == ("What you say. Up to 60 characters (about 7 words); longer text is cut after the last "
-                                   "full sentence that fits.")
+    assert seen["description"] == ("What you say. Up to 60 characters (about 7 words); longer text is cut after the "
+                                   "last full sentence that fits.")
     assert [e["data"]["fields"]["text"] for e in result.events if e["kind"] == "record"] == [LONG[:37]]
 
 
@@ -288,10 +297,10 @@ def test_overflow_truncate_needs_a_text_parameter_with_a_limit():
 def test_werewolf_speech_that_runs_long_is_cut_not_lost():
     seen = []
     first_try = ("Hugo here. Nothing strong yet, and I won't pretend otherwise. Two observations: the near-unanimous "
-                 "\"Ada was too eager\" chorus is real, but it's also the safest line to echo — Greta's right not to let it "
-                 "harden into today's exile. And \"let's hear from the quiet seats\" spreads suspicion thin, as Finn "
-                 "noted. My weak read: wolves are more likely among those shaping the frame early and steering "
-                 "consensus than in silence. I'll decide my vote late and watch who pushes a fast bandwagon.")
+                 "\"Ada was too eager\" chorus is real, but it's also the safest line to echo — Greta's right not to "
+                 "let it harden into today's exile. And \"let's hear from the quiet seats\" spreads suspicion thin, "
+                 "as Finn noted. My weak read: wolves are more likely among those shaping the frame early and "
+                 "steering consensus than in silence. I'll decide my vote late and watch who pushes a fast bandwagon.")
 
     def player(wake):
         if wake.stage == "day_discussion" and not seen and any(t.name == "say" for t in wake.tools):
@@ -319,6 +328,8 @@ def test_an_enum_schema_names_the_type_its_values_share():
     card = _first_tools(_example("games/goofspiel.json"), "a")["tools"]["bid"].input_schema["properties"]["card"]
     assert card["type"] == "integer" and all(isinstance(v, int) for v in card["enum"])
     mixed = {"name": "Mixed", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
-             "actions": {"pick": {"by": "p", "params": {"v": {"type": "enum", "values": [1, 2.5]}, "w": {"type": "enum", "values": [1, "x"]}}}}}
+             "actions": {"pick": {"by": "p",
+                                  "params": {"v": {"type": "enum", "values": [1, 2.5]},
+                                             "w": {"type": "enum", "values": [1, "x"]}}}}}
     schema = _first_tools(mixed, "a")["tools"]["pick"].input_schema["properties"]
     assert schema["v"]["type"] == "number" and "type" not in schema["w"]

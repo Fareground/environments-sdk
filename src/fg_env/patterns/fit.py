@@ -13,9 +13,10 @@ from __future__ import annotations
 import copy
 import json
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Tuple, Union
+from typing import Any
 
 from ..api import ContractLike, _read, contract_source, default_data_dir, load
 from ..contract import Contract
@@ -38,8 +39,8 @@ class Row:
 
     t: float
     y: float
-    key: Optional[str]
-    x: Dict[str, float]
+    key: str | None
+    x: dict[str, float]
     censored: bool
     raw: Mapping[str, Any]
 
@@ -48,13 +49,13 @@ class Row:
 class Estimate:
     """What one fit found for one key: parameter values, their standard errors, how, and how well."""
 
-    params: Dict[str, Any]
-    errors: Dict[str, Any] = field(default_factory=dict)
+    params: dict[str, Any]
+    errors: dict[str, Any] = field(default_factory=dict)
     method: str = ""
-    assumed: List[str] = field(default_factory=list)
-    observed: List[float] = field(default_factory=list)
-    predicted: List[float] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    assumed: list[str] = field(default_factory=list)
+    observed: list[float] = field(default_factory=list)
+    predicted: list[float] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -66,13 +67,13 @@ class PatternFit:
     method: str
     n: int
     keys: int
-    rmse: Optional[float]
-    mape: Optional[float]
-    r2: Optional[float]
-    estimated: List[str]
-    assumed: List[str]
-    params: Dict[str, Any]
-    notes: List[str] = field(default_factory=list)
+    rmse: float | None
+    mape: float | None
+    r2: float | None
+    estimated: list[str]
+    assumed: list[str]
+    params: dict[str, Any]
+    notes: list[str] = field(default_factory=list)
 
     def line(self) -> str:
         quality = ", ".join(part for part in (
@@ -82,7 +83,8 @@ class PatternFit:
         shown = json.dumps(self.params, default=lambda v: round(v, 4) if isinstance(v, float) else str(v))
         who = f" over {self.keys} keys" if self.keys > 1 else ""
         text = f"{self.pattern} ({self.kind}): {self.method}, {self.n} rows{who}; {quality or 'no error measure'}"
-        text += f"\n  estimated {', '.join(self.estimated) or 'nothing'}; assumed {', '.join(self.assumed) or 'nothing'}"
+        text += (f"\n  estimated {', '.join(self.estimated) or 'nothing'}; assumed "
+                 f"{', '.join(self.assumed) or 'nothing'}")
         text += f"\n  {shown if len(shown) < 400 else shown[:397] + '…'}"
         return text + "".join(f"\n  note: {note}" for note in self.notes)
 
@@ -91,25 +93,25 @@ class PatternFit:
 class FitResult:
     """The fitted contract (data, like the one given), a report per pattern, and the estimates as priors."""
 
-    contract: Dict[str, Any]
-    fits: List[PatternFit]
+    contract: dict[str, Any]
+    fits: list[PatternFit]
     #: Every fitted number input with a standard error as ``{input: {"dist": "normal", "mean", "sd"}}`` — the form
     #: ``uncertainty=`` takes on experiment, sweep, backtest and validate. The contract already draws these (and the
     #: per-key and list parameters, which have no input of their own) through each pattern's ``uncertainty``; pass
     #: the input ``parameter_uncertainty: 0`` alongside so they are not drawn twice.
-    priors: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    priors: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def report(self) -> str:
         return "\n".join(fit.line() for fit in self.fits) or "no pattern declares `fit`"
 
-    def save(self, path: Union[str, Path]) -> None:
+    def save(self, path: str | Path) -> None:
         Path(path).write_text(json.dumps(self.contract, indent=2, ensure_ascii=False) + "\n")
 
 
 class Problem:
     """One pattern's fit: its config, its rows, and the world as fitted so far (to read other patterns)."""
 
-    def __init__(self, name: str, cfg: Any, rows: List[Row], env: Any):
+    def __init__(self, name: str, cfg: Any, rows: list[Row], env: Any):
         #: The pattern's config — typed loosely, because each estimator reads the fields of its own kind.
         self.cfg: Any = cfg
         self.name, self.rows, self.env = name, rows, env
@@ -121,9 +123,10 @@ class Problem:
     def fail(self, message: str) -> ContractError:
         return ContractError([Issue(f"patterns.{self.name}.fit", message)])
 
-    def pattern(self, name: str, key: Optional[str], t: float, args: Tuple[Any, ...] = ()) -> Any:
+    def pattern(self, name: str, key: str | None, t: float, args: tuple[Any, ...] = ()) -> Any:
         runtime = self.env.world.patterns
-        return runtime.evaluate(name, key if runtime.configs[name].keyed else None, list(args), t, f"patterns.{self.name}.fit")
+        return runtime.evaluate(name, key if runtime.configs[name].keyed else None, list(args), t,
+                                f"patterns.{self.name}.fit")
 
     def adjustment(self, row: Row) -> float:
         """The product of the patterns in ``adjust`` for this row (1 without any)."""
@@ -135,13 +138,13 @@ class Problem:
             total *= value
         return total
 
-    def current(self, field_name: str, key: Optional[str]) -> Any:
+    def current(self, field_name: str, key: str | None) -> Any:
         """A parameter's value as the contract has it now (for what a fit assumes)."""
         return self.env.world.patterns.param(self.name, key, field_name, f"patterns.{self.name}")
 
 
-def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = None,
-                 inputs: Optional[Mapping[str, Any]] = None) -> FitResult:
+def fit_patterns(contract: ContractLike, *, data_dir: str | Path | None = None,
+                 inputs: Mapping[str, Any] | None = None) -> FitResult:
     """Estimate every pattern that declares ``fit`` and return the contract with the estimates written back.
 
     Data files are read from ``data_dir`` (default: the contract file's folder). ``inputs`` are used while fitting
@@ -157,8 +160,8 @@ def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = N
     order = _order(configs)
     covered = {factor for cfg in configs.values() if cfg.fit and isinstance(cfg.fit.x, dict) for factor in cfg.fit.x}
     covered |= {cfg.fit.noise for cfg in configs.values() if cfg.fit and cfg.fit.noise}
-    reports: List[PatternFit] = []
-    priors: Dict[str, Dict[str, Any]] = {}
+    reports: list[PatternFit] = []
+    priors: dict[str, dict[str, Any]] = {}
     for index, name in enumerate(order):
         cfg = configs[name]
         if name in covered:
@@ -176,7 +179,8 @@ def fit_patterns(contract: ContractLike, *, data_dir: Union[str, Path, None] = N
     return FitResult(fitted, reports, priors)
 
 
-def _estimate(problem: Problem, configs: Dict[str, PatternConfig]) -> Tuple[Dict[str, Dict[Optional[str], Estimate]], PatternFit]:
+def _estimate(problem: Problem,
+              configs: dict[str, PatternConfig]) -> tuple[dict[str, dict[str | None, Estimate]], PatternFit]:
     from . import estimators, joint
 
     cfg = problem.cfg
@@ -185,11 +189,11 @@ def _estimate(problem: Problem, configs: Dict[str, PatternConfig]) -> Tuple[Dict
     estimator = estimators.ESTIMATORS.get(cfg.kind)
     if estimator is None:
         raise problem.fail(f"a {cfg.kind} pattern cannot be fitted from rows",)
-    groups: Dict[Optional[str], List[Row]] = {}
+    groups: dict[str | None, list[Row]] = {}
     for row in problem.rows:
         groups.setdefault(row.key if cfg.keyed else None, []).append(row)
-    per_key: Dict[Optional[str], Estimate] = {}
-    notes: List[str] = []
+    per_key: dict[str | None, Estimate] = {}
+    notes: list[str] = []
     for key, rows in groups.items():
         try:
             per_key[key] = estimator(Problem(problem.name, cfg, rows, problem.env), key)
@@ -202,7 +206,7 @@ def _estimate(problem: Problem, configs: Dict[str, PatternConfig]) -> Tuple[Dict
     return {problem.name: per_key}, summarise(problem.name, cfg, per_key, notes)
 
 
-def summarise(name: str, cfg: PatternConfig, per_key: Mapping[Optional[str], Estimate], notes: List[str]) -> PatternFit:
+def summarise(name: str, cfg: PatternConfig, per_key: Mapping[str | None, Estimate], notes: list[str]) -> PatternFit:
     observed = [v for est in per_key.values() for v in est.observed]
     predicted = [v for est in per_key.values() for v in est.predicted]
     first = next(iter(per_key.values()))
@@ -212,7 +216,7 @@ def summarise(name: str, cfg: PatternConfig, per_key: Mapping[Optional[str], Est
                       [*dict.fromkeys(note for est in per_key.values() for note in est.notes), *notes])
 
 
-def quality(observed: List[float], predicted: List[float]) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+def quality(observed: list[float], predicted: list[float]) -> tuple[float | None, float | None, float | None]:
     """RMSE, MAPE (rows above 0) and R² of predictions against what was seen."""
     if not observed:
         return None, None, None
@@ -230,10 +234,10 @@ def _skipped(name: str, cfg: PatternConfig, why: str) -> PatternFit:
     return PatternFit(name, cfg.kind, why, 0, 0, None, None, None, [], [], {})
 
 
-def _order(configs: Dict[str, PatternConfig]) -> List[str]:
+def _order(configs: dict[str, PatternConfig]) -> list[str]:
     """Patterns with ``fit``, each after the patterns its ``adjust`` names."""
-    order: List[str] = []
-    visiting: List[str] = []
+    order: list[str] = []
+    visiting: list[str] = []
 
     def visit(name: str) -> None:
         if name in order:
@@ -267,7 +271,7 @@ def _number(value: Any, where: str) -> float:
     return number
 
 
-def _rows(name: str, cfg: PatternConfig, env: Any) -> List[Row]:
+def _rows(name: str, cfg: PatternConfig, env: Any) -> list[Row]:
     fit = cfg.fit
     assert fit is not None
     path = f"patterns.{name}.fit"
@@ -279,9 +283,9 @@ def _rows(name: str, cfg: PatternConfig, env: Any) -> List[Row]:
     if not isinstance(data, list) or not all(isinstance(row, Mapping) for row in data):
         raise ContractError([Issue(f"{path}.data", "must give rows (a table input)")])
     keep = compile_expr(fit.where) if fit.where else None
-    rows: List[Row] = []
+    rows: list[Row] = []
     factors = fit.x if isinstance(fit.x, dict) else ({"x": fit.x} if fit.x else {})
-    times: Dict[Any, float] = {}  # a history repeats each date once per key: parse each once
+    times: dict[Any, float] = {}  # a history repeats each date once per key: parse each once
     for index, raw in enumerate(data):
         where = f"{path}.data row {index}"
         try:
@@ -299,12 +303,14 @@ def _rows(name: str, cfg: PatternConfig, env: Any) -> List[Row]:
             cacheable = isinstance(when, (str, int, float)) and not isinstance(when, bool)
             t = times.get(when) if cacheable else None
             if t is None:
-                moment = float(when) if isinstance(when, str) and when.strip().replace(".", "", 1).lstrip("-").isdigit() else when
+                moment = (float(when) if isinstance(when, str)
+                          and when.strip().replace(".", "", 1).lstrip("-").isdigit() else when)
                 t = tb.to_t(tb.calendar_of(env.world), moment)
                 if cacheable:
                     times[when] = t
             x = {factor: _number(raw[spec if isinstance(spec, str) else spec.column], f"{where}, column "
-                                 f"'{spec if isinstance(spec, str) else spec.column}'") for factor, spec in factors.items()}
+                                 f"'{spec if isinstance(spec, str) else spec.column}'")
+                 for factor, spec in factors.items()}
             if fit.mean:
                 x["mean"] = _number(raw[fit.mean], f"{where}, column '{fit.mean}'")
             flag = raw[fit.censored] if fit.censored else False
@@ -338,11 +344,11 @@ def _usable(error: Any) -> bool:
     return bool(values) and all(isinstance(v, (int, float)) and math.isfinite(v) and v >= 0 for v in values)
 
 
-def _write_back(contract: Dict[str, Any], name: str, cfg: PatternConfig, per_key: Mapping[Optional[str], Estimate],
-                env: Any, data: str) -> Dict[str, Dict[str, Any]]:
+def _write_back(contract: dict[str, Any], name: str, cfg: PatternConfig, per_key: Mapping[str | None, Estimate],
+                env: Any, data: str) -> dict[str, dict[str, Any]]:
     """Write one pattern's estimates into the contract; returns its number inputs with errors as normal priors."""
     spec = contract["patterns"][name]
-    priors: Dict[str, Dict[str, Any]] = {}
+    priors: dict[str, dict[str, Any]] = {}
     inputs = contract.setdefault("inputs", {})
     fields = sorted({f for est in per_key.values() for f in est.params})
     with_errors = sorted({f for est in per_key.values() for f, e in est.errors.items() if _usable(e)})
@@ -380,12 +386,12 @@ def _write_back(contract: Dict[str, Any], name: str, cfg: PatternConfig, per_key
     return priors
 
 
-def _input(value: Any, description: str) -> Dict[str, Any]:
+def _input(value: Any, description: str) -> dict[str, Any]:
     return {"type": "list" if isinstance(value, list) else "number", "default": value, "description": description}
 
 
-def _table_rows(name: str, cfg: PatternConfig, per_key: Mapping[Optional[str], Estimate], fields: List[str],
-                with_errors: List[str], env: Any) -> List[Dict[str, Any]]:
+def _table_rows(name: str, cfg: PatternConfig, per_key: Mapping[str | None, Estimate], fields: list[str],
+                with_errors: list[str], env: Any) -> list[dict[str, Any]]:
     """One row per key: the pattern's own table row (when it has one), with the estimates in their columns; keys
     without an estimate keep the values the contract gave them."""
     runtime = env.world.patterns
@@ -395,7 +401,7 @@ def _table_rows(name: str, cfg: PatternConfig, per_key: Mapping[Optional[str], E
     keys += [key for key in per_key if key is not None and key not in keys]
     rows = []
     for key in keys:
-        row: Dict[str, Any] = dict(runtime.row(name, key, where) or {}) if cfg.table is not None and key in (
+        row: dict[str, Any] = dict(runtime.row(name, key, where) or {}) if cfg.table is not None and key in (
             runtime._table(name, where) if cfg.table is not None else {}) else {}
         row[column] = key
         est = per_key.get(key)

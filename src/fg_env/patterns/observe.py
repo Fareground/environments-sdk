@@ -9,12 +9,12 @@ from __future__ import annotations
 
 import math
 from statistics import NormalDist
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Literal
 
 from pydantic import Field
 
-from .count_math import negative_binomial_quantile, poisson_quantile, probabilities
 from .base import Number, PatternConfig, kind
+from .count_math import negative_binomial_quantile, poisson_quantile, probabilities
 from .responses import driver
 
 __all__ = ["CountsConfig", "MeasurementConfig", "CensoredConfig", "MissingConfig", "count_quantile"]
@@ -24,7 +24,7 @@ _EXACT_MEAN = 5_000.0
 _NORMAL = NormalDist()
 
 
-def count_quantile(u: float, mean: float, dispersion: Optional[float]) -> int:
+def count_quantile(u: float, mean: float, dispersion: float | None) -> int:
     """The smallest count whose cumulative probability reaches ``u``: Poisson, or negative binomial with
     ``dispersion`` k (variance mean + mean²/k)."""
     if mean <= 0:
@@ -56,17 +56,24 @@ def count_quantile(u: float, mean: float, dispersion: Optional[float]) -> int:
 
 class CountsConfig(PatternConfig):
     kind: Literal["counts"] = "counts"
-    dist: Literal["poisson", "negative_binomial"] = Field("negative_binomial", description="poisson: variance = mean | "
-                                                                                           "negative_binomial: variance = mean + mean²/dispersion (over-dispersed).")
-    dispersion: Number = Field(10.0, description="negative_binomial: k; smaller is noisier (fitted by the method of moments).")
-    every: Optional[float] = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
+    dist: Literal["poisson", "negative_binomial"] = Field("negative_binomial", description="poisson: variance = mean "
+                                                                                           "| negative_binomial: "
+                                                                                           "variance = mean + "
+                                                                                           "mean²/dispersion "
+                                                                                           "(over-dispersed).")
+    dispersion: Number = Field(10.0,
+                               description="negative_binomial: k; smaller is noisier (fitted by the method of "
+                                           "moments).")
+    every: float | None = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
 
 
 @kind("counts", "observation", "response", CountsConfig,
-      "Whole-number counts around an expected value: Poisson, or negative binomial for over-dispersed sales and arrivals.",
+      "Whole-number counts around an expected value: Poisson, or negative binomial for over-dispersed sales and "
+      "arrivals.",
       example={"kind": "counts", "dist": "negative_binomial", "dispersion": 6},
       args=("mean",), random=True, params=("dispersion",),
-      words=lambda cfg: f"{cfg.dist.replace('_', ' ')} counts" + (f" (dispersion {cfg.dispersion})" if cfg.dist != "poisson" else ""))
+      words=lambda cfg: f"{cfg.dist.replace('_', ' ')} counts"
+      + (f" (dispersion {cfg.dispersion})" if cfg.dist != "poisson" else ""))
 def _counts(ctx: Any, mean: Any) -> int:
     expected = driver(ctx, mean, "the expected count")
     if expected < 0:
@@ -81,9 +88,11 @@ class MeasurementConfig(PatternConfig):
     kind: Literal["measurement"] = "measurement"
     sd: Number = Field(..., description="Spread of the error (a share of the value with form multiply).")
     bias: Number = Field(0.0, description="Systematic error (a share with form multiply: 0.05 reads 5% high).")
-    form: Literal["add", "multiply"] = Field("multiply", description="add: value + bias + sd·z | multiply: value·(1 + bias + sd·z).")
+    form: Literal["add", "multiply"] = Field("multiply",
+                                             description="add: value + bias + sd·z | multiply: value·(1 + bias + "
+                                                         "sd·z).")
     whole: bool = Field(False, description="Round the reading to a whole number.")
-    every: Optional[float] = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
+    every: float | None = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
 
 
 @kind("measurement", "observation", "response", MeasurementConfig,
@@ -108,7 +117,7 @@ class CensoredConfig(PatternConfig):
       "Gives {value, lost, censored}: $pattern.sold($demand, $it.stock).value.",
       example={"kind": "censored"}, args=("demand", "capacity"),
       words=lambda cfg: "demand capped by capacity, recording what was lost")
-def _censored(ctx: Any, demand: Any, capacity: Any) -> Dict[str, Any]:
+def _censored(ctx: Any, demand: Any, capacity: Any) -> dict[str, Any]:
     d, c = driver(ctx, demand, "the demand"), driver(ctx, capacity, "the capacity")
     value = max(0.0, min(d, c))
     whole = float(d).is_integer() and float(c).is_integer()
@@ -119,7 +128,7 @@ def _censored(ctx: Any, demand: Any, capacity: Any) -> Dict[str, Any]:
 class MissingConfig(PatternConfig):
     kind: Literal["missing"] = "missing"
     chance: Number = Field(..., description="Probability a reading is missing (null).")
-    every: Optional[float] = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
+    every: float | None = Field(None, gt=0, description="Clock units per fresh draw (default: one round).")
 
 
 @kind("missing", "observation", "response", MissingConfig,

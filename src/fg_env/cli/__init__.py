@@ -6,7 +6,8 @@ import argparse
 import functools
 import json
 import sys
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from ..errors import ContractError, InputError, RunError, SnapshotError
 from ..expr import ExprError
@@ -21,8 +22,8 @@ def _parse_value(text: str) -> Any:
         return text
 
 
-def _pairs(items: Optional[List[str]], flag: str) -> Dict[str, Any]:
-    out: Dict[str, Any] = {}
+def _pairs(items: list[str] | None, flag: str) -> dict[str, Any]:
+    out: dict[str, Any] = {}
     for item in items or []:
         if "=" not in item:
             raise _UsageError(f"{flag} expects name=value, got {item!r}")
@@ -35,8 +36,8 @@ class _UsageError(Exception):
     """A command-line mistake: reported as one line, exit status 1."""
 
 
-def _inputs(args: argparse.Namespace) -> Dict[str, Any]:
-    inputs: Dict[str, Any] = {}
+def _inputs(args: argparse.Namespace) -> dict[str, Any]:
+    inputs: dict[str, Any] = {}
     if getattr(args, "inputs_file", None):
         try:
             with open(args.inputs_file, encoding="utf-8") as handle:
@@ -52,10 +53,11 @@ def _inputs(args: argparse.Namespace) -> Dict[str, Any]:
     return inputs
 
 
-def _participants(items: Optional[List[str]]) -> Optional[Dict[str, Any]]:
+def participants_arg(items: list[str] | None) -> dict[str, Any] | None:
+    """``--agent`` values (``type=participant``, or a bare participant for everyone) as a participants mapping."""
     if not items:
         return None
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for item in items:
         key, _, value = item.rpartition("=")
         out[key or "*"] = value
@@ -130,7 +132,7 @@ def _print_generated(path: str) -> None:
             print(f"  {line}")
 
 
-def _checked(path: str, rounds: Optional[int]) -> str:
+def _checked(path: str, rounds: int | None) -> str:
     """What a clean check covered, and a default the author may not know is at work."""
     from ..api import parse
     from ..checks.smoke import SMOKE_ROUNDS
@@ -161,7 +163,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     except (RunError, ExprError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    result = env.run(_participants(args.agent), rounds=args.rounds, budget=budget_arg(args.budget))
+    result = env.run(participants_arg(args.agent), rounds=args.rounds, budget=budget_arg(args.budget))
     if args.trace:
         result.save(args.trace)
     if args.frames:
@@ -172,7 +174,8 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(result.summary())
         stats = result.stats
         tokens = f", ~{stats['avg_update_tokens']} update tokens per read turn" if stats["update_reads"] else ""
-        print(f"agents: {stats['wakes']} turns, {stats['actions']} actions, {stats['invalid_calls']} invalid calls{tokens}")
+        print(f"agents: {stats['wakes']} turns, {stats['actions']} actions, {stats['invalid_calls']} invalid "
+              f"calls{tokens}")
         if args.events:
             for event in result.events:
                 if event.get("text"):
@@ -188,7 +191,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     try:
         env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir)
         if args.rounds:
-            played = env.run(_participants(args.agent), rounds=args.rounds)
+            played = env.run(participants_arg(args.agent), rounds=args.rounds)
             if played.status == "failed":
                 print(f"error: {played.error}", file=sys.stderr)
                 return 2
@@ -197,7 +200,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
     except (RunError, ExprError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
-    view = env.preview(args.entity, args.stage, participants=_participants(args.agent))
+    view = env.preview(args.entity, args.stage, participants=participants_arg(args.agent))
     if args.json:
         print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
@@ -213,14 +216,14 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
 
 def cmd_experiment(args: argparse.Namespace) -> int:
-    from .runs import budget_arg
     from ..experiments.experiment import experiment
+    from .runs import budget_arg
 
     _check_exposures(args)
     arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
     try:
         result = experiment(args.file, runs=args.runs, arms=arms, seed=args.seed, inputs=_inputs(args),
-                            participants=_participants(args.agent), rounds=args.rounds, workers=args.workers,
+                            participants=participants_arg(args.agent), rounds=args.rounds, workers=args.workers,
                             data_dir=args.data_dir, budget=budget_arg(args.budget), exposures=args.exposures)
     except (ContractError, InputError) as exc:
         return _report_contract_error(exc)
@@ -233,11 +236,11 @@ def cmd_experiment(args: argparse.Namespace) -> int:
 
 
 def cmd_tournament(args: argparse.Namespace) -> int:
-    from .runs import budget_arg
     from ..tournament import tournament
+    from .runs import budget_arg
 
     _check_exposures(args)
-    entrants: Dict[str, Any] = {}
+    entrants: dict[str, Any] = {}
     for item in args.entrant or []:
         name, sep, participant = (part.strip() for part in item.partition("="))
         if not sep or not name or not participant:
@@ -276,7 +279,8 @@ def cmd_bench(args: argparse.Namespace) -> int:
         if not args.files:
             raise _UsageError("fg-env bench --game needs contract files")
         games = [bench_game(path, playouts=args.playouts, seed=args.seed, inputs=_inputs(args)) for path in args.files]
-        print(json.dumps([g.to_dict() for g in games], indent=2) if args.json else "\n".join(g.summary() for g in games))
+        print(json.dumps([g.to_dict() for g in games], indent=2) if args.json
+              else "\n".join(g.summary() for g in games))
         return 0
     results = bench(args.files, rounds=args.rounds, seed=args.seed, inputs=_inputs(args))
     print(json.dumps([r.to_dict() for r in results], indent=2) if args.json else bench_table(results))
@@ -304,7 +308,7 @@ def cmd_schema(args: argparse.Namespace) -> int:
     return 0
 
 
-def _common(parser: argparse.ArgumentParser, seed_default: Optional[int]) -> None:
+def _common(parser: argparse.ArgumentParser, seed_default: int | None) -> None:
     parser.add_argument("file", help="contract JSON file")
     parser.add_argument("--seed", type=int, default=seed_default, help="run seed")
     parser.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
@@ -327,20 +331,24 @@ def add_commands(sub: Any) -> None:
                    help="play exactly this many rounds with random agents, idle agents and each policy (default: up to "
                         "12 rounds within a few seconds; 0 = static check only)")
     p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
-    p.add_argument("--input", action="append", metavar="NAME=VALUE", help="check a configured input (JSON value or text)")
+    p.add_argument("--input", action="append", metavar="NAME=VALUE",
+                   help="check a configured input (JSON value or text)")
     p.add_argument("--inputs-file", help="JSON file of inputs to check")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_guarded(cmd_check))
 
-    p = sub.add_parser("run", help="run a contract and print the result (exit 3 when the run is degraded, 2 when it failed)")
+    p = sub.add_parser("run",
+                       help="run a contract and print the result (exit 3 when the run is degraded, 2 when it failed)")
     _common(p, None)
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
-                   help="random | idle | policy:<name> | anthropic:<model> | openai:<model>, optionally for one type or entity")
+                   help="random | idle | policy:<name> | anthropic:<model> | openai:<model>, optionally for one type "
+                        "or entity")
     p.add_argument("--rounds", type=int, help="stop after this many rounds")
     p.add_argument("--events", action="store_true", help="include the event log")
     p.add_argument("--json", action="store_true", help="print the full result as JSON")
     p.add_argument("--trace", metavar="FILE", help="record what every agent saw and did, and save the result to FILE "
-                                                   "(.json or .jsonl) for fg-env trace FILE (replay it with fg-env trace FILE replay CONTRACT)")
+                                                   "(.json or .jsonl) for fg-env trace FILE (replay it with fg-env "
+                                                   "trace FILE replay CONTRACT)")
     p.add_argument("--budget", action="append", metavar="NAME=VALUE",
                    help="cap the run: tokens, calls, host_calls, seconds; on_exhaust=end|idle")
     p.add_argument("--exposures", action="store_true",
@@ -377,7 +385,8 @@ def add_commands(sub: Any) -> None:
     p = sub.add_parser("tournament", help="play entrants against each other in the contract's seats and rate them")
     _common(p, 0)
     p.add_argument("--entrant", action="append", metavar="NAME=PARTICIPANT",
-                   help="an entrant: random | idle | policy:<name> | anthropic:<model> | openai:<model> (give at least two)")
+                   help="an entrant: random | idle | policy:<name> | anthropic:<model> | openai:<model> (give at least "
+                        "two)")
     p.add_argument("--seat", action="append", metavar="ENTITY_ID", help="a seat (default: every starting agent)")
     p.add_argument("--pairing", choices=("round_robin", "all_play_all", "swiss"), default="round_robin")
     p.add_argument("--games", type=int, default=1, help="games per seating (game g shares its seed across seatings)")
@@ -434,8 +443,9 @@ def add_commands(sub: Any) -> None:
 
     p = sub.add_parser("guide", help="print one part of the guide (start with: fg-env guide authoring); with no part, "
                                      "the map of every part")
-    p.add_argument("part", nargs="?", help="a section (actions), topic (expressions), function group (functions.stats), "
-                                           "family (market) or mode (market.auction); all for everything")
+    p.add_argument("part", nargs="?", help="a section (actions), topic (expressions), function group "
+                                           "(functions.stats), family (market) or mode (market.auction); all for "
+                                           "everything")
     p.set_defaults(func=_guarded(cmd_guide))
 
     p = sub.add_parser("schema", help="print the contract JSON Schema")

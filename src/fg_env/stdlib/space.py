@@ -5,10 +5,10 @@ entities in creation order — ``$nearest`` tries candidates nearest first.
 """
 from __future__ import annotations
 
-from typing import Any, Optional, Set, Tuple
+from typing import Any
 
-from ..world.entity import Entity
 from ..expr import Call, ExprError, _describe, check_size, function, truthy
+from ..world.entity import Entity
 from ..world.geometry import SpaceError
 
 __all__: list = []
@@ -21,7 +21,7 @@ def _space(call: Call) -> Any:
     return space
 
 
-def _kinds(call: Call, index: int) -> Optional[Set[str]]:
+def _kinds(call: Call, index: int) -> set[str] | None:
     """The types (with subtypes) argument ``index`` names; None when it is left out or null."""
     name = call.arg(index) if len(call) > index else None
     if name is None:
@@ -29,11 +29,11 @@ def _kinds(call: Call, index: int) -> Optional[Set[str]]:
     world = call.scope.world
     if not isinstance(name, str) or not world.is_type(name):
         raise ExprError(f"${call.name}: {_describe(name)} is not a declared type", call.source)
-    kinds: Set[str] = world.subtypes_of(name)
+    kinds: set[str] = world.subtypes_of(name)
     return kinds
 
 
-def _center(call: Call, index: int) -> Tuple[Any, Optional[str]]:
+def _center(call: Call, index: int) -> tuple[Any, str | None]:
     """The position argument ``index`` gives (an entity gives its own, and is itself left out)."""
     space, value = _space(call), call.arg(index)
     exclude = None

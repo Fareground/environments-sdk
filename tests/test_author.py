@@ -278,7 +278,8 @@ def test_a_dropped_last_revision_is_named_in_the_reply_and_the_summary():
     result = fg_env.author("A game.", "openai:m", client=client)
 
     assert result.ok and result.contract == WORKING and result.working == [1]
-    assert tool_replies(client)[1].startswith("Saved revision 2, but it does not work yet: bogus: 'bogus' is not a field")
+    assert tool_replies(client)[1].startswith("Saved revision 2, but it does not work yet: bogus: 'bogus' is not a "
+                                              "field")
     assert "kept revision 1 of 2; revision 2 did not work: bogus: 'bogus'" in result.summary()
 
 
@@ -328,7 +329,8 @@ def test_edit_contract_changes_parts_of_the_saved_contract():
     assert replies[0] == "No contract saved yet: save one with write_contract first."
     assert replies[2].startswith("Saved revision 2: it works")
     assert replies[3] == "edits[0]: clock.nope.deeper: the contract has no clock.nope. Nothing saved."
-    assert replies[4].startswith("edits[0]: actions.take.do[9]: actions.take.do has 4 item(s): use an index below 4, or 4 to add one. Nothing saved.")
+    assert replies[4].startswith("edits[0]: actions.take.do[9]: actions.take.do has 4 item(s): use an index below 4, "
+                                 "or 4 to add one. Nothing saved.")
     kept = result.contract
     assert kept["name"] == "Pile" and "east" in kept["entities"] and "rules" not in kept["brief"]
     assert kept["actions"]["take"]["do"][-1] == "$world.stones -= 0" and WORKING["name"] == "Take the last stone"

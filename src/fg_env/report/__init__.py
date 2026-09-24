@@ -12,15 +12,16 @@ output of every option, and the full validation, sweep and optimisation reports.
 A decision rule picks among an experiment's or a sweep's options: ``objective="min:centre_cost"`` and
 ``require={"centre_service_level": ">= 0.8"}`` (requirements on the mean over runs). A contract with a service queue
 whose channels set a `target` gets that rule by default: the cheapest staffing that meets the target on average. An
-optimisation (``fg_env.analysis.optimise``) brings its own rule; pass it as the source, or as ``optimisation=`` next to an
-experiment that plays its decision, and the report says how sure the optimiser is.
+optimisation (``fg_env.analysis.optimise``) brings its own rule; pass it as the source, or as ``optimisation=`` next to
+an experiment that plays its decision, and the report says how sure the optimiser is.
 """
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional, Union
+from typing import Any
 
 from ..analysis.optimise_result import OptimisationResult
 from ..analysis.validate import ValidationResult
@@ -44,9 +45,9 @@ class Report:
     title: str
     audience: str
     kind: str
-    sections: List[Section]
-    recommendation: Optional[Dict[str, Any]] = None
-    notes: List[str] = field(default_factory=list)
+    sections: list[Section]
+    recommendation: dict[str, Any] | None = None
+    notes: list[str] = field(default_factory=list)
 
     @property
     def markdown(self) -> str:
@@ -61,22 +62,23 @@ class Report:
     def __str__(self) -> str:
         return self.markdown
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {"title": self.title, "audience": self.audience, "kind": self.kind, "recommendation": self.recommendation,
+    def to_dict(self) -> dict[str, Any]:
+        return {"title": self.title, "audience": self.audience, "kind": self.kind,
+                "recommendation": self.recommendation,
                 "sections": [s.to_dict() for s in self.sections], "notes": self.notes}
 
-    def to_json(self, indent: Optional[int] = 2) -> str:
+    def to_json(self, indent: int | None = 2) -> str:
         return json.dumps(self.to_dict(), indent=indent, ensure_ascii=False, default=str)
 
-    def save(self, path: Union[str, Path]) -> None:
+    def save(self, path: str | Path) -> None:
         """Write the report: JSON when the name ends in ``.json``, Markdown otherwise."""
         target = Path(path)
         target.write_text(self.to_json() if target.suffix == ".json" else self.markdown, encoding="utf-8")
 
 
-def report(source: Any, audience: str = "owner", *, contract: Optional[ContractLike] = None,
-           validation: Optional[ValidationResult] = None, optimisation: Optional[OptimisationResult] = None,
-           objective: Optional[str] = None, require: Optional[Mapping[str, Any]] = None, control: Optional[str] = None,
+def report(source: Any, audience: str = "owner", *, contract: ContractLike | None = None,
+           validation: ValidationResult | None = None, optimisation: OptimisationResult | None = None,
+           objective: str | None = None, require: Mapping[str, Any] | None = None, control: str | None = None,
            data_dir: Any = None) -> Report:
     """A plain-language report of ``source``: a :class:`~fg_env.RunResult` (or a list of them), an experiment, a sweep,
     a validation or an optimisation (see the module). ``contract`` adds names, arm descriptions, assumptions and
@@ -115,10 +117,11 @@ def report(source: Any, audience: str = "owner", *, contract: Optional[ContractL
     measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {})
     choice = choose(ev.options, goal, requirements) if goal is not None else Choice(None, None, requirements)
     sure = assess(ev, choice, measures)
-    sections: List[Section] = []
+    sections: list[Section] = []
     if ev.options:
         sections += [decision(ev, choice, namer, measures, queues, sure),
-                     drivers(ev, choice, namer, measures, queues, owner), risks(ev, choice, namer, measures, queues, owner)]
+                     drivers(ev, choice, namer, measures, queues, owner),
+                     risks(ev, choice, namer, measures, queues, owner)]
     if optimisation is not None:
         _add_optimisation(sections, optimisation, namer, queues, measures_known, owner)
     sections += [assumptions(ev, queues, owner), fit(ev, namer)]
@@ -126,7 +129,8 @@ def report(source: Any, audience: str = "owner", *, contract: Optional[ContractL
         sections.append(method(ev, namer, choice))
         if optimisation is not None:
             sections[-1].lines += optimised.summary(optimisation)
-    title = (ev.contract.name if ev.contract is not None else ev.name or (optimisation.contract if optimisation else "")) \
+    title = (ev.contract.name if ev.contract is not None else ev.name
+             or (optimisation.contract if optimisation else "")) \
         or "Model report"
     recommendation = optimised.as_dict(optimisation) if optimisation is not None else None
     if choice.best is not None:
@@ -138,7 +142,7 @@ def report(source: Any, audience: str = "owner", *, contract: Optional[ContractL
     return Report(title, audience, ev.kind, sections, recommendation)
 
 
-def _section(sections: List[Section], title: str, position: int) -> Section:
+def _section(sections: list[Section], title: str, position: int) -> Section:
     found = next((s for s in sections if s.title == title), None)
     if found is None:
         found = Section(title)
@@ -146,8 +150,8 @@ def _section(sections: List[Section], title: str, position: int) -> Section:
     return found
 
 
-def _add_optimisation(sections: List[Section], opt: OptimisationResult, namer: Namer, queues: List[QueueView],
-                      measures: List[str], owner: bool) -> None:
+def _add_optimisation(sections: list[Section], opt: OptimisationResult, namer: Namer, queues: list[QueueView],
+                      measures: list[str], owner: bool) -> None:
     """The optimiser's recommendation, drivers and risks, merged into the sections an experiment already wrote."""
     lines = optimised.recommendation(opt, namer, queues, measures)
     if sections and sections[0].title in ("Recommendation", "What the model says"):
@@ -173,7 +177,7 @@ def _add_optimisation(sections: List[Section], opt: OptimisationResult, namer: N
         driving.lines.append("One step either way from the chosen decision keeps every constraint.")
 
 
-def _declared_queues(contract: Any) -> List[str]:
+def _declared_queues(contract: Any) -> list[str]:
     """Service queues a contract declares (a report written without runs names by them)."""
     if contract is None:
         return []
@@ -181,19 +185,19 @@ def _declared_queues(contract: Any) -> List[str]:
             if isinstance(raw, Mapping) and (raw.get("kind"), raw.get("mode")) == ("operations", "queue")]
 
 
-def _formats(contract: Any) -> Dict[str, str]:
+def _formats(contract: Any) -> dict[str, str]:
     return {name: spec.format for name, spec in contract.outputs.items() if spec.format} if contract is not None else {}
 
 
-def _clock(contract: Any) -> Dict[str, Any]:
+def _clock(contract: Any) -> dict[str, Any]:
     if contract is None:
         return {}
     clock = contract.clock
     return {"mode": clock.mode, "unit": clock.unit, "step": clock.step}
 
 
-def _rule(goal: Optional[Goal], requirements: List[Requirement], queues: List[QueueView], objective: Any,
-          require: Any, optimisation: Optional[OptimisationResult]) -> tuple:
+def _rule(goal: Goal | None, requirements: list[Requirement], queues: list[QueueView], objective: Any,
+          require: Any, optimisation: OptimisationResult | None) -> tuple:
     """The decision rule given, or a service queue's default: the cheapest plan meeting its service target (none when
     an optimisation already chose)."""
     if objective is not None or require is not None or not queues or optimisation is not None:
@@ -204,9 +208,9 @@ def _rule(goal: Optional[Goal], requirements: List[Requirement], queues: List[Qu
     return Goal(f"{view.name}_cost", "min"), [Requirement(f"{view.name}_service_level", ">=", float(view.target or 0))]
 
 
-def _measures(outputs: Mapping[str, Any], goal: Optional[Goal], requirements: List[Requirement],
-              queues: List[QueueView], formats: Mapping[str, str]) -> List[str]:
-    chosen: List[str] = []
+def _measures(outputs: Mapping[str, Any], goal: Goal | None, requirements: list[Requirement],
+              queues: list[QueueView], formats: Mapping[str, str]) -> list[str]:
+    chosen: list[str] = []
     for name in [*(r.measure for r in requirements), *([goal.measure] if goal else [])]:
         if name not in chosen:
             chosen.append(name)

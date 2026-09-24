@@ -20,15 +20,16 @@ was applied), so ``stun`` for 1 blocks the target's next round. ``duration: null
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Tuple, Union
+from collections.abc import Iterable, Mapping
+from typing import Any, Literal
 
 from pydantic import Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, family_action, mode
 from ..expr.template import compile_template
+from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
 
@@ -43,19 +44,24 @@ class StatusDef(Config):
     """One named status."""
 
     description: str = ""
-    duration: Optional[int] = Field(1, ge=1, description="Rounds it lasts after the round it is applied in; null = until cleansed.")
+    duration: int | None = Field(1, ge=1,
+                                 description="Rounds it lasts after the round it is applied in; null = until cleansed.")
     stacking: Literal["refresh", "extend", "independent", "ignore"] = Field(
-        "refresh", description="Applying it again: refresh (add a stack, reset the timer), extend (add a stack and the "
-                               "duration), independent (each application its own timer), ignore (no effect while active).")
+        "refresh", description="Applying it again: refresh (add a stack, reset the timer), extend (add a stack and "
+                               "the duration), independent (each application its own timer), ignore (no effect while "
+                               "active).")
     max_stacks: int = Field(1, ge=1, description="Most stacks it can have at once.")
     tick: Effects = Field(default_factory=list, description="Effects each round it is active ($it, $stacks, $source).")
-    modifiers: Dict[str, Union[Number, ModifierSpec]] = Field(
+    modifiers: dict[str, Number | ModifierSpec] = Field(
         default_factory=dict, description="{prop: add | {add, mul}} per stack, read with $effective(entity, prop).")
-    blocks: Union[Literal["all"], List[str]] = Field(default_factory=list, description="Actions the carrier cannot take while it is active.")
+    blocks: Literal["all"] | list[str] = Field(default_factory=list,
+                                               description="Actions the carrier cannot take while it is active.")
     blocked_why: str = Field("", description="Why a blocked action is refused.")
-    immune: List[str] = Field(default_factory=list, description="Statuses that cannot be applied while this one is active.")
-    unless: Optional[str] = Field(None, description="Expression over $it: when true the status cannot be applied to it.")
-    on_apply: Effects = Field(default_factory=list, description="Effects each time it is applied ($it, $stacks, $source).")
+    immune: list[str] = Field(default_factory=list,
+                              description="Statuses that cannot be applied while this one is active.")
+    unless: str | None = Field(None, description="Expression over $it: when true the status cannot be applied to it.")
+    on_apply: Effects = Field(default_factory=list,
+                              description="Effects each time it is applied ($it, $stacks, $source).")
     on_expire: Effects = Field(default_factory=list, description="Effects when it runs out ($it, $stacks, $source).")
     say: str = Field("", description="News when it is applied (template over $it, $stacks).")
     expire_say: str = Field("", description="News when it runs out (template over $it).")
@@ -65,16 +71,18 @@ class StatusDef(Config):
 class StatusConfig(Config):
     """Named statuses on entities of some types."""
 
-    who: Union[str, List[str]] = Field(..., description="Type(s) that can carry these statuses (subtypes included).")
-    statuses: Dict[str, StatusDef] = Field(
-        ..., description="{name: {duration, stacking, max_stacks, tick, modifiers, blocks, blocked_why, immune, unless, "
-                         "on_apply, on_expire, say, expire_say, cleansable}}. Durations count rounds after the round "
-                         "of application; tick effects see $it (carrier), $stacks and $source.")
-    phase: Literal["start", "end"] = Field("start", description="When statuses tick: start (before agents act) or end of the round. Expiry is always at the end.")
+    who: str | list[str] = Field(..., description="Type(s) that can carry these statuses (subtypes included).")
+    statuses: dict[str, StatusDef] = Field(
+        ..., description="{name: {duration, stacking, max_stacks, tick, modifiers, blocks, blocked_why, immune, "
+                         "unless, on_apply, on_expire, say, expire_say, cleansable}}. Durations count rounds after "
+                         "the round of application; tick effects see $it (carrier), $stacks and $source.")
+    phase: Literal["start", "end"] = Field("start",
+                                           description="When statuses tick: start (before agents act) or end of the "
+                                                       "round. Expiry is always at the end.")
     views: bool = Field(True, description="Show every agent who is affected by what.")
 
 
-def _carrier_types(cfg: StatusConfig) -> List[str]:
+def _carrier_types(cfg: StatusConfig) -> list[str]:
     return [cfg.who] if isinstance(cfg.who, str) else list(cfg.who)
 
 
@@ -86,15 +94,16 @@ def _carrier_types(cfg: StatusConfig) -> List[str]:
 @mode("conditions", "status", StatusConfig,
       "Named statuses on entities: timed or permanent, stacking, ticking effects each round, property modifiers "
       "($effective), blocked actions, immunity, expiry news and cleansing. Apply with the `apply` action, remove with "
-      "`cleanse`; read with $has_status, $status_stacks, $status_rounds. State is the map property <name> on each carrier.",
+      "`cleanse`; read with $has_status, $status_stacks, $status_rounds. State is the map property <name> on each "
+      "carrier.",
       example={"who": "unit", "statuses": {
           "poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]},
           "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"},
           "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}})
-def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     on = common.types_in(contract, cfg.who, "who")
     _unique_statuses(name, cfg, contract)
-    hooks: Dict[str, Dict[str, List[Any]]] = {}
+    hooks: dict[str, dict[str, list[Any]]] = {}
     for status, spec in cfg.statuses.items():
         if not common.NAME.match(status):
             raise MechanismError(f"status name '{status}' must start with a letter and use letters, digits and _",
@@ -111,7 +120,8 @@ def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> Dict[s
     events = [{"name": f"{name}_expire", "phase": "end", "do": [{"conditions": name, "action": "expire"}]}]
     if any(spec.tick for spec in cfg.statuses.values()):
         events.insert(0, {"name": f"{name}_tick", "phase": cfg.phase, "do": [{"conditions": name, "action": "tick"}]})
-    fragment: Dict[str, Any] = {"action_hooks": hooks, "types": {t: {"props": {name: prop}} for t in on}, "events": events}
+    fragment: dict[str, Any] = {"action_hooks": hooks, "types": {t: {"props": {name: prop}} for t in on},
+                                "events": events}
     if cfg.views:
         views = {}
         for t in on:
@@ -137,9 +147,9 @@ def _unique_statuses(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) 
 # ---------------------------------------------------------------------------
 
 
-def _index(contract: Any) -> Dict[str, Tuple[str, StatusConfig]]:
+def _index(contract: Any) -> dict[str, tuple[str, StatusConfig]]:
     """status name → (mechanism name, config), over every status mechanism."""
-    out: Dict[str, Tuple[str, StatusConfig]] = {}
+    out: dict[str, tuple[str, StatusConfig]] = {}
     for mech, raw in common.uses(contract, KEY):
         cfg = common.parsed(raw, StatusConfig)
         for status in cfg.statuses:
@@ -147,7 +157,7 @@ def _index(contract: Any) -> Dict[str, Tuple[str, StatusConfig]]:
     return out
 
 
-def _state(entity: Entity, mech: str) -> Dict[str, Any]:
+def _state(entity: Entity, mech: str) -> dict[str, Any]:
     value: Any = entity.properties.get(mech)
     return dict(value) if isinstance(value, Mapping) else {}
 
@@ -162,12 +172,12 @@ def active_stacks(entry: Mapping[str, Any], round_number: int, ticking: bool = F
     return int(entry.get("stacks", 0))
 
 
-def _later(a: Optional[int], b: Optional[int]) -> Optional[int]:
+def _later(a: int | None, b: int | None) -> int | None:
     return None if a is None or b is None else max(a, b)
 
 
 def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target: Entity, rounds: Any, stacks: int,
-                 source: Optional[Entity], where: str) -> bool:
+                 source: Entity | None, where: str) -> bool:
     """Apply a status of the mechanism ``mech``; False when the target is immune or cannot carry it."""
     world = runner.world
     spec = cfg.statuses[status]
@@ -176,7 +186,8 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
     if not target.alive:
         return False
     state = _state(target, mech)
-    if spec.unless is not None and common.condition(world, spec.unless, f"mechanisms.{mech}.statuses.{status}.unless", it=target):
+    if spec.unless is not None and common.condition(world, spec.unless, f"mechanisms.{mech}.statuses.{status}.unless",
+                                                    it=target):
         return False
     if any(status in cfg.statuses[other].immune for other in state if other in cfg.statuses):
         return False
@@ -186,7 +197,8 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
     current = state.get(status)
     source_id = source.id if isinstance(source, Entity) else None
     if current is None:
-        entry: Dict[str, Any] = {"stacks": min(spec.max_stacks, stacks), "since": now, "until": until, "source": source_id}
+        entry: dict[str, Any] = {"stacks": min(spec.max_stacks, stacks), "since": now, "until": until,
+                                 "source": source_id}
         if spec.stacking == "independent":
             entry["timers"] = [[now, until]] * entry["stacks"]
     elif spec.stacking == "ignore":
@@ -203,7 +215,8 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
         else:
             entry["stacks"] = min(spec.max_stacks, int(current.get("stacks", 1)) + stacks)
             if spec.stacking == "extend":
-                entry["until"] = None if current.get("until") is None or duration is None else current["until"] + duration
+                entry["until"] = (None if current.get("until") is None or duration is None else current["until"]
+                                  + duration)
             else:
                 entry["until"] = _later(current.get("until"), until)
     state[status] = entry
@@ -214,7 +227,7 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
     return True
 
 
-def _say(runner: Any, mech: str, template: str, vars: Dict[str, Any], where: str) -> None:
+def _say(runner: Any, mech: str, template: str, vars: dict[str, Any], where: str) -> None:
     if not template:
         return
     try:
@@ -225,7 +238,7 @@ def _say(runner: Any, mech: str, template: str, vars: Dict[str, Any], where: str
         runner.world.emit(mech, text, data={"mechanism": KEY})
 
 
-def _status_names(value: Any) -> List[str]:
+def _status_names(value: Any) -> list[str]:
     return [value] if isinstance(value, str) else list(value or [])
 
 
@@ -233,13 +246,13 @@ def _declared(checker: Any, effect: Mapping[str, Any]) -> StatusConfig:
     return common.parsed(checker.c.mechanisms[effect["conditions"]], StatusConfig)
 
 
-def _unknown_statuses(cfg: StatusConfig, mech: str, names: List[str], path: str,
-                      allow_all: bool) -> List[Tuple[str, str, Optional[str]]]:
+def _unknown_statuses(cfg: StatusConfig, mech: str, names: list[str], path: str,
+                      allow_all: bool) -> list[tuple[str, str, str | None]]:
     return [(f"{path}.status", f"'{status}' is not a status of {mech}", common.suggest(status, cfg.statuses))
             for status in names if status not in cfg.statuses and not (allow_all and status == "all")]
 
 
-def _check_apply(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+def _check_apply(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     status = effect.get("status")
     if not isinstance(status, str):
         return [(f"{path}.status", "`status` names one status", None)]
@@ -250,13 +263,14 @@ def _check_apply(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[
                required=("status", "who"), literal=("status",), check=_check_apply,
                example='{"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target", '
                        '"rounds": 3, "stacks": 1}  (rounds and stacks are optional; source defaults to $actor)')
-def _apply_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _apply_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
     cfg = common.config(world, mech, KEY, StatusConfig, where)
     status = effect["status"]
     if status not in cfg.statuses:
-        raise RunError(f"'{status}' is not a status of {mech} ({common.suggest(str(status), cfg.statuses)})", f"{where}.status")
+        raise RunError(f"'{status}' is not a status of {mech} ({common.suggest(str(status), cfg.statuses)})",
+                       f"{where}.status")
     targets = common.entities_of(world, runner.eval(effect["who"], vars), f"{where}.who")
     rounds = runner.eval(effect["rounds"], vars) if "rounds" in effect else DEFAULT_ROUNDS
     stacks = common.whole(runner.eval(effect.get("stacks", 1), vars), f"{where}.stacks")
@@ -266,7 +280,7 @@ def _apply_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
         apply_status(runner, mech, cfg, status, target, rounds, stacks, source_entity, where)
 
 
-def _check_cleanse(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+def _check_cleanse(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     return _unknown_statuses(_declared(checker, effect), effect["conditions"], _status_names(effect.get("status")),
                              path, True)
 
@@ -275,7 +289,7 @@ def _check_cleanse(checker: Any, effect: Dict[str, Any], path: str) -> List[Tupl
                literal=("status",), check=_check_cleanse,
                example='{"conditions": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"}  '
                        '(a status, a list, or "all" for every cleansable one; on_expire does not run)')
-def _cleanse_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _cleanse_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
     cfg = common.config(world, mech, KEY, StatusConfig, where)
@@ -283,7 +297,8 @@ def _cleanse_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
     names = _status_names(wanted)
     for status in names:
         if status not in cfg.statuses and wanted != "all":
-            raise RunError(f"'{status}' is not a status of {mech} ({common.suggest(status, cfg.statuses)})", f"{where}.status")
+            raise RunError(f"'{status}' is not a status of {mech} ({common.suggest(status, cfg.statuses)})",
+                           f"{where}.status")
     for target in common.entities_of(world, runner.eval(effect["who"], vars), f"{where}.who"):
         if mech not in target.properties:
             continue
@@ -294,7 +309,7 @@ def _cleanse_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where
             world.set_prop(target, mech, keep)
 
 
-def _check_rules(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+def _check_rules(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
     name = effect["conditions"]
     cfg = _declared(checker, effect)
     carried = {t for t in _carrier_types(cfg) if t in checker.c.types}
@@ -320,7 +335,7 @@ def _check_rules(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[
 @family_action("conditions", ("status",), "tick", check=_check_rules, internal=True,
                example='{"conditions": "conditions", "action": "tick"}  (run every active status\'s tick effects now; '
                        'generated each round)')
-def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _tick_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
     cfg = common.config(world, mech, KEY, StatusConfig, where)
@@ -342,14 +357,14 @@ def _tick_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
 @family_action("conditions", ("status",), "expire", check=_check_rules, internal=True,
                example='{"conditions": "conditions", "action": "expire"}  (end statuses whose time is up; generated at '
                        'the end of each round)')
-def _expire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _expire_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     mech = effect["conditions"]
     cfg = common.config(world, mech, KEY, StatusConfig, where)
     now = world.round
     for carrier in common.carriers(world, _carrier_types(cfg)):
         state = _state(carrier, mech)
-        ended: List[Tuple[str, Dict[str, Any]]] = []
+        ended: list[tuple[str, dict[str, Any]]] = []
         changed = False
         for status, entry in list(state.items()):
             timers = entry.get("timers")
@@ -360,7 +375,8 @@ def _expire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
                 changed = True
                 if left:  # some stacks ran out: the status stays with fewer stacks
                     ends = [t[1] for t in left]
-                    state[status] = {**entry, "timers": left, "stacks": len(left), "until": None if None in ends else max(ends)}
+                    state[status] = {**entry, "timers": left, "stacks": len(left),
+                                     "until": None if None in ends else max(ends)}
                     continue
             elif entry.get("until") is None or entry["until"] > now:
                 continue
@@ -385,7 +401,7 @@ def _expire_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
 # ---------------------------------------------------------------------------
 
 
-def _entry(call: Call) -> Tuple[Optional[Entity], Optional[Dict[str, Any]]]:
+def _entry(call: Call) -> tuple[Entity | None, dict[str, Any] | None]:
     world: Any = call.scope.world
     entity = world.entity(call.arg(0))
     status = call.arg(1)
@@ -393,7 +409,8 @@ def _entry(call: Call) -> Tuple[Optional[Entity], Optional[Dict[str, Any]]]:
         raise ExprError(f"${call.name}: expected an entity, got {call.arg(0)!r}", call.source)
     index = _index(world.contract)
     if status not in index:
-        raise ExprError(f"${call.name}: '{status}' is not a declared status ({common.suggest(str(status), index)})", call.source)
+        raise ExprError(f"${call.name}: '{status}' is not a declared status ({common.suggest(str(status), index)})",
+                        call.source)
     if entity is None:
         return None, None
     return entity, _state(entity, index[status][0]).get(status)
@@ -405,7 +422,8 @@ def _has_status(call: Call) -> bool:
     return _entry(call)[1] is not None
 
 
-@function("status_stacks(entity, status)", "Stacks of the status on the entity (0 when it has none).", min_args=2, max_args=2)
+@function("status_stacks(entity, status)", "Stacks of the status on the entity (0 when it has none).", min_args=2,
+          max_args=2)
 def _status_stacks(call: Call) -> int:
     entry = _entry(call)[1]
     return active_stacks(entry, 0) if entry else 0
@@ -414,7 +432,7 @@ def _status_stacks(call: Call) -> int:
 @function("status_rounds(entity, status)",
           "Rounds the status lasts after this one (0 = it ends this round); null when permanent or absent.",
           min_args=2, max_args=2)
-def _status_rounds(call: Call) -> Optional[int]:
+def _status_rounds(call: Call) -> int | None:
     entry = _entry(call)[1]
     if not entry or entry.get("until") is None:
         return None
@@ -422,8 +440,8 @@ def _status_rounds(call: Call) -> Optional[int]:
     return max(0, int(entry["until"]) - int(world.round))
 
 
-@function("status_text(entity, mechanism)", "The entity's statuses as text: 'poison ×2 (1 more round), stun (ends this round)'.",
-          min_args=2, max_args=2)
+@function("status_text(entity, mechanism)",
+          "The entity's statuses as text: 'poison ×2 (1 more round), stun (ends this round)'.", min_args=2, max_args=2)
 def _status_text(call: Call) -> str:
     world: Any = call.scope.world
     entity = world.entity(call.arg(0))
@@ -439,11 +457,12 @@ def _status_text(call: Call) -> str:
             parts.append(label)
             continue
         left = max(0, int(until) - world.round)
-        parts.append(f"{label} ({'ends this round' if left == 0 else f'{left} more round' + ('s' if left > 1 else '')})")
+        parts.append(f"{label} "
+                     f"({'ends this round' if left == 0 else f'{left} more round' + ('s' if left > 1 else '')})")
     return ", ".join(parts)
 
 
-def _modifiers(world: Any, entity: Entity, prop: str) -> Iterable[Tuple[float, float]]:
+def _modifiers(world: Any, entity: Entity, prop: str) -> Iterable[tuple[float, float]]:
     for mech, raw in common.uses(world.contract, KEY):
         state = entity.properties.get(mech)
         if not isinstance(state, Mapping) or not state:

@@ -14,8 +14,16 @@
 * ``evaluate`` — how well a focal participant does among background agents, against a baseline on the same seeds.
 """
 from .evaluate import EvaluationResult, evaluate
-from .game import (ConformanceReport, Game, GameState, conformance, game, pettingzoo_aec, pettingzoo_parallel,
-                   playthrough)
+from .game import (
+    ConformanceReport,
+    Game,
+    GameState,
+    conformance,
+    game,
+    pettingzoo_aec,
+    pettingzoo_parallel,
+    playthrough,
+)
 from .game.gym import GymEnv, gym
 from .tournament import TournamentResult, tournament
 

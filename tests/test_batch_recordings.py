@@ -1,15 +1,15 @@
 """Budgets and exposures through every batch that launches runs: experiment, tournament, evaluate, and the CLI."""
 import json
 
-import fg_env
-from fg_env.__main__ import main
-
 from test_evaluate import PUBLIC_GOODS, SCORE
 from test_fork import PRICES, _sell
 from test_runtime import SHOP
 from test_spectator import TABLE
 from test_tournament import RPS
 from test_traces import overreacher
+
+import fg_env
+from fg_env.__main__ import main
 
 
 def _first_arm(arms):

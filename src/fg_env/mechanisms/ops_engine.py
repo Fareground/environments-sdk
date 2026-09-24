@@ -23,7 +23,7 @@ import math
 from collections import deque
 from dataclasses import dataclass, field
 from statistics import NormalDist
-from typing import Any, Deque, Dict, List, Optional, Tuple
+from typing import Any
 
 __all__ = ["Duration", "Channel", "Pool", "Counts", "run_interval", "empty_state", "COUNT_FIELDS"]
 
@@ -73,13 +73,13 @@ class Channel:
     name: str
     arrivals: float
     service: Duration
-    patience: Optional[Duration]
+    patience: Duration | None
     priority: float
     threshold: float
     #: ``(offer when the expected wait exceeds, share who accept, servers kept free for live customers)``, or None.
-    callback: Optional[Tuple[float, float, float]] = None
+    callback: tuple[float, float, float] | None = None
     #: ``(chance an abandoned customer tries again, delay, most retries)``, or None.
-    retry: Optional[Tuple[float, Duration, int]] = None
+    retry: tuple[float, Duration, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -88,7 +88,7 @@ class Pool:
 
     name: str
     staff: int
-    skills: Tuple[str, ...]
+    skills: tuple[str, ...]
 
 
 @dataclass
@@ -96,14 +96,14 @@ class Counts:
     """What one interval produced: counts per arrival interval and channel, and this interval's time-weighted values."""
 
     #: ``{arrival interval: {channel: {field: value}}}``.
-    by_origin: Dict[int, Dict[str, Dict[str, float]]] = field(default_factory=dict)
+    by_origin: dict[int, dict[str, dict[str, float]]] = field(default_factory=dict)
     #: Time-average customers waiting in the interval, per channel.
-    queue: Dict[str, float] = field(default_factory=dict)
-    max_queue: Dict[str, int] = field(default_factory=dict)
+    queue: dict[str, float] = field(default_factory=dict)
+    max_queue: dict[str, int] = field(default_factory=dict)
     #: Server time spent serving in the interval, per pool (in the mode's unit).
-    busy: Dict[str, float] = field(default_factory=dict)
+    busy: dict[str, float] = field(default_factory=dict)
 
-    def cell(self, origin: int, channel: str) -> Dict[str, float]:
+    def cell(self, origin: int, channel: str) -> dict[str, float]:
         """The counts of ``channel``'s customers who arrived in interval ``origin`` (created at 0)."""
         per_channel = self.by_origin.get(origin)
         if per_channel is None:
@@ -114,7 +114,7 @@ class Counts:
         return found
 
 
-def empty_state() -> Dict[str, Any]:
+def empty_state() -> dict[str, Any]:
     """The state before the first interval: nobody waiting, nobody served."""
     return {"interval": 0, "seq": 0, "waiting": [], "busy": [], "callbacks": [], "retrials": []}
 
@@ -126,18 +126,19 @@ _PRIORITY, _ARRIVAL, _SEQ, _CHANNEL, _DEADLINE, _SERVICE, _ORIGIN, _RETRIES = ra
 class _Interval:
     """One interval being played: heaps, counters and the clock."""
 
-    def __init__(self, state: Dict[str, Any], index: int, length: float, channels: Dict[str, Channel],
-                 pools: Dict[str, Pool], seeds: Any, name: str):
+    def __init__(self, state: dict[str, Any], index: int, length: float, channels: dict[str, Channel],
+                 pools: dict[str, Pool], seeds: Any, name: str):
         self.index, self.name, self.seeds = index, name, seeds
         self.start, self.end = index * length, (index + 1) * length
         self.length = length
         self.channels, self.pools = channels, pools
         self.seq = int(state["seq"])
         self.counts = Counts()
-        self.pools_of: Dict[str, List[str]] = {c: [p for p, pool in pools.items() if c in pool.skills] for c in channels}
-        self.queues: Dict[str, List[Tuple[float, float, int]]] = {c: [] for c in channels}
-        self.customers: Dict[int, List[Any]] = {}
-        self.deadlines: List[Tuple[float, int]] = []
+        self.pools_of: dict[str, list[str]] = {c: [p for p, pool in pools.items() if c in pool.skills]
+                                               for c in channels}
+        self.queues: dict[str, list[tuple[float, float, int]]] = {c: [] for c in channels}
+        self.customers: dict[int, list[Any]] = {}
+        self.deadlines: list[tuple[float, int]] = []
         for entry in state["waiting"]:
             customer = list(entry)
             self.customers[customer[_SEQ]] = customer
@@ -148,15 +149,15 @@ class _Interval:
             heapq.heapify(heap)
         heapq.heapify(self.deadlines)
         self.waiting = {c: len(heap) for c, heap in self.queues.items()}
-        self.busy: List[Tuple[float, int, str]] = [(float(f), int(s), str(p)) for f, s, p in state["busy"]]
+        self.busy: list[tuple[float, int, str]] = [(float(f), int(s), str(p)) for f, s, p in state["busy"]]
         heapq.heapify(self.busy)
         self.busy_count = {p: 0 for p in pools}
         for _, _, pool in self.busy:
             self.busy_count[pool] = self.busy_count.get(pool, 0) + 1
-        self.callbacks: Dict[str, Deque[List[Any]]] = {c: deque() for c in channels}
+        self.callbacks: dict[str, deque[list[Any]]] = {c: deque() for c in channels}
         for entry in state["callbacks"]:
             self.callbacks[entry[2]].append(list(entry))
-        self.retrials: List[Tuple[float, int, str, float, Optional[float], int]] = [
+        self.retrials: list[tuple[float, int, str, float, float | None, int]] = [
             (float(t), int(s), str(c), float(sv), None if pt is None else float(pt), int(r))
             for t, s, c, sv, pt, r in state["retrials"]]
         heapq.heapify(self.retrials)
@@ -211,7 +212,7 @@ class _Interval:
 
     # -- arrivals ----------------------------------------------------------------------------------------------
 
-    def _arrivals(self) -> List[Tuple[float, int, str, float, Optional[float], float]]:
+    def _arrivals(self) -> list[tuple[float, int, str, float, float | None, float]]:
         """Every channel's arrivals in the interval, in time order, each with its service time, patience and callback
         draw."""
         out = []
@@ -233,7 +234,7 @@ class _Interval:
         out.sort(key=lambda item: (item[0], item[1]))
         return out
 
-    def _arrive(self, channel: str, seq: int, service: float, patience: Optional[float], callback_u: float,
+    def _arrive(self, channel: str, seq: int, service: float, patience: float | None, callback_u: float,
                 retries: int) -> None:
         spec = self.channels[channel]
         cell = self.counts.cell(self.index, channel)
@@ -245,7 +246,8 @@ class _Interval:
                 cell["handle"] += service
                 self._start(pool, service, seq)
                 return
-        if spec.callback is not None and callback_u < spec.callback[1] and self._expected_wait(channel) > spec.callback[0]:
+        if (spec.callback is not None and callback_u < spec.callback[1] and self._expected_wait(channel)
+            > spec.callback[0]):
             cell["callbacks"] += 1
             self.callbacks[channel].append([self.time, seq, channel, service, self.index])
             return
@@ -279,7 +281,7 @@ class _Interval:
         waiting on its channels, the oldest callback."""
         spec = self.pools[pool]
         while spec.staff - self.busy_count[pool] > 0:
-            best: Optional[Tuple[Tuple[float, float, int], str]] = None
+            best: tuple[tuple[float, float, int], str] | None = None
             for channel in spec.skills:
                 heap = self.queues.get(channel)
                 self._drop_given_up(channel)
@@ -336,7 +338,7 @@ class _Interval:
 
     # -- the state the next interval starts from ------------------------------------------------------------
 
-    def state(self) -> Dict[str, Any]:
+    def state(self) -> dict[str, Any]:
         waiting = sorted(self.customers.values(), key=lambda c: (c[_ARRIVAL], c[_SEQ]))
         callbacks = sorted((entry for line in self.callbacks.values() for entry in line), key=lambda e: (e[0], e[1]))
         return {"interval": self.index + 1, "seq": self.seq, "waiting": waiting,
@@ -344,8 +346,8 @@ class _Interval:
                 "retrials": [list(item) for item in sorted(self.retrials)]}
 
 
-def run_interval(state: Dict[str, Any], length: float, channels: Dict[str, Channel], pools: Dict[str, Pool],
-                 seeds: Any, name: str) -> Tuple[Dict[str, Any], Counts]:
+def run_interval(state: dict[str, Any], length: float, channels: dict[str, Channel], pools: dict[str, Pool],
+                 seeds: Any, name: str) -> tuple[dict[str, Any], Counts]:
     """Play interval ``state["interval"]`` (``length`` long) and return the state after it and what it produced."""
     played = _Interval(state, int(state["interval"]), length, channels, pools, seeds, name)
     played.play()

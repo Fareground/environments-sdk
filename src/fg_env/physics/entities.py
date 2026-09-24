@@ -1,24 +1,24 @@
 """Per-entity continuous dynamics: every entity of a type integrates its own ODEs.
 
-``physics.per.<type>`` compiles once into an :class:`EntityDynamicsStep`. Each step, every
-matching entity builds one namespace — math functions and constants, world physics values,
-the type's params, the entity's own number props and its reads — and advances its variables
-(which are number props) with RK4 sub-steps plus an Euler–Maruyama noise term. Noise draws come
-from streams derived from the run seed, type, entity, variable and round, so unrelated
-entities or variables never shift an existing variable's random draws. New values are written through the journaled world API.
+``physics.per.<type>`` compiles once into an :class:`EntityDynamicsStep`. Each step, every matching entity builds one
+namespace — math functions and constants, world physics values, the type's params, the entity's own number props and its
+reads — and advances its variables (which are number props) with RK4 sub-steps plus an Euler–Maruyama noise term. Noise
+draws come from streams derived from the run seed, type, entity, variable and round, so unrelated entities or variables
+never shift an existing variable's random draws. New values are written through the journaled world API.
 """
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING, Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
-from .model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from ..contract import EntityDynamics
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
+from ..world.entity import Entity
 from ..world.props import prop_type
 from .integration import integrate
+from .model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from .stochastic import exact_transition
 from .stochastic_integration import integrate_noise
 
@@ -27,10 +27,10 @@ if TYPE_CHECKING:
 
 __all__ = ["EntityDynamicsStep", "MATH_NAMES", "compile_math"]
 
-Bounds = Tuple[Optional[float], Optional[float]]
+Bounds = tuple[float | None, float | None]
 
 #: Names physics math always has — functions, constants and the time — which props cannot shadow.
-MATH_NAMES: FrozenSet[str] = frozenset(_FUNCS) | frozenset(_CONSTS) | {"t"}
+MATH_NAMES: frozenset[str] = frozenset(_FUNCS) | frozenset(_CONSTS) | {"t"}
 
 
 def compile_math(source: str, path: str) -> _CompiledExpr:
@@ -43,12 +43,12 @@ def compile_math(source: str, path: str) -> _CompiledExpr:
 class EntityDynamicsStep:
     """One compiled ``physics.per.<type>`` entry."""
 
-    def __init__(self, world: "SdkWorld", type_name: str, spec: EntityDynamics, params: Dict[str, float]):
+    def __init__(self, world: SdkWorld, type_name: str, spec: EntityDynamics, params: dict[str, float]):
         path = f"physics.per.{type_name}"
         self.type_name = type_name
         self.path = path
         self.params = params
-        self.vars: List[str] = list(spec.vars)
+        self.vars: list[str] = list(spec.vars)
         self.rates = [compile_math(var.rate, f"{path}.vars.{name}.rate") for name, var in spec.vars.items()]
         self.noise = [(index, compile_math(var.noise, f"{path}.vars.{name}.noise"))
                       for index, (name, var) in enumerate(spec.vars.items()) if var.noise is not None]
@@ -61,7 +61,7 @@ class EntityDynamicsStep:
         self.inputs = [name for name, prop in specs.items()
                        if prop_type(prop) in ("number", "int") and name not in spec.vars and name not in MATH_NAMES]
 
-    def step(self, world: "SdkWorld", shared: Dict[str, Any], dt: float, start: float, substeps: int) -> None:
+    def step(self, world: SdkWorld, shared: dict[str, Any], dt: float, start: float, substeps: int) -> None:
         """Advance every matching living entity by ``dt`` from time ``start``."""
         members = world.entities_of(self.type_name)
         if not members or dt <= 0:
@@ -87,7 +87,8 @@ class EntityDynamicsStep:
             try:
                 spec = world.contract.physics
                 assert spec is not None
-                state = self._integrate(ns, state, bounds, start, dt / substeps, substeps, rng, spec.rtol, spec.atol, spec.noise_rtol)
+                state = self._integrate(ns, state, bounds, start, dt / substeps, substeps, rng, spec.rtol, spec.atol,
+                                        spec.noise_rtol)
                 for var, value in zip(self.vars, state):
                     ns[var] = value
                     world.set_prop(entity, var, value)
@@ -96,11 +97,11 @@ class EntityDynamicsStep:
             except (ArithmeticError, ValueError) as exc:
                 raise RunError(f"{entity.id}: the dynamics broke down numerically ({exc})", self.path) from None
 
-    def _integrate(self, ns: Dict[str, Any], y: List[float], bounds: Sequence[Bounds], t: float, h: float,
-                   substeps: int, rng: Any, rtol: float, atol: float, noise_rtol: float) -> List[float]:
+    def _integrate(self, ns: dict[str, Any], y: list[float], bounds: Sequence[Bounds], t: float, h: float,
+                   substeps: int, rng: Any, rtol: float, atol: float, noise_rtol: float) -> list[float]:
         names, rates, n = self.vars, self.rates, len(self.vars)
 
-        def slope(values: Sequence[float], time: float) -> List[float]:
+        def slope(values: Sequence[float], time: float) -> list[float]:
             for k in range(n):
                 ns[names[k]] = values[k]
             ns["t"] = time
@@ -127,7 +128,7 @@ class EntityDynamicsStep:
                     assert value is not None
                     nxt[index] = value
             elif self.noise:
-                def coefficients(values: List[float], time: float) -> Tuple[List[float], List[float]]:
+                def coefficients(values: list[float], time: float) -> tuple[list[float], list[float]]:
                     drift = slope(values, time)
                     diffusion = [0.0] * n
                     for index, expr in self.noise:
@@ -151,7 +152,7 @@ class EntityDynamicsStep:
         return y
 
     @staticmethod
-    def _eval(world: "SdkWorld", expr: Any, entity: Entity, path: str) -> Any:
+    def _eval(world: SdkWorld, expr: Any, entity: Entity, path: str) -> Any:
         try:
             return expr(world.scope(it=entity))
         except ExprError as exc:
@@ -168,7 +169,7 @@ def _finite(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _bounds(world: "SdkWorld", entity: Entity, prop: str) -> Bounds:
+def _bounds(world: SdkWorld, entity: Entity, prop: str) -> Bounds:
     spec = world.prop_spec(entity, prop)  # a subtype may narrow the bounds
     return spec.min, spec.max
 

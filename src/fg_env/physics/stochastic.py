@@ -9,14 +9,14 @@ from __future__ import annotations
 import ast
 import math
 from functools import lru_cache
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from .model import _CompiledExpr
 
 
 @lru_cache(maxsize=4096)
-def affine(source: str, variable: str) -> Optional[Tuple[_CompiledExpr, _CompiledExpr]]:
-    def parts(node: ast.AST) -> Optional[Tuple[str, str]]:
+def affine(source: str, variable: str) -> tuple[_CompiledExpr, _CompiledExpr] | None:
+    def parts(node: ast.AST) -> tuple[str, str] | None:
         if not any(isinstance(n, ast.Name) and n.id == variable for n in ast.walk(node)):
             return "0", ast.unparse(node)
         if isinstance(node, ast.Name):
@@ -54,7 +54,7 @@ def affine(source: str, variable: str) -> Optional[Tuple[_CompiledExpr, _Compile
 
 
 def exact_transition(rate: _CompiledExpr, noise: _CompiledExpr, variable: str,
-                     namespace: Dict[str, Any], value: float, h: float, normal: float) -> Optional[float]:
+                     namespace: dict[str, Any], value: float, h: float, normal: float) -> float | None:
     drift, diffusion = affine(rate.source, variable), affine(noise.source, variable)
     if drift is None or diffusion is None:
         return None

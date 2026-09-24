@@ -3,14 +3,15 @@ message delivery."""
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set, TypeGuard
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from ..contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
-from ..physics.entities import MATH_NAMES
-from ..expr import EXPRESSION_WORDS, is_expr
-from ..runtime.feeds import feed_target
-from ..host.tape import TAPE
 from ..contract.inputs import check_value
+from ..expr import EXPRESSION_WORDS, is_expr
+from ..host.tape import TAPE
+from ..physics.entities import MATH_NAMES
+from ..runtime.feeds import feed_target
 from ..world.links import LINK_ATTRS
 from ..world.props import prop_type
 
@@ -23,7 +24,7 @@ __all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", 
 _FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def check_delivery(checker: "_Checker", op: str, effect: Dict[str, Any], path: str) -> None:
+def check_delivery(checker: _Checker, op: str, effect: dict[str, Any], path: str) -> None:
     """Literal `delay` and `drop` values on a post, emit or wake effect."""
     drop, delay = effect.get("drop"), effect.get("delay")
     if _literal_number(drop) and not 0 <= drop <= 1:
@@ -36,14 +37,15 @@ def check_delivery(checker: "_Checker", op: str, effect: Dict[str, Any], path: s
         return
     continuous = checker.c.clock.mode == "continuous"
     if _literal_number(delay) and (delay < 0 or (not continuous and not isinstance(delay, int))):
-        checker.error(f"{path}.delay", f"is {delay}; a delay is " + ("a time ≥ 0" if continuous else "a whole number of rounds ≥ 0"))
+        checker.error(f"{path}.delay",
+                      f"is {delay}; a delay is " + ("a time ≥ 0" if continuous else "a whole number of rounds ≥ 0"))
 
 
 def _literal_number(value: Any) -> TypeGuard[float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
 
 
-def check_feeds(checker: "_Checker", base: FrozenSet[str]) -> None:
+def check_feeds(checker: _Checker, base: frozenset[str]) -> None:
     """Feeds: a host name, a declared target, and valid expressions for query, when and fallback."""
     contract = checker.c
     for name, spec in contract.feeds.items():
@@ -64,13 +66,14 @@ def check_feeds(checker: "_Checker", base: FrozenSet[str]) -> None:
                 checker.error(f"{path}.into", f"'{target}' is not a declared record",
                               checker._suggest(target, contract.records) or "declare it under `records`")
         else:
-            checker.error(f"{path}.into", "a feed writes into 'world.<prop>' or 'records.<record>'", f"e.g. world.{name}")
+            checker.error(f"{path}.into", "a feed writes into 'world.<prop>' or 'records.<record>'",
+                          f"e.g. world.{name}")
         checker.condition(spec.when, f"{path}.when", base)
         checker.value(spec.query, f"{path}.query", base)
         checker.value(spec.fallback, f"{path}.fallback", base)
 
 
-def _literal_fallback(checker: "_Checker", spec: FeedSpec, target: str, prop: PropSpec, path: str) -> None:
+def _literal_fallback(checker: _Checker, spec: FeedSpec, target: str, prop: PropSpec, path: str) -> None:
     raw = spec.fallback
     if raw is None or (isinstance(raw, str) and ("{$" in raw or is_expr(raw))):
         return
@@ -82,7 +85,7 @@ def _literal_fallback(checker: "_Checker", spec: FeedSpec, target: str, prop: Pr
         checker.error(f"{path}.fallback", f"world.{target} {problem}")
 
 
-def check_hooks(checker: "_Checker", base: FrozenSet[str]) -> None:
+def check_hooks(checker: _Checker, base: frozenset[str]) -> None:
     """Lifecycle hooks: effects over $it (every kind of the type)."""
     for name, spec in checker.c.types.items():
         types = {"it": set(checker.c.subtypes(name))}
@@ -93,7 +96,7 @@ def check_hooks(checker: "_Checker", base: FrozenSet[str]) -> None:
                          "add on_create, or remove on_create_at_build")
 
 
-def check_relation_fields(checker: "_Checker", base: FrozenSet[str]) -> None:
+def check_relation_fields(checker: _Checker, base: frozenset[str]) -> None:
     """Declared link fields, and the fields each `links` entry sets."""
     every_type = set(checker.c.types)
     for kind, spec in checker.c.relations.items():
@@ -103,7 +106,8 @@ def check_relation_fields(checker: "_Checker", base: FrozenSet[str]) -> None:
                 checker.error(path, f"'{name}' is built into every link", "choose another field name")
             elif not _FIELD_NAME.match(name) or name in EXPRESSION_WORDS:
                 checker.error(path, f"'{name}' cannot be read as $link(...).{name}",
-                              "use letters, digits and _, not a word expressions use (and, or, not, in, if, else, true, false, null)")
+                              "use letters, digits and _, not a word expressions use (and, or, not, in, if, else, "
+                              "true, false, null)")
             checker._prop_spec(prop, path, base - {"metrics", "series"} | {"from", "to"},
                                {"from": every_type, "to": every_type})
     for index, entry in enumerate(checker.c.links):
@@ -111,8 +115,8 @@ def check_relation_fields(checker: "_Checker", base: FrozenSet[str]) -> None:
         check_link_fields(checker, entry.relation, entry.props, f"links[{index}].props", roots)
 
 
-def check_link_fields(checker: "_Checker", relation: Any, fields: Any, path: str, roots: Iterable[str],
-                      types: Optional["Types"] = None, params: Optional[Mapping[str, ParamSpec]] = None) -> None:
+def check_link_fields(checker: _Checker, relation: Any, fields: Any, path: str, roots: Iterable[str],
+                      types: Types | None = None, params: Mapping[str, ParamSpec] | None = None) -> None:
     """Fields set on a `relation` link: each declared, each value a valid expression here."""
     spec = checker.c.relations.get(relation) if isinstance(relation, str) else None
     if spec is None:
@@ -130,7 +134,7 @@ def check_link_fields(checker: "_Checker", relation: Any, fields: Any, path: str
         checker.value(raw, f"{path}.{name}", roots, types, params)
 
 
-def check_physics_state(checker: "_Checker", base: FrozenSet[str]) -> None:
+def check_physics_state(checker: _Checker, base: frozenset[str]) -> None:
     spec = checker.c.physics
     if spec is None:
         return
@@ -154,12 +158,12 @@ def check_physics_state(checker: "_Checker", base: FrozenSet[str]) -> None:
                               f"which covers every {type_name}", f"integrate {shared} in one of the two")
 
 
-def _entity_dynamics(checker: "_Checker", type_name: str, dynamics: EntityDynamics, world_names: Set[str],
-                     base: FrozenSet[str]) -> None:
+def _entity_dynamics(checker: _Checker, type_name: str, dynamics: EntityDynamics, world_names: set[str],
+                     base: frozenset[str]) -> None:
     path = f"physics.per.{type_name}"
     props = checker.c.props_of(type_name)
     numbers = {name for name, spec in props.items() if prop_type(spec) in ("number", "int")} - MATH_NAMES
-    meanings: Dict[str, List[str]] = {}
+    meanings: dict[str, list[str]] = {}
     for label, names in (("world physics name", world_names), ("param", set(dynamics.params)),
                          ("read", set(dynamics.read)), (f"{type_name} property", numbers)):
         for name in names:

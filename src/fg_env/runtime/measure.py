@@ -4,12 +4,12 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import asdict, dataclass, field
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ..contract import Contract
+from ..contract.inputs import check_value
 from ..errors import Issue, RunError
 from ..expr import ExprError, compile_expr
-from ..contract.inputs import check_value
 from ..expr.template import apply_format
 from ..world.live import SdkWorld, _plain
 
@@ -65,13 +65,13 @@ class Stats:
     #: time.
     failed_turns: int = 0
 
-    def add(self, other: "Stats") -> None:
+    def add(self, other: Stats) -> None:
         for name, value in vars(other).items():  # every field is a count: most of a turn's are zero
             if value:
                 setattr(self, name, getattr(self, name) + value)
 
-    def to_dict(self) -> Dict[str, Any]:
-        out: Dict[str, Any] = dict(vars(self))
+    def to_dict(self) -> dict[str, Any]:
+        out: dict[str, Any] = dict(vars(self))
         wakes = max(1, self.wakes)
         out["avg_update_tokens"] = round(self.update_chars / max(1, self.update_reads) / 4)
         out["avg_brief_tokens"] = round(self.brief_chars / max(1, self.brief_reads) / 4)
@@ -85,44 +85,44 @@ class RunResult:
     """Everything a run produced. ``outputs`` follows the contract's output contract."""
 
     status: str
-    ended_by: Optional[str]
+    ended_by: str | None
     rounds: int
     seed: int
-    arm: Optional[str]
-    inputs: Dict[str, Any]
-    outputs: Dict[str, Any]
-    metrics: Dict[str, Any]
-    series: Dict[str, List[Any]]
+    arm: str | None
+    inputs: dict[str, Any]
+    outputs: dict[str, Any]
+    metrics: dict[str, Any]
+    series: dict[str, list[Any]]
     winner: Any = None
-    error: Optional[str] = None
+    error: str | None = None
     #: The clock time reached (continuous clock), else None.
-    time: Optional[float] = None
+    time: float | None = None
     #: Each seat's return (the contract's `game.returns`), in seat order; empty when none is declared.
-    returns: Dict[str, float] = field(default_factory=dict)
-    output_issues: List[Dict[str, Any]] = field(default_factory=list)
-    stats: Dict[str, Any] = field(default_factory=dict)
+    returns: dict[str, float] = field(default_factory=dict)
+    output_issues: list[dict[str, Any]] = field(default_factory=list)
+    stats: dict[str, Any] = field(default_factory=dict)
     #: ``stats`` per agent entity id: its turns, calls, invalid calls, actions and model usage.
-    agent_stats: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    events: List[Dict[str, Any]] = field(default_factory=list)
+    agent_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
+    events: list[dict[str, Any]] = field(default_factory=list)
     #: What each agent was shown on every wake, when recorded (see :mod:`fg_env.runtime.exposure`).
-    exposures: Dict[str, Any] = field(default_factory=dict)
+    exposures: dict[str, Any] = field(default_factory=dict)
     #: Spectator views rendered at the end of every round: ``[{round, views: {name: text}, final?}]``.
-    frames: List[Dict[str, Any]] = field(default_factory=list)
+    frames: list[dict[str, Any]] = field(default_factory=list)
     #: The host answers of a run that recorded exposures (with ``exposures``, everything a replay needs).
-    host_tape: Dict[str, Any] = field(default_factory=dict)
+    host_tape: dict[str, Any] = field(default_factory=dict)
     #: The run's budget: ``{limits, on_exhaust, used, exhausted}`` (empty without one).
-    budget: Dict[str, Any] = field(default_factory=dict)
+    budget: dict[str, Any] = field(default_factory=dict)
     #: How :meth:`summary` shows the outputs that declare a `format`, by output name.
-    formats: Dict[str, str] = field(default_factory=dict)
+    formats: dict[str, str] = field(default_factory=dict)
     #: Likely logic problems the run revealed: ``[{code, path, message, fix}]`` (see :mod:`fg_env.runtime.diagnostics`).
-    diagnostics: List[Dict[str, str]] = field(default_factory=list)
+    diagnostics: list[dict[str, str]] = field(default_factory=list)
     #: The clock the rounds count: ``{mode, unit, step, start}`` (empty for results saved before it was recorded).
-    clock: Dict[str, Any] = field(default_factory=dict)
+    clock: dict[str, Any] = field(default_factory=dict)
     #: The assets the run knew — its catalog and submitted files — as metadata with content hashes (empty without any).
-    assets: Dict[str, Any] = field(default_factory=dict)
+    assets: dict[str, Any] = field(default_factory=dict)
     #: The world as the run left it, kept small: world props, and per type its living count and first few entities
     #: (see :mod:`fg_env.runtime.end_state`). :meth:`summary` shows it.
-    state: Dict[str, Any] = field(default_factory=dict)
+    state: dict[str, Any] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -131,7 +131,7 @@ class RunResult:
         return self.status in ("completed", "ended") and not self.output_issues and not self.degraded
 
     @property
-    def degraded(self) -> List[str]:
+    def degraded(self) -> list[str]:
         """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
         agent could ever take, agents that never acted or whose turns mostly failed, agents that never had an action
         to take, turns lost to a failing provider, a budget that cut the run short, host answers that were the
@@ -141,13 +141,13 @@ class RunResult:
 
         return list(dict.fromkeys(found["code"] for found in self.diagnostics if found["code"] in DEGRADING))
 
-    def to_dict(self, events: bool = True) -> Dict[str, Any]:
+    def to_dict(self, events: bool = True) -> dict[str, Any]:
         out = asdict(self)
         if not events:
             out.pop("events")
         return out
 
-    def to_json(self, events: bool = True, indent: Optional[int] = 2) -> str:
+    def to_json(self, events: bool = True, indent: int | None = 2) -> str:
         return json.dumps(self.to_dict(events), indent=indent, default=str, ensure_ascii=False)
 
     def save(self, path: Any) -> None:
@@ -157,7 +157,7 @@ class RunResult:
         save_result(self, path)
 
     @classmethod
-    def load(cls, path: Any) -> "RunResult":
+    def load(cls, path: Any) -> RunResult:
         """A result written by :meth:`save` (or printed by ``fg-env run --json``)."""
         from .result_file import load_result
 
@@ -205,7 +205,7 @@ class RunResult:
         return "\n".join(lines + state_lines(self.state, self.series))
 
 
-def shown(value: Any, fmt: Optional[str] = None) -> str:
+def shown(value: Any, fmt: str | None = None) -> str:
     """A value as a person reads it: with its declared template format, else JSON with numbers to 4 decimals
     (small numbers keep 3 significant digits). The stored value is never changed."""
     if fmt and value is not None and not isinstance(value, (list, dict)):
@@ -214,7 +214,7 @@ def shown(value: Any, fmt: Optional[str] = None) -> str:
     return text if len(text) <= 120 else text[:117] + "…"
 
 
-def ending(status: str, ended_by: Optional[str]) -> str:
+def ending(status: str, ended_by: str | None) -> str:
     """What stopped a run, for its summary line: what ended it, or that it was stopped before its end."""
     if ended_by:
         return f" — ended by {ended_by}"
@@ -238,7 +238,7 @@ READABLE_DECIMALS = 4
 def sample_metrics(contract: Contract, world: SdkWorld) -> None:
     """Evaluate every metric against the current world and append it to its series."""
     scope = world.scope()
-    values: Dict[str, Any] = {}
+    values: dict[str, Any] = {}
     for name, spec in contract.metrics.items():
         try:
             value = _plain(compile_expr(spec.expr)(scope.child(metrics=values)))
@@ -252,12 +252,12 @@ def sample_metrics(contract: Contract, world: SdkWorld) -> None:
     world.touch()
 
 
-def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[Dict[str, Any], List[Issue]]:
+def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[dict[str, Any], list[Issue]]:
     from .returns import run_result
 
     scope = world.scope(result=run_result(world))
-    outputs: Dict[str, Any] = {}
-    issues: List[Issue] = []
+    outputs: dict[str, Any] = {}
+    issues: list[Issue] = []
     for name, spec in contract.outputs.items():
         try:
             value = _plain(compile_expr(spec.expr)(scope.child(outputs=outputs)))

@@ -26,21 +26,28 @@ try:
 except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
     __version__ = "0+unknown"
 
-from . import stdlib  # noqa: F401  (registers every built-in expression function before anything runs one)
+from . import (
+    analysis,
+    engines,
+    participants,
+    personas,
+    rl,
+    stdlib,  # noqa: F401  (registers every built-in expression function before anything runs one)
+)
 from .api import check, expand, load, parse, run
 from .authoring.author import author
-from .copying.branch import Branch
+from .authoring.scaffold import new
 from .contract import Contract
+from .copying.branch import Branch
+from .copying.forks import fork
+from .engines import clone as clone_engine
+from .engines import list_engines
 from .errors import ContractError, FatalRunError, InputError, InvariantViolation, Issue, RunError, SnapshotError
 from .experiments.experiment import ExperimentResult, experiment
-from .copying.forks import fork
 from .guides import guide, schema
-from .runtime.measure import RunResult
 from .runtime.env import Env
-from .authoring.scaffold import new
+from .runtime.measure import RunResult
 from .runtime.session import ToolResult, Wake
-from .engines import clone as clone_engine, list_engines
-from . import analysis, engines, participants, personas, rl
 
 __all__ = [
     "__version__",

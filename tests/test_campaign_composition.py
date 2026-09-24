@@ -2,8 +2,9 @@
 import json
 from pathlib import Path
 
-import fg_env
 import pytest
+
+import fg_env
 
 PATH = Path(__file__).parents[1] / "examples/contracts/business_composition/campaign_fulfillment.json"
 

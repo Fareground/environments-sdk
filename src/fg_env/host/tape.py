@@ -15,7 +15,8 @@ import hashlib
 import json
 import math
 import threading
-from typing import Any, Callable, Dict, Mapping, Optional
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from ..errors import FatalRunError, RunError
 from ..expr import Untrusted
@@ -33,7 +34,7 @@ _MAX_DEPTH = 32
 _LOCK = threading.RLock()
 
 
-def tape_prop() -> Dict[str, Any]:
+def tape_prop() -> dict[str, Any]:
     """The world property every host mechanism declares."""
     return {"type": "map", "default": {}, "description": "Host answers recorded for replay (managed by the engine)."}
 
@@ -51,7 +52,7 @@ def plain(value: Any) -> Any:
     return value
 
 
-def request_key(world: Any, service: str, site: str, actor: Optional[str], identity: Any, moment: bool = True) -> str:
+def request_key(world: Any, service: str, site: str, actor: str | None, identity: Any, moment: bool = True) -> str:
     parts: list = [service, site, actor]
     if moment:
         parts += [world.round, world.time if world.continuous else None, world.stage]
@@ -60,8 +61,8 @@ def request_key(world: Any, service: str, site: str, actor: Optional[str], ident
 
 
 def consult(world: Any, *, service: str, method: str, site: str, identity: Any, ask: Callable[[Any], Any],
-            actor: Optional[str] = None, validate: Optional[Callable[[Any], Any]] = None,
-            fallback: Optional[Callable[[], Any]] = None, moment: bool = True, lock: Any = None) -> Any:
+            actor: str | None = None, validate: Callable[[Any], Any] | None = None,
+            fallback: Callable[[], Any] | None = None, moment: bool = True, lock: Any = None) -> Any:
     """The host's answer for this call: recorded, replayed, live, or the declared fallback.
 
     ``ask(adapter)`` performs the live call; ``validate(answer)`` returns the normalised answer
@@ -96,7 +97,7 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
             raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
         with counting(world, adapter):
             answer = _live(adapter, service, site, ask, validate)
-    entry: Dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
+    entry: dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:
         entry["fallback"] = True
@@ -110,11 +111,11 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
 
 
 def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
-          validate: Optional[Callable[[Any], Any]]) -> Any:
+          validate: Callable[[Any], Any] | None) -> Any:
     """A live host's answer, validated. An answer the engine cannot use (the host raised :class:`HostError`, or the
     answer is outside the protocol) is asked for once more, the request carrying a `correction` that says what was
     wrong; a second unusable answer, or any other failure, stops the run."""
-    correction: Optional[str] = None
+    correction: str | None = None
     while True:
         asked = adapter if correction is None else _Corrected(adapter, correction)
         try:
@@ -124,7 +125,8 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
                 raise FatalRunError(f"host '{service}' failed, also when asked again: {exc}", site) from None
             correction = str(exc)
             continue
-        except RunError as exc:  # the provider failed (a reference adapter says how to fix it): asking again cannot help
+        # the provider failed (a reference adapter says how to fix it): asking again cannot help
+        except RunError as exc:
             raise FatalRunError(f"host '{service}' failed: {exc}", site) from exc
         except Exception as exc:  # an adapter defect or provider error: surfaced with its type, never swallowed
             raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
@@ -166,7 +168,7 @@ def discard(world: Any, key: str) -> None:
         world.touch()
 
 
-def tape_of(source: Any) -> Dict[str, Dict[str, Any]]:
+def tape_of(source: Any) -> dict[str, dict[str, Any]]:
     """The recorded host answers of an environment (``Env``) or a snapshot, for replay."""
     world = getattr(source, "world", None)
     if world is not None:
@@ -180,7 +182,7 @@ def tape_of(source: Any) -> Dict[str, Dict[str, Any]]:
     return copy.deepcopy(dict(raw or {}))
 
 
-def _tape(world: Any, site: str) -> Dict[str, Any]:
+def _tape(world: Any, site: str) -> dict[str, Any]:
     tape = world.props.get(TAPE)
     if not isinstance(tape, dict):
         raise FatalRunError(f"the world property '{TAPE}' is missing; host mechanisms declare it", site)

@@ -29,7 +29,7 @@ and the note says why they are wide.
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from ..expr import ExprError, Scope, compile_expr
 from . import timebase as tb
@@ -50,26 +50,26 @@ _OVERLAP = 4.0
 class _Term:
     """A block of design columns belonging to one pattern parameter (per key of that pattern)."""
 
-    def __init__(self, pattern: str, field: str, keys: List[Optional[str]], width: int):
+    def __init__(self, pattern: str, field: str, keys: list[str | None], width: int):
         self.pattern, self.field, self.keys, self.width = pattern, field, keys, width
         self.positions = {key: position for position, key in enumerate(keys)}
         self.start = 0
 
-    def index(self, key: Optional[str], slot: int = 0) -> int:
+    def index(self, key: str | None, slot: int = 0) -> int:
         return self.start + self.positions[key] * self.width + slot
 
 
-def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Dict[Optional[str], Estimate]], PatternFit]:
+def fit_product(problem: Problem, configs: dict[str, Any]) -> tuple[dict[str, dict[str | None, Estimate]], PatternFit]:
     cfg = problem.cfg
     fit = cfg.fit
     assert fit is not None
     rows = problem.rows
-    keys: List[Optional[str]] = list(sorted({row.key for row in rows}, key=str)) if cfg.keyed else [None]
+    keys: list[str | None] = list(sorted({row.key for row in rows}, key=str)) if cfg.keyed else [None]
     if cfg.keyed and fit.key is None:
         raise problem.fail("a keyed product fits from rows with a key: set `fit.key`")
-    factor_keys: Dict[str, List[Optional[str]]] = {}
-    row_keys: List[Dict[str, Optional[str]]] = []
-    by_key: Dict[Optional[str], Dict[str, Optional[str]]] = {}  # factor keys read only the row's key and table row
+    factor_keys: dict[str, list[str | None]] = {}
+    row_keys: list[dict[str, str | None]] = []
+    by_key: dict[str | None, dict[str, str | None]] = {}  # factor keys read only the row's key and table row
     for row in rows:
         mapping = by_key.get(row.key)
         if mapping is None:
@@ -83,9 +83,9 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
                     factor_keys[name].append(key)
         row_keys.append(mapping)
     base_keys = _term_keys(cfg, "scale", keys)
-    terms: List[_Term] = []
-    assumed: List[str] = []
-    notes: List[str] = []
+    terms: list[_Term] = []
+    assumed: list[str] = []
+    notes: list[str] = []
     for name in operand_names(cfg):
         other = configs[name]
         if other.kind == "seasonal" and other.profile is not None and other.form == "multiply":
@@ -111,15 +111,16 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
         t.start = width
         width += t.width * len(t.keys)
     dips = _promotion_dips(problem, configs, responses, rows, row_keys)
-    sparse: List[List[Tuple[int, float]]] = []
-    offsets: List[float] = []
-    groups: List[int] = []
+    sparse: list[list[tuple[int, float]]] = []
+    offsets: list[float] = []
+    groups: list[int] = []
     base_index = {key: position for position, key in enumerate(base_keys)}
-    origins = {term.pattern: tb.to_t(problem.clock, problem.env.world.patterns.param(term.pattern, None, "origin", term.pattern))
+    origins = {term.pattern: tb.to_t(problem.clock,
+                                     problem.env.world.patterns.param(term.pattern, None, "origin", term.pattern))
                for term in terms if term.field == "rate"}
-    slot_at: Dict[Tuple[str, float], int] = {}
+    slot_at: dict[tuple[str, float], int] = {}
     for row, mapping in zip(rows, row_keys):
-        columns: Dict[int, float] = {}
+        columns: dict[int, float] = {}
         offset = 0.0
         groups.append(base_index[row.key if base_keys != [None] else None])
         for name in operand_names(cfg):
@@ -153,7 +154,7 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
     design = Design(sparse, width, groups, max(groups) + 1 if groups else 0)
     ys = [row.y for row in rows]
     censored = [row.censored for row in rows]
-    k: Optional[float] = None
+    k: float | None = None
     try:
         result = count_regression(design, ys, offset=offsets, censored=censored, errors=not fit.noise)
     except ValueError as exc:
@@ -166,26 +167,28 @@ def fit_product(problem: Problem, configs: Dict[str, Any]) -> Tuple[Dict[str, Di
     updates, estimates = _estimates(problem, terms, base_keys, result, rows, row_keys)
     notes.extend(_overlaps(terms, result, updates))
     if fit.noise:
-        noise = Estimate({"dispersion": k if k is not None else 1e6}, {}, "method of moments around the fitted means", ["dist"])
+        noise = Estimate({"dispersion": k if k is not None else 1e6}, {}, "method of moments around the fitted means",
+                         ["dist"])
         updates[fit.noise] = {None: noise}
         notes.append(f"dispersion {k:.3g}" if k is not None else "no over-dispersion found (dispersion set very large)")
     uncensored = [(y, m) for y, m, c in zip(ys, result.means, censored) if not c]
     rmse, mape, r2 = quality([y for y, _ in uncensored], [m for _, m in uncensored])
     if any(censored):
         notes.append(f"{sum(censored)} censored row(s) fitted as lower bounds (EM, {result.iterations} iterations)")
-    report = PatternFit(problem.name, cfg.kind, "joint count regression (log link" + (", censored EM" if any(censored) else "") + ")",
+    report = PatternFit(problem.name, cfg.kind,
+                        "joint count regression (log link" + (", censored EM" if any(censored) else "") + ")",
                         len(rows), len(keys), rmse, mape, r2, estimates, assumed,
                         {name: _shown(per_key) for name, per_key in updates.items()}, notes)
     return updates, report
 
 
-def _estimates(problem: Problem, terms: List[_Term], base_keys: List[Optional[str]], result: Any, rows: List[Row],
-               row_keys: List[Dict[str, Optional[str]]]) -> Tuple[Dict[str, Dict[Optional[str], Estimate]], List[str]]:
+def _estimates(problem: Problem, terms: list[_Term], base_keys: list[str | None], result: Any, rows: list[Row],
+               row_keys: list[dict[str, str | None]]) -> tuple[dict[str, dict[str | None, Estimate]], list[str]]:
     coef, se, covariance = result.coef, result.se, result.covariance
-    updates: Dict[str, Dict[Optional[str], Estimate]] = {}
-    level_shift: Dict[Tuple[str, Optional[str]], float] = {}
-    level_gradient: Dict[Tuple[str, Optional[str]], Dict[int, float]] = {}
-    names: List[str] = []
+    updates: dict[str, dict[str | None, Estimate]] = {}
+    level_shift: dict[tuple[str, str | None], float] = {}
+    level_gradient: dict[tuple[str, str | None], dict[int, float]] = {}
+    names: list[str] = []
     for term in terms:
         for key in term.keys:
             if term.field == "profile":
@@ -199,13 +202,14 @@ def _estimates(problem: Problem, terms: List[_Term], base_keys: List[Optional[st
                 gradient = level_gradient[(term.pattern, key)] = {j: p / len(raw) for j, p in zip(columns, profile[1:])}
                 errors = [p * math.sqrt(_variance({j: (slot == i + 1) - g for i, (j, g) in enumerate(gradient.items())},
                                                   covariance)) for slot, p in enumerate(profile)]
-                estimate = Estimate({"profile": profile}, {"profile": errors}, "joint count regression", ["period", "form"])
+                estimate = Estimate({"profile": profile}, {"profile": errors}, "joint count regression",
+                                    ["period", "form"])
             else:
                 estimate = Estimate({term.field: coef[term.index(key)]}, {term.field: se[term.index(key)]},
                                     "joint count regression", _assumed(term.field))
             updates.setdefault(term.pattern, {})[key] = estimate
         names.append(f"{term.pattern}.{term.field}")
-    shift_by_key: Dict[Optional[str], Tuple[float, Dict[int, float]]] = {}
+    shift_by_key: dict[str | None, tuple[float, dict[int, float]]] = {}
     by_pattern = {term.pattern: term for term in terms}
     for mapping, row in zip(row_keys, rows):
         base = row.key if base_keys != [None] else None
@@ -213,7 +217,7 @@ def _estimates(problem: Problem, terms: List[_Term], base_keys: List[Optional[st
             levels = [(name, _at(by_pattern[name], key)) for name, key in mapping.items() if name in by_pattern]
             shift_by_key[base] = (sum(level_shift.get(level, 0.0) for level in levels),
                                   {j: g for level in levels for j, g in level_gradient.get(level, {}).items()})
-    scale: Dict[Optional[str], Estimate] = {}
+    scale: dict[str | None, Estimate] = {}
     for group, key in enumerate(base_keys):
         shift, gradient = shift_by_key.get(key, (0.0, {}))
         value = math.exp(result.intercepts[group] + shift)
@@ -221,26 +225,28 @@ def _estimates(problem: Problem, terms: List[_Term], base_keys: List[Optional[st
         crossed = result.intercept_covariance[group]
         variance = (result.intercept_se[group] ** 2 + 2 * sum(g * crossed[j] for j, g in gradient.items())
                     + _variance(gradient, covariance))
-        scale[key] = Estimate({"scale": value}, {"scale": value * math.sqrt(max(0.0, variance))}, "joint count regression")
+        scale[key] = Estimate({"scale": value}, {"scale": value * math.sqrt(max(0.0, variance))},
+                              "joint count regression")
     updates[problem.name] = scale
     return updates, [f"{problem.name}.scale", *names]
 
 
-def _overlaps(terms: List[_Term], result: Any, updates: Dict[str, Dict[Optional[str], Estimate]]) -> List[str]:
+def _overlaps(terms: list[_Term], result: Any, updates: dict[str, dict[str | None, Estimate]]) -> list[str]:
     """Parameters the history can hardly tell apart — promotions that are always price cuts, promotions timed with the
     season or the trend — named together, with how much their overlap widens each one's standard error. The errors
     already carry it; the note says why they are wide and what data would narrow them."""
     covariance, inflation = result.covariance, result.inflation
     columns = [(term.index(key, slot), term, key) for term in terms for key in term.keys for slot in range(term.width)]
-    widest: Dict[str, Tuple[float, int, _Term, Optional[str]]] = {}  # each parameter's most inflated column
+    widest: dict[str, tuple[float, int, _Term, str | None]] = {}  # each parameter's most inflated column
     for j, term, key in columns:
         name = _label(term, key)
         if inflation[j] > widest.get(name, (0.0,))[0]:
             widest[name] = (inflation[j], j, term, key)
-    groups: List[Dict[str, float]] = []  # parameters that overlap, each with its strongest correlation
+    groups: list[dict[str, float]] = []  # parameters that overlap, each with its strongest correlation
     for name, (factor, j, term, _) in widest.items():
         pairs = [(abs(covariance[j][other]) / math.sqrt(covariance[j][j] * covariance[other][other]), _label(t, k))
-                 for other, t, k in columns if t.pattern != term.pattern and covariance[j][j] > 0 and covariance[other][other] > 0]
+                 for other, t, k in columns if t.pattern != term.pattern and covariance[j][j] > 0
+                 and covariance[other][other] > 0]
         if factor < _OVERLAP or not pairs:
             continue
         correlation, partner = max(pairs, key=lambda pair: pair[0])
@@ -254,18 +260,18 @@ def _overlaps(terms: List[_Term], result: Any, updates: Dict[str, Dict[Optional[
         widened = [f"{name} ×{math.sqrt(widest[name][0]):.1f}" for name in group if widest[name][0] >= _OVERLAP]
         ranges = [shown for shown in (_range(updates, *widest[name][2:]) for name in group) if shown]
         notes.append(f"{_join(list(group))} move together in this history (estimates correlated up to "
-                     f"±{max(group.values()):.2f}), so it can hardly tell them apart: the overlap widens their standard "
-                     f"errors ({', '.join(widened)}) and the fitted uncertainty carries that"
+                     f"±{max(group.values()):.2f}), so it can hardly tell them apart: the overlap widens their "
+                     f"standard errors ({', '.join(widened)}) and the fitted uncertainty carries that"
                      + (f" — 95% ranges {'; '.join(ranges)}" if ranges else "")
                      + "; history in which they vary on their own would narrow them")
     return notes
 
 
-def _label(term: _Term, key: Optional[str]) -> str:
+def _label(term: _Term, key: str | None) -> str:
     return f"{term.pattern}.{term.field}" + (f" ({key})" if key is not None else "")
 
 
-def _range(updates: Dict[str, Dict[Optional[str], Estimate]], term: _Term, key: Optional[str]) -> str:
+def _range(updates: dict[str, dict[str | None, Estimate]], term: _Term, key: str | None) -> str:
     """A single-number estimate as its 95% range, for a note (a profile has no one number to show)."""
     estimate = updates[term.pattern][key]
     value, error = estimate.params[term.field], estimate.errors.get(term.field)
@@ -274,16 +280,16 @@ def _range(updates: Dict[str, Dict[Optional[str], Estimate]], term: _Term, key: 
     return f"{_label(term, key)} {value:.3g} ± {1.96 * error:.2g}"
 
 
-def _join(names: List[str]) -> str:
+def _join(names: list[str]) -> str:
     return names[0] if len(names) == 1 else f"{', '.join(names[:-1])} and {names[-1]}"
 
 
-def _variance(gradient: Dict[int, float], covariance: List[List[float]]) -> float:
+def _variance(gradient: dict[int, float], covariance: list[list[float]]) -> float:
     """The variance of Σ gradient·coefficient: a linearised combination of the fitted coefficients."""
     return max(0.0, sum(a * b * covariance[i][j] for i, a in gradient.items() for j, b in gradient.items()))
 
 
-def _confounded(terms: List[_Term], design: Design, reason: str) -> str:
+def _confounded(terms: list[_Term], design: Design, reason: str) -> str:
     """Which factors the data cannot tell apart: each whose removal makes the design solvable is named."""
     from .numeric import least_squares
 
@@ -305,10 +311,10 @@ def _confounded(terms: List[_Term], design: Design, reason: str) -> str:
             "where each varies on its own, or give one of them a fixed value")
 
 
-def _promotion_dips(problem: Problem, configs: Dict[str, Any], responses: List[str], rows: List[Row],
-                    row_keys: List[Dict[str, Optional[str]]]) -> List[float]:
-    """The log of each row's post-promotion dip, from the promotions' declared ``dip`` and ``retain``: rows of one key in
-    time order carry the remembered promotion pressure exactly as the memory pattern does, so a fitted lift is not
+def _promotion_dips(problem: Problem, configs: dict[str, Any], responses: list[str], rows: list[Row],
+                    row_keys: list[dict[str, str | None]]) -> list[float]:
+    """The log of each row's post-promotion dip, from the promotions' declared ``dip`` and ``retain``: rows of one key
+    in time order carry the remembered promotion pressure exactly as the memory pattern does, so a fitted lift is not
     pulled down by the weeks after a promotion."""
     offsets = [0.0] * len(rows)
     runtime = problem.env.world.patterns
@@ -317,7 +323,7 @@ def _promotion_dips(problem: Problem, configs: Dict[str, Any], responses: List[s
         if cfg.kind != "promotion":
             continue
         order = sorted(range(len(rows)), key=lambda i: (str(row_keys[i][name]), rows[i].t))
-        pressure: Dict[Optional[str], Tuple[float, float]] = {}
+        pressure: dict[str | None, tuple[float, float]] = {}
         for index in order:
             key = row_keys[index][name]
             dip = float(runtime.param(name, key, "dip", name))
@@ -336,29 +342,30 @@ def _promotion_dips(problem: Problem, configs: Dict[str, Any], responses: List[s
     return offsets
 
 
-def _term_keys(cfg: Any, field: str, keys: List[Optional[str]]) -> List[Optional[str]]:
+def _term_keys(cfg: Any, field: str, keys: list[str | None]) -> list[str | None]:
     """The keys a parameter is estimated for: each key when the contract gives it per key ($row, $key), else one."""
     raw = getattr(cfg, field)
     text = raw if isinstance(raw, str) else ""
     return keys if cfg.keyed and ("$row" in text or "$key" in text) else [None]
 
 
-def _at(term: _Term, key: Optional[str]) -> Optional[str]:
+def _at(term: _Term, key: str | None) -> str | None:
     return key if term.keys != [None] else None
 
 
-def _assumed(field: str) -> List[str]:
+def _assumed(field: str) -> list[str]:
     return {"rate": ["start", "origin"], "elasticity": ["reference"], "lift": ["dip", "retain"]}.get(field, [])
 
 
-def _slots(problem: Problem, cfg: Any, name: str, key: Optional[str]) -> int:
-    declared = cfg.profile if isinstance(cfg.profile, list) else problem.env.world.patterns.param(name, key, "profile", name)
+def _slots(problem: Problem, cfg: Any, name: str, key: str | None) -> int:
+    declared = (cfg.profile if isinstance(cfg.profile, list)
+                else problem.env.world.patterns.param(name, key, "profile", name))
     if not isinstance(declared, list) or len(declared) < 2:
         raise problem.fail(f"'{name}' needs a profile with its slots declared (e.g. 12 values) to be fitted")
     return len(declared)
 
 
-def _factor_key(problem: Problem, configs: Dict[str, Any], index: int, name: str, row: Row) -> Optional[str]:
+def _factor_key(problem: Problem, configs: dict[str, Any], index: int, name: str, row: Row) -> str | None:
     item = problem.cfg.of[index]
     other = configs[name]
     if not other.keyed:
@@ -368,7 +375,7 @@ def _factor_key(problem: Problem, configs: Dict[str, Any], index: int, name: str
     return _evaluate_key(problem, item.key, row, f"of[{index}].key")
 
 
-def _response_key(problem: Problem, configs: Dict[str, Any], name: str, row: Row) -> Optional[str]:
+def _response_key(problem: Problem, configs: dict[str, Any], name: str, row: Row) -> str | None:
     spec = factor_spec(problem.cfg.fit, name)
     other = configs.get(name)
     if other is None or not other.keyed:
@@ -394,10 +401,11 @@ def _positive(problem: Problem, name: str, value: Any) -> float:
     return float(value)
 
 
-def _shown(per_key: Dict[Optional[str], Estimate]) -> Any:
+def _shown(per_key: dict[str | None, Estimate]) -> Any:
     if list(per_key) == [None]:
         return per_key[None].params
-    return {str(key): est.params for key, est in list(per_key.items())[:2]} | ({"…": f"{len(per_key)} keys"} if len(per_key) > 2 else {})
+    return ({str(key): est.params for key, est in list(per_key.items())[:2]}
+            | ({"…": f"{len(per_key)} keys"} if len(per_key) > 2 else {}))
 
 
 def _unused(kinds: Any = KINDS) -> None:  # pragma: no cover

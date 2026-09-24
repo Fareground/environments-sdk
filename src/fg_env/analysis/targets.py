@@ -26,8 +26,9 @@ A rate recorded case by case (a day's abandonment, a store's fill rate) may add:
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..runtime.measure import RunResult
 from . import runner
@@ -47,18 +48,18 @@ _DISAGREE_SE = 2.0
 class Target:
     name: str
     kind: str  # value | series | stat | distribution
-    measure: Tuple[str, str]
+    measure: tuple[str, str]
     goal: Any
-    stat: Optional[str] = None
+    stat: str | None = None
     weight: float = 1.0
-    scale: Optional[float] = None
+    scale: float | None = None
     #: Trials behind a recorded rate (weights its error by its data).
-    count: Optional[float] = None
+    count: float | None = None
     #: Matched together with the same target of the other cases.
     pool: bool = False
 
 
-def parse_targets(contract: Any, targets: Mapping[str, Any]) -> List[Target]:
+def parse_targets(contract: Any, targets: Mapping[str, Any]) -> list[Target]:
     if not targets:
         raise ValueError("calibrate needs at least one target")
     return [_target(contract, name, spec) for name, spec in targets.items()]
@@ -116,7 +117,7 @@ def _counted(target: Target, options: Mapping[str, Any]) -> Target:
     return replace(target, count=None if count is None else float(count), pool=pool)
 
 
-def target_error(target: Target, runs: Sequence[RunResult]) -> Dict[str, Any]:
+def target_error(target: Target, runs: Sequence[RunResult]) -> dict[str, Any]:
     """The simulated counterpart of one target and its normalized error (``None`` without data)."""
     ok = [r for r in runs if r.status != "failed"]
     if target.kind == "value":
@@ -159,7 +160,7 @@ def target_error(target: Target, runs: Sequence[RunResult]) -> Dict[str, Any]:
     return {"target": target.name, "distance": distance, "simulated_mean": mean(values), "error": distance / scale}
 
 
-def evaluate_targets(targets: Sequence[Target], runs: Sequence[RunResult]) -> Tuple[float, List[Dict[str, Any]]]:
+def evaluate_targets(targets: Sequence[Target], runs: Sequence[RunResult]) -> tuple[float, list[dict[str, Any]]]:
     """Weighted RMS of normalized errors (``inf`` when a target has no simulated value)."""
     details = [target_error(t, runs) for t in targets]
     if any(d["error"] is None for d in details):
@@ -174,9 +175,9 @@ def _rate_error(rate: float, count: float) -> float:
     return math.sqrt(spread / count) if spread > 0 else 1.0 / count
 
 
-def _pooled_goals(goal_lists: Sequence[Sequence[Target]]) -> Dict[str, float]:
+def _pooled_goals(goal_lists: Sequence[Sequence[Target]]) -> dict[str, float]:
     """Each counted target's recorded rate pooled over the cases (weighted by count)."""
-    sums: Dict[str, List[float]] = {}
+    sums: dict[str, list[float]] = {}
     for goals in goal_lists:
         for goal in goals:
             if goal.count is not None:
@@ -186,7 +187,7 @@ def _pooled_goals(goal_lists: Sequence[Sequence[Target]]) -> Dict[str, float]:
     return {name: weighted / count for name, (weighted, count) in sums.items()}
 
 
-def count_scaled(goal_lists: Sequence[Sequence[Target]]) -> List[List[Target]]:
+def count_scaled(goal_lists: Sequence[Sequence[Target]]) -> list[list[Target]]:
     """Per-case targets with a ``count`` and no ``scale``, scaled by a rate's standard error at the pooled rate."""
     rates = _pooled_goals(goal_lists)
     return [[replace(goal, scale=_rate_error(rates[goal.name], goal.count))
@@ -194,14 +195,14 @@ def count_scaled(goal_lists: Sequence[Sequence[Target]]) -> List[List[Target]]:
             for goals in goal_lists]
 
 
-def pooled_error(pairs: Sequence[Tuple[Target, Mapping[str, Any]]]) -> Dict[str, Any]:
+def pooled_error(pairs: Sequence[tuple[Target, Mapping[str, Any]]]) -> dict[str, Any]:
     """One target over every case: the weighted means of its simulated and recorded values, the gap's standard error
     (the runs' noise and, with counts, the recorded rates'), and the normalized error."""
     first = pairs[0][0]
     weights = [goal.count or 1.0 for goal, _ in pairs]
     total = math.fsum(weights)
     goal = math.fsum(w * g.goal for w, (g, _) in zip(weights, pairs)) / total
-    row: Dict[str, Any] = {"target": first.name, "case": "pooled", "cases": len(pairs), "goal": goal}
+    row: dict[str, Any] = {"target": first.name, "case": "pooled", "cases": len(pairs), "goal": goal}
     if any(detail.get("simulated") is None for _, detail in pairs):
         return {**row, "simulated": None, "error": None, "se": None}
     simulated = math.fsum(w * d["simulated"] for w, (_, d) in zip(weights, pairs)) / total
@@ -214,7 +215,7 @@ def pooled_error(pairs: Sequence[Tuple[Target, Mapping[str, Any]]]) -> Dict[str,
 
 
 def pooled_checks(cases: Sequence[Sequence[Target]], details: Sequence[Mapping[str, Any]],
-                  history: Sequence[Tuple[Mapping[str, Any], Sequence[Mapping[str, Any]]]]) -> List[Dict[str, Any]]:
+                  history: Sequence[tuple[Mapping[str, Any], Sequence[Mapping[str, Any]]]]) -> list[dict[str, Any]]:
     """For every number target fitted case by case in more than one case: its pooled level at the best fit, whether that
     disagrees with the recorded pooled level beyond noise, and the evaluated inputs that match the pooled level best.
 
@@ -227,7 +228,7 @@ def pooled_checks(cases: Sequence[Sequence[Target]], details: Sequence[Mapping[s
     for name in names:
         at = [k for k, (_, goal) in enumerate(order) if goal.name == name]
 
-        def pooled(rows: Sequence[Mapping[str, Any]], at: List[int] = at) -> Dict[str, Any]:
+        def pooled(rows: Sequence[Mapping[str, Any]], at: list[int] = at) -> dict[str, Any]:
             return pooled_error([(order[k][1], rows[k]) for k in at])
 
         best = pooled(details)

@@ -5,9 +5,9 @@ import threading
 import time
 
 import pytest
+from test_runtime import SHOP
 
 import fg_env
-from test_runtime import SHOP
 
 GAME = {
     "name": "Blitz",

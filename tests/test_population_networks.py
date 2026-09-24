@@ -1,12 +1,13 @@
-"""Populations (dependent traits, archetype mixes, households, raking) and networks (generators, metrics, keyed draws)."""
+"""Populations (dependent traits, archetype mixes, households, raking) and networks (generators, metrics, keyed draws).
+"""
 import json
 from collections import Counter
 
 import pytest
 
 import fg_env
-from fg_env.world.build import rake
 from fg_env.errors import RunError
+from fg_env.world.build import rake
 
 TOWN = {
     "name": "Town", "clock": {"rounds": 1},

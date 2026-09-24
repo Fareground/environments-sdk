@@ -77,7 +77,8 @@ def test_classic_strategies_react_to_the_history():
 
 def test_mistakes_break_a_cooperative_equilibrium():
     nice = {"participants": _players(a="tit_for_tat", b="tit_for_tat"), "rounds": 10}
-    assert {run("strategy", seed=seed, inputs={**nice, "mistakes": 0}).outputs["cooperation_rate"] for seed in SEEDS} == {1.0}
+    assert ({run("strategy", seed=seed, inputs={**nice, "mistakes": 0}).outputs["cooperation_rate"] for seed in SEEDS}
+            == {1.0})
     assert statistics.fmean(run("strategy", seed=seed, inputs={**nice, "mistakes": 0.3}).outputs["cooperation_rate"]
                             for seed in SEEDS) < 0.9
 
@@ -135,7 +136,8 @@ def test_coded_counsel_lead_with_their_strongest_admissible_exhibits_so_verdicts
     first_day = {e["props"]["side"]: e["id"] for e in env.entities("exhibit") if e["props"]["day"] == 1}
     assert first_day == {"plaintiff": "P1", "defense": "D1"}  # each side's strongest clean exhibit, not a hearsay one
     for rounds in (1, 2, 3, 4):  # the plaintiff holds the stronger admissible case however many days of evidence
-        verdicts = [run("dispute", seed=seed, inputs={"evidence_rounds": rounds}).outputs["verdict"] for seed in range(20)]
+        verdicts = [run("dispute", seed=seed, inputs={"evidence_rounds": rounds}).outputs["verdict"]
+                    for seed in range(20)]
         assert verdicts.count("liable") > 2 * verdicts.count("not_liable"), (rounds, verdicts)
 
 
@@ -192,7 +194,8 @@ def test_coded_negotiators_concede_toward_a_deal_before_the_deadline():
     assert all(min(o["surplus"].values()) >= 0 for o in runs)
     assert len({tuple(sorted(o["terms"].items())) for o in runs}) > 1  # the terms depend on the run
     shortest = fg_env.engines.get("negotiation").source()["inputs"]["deadline"]["min"]
-    assert all(run("negotiation", seed=seed, inputs={"deadline": shortest}).outputs["deal_signed"] for seed in range(10))
+    assert all(run("negotiation", seed=seed, inputs={"deadline": shortest}).outputs["deal_signed"]
+               for seed in range(10))
     later = [run("negotiation", seed=seed, inputs={"deadline": 20}).outputs for seed in range(10)]
     assert statistics.fmean(o["agreement_round"] for o in later) > statistics.fmean(o["agreement_round"] for o in runs)
     parties = fg_env.engines.get("negotiation").source()["inputs"]["participants"]["default"]
@@ -289,7 +292,8 @@ def test_population_responses_vary_with_uncertainty_and_follow_inclination():
     certain = [{**p, "confidence": 1} for p in people]
     assert len({_support(seed, participants=certain) for seed in SEEDS}) == 1  # no uncertainty, no noise
     keen = [{**p, "inclination": min(1, p["inclination"] + 0.6)} for p in people]
-    assert statistics.fmean(_support(s, participants=keen) for s in SEEDS) > statistics.fmean(_support(s) for s in SEEDS)
+    assert (statistics.fmean(_support(s, participants=keen) for s in SEEDS)
+            > statistics.fmean(_support(s) for s in SEEDS))
 
 
 @pytest.mark.parametrize("engine_id, output", [
@@ -370,7 +374,8 @@ def test_every_declared_numeric_input_moves_an_output_across_its_range(engine_id
     """An input a starter advertises must do something: moved from its min to its max it changes an output, unless
     it is listed in _INERT with the reason no output can show it."""
     changed = _swept_outputs(engine_id, name, low) != _swept_outputs(engine_id, name, high)
-    assert changed != ((engine_id, name) in _INERT), _INERT.get((engine_id, name), f"{name} changed no output of {engine_id}")
+    assert changed != ((engine_id, name) in _INERT), _INERT.get((engine_id, name),
+                                                                f"{name} changed no output of {engine_id}")
 
 
 def test_the_market_sample_stands_for_the_city_so_capacity_scales_with_it():
@@ -414,7 +419,8 @@ def test_population_reports_more_confidence_the_more_certain_people_are():
 
 
 @pytest.mark.parametrize("engine_id, kind, at_least", [
-    ("population", "person", 100), ("network", "person", 50), ("matching", "applicant", 30), ("contest", "contestant", 5),
+    ("population", "person", 100), ("network", "person", 50), ("matching", "applicant", 30),
+    ("contest", "contestant", 5),
     ("strategy", "strategist", 8), ("legislature", "member", 21), ("deliberation", "member", 10),
 ])
 def test_engines_ship_realistic_default_sizes(engine_id, kind, at_least):

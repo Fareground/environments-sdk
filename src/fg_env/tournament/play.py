@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..analysis.runner import AnalysisError, check_positive_int, run_seeds
 from ..analysis.stats import estimate
 from ..api import ContractLike, default_data_dir, load, parse
-from ..runtime.budget import Budget
 from ..experiments.experiment import Job, run_jobs, worker_pool
+from ..runtime.budget import Budget
 from ..runtime.measure import RunResult
 from .result import TournamentResult
 from .scoring import ScoreSpec, SeatScorer
@@ -18,11 +19,11 @@ from .standings import RATINGS, Ledger, outcomes
 __all__ = ["tournament"]
 
 
-def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Optional[Sequence[str]] = None,
+def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Sequence[str] | None = None,
                pairing: str = "round_robin", games: int = 1, score: ScoreSpec = None, rating: str = "elo",
-               swiss_rounds: Optional[int] = None, others: Any = None, inputs: Optional[Mapping[str, Any]] = None,
-               arm: Optional[str] = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
-               data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None,
+               swiss_rounds: int | None = None, others: Any = None, inputs: Mapping[str, Any] | None = None,
+               arm: str | None = None, rounds: int | None = None, seed: int = 0, workers: int = 1,
+               data_dir: Any = None, budget: Mapping[str, Any] | None = None,
                exposures: bool = False) -> TournamentResult:
     """Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
 
@@ -40,13 +41,13 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
     ``$seat_name``, or ``fn(result, seat_id)``. Agents without a seat play ``others`` (default: their
     type's policy, else random).
 
-    Standings are ranked by ``rating``: ``elo`` (maximum-likelihood, with 95% intervals) or ``glicko2``;
-    both are reported, with win/draw/loss, points and score means. ``evaluation`` adds the Nash average,
-    α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
-    entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
-    undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
-    ``budget`` caps each game on its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in
-    every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
+    Standings are ranked by ``rating``: ``elo`` (maximum-likelihood, with 95% intervals) or ``glicko2``; both are
+    reported, with win/draw/loss, points and score means. ``evaluation`` adds the Nash average, α-Rank and a Schulze
+    vote, which stay meaningful when skill is not transitive; ``returns`` gives every entrant's score in every seat, and
+    each standing's ``cost`` its turns, calls, invalid calls, timeouts, undone turns and model tokens. A callable
+    entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
+    its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
+    (``result.runs[i].exposures``, events kept), each a trace to read or replay.
     """
     names = _entrant_names(entrants)
     check_positive_int("games", games)
@@ -80,8 +81,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
     scorer = SeatScorer(probe.contract, score, seat_ids, agents)
     seeds = run_seeds(seed, games)
     ledger = Ledger(names, seat_ids)
-    records: List[Dict[str, Any]] = []
-    runs: List[RunResult] = []
+    records: list[dict[str, Any]] = []
+    runs: list[RunResult] = []
 
     def play(round_index: int, seatings: Sequence[Seating], pool: Any) -> None:
         jobs = [Job(fixed, arm, seeds[g], {"round": round_index, "seating": s, "game": g},
@@ -89,7 +90,8 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
                 for s, seating in enumerate(seatings) for g in range(games)]
         results = run_jobs(parsed, jobs, rounds=rounds, workers=workers, events=False, pool=pool, data_dir=folder,
                            budget=budget, exposures=exposures)
-        batch = [_record(job, result, seat_ids, seatings[job.tags["seating"]], scorer) for job, result in zip(jobs, results)]
+        batch = [_record(job, result, seat_ids, seatings[job.tags["seating"]], scorer)
+                 for job, result in zip(jobs, results)]
         ledger.record_round(batch)
         records.extend(batch)
         runs.extend(results)
@@ -114,7 +116,7 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
                             ledger.evaluation(), records, runs, notes)
 
 
-def _entrant_names(entrants: Mapping[str, Any]) -> List[str]:
+def _entrant_names(entrants: Mapping[str, Any]) -> list[str]:
     if not isinstance(entrants, Mapping):
         raise ValueError("entrants must be a mapping of name → participant, like {'greedy': 'policy:greedy'}")
     names = list(entrants)
@@ -126,7 +128,7 @@ def _entrant_names(entrants: Mapping[str, Any]) -> List[str]:
     return names
 
 
-def _seat_ids(seats: Optional[Sequence[str]], agents: Mapping[str, str]) -> List[str]:
+def _seat_ids(seats: Sequence[str] | None, agents: Mapping[str, str]) -> list[str]:
     chosen = list(agents) if seats is None else seats
     if isinstance(chosen, str) or not isinstance(chosen, Sequence):
         raise ValueError(f"seats must be a list of agent entity ids, got {seats!r}")
@@ -143,12 +145,14 @@ def _seat_ids(seats: Optional[Sequence[str]], agents: Mapping[str, str]) -> List
     return listed
 
 
-def _participants(seat_ids: Sequence[str], seating: Seating, entrants: Mapping[str, Any], others: Any) -> Dict[str, Any]:
+def _participants(seat_ids: Sequence[str], seating: Seating, entrants: Mapping[str, Any],
+                  others: Any) -> dict[str, Any]:
     chosen = {seat: entrants[name] for seat, name in zip(seat_ids, seating)}
     return {**chosen, "*": others} if others is not None else chosen
 
 
-def _record(job: Job, result: RunResult, seat_ids: Sequence[str], seating: Seating, scorer: SeatScorer) -> Dict[str, Any]:
+def _record(job: Job, result: RunResult, seat_ids: Sequence[str], seating: Seating,
+            scorer: SeatScorer) -> dict[str, Any]:
     record = {"round": job.tags["round"], "game": job.tags["game"], "seed": job.seed,
               "seating": dict(zip(seat_ids, seating)), "status": result.status,
               "stats": {seat: result.agent_stats[seat] for seat in seat_ids if seat in result.agent_stats}}
@@ -158,7 +162,7 @@ def _record(job: Job, result: RunResult, seat_ids: Sequence[str], seating: Seati
     return {**record, "scores": scores, "outcomes": outcomes(scores) if scores else None, "note": reason}
 
 
-def _notes(records: Sequence[Mapping[str, Any]], score: ScoreSpec) -> List[str]:
+def _notes(records: Sequence[Mapping[str, Any]], score: ScoreSpec) -> list[str]:
     games = [r for r in records if "seating" in r]
     failed = [r for r in games if r["status"] == "failed"]
     unscored = [r for r in games if r["status"] != "failed" and r["scores"] is None]

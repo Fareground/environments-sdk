@@ -104,7 +104,8 @@ def test_an_answer_outside_the_target_shape_fails_clearly(prices, news, message)
 
 
 def test_the_historical_adapter_replays_a_price_history_by_date():
-    rows = [{"date": "2026-01-04", "close": 72}, {"date": "2025-12-31", "close": 70}, {"date": "2026-01-02", "close": 75}]
+    rows = [{"date": "2026-01-04", "close": 72}, {"date": "2025-12-31", "close": 70},
+            {"date": "2026-01-02", "close": 75}]
     news = StubFeed([[]])
     result = host.load(MARKET, hosts={"prices": historical(rows, at="date", value="close"), "news": news}, seed=1).run()
     assert result.series["oil"] == [70, 75, 75, 72]

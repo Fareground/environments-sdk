@@ -119,13 +119,15 @@ def test_example_contracts_are_classified_from_their_expanded_parts():
 
 def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_described():
     outbreak = describe(EXAMPLES / "outbreak_network.json").metadata
-    assert outbreak["external_data"] == [{"feed": "weather", "host": "weather", "into": "world.temperature", "every": 1}]
+    assert outbreak["external_data"] == [{"feed": "weather", "host": "weather", "into": "world.temperature",
+                                          "every": 1}]
     chance = outbreak["evidence"]["chance_mode"]
     assert "feeds.weather.fallback calls $normal" in chance
     assert "physics.per.resident.vars.viral_load.noise is a random term" in chance
     assert "actions.advise.do[0] may lose the message (drop)" in chance
     assert outbreak["information"] == "imperfect"
-    assert {"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"} <= set(outbreak["concepts"])
+    assert ({"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"}
+            <= set(outbreak["concepts"]))
     hop = describe(EXAMPLES / "hopscotch_race.json")
     assert hop.metadata["evidence"]["dynamics"] == [
         "stage hop: sequential turns, atomic (a turn's actions stand or fall together), time limit 30.0 s"]
@@ -135,7 +137,8 @@ def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_descri
 
 
 def test_a_spectator_view_does_not_show_state_to_agents():
-    omniscient = describe(_variant(views={"heap": {"for": "spectator", "show": "Stones left: {$world.stones}"}})).metadata
+    omniscient = describe(_variant(views={"heap": {"for": "spectator", "show": "Stones left: "
+                                                                               "{$world.stones}"}})).metadata
     assert omniscient["information"] == "unknown"
     assert omniscient["observations"]["spectator"] == ["heap"] and omniscient["observations"]["views"] == {"player": []}
 
@@ -161,7 +164,8 @@ def test_claims_that_the_contract_contradicts_are_errors_and_unverifiable_ones_w
                                 "num_distinct_actions": 3, "colour": "blue"})
     by_path = {i.path: i for i in issues}
     assert set(by_path) == {"game.information", "game.utility", "game.colour"}
-    assert by_path["game.information"].severity == "error" and "makes it 'perfect'" in by_path["game.information"].message
+    assert (by_path["game.information"].severity == "error"
+            and "makes it 'perfect'" in by_path["game.information"].message)
     assert by_path["game.utility"].severity == "warning" and "cannot be verified" in by_path["game.utility"].message
     assert by_path["game.colour"].severity == "warning"
 

@@ -25,7 +25,8 @@ def _days(scale_by_goal=False):
 
 
 def _fit(cases):
-    return fg_env.analysis.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden").params["p"]
+    fit = fg_env.analysis.calibrate(CENTRE, cases, {"p": {"low": 0, "high": 1}}, runs=1, budget=40, method="golden")
+    return fit.params["p"]
 
 
 def test_mixed_targets_are_weighed_by_their_spread_so_the_share_is_not_traded_for_the_rate():

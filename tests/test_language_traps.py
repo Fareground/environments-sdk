@@ -156,7 +156,8 @@ def test_a_list_bound_expression_is_checked():
 def test_created_props_are_evaluated_after_the_props_they_read():
     contract = {"name": "Order", "clock": {"rounds": 1},
                 "types": {"thing": {"props": {"double": 0, "base": 0}}},
-                "events": [{"phase": "end", "do": [{"create": "thing", "props": {"base": 3, "double": "$it.base * 2"}}]}],
+                "events": [{"phase": "end",
+                            "do": [{"create": "thing", "props": {"base": 3, "double": "$it.base * 2"}}]}],
                 "outputs": {"d": "$map(thing, $it.double)"}}
     assert _errors(contract) == []
     assert fg_env.run(contract, seed=1).outputs == {"d": [6]}

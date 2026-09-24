@@ -9,7 +9,8 @@ themselves, a sweep over a fitted input, and anyone who already knows the values
 from __future__ import annotations
 
 import time
-from typing import Any, Callable, Dict, Mapping, Optional
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from ..contract import CalibrationSpec, Contract
 from ..errors import RunError
@@ -20,7 +21,7 @@ __all__ = ["calibrate_at_load"]
 
 
 def calibrate_at_load(contract: Contract, supplied: Mapping[str, Any], resolved: Mapping[str, Any], seed: int,
-                      arm: Optional[str], build: Callable[[Mapping[str, Any]], Any]) -> Optional[Dict[str, Any]]:
+                      arm: str | None, build: Callable[[Mapping[str, Any]], Any]) -> dict[str, Any] | None:
     """Fit the contract's ``calibration`` params for a session with these inputs and seed. Returns the report
     ({params, targets, fit, validation_fit, method, evaluations, pilot_sessions, seconds, notes}), or None when the
     contract declares no calibration or the caller already set a fitted input. ``build(inputs)`` builds a world to
@@ -40,12 +41,14 @@ def calibrate_at_load(contract: Contract, supplied: Mapping[str, Any], resolved:
                         workers=spec.workers)
     except ValueError as exc:
         raise RunError(str(exc), "calibration") from None
-    return {"params": dict(fit.params), "plausible": [dict(point) for point in fit.plausible], "targets": targets, "fit": fit.fit, "validation_fit": fit.validation["fit"],
-            "method": fit.method, "evaluations": fit.evaluations, "pilot_sessions": fit.evaluations * spec.runs + spec.holdout,
+    return {"params": dict(fit.params), "plausible": [dict(point) for point in fit.plausible], "targets": targets,
+            "fit": fit.fit, "validation_fit": fit.validation["fit"],
+            "method": fit.method, "evaluations": fit.evaluations,
+            "pilot_sessions": fit.evaluations * spec.runs + spec.holdout,
             "seconds": round(time.perf_counter() - started, 3), "notes": list(fit.notes)}
 
 
-def _targets(spec: CalibrationSpec, env: Any) -> Dict[str, Any]:
+def _targets(spec: CalibrationSpec, env: Any) -> dict[str, Any]:
     """The targets with every expression value read from the session's built world."""
     scope = env.world.scope()
 
@@ -57,7 +60,7 @@ def _targets(spec: CalibrationSpec, env: Any) -> Dict[str, Any]:
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
-    out: Dict[str, Any] = {}
+    out: dict[str, Any] = {}
     for name, target in spec.targets.items():
         path = f"calibration.targets.{name}"
         if isinstance(target, Mapping) and "value" in target:

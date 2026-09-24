@@ -1,8 +1,8 @@
-"""Patterns in plain words, for ``fg_env.analysis.describe``: what each is, what it is kept per, how it is read, and whether
-it was fitted or carries estimation uncertainty."""
+"""Patterns in plain words, for ``fg_env.analysis.describe``: what each is, what it is kept per, how it is read, and
+whether it was fitted or carries estimation uncertainty."""
 from __future__ import annotations
 
-from typing import Any, List
+from typing import Any
 
 from ..expr import is_expr
 from .base import KINDS
@@ -21,7 +21,7 @@ def _per(cfg: Any) -> str:
     return "the whole world"
 
 
-def pattern_rows(contract: Any) -> List[List[Any]]:
+def pattern_rows(contract: Any) -> list[list[Any]]:
     """``[pattern, what it is, kind, per, read as, notes]`` for every declared pattern."""
     rows = []
     for name, spec in contract.patterns.items():

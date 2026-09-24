@@ -9,14 +9,24 @@ value, the mean of earlier values, the value one season back). Warnings say plai
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..api import ContractLike
 from ..runtime.measure import RunResult
 from . import runner
-from .accuracy import (BASELINES, Pair, accuracy, baseline_points, bias_verdict, compare_baseline, coverage_verdict,
-                       per_key, point_accuracy)
+from .accuracy import (
+    BASELINES,
+    Pair,
+    accuracy,
+    baseline_points,
+    bias_verdict,
+    compare_baseline,
+    coverage_verdict,
+    per_key,
+    point_accuracy,
+)
 from .draws import parameter_draws, with_draws
 from .holdout import case_names, splits
 from .stats import is_number, quantile
@@ -31,14 +41,14 @@ _KEYS_SHOWN = 5
 class ValidationResult:
     contract: str
     runs: int
-    levels: List[float]
-    cases: List[str]
+    levels: list[float]
+    cases: list[str]
     #: Per measure: ``{overall, held_out?, keys: {key: accuracy}, baselines: [...], warnings: [...]}``.
-    measures: Dict[str, Dict[str, Any]]
+    measures: dict[str, dict[str, Any]]
     #: One row per case, measure and key: ``{case, measure, key, actual, forecast, low, high, level, error}``.
-    rows: List[Dict[str, Any]]
-    warnings: List[str] = field(default_factory=list)
-    notes: List[str] = field(default_factory=list)
+    rows: list[dict[str, Any]]
+    warnings: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
     def report(self) -> str:
         lines = [f"Validation of {self.contract}: {len(self.cases)} case(s) × {self.runs} run(s)"]
@@ -60,12 +70,12 @@ class ValidationResult:
         lines += [f"note: {text}" for text in self.notes]
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "runs": self.runs, "levels": self.levels, "cases": self.cases,
                 "measures": self.measures, "rows": self.rows, "warnings": self.warnings, "notes": self.notes}
 
 
-def _pct(value: Optional[float]) -> str:
+def _pct(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.1%}"
 
 
@@ -91,9 +101,9 @@ def _baseline_verdict(row: Mapping[str, Any]) -> str:
 
 
 def validate(contract: ContractLike, cases: Sequence[Mapping[str, Any]], *, runs: int = 10,
-             levels: Sequence[float] = (0.8, 0.95), season: Optional[int] = None,
-             baselines: Sequence[str] = ("last", "mean", "seasonal"), test: Any = None, arm: Optional[str] = None,
-             participants: Any = None, rounds: Optional[int] = None, seed: int = 0, workers: int = 1,
+             levels: Sequence[float] = (0.8, 0.95), season: int | None = None,
+             baselines: Sequence[str] = ("last", "mean", "seasonal"), test: Any = None, arm: str | None = None,
+             participants: Any = None, rounds: int | None = None, seed: int = 0, workers: int = 1,
              data_dir: Any = None, hosts: Any = None, uncertainty: Any = None) -> ValidationResult:
     """Check the contract's forecasts against each case's ``actuals`` (see the module notes).
 
@@ -125,10 +135,10 @@ def validate(contract: ContractLike, cases: Sequence[Mapping[str, Any]], *, runs
         jobs = with_draws(jobs, parameter_draws(parsed, uncertainty, runs, seed))
     grouped = runner.by_cell(jobs, runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds,
                                                    workers=workers, hosts=hosts), len(cases))
-    notes: List[str] = []
-    result_measures: Dict[str, Dict[str, Any]] = {}
-    rows: List[Dict[str, Any]] = []
-    warnings: List[str] = []
+    notes: list[str] = []
+    result_measures: dict[str, dict[str, Any]] = {}
+    rows: list[dict[str, Any]] = []
+    warnings: list[str] = []
     for name, measure in measures.items():
         pairs = _pairs(name, measure, cases, names, grouped, notes)
         if not pairs:
@@ -147,8 +157,8 @@ def validate(contract: ContractLike, cases: Sequence[Mapping[str, Any]], *, runs
                             warnings, notes)
 
 
-def _measures(contract: Any, cases: Sequence[Mapping[str, Any]], names: List[str]) -> Dict[str, Tuple[str, str]]:
-    found: Dict[str, Tuple[str, str]] = {}
+def _measures(contract: Any, cases: Sequence[Mapping[str, Any]], names: list[str]) -> dict[str, tuple[str, str]]:
+    found: dict[str, tuple[str, str]] = {}
     for name, case in zip(names, cases):
         actuals = case.get("actuals") if isinstance(case, Mapping) else None
         if not isinstance(actuals, Mapping) or not actuals:
@@ -159,9 +169,9 @@ def _measures(contract: Any, cases: Sequence[Mapping[str, Any]], names: List[str
     return found
 
 
-def _pairs(name: str, measure: Tuple[str, str], cases: Sequence[Mapping[str, Any]], names: List[str],
-           grouped: Sequence[Sequence[RunResult]], notes: List[str]) -> List[Pair]:
-    pairs: List[Pair] = []
+def _pairs(name: str, measure: tuple[str, str], cases: Sequence[Mapping[str, Any]], names: list[str],
+           grouped: Sequence[Sequence[RunResult]], notes: list[str]) -> list[Pair]:
+    pairs: list[Pair] = []
     for index, (case, case_runs) in enumerate(zip(cases, grouped)):
         if name not in case["actuals"]:
             continue
@@ -175,7 +185,7 @@ def _pairs(name: str, measure: Tuple[str, str], cases: Sequence[Mapping[str, Any
     return pairs
 
 
-def _keyed(actual: Any, where: str) -> List[Tuple[str, float]]:
+def _keyed(actual: Any, where: str) -> list[tuple[str, float]]:
     if isinstance(actual, Mapping):
         items = [(str(key), value) for key, value in actual.items()]
     elif isinstance(actual, (list, tuple)):
@@ -198,10 +208,10 @@ def _member(value: Any, key: str) -> Any:
     return None
 
 
-def _summarise(name: str, pairs: List[Pair], held: set, levels: Sequence[float], baselines: Sequence[str],
-               season: Optional[int], notes: List[str]) -> Dict[str, Any]:
+def _summarise(name: str, pairs: list[Pair], held: set, levels: Sequence[float], baselines: Sequence[str],
+               season: int | None, notes: list[str]) -> dict[str, Any]:
     overall = accuracy(pairs, levels)
-    summary: Dict[str, Any] = {"overall": overall, "keys": {}, "baselines": [], "warnings": []}
+    summary: dict[str, Any] = {"overall": overall, "keys": {}, "baselines": [], "warnings": []}
     if held:
         tested = [pair for pair in pairs if pair.case in held]
         summary["held_out"] = accuracy(tested, levels) if tested else None
@@ -218,8 +228,8 @@ def _summarise(name: str, pairs: List[Pair], held: set, levels: Sequence[float],
     for kind in baselines:
         if kind == "seasonal" and season is None:
             continue
-        model_points: List[Tuple[float, float]] = []
-        reference_points: List[Tuple[float, float]] = []
+        model_points: list[tuple[float, float]] = []
+        reference_points: list[tuple[float, float]] = []
         for group in grouped.values():
             by_case = {pair.case: pair for pair in group}
             for case, point in baseline_points({c: p.actual for c, p in by_case.items()}, kind, season).items():
@@ -231,12 +241,13 @@ def _summarise(name: str, pairs: List[Pair], held: set, levels: Sequence[float],
         row = compare_baseline(point_accuracy(model_points), point_accuracy(reference_points), kind, season)
         summary["baselines"].append(row)
         if _worse(row):
-            summary["warnings"].append(f"the simulator's WAPE {_pct(row['model']['wape'])} is worse than {row['label']} "
-                                       f"({_pct(row['reference']['wape'])}) on the same {row['n']} value(s)")
+            summary["warnings"].append(f"the simulator's WAPE {_pct(row['model']['wape'])} is worse than "
+                                       f"{row['label']} ({_pct(row['reference']['wape'])}) on the same {row['n']} "
+                                       "value(s)")
     return summary
 
 
-def _rows(name: str, pairs: List[Pair], names: List[str], levels: Sequence[float]) -> List[Dict[str, Any]]:
+def _rows(name: str, pairs: list[Pair], names: list[str], levels: Sequence[float]) -> list[dict[str, Any]]:
     widest = max(levels)
     tail = (1.0 - widest) / 2.0
     return [{"case": names[pair.case], "measure": name, "key": pair.key, "actual": pair.actual, "forecast": pair.point,

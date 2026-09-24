@@ -1,11 +1,12 @@
 """Playing an evaluation: each scenario, mode and seed run twice — focal in the drawn seats, then the baseline."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..analysis.runner import AnalysisError, check_positive_int, run_seeds
-from ..runtime.budget import Budget
 from ..experiments.experiment import Job, run_jobs, worker_pool
+from ..runtime.budget import Budget
 from ..runtime.measure import RunResult
 from ..sampling.seeds import SeedTree
 from ..tournament.scoring import ScoreSpec
@@ -16,9 +17,9 @@ __all__ = ["evaluate"]
 
 
 def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = None, seats: Any = None,
-             score: ScoreSpec = None, modes: Optional[Mapping[str, float]] = None,
-             inputs: Optional[Mapping[str, Any]] = None, arm: Optional[str] = None, runs: int = 10,
-             rounds: Optional[int] = None, budget: Optional[Mapping[str, Any]] = None, seed: int = 0,
+             score: ScoreSpec = None, modes: Mapping[str, float] | None = None,
+             inputs: Mapping[str, Any] | None = None, arm: str | None = None, runs: int = 10,
+             rounds: int | None = None, budget: Mapping[str, Any] | None = None, seed: int = 0,
              workers: int = 1, exposures: bool = False) -> EvaluationResult:
     """How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
 
@@ -53,8 +54,8 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     seeds = run_seeds(seed, runs)
     named = {str(i): p for i, p in enumerate([focal] + [p for c in cases for p in (c.background, c.baseline)])
              if p is not None}
-    pairs: List[Dict[str, Any]] = []
-    played: List[RunResult] = []
+    pairs: list[dict[str, Any]] = []
+    played: list[RunResult] = []
     with worker_pool(workers, named) as pool:
         for case in cases:
             jobs = _jobs(case, focal, seeds, seed)
@@ -69,7 +70,7 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     return summarize(cases, pairs, focal=_label(focal), runs=runs, seed=seed, results=played)
 
 
-def _jobs(case: Scenario, focal: Any, seeds: Sequence[int], seed: int) -> List[Job]:
+def _jobs(case: Scenario, focal: Any, seeds: Sequence[int], seed: int) -> list[Job]:
     jobs = []
     for mode in case.modes:
         count = case.focal_seats(mode)
@@ -82,8 +83,8 @@ def _jobs(case: Scenario, focal: Any, seeds: Sequence[int], seed: int) -> List[J
     return jobs
 
 
-def _seating(case: Scenario, chosen: Tuple[str, ...], player: Any) -> Dict[str, Any]:
-    spec: Dict[str, Any] = {"*": case.background} if case.background is not None else {}
+def _seating(case: Scenario, chosen: tuple[str, ...], player: Any) -> dict[str, Any]:
+    spec: dict[str, Any] = {"*": case.background} if case.background is not None else {}
     for seat in case.seats:
         occupant = player if seat in chosen else case.background
         if occupant is not None:
@@ -91,9 +92,9 @@ def _seating(case: Scenario, chosen: Tuple[str, ...], player: Any) -> Dict[str, 
     return spec
 
 
-def _pair(case: Scenario, job: Job, focal: RunResult, baseline: RunResult) -> Dict[str, Any]:
-    chosen: Tuple[str, ...] = job.tags["seats"]
-    record: Dict[str, Any] = {"scenario": case.name, "mode": job.tags["mode"], "run": job.tags["run"], "seed": job.seed,
+def _pair(case: Scenario, job: Job, focal: RunResult, baseline: RunResult) -> dict[str, Any]:
+    chosen: tuple[str, ...] = job.tags["seats"]
+    record: dict[str, Any] = {"scenario": case.name, "mode": job.tags["mode"], "run": job.tags["run"], "seed": job.seed,
                               "seats": list(chosen), "status": {"focal": focal.status, "baseline": baseline.status},
                               "cost": {"focal": _bill(focal, chosen), "baseline": _bill(baseline, chosen)}}
     scores, notes = [], []
@@ -114,7 +115,7 @@ def _pair(case: Scenario, job: Job, focal: RunResult, baseline: RunResult) -> Di
             "note": ""}
 
 
-def _bill(result: RunResult, seats: Sequence[str]) -> Dict[str, int]:
+def _bill(result: RunResult, seats: Sequence[str]) -> dict[str, int]:
     return {key: sum(result.agent_stats.get(seat, {}).get(key, 0) for seat in seats) for key in COST_FIELDS}
 
 

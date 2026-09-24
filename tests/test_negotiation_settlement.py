@@ -71,7 +71,8 @@ def test_a_deal_whose_phones_are_already_sold_is_refused_and_changes_nothing():
 
 def test_a_failing_on_sign_effect_refuses_the_acceptance_with_its_reason():
     contract = copy.deepcopy(LOTS)
-    contract["mechanisms"]["wholesale"]["on_sign"] = [{"if": "$terms.price < 100", "then": [{"fail": "Credit check failed."}]}]
+    contract["mechanisms"]["wholesale"]["on_sign"] = [{"if": "$terms.price < 100",
+                                                       "then": [{"fail": "Credit check failed."}]}]
     env = fg_env.load(contract, seed=1)
     play = scripted({("desk", 1): [("wholesale_propose", {"to": "b1", "units": 1, "price": 60})],
                      ("b1", 1): [("wholesale_accept", {"offer": "wholesale_offer_1"})]})

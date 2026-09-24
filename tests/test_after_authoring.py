@@ -5,7 +5,8 @@ import fg_env
 
 
 def contract(delay, continuous=False):
-    return {"name": "Delayed delivery", "clock": ({"mode": "continuous", "horizon": 5} if continuous else {"rounds": 3}),
+    return {"name": "Delayed delivery",
+            "clock": ({"mode": "continuous", "horizon": 5} if continuous else {"rounds": 3}),
             "types": {"worker": {}}, "world": {"delivered": 0},
             "inputs": {"delay": {"default": 1}},
             "events": [{"name": "order", "at": 1, "do": [{"after": delay, "do": ["$world.delivered += 1"]}]}],

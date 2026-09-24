@@ -9,20 +9,21 @@ experiment with the same base seed (common random numbers everywhere).
 from __future__ import annotations
 
 import json
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..api import ContractLike, DataDir, located, parse
 from ..contract import Contract
 from ..experiments.experiment import Job, failed_run, run_job, worker_pool
 from ..experiments.experiment import run_jobs as _run_jobs
+from ..experiments.workers import Pool
 from ..runtime.measure import RunResult, _usable_output
 from ..sampling.seeds import SeedTree
-from ..experiments.workers import Pool
 from .stats import numeric
 
 __all__ = ["Job", "AnalysisError", "run_seeds", "run_jobs", "resolve_measure", "value", "raw_value", "series",
-           "numeric_measures", "check_positive_int", "as_contract", "input_spec", "summarize_failures", "execute_job", "failed_result", "worker_pool",
-           "describe_inputs", "jobs_for", "by_cell", "coerce_input", "bounds"]
+           "numeric_measures", "check_positive_int", "as_contract", "input_spec", "summarize_failures", "execute_job",
+           "failed_result", "worker_pool", "describe_inputs", "jobs_for", "by_cell", "coerce_input", "bounds"]
 
 
 class AnalysisError(ValueError):
@@ -40,7 +41,7 @@ def as_contract(source: ContractLike, data_dir: DataDir = None) -> Contract:
     return located(source, data_dir) if isinstance(source, Contract) else parse(source, data_dir)
 
 
-def run_seeds(seed: int, count: int, start: int = 0) -> List[int]:
+def run_seeds(seed: int, count: int, start: int = 0) -> list[int]:
     """Seeds for runs ``start … start+count-1`` of base ``seed`` (the same as ``experiment``)."""
     tree = SeedTree(seed)
     return [tree.derive("run", i) for i in range(start, start + count)]
@@ -52,9 +53,9 @@ def input_spec(contract: Contract, name: str) -> Any:
     return contract.inputs[name]
 
 
-def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: Optional[int] = None,
-             workers: int = 1, events: bool = False, pool: Optional[Pool] = None,
-             hosts: Any = None, require_success: bool = True) -> List[RunResult]:
+def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: int | None = None,
+             workers: int = 1, events: bool = False, pool: Pool | None = None,
+             hosts: Any = None, require_success: bool = True) -> list[RunResult]:
     """:func:`fg_env.experiments.experiment.run_jobs` for analyses: event logs dropped by default, and
     :class:`AnalysisError` when every run failed (the first error is quoted), unless
     ``require_success=False`` lets diagnostic callers inspect the original failures."""
@@ -72,7 +73,7 @@ execute_job = run_job
 failed_result = failed_run
 
 
-def resolve_measure(contract: Contract, name: str) -> Tuple[str, str]:
+def resolve_measure(contract: Contract, name: str) -> tuple[str, str]:
     """``(section, key)`` for a measure name: ``outputs.x``, ``metrics.x``, or a bare name (output first)."""
     section, dot, key = name.partition(".")
     if dot and section in ("outputs", "metrics"):
@@ -88,27 +89,27 @@ def resolve_measure(contract: Contract, name: str) -> Tuple[str, str]:
                      f"metrics: {', '.join(contract.metrics) or 'none'})")
 
 
-def raw_value(result: RunResult, measure: Tuple[str, str]) -> Any:
+def raw_value(result: RunResult, measure: tuple[str, str]) -> Any:
     section, key = measure
     if section == "outputs" and not _usable_output(result, key):
         return None
     return (result.outputs if section == "outputs" else result.metrics).get(key)
 
 
-def value(result: RunResult, measure: Tuple[str, str]) -> Optional[float]:
+def value(result: RunResult, measure: tuple[str, str]) -> float | None:
     """The measure as a number (yes/no as 1/0); ``None`` for failed runs and non-numeric values."""
     if result.status == "failed":
         return None
     return numeric(raw_value(result, measure))
 
 
-def series(result: RunResult, name: str) -> List[float]:
+def series(result: RunResult, name: str) -> list[float]:
     """A metric's per-round history as numbers (non-numeric rounds are skipped)."""
     values = (numeric(v) for v in result.series.get(name, []))
     return [v for v in values if v is not None]
 
 
-def numeric_measures(contract: Contract, results: Sequence[RunResult]) -> List[str]:
+def numeric_measures(contract: Contract, results: Sequence[RunResult]) -> list[str]:
     """Outputs that hold a number or yes/no in at least one completed run, in declaration order."""
     out = []
     for name in contract.outputs:
@@ -117,7 +118,7 @@ def numeric_measures(contract: Contract, results: Sequence[RunResult]) -> List[s
     return out
 
 
-def summarize_failures(results: Sequence[RunResult]) -> Optional[str]:
+def summarize_failures(results: Sequence[RunResult]) -> str | None:
     failed = [r for r in results if r.status == "failed"]
     messages = []
     if failed:
@@ -141,14 +142,14 @@ def _short(v: Any) -> str:
     return text if len(text) <= 40 else text[:37] + "…"
 
 
-def jobs_for(cells: Sequence[Tuple[Mapping[str, Any], Optional[str]]], seeds: Sequence[int]) -> List[Job]:
+def jobs_for(cells: Sequence[tuple[Mapping[str, Any], str | None]], seeds: Sequence[int]) -> list[Job]:
     """Every cell × every seed: the common-random-numbers grid."""
     return [Job(dict(inputs), arm, s, {"cell": c, "run": i}) for c, (inputs, arm) in enumerate(cells)
             for i, s in enumerate(seeds)]
 
 
-def by_cell(jobs: Sequence[Job], results: Sequence[RunResult], cells: int) -> List[List[RunResult]]:
-    grouped: List[List[RunResult]] = [[] for _ in range(cells)]
+def by_cell(jobs: Sequence[Job], results: Sequence[RunResult], cells: int) -> list[list[RunResult]]:
+    grouped: list[list[RunResult]] = [[] for _ in range(cells)]
     for job, result in zip(jobs, results):
         grouped[job.tags["cell"]].append(result)
     return grouped
@@ -162,7 +163,7 @@ def coerce_input(contract: Contract, name: str, raw: float) -> Any:
     return float(raw)
 
 
-def bounds(contract: Contract, name: str, given: Optional[Mapping[str, Any]] = None) -> Tuple[float, float]:
+def bounds(contract: Contract, name: str, given: Mapping[str, Any] | None = None) -> tuple[float, float]:
     """``(low, high)`` from ``given`` (``{"low", "high"}``) or the input's declared ``min``/``max``."""
     spec = input_spec(contract, name)
     if spec.type not in ("number", "int"):

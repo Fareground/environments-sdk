@@ -7,7 +7,8 @@ set off, physics, the build) still fails the run.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Optional, Tuple, TypeVar
+from collections.abc import Callable
+from typing import TYPE_CHECKING, TypeVar
 
 from ..errors import FatalRunError, InvariantViolation, RunError
 from ..expr import ExprError
@@ -20,8 +21,8 @@ __all__ = ["guarded", "refused_text", "fault_reason"]
 T = TypeVar("T")
 
 
-def guarded(env: "Env", work: Callable[[], T], mark: Optional[int] = None,
-            action: Optional[str] = None) -> Tuple[Optional[T], Optional[str]]:
+def guarded(env: Env, work: Callable[[], T], mark: int | None = None,
+            action: str | None = None) -> tuple[T | None, str | None]:
     """``(work(), None)``; or, when a rule fails or an invariant breaks inside it, ``(None, reason)`` with everything it
     changed undone — back to ``mark`` when given (where an atomic turn's actions began) — and the failure counted for
     the run's diagnostics, against the contract ``action`` being applied when given. ``reason`` is safe to show the
@@ -51,7 +52,8 @@ def guarded(env: "Env", work: Callable[[], T], mark: Optional[int] = None,
 
 def refused_text(name: str, reason: str) -> str:
     """What the agent is told when its action was refused because of :func:`guarded`."""
-    return f"Your {name.replace('_', ' ')} was not done: {reason}. Nothing changed; try other arguments or another action."
+    return (f"Your {name.replace('_', ' ')} was not done: {reason}. Nothing changed; try other arguments or another "
+            "action.")
 
 
 def fault_reason(error: RunError) -> str:

@@ -6,7 +6,8 @@ section is left to the author, so returns are never stitched together from two s
 """
 from __future__ import annotations
 
-from typing import Any, Dict, Mapping
+from collections.abc import Mapping
+from typing import Any
 
 from ..registry import uses_of
 
@@ -18,7 +19,7 @@ SCORING = ("game.board", "game.pot")
 SEATING = ("players", "seat", "returns", "rewards", "utility", "total")
 
 
-def game_section(contract: Mapping[str, Any], spec: Dict[str, Any]) -> Dict[str, Any]:
+def game_section(contract: Mapping[str, Any], spec: dict[str, Any]) -> dict[str, Any]:
     """``{"game": spec}`` to merge into the contract, or ``{}`` when the section is not this mechanism's to fill."""
     declared = contract.get("game")
     if declared is not None and (not isinstance(declared, Mapping) or any(key in declared for key in SEATING)):

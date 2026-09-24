@@ -2,20 +2,39 @@
 tools, places, money costs, production time and a limited number of jobs at once."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import condition
 from .econ_assets import balance, burn_money, credit_of, destroy_items, held, is_holder, make_items
-from .econ_base import (INVENTORY, LEDGER, PRODUCTION, checked_config, config_of, declared_names, declared_use, emit_to,
-                        entity_of, guarded, maybe_entity, money, props, register_config, require_types, type_list, uses_of,
-                        valid_name, whole)
+from .econ_base import (
+    INVENTORY,
+    LEDGER,
+    PRODUCTION,
+    checked_config,
+    config_of,
+    declared_names,
+    declared_use,
+    emit_to,
+    entity_of,
+    guarded,
+    maybe_entity,
+    money,
+    props,
+    register_config,
+    require_types,
+    type_list,
+    uses_of,
+    valid_name,
+    whole,
+)
 from .econ_inventory import agent_types
 
 __all__ = ["ProductionConfig", "RecipeSpec", "SkillSpec", "skill_level"]
@@ -29,16 +48,19 @@ class RecipeSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    inputs: Dict[str, int] = Field({}, description="Goods used up per batch {item: qty}; none for gathering.")
-    outputs: Dict[str, Union[int, str]] = Field(..., min_length=1, description="Goods made per batch {item: qty or expression over $actor}.")
+    inputs: dict[str, int] = Field({}, description="Goods used up per batch {item: qty}; none for gathering.")
+    outputs: dict[str, int | str] = Field(..., min_length=1,
+                                          description="Goods made per batch {item: qty or expression over $actor}.")
     rounds: int = Field(0, ge=0, description="Rounds until a batch is ready (0 = at once).")
-    skill: Optional[str] = Field(None, description="Skill used; gains `xp` per batch.")
+    skill: str | None = Field(None, description="Skill used; gains `xp` per batch.")
     level: int = Field(0, ge=0, description="Skill level needed.")
     xp: float = Field(0, ge=0, description="Experience per batch.")
-    tools: Dict[str, int] = Field({}, description="Goods that must be held but are not used up {item: qty}.")
-    at: Union[str, List[str], None] = Field(None, description="Place(s) where it can be made.")
-    when: Optional[str] = Field(None, description="Extra requirement over $actor.")
-    cost: Dict[str, Union[float, str]] = Field({}, description="Money per batch {currency: amount}, leaving to the recipe's sink.")
+    tools: dict[str, int] = Field({}, description="Goods that must be held but are not used up {item: qty}.")
+    at: str | list[str] | None = Field(None, description="Place(s) where it can be made.")
+    when: str | None = Field(None, description="Extra requirement over $actor.")
+    cost: dict[str, float | str] = Field({},
+                                         description="Money per batch {currency: amount}, leaving to the recipe's "
+                                                     "sink.")
     description: str = ""
 
 
@@ -47,7 +69,9 @@ class SkillSpec(BaseModel):
 
     start: int = Field(0, ge=0, description="Level everyone starts at.")
     max_level: int = Field(10, ge=1)
-    xp_per_level: float = Field(10, gt=0, description="Experience for the next level (times the next level when growth is linear).")
+    xp_per_level: float = Field(10, gt=0,
+                                description="Experience for the next level (times the next level when growth is "
+                                            "linear).")
     growth: Literal["flat", "linear"] = "linear"
 
 
@@ -56,12 +80,13 @@ class ProductionConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    who: Union[str, List[str]] = Field(..., description="Type(s) that make goods; they must hold the inventory's goods.")
+    who: str | list[str] = Field(..., description="Type(s) that make goods; they must hold the inventory's goods.")
     inventory: str = Field(..., description="The inventory mechanism whose goods are used and made.")
-    recipes: Dict[str, RecipeSpec] = Field(..., min_length=1,
-                                           description="{recipe: {inputs, outputs, rounds, skill, level, xp, tools, at, when, cost}}.")
-    skills: Dict[str, SkillSpec] = Field({}, description="{skill: {start, max_level, xp_per_level, growth}}.")
-    slots: Union[int, str] = Field(1, description="Jobs a producer can have running at once (number or expression).")
+    recipes: dict[str, RecipeSpec] = Field(..., min_length=1,
+                                           description="{recipe: {inputs, outputs, rounds, skill, level, xp, tools, "
+                                                       "at, when, cost}}.")
+    skills: dict[str, SkillSpec] = Field({}, description="{skill: {start, max_level, xp_per_level, growth}}.")
+    slots: int | str = Field(1, description="Jobs a producer can have running at once (number or expression).")
 
 
 register_config(PRODUCTION, ProductionConfig)
@@ -75,10 +100,11 @@ register_config(PRODUCTION, ProductionConfig)
       "($skill(agent, skill)). Inputs leave through the recipe as a sink and outputs arrive from it as a source.",
       example={"who": "villager", "inventory": "goods",
                "skills": {"baking": {"xp_per_level": 5}, "foraging": {}},
-               "recipes": {"bake": {"inputs": {"flour": 2}, "outputs": {"bread": 3}, "rounds": 1, "skill": "baking", "xp": 2,
-                                    "at": "bakery"},
-                           "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest", "skill": "foraging", "xp": 1}}})
-def _expand_production(name: str, config: ProductionConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+               "recipes": {"bake": {"inputs": {"flour": 2}, "outputs": {"bread": 3}, "rounds": 1, "skill": "baking",
+                                    "xp": 2, "at": "bakery"},
+                           "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest",
+                                      "skill": "foraging", "xp": 1}}})
+def _expand_production(name: str, config: ProductionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     producers = type_list(config.who)
     require_types(contract, producers, "who")
     inventory = declared_use(contract, config.inventory, INVENTORY, "inventory")
@@ -87,7 +113,8 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
     for recipe, spec in config.recipes.items():
         path = f"recipes.{recipe}"
         if not valid_name(recipe):
-            raise MechanismError(f"recipe '{recipe}' is not a valid name", "use letters, digits and _ (not a word expressions use, like in or not)", path)
+            raise MechanismError(f"recipe '{recipe}' is not a valid name",
+                                 "use letters, digits and _ (not a word expressions use, like in or not)", path)
         for field, goods in (("inputs", spec.inputs), ("outputs", spec.outputs), ("tools", spec.tools)):
             for item in goods:
                 if item not in items:
@@ -97,18 +124,20 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
             raise MechanismError(f"skill '{spec.skill}' is not declared", "declare it under `skills`", f"{path}.skill")
         for currency in spec.cost:
             if currency not in currencies:
-                raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it", f"{path}.cost.{currency}")
+                raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it",
+                                     f"{path}.cost.{currency}")
         if spec.at is not None and not contract.get("space"):
             raise MechanismError("`at` needs a declared space", "declare `space`, or remove `at`", f"{path}.at")
     job = f"{name}_job"
-    props_: Dict[str, Any] = {f"{name}_slots": {"type": "int", "default": config.slots, "min": 0,
+    props_: dict[str, Any] = {f"{name}_slots": {"type": "int", "default": config.slots, "min": 0,
                                                 "description": "Jobs you can have running at once."}}
     if config.skills:
         props_["skills"] = {"type": "map", "default": {}, "description": "Skill levels {skill: level}."}
-        props_["skill_xp"] = {"type": "map", "default": {}, "private": True, "description": "Experience toward the next level."}
+        props_["skill_xp"] = {"type": "map", "default": {}, "private": True,
+                              "description": "Experience toward the next level."}
     etas = {r: ("done at once" if s.rounds == 0 else f"ready in {s.rounds} round{'s' if s.rounds != 1 else ''}")
             for r, s in config.recipes.items()}
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {**{t: {"props": props_} for t in producers},
                   job: {"description": "Goods being made.", "props": {
                       "owner": {"type": "text", "default": ""}, "recipe": {"type": "text", "default": ""},
@@ -124,19 +153,23 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
     if agents:
         recipes = f"$recipes($actor, '{name}')"
         fragment["actions"] = {f"{name}_start": {
-            "by": agents, "description": "Make goods from a recipe you can make now (inputs are used up when you start).",
+            "by": agents,
+            "description": "Make goods from a recipe you can make now (inputs are used up when you start).",
             "when": [{"expr": f"$len({recipes}) > 0",
-                      "why": "You cannot make anything now: check inputs, tools, skill, place, money and free job slots."}],
+                      "why": "You cannot make anything now: check inputs, tools, skill, place, money and free job "
+               "slots."}],
             "params": {"recipe": {"type": "enum", "values": recipes, "description": "Recipe."},
                        "qty": {"type": "int", "min": 1, "default": 1, "description": "Batches.",
-                               "max": guarded(f"$max_batches($actor, '{name}', $params.recipe)", "recipe")}},
-            "do": [{"economy": name, "action": "start", "who": "$actor", "recipe": "$params.recipe", "qty": "$params.qty"}],
+                 "max": guarded(f"$max_batches($actor, '{name}', $params.recipe)", "recipe")}},
+            "do": [{"economy": name, "action": "start", "who": "$actor", "recipe": "$params.recipe",
+                    "qty": "$params.qty"}],
             "outcome": f"{{$params.qty}} × {{$params.recipe}}: {{$get(${name}_eta, $params.recipe)}}."}}
         fragment["views"] = {
             f"{name}_recipes": {"for": agents, "title": "Recipes", "look": True, "bullet": False,
                                 "show": f"{{$recipes_text($actor, '{name}')}}"},
             f"{name}_jobs": {"for": agents, "title": "Your jobs", "of": job, "where": "$it.owner == $actor.id",
-                             "show": "{qty} × {recipe}: {$'ready in round ' + $text($it.due) if $it.status == working else 'waiting for room'}"}}
+                             "show": "{qty} × {recipe}: {$'ready in round ' + $text($it.due) if $it.status == "
+                                     "working else 'waiting for room'}"}}
     return fragment
 
 
@@ -145,7 +178,7 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
 # ---------------------------------------------------------------------------
 
 
-def skill_level(world: Any, config: Optional[ProductionConfig], agent: Entity, skill: str) -> int:
+def skill_level(world: Any, config: ProductionConfig | None, agent: Entity, skill: str) -> int:
     levels = props(agent).get("skills") if is_holder(world, agent, "skills") else None
     if isinstance(levels, dict) and skill in levels:
         return int(levels[skill])
@@ -166,12 +199,13 @@ def _busy(world: Any, name: str, agent: Entity) -> int:
     return sum(1 for e in world.entities_of(f"{name}_job") if props(e).get("owner") == agent.id)
 
 
-def _blocked(world: Any, name: str, config: ProductionConfig, agent: Entity, recipe: str, times: int) -> Optional[str]:
+def _blocked(world: Any, name: str, config: ProductionConfig, agent: Entity, recipe: str, times: int) -> str | None:
     """Why ``agent`` cannot start ``times`` batches of ``recipe`` now, or None."""
     spec = config.recipes[recipe]
     where = f"mechanisms.{name}.recipes.{recipe}"
     if spec.skill is not None and skill_level(world, config, agent, spec.skill) < spec.level:
-        return f"{recipe} needs {spec.skill} level {spec.level} (you have {skill_level(world, config, agent, spec.skill)})"
+        return (f"{recipe} needs {spec.skill} level {spec.level} (you have "
+                f"{skill_level(world, config, agent, spec.skill)})")
     for item, qty in spec.tools.items():
         if held(world, agent, item, where) < qty:
             return f"{recipe} needs {qty} {item} in hand"
@@ -206,11 +240,12 @@ def _max_batches(world: Any, name: str, config: ProductionConfig, agent: Entity,
     for currency, cost in spec.cost.items():
         price = float(_eval(world, cost, agent, f"{where}.cost.{currency}"))
         if price > 0:
-            most = min(most, int((balance(world, agent, currency, where) + credit_of(world, agent, currency) + 1e-9) // price))
+            affordable = balance(world, agent, currency, where) + credit_of(world, agent, currency) + 1e-9
+            most = min(most, int(affordable // price))
     return max(0, most)
 
 
-def _award(world: Any, config: ProductionConfig, agent: Entity, skill: str, xp: float) -> Optional[int]:
+def _award(world: Any, config: ProductionConfig, agent: Entity, skill: str, xp: float) -> int | None:
     """Add experience; returns the new level when it rose."""
     spec = config.skills[skill]
     if not is_holder(world, agent, "skills") or xp <= 0:
@@ -231,11 +266,12 @@ def _award(world: Any, config: ProductionConfig, agent: Entity, skill: str, xp: 
     return level if level > start else None
 
 
-def _finish(runner: Any, name: str, config: ProductionConfig, agent: Entity, recipe: str, times: int, where: str) -> str:
+def _finish(runner: Any, name: str, config: ProductionConfig, agent: Entity, recipe: str, times: int,
+            where: str) -> str:
     """Make the outputs and award experience; Abort (nothing changes) when the output does not fit."""
     world = runner.world
     spec = config.recipes[recipe]
-    made: List[str] = []
+    made: list[str] = []
     for item, qty in spec.outputs.items():
         per_batch = whole(runner.eval(qty, {"actor": agent, "times": times}), f"{where}.outputs.{item}", "an output")
         make_items(world, item, agent, per_batch * times, recipe, where)
@@ -257,7 +293,7 @@ def _finish(runner: Any, name: str, config: ProductionConfig, agent: Entity, rec
 # ---------------------------------------------------------------------------
 
 
-def _config(call: Call, index: int) -> Tuple[Any, str, ProductionConfig]:
+def _config(call: Call, index: int) -> tuple[Any, str, ProductionConfig]:
     world = call.scope.world
     name = str(call.arg(index))
     try:
@@ -273,7 +309,8 @@ def _agent(call: Call) -> Entity:
     return found
 
 
-@function("skill(agent, skill)", "The agent's level in a skill (the skill's start level until it gains one).", min_args=2, max_args=2)
+@function("skill(agent, skill)", "The agent's level in a skill (the skill's start level until it gains one).",
+          min_args=2, max_args=2)
 def _skill(call: Call) -> int:
     world = call.scope.world
     skill = str(call.arg(1))
@@ -283,19 +320,19 @@ def _skill(call: Call) -> int:
     return skill_level(world, config, _agent(call), skill)
 
 
-def _productions(world: Any) -> List[ProductionConfig]:
+def _productions(world: Any) -> list[ProductionConfig]:
     return list(uses_of(world, PRODUCTION).values())
 
 
 @function("recipes(agent, production)", "Recipes of a production the agent can start now.", min_args=2, max_args=2)
-def _recipes(call: Call) -> List[str]:
+def _recipes(call: Call) -> list[str]:
     world, name, config = _config(call, 1)
     agent = _agent(call)
     return [r for r in config.recipes if _blocked(world, name, config, agent, r, 1) is None]
 
 
-@function("max_batches(agent, production, recipe)", "Most batches of a recipe the agent can start now (0 when it cannot).",
-          min_args=3, max_args=3)
+@function("max_batches(agent, production, recipe)",
+          "Most batches of a recipe the agent can start now (0 when it cannot).", min_args=3, max_args=3)
 def _max_batches_fn(call: Call) -> int:
     world, name, config = _config(call, 1)
     recipe = str(call.arg(2))
@@ -304,7 +341,8 @@ def _max_batches_fn(call: Call) -> int:
     return _max_batches(world, name, config, _agent(call), recipe)
 
 
-@function("recipes_text(agent, production)", "Every recipe as plain lines: what it takes, what it makes, and what stops the agent now.",
+@function("recipes_text(agent, production)",
+          "Every recipe as plain lines: what it takes, what it makes, and what stops the agent now.",
           min_args=2, max_args=2)
 def _recipes_text(call: Call) -> str:
     world, name, config = _config(call, 1)
@@ -332,19 +370,20 @@ def _recipes_text(call: Call) -> str:
     return "\n".join(lines)
 
 
-def _check_recipe(checker: Any, effect: Dict[str, Any], path: str) -> list:
+def _check_recipe(checker: Any, effect: dict[str, Any], path: str) -> list:
     config = checked_config(checker, effect, "economy")
     recipe = effect.get("recipe")
     if config is None or not isinstance(recipe, str) or is_expr(recipe) or recipe in config.recipes:
         return []
-    return [(f"{path}.recipe", f"'{recipe}' is not a recipe of {effect['economy']}", f"recipes: {', '.join(config.recipes)}")]
+    return [(f"{path}.recipe", f"'{recipe}' is not a recipe of {effect['economy']}",
+             f"recipes: {', '.join(config.recipes)}")]
 
 
 @family_action("economy", ("production",), "start", keys=("who", "recipe", "qty"), required=("who", "recipe"),
                check=_check_recipe,
-               example='{"economy": "craft", "action": "start", "who": "$actor", "recipe": "$params.recipe", "qty": 2}  '
-                       '(use up the inputs and start `qty` batches; done at once when the recipe takes no rounds)')
-def _start_job(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"economy": "craft", "action": "start", "who": "$actor", "recipe": "$params.recipe", "qty": '
+                       '2}  (use up the inputs and start `qty` batches; done at once when the recipe takes no rounds)')
+def _start_job(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config: ProductionConfig = config_of(world, name, PRODUCTION, where)
@@ -373,8 +412,9 @@ def _start_job(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
 
 
 @family_action("economy", ("production",), "tick", internal=True,
-               example='{"economy": "craft", "action": "tick"}  (finish jobs that are due; a job whose output does not fit waits)')
-def _production_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"economy": "craft", "action": "tick"}  (finish jobs that are due; a job whose output does not '
+                       'fit waits)')
+def _production_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config: ProductionConfig = config_of(world, name, PRODUCTION, where)

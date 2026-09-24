@@ -1,9 +1,9 @@
 """Game algorithms as participants: "mcts:N", "ismcts:N", "minimax[:D]", "cfr:<file>" and "cfr:<iterations>"."""
 import pytest
+from game_contracts import GAMES
 
 import fg_env
 from fg_env.game.algorithms import CFRSolver, TabularPolicy
-from game_contracts import GAMES
 
 NIM = GAMES / "nim.json"
 KUHN = GAMES / "kuhn_poker.json"

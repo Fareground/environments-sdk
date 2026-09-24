@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import math
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
 
-def probabilities(mean: float, dispersion: Optional[float]) -> Iterator[float]:
+def probabilities(mean: float, dispersion: float | None) -> Iterator[float]:
     """PMF from zero upward, recovering from underflow before the distribution's mass.
 
     The usual recurrence stays fast for small business counts. Log probabilities are

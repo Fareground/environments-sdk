@@ -2,7 +2,8 @@
 automatic renewals that wake the subscriber when the price changed or a trial ended, and cancellations."""
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,8 +13,23 @@ from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .econ_assets import move_money
-from .econ_base import (SUBSCRIPTIONS, amount, bump, config_of, emit_to, entity_of, maybe_entity, money, props, register_config,
-                        require_currency, require_types, type_list, uses_of, valid_name)
+from .econ_base import (
+    SUBSCRIPTIONS,
+    amount,
+    bump,
+    config_of,
+    emit_to,
+    entity_of,
+    maybe_entity,
+    money,
+    props,
+    register_config,
+    require_currency,
+    require_types,
+    type_list,
+    uses_of,
+    valid_name,
+)
 from .econ_inventory import agent_types
 
 __all__ = ["SubscriptionsConfig", "PlanSpec"]
@@ -39,13 +55,13 @@ class SubscriptionsConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    who: Union[str, List[str]] = Field(..., description="Type(s) that may subscribe.")
+    who: str | list[str] = Field(..., description="Type(s) that may subscribe.")
     currency: str = Field(..., description="Ledger currency plans are paid in.")
-    plans: Dict[str, PlanSpec] = Field({}, description="{plan id: {provider, name, price, period, trial}}.")
-    providers: Union[str, List[str], None] = Field(None, description="Agent type(s) that may reprice their own plans.")
+    plans: dict[str, PlanSpec] = Field({}, description="{plan id: {provider, name, price, period, trial}}.")
+    providers: str | list[str] | None = Field(None, description="Agent type(s) that may reprice their own plans.")
     price_min: float = Field(0, ge=0, description="Lowest price a provider may set.")
-    price_max: Optional[float] = Field(None, ge=0, description="Highest price a provider may set.")
-    actions: List[Literal["subscribe", "cancel", "resume", "set_price"]] = Field(
+    price_max: float | None = Field(None, ge=0, description="Highest price a provider may set.")
+    actions: list[Literal["subscribe", "cancel", "resume", "set_price"]] = Field(
         ["subscribe", "cancel", "resume", "set_price"], description="Tools generated for agents.")
     tools: ToolsSetting = tools_field()
 
@@ -56,13 +72,13 @@ register_config(SUBSCRIPTIONS, SubscriptionsConfig)
 @mode("agreements", "subscriptions", SubscriptionsConfig,
            "Recurring plans: `<name>_subscribe` (plans you do not have and can afford or try free), `<name>_cancel` "
            "(ends at the next renewal), `<name>_resume`, and `<name>_set_price` for providers. Renewals are charged "
-           "automatically at the start of the round they are due; a subscriber is woken when a trial ends or the price "
-           "changed, and a renewal that cannot be paid lapses. Plans are entities of `<name>_plan`, subscriptions of "
-           "`<name>_sub`; totals (started, trials, converted, renewed, cancelled, lapsed, revenue) are in $world.<name>_stats. "
-           "$subscribed(agent, plan_or_provider) reads membership.",
+           "automatically at the start of the round they are due; a subscriber is woken when a trial ends or the "
+           "price changed, and a renewal that cannot be paid lapses. Plans are entities of `<name>_plan`, "
+           "subscriptions of `<name>_sub`; totals (started, trials, converted, renewed, cancelled, lapsed, revenue) "
+           "are in $world.<name>_stats. $subscribed(agent, plan_or_provider) reads membership.",
            example={"who": "household", "currency": "cash", "providers": "cafe",
                     "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}})
-def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     subscribers = type_list(config.who)
     require_types(contract, subscribers, "who")
     providers = type_list(config.providers) if config.providers is not None else []
@@ -71,14 +87,16 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
     if config.price_max is not None and config.price_max < config.price_min:
         raise MechanismError("price_max is below price_min", None, "price_max")
     plan, sub = f"{name}_plan", f"{name}_sub"
-    entities: Dict[str, Any] = {}
+    entities: dict[str, Any] = {}
     for plan_id, spec in config.plans.items():
         if not valid_name(plan_id):
-            raise MechanismError(f"plan id '{plan_id}' is not a valid id", "use letters, digits and _ (not a word expressions use, like in or not)", f"plans.{plan_id}")
+            raise MechanismError(f"plan id '{plan_id}' is not a valid id",
+                                 "use letters, digits and _ (not a word expressions use, like in or not)",
+                                 f"plans.{plan_id}")
         entities[plan_id] = {"type": plan, "name": spec.name or plan_id.replace("_", " ").title(), "props": {
             "provider": spec.provider, "price": spec.price, "period": spec.period, "trial": spec.trial,
             "description": spec.description}}
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {
             plan: {"description": "A subscription plan.", "props": {
                 "provider": {"type": "text", "default": ""}, "price": {"type": "number", "default": 0, "min": 0},
@@ -103,15 +121,20 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
         actions, views = fragment["actions"], fragment["views"]
         if "subscribe" in config.actions:
             actions[f"{name}_subscribe"] = {
-                "by": agents, "description": "Subscribe to a plan: its price is charged now and every period (a free trial on your first subscription to a plan that offers one).",
+                "by": agents,
+                "description": "Subscribe to a plan: its price is charged now and every period (a free trial on your "
+                               "first subscription to a plan that offers one).",
                 "params": {"plan": {"type": "entity", "of": plan,
-                                    "where": f"$exists($it.provider) and not $subscribed($actor, $it.id) and (({trial_available}) or $has($actor, '{config.currency}', $it.price))",
-                                    "description": "Plan."}},
+                      "where": "$exists($it.provider) and not $subscribed($actor, $it.id) and "
+                               f"(({trial_available}) or $has($actor, '{config.currency}', $it.price))",
+                      "description": "Plan."}},
                 "do": [{"agreements": name, "action": "subscribe", "who": "$actor", "plan": "$params.plan"}],
                 "outcome": "You subscribed to {$params.plan.name}.", "private": True}
         if "cancel" in config.actions:
             actions[f"{name}_cancel"] = {
-                "by": agents, "description": "Cancel a subscription: it stays yours until its next renewal, then ends without a charge.",
+                "by": agents,
+                "description": "Cancel a subscription: it stays yours until its next renewal, then ends without a "
+                               "charge.",
                 "params": {"subscription": {"type": "entity", "of": sub, "where": f"{mine} and not $it.cancelling"}},
                 "do": ["$params.subscription.cancelling = true"],
                 "outcome": "Cancelled: it ends in round {$params.subscription.renews}.", "private": True}
@@ -121,17 +144,22 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
                 "params": {"subscription": {"type": "entity", "of": sub, "where": f"{mine} and $it.cancelling"}},
                 "do": ["$params.subscription.cancelling = false"],
                 "outcome": "It renews again in round {$params.subscription.renews}.", "private": True}
-        views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "where": "$exists($it.provider)", "look": True,
-                                  "show": "[{id}] {name}: {price|money} every {period} rounds{$' · ' + $text($it.trial) + ' rounds free' if " + trial_available + " else ''}"}
+        views[f"{name}_plans"] = {"for": agents, "title": "Plans", "of": plan, "where": "$exists($it.provider)",
+                                  "look": True, "show": "[{id}] {name}: {price|money} every {period} "
+                                          "rounds{$' · ' + $text($it.trial) + ' rounds free' if " + trial_available
+                                  + " else ''}"}
         views[f"{name}_mine"] = {"for": agents, "title": "Your subscriptions", "of": sub, "where": mine,
-                                 "show": "[{id}] {$entity($it.plan).name}: {status}, next charge round {renews} at {$entity($it.plan).price|money}{$' (cancelled, ends then)' if $it.cancelling else ''}"}
+                                 "show": "[{id}] {$entity($it.plan).name}: {status}, next charge round "
+                                         "{renews} at {$entity($it.plan).price|money}{$' (cancelled, ends then)' "
+                                         "if $it.cancelling else ''}"}
     sellers = agent_types(contract, providers)
     if sellers and "set_price" in config.actions:
-        price: Dict[str, Any] = {"type": "number", "min": config.price_min, "description": "New price per period."}
+        price: dict[str, Any] = {"type": "number", "min": config.price_min, "description": "New price per period."}
         if config.price_max is not None:
             price["max"] = config.price_max
         fragment["actions"][f"{name}_set_price"] = {
-            "by": sellers, "description": "Change a plan's price; subscribers pay it from their next renewal and are told now.",
+            "by": sellers,
+            "description": "Change a plan's price; subscribers pay it from their next renewal and are told now.",
             "params": {"plan": {"type": "entity", "of": plan, "where": "$it.provider == $actor.id"}, "price": price},
             "do": [{"agreements": name, "action": "set_price", "plan": "$params.plan", "price": "$params.price"}],
             "outcome": "{$params.plan.name} now costs {$params.price|money}."}
@@ -146,7 +174,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
 # ---------------------------------------------------------------------------
 
 
-def _subscriptions(world: Any, name: str, who: str) -> List[Any]:
+def _subscriptions(world: Any, name: str, who: str) -> list[Any]:
     return [s for s in world.entities_of(f"{name}_sub") if props(s)["subscriber"] == who]
 
 
@@ -154,7 +182,7 @@ def _stat(world: Any, name: str, key: str, delta: float) -> None:
     bump(world, f"{name}_stats", key, delta)
 
 
-def _end(world: Any, name: str, sub: Any, plan: Optional[Any], reason: str, stat: Optional[str]) -> None:
+def _end(world: Any, name: str, sub: Any, plan: Any | None, reason: str, stat: str | None) -> None:
     world.set_prop(sub, "status", "ended")
     world.set_prop(sub, "reason", reason)
     if plan is not None:
@@ -195,7 +223,7 @@ def _subscribed(call: Call) -> bool:
 @family_action("agreements", ("subscriptions",), "subscribe", keys=("who", "plan"), required=("who", "plan"),
                example='{"agreements": "coffee", "action": "subscribe", "who": "$actor", "plan": "$params.plan"}  '
                        '(start a subscription: a trial or a first charge)')
-def _subscribe(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _subscribe(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["agreements"]
     config: SubscriptionsConfig = config_of(world, name, SUBSCRIPTIONS, where)
@@ -210,7 +238,7 @@ def _subscribe(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
     if any(props(s)["status"] != "ended" for s in history):
         raise Abort(f"You already subscribe to {plan.name}.")
     trial = int(props(plan)["trial"]) if not history else 0
-    values: Dict[str, Any] = {"subscriber": subscriber.id, "plan": plan.id, "started": world.round}
+    values: dict[str, Any] = {"subscriber": subscriber.id, "plan": plan.id, "started": world.round}
     if trial:
         values.update(status="trial", renews=world.round + trial, price=0)
         _stat(world, name, "trials", 1)
@@ -220,14 +248,15 @@ def _subscribe(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where:
     world.create(f"{name}_sub", None, f"{subscriber.name}: {plan.name}", values, None, world.scope(), where)
     world.set_prop(plan, "subscribers", int(props(plan)["subscribers"]) + 1)
     _stat(world, name, "started", 1)
-    emit_to(world, f"{name}_joined", f"{subscriber.name} subscribed to {plan.name}" + (" (free trial)." if trial else "."),
+    emit_to(world, f"{name}_joined",
+            f"{subscriber.name} subscribed to {plan.name}" + (" (free trial)." if trial else "."),
             [props(plan)["provider"]])
 
 
 @family_action("agreements", ("subscriptions",), "set_price", keys=("plan", "price"), required=("plan", "price"),
                example='{"agreements": "coffee", "action": "set_price", "plan": "coffee_club", "price": 36}  '
                        '(reprice a plan and tell its subscribers)')
-def _set_plan_price(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _set_plan_price(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["agreements"]
     config: SubscriptionsConfig = config_of(world, name, SUBSCRIPTIONS, where)
@@ -241,10 +270,11 @@ def _set_plan_price(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], w
     if abs(price - old) < 1e-9:
         return
     world.set_prop(plan, "price", price)
-    members = [s for s in world.entities_of(f"{name}_sub") if props(s)["plan"] == plan.id and props(s)["status"] != "ended"]
+    members = [s for s in world.entities_of(f"{name}_sub") if props(s)["plan"] == plan.id and props(s)["status"]
+               != "ended"]
     for sub in members:
-        text = (f"{plan.name} changes from {money(old)} to {money(price)} {config.currency}; your next charge in round {props(sub)['renews']} "
-                f"is the new price unless you cancel.")
+        text = (f"{plan.name} changes from {money(old)} to {money(price)} {config.currency}; your next charge in round "
+                f"{props(sub)['renews']} is the new price unless you cancel.")
         emit_to(world, f"{name}_price", text, [props(sub)["subscriber"]], {"plan": plan.id, "old": old, "price": price},
                 why=f"{plan.name} changed its price.")
 
@@ -252,11 +282,12 @@ def _set_plan_price(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], w
 @family_action("agreements", ("subscriptions",), "tick", internal=True,
                example='{"agreements": "coffee", "action": "tick"}  '
                        '(renew, convert trials, end cancelled or unpaid subscriptions that are due)')
-def _subscriptions_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _subscriptions_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["agreements"]
     config: SubscriptionsConfig = config_of(world, name, SUBSCRIPTIONS, where)
-    due = [s for s in world.entities_of(f"{name}_sub") if props(s)["status"] != "ended" and int(props(s)["renews"]) <= world.round]
+    due = [s for s in world.entities_of(f"{name}_sub") if props(s)["status"] != "ended" and int(props(s)["renews"])
+           <= world.round]
     for sub in due:
         p = props(sub)
         plan, subscriber = world.entities.get(p["plan"]), world.entities.get(p["subscriber"])
@@ -278,7 +309,9 @@ def _subscriptions_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any
         except Abort:
             world.journal.rollback(mark)
             _end(world, name, sub, plan, "payment failed", "lapsed")
-            emit_to(world, f"{name}_lapsed", f"Your {plan.name} renewal of {money(props(plan)['price'])} {config.currency} could not be paid; it has ended.",
+            emit_to(world, f"{name}_lapsed",
+                    f"Your {plan.name} renewal of {money(props(plan)['price'])} {config.currency} could not be paid; "
+                    "it has ended.",
                     [subscriber.id], why=f"Your {plan.name} subscription lapsed.")
             continue
         was_trial, last = p["status"] == "trial", float(p["price"])
@@ -287,14 +320,17 @@ def _subscriptions_tick(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any
         world.set_prop(sub, "price", price)
         if was_trial:
             _stat(world, name, "converted", 1)
-            emit_to(world, f"{name}_renewed", f"Your free trial of {plan.name} ended; you were charged {money(price)} {config.currency}. "
-                                              f"Next charge in round {props(sub)['renews']}; cancel any time.",
+            emit_to(world, f"{name}_renewed", f"Your free trial of {plan.name} ended; you were charged {money(price)} "
+                                              f"{config.currency}. Next charge in round {props(sub)['renews']}; cancel "
+                                              "any time.",
                     [subscriber.id], why=f"Your {plan.name} trial ended and you were charged.")
             continue
         world.set_prop(sub, "renewals", int(p["renewals"]) + 1)
         _stat(world, name, "renewed", 1)
         if abs(price - last) > 1e-9:
-            emit_to(world, f"{name}_renewed", f"{plan.name} renewed at {money(price)} {config.currency} instead of {money(last)}.",
+            emit_to(world, f"{name}_renewed",
+                    f"{plan.name} renewed at {money(price)} {config.currency} instead of {money(last)}.",
                     [subscriber.id], why=f"{plan.name} renewed at a new price.")
         else:
-            emit_to(world, f"{name}_renewed", f"{plan.name} renewed: {money(price)} {config.currency}.", [subscriber.id])
+            emit_to(world, f"{name}_renewed", f"{plan.name} renewed: {money(price)} {config.currency}.",
+                    [subscriber.id])

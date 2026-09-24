@@ -7,17 +7,16 @@ writes in full, cache reads at :data:`CACHED_WEIGHT` of one, as providers bill t
 the agents' tool calls, ``host_calls`` the host answers on the run's tape (live or replayed; a declared
 fallback costs nothing), ``seconds`` the wall-clock time spent inside ``run``.
 
-A budget is checked at the run's safe points — before every round, stage, pass and sequential turn —
-so, for coded participants, the run stops at the same point on every replay (``seconds`` is wall-clock
-time, so it is the one limit that is not deterministic). ``tokens`` is also checked each time a participant
-reports usage, counting the turns still in play: once it is reached, every turn in play ends there (calls
-made after that are refused). The built-in LLM participants also hold back a model call while the calls already
-under way may spend what is left (each reserves what the participant's previous call used; its first call, the size
-of its prompt), so parallel turns overshoot the limit by about one call, not one call per turn in flight, and a
-budget far from its limit never makes parallel turns wait for each other. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by:
-"budget"``, outputs computed as for any ended run) and ``"idle"`` keeps the world running while every
-agent's later turns are idle.
-``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
+A budget is checked at the run's safe points — before every round, stage, pass and sequential turn — so, for coded
+participants, the run stops at the same point on every replay (``seconds`` is wall-clock time, so it is the one limit
+that is not deterministic). ``tokens`` is also checked each time a participant reports usage, counting the turns still
+in play: once it is reached, every turn in play ends there (calls made after that are refused). The built-in LLM
+participants also hold back a model call while the calls already under way may spend what is left (each reserves what
+the participant's previous call used; its first call, the size of its prompt), so parallel turns overshoot the limit by
+about one call, not one call per turn in flight, and a budget far from its limit never makes parallel turns wait for
+each other. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs computed
+as for any ended run) and ``"idle"`` keeps the world running while every agent's later turns are idle. ``result.budget``
+reports the limits, what was used and which limit ran out; snapshots carry it.
 
 Usage a participant reports after its turn is over (it ran out of time) still counts: it is added to the run's
 statistics when it arrives and the next safe point sees it, though that participant takes no further action
@@ -29,7 +28,8 @@ from __future__ import annotations
 
 import math
 import time
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from ..host.hosts import count_host_tokens
 
@@ -50,8 +50,8 @@ CACHED_WEIGHT = 0.1
 
 
 def tokens_of(stats: Any) -> int:
-    """The tokens ``stats`` (a :class:`~fg_env.runtime.measure.Stats`) spend toward a token budget: fresh input, output and
-    cache writes in full, cache reads at :data:`CACHED_WEIGHT`."""
+    """The tokens ``stats`` (a :class:`~fg_env.runtime.measure.Stats`) spend toward a token budget: fresh input, output
+    and cache writes in full, cache reads at :data:`CACHED_WEIGHT`."""
     return math.ceil(stats.input_tokens + stats.output_tokens + stats.cache_write_tokens
                      + stats.cache_read_tokens * CACHED_WEIGHT)
 
@@ -67,15 +67,15 @@ class Budget:
     def __init__(self, limits: Mapping[str, float], on_exhaust: str = "end"):
         self.limits = dict(limits)
         self.on_exhaust = on_exhaust
-        self.exhausted: Optional[str] = None
+        self.exhausted: str | None = None
         #: Wall-clock seconds spent running, up to the last safe point.
         self.seconds = 0.0
-        self._mark: Optional[float] = None
+        self._mark: float | None = None
         #: Tokens held for the model calls under way (:meth:`reserve`).
         self._reserved = 0.0
 
     @classmethod
-    def parse(cls, value: Any) -> "Budget":
+    def parse(cls, value: Any) -> Budget:
         """A budget from ``{"tokens": N, "calls": N, "host_calls": N, "seconds": S, "on_exhaust": ...}``."""
         if not isinstance(value, Mapping):
             raise ValueError(f"budget must be a mapping like {{'tokens': 100000, 'on_exhaust': 'end'}}, got {value!r}")
@@ -83,7 +83,7 @@ class Budget:
         if unknown:
             raise ValueError(f"budget has no {', '.join(map(repr, unknown))} (limits: {', '.join(LIMITS)}; "
                              "and on_exhaust)")
-        limits: Dict[str, float] = {}
+        limits: dict[str, float] = {}
         for key in LIMITS:
             if key not in value:
                 continue
@@ -101,7 +101,7 @@ class Budget:
         return cls(limits, on_exhaust)
 
     @classmethod
-    def begin(cls, given: Any, current: Optional["Budget"]) -> Optional["Budget"]:
+    def begin(cls, given: Any, current: Budget | None) -> Budget | None:
         """The budget a ``run`` call plays under: ``given`` (see :meth:`parse`) — keeping the seconds ``current``
         already counted — else ``current``. Its clock starts now."""
         budget = current if given is None else cls.parse(given)
@@ -112,11 +112,11 @@ class Budget:
         return budget
 
     @staticmethod
-    def report(env: "Env") -> Dict[str, Any]:
+    def report(env: Env) -> dict[str, Any]:
         """The run's budget as ``result.budget`` shows it (empty without one)."""
         return env.budget.to_dict(env) if env.budget is not None else {}
 
-    def used(self, env: "Env") -> Dict[str, float]:
+    def used(self, env: Env) -> dict[str, float]:
         from ..host.tape import TAPE
 
         tape = env.world.props.get(TAPE)
@@ -125,12 +125,12 @@ class Budget:
                 "host_calls": sum(1 for entry in entries if isinstance(entry, Mapping) and not entry.get("fallback")),
                 "seconds": round(self.seconds, 3)}
 
-    def tokens_spent(self, env: "Env", turn: "Turn") -> bool:
+    def tokens_spent(self, env: Env, turn: Turn) -> bool:
         """Whether the token limit is reached counting the turns still in play (``turn``, and in a simultaneous stage
         all of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
         return self.tokens_left(env, turn) <= 0
 
-    def tokens_left(self, env: "Env", turn: "Turn") -> float:
+    def tokens_left(self, env: Env, turn: Turn) -> float:
         """The tokens left before the limit, counting the turns still in play (``turn``, and in a simultaneous stage all
         of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
         limit = self.limits.get("tokens")
@@ -139,11 +139,11 @@ class Budget:
         playing = {id(t): t for t in (*env.origin.staged, turn) if not t.tallied}
         return limit - tokens_of(env.stats) - sum(tokens_of(t.stats) for t in playing.values())
 
-    def reserve(self, env: "Env", turn: "Turn", tokens: float) -> Optional[float]:
-        """Hold ``tokens`` of the token limit (what a model call ``turn`` is about to make is expected to spend), waiting
-        while the calls already under way may spend what is left. Returns what was held, to :meth:`release` once the
-        call's usage is recorded, or None when the turn is over first (the limit ran out, or its time did). A call waits
-        only for others, so a limit is overshot by about one call."""
+    def reserve(self, env: Env, turn: Turn, tokens: float) -> float | None:
+        """Hold ``tokens`` of the token limit (what a model call ``turn`` is about to make is expected to spend),
+        waiting while the calls already under way may spend what is left. Returns what was held, to :meth:`release` once
+        the call's usage is recorded, or None when the turn is over first (the limit ran out, or its time did). A call
+        waits only for others, so a limit is overshot by about one call."""
         if "tokens" not in self.limits:
             return 0
         signal = env._signal
@@ -161,14 +161,14 @@ class Budget:
                 signal.wait(time_left)
             return None
 
-    def release(self, env: "Env", held: float) -> None:
+    def release(self, env: Env, held: float) -> None:
         """Give back what :meth:`reserve` held for a call that has finished."""
         if held:
             with env._signal:
                 self._reserved -= held
                 env._signal.notify_all()
 
-    def check(self, env: "Env") -> Optional[str]:
+    def check(self, env: Env) -> str | None:
         """The limit that has run out (recorded the first time one does), or None. Called at safe points: the
         wall-clock time since the previous one is counted."""
         if self.exhausted is None:
@@ -181,7 +181,7 @@ class Budget:
             self.exhausted = next((key for key in LIMITS if key in self.limits and used[key] >= self.limits[key]), None)
         return self.exhausted
 
-    def enforce(self, env: "Env") -> bool:
+    def enforce(self, env: Env) -> bool:
         """Apply the budget at one of the run's safe points. True when a limit has just run out and the run ended
         here; with ``on_exhaust: "idle"`` a ``budget`` event is logged, the run goes on and the driver idles every
         later turn."""
@@ -200,19 +200,19 @@ class Budget:
         env._finish()
         return True
 
-    def message(self, env: "Env") -> str:
+    def message(self, env: Env) -> str:
         key = self.exhausted
         if key is None:
             return ""
         then = "the run ended" if self.on_exhaust == "end" else "agents take no more actions"
         return f"The {_WHAT[key]} budget ran out ({spent(key, self.used(env)[key], self.limits[key])}); {then}."
 
-    def to_dict(self, env: "Env") -> Dict[str, Any]:
+    def to_dict(self, env: Env) -> dict[str, Any]:
         return {"limits": dict(self.limits), "on_exhaust": self.on_exhaust, "used": self.used(env),
                 "exhausted": self.exhausted}
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "Budget":
+    def from_dict(cls, data: Mapping[str, Any]) -> Budget:
         """The budget kept in a snapshot."""
         budget = cls.parse({**data["limits"], "on_exhaust": data.get("on_exhaust", "end")})
         budget.exhausted = data.get("exhausted")

@@ -12,8 +12,8 @@ how uncertain each rating still is (RD).
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
-from typing import Dict, List, Mapping, Sequence, Tuple
 
 from ..analysis.stats import normal_quantile
 from ..stdlib.linalg import eliminate
@@ -36,12 +36,12 @@ _GLICKO_SCALE = 173.7178
 _VOLATILITY_EPSILON = 1e-6
 
 #: One pairwise result: (entrant, opponent, entrant's score: 1 win, 0.5 draw, 0 loss).
-Pairing = Tuple[str, str, float]
+Pairing = tuple[str, str, float]
 
 
-def pairwise(scores: Sequence[Tuple[str, float]]) -> List[Pairing]:
+def pairwise(scores: Sequence[tuple[str, float]]) -> list[Pairing]:
     """Every pair of seats in one game as a result for the first of the pair (by score)."""
-    out: List[Pairing] = []
+    out: list[Pairing] = []
     for i, (a, score_a) in enumerate(scores):
         for b, score_b in scores[i + 1:]:
             out.append((a, b, 1.0 if score_a > score_b else 0.5 if score_a == score_b else 0.0))
@@ -57,7 +57,7 @@ class EloRating:
     low: float
     high: float
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         return {"rating": self.rating, "se": self.se, "low": self.low, "high": self.high}
 
 
@@ -72,12 +72,13 @@ def _log_sigmoid(x: float) -> float:
     return -math.log1p(math.exp(-x)) if x >= 0 else x - math.log1p(math.exp(x))
 
 
-def elo_mle(entrants: Sequence[str], games: Sequence[Pairing], prior_draws: float = ELO_PRIOR_DRAWS) -> Dict[str, EloRating]:
+def elo_mle(entrants: Sequence[str], games: Sequence[Pairing],
+            prior_draws: float = ELO_PRIOR_DRAWS) -> dict[str, EloRating]:
     """Elo ratings that make the observed results most likely (see the module notes for the model)."""
     if prior_draws <= 0:
         raise ValueError(f"prior_draws must be above 0 (it keeps ratings finite), got {prior_draws}")
     index = {name: i for i, name in enumerate(entrants)}
-    totals: Dict[Tuple[int, int], List[float]] = {}  # (i, j) with i < j → [games, i's points]
+    totals: dict[tuple[int, int], list[float]] = {}  # (i, j) with i < j → [games, i's points]
     for a, b, score in games:
         i, j = index[a], index[b]
         key, points = ((i, j), score) if i < j else ((j, i), 1.0 - score)
@@ -93,7 +94,7 @@ def elo_mle(entrants: Sequence[str], games: Sequence[Pairing], prior_draws: floa
             total += points * _log_sigmoid(d) + (count - points) * _log_sigmoid(-d)
         return total
 
-    def derivatives(theta: Sequence[float]) -> Tuple[List[float], List[List[float]]]:
+    def derivatives(theta: Sequence[float]) -> tuple[list[float], list[list[float]]]:
         """Gradient of the log posterior and its negated Hessian (positive definite)."""
         grad = [prior_draws * (0.5 - _sigmoid(t)) for t in theta]
         curvature = [[0.0] * n for _ in range(n)]
@@ -145,7 +146,7 @@ class Glicko:
     rd: float = GLICKO_RD
     volatility: float = GLICKO_VOLATILITY
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         return {"rating": self.rating, "rd": self.rd, "volatility": self.volatility}
 
 
@@ -181,7 +182,7 @@ def _new_volatility(sigma: float, phi: float, v: float, delta: float, tau: float
     return math.exp(low / 2.0)
 
 
-def _update(player: Glicko, results: Sequence[Tuple[Glicko, float]], tau: float) -> Glicko:
+def _update(player: Glicko, results: Sequence[tuple[Glicko, float]], tau: float) -> Glicko:
     mu, phi = (player.rating - GLICKO_START) / _GLICKO_SCALE, player.rd / _GLICKO_SCALE
     if not results:
         return replace(player, rd=math.sqrt(phi * phi + player.volatility ** 2) * _GLICKO_SCALE)
@@ -200,10 +201,11 @@ def _update(player: Glicko, results: Sequence[Tuple[Glicko, float]], tau: float)
     return Glicko(mu_new * _GLICKO_SCALE + GLICKO_START, phi_new * _GLICKO_SCALE, sigma)
 
 
-def glicko2_period(players: Mapping[str, Glicko], games: Sequence[Pairing], tau: float = GLICKO_TAU) -> Dict[str, Glicko]:
+def glicko2_period(players: Mapping[str, Glicko], games: Sequence[Pairing],
+                   tau: float = GLICKO_TAU) -> dict[str, Glicko]:
     """Every player's rating after one rating period of pairwise ``games`` (all rated from the ratings before it).
     A player without games keeps its rating while its RD grows."""
-    results: Dict[str, List[Tuple[Glicko, float]]] = {name: [] for name in players}
+    results: dict[str, list[tuple[Glicko, float]]] = {name: [] for name in players}
     for a, b, score in games:
         results[a].append((players[b], score))
         results[b].append((players[a], 1.0 - score))

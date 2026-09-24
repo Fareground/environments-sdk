@@ -40,15 +40,16 @@ from __future__ import annotations
 
 import ast
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # Safe numeric expression evaluator
 # ---------------------------------------------------------------------------
 
 #: Math functions exposed to rate expressions. Pure, side-effect-free.
-_FUNCS: Dict[str, Any] = {
+_FUNCS: dict[str, Any] = {
     "sin": math.sin, "cos": math.cos, "tan": math.tan,
     "exp": math.exp, "log": math.log, "sqrt": math.sqrt,
     "abs": abs, "min": min, "max": max, "pow": pow,
@@ -59,7 +60,7 @@ _FUNCS: Dict[str, Any] = {
 }
 
 #: Constants available by name.
-_CONSTS: Dict[str, float] = {"pi": math.pi, "e": math.e, "tau": math.tau}
+_CONSTS: dict[str, float] = {"pi": math.pi, "e": math.e, "tau": math.tau}
 
 #: AST node types permitted in a rate expression. Anything else is rejected at
 #: compile time — no attribute access, no comprehensions, no lambdas, no names
@@ -166,7 +167,7 @@ class EntitySource:
         return {"entity_type": self.entity_type, "property": self.property, "reduce": self.reduce}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "EntitySource":
+    def from_dict(cls, d: dict) -> EntitySource:
         return cls(entity_type=d["entity_type"], property=d["property"], reduce=d.get("reduce", "sum"))
 
 
@@ -182,12 +183,12 @@ class EntityWriteback:
     property: str
     mode: str = "broadcast"
 
-    def write(self, state: Any, value: float) -> List[Dict[str, Any]]:
+    def write(self, state: Any, value: float) -> list[dict[str, Any]]:
         ents = [e for e in state.get_entities_by_type(self.entity_type) if getattr(e, "alive", True)]
         if not ents:
             return []
         per = value / len(ents) if self.mode == "distribute" else value
-        changes: List[Dict[str, Any]] = []
+        changes: list[dict[str, Any]] = []
         for e in ents:
             old = e.get(self.property, 0.0)
             e.set(self.property, per)
@@ -198,7 +199,7 @@ class EntityWriteback:
         return {"entity_type": self.entity_type, "property": self.property, "mode": self.mode}
 
     @classmethod
-    def from_dict(cls, d: dict) -> "EntityWriteback":
+    def from_dict(cls, d: dict) -> EntityWriteback:
         return cls(entity_type=d["entity_type"], property=d["property"], mode=d.get("mode", "broadcast"))
 
 
@@ -219,15 +220,15 @@ class PhysicsVariable:
     """
     name: str
     value: float = 0.0
-    rate: Optional[str] = None          # d(value)/dt expression; None = not integrated
-    noise: Optional[str] = None         # diffusion coefficient of the Wiener increment; needs a rate
-    min: Optional[float] = None
-    max: Optional[float] = None
-    source: Optional[EntitySource] = None
-    writeback: Optional[EntityWriteback] = None
+    rate: str | None = None          # d(value)/dt expression; None = not integrated
+    noise: str | None = None         # diffusion coefficient of the Wiener increment; needs a rate
+    min: float | None = None
+    max: float | None = None
+    source: EntitySource | None = None
+    writeback: EntityWriteback | None = None
 
     def to_dict(self) -> dict:
-        d: Dict[str, Any] = {"name": self.name, "value": self.value}
+        d: dict[str, Any] = {"name": self.name, "value": self.value}
         if self.rate is not None:
             d["rate"] = self.rate
         if self.noise is not None:
@@ -243,7 +244,7 @@ class PhysicsVariable:
         return d
 
     @classmethod
-    def from_dict(cls, d: dict) -> "PhysicsVariable":
+    def from_dict(cls, d: dict) -> PhysicsVariable:
         return cls(
             name=d["name"],
             value=float(d.get("value", 0.0)),
@@ -284,30 +285,31 @@ class PhysicsModel:
 
     def __init__(
         self,
-        variables: Optional[List[PhysicsVariable]] = None,
-        params: Optional[Dict[str, float]] = None,
+        variables: list[PhysicsVariable] | None = None,
+        params: dict[str, float] | None = None,
         substeps: int = 4,
         time: float = 0.0,
     ):
-        self.variables: Dict[str, PhysicsVariable] = {v.name: v for v in (variables or [])}
-        self.params: Dict[str, float] = dict(params or {})
+        self.variables: dict[str, PhysicsVariable] = {v.name: v for v in (variables or [])}
+        self.params: dict[str, float] = dict(params or {})
         # Clamp substeps to a sane ceiling: each integrate() call loops
         # `substeps` times doing four dict-allocating derivative evals, so an
         # unbounded config value (`substeps: 100000000`) is a per-tick DoS.
         self.substeps: int = max(1, min(int(substeps), self.MAX_SUBSTEPS))
         self.time: float = float(time)
         # Compile each integrated variable's rate expression once.
-        self._compiled: Dict[str, _CompiledExpr] = {
+        self._compiled: dict[str, _CompiledExpr] = {
             name: _CompiledExpr(v.rate)
             for name, v in self.variables.items()
             if v.rate is not None
         }
-        self._noise: Dict[str, _CompiledExpr] = {}
+        self._noise: dict[str, _CompiledExpr] = {}
         for name, v in self.variables.items():
             if v.noise is None:
                 continue
             if v.rate is None:
-                raise PhysicsExprError(f"variable {name!r} has noise but no rate — give it a rate (\"0\" for pure noise)")
+                raise PhysicsExprError(f"variable {name!r} has noise but no rate — give it a rate (\"0\" for pure "
+                                       "noise)")
             self._noise[name] = _CompiledExpr(v.noise)
         self._validate_names()
         # A variable can be integrated (rate) OR algebraically bound to the
@@ -320,10 +322,13 @@ class PhysicsModel:
                     "read-only (algebraic); drop one."
                 )
             for label, value in (("value", v.value), ("min", v.min), ("max", v.max)):
-                if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value)):
+                if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float))
+                                          or not math.isfinite(value)):
                     raise PhysicsExprError(f"variable {name!r} {label} must be finite")
-            if v.source is None and ((v.min is not None and v.value < v.min) or (v.max is not None and v.value > v.max)):
-                raise PhysicsExprError(f"variable {name!r} initial value {v.value} is outside its bounds ({v.min}, {v.max})")
+            if v.source is None and ((v.min is not None and v.value < v.min)
+                                     or (v.max is not None and v.value > v.max)):
+                raise PhysicsExprError(f"variable {name!r} initial value {v.value} is outside its bounds ({v.min}, "
+                                       f"{v.max})")
             if v.min is not None and v.max is not None and v.min > v.max:
                 raise PhysicsExprError(
                     f"variable {name!r} has min ({v.min}) > max ({v.max})"
@@ -332,12 +337,12 @@ class PhysicsModel:
     # -- introspection ----------------------------------------------------
 
     @property
-    def values(self) -> Dict[str, float]:
+    def values(self) -> dict[str, float]:
         """Current value of every variable, keyed by name."""
         return {name: v.value for name, v in self.variables.items()}
 
     @property
-    def integrated(self) -> List[str]:
+    def integrated(self) -> list[str]:
         """Names of variables that have an ODE (are integrated)."""
         return [n for n, v in self.variables.items() if v.rate is not None]
 
@@ -359,8 +364,8 @@ class PhysicsModel:
 
     # -- integration ------------------------------------------------------
 
-    def _namespace(self, values: Mapping[str, float], t: float) -> Dict[str, Any]:
-        ns: Dict[str, Any] = {}
+    def _namespace(self, values: Mapping[str, float], t: float) -> dict[str, Any]:
+        ns: dict[str, Any] = {}
         ns.update(_FUNCS)
         ns.update(_CONSTS)
         ns.update(self.params)
@@ -368,19 +373,19 @@ class PhysicsModel:
         ns["t"] = t
         return ns
 
-    def _derivatives(self, values: Mapping[str, float], t: float) -> Dict[str, float]:
+    def _derivatives(self, values: Mapping[str, float], t: float) -> dict[str, float]:
         """Evaluate every ODE's right-hand side at variable values ``values`` and
         time ``t``.
 
         ``values`` carries the (possibly RK4-perturbed) *integrated* variables;
         algebraic / source-bound variables are read at their current value so
         coupled rates can reference them. Integrated perturbations win."""
-        full: Dict[str, float] = {n: v.value for n, v in self.variables.items()}
+        full: dict[str, float] = {n: v.value for n, v in self.variables.items()}
         full.update(values)
         ns = self._namespace(full, t)
         return {name: expr.eval(ns) for name, expr in self._compiled.items()}
 
-    def integrate(self, dt: float, state: Any = None, rng: Any = None) -> List[Dict[str, Any]]:
+    def integrate(self, dt: float, state: Any = None, rng: Any = None) -> list[dict[str, Any]]:
         """Advance the system forward by ``dt`` time units.
 
         Variables with ``noise`` need ``rng`` (a :class:`random.Random`): each sub-step of
@@ -438,7 +443,7 @@ class PhysicsModel:
 
         self.time = self.time + dt  # commit time exactly (no float drift)
 
-        changes: List[Dict[str, Any]] = []
+        changes: list[dict[str, Any]] = []
         for n in self._compiled:
             var = self.variables[n]
             new_val = y[n]
@@ -464,11 +469,11 @@ class PhysicsModel:
             changes.extend(self._apply_writebacks(state))
         return changes
 
-    def _diffuse(self, start: Dict[str, float], drift: Dict[str, float], t: float, h: float,
-                 rng: Any) -> Dict[str, float]:
+    def _diffuse(self, start: dict[str, float], drift: dict[str, float], t: float, h: float,
+                 rng: Any) -> dict[str, float]:
         """Euler–Maruyama: the noise term at the sub-step's start, scaled by a Wiener increment,
         then every noisy variable clamped to its bounds."""
-        full: Dict[str, float] = {n: v.value for n, v in self.variables.items()}
+        full: dict[str, float] = {n: v.value for n, v in self.variables.items()}
         full.update(start)
         ns = self._namespace(full, t)
         root = math.sqrt(h)
@@ -488,8 +493,8 @@ class PhysicsModel:
             if v.source is not None:
                 v.value = v.source.read(state)
 
-    def _apply_writebacks(self, state: Any) -> List[Dict[str, Any]]:
-        out: List[Dict[str, Any]] = []
+    def _apply_writebacks(self, state: Any) -> list[dict[str, Any]]:
+        out: list[dict[str, Any]] = []
         for v in self.variables.values():
             if v.writeback is not None:
                 wrote = v.writeback.write(state, v.value)
@@ -519,7 +524,7 @@ class PhysicsModel:
         }
 
     @classmethod
-    def from_dict(cls, d: Mapping[str, Any]) -> "PhysicsModel":
+    def from_dict(cls, d: Mapping[str, Any]) -> PhysicsModel:
         return cls(
             variables=[PhysicsVariable.from_dict(v) for v in (d.get("variables") or [])],
             params={k: float(val) for k, val in (d.get("params") or {}).items()},

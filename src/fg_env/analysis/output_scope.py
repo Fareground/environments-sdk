@@ -1,7 +1,8 @@
 """Output maps that reject invalid values only when an analysis expression reads them."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Iterator
+from collections.abc import Iterator
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from _collections_abc import dict_items, dict_values

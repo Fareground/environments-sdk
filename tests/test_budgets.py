@@ -4,17 +4,15 @@ import time
 from types import SimpleNamespace as NS
 
 import pytest
-
-import fg_env
-from fg_env import participants
-from fg_env.__main__ import main
-from fg_env import host
-from fg_env.host.stubs import StubEvaluator
-
 from test_exposures import TOWN, reader
 from test_host_tape import PITCH, _with, pitcher
 from test_llm_participants import FakeAnthropic
 from test_runtime import SHOP
+
+import fg_env
+from fg_env import host, participants
+from fg_env.__main__ import main
+from fg_env.host.stubs import StubEvaluator
 
 
 def test_a_call_budget_ends_the_run_before_the_next_turn_with_ended_by_budget():

@@ -15,8 +15,9 @@ from __future__ import annotations
 import threading
 import time
 import weakref
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -37,8 +38,8 @@ class Hosts:
     With both, recorded answers win and anything new goes to the live adapter.
     """
 
-    def __init__(self, adapters: Optional[Mapping[str, Any]] = None, *,
-                 replay: Optional[Mapping[str, Mapping[str, Any]]] = None, live: bool = True):
+    def __init__(self, adapters: Mapping[str, Any] | None = None, *,
+                 replay: Mapping[str, Mapping[str, Any]] | None = None, live: bool = True):
         if adapters is not None and not isinstance(adapters, Mapping):
             raise TypeError(f"adapters must be a mapping of host name to adapter, got {type(adapters).__name__}")
         if replay is not None and not isinstance(replay, Mapping):
@@ -51,12 +52,12 @@ class Hosts:
         for key, entry in (replay or {}).items():
             if not isinstance(key, str) or not isinstance(entry, Mapping) or "response" not in entry:
                 raise ValueError("replay must be a tape from fg_env.host.tape_of()")
-        self._adapters: Dict[str, Any] = dict(adapters or {})
-        self.replay: Dict[str, Dict[str, Any]] = {key: dict(entry) for key, entry in (replay or {}).items()}
+        self._adapters: dict[str, Any] = dict(adapters or {})
+        self.replay: dict[str, dict[str, Any]] = {key: dict(entry) for key, entry in (replay or {}).items()}
         self.live = bool(live)
 
     @classmethod
-    def replaying(cls, tape: Mapping[str, Mapping[str, Any]]) -> "Hosts":
+    def replaying(cls, tape: Mapping[str, Mapping[str, Any]]) -> Hosts:
         """Hosts that answer only from a recorded tape."""
         return cls(replay=tape, live=False)
 
@@ -65,7 +66,7 @@ class Hosts:
         return self._adapters.get(name) if self.live else None
 
     @property
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return list(self._adapters)
 
     def __repr__(self) -> str:
@@ -73,12 +74,12 @@ class Hosts:
         return f"Hosts({', '.join(self._adapters) or 'no adapters'}; {len(self.replay)} recorded; {mode})"
 
 
-HostsLike = Union[Hosts, Mapping[str, Any], None]
+HostsLike = Hosts | Mapping[str, Any] | None
 
-_BOUND: "weakref.WeakKeyDictionary[Any, Hosts]" = weakref.WeakKeyDictionary()
+_BOUND: weakref.WeakKeyDictionary[Any, Hosts] = weakref.WeakKeyDictionary()
 
 
-def as_hosts(value: HostsLike) -> Optional[Hosts]:
+def as_hosts(value: HostsLike) -> Hosts | None:
     if value is None or isinstance(value, Hosts):
         return value
     if isinstance(value, Mapping):
@@ -86,7 +87,7 @@ def as_hosts(value: HostsLike) -> Optional[Hosts]:
     raise TypeError(f"hosts must be a Hosts or a mapping of host name to adapter, got {type(value).__name__}")
 
 
-def bind(env: "Env", hosts: HostsLike) -> "Env":
+def bind(env: Env, hosts: HostsLike) -> Env:
     """Bind a loaded environment to its hosts (``None`` unbinds). Returns the environment.
 
     Previews play the next round on a restored copy of the run; the copy is bound to the same
@@ -100,7 +101,7 @@ def bind(env: "Env", hosts: HostsLike) -> "Env":
     if not getattr(env, "_host_probe_bound", False):
         make_probe = env.previews.probe
 
-        def probe(snapshot: Mapping[str, Any], participants: Any = None) -> "Env":
+        def probe(snapshot: Mapping[str, Any], participants: Any = None) -> Env:
             copy = make_probe(snapshot, participants)
             current = _BOUND.get(env.world)
             return bind(copy, current) if current is not None else copy
@@ -110,11 +111,11 @@ def bind(env: "Env", hosts: HostsLike) -> "Env":
     return env
 
 
-def hosts_for(world: Any) -> Optional[Hosts]:
+def hosts_for(world: Any) -> Hosts | None:
     return _BOUND.get(world)
 
 
-def count_host_tokens(env: "Env") -> None:
+def count_host_tokens(env: Env) -> None:
     """Add the tokens the run's host calls spent since last counted to the run's stats."""
     with _PENDING_LOCK:
         taken = _PENDING.pop(env.world, None)
@@ -131,7 +132,7 @@ def counting(world: Any, adapter: Any) -> Iterator[None]:
     reports with :func:`credit_tokens` while the block runs on this thread, else how much its ``usage`` grew."""
     before = _tokens(adapter)
     outer, outer_deadline = getattr(_CALL, "reported", None), getattr(_CALL, "deadline", None)
-    reported: Dict[str, int] = {}
+    reported: dict[str, int] = {}
     _CALL.reported, _CALL.deadline = reported, world.turn_deadline()
     try:
         yield
@@ -147,7 +148,7 @@ def counting(world: Any, adapter: Any) -> Iterator[None]:
                 pending[:] = [total + more for total, more in zip(pending, spent)]
 
 
-def time_left() -> Optional[float]:
+def time_left() -> float | None:
     """Seconds left before the turn that made the host call in progress on this thread must end (None: no limit), so an
     adapter never waits past it (the reference adapters stop retrying instead)."""
     deadline = getattr(_CALL, "deadline", None)
@@ -168,11 +169,11 @@ def credit_tokens(input_tokens: int = 0, output_tokens: int = 0, cache_read_toke
 
 #: The host call in progress on this thread, and the tokens each run's host calls spent since it last counted them.
 _CALL = threading.local()
-_PENDING: "weakref.WeakKeyDictionary[Any, List[int]]" = weakref.WeakKeyDictionary()
+_PENDING: weakref.WeakKeyDictionary[Any, list[int]] = weakref.WeakKeyDictionary()
 _PENDING_LOCK = threading.Lock()
 
 
-def _tokens(adapter: Any) -> Tuple[int, ...]:
+def _tokens(adapter: Any) -> tuple[int, ...]:
     usage = getattr(adapter, "usage", None)
     counts = [usage.get(key, 0) if isinstance(usage, Mapping) else 0 for key in _TOKENS]
     return tuple(value if isinstance(value, int) and not isinstance(value, bool) else 0 for value in counts)

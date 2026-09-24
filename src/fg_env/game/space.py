@@ -16,17 +16,18 @@ from __future__ import annotations
 import bisect
 import math
 import random
+from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
-from ..runtime.session import END_TURN
 from ..expr.template import format_value
+from ..runtime.session import END_TURN
+from ..world.entity import Entity
 from ..world.live import _plain
 
 if TYPE_CHECKING:
@@ -44,7 +45,7 @@ _NUMBER_TOLERANCE = 1e-9
 class Action:
     """One tool call. ``id`` is None for a call to a parametric action (its arguments have no id)."""
 
-    id: Optional[int]
+    id: int | None
     tool: str
     args: Mapping[str, Any] = field(default_factory=dict)
 
@@ -62,23 +63,24 @@ class _Block:
     tool: str
     offset: int
     size: int
-    params: Tuple[Tuple[str, Tuple[Any, ...]], ...] = ()
-    parametric: Optional[str] = None
+    params: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    parametric: str | None = None
 
 
 class ActionSpace:
     """Every tool call a game can make, numbered: ``encode`` a call, ``decode`` an id."""
 
-    def __init__(self, env: "Env", limit: int = COMBINATION_LIMIT):
+    def __init__(self, env: Env, limit: int = COMBINATION_LIMIT):
         contract, world = env.contract, env.world
         self.limit = limit
-        blocks: List[_Block] = [_Block(END_TURN, 0, 1)]
+        blocks: list[_Block] = [_Block(END_TURN, 0, 1)]
         offset = 1
         for name, spec in contract.actions.items():
             by = [spec.by] if isinstance(spec.by, str) else spec.by
-            actors = [e for e in world.entities.values() if e.alive and any(contract.is_a(e.entity_type, b) for b in by)]
-            params: List[Tuple[str, Tuple[Any, ...]]] = []
-            reason: Optional[str] = None
+            actors = [e for e in world.entities.values() if e.alive
+                      and any(contract.is_a(e.entity_type, b) for b in by)]
+            params: list[tuple[str, tuple[Any, ...]]] = []
+            reason: str | None = None
             size = 1
             for pname, param in spec.params.items():
                 universe, why = _universe(env, param, actors, limit)
@@ -101,11 +103,11 @@ class ActionSpace:
         self.size = offset
 
     @property
-    def parametric(self) -> Dict[str, str]:
+    def parametric(self) -> dict[str, str]:
         """Actions whose calls carry their own arguments, with the reason."""
         return {block.tool: block.parametric for block in self._blocks if block.parametric}
 
-    def encode(self, tool: str, args: Mapping[str, Any]) -> Optional[int]:
+    def encode(self, tool: str, args: Mapping[str, Any]) -> int | None:
         """The id of a call, or None when it has none (a parametric action, or a value outside the space)."""
         block = self._by_tool.get(tool)
         if block is None:
@@ -123,7 +125,7 @@ class ActionSpace:
             index = index * len(universe) + position
         return block.offset + index
 
-    def decode(self, action_id: int) -> Tuple[str, Dict[str, Any]]:
+    def decode(self, action_id: int) -> tuple[str, dict[str, Any]]:
         """The call an id stands for. A parametric action's id raises: its call needs its arguments."""
         if isinstance(action_id, bool) or not isinstance(action_id, int) or not 0 <= action_id < self.size:
             raise ValueError(f"action id must be a whole number from 0 to {self.size - 1}, got {action_id!r}")
@@ -132,7 +134,7 @@ class ActionSpace:
             raise ValueError(f"id {action_id} is the parametric action '{block.tool}' ({block.parametric}); "
                              "apply it as a call with its arguments: {\"tool\": ..., \"args\": {...}}")
         index = action_id - block.offset
-        args: Dict[str, Any] = {}
+        args: dict[str, Any] = {}
         for name, universe in reversed(block.params):
             index, position = divmod(index, len(universe))
             if universe[position] is not None:
@@ -143,7 +145,7 @@ class ActionSpace:
         return Action(self.encode(tool, args), tool, MappingProxyType(dict(args)))
 
 
-def _universe(env: "Env", param: ParamSpec, actors: Sequence[Entity], limit: int) -> Tuple[Optional[List[Any]], str]:
+def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int) -> tuple[list[Any] | None, str]:
     world = env.world
     kind = param.type
     if kind == "bool":
@@ -170,11 +172,11 @@ def _universe(env: "Env", param: ParamSpec, actors: Sequence[Entity], limit: int
     return None, "free text" if kind == "text" else "a list argument"
 
 
-def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> Tuple[Optional[List[Any]], str]:
+def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> tuple[list[Any] | None, str]:
     if raw is None:
         return [], ""
     if not is_expr(raw):
-        out: List[Any] = []
+        out: list[Any] = []
         add(raw, out)
         return out, ""
     expr = compile_expr(raw)
@@ -189,7 +191,7 @@ def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> Tupl
     return _unique(out), ""
 
 
-def _steps(low: float, high: float, step: float, kind: str, limit: int) -> Tuple[Optional[List[Any]], str]:
+def _steps(low: float, high: float, step: float, kind: str, limit: int) -> tuple[list[Any] | None, str]:
     count = math.floor((high - low) / step + _NUMBER_TOLERANCE) + 1
     if count > limit:
         return None, f"{count:,} values (more than {limit:,})"
@@ -201,15 +203,15 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _unique(values: Any) -> List[Any]:
-    out: List[Any] = []
+def _unique(values: Any) -> list[Any]:
+    out: list[Any] = []
     for value in values:
         if _position(out, value) is None:
             out.append(value)
     return out
 
 
-def _position(universe: Sequence[Any], value: Any) -> Optional[int]:
+def _position(universe: Sequence[Any], value: Any) -> int | None:
     for index, item in enumerate(universe):
         if isinstance(item, bool) != isinstance(value, bool):
             continue
@@ -228,8 +230,8 @@ class _Unlisted(Exception):
     pass
 
 
-def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = COMBINATION_LIMIT,
-                dry_run: bool = True) -> Optional[Tuple[str, Dict[str, Any]]]:
+def sample_call(env: Env, turn: Turn, rng: random.Random, *, limit: int = COMBINATION_LIMIT,
+                dry_run: bool = True) -> tuple[str, dict[str, Any]] | None:
     """A uniformly random legal listed call of ``turn`` (None when there is none), found by trying the calls that
     validate in random order and dry-running only until one is not refused — the same choice as picking at
     random from :func:`legal_calls`, for a fraction of the work. Runs on the run's thread."""
@@ -250,24 +252,25 @@ def sample_call(env: "Env", turn: "Turn", rng: random.Random, *, limit: int = CO
     return None
 
 
-def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
-                dry_run: bool = True) -> Tuple[List[Tuple[str, Dict[str, Any]]], Dict[str, str]]:
+def legal_calls(env: Env, turn: Turn, *, limit: int = COMBINATION_LIMIT,
+                dry_run: bool = True) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, str]]:
     """``(calls, unlisted)``: every legal tool call of ``turn`` whose arguments can be listed, and the
     legal actions whose calls cannot, with the reason — after the turn's sealed choices, as the turn checks a call.
     Runs on the run's thread."""
     if turn.done:
         return [], {}
-    calls: List[Tuple[str, Dict[str, Any]]] = []
-    unlisted: Dict[str, str] = {}
+    calls: list[tuple[str, dict[str, Any]]] = []
+    unlisted: dict[str, str] = {}
     with env._lock, as_turn(env, turn), turn.after_choices():
         names = turn._legal()
         acted = turn.actions_left < turn.max_actions or bool(turn.intents)
         if not (turn.stage.must_act and not acted and names):
             calls.append((END_TURN, {}))
         for name in names:
-            found: List[Tuple[str, Dict[str, Any]]] = []
+            found: list[tuple[str, dict[str, Any]]] = []
             try:
-                _walk(env, turn, name, list(env.contract.actions[name].params.items()), 0, {}, {}, found, limit, dry_run)
+                _walk(env, turn, name, list(env.contract.actions[name].params.items()), 0, {}, {}, found, limit,
+                      dry_run)
             except _Unlisted as reason:
                 unlisted[name] = str(reason)
                 continue
@@ -275,8 +278,8 @@ def legal_calls(env: "Env", turn: "Turn", *, limit: int = COMBINATION_LIMIT,
     return calls, unlisted
 
 
-def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]], index: int, raw: Dict[str, Any],
-          resolved: Dict[str, Any], found: List[Tuple[str, Dict[str, Any]]], limit: int,
+def _walk(env: Env, turn: Turn, name: str, items: list[tuple[str, ParamSpec]], index: int, raw: dict[str, Any],
+          resolved: dict[str, Any], found: list[tuple[str, dict[str, Any]]], limit: int,
           dry_run: bool) -> None:
     """Every call of ``name`` from here on, each dry-run unless ``dry_run`` is false."""
     book, actor = env.actions, turn.actor
@@ -298,10 +301,10 @@ def _walk(env: "Env", turn: "Turn", name: str, items: List[Tuple[str, ParamSpec]
                   dry_run)
 
 
-def _choices(env: "Env", turn: "Turn", name: str, pname: str, param: ParamSpec, resolved: Dict[str, Any],
-             limit: int) -> List[Any]:
+def _choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, resolved: dict[str, Any],
+             limit: int) -> list[Any]:
     book, world, actor = env.actions, env.world, turn.actor
-    head: List[Any] = [] if book._required(param) else [None]
+    head: list[Any] = [] if book._required(param) else [None]
     path = f"actions.{name}.params.{pname}"
 
     def scope() -> Any:  # built only for a domain that is an expression
@@ -334,7 +337,7 @@ def _choices(env: "Env", turn: "Turn", name: str, pname: str, param: ParamSpec, 
 
 
 @contextmanager
-def as_turn(env: "Env", turn: "Turn") -> Iterator[None]:
+def as_turn(env: Env, turn: Turn) -> Iterator[None]:
     """Read the world as ``turn`` would (its sealed choices as $pending) with a throwaway random stream,
     so looking never draws from the run's streams; the context's own settings come back afterwards."""
     world = env.world

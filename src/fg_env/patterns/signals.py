@@ -8,7 +8,7 @@ import bisect
 import calendar as _calendar
 import datetime as _dt
 import math
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -18,7 +18,7 @@ from .base import Number, PatternConfig, kind
 __all__ = ["TrendConfig", "SeasonalConfig", "CalendarConfig", "CycleConfig", "LifecycleConfig", "StepConfig",
            "SeriesConfig", "when", "wave"]
 
-Moment = Union[float, str]
+Moment = float | str
 NamedPeriod = Literal["year", "quarter", "month", "week", "day", "hour"]
 
 
@@ -45,14 +45,15 @@ def _position(ctx: Any, t: float, period: Any) -> float:
 class TrendConfig(PatternConfig):
     kind: Literal["trend"] = "trend"
     form: Literal["linear", "exponential", "logistic"] = Field("linear", description="linear: start + slope·t | "
-                                                           "exponential: start·e^(rate·t) | logistic: capacity / (1 + e^(−steepness·(t − midpoint))).")
+                                                           "exponential: start·e^(rate·t) | logistic: capacity / (1 + "
+                                                           "e^(−steepness·(t − midpoint))).")
     start: Number = Field(1.0, description="Value at `origin` (linear, exponential).")
     slope: Number = Field(0.0, description="Change per clock unit (linear).")
     rate: Number = Field(0.0, description="Growth per clock unit, as a log rate: 0.01 ≈ +1% a unit (exponential).")
     capacity: Number = Field(1.0, description="The level it saturates at (logistic).")
     midpoint: Number = Field(0.0, description="Clock units after `origin` when it is half way (logistic).")
     steepness: Number = Field(1.0, description="How fast it rises around the midpoint (logistic).")
-    origin: Union[float, str] = Field(0.0, description="Where t counts from: clock units from round 1, or an ISO date.")
+    origin: float | str = Field(0.0, description="Where t counts from: clock units from round 1, or an ISO date.")
 
 
 def _trend_words(cfg: TrendConfig) -> str:
@@ -87,19 +88,24 @@ def _trend(ctx: Any) -> float:
 
 class SeasonalConfig(PatternConfig):
     kind: Literal["seasonal"] = "seasonal"
-    period: Union[NamedPeriod, float] = Field("year", description="year, quarter, month, week, day, hour — or a number "
-                                                                  "of clock units. With clock.start, year, week and day follow the calendar.")
-    profile: Union[List[Number], str, None] = Field(None, description="One value per slot of the period: 12 over a year are "
-                                                                     "calendar months, 7 over a week weekdays (Monday first), 24 over a day hours; other counts are equal slices.")
+    period: NamedPeriod | float = Field("year", description="year, quarter, month, week, day, hour — or a number of "
+                                                            "clock units. With clock.start, year, week and day follow "
+                                                            "the calendar.")
+    profile: list[Number] | str | None = Field(None, description="One value per slot of the period: 12 over a year "
+                                                                 "are calendar months, 7 over a week weekdays (Monday "
+                                                                 "first), 24 over a day hours; other counts are equal "
+                                                                 "slices.")
     amplitude: Number = Field(0.0, description="Height of a smooth yearly-style wave (0.2 = ±20% with form multiply).")
     peak: Number = Field(0.0, description="Where in the period the wave peaks, from 0 to 1 (0.5 = the middle).")
-    harmonics: Union[List[List[Number]], str, None] = Field(None, description="[[sin, cos], …]: the k-th pair is a wave "
-                                                                             "k times per period (fitted by harmonic regression).")
-    form: Literal["multiply", "add"] = Field("multiply", description="multiply: an index around 1 (profile × (1 + waves)) | "
-                                                                    "add: an amount around 0 (profile + waves).")
+    harmonics: list[list[Number]] | str | None = Field(None, description="[[sin, cos], …]: the k-th pair is a wave k "
+                                                                         "times per period (fitted by harmonic "
+                                                                         "regression).")
+    form: Literal["multiply", "add"] = Field("multiply",
+                                             description="multiply: an index around 1 (profile × (1 + waves)) | add: "
+                                                         "an amount around 0 (profile + waves).")
 
 
-def wave(position: float, amplitude: float, peak: float, harmonics: List[List[float]]) -> float:
+def wave(position: float, amplitude: float, peak: float, harmonics: list[list[float]]) -> float:
     """``amplitude·cos(2π(position − peak)) + Σ sin_k·sin(2πk·position) + cos_k·cos(2πk·position)``."""
     total = amplitude * math.cos(2 * math.pi * (position - peak)) if amplitude else 0.0
     for k, pair in enumerate(harmonics, start=1):
@@ -108,7 +114,7 @@ def wave(position: float, amplitude: float, peak: float, harmonics: List[List[fl
     return total
 
 
-def _harmonics(ctx: Any) -> List[List[float]]:
+def _harmonics(ctx: Any) -> list[list[float]]:
     raw = ctx.param("harmonics")
     if raw is None:
         return []
@@ -132,7 +138,8 @@ def _seasonal_words(cfg: SeasonalConfig) -> str:
 
 @kind("seasonal", "time", "signal", SeasonalConfig,
       "A repeating season: a profile per month, weekday or hour, a smooth wave, or harmonics — around 1 or 0.",
-      example={"kind": "seasonal", "period": "year", "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]},
+      example={"kind": "seasonal", "period": "year",
+               "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]},
       words=_seasonal_words, params=("profile", "amplitude", "peak", "harmonics"))
 def _seasonal(ctx: Any) -> float:
     cfg: SeasonalConfig = ctx.cfg
@@ -164,15 +171,15 @@ class CalendarEffect(BaseModel):
         ..., description="Which days: weekend, weekday, a named day, listed `dates`, `days` of the month (paydays), "
                          "the first or last `days` of a month, or listed `months`.")
     effect: Number = Field(..., description="Multiplier on those days (form multiply) or amount added (form add).")
-    dates: List[str] = Field(default_factory=list, description="ISO dates (2025-11-28) or yearly dates (12-25).")
-    days: Union[int, List[int], None] = Field(None, description="days_of_month: the days of the month ([1, 15]); "
-                                                                 "month_start/month_end: how many days (default 1).")
-    months: List[int] = Field(default_factory=list, description="months: month numbers 1–12.")
+    dates: list[str] = Field(default_factory=list, description="ISO dates (2025-11-28) or yearly dates (12-25).")
+    days: int | list[int] | None = Field(None, description="days_of_month: the days of the month ([1, 15]); "
+                                                           "month_start/month_end: how many days (default 1).")
+    months: list[int] = Field(default_factory=list, description="months: month numbers 1–12.")
     before: int = Field(0, ge=0, description="Days before each matched date also affected (dates, days_of_month).")
     after: int = Field(0, ge=0, description="Days after each matched date also affected (dates, days_of_month).")
 
     @model_validator(mode="after")
-    def _shape(self) -> "CalendarEffect":
+    def _shape(self) -> CalendarEffect:
         if self.on == "dates" and not self.dates:
             raise ValueError("an effect on `dates` needs `dates`")
         if self.on == "days_of_month" and (not isinstance(self.days, list) or not self.days):
@@ -191,12 +198,14 @@ class CalendarEffect(BaseModel):
 
 class CalendarConfig(PatternConfig):
     kind: Literal["calendar"] = "calendar"
-    effects: List[CalendarEffect] = Field(..., description="[{on, effect, dates, days, months, before, after}]: every "
+    effects: list[CalendarEffect] = Field(..., description="[{on, effect, dates, days, months, before, after}]: every "
                                                            "matching effect applies to a day.")
-    form: Literal["multiply", "add"] = Field("multiply", description="multiply: effects multiply a base of 1 | add: effects add to 0.")
+    form: Literal["multiply", "add"] = Field("multiply",
+                                             description="multiply: effects multiply a base of 1 | add: effects add to "
+                                                         "0.")
 
 
-def _matches(effect: Dict[str, Any], day: _dt.date) -> bool:
+def _matches(effect: dict[str, Any], day: _dt.date) -> bool:
     on = effect["on"]
     if on == "weekend":
         return day.weekday() >= 5
@@ -222,7 +231,8 @@ def _matches(effect: Dict[str, Any], day: _dt.date) -> bool:
 
 
 def _calendar_words(cfg: CalendarConfig) -> str:
-    return "calendar effects on " + ", ".join(f"{e.on} (×{e.effect})" if cfg.form == "multiply" else f"{e.on} (+{e.effect})"
+    return "calendar effects on " + ", ".join(f"{e.on} (×{e.effect})" if cfg.form == "multiply"
+                                              else f"{e.on} (+{e.effect})"
                                               for e in cfg.effects)
 
 
@@ -294,17 +304,18 @@ def _cycle(ctx: Any) -> float:
 
 class LifecycleConfig(PatternConfig):
     kind: Literal["lifecycle"] = "lifecycle"
-    start: Union[float, str, List[Moment]] = Field(..., description="When it begins: clock units, an ISO date, or a list "
-                                                                    "(one curve per start, multiplied: each later model launch).")
+    start: float | str | list[Moment] = Field(..., description="When it begins: clock units, an ISO date, or a list "
+                                                               "(one curve per start, multiplied: each later model "
+                                                               "launch).")
     before: Number = Field(1.0, description="Value before the start.")
     peak: Number = Field(1.0, description="Value when the ramp ends.")
     floor: Number = Field(0.0, description="Level it decays toward.")
     ramp: Number = Field(0.0, description="Clock units rising from `before` to `peak` after the start.")
-    half_life: Optional[Number] = Field(None, description="Clock units for the gap above the floor to halve.")
-    rate: Optional[Number] = Field(None, description="Decay per clock unit as a log rate (instead of half_life).")
+    half_life: Number | None = Field(None, description="Clock units for the gap above the floor to halve.")
+    rate: Number | None = Field(None, description="Decay per clock unit as a log rate (instead of half_life).")
 
     @model_validator(mode="after")
-    def _one_decay(self) -> "LifecycleConfig":
+    def _one_decay(self) -> LifecycleConfig:
         if self.half_life is not None and self.rate is not None:
             raise ValueError("give `half_life` or `rate`, not both")
         return self
@@ -330,7 +341,8 @@ def _curve(ctx: Any, tau: float) -> float:
       "A life after a date: before → ramp up to a peak → decay toward a floor (a product launch, a price falling "
       "after a new model). Several starts multiply.",
       example={"kind": "lifecycle", "start": "2025-09-19", "before": 1, "peak": 0.93, "floor": 0.6, "half_life": 40},
-      words=lambda cfg: f"a lifecycle from {cfg.start}: {cfg.before} before, {cfg.peak} at its peak, decaying toward {cfg.floor}",
+      words=lambda cfg: f"a lifecycle from {cfg.start}: {cfg.before} before, {cfg.peak} at its peak, decaying toward "
+                        f"{cfg.floor}",
       params=("start", "before", "peak", "floor", "ramp", "half_life", "rate"))
 def _lifecycle(ctx: Any) -> float:
     raw = ctx.param("start")
@@ -350,12 +362,12 @@ class StepChange(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     at: Moment = Field(..., description="When: clock units or an ISO date.")
-    to: Optional[Number] = Field(None, description="The new value.")
-    by: Optional[Number] = Field(None, description="Added to the value.")
-    times: Optional[Number] = Field(None, description="Multiplies the value.")
+    to: Number | None = Field(None, description="The new value.")
+    by: Number | None = Field(None, description="Added to the value.")
+    times: Number | None = Field(None, description="Multiplies the value.")
 
     @model_validator(mode="after")
-    def _one(self) -> "StepChange":
+    def _one(self) -> StepChange:
         if sum(v is not None for v in (self.to, self.by, self.times)) != 1:
             raise ValueError("a change gives exactly one of `to`, `by` or `times`")
         return self
@@ -364,10 +376,13 @@ class StepChange(BaseModel):
 class StepConfig(PatternConfig):
     kind: Literal["step"] = "step"
     start: Number = Field(0.0, description="The value before any change.")
-    changes: List[StepChange] = Field(..., description="[{at, to | by | times}]: changes that last (a new tax, a price list).")
+    changes: list[StepChange] = Field(...,
+                                      description="[{at, to | by | times}]: changes that last (a new tax, a price "
+                                                  "list).")
 
 
-@kind("step", "time", "signal", StepConfig, "Step changes that last: a value that jumps to, by or times an amount at set times.",
+@kind("step", "time", "signal", StepConfig,
+      "Step changes that last: a value that jumps to, by or times an amount at set times.",
       example={"kind": "step", "start": 0.2, "changes": [{"at": "2026-01-01", "to": 0.23}]},
       words=lambda cfg: f"starts at {cfg.start} and changes {len(cfg.changes)} time(s)", params=("start", "changes"))
 def _step(ctx: Any) -> float:
@@ -394,23 +409,27 @@ def _step(ctx: Any) -> float:
 
 class SeriesConfig(PatternConfig):
     kind: Literal["series"] = "series"
-    data: str = Field(..., description="Expression over $inputs: a list with one value per round, or rows (a table input).")
-    time: Optional[str] = Field(None, description="Rows: the column saying when (an ISO date, or clock units from round 1). "
-                                                  "Without it rows are one per round, in order.")
-    value: Optional[str] = Field(None, description="Rows: the column holding the value.")
-    match: Optional[str] = Field(None, description="Keyed: the column holding each row's key.")
+    data: str = Field(...,
+                      description="Expression over $inputs: a list with one value per round, or rows (a table input).")
+    time: str | None = Field(None, description="Rows: the column saying when (an ISO date, or clock units from round "
+                                               "1). Without it rows are one per round, in order.")
+    value: str | None = Field(None, description="Rows: the column holding the value.")
+    match: str | None = Field(None, description="Keyed: the column holding each row's key.")
     missing: Literal["hold", "interpolate", "error"] = Field("hold", description="Between known times: hold the last "
-                                                                                "value, interpolate, or stop with an error.")
-    after: Literal["hold", "repeat", "error"] = Field("hold", description="Past the last value: hold it, start over, or stop with an error.")
+                                                                                 "value, interpolate, or stop with an "
+                                                                                 "error.")
+    after: Literal["hold", "repeat", "error"] = Field("hold",
+                                                      description="Past the last value: hold it, start over, or stop "
+                                                                  "with an error.")
 
     @model_validator(mode="after")
-    def _columns(self) -> "SeriesConfig":
+    def _columns(self) -> SeriesConfig:
         if self.time is not None and self.value is None:
             raise ValueError("rows with a `time` column need a `value` column")
         return self
 
 
-def _series_points(ctx: Any) -> Tuple[List[float], List[Any]]:
+def _series_points(ctx: Any) -> tuple[list[float], list[Any]]:
     cfg: SeriesConfig = ctx.cfg
     data = ctx.param("data")
     if not isinstance(data, list):
@@ -428,11 +447,12 @@ def _series_points(ctx: Any) -> Tuple[List[float], List[Any]]:
     if cfg.time is None:
         step = tb.step_length(ctx.clock)
         return [i * step for i in range(len(values))], values
-    points = sorted((when(ctx, row.get(cfg.time), f"data[{i}].{cfg.time}"), v) for i, (row, v) in enumerate(zip(rows, values)))
+    points = sorted((when(ctx, row.get(cfg.time), f"data[{i}].{cfg.time}"), v)
+                    for i, (row, v) in enumerate(zip(rows, values)))
     return [p[0] for p in points], [p[1] for p in points]
 
 
-def _number_cell(ctx: Any, raw: Any, index: int) -> Optional[float]:
+def _number_cell(ctx: Any, raw: Any, index: int) -> float | None:
     if raw is None or raw == "":
         return None
     try:
@@ -445,10 +465,11 @@ def _number_cell(ctx: Any, raw: Any, index: int) -> Optional[float]:
 @kind("series", "time", "signal", SeriesConfig,
       "Values from data: a real history (weather, prices, footfall) read at the current time — how a pattern is driven "
       "by the customer's own series.",
-      example={"kind": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c", "missing": "interpolate"},
+      example={"kind": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c",
+               "missing": "interpolate"},
       words=lambda cfg: f"values read from {cfg.data}" + (f" (column {cfg.value})" if cfg.value else ""),
       params=("data",))
-def _series(ctx: Any) -> Optional[float]:
+def _series(ctx: Any) -> float | None:
     times, values = ctx.cached("points", lambda: _series_points(ctx))
     if not times:
         raise ctx.fail("`data` is empty")
@@ -473,7 +494,3 @@ def _series(ctx: Any) -> Optional[float]:
         return a
     share = (t - times[index]) / (times[index + 1] - times[index])
     return a + (b - a) * share
-
-
-def _days_in(when_: _dt.date) -> int:
-    return _calendar.monthrange(when_.year, when_.month)[1]

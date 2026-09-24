@@ -62,4 +62,4 @@ the frontier on fresh seeds.
 CLI: `fg-env optimise store.json --decision service_z='{"keys": ["brakes", "wipers"], "low": 0, "high": 3, "step": 0.25}'
 --objective "minimise total_cost" --constraint "each fill_by_category >= 0.95" --confidence 0.9 --runs 20 --budget 80
 --workers 4 [--json]`.
-"""
+"""  # noqa: E501 — guide text: each line is shown as written

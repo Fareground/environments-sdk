@@ -8,28 +8,39 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
-from ..actions.faults import guarded, refused_text
-from ..actions.schemas import _choice_names
 from ..actions.book import ACTION_BUDGET, ToolSpec, stage_actions
+from ..actions.faults import guarded, refused_text
+from ..actions.reads import (
+    READS,
+    UNCHANGED,
+    find_target,
+    handle_filter,
+    inspect_text,
+    inspect_tool,
+    look_tool,
+    may_inspect,
+    reads_refused,
+)
+from ..actions.schemas import _choice_names
+from ..actions.tool_text import cut_text, offer_text
 from ..assets.delivery import Attachment
-from ..world.build import whole_setting
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, shared_budget, truthy
-from .measure import Stats
-from ..actions.reads import READS, UNCHANGED, find_target, handle_filter, inspect_text, inspect_tool, look_tool, may_inspect, reads_refused
-from .session import END_TURN, ToolResult
 from ..expr.template import compile_template, entity_handles, format_value
-from ..actions.tool_text import cut_text, offer_text
+from ..world.build import whole_setting
+from ..world.entity import Entity
 from ..world.live import _plain
+from .measure import Stats
+from .session import END_TURN, ToolResult
 
 if TYPE_CHECKING:
-    from .exposure import Exposure
     from .env import Env
+    from .exposure import Exposure
 
 __all__ = ["Memory", "Turn", "entity_dict"]
 
@@ -41,7 +52,7 @@ class Memory:
 
     def __init__(self) -> None:
         self.cursor = 0
-        self.views: Dict[str, str] = {}
+        self.views: dict[str, str] = {}
         self.turns = 0
 
 
@@ -62,7 +73,7 @@ class Turn:
     """A live turn. ``peek`` turns (previews) read the world but never change the run:
     they take no turn number and leave the agent's memory untouched."""
 
-    def __init__(self, env: "Env", actor: Entity, stage: StageSpec, reason: str, staged: bool, peek: bool = False,
+    def __init__(self, env: Env, actor: Entity, stage: StageSpec, reason: str, staged: bool, peek: bool = False,
                  kind: str = "turn"):
         self.env = env
         self.actor = actor
@@ -75,10 +86,10 @@ class Turn:
         memory = memory or Memory()
         self._since = memory.cursor
         self._views = dict(memory.views) if peek else memory.views
-        self._brief: Optional[str] = None
-        self._update: Optional[str] = None
+        self._brief: str | None = None
+        self._update: str | None = None
         #: The assets delivered with the brief and with the update.
-        self._delivered: List[str] = []
+        self._delivered: list[str] = []
         path = f"stages.{stage.name}"
         #: The stage's `max_actions` and `max_calls` (either may be an expression over $inputs).
         self.max_actions = whole_setting(env.world, stage.max_actions, f"{path}.max_actions", MAX_TURN_ACTIONS)
@@ -87,24 +98,24 @@ class Turn:
         #: Looks and inspects that do not spend a call (see :mod:`fg_env.actions.reads`); below zero, the refused ones.
         self.reads_left = self.max_calls
         #: What this turn's reads returned, to answer a repeated read that it is unchanged.
-        self._reads: List[str] = []
+        self._reads: list[str] = []
         #: An action was available and the agent took none, in a stage that required one or with its calls used up
         #: (set when the turn is finished).
         self.did_not_act = False
         self.actions_left = self.max_actions
         self.done = False
-        self.used: Dict[str, int] = {}
-        self.intents: List[Tuple[str, Dict[str, Any]]] = []
+        self.used: dict[str, int] = {}
+        self.intents: list[tuple[str, dict[str, Any]]] = []
         #: What this agent already did (sequential) or submitted (simultaneous) this turn, as $pending.
-        self.pending: List[Dict[str, Any]] = []
+        self.pending: list[dict[str, Any]] = []
         self.stats = Stats(wakes=1)
         #: Clock time taken by this turn's actions (continuous clock).
         self.elapsed = 0.0
         self._offered = False
-        self._tools: Optional[List[ToolSpec]] = None
+        self._tools: list[ToolSpec] | None = None
         #: Wall-clock seconds this turn may take (None: no limit); the deadline is set when it starts.
         self.time_limit = env._time_limit(stage, actor)
-        self.deadline: Optional[float] = None
+        self.deadline: float | None = None
         self.timed_out = False
         #: Closed from outside (deadline, a failing run): its participant is no longer waited for.
         self.closed = False
@@ -115,14 +126,14 @@ class Turn:
         #: Atomic turns: the journal position the turn's changes are undone to, until it settles, and the turn's
         #: counts there (``_part``). An action that draws randomness settles the turn so far, and a new part begins.
         self.atomic = (stage.atomic or bool(stage.valid)) and not staged and not peek
-        self._mark: Optional[int] = None
-        self._part: Tuple[int, Dict[str, int], int, float, int] = (self.actions_left, {}, 0, 0.0, 0)
-        self._counted: List[str] = []
+        self._mark: int | None = None
+        self._part: tuple[int, dict[str, int], int, float, int] = (self.actions_left, {}, 0, 0.0, 0)
+        self._counted: list[str] = []
         #: Atomic turns: the outcome texts (and files) of the part's actions, shown once the part commits — an undone
         #: part must not leave its agent knowing what it showed (a peek whose cost was refunded) — and those committed,
         #: shown with the next result.
-        self._held: List[Tuple[str, List[Attachment]]] = []
-        self._committed: List[Tuple[str, List[Attachment]]] = []
+        self._held: list[tuple[str, list[Attachment]]] = []
+        self._committed: list[tuple[str, list[Attachment]]] = []
         if self.atomic:
             self._begin_part()
         if peek:
@@ -132,7 +143,7 @@ class Turn:
             self.number = env._turn_count  # assigned in deterministic order, before any concurrency
             env.origin.tape.opened(self.number)
         exposures = env.world.exposures
-        self.exposure: Optional["Exposure"] = exposures.open(self, kind) if exposures is not None and not peek else None
+        self.exposure: Exposure | None = exposures.open(self, kind) if exposures is not None and not peek else None
 
     # -- time ----------------------------------------------------------------------
 
@@ -140,14 +151,15 @@ class Turn:
         if self.time_limit is not None and self.deadline is None:
             self.deadline = time.monotonic() + self.time_limit
 
-    def time_left(self) -> Optional[float]:
+    def time_left(self) -> float | None:
         if self.deadline is None:
             return self.time_limit
         return max(0.0, self.deadline - time.monotonic())
 
-    def expired(self, now: Optional[float] = None) -> bool:
+    def expired(self, now: float | None = None) -> bool:
         """True once the deadline has passed; the first time, the turn is closed as timed out (call under the lock)."""
-        if not self.timed_out and self.deadline is not None and (time.monotonic() if now is None else now) >= self.deadline:
+        if (not self.timed_out and self.deadline is not None and (time.monotonic() if now is None else now)
+            >= self.deadline):
             self.record("timeout")
             self.timed_out = True
             self.stats.timeouts = 1
@@ -187,7 +199,7 @@ class Turn:
                 if self.closed:
                     return _CLOSED_TEXT
                 shown = _shown() if self.exposure is not None else None
-                attached: List[str] = []
+                attached: list[str] = []
                 with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self.env, self.actor)), \
                         self._views_luck("update"):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
@@ -212,7 +224,7 @@ class Turn:
         same noise (re-looking cannot average it away), and a preview of the turn shows what the turn will."""
         return self.env.world.drawing_from(self.env.seeds.lazy_rng(*site, self.number))
 
-    def _deliver(self, ids: List[str], where: str) -> None:
+    def _deliver(self, ids: list[str], where: str) -> None:
         fresh = [key for key in ids if key not in self._delivered]
         self._delivered.extend(fresh)
         if self.exposure is not None and fresh:
@@ -224,14 +236,14 @@ class Turn:
         `max_calls` is a backstop the agent never needs to plan around)."""
         return self.max_calls < type(self.stage).model_fields["max_calls"].default
 
-    def attachments(self, ids: Optional[List[str]] = None) -> List[Attachment]:
+    def attachments(self, ids: list[str] | None = None) -> list[Attachment]:
         """The files delivered with the brief and update (or the assets ``ids``), as participants receive them."""
         store = self.env.world.assets
         return [Attachment(asset, store) for asset in store.of(self._delivered if ids is None else ids)]
 
     # -- tools ------------------------------------------------------------------
 
-    def _legal(self) -> List[str]:
+    def _legal(self) -> list[str]:
         if self.actions_left <= 0:
             return []
         env = self.env
@@ -244,10 +256,11 @@ class Turn:
         if self.actions_left <= 0:
             return False
         env = self.env
+        used_round = env._used_round.get(self.actor.id, {})
         return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
-            env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}), offered=True) is None
+            env.actions.blocked(self.actor, name, self.used, used_round, offered=True) is None
 
-    def tools(self) -> List[ToolSpec]:
+    def tools(self) -> list[ToolSpec]:
         if self.done:
             return []
         if self._tools is not None:  # nothing changed since the last look (reset by every call)
@@ -268,8 +281,8 @@ class Turn:
                 end_text = "Finish your turn (your actions are checked together; a turn that is not allowed is undone)."
             else:
                 end_text = "Finish your turn."
-            tools.append(ToolSpec(END_TURN, end_text, {"type": "object", "properties": {}, "additionalProperties": False},
-                                  "end", True))
+            tools.append(ToolSpec(END_TURN, end_text,
+                                  {"type": "object", "properties": {}, "additionalProperties": False}, "end", True))
         if not self._offered:
             self.stats.tools_offered += len(tools)
             self._offered = True
@@ -278,7 +291,7 @@ class Turn:
         self._tools = tools
         return tools
 
-    def _must_act_now(self, tools: List[ToolSpec]) -> bool:
+    def _must_act_now(self, tools: list[ToolSpec]) -> bool:
         acted = self.actions_left < self.max_actions or bool(self.intents)
         return self.stage.must_act and not acted and any(t.kind == "act" for t in tools)
 
@@ -300,7 +313,7 @@ class Turn:
                 env.diagnosis.called(self, name, args, result)
             return result
 
-    def refusal(self) -> Optional[ToolResult]:
+    def refusal(self) -> ToolResult | None:
         """Why a call cannot be made now (the turn is over or out of time), or None (call under the lock)."""
         if self.expired():
             return ToolResult(False, "Your time for this turn ran out; nothing was done.", True, dict(_TIMEOUT))
@@ -308,11 +321,14 @@ class Turn:
             limit = ""
             if self.actions_left <= 0:
                 count = self.max_actions
-                limit = f" The '{self.stage.name}' stage allows {count} action{'s' if count != 1 else ''} per turn; none remain."
+                limit = (f" The '{self.stage.name}' stage allows {count} action{'s' if count != 1 else ''} per turn; "
+                         "none remain.")
             elif self.calls_left <= 0:
                 count = self.max_calls
-                limit = f" The '{self.stage.name}' stage allows {count} tool call{'s' if count != 1 else ''} per turn; none remain."
-            text = f"Your turn is already over.{limit} Nothing was done." if limit else "Your turn is already over; nothing was done."
+                limit = (f" The '{self.stage.name}' stage allows {count} tool call{'s' if count != 1 else ''} per "
+                         "turn; none remain.")
+            text = (f"Your turn is already over.{limit} Nothing was done." if limit
+                    else "Your turn is already over; nothing was done.")
             return ToolResult(False, text, True, dict(_ENDED))
         return None
 
@@ -387,7 +403,7 @@ class Turn:
                     return self._after(self._undone(why))
         return self._after(result)
 
-    def _act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool, bool]:
+    def _act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
         """Check, then submit (sealed turns) or apply and commit one action call: its result, whether it applied, and
         whether it drew randomness. Runs inside :func:`guarded`, so the turn's own counts change only once nothing can
         fail any more."""
@@ -405,12 +421,13 @@ class Turn:
             self.env.actions.replay(self.actor, self.intents)
             yield
 
-    def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> Tuple[ToolResult, bool, bool]:
+    def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
         env = self.env
         blocked = env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
-            return ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID), False, False
+            return (ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID), False,
+                    False)
         args, cut = _cut(spec.params, args)
         params, problem = env.actions.validate(self.actor, name, args)
         if problem:
@@ -469,8 +486,8 @@ class Turn:
 
     def _offer(self) -> str:
         """What the agent can call now, in the form its tools take: actions sharing a tool under that tool."""
-        plain: List[str] = []
-        shared: Dict[str, List[str]] = {}
+        plain: list[str] = []
+        shared: dict[str, list[str]] = {}
         for name in self._legal():
             tool = self.env.contract.actions[name].tool
             if tool is None:
@@ -495,7 +512,7 @@ class Turn:
         if self._mark is None:
             self.env._after_commit(path)
 
-    def settle(self) -> Optional[str]:
+    def settle(self) -> str | None:
         """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every action of the
         turn and say why — also when a rule fails or an invariant breaks as it commits. A turn that took no action
         has nothing to check. Call under the lock."""
@@ -520,7 +537,7 @@ class Turn:
         self._part = (self.actions_left, dict(self.used), len(self.pending), self.elapsed, self.stats.actions)
         self._counted.clear()
 
-    def _commit_turn(self) -> Optional[str]:
+    def _commit_turn(self) -> str | None:
         """Why the turn as played is not allowed, or None once it has committed."""
         why = self.invalid() if self._counted else None
         if why is None:
@@ -541,7 +558,7 @@ class Turn:
                                data={"ok": False, "undone": True})
                 env.world.journal.clear()
 
-    def invalid(self) -> Optional[str]:
+    def invalid(self) -> str | None:
         """Why the turn as played breaks the stage's `valid` rules, or None when it meets them."""
         env, path = self.env, f"stages.{self.stage.name}.valid"
         scope = env.world.scope(actor=self.actor)
@@ -577,7 +594,7 @@ class Turn:
         self.stats.rejected_actions += undone
         self.stats.undone_turns += 1
 
-    def _undone(self, why: str, luck: Optional[str] = None) -> ToolResult:
+    def _undone(self, why: str, luck: str | None = None) -> ToolResult:
         if luck is None:
             return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
                                      "play your turn again.", data=dict(_UNDONE))
@@ -597,7 +614,8 @@ class Turn:
             self.done = True
             result.ended = True
             result.text += " (No tool calls left; your turn is over.)"
-        elif self.calls_left <= self.actions_left + 1:  # the calls left barely cover the actions still allowed and ending
+        elif (self.calls_left <= self.actions_left
+              + 1):  # the calls left barely cover the actions still allowed and ending
             result.text += f" (Calls left: {self.calls_left}.)"
         return result
 
@@ -631,7 +649,7 @@ class Turn:
                 result.text += " (That was your last free read this turn.)"
         return result
 
-    def _look(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
+    def _look(self, args: Mapping[str, Any] | None) -> ToolResult:
         env = self.env
         name = (args or {}).get("view")
         looks = env.perception.look_views(self.actor, self.stage)
@@ -639,7 +657,7 @@ class Turn:
             self.stats.invalid_calls += 1
             return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)
         shown = _shown() if self.exposure is not None else None
-        attached: List[str] = []
+        attached: list[str] = []
         with shared_budget(ACTION_BUDGET, f"views.{name}"), entity_handles(handle_filter(env, self.actor)), \
                 self._views_luck("view", name):
             text = env.perception.render_view(name, env.contract.views[name], self.actor, shown, attached)
@@ -648,7 +666,7 @@ class Turn:
             self.exposure.looked(shown)
         return ToolResult(True, text or "Nothing to show.", attachments=self.attachments(attached))
 
-    def _inspect(self, args: Optional[Mapping[str, Any]]) -> ToolResult:
+    def _inspect(self, args: Mapping[str, Any] | None) -> ToolResult:
         env = self.env
         target, refusal = find_target(env, self.actor, (args or {}).get("id"))
         if target is None:
@@ -664,7 +682,7 @@ def _shown() -> Any:
     return Shown()
 
 
-def entity_dict(entity: Entity) -> Dict[str, Any]:
+def entity_dict(entity: Entity) -> dict[str, Any]:
     return {"id": entity.id, "name": entity.name, "type": entity.entity_type, "alive": entity.alive,
             "at": entity.location_id, "props": _plain(dict(entity.properties))}
 
@@ -681,7 +699,7 @@ def _not_an_object(args: Any) -> str:
     return f"arguments must be a JSON object of named values, got {type(args).__name__}."
 
 
-def _cut(params: Mapping[str, Any], args: Any) -> Tuple[Any, str]:
+def _cut(params: Mapping[str, Any], args: Any) -> tuple[Any, str]:
     """``args`` with text past its `max_len` cut where its parameter says `overflow: truncate`, and the note that tells
     the agent what was cut (empty when nothing was)."""
     if not isinstance(args, Mapping):
@@ -689,13 +707,15 @@ def _cut(params: Mapping[str, Any], args: Any) -> Tuple[Any, str]:
     out, notes = dict(args), []
     for pname, param in params.items():
         raw = out.get(pname)
-        if param.overflow == "truncate" and param.max_len is not None and isinstance(raw, str) and len(raw) > param.max_len:
+        if (param.overflow == "truncate" and param.max_len is not None and isinstance(raw, str) and len(raw)
+            > param.max_len):
             out[pname] = cut_text(raw, param.max_len)
-            notes.append(f" (Your {pname} was cut to {len(out[pname])} of {len(raw)} characters; the rest was not said.)")
+            notes.append(f" (Your {pname} was cut to {len(out[pname])} of {len(raw)} characters; the rest was not "
+                         "said.)")
     return (out, "".join(notes)) if notes else (args, "")
 
 
-def _with_references(text: str, files: List[Attachment]) -> str:
+def _with_references(text: str, files: list[Attachment]) -> str:
     return f"{text} {' '.join(file.reference for file in files)}" if files else text
 
 

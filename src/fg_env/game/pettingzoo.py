@@ -16,7 +16,8 @@ the end of the game; a truncation is ``max_steps`` decisions. When PettingZoo is
 from __future__ import annotations
 
 import random
-from typing import Any, Dict, Iterator, List, Mapping, Optional, Tuple
+from collections.abc import Iterator, Mapping
+from typing import Any
 
 from ..api import ContractLike
 from .game import Game, game
@@ -37,7 +38,7 @@ except ImportError:  # pragma: no cover - exercised when pettingzoo is absent
 MAX_OBSERVATION_CHARS = 100_000
 
 
-def _spaces(subject: Game) -> Tuple[Any, Any]:
+def _spaces(subject: Game) -> tuple[Any, Any]:
     try:
         from gymnasium import spaces
     except ImportError:
@@ -53,7 +54,7 @@ def _spaces(subject: Game) -> Tuple[Any, Any]:
 class _Episode:
     """One game played for the adapters: chance drawn from the seed, returns tracked for rewards."""
 
-    def __init__(self, subject: Game, rng: random.Random, max_steps: Optional[int]):
+    def __init__(self, subject: Game, rng: random.Random, max_steps: int | None):
         self.game = subject
         self.rng = rng
         self.max_steps = max_steps
@@ -62,10 +63,10 @@ class _Episode:
         self.returns = self._returns()
         self.settle()
 
-    def _returns(self) -> List[float]:
+    def _returns(self) -> list[float]:
         return self.state.returns()
 
-    def settle(self) -> List[float]:
+    def settle(self) -> list[float]:
         """Resolve chance nodes; the change in every seat's return since the last settle."""
         while self.state.is_chance_node():
             outcomes, probabilities = zip(*self.state.chance_outcomes())
@@ -83,7 +84,7 @@ class _Episode:
     def truncated(self) -> bool:
         return not self.over and self.max_steps is not None and self.steps >= self.max_steps
 
-    def observation(self, seat: int) -> Dict[str, Any]:
+    def observation(self, seat: int) -> dict[str, Any]:
         mask = [0] * self.game.num_distinct_actions()
         if not self.over and seat in self.state.acting_players():
             for index in self.state.legal_actions(seat):
@@ -99,21 +100,21 @@ class AECGame(_AECBase):  # type: ignore[misc]
 
     metadata = {"render_modes": ["ansi"], "name": "fg_env_aec", "is_parallelizable": False}
 
-    def __init__(self, subject: Game, *, seed: Optional[int], max_steps: Optional[int], render_mode: Optional[str]):
+    def __init__(self, subject: Game, *, seed: int | None, max_steps: int | None, render_mode: str | None):
         self.game = subject
-        self.possible_agents: List[str] = list(subject.players)
+        self.possible_agents: list[str] = list(subject.players)
         self.render_mode = render_mode
         self.max_steps = max_steps
         self._rng = random.Random(seed)
         self._observation_space, self._action_space = _spaces(subject)
-        self._episode: Optional[_Episode] = None
-        self.agents: List[str] = []
+        self._episode: _Episode | None = None
+        self.agents: list[str] = []
         self.agent_selection = self.possible_agents[0]
-        self.rewards: Dict[str, float] = {}
-        self._cumulative_rewards: Dict[str, float] = {}
-        self.terminations: Dict[str, bool] = {}
-        self.truncations: Dict[str, bool] = {}
-        self.infos: Dict[str, Dict[str, Any]] = {}
+        self.rewards: dict[str, float] = {}
+        self._cumulative_rewards: dict[str, float] = {}
+        self.terminations: dict[str, bool] = {}
+        self.truncations: dict[str, bool] = {}
+        self.infos: dict[str, dict[str, Any]] = {}
 
     def observation_space(self, agent: str) -> Any:
         return self._observation_space
@@ -121,7 +122,7 @@ class AECGame(_AECBase):  # type: ignore[misc]
     def action_space(self, agent: str) -> Any:
         return self._action_space
 
-    def reset(self, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None) -> None:
+    def reset(self, seed: int | None = None, options: Mapping[str, Any] | None = None) -> None:
         if seed is not None:
             self._rng = random.Random(seed)
         self.close()
@@ -134,10 +135,10 @@ class AECGame(_AECBase):  # type: ignore[misc]
         self.infos = {agent: {} for agent in self.agents}
         self._after_step()
 
-    def observe(self, agent: str) -> Dict[str, Any]:
+    def observe(self, agent: str) -> dict[str, Any]:
         return self._current().observation(self.game.seat(agent))
 
-    def last(self, observe: bool = True) -> Tuple[Optional[Dict[str, Any]], float, bool, bool, Dict[str, Any]]:
+    def last(self, observe: bool = True) -> tuple[dict[str, Any] | None, float, bool, bool, dict[str, Any]]:
         agent = self.agent_selection
         return (self.observe(agent) if observe else None, self._cumulative_rewards[agent], self.terminations[agent],
                 self.truncations[agent], self.infos[agent])
@@ -205,15 +206,15 @@ class ParallelGame(_ParallelBase):  # type: ignore[misc]
 
     metadata = {"render_modes": ["ansi"], "name": "fg_env_parallel"}
 
-    def __init__(self, subject: Game, *, seed: Optional[int], max_steps: Optional[int], render_mode: Optional[str]):
+    def __init__(self, subject: Game, *, seed: int | None, max_steps: int | None, render_mode: str | None):
         self.game = subject
-        self.possible_agents: List[str] = list(subject.players)
-        self.agents: List[str] = []
+        self.possible_agents: list[str] = list(subject.players)
+        self.agents: list[str] = []
         self.render_mode = render_mode
         self.max_steps = max_steps
         self._rng = random.Random(seed)
         self._observation_space, self._action_space = _spaces(subject)
-        self._episode: Optional[_Episode] = None
+        self._episode: _Episode | None = None
 
     def observation_space(self, agent: str) -> Any:
         return self._observation_space
@@ -221,8 +222,8 @@ class ParallelGame(_ParallelBase):  # type: ignore[misc]
     def action_space(self, agent: str) -> Any:
         return self._action_space
 
-    def reset(self, seed: Optional[int] = None, options: Optional[Mapping[str, Any]] = None
-              ) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, Dict[str, Any]]]:
+    def reset(self, seed: int | None = None, options: Mapping[str, Any] | None = None
+              ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
         if seed is not None:
             self._rng = random.Random(seed)
         self.close()
@@ -230,8 +231,8 @@ class ParallelGame(_ParallelBase):  # type: ignore[misc]
         self.agents = list(self.possible_agents)
         return self._observations(), {agent: {} for agent in self.agents}
 
-    def step(self, actions: Mapping[str, Any]) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, float], Dict[str, bool],
-                                                         Dict[str, bool], Dict[str, Dict[str, Any]]]:
+    def step(self, actions: Mapping[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, float], dict[str, bool],
+                                                         dict[str, bool], dict[str, dict[str, Any]]]:
         episode = self._episode
         if episode is None or not self.agents:
             raise RuntimeError("call reset() first (the episode is over)")
@@ -250,7 +251,7 @@ class ParallelGame(_ParallelBase):  # type: ignore[misc]
         rewards = {agent: change[seat] for seat, agent in enumerate(self.possible_agents) if agent in self.agents}
         terminations = {agent: episode.over for agent in self.agents}
         truncations = {agent: episode.truncated for agent in self.agents}
-        infos: Dict[str, Dict[str, Any]] = {agent: {} for agent in self.agents}
+        infos: dict[str, dict[str, Any]] = {agent: {} for agent in self.agents}
         if episode.over or episode.truncated:
             self.agents = []
         return observations, rewards, terminations, truncations, infos
@@ -264,21 +265,22 @@ class ParallelGame(_ParallelBase):  # type: ignore[misc]
             self._episode.close()
             self._episode = None
 
-    def _observations(self) -> Dict[str, Dict[str, Any]]:
+    def _observations(self) -> dict[str, dict[str, Any]]:
         episode = self._episode
         assert episode is not None
-        return {agent: episode.observation(seat) for seat, agent in enumerate(self.possible_agents) if agent in self.agents}
+        return {agent: episode.observation(seat) for seat, agent in enumerate(self.possible_agents)
+                if agent in self.agents}
 
 
-def pettingzoo_aec(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
-                   max_steps: Optional[int] = None, render_mode: Optional[str] = None) -> AECGame:
+def pettingzoo_aec(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed: int | None = None,
+                   max_steps: int | None = None, render_mode: str | None = None) -> AECGame:
     """A contract as a PettingZoo AEC environment (simultaneous stages one seat at a time; needs game.returns)."""
     return AECGame(game(source, inputs=inputs, seed=seed or 0, simultaneous="turn_based"), seed=seed,
                    max_steps=max_steps, render_mode=render_mode)
 
 
-def pettingzoo_parallel(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: Optional[int] = None,
-                        max_steps: Optional[int] = None, render_mode: Optional[str] = None) -> ParallelGame:
+def pettingzoo_parallel(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed: int | None = None,
+                        max_steps: int | None = None, render_mode: str | None = None) -> ParallelGame:
     """A contract as a PettingZoo parallel environment (needs game.returns)."""
     return ParallelGame(game(source, inputs=inputs, seed=seed or 0), seed=seed, max_steps=max_steps,
                         render_mode=render_mode)

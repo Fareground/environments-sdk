@@ -29,7 +29,8 @@ of the ``flow`` op (``{"flow": "trial", "action": "push", "item": "exhibit", ...
 from __future__ import annotations
 
 import copy
-from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple, Union
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from pydantic import Field, ValidationError, model_validator
 
@@ -50,11 +51,13 @@ class Transition(Config):
     """A way out of a phase. Every condition given must hold; none given = after one round."""
 
     to: str = Field(..., description="The next phase.")
-    when: Optional[str] = Field(None, description="An expression that must hold.")
-    after: Union[int, str, None] = Field(None, description="At least this many rounds in the phase.")
-    event: Optional[str] = Field(None, description="An event of this kind happened during the phase (an emit, a record, a vote).")
-    all_did: Optional[str] = Field(None, description="Every living entity of the action's `by` types took it during "
-                                 "the phase, in any stage. Action conditions and stage filters do not narrow this group; "
+    when: str | None = Field(None, description="An expression that must hold.")
+    after: int | str | None = Field(None, description="At least this many rounds in the phase.")
+    event: str | None = Field(None,
+                              description="An event of this kind happened during the phase (an emit, a record, a "
+                                          "vote).")
+    all_did: str | None = Field(None, description="Every living entity of the action's `by` types took it during the "
+                                 "phase, in any stage. Action conditions and stage filters do not narrow this group; "
                                  "other procedures using the same action can share completion evidence.")
     say: str = Field("", description="News when it fires (template).")
     do: Effects = Field(default_factory=list, description="Effects when it fires.")
@@ -65,39 +68,44 @@ class PhaseDef(Config):
 
     title: str = Field("", description="Name shown to agents.")
     brief: str = Field("", description="Stage brief for this phase's stages that give none (template).")
-    stages: List[Dict[str, Any]] = Field(default_factory=list, description="Stages (ordinary stage fields) that run during the phase.")
+    stages: list[dict[str, Any]] = Field(default_factory=list,
+                                         description="Stages (ordinary stage fields) that run during the phase.")
     on_enter: Effects = Field(default_factory=list, description="Effects when the phase begins.")
     on_exit: Effects = Field(default_factory=list, description="Effects when the phase ends.")
     say: str = Field("", description="News when the phase begins (template).")
-    next: Union[str, List[Transition]] = Field(default_factory=list, description="A phase name, or transitions tried in order.")
-    terminal: bool = Field(False, description="The run ends at the end of the phase's first round (at once if it has no stages).")
-    winner: Optional[str] = Field(None, description="Terminal phases: expression naming the winner(s).")
+    next: str | list[Transition] = Field(default_factory=list,
+                                         description="A phase name, or transitions tried in order.")
+    terminal: bool = Field(False,
+                           description="The run ends at the end of the phase's first round (at once if it has no "
+                                       "stages).")
+    winner: str | None = Field(None, description="Terminal phases: expression naming the winner(s).")
 
     @model_validator(mode="after")
-    def _shape(self) -> "PhaseDef":
+    def _shape(self) -> PhaseDef:
         if self.terminal and self.next:
             raise ValueError("a terminal phase has no `next`")
         if self.winner is not None and not self.terminal:
             raise ValueError("`winner` belongs to a terminal phase")
         return self
 
-    def transitions(self) -> List[Transition]:
+    def transitions(self) -> list[Transition]:
         return [Transition(to=self.next)] if isinstance(self.next, str) else list(self.next)
 
 
 class ProcedureConfig(Config):
     """Rules of order: a state machine of phases, a response stack, or both."""
 
-    phases: Dict[str, PhaseDef] = Field(
+    phases: dict[str, PhaseDef] = Field(
         default_factory=dict,
         description="{phase: {title, brief, stages, on_enter, on_exit, say, next, terminal, winner}} in order. "
                     "`next` is a phase name or [{to, when, after, event, all_did, say, do}] tried in order at the end "
                     "of each round.")
-    start: Optional[str] = Field(None, description="The first phase (default: the first listed).")
+    start: str | None = Field(None, description="The first phase (default: the first listed).")
     views: bool = Field(True, description="Show every agent the current phase.")
-    stack: Optional[StackConfig] = Field(
-        None, description="A response stack: items pushed by `<name>_<kind>` tools or the `push` action, answered in the "
-                          "window stage `<name>_stack` (push an answer or `<name>_pass`) and resolved last in, first out.")
+    stack: StackConfig | None = Field(
+        None, description="A response stack: items pushed by `<name>_<kind>` tools or the `push` action, answered in "
+                          "the window stage `<name>_stack` (push an answer or `<name>_pass`) and resolved last in, "
+                          "first out.")
     tools: ToolsSetting = tools_field()
 
 
@@ -109,43 +117,47 @@ class ProcedureConfig(Config):
       "out with each kind's effects (the `counter` action removes one unresolved); read it with $stack(name, read).",
       example={"phases": {
           "debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]},
-          "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}}, ends=lambda cfg: any(phase.terminal for phase in cfg.phases.values()))
-def _expand(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+          "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": True}}},
+      ends=lambda cfg: any(phase.terminal for phase in cfg.phases.values()))
+def _expand(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     if not cfg.phases and cfg.stack is None:
-        raise MechanismError("a procedure needs phases, a stack, or both", 'e.g. "phases": {"debate": {...}} or "stack": {...}',
-                             "phases")
+        raise MechanismError("a procedure needs phases, a stack, or both",
+                             'e.g. "phases": {"debate": {...}} or "stack": {...}', "phases")
     fragment = _phases(name, cfg, contract) if cfg.phases else {}
     if cfg.stack is not None:
         for section, value in expand_stack(name, cfg.stack, contract).items():
             current = fragment.get(section)
-            fragment[section] = current + value if isinstance(current, list) else {**current, **value} if current else value
+            fragment[section] = (current + value if isinstance(current, list) else {**current, **value} if current
+                                 else value)
     return fragment
 
 
-def _phases(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _phases(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     start = cfg.start or next(iter(cfg.phases))
     if start not in cfg.phases:
         raise MechanismError(f"'{start}' is not a phase", common.suggest(start, cfg.phases), "start")
     actions = contract.get("actions") or {}
     taken = {s.get("name") for s in contract.get("stages") or [] if isinstance(s, Mapping)}
-    stages: List[Dict[str, Any]] = []
+    stages: list[dict[str, Any]] = []
     for phase, spec in cfg.phases.items():
         field = f"phases.{phase}"
         if not common.NAME.match(phase):
-            raise MechanismError(f"phase name '{phase}' must start with a letter and use letters, digits and _", None, field)
+            raise MechanismError(f"phase name '{phase}' must start with a letter and use letters, digits and _", None,
+                                 field)
         for index, transition in enumerate(spec.transitions()):
             if transition.to not in cfg.phases:
                 raise MechanismError(f"'{transition.to}' is not a phase", common.suggest(transition.to, cfg.phases),
                                      f"{field}.next[{index}].to")
             if transition.all_did is not None and transition.all_did not in actions:
-                raise MechanismError(f"there is no action '{transition.all_did}'", common.suggest(transition.all_did, actions),
-                                     f"{field}.next[{index}].all_did")
+                raise MechanismError(f"there is no action '{transition.all_did}'",
+                                     common.suggest(transition.all_did, actions), f"{field}.next[{index}].all_did")
         stages += _stages(name, phase, spec, taken)
     phases = list(cfg.phases)
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "world": {
             f"{name}_phase": {"type": "enum", "values": phases, "default": start, "description": "The current phase."},
-            f"{name}_round": {"type": "int", "default": 0, "description": "Rounds in the current phase (1 in its first round)."},
+            f"{name}_round": {"type": "int", "default": 0,
+                              "description": "Rounds in the current phase (1 in its first round)."},
             f"{name}_since": {"type": "int", "default": 0, "description": "Round the current phase began."},
             f"{name}_history": {"type": "list", "default": [], "description": "Phases entered, in order."},
         },
@@ -166,7 +178,7 @@ def _quote(text: str) -> str:
     return "'" + text.replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
-def _stages(name: str, phase: str, spec: PhaseDef, taken: set) -> List[Dict[str, Any]]:
+def _stages(name: str, phase: str, spec: PhaseDef, taken: set) -> list[dict[str, Any]]:
     out = []
     gate = f"$world.{name}_phase == {_quote(phase)}"
     unnamed = 0
@@ -179,7 +191,8 @@ def _stages(name: str, phase: str, spec: PhaseDef, taken: set) -> List[Dict[str,
             stage["name"] = f"{name}_{phase}" if unnamed == 0 else f"{name}_{phase}_{index + 1}"
             unnamed += 1
         if stage["name"] in taken:
-            raise MechanismError(f"a stage named '{stage['name']}' already exists", "give this stage its own `name`", f"{field}.name")
+            raise MechanismError(f"a stage named '{stage['name']}' already exists", "give this stage its own `name`",
+                                 f"{field}.name")
         taken.add(stage["name"])
         stage["when"] = f"{gate} and ({stage['when']})" if stage.get("when") else gate
         if spec.brief and not stage.get("brief"):
@@ -222,7 +235,7 @@ def _holds(runner: Any, mech: str, phase: str, index: int, transition: Transitio
     return True
 
 
-def _since(world: Any, since: int) -> List[Any]:
+def _since(world: Any, since: int) -> list[Any]:
     out = []
     for event in reversed(world.log):
         if event.round < since:
@@ -286,11 +299,13 @@ def _advance(runner: Any, mech: str, cfg: ProcedureConfig) -> None:
 # The flow op's procedure actions
 # ---------------------------------------------------------------------------
 
-#: action → (its keys, required keys, generated by the mechanism itself, what it needs: phases | stack, example keys, what it does).
-_ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str, str]] = {
+#: action → (its keys, required keys, generated by the mechanism itself, what it needs: phases | stack, example keys,
+#: what it does).
+_ACTIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...], bool, str, str, str]] = {
     "start": ((), (), True, "phases", "", "enter or count the phase; generated at the start of each round"),
     "advance": ((), (), True, "phases", "", "try the phase's transitions; generated at the end of each round"),
-    "push": (("item", "params", "who"), ("item",), False, "stack", '"item": "exhibit", "params": {"name": "$params.name"}',
+    "push": (("item", "params", "who"), ("item",), False, "stack",
+             '"item": "exhibit", "params": {"name": "$params.name"}',
              "push an item of a declared kind with its params; who pushes defaults to $actor"),
     "pass": (("who",), (), False, "stack", "", "let the item on top of the stack stand; who defaults to $actor"),
     "counter": (("target",), (), False, "stack", "",
@@ -301,15 +316,16 @@ _ACTIONS: Dict[str, Tuple[Tuple[str, ...], Tuple[str, ...], bool, str, str, str]
 }
 
 
-def _check(action: str, needs: str) -> Callable[[Any, Dict[str, Any], str], List[Tuple[str, str, Optional[str]]]]:
-    def check(checker: Any, effect: Dict[str, Any], path: str) -> List[Tuple[str, str, Optional[str]]]:
+def _check(action: str, needs: str) -> Callable[[Any, dict[str, Any], str], list[tuple[str, str, str | None]]]:
+    def check(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
         name = effect["flow"]
         cfg = common.parsed(checker.c.mechanisms[name], ProcedureConfig)
-        problems: List[Tuple[str, str, Optional[str]]] = []
+        problems: list[tuple[str, str, str | None]] = []
         if needs == "phases" and not cfg.phases:
             problems.append((f"{path}.action", f"the {name} procedure has no phases", None))
         elif needs == "stack" and cfg.stack is None:
-            problems.append((f"{path}.action", f"the {name} procedure has no stack", 'declare "stack": {"who": ..., "kinds": {...}}'))
+            problems.append((f"{path}.action", f"the {name} procedure has no stack",
+                             'declare "stack": {"who": ..., "kinds": {...}}'))
         elif action == "push" and cfg.stack is not None:
             problems += check_push(name, cfg.stack, effect, path)
         checked = checker.__dict__.setdefault("_procedures_checked", set())
@@ -390,8 +406,8 @@ def _check_completion_scope(checker: Any, transition: Transition, path: str) -> 
             return
 
 
-def _runner(action: str, needs: str) -> Callable[[Any, Dict[str, Any], Dict[str, Any], str], None]:
-    def run(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _runner(action: str, needs: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str], None]:
+    def run(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         mech = effect["flow"]
         cfg = common.config(runner.world, mech, KEY, ProcedureConfig, where)
         if needs == "stack":
@@ -411,7 +427,8 @@ def _runner(action: str, needs: str) -> Callable[[Any, Dict[str, Any], Dict[str,
 def _register_actions() -> None:
     for action, (keys, required, internal, needs, fields, doc) in _ACTIONS.items():
         example = '{"flow": "trial", "action": "' + action + '"' + (f", {fields}" if fields else "") + f"}}  ({doc})"
-        family_action("flow", ("procedure",), action, keys=keys, required=required, literal=("item",) if "item" in keys else (),
+        family_action("flow", ("procedure",), action, keys=keys, required=required,
+                      literal=("item",) if "item" in keys else (),
                       check=_check(action, needs), internal=internal, example=example)(_runner(action, needs))
 
 
@@ -419,10 +436,11 @@ _register_actions()
 
 
 @function("stack(procedure, read?, ...)",
-          "A procedure's response stack. read: items (default; bottom first: [{id, kind, title, by, params, on, round, "
-          "waiting}], `on` the id of the item it answers, `waiting` who still owes it an answer) | top (the top item or "
-          "null) | waiting (ids who owe the top an answer; with an agent, whether it does) | can_push (kind, agent: whether "
-          "it may push that kind now) | text (viewer?: the stack as lines, with what the viewer may answer).",
+          "A procedure's response stack. read: items (default; bottom first: "
+          "[{id, kind, title, by, params, on, round, waiting}], `on` the id of the item it answers, `waiting` who "
+          "still owes it an answer) | top (the top item or null) | waiting (ids who owe the top an answer; with an "
+          "agent, whether it does) | can_push (kind, agent: whether it may push that kind now) | text (viewer?: the "
+          "stack as lines, with what the viewer may answer).",
           min_args=1, max_args=4)
 def _stack_function(call: Call) -> Any:
     world: Any = call.scope.world

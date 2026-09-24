@@ -24,7 +24,8 @@ HILL = {
         "vec": {"type": "number", "expr": "-($inputs.v[0] - 2) ** 2 - ($inputs.v[1] - 5) ** 2 - ($inputs.v[2] - 1) ** 2"
                                           " + {a: 0, b: 3, c: 1}[$inputs.mode]"},
         "even": {"type": "number", "expr": "-$sum($map($inputs.v, ($it - 5) ** 2))"},
-        "bumpy": {"type": "number", "expr": "-(($inputs.v[0] - 1) ** 2 + ($inputs.v[1] - 5) ** 2 + ($inputs.v[2] - 2) ** 2)"},
+        "bumpy": {"type": "number",
+                  "expr": "-(($inputs.v[0] - 1) ** 2 + ($inputs.v[1] - 5) ** 2 + ($inputs.v[2] - 2) ** 2)"},
         "cost": {"type": "number", "expr": "$inputs.x * 2 + $inputs.y"},
         "service": {"type": "number", "expr": "$inputs.x + $inputs.y"},
         "noisy_service": {"type": "number", "expr": "$inputs.x + $inputs.y + $normal(0, 0.5)"},
@@ -51,12 +52,14 @@ NOISE = {"name": "Noise", "clock": {"rounds": 1}, "types": {"t": {"props": {"q":
 #: A safe plan earns 10 every time; a risky one 20 in most runs and -10 in the rest (a higher mean, a worse tail).
 RISK = {"name": "Risk", "clock": {"rounds": 1}, "types": {"t": {"props": {"q": 0}}},
         "inputs": {"plan": {"type": "enum", "values": ["safe", "risky"], "default": "safe"}},
-        "outputs": {"gain": {"type": "number", "expr": "10 if $inputs.plan == safe else (20 if $chance(0.8) else -10)"}}}
+        "outputs": {"gain": {"type": "number",
+                             "expr": "10 if $inputs.plan == safe else (20 if $chance(0.8) else -10)"}}}
 
 
 @pytest.mark.parametrize("method, tolerance", [("grid", 0), ("local", 0), ("race", 1), ("lhs", 1), ("random", 1)])
 def test_every_search_method_finds_the_known_peak_of_a_noisy_hill(method, tolerance):
-    result = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 1}}, "maximise profit", runs=4, budget=121, method=method)
+    result = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 1}}, "maximise profit", runs=4, budget=121,
+                                      method=method)
     assert result.method == method and result.feasible
     assert abs(result.best["x"] - 3) <= tolerance and abs(result.best["y"] - 7) <= tolerance
 
@@ -75,17 +78,20 @@ def test_auto_picks_a_grid_when_it_fits_the_budget_a_simplex_for_continuous_deci
 
 
 def test_a_vector_and_a_choice_are_searched_together_to_their_known_best():
-    result = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 8, "step": 1}, "mode": {}}, "maximise vec",
+    result = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 8, "step": 1}, "mode": {}},
+                                      "maximise vec",
                              runs=1, budget=200)
     assert result.method == "local" and result.best == {"v": [2, 5, 1], "mode": "b"}
     assert all(isinstance(x, int) for x in result.best["v"])
 
 
 def test_a_vector_with_a_fixed_sum_or_a_monotone_order_only_ever_tries_decisions_with_that_structure():
-    fixed = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "sum": 9}}, "maximise even",
+    fixed = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "sum": 9}},
+                                     "maximise even",
                             runs=1, budget=100)
     assert fixed.best == {"v": [3, 3, 3]} and all(sum(h["decision"]["v"]) == 9 for h in fixed.history)
-    falling = fg_env.analysis.optimise(HILL, {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "monotone": "decreasing"}},
+    falling = fg_env.analysis.optimise(HILL,
+                                       {"v": {"length": 3, "low": 0, "high": 9, "step": 1, "monotone": "decreasing"}},
                               "maximise bumpy", runs=1, budget=1000, method="grid")
     assert falling.best == {"v": [3, 3, 2]}
     assert all(v[0] >= v[1] >= v[2] for v in (h["decision"]["v"] for h in falling.history))
@@ -128,7 +134,8 @@ def test_a_risk_averse_percentile_objective_prefers_the_safe_plan_the_mean_passe
 
 
 def test_an_objective_can_be_an_expression_over_outputs_and_inputs():
-    result = fg_env.analysis.optimise(HILL, {"x": {}}, "maximise $outputs.profit - 10 * $inputs.x", inputs={"y": 7}, runs=2)
+    result = fg_env.analysis.optimise(HILL, {"x": {}}, "maximise $outputs.profit - 10 * $inputs.x", inputs={"y": 7},
+                                      runs=2)
     assert result.best == {"x": 0} and result.objectives == ["maximise mean of $outputs.profit - 10 * $inputs.x"]
 
 
@@ -143,7 +150,8 @@ def test_fresh_seeds_confirm_a_real_winner_and_call_a_lucky_one_within_noise():
 def test_the_same_seed_reproduces_the_whole_search_with_or_without_worker_processes():
     kwargs = dict(runs=3, budget=40, seed=11, method="local")
     alone = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"], **kwargs)
-    pooled = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"], workers=2,
+    pooled = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"],
+                                      workers=2,
                              **kwargs)
     assert alone.to_dict() == pooled.to_dict()
     other = fg_env.analysis.optimise(HILL, {"x": {}, "y": {"step": 0.5}}, "maximise profit", ["service >= 8"],
@@ -154,11 +162,13 @@ def test_the_same_seed_reproduces_the_whole_search_with_or_without_worker_proces
 def test_uncertain_parameters_make_the_decision_robust_to_not_knowing_them():
     known = fg_env.analysis.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust", runs=20)
     assert known.best == {"a": 4.0}
-    robust = fg_env.analysis.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust", runs=20,
+    robust = fg_env.analysis.optimise(BOWL, {"a": {"low": 0, "high": 5, "step": 0.5}}, "maximise p10 of robust",
+                                      runs=20,
                              uncertainty=[{"b": 1.0}, {"b": 4.0}])
     assert robust.best == {"a": 2.5}
     with pytest.raises(ValueError, match="also drawn from uncertainty"):
-        fg_env.analysis.optimise(BOWL, {"a": {"step": 1}}, "maximise f", inputs={"b": 2}, uncertainty=[{"b": 1.0}], runs=2)
+        fg_env.analysis.optimise(BOWL, {"a": {"step": 1}}, "maximise f", inputs={"b": 2}, uncertainty=[{"b": 1.0}],
+                                 runs=2)
 
 
 def test_two_objectives_trace_a_pareto_frontier_of_undominated_decisions():

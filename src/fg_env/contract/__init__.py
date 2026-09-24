@@ -10,11 +10,12 @@ exports every one of them.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from pydantic import Field, PrivateAttr, model_validator
 
 from ..assets.spec import AssetSpec
+from ..host.tape import TAPE, tape_prop
 from .base import (
     CONTRACT_VERSION,
     INPUT_TYPES,
@@ -33,6 +34,7 @@ from .base import (
     _Model,
     one_or_many,
 )
+from .game import UTILITIES, GameSpec
 from .measure import (
     END_CHECKS,
     INVARIANT_CHECKS,
@@ -82,8 +84,6 @@ from .world import (
     Space,
     TypeSpec,
 )
-from .game import UTILITIES, GameSpec
-from ..host.tape import TAPE, tape_prop
 
 __all__ = [
     "CONTRACT_VERSION",
@@ -160,47 +160,60 @@ class Contract(_Model):
     fg_env: str = Field(CONTRACT_VERSION, description="Contract version.")
     name: str
     description: str = ""
-    imports: List[str] = Field(default_factory=list, description="Contract files merged into this one (paths relative to this file, inside its folder); this contract's own entries win. Imported files may import others.")
+    imports: list[str] = Field(default_factory=list,
+                               description="Contract files merged into this one (paths relative to this file, inside "
+                                           "its folder); this contract's own entries win. Imported files may import "
+                                           "others.")
     brief: Brief = Field(default_factory=Brief)
-    assets: Dict[str, AssetSpec] = Field(default_factory=dict, description="Files beside the contract (images, PDFs, text, audio) by id; see guide('assets').")
-    inputs: Dict[str, InputSpec] = Field(default_factory=dict)
+    assets: dict[str, AssetSpec] = Field(default_factory=dict,
+                                         description="Files beside the contract (images, PDFs, text, audio) by id; see "
+                                                     "guide('assets').")
+    inputs: dict[str, InputSpec] = Field(default_factory=dict)
     clock: Clock = Field(default_factory=Clock)
-    space: Optional[Space] = None
-    world: Dict[str, PropSpec] = Field(default_factory=dict, description="Global properties ($world.x).")
-    types: Dict[str, TypeSpec]
-    entities: Dict[str, EntitySpec] = Field(default_factory=dict)
-    population: List[PopulationSpec] = Field(default_factory=list)
-    relations: Dict[str, RelationSpec] = Field(default_factory=dict)
-    links: List[LinkSpec] = Field(default_factory=list)
-    physics: Optional[PhysicsSpec] = None
-    feeds: Dict[str, FeedSpec] = Field(default_factory=dict, description="External data written into world props or records, answered by host adapters.")
-    patterns: Dict[str, Dict[str, Any]] = Field(
+    space: Space | None = None
+    world: dict[str, PropSpec] = Field(default_factory=dict, description="Global properties ($world.x).")
+    types: dict[str, TypeSpec]
+    entities: dict[str, EntitySpec] = Field(default_factory=dict)
+    population: list[PopulationSpec] = Field(default_factory=list)
+    relations: dict[str, RelationSpec] = Field(default_factory=dict)
+    links: list[LinkSpec] = Field(default_factory=list)
+    physics: PhysicsSpec | None = None
+    feeds: dict[str, FeedSpec] = Field(default_factory=dict,
+                                       description="External data written into world props or records, answered by "
+                                                   "host adapters.")
+    patterns: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
-        description="Named patterns of the world — trends, seasons, responses, random processes, draws — read as $pattern.<name>; see the guide's patterns part.")
-    records: Dict[str, RecordSpec] = Field(default_factory=dict)
-    actions: Dict[str, ActionSpec] = Field(default_factory=dict)
-    stages: List[StageSpec] = Field(default_factory=list)
-    views: Dict[str, ViewSpec] = Field(default_factory=dict)
-    events: List[EventSpec] = Field(default_factory=list)
-    triggers: List[TriggerSpec] = Field(default_factory=list, description="Reactions that fire the moment a condition becomes true.")
-    policies: Dict[str, PolicySpec] = Field(default_factory=dict)
-    metrics: Dict[str, MetricSpec] = Field(default_factory=dict)
-    outputs: Dict[str, OutputSpec] = Field(default_factory=dict)
-    end: List[EndSpec] = Field(default_factory=list)
-    arms: Dict[str, ArmSpec] = Field(default_factory=dict)
-    calibration: Optional[CalibrationSpec] = Field(None, description="Inputs fitted by short pilot sessions whenever the contract loads.")
-    game: Optional[GameSpec] = Field(None, description="Seats, returns and utility for game and learning interfaces.")
-    invariants: List[InvariantSpec] = Field(default_factory=list)
-    defs: Dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
-    blocks: Dict[str, BlockSpec] = Field(default_factory=dict, description="Reusable effect lists, run with {\"block\": name}.")
-    mechanisms: Dict[str, Dict[str, Any]] = Field(
+        description="Named patterns of the world — trends, seasons, responses, random processes, draws — read as "
+                    "$pattern.<name>; see the guide's patterns part.")
+    records: dict[str, RecordSpec] = Field(default_factory=dict)
+    actions: dict[str, ActionSpec] = Field(default_factory=dict)
+    stages: list[StageSpec] = Field(default_factory=list)
+    views: dict[str, ViewSpec] = Field(default_factory=dict)
+    events: list[EventSpec] = Field(default_factory=list)
+    triggers: list[TriggerSpec] = Field(default_factory=list,
+                                        description="Reactions that fire the moment a condition becomes true.")
+    policies: dict[str, PolicySpec] = Field(default_factory=dict)
+    metrics: dict[str, MetricSpec] = Field(default_factory=dict)
+    outputs: dict[str, OutputSpec] = Field(default_factory=dict)
+    end: list[EndSpec] = Field(default_factory=list)
+    arms: dict[str, ArmSpec] = Field(default_factory=dict)
+    calibration: CalibrationSpec | None = Field(None,
+                                                description="Inputs fitted by short pilot sessions whenever the "
+                                                            "contract loads.")
+    game: GameSpec | None = Field(None, description="Seats, returns and utility for game and learning interfaces.")
+    invariants: list[InvariantSpec] = Field(default_factory=list)
+    defs: dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
+    blocks: dict[str, BlockSpec] = Field(default_factory=dict,
+                                         description="Reusable effect lists, run with {\"block\": name}.")
+    mechanisms: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
-        description="Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms part.")
+        description="Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms "
+                    "part.")
 
     #: The contract as written, before mechanisms were expanded (re-parse this, not a dump).
-    _source: Optional[Dict[str, Any]] = PrivateAttr(default=None)
+    _source: dict[str, Any] | None = PrivateAttr(default=None)
     #: The folder input data files are read from (the contract file's folder, or ``data_dir=``); ``None`` when unknown.
-    _folder: Optional[str] = PrivateAttr(default=None)
+    _folder: str | None = PrivateAttr(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -209,16 +222,17 @@ class Contract(_Model):
         world = data.get("world") if isinstance(data, dict) else None
         assets = data.get("assets") if isinstance(data, dict) else None
         described = isinstance(assets, dict) and any(isinstance(a, dict) and a.get("describe") for a in assets.values())
-        if isinstance(data, dict) and (data.get("feeds") or described) and isinstance(world or {}, dict) and TAPE not in (world or {}):
+        if (isinstance(data, dict) and (data.get("feeds") or described) and isinstance(world or {}, dict)
+            and TAPE not in (world or {})):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
         return data
 
     # -- type lineage ----------------------------------------------------------
 
-    def lineage(self, type_name: str) -> List[str]:
+    def lineage(self, type_name: str) -> list[str]:
         """``type_name`` and its ancestors, root first. Stops at unknown types and cycles."""
-        chain: List[str] = []
-        current: Optional[str] = type_name
+        chain: list[str] = []
+        current: str | None = type_name
         while current is not None and current in self.types and current not in chain:
             chain.append(current)
             current = self.types[current].extends
@@ -227,15 +241,15 @@ class Contract(_Model):
     def is_a(self, type_name: str, ancestor: str) -> bool:
         return ancestor in self.lineage(type_name)
 
-    def subtypes(self, type_name: str) -> List[str]:
+    def subtypes(self, type_name: str) -> list[str]:
         """``type_name`` and every type that extends it (directly or not)."""
         return [name for name in self.types if self.is_a(name, type_name)]
 
-    def props_of(self, type_name: str) -> Dict[str, PropSpec]:
+    def props_of(self, type_name: str) -> dict[str, PropSpec]:
         """Every property of ``type_name``, inherited ones included. A subtype's override changes
         only the fields it writes, so ``"secret": 5`` over ``{"default": 1, "private": true}``
         stays private."""
-        props: Dict[str, PropSpec] = {}
+        props: dict[str, PropSpec] = {}
         for name in self.lineage(type_name):
             for prop, spec in self.types[name].props.items():
                 inherited = props.get(prop)
@@ -243,7 +257,7 @@ class Contract(_Model):
                     update={key: getattr(spec, key) for key in spec.model_fields_set})
         return props
 
-    def hooks_of(self, type_name: str, hook: str) -> List[Any]:
+    def hooks_of(self, type_name: str, hook: str) -> list[Any]:
         """``(type, effects)`` for every type in the lineage (root first) that declares lifecycle ``hook``."""
         return [(name, getattr(self.types[name], hook)) for name in self.lineage(type_name)
                 if getattr(self.types[name], hook)]
@@ -258,9 +272,9 @@ class Contract(_Model):
     def is_agent(self, type_name: str) -> bool:
         return any(self.types[name].agent for name in self.lineage(type_name))
 
-    def agent_types(self) -> List[str]:
+    def agent_types(self) -> list[str]:
         return [name for name in self.types if self.is_agent(name)]
 
-    def stage_list(self) -> List[StageSpec]:
+    def stage_list(self) -> list[StageSpec]:
         """Declared stages, or the default single stage where every action is available."""
         return list(self.stages) or [_PLAY]

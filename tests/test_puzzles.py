@@ -24,7 +24,8 @@ def test_a_generated_sudoku_has_exactly_one_solution_and_it_is_the_one_given():
     solved = _eval("$solve(sudoku, $puzzle)", puzzle=game["puzzle"])
     assert solved["solutions"] == 1 and solved["unique"] and solved["solution"] == game["solution"]
     assert all(game["puzzle"][r][c] in (0, game["solution"][r][c]) for r in range(9) for c in range(9))
-    assert _eval("$solve(sudoku, $grid, check)", grid=game["solution"]) == {"valid": True, "complete": True, "solved": True,
+    assert _eval("$solve(sudoku, $grid, "
+                 "check)", grid=game["solution"]) == {"valid": True, "complete": True, "solved": True,
                                                                              "conflicts": []}
 
 
@@ -50,7 +51,8 @@ def test_exact_cover_finds_knuths_unique_cover_and_checks_a_choice():
     loose = _eval("$solve(exact_cover, {sets: {a: [x], b: [x], c: [y]}})")
     assert loose["solutions"] == 2 and loose["solution"] == ["a", "c"]
     assert _eval("$solve(exact_cover, {sets: {a: [x]}, universe: [x, y]})")["solutions"] == 0
-    check = _eval("$solve(exact_cover, {sets: {A: [1, 4, 7], D: [3, 5, 6], E: [2, 3, 6, 7]}, chosen: [A, D, E]}, check)")
+    check = _eval("$solve(exact_cover, {sets: {A: [1, 4, 7], D: [3, 5, 6], E: [2, 3, 6, 7]}, chosen: [A, D, E]}, "
+                  "check)")
     assert check == {"valid": False, "complete": True, "solved": False, "overlaps": [7, 3, 6], "missing": []}
 
 
@@ -61,7 +63,8 @@ def test_exact_cover_finds_knuths_unique_cover_and_checks_a_choice():
     ("$puzzle(exact_cover)", "not generated"),
     ("$solve(sudoku, [[1, 2], [3, 4]])", "4, 9 or 16 rows"),
     ("$solve(sudoku, [[0, 0, 0, 5], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]])", "whole number 0–4"),
-    ("$solve(sudoku, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], guess)", "mode must be one of count, check"),
+    ("$solve(sudoku, [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]], guess)",
+     "mode must be one of count, check"),
     ("$solve(exact_cover, {sets: {a: [x]}, universe: [y]})", "outside the universe"),
     ("$solve(exact_cover, {sets: {a: [x]}, chosen: [b]}, check)", "sets that do not exist"),
 ])

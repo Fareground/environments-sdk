@@ -6,8 +6,9 @@ seed always holds out the same cases.
 """
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..sampling.seeds import SeedTree
 from .stats import is_number
@@ -20,11 +21,11 @@ class Split:
     """One way to divide the cases: fit on ``train``, measure on ``test`` (indices into the case list)."""
 
     label: str
-    train: Tuple[int, ...]
-    test: Tuple[int, ...]
+    train: tuple[int, ...]
+    test: tuple[int, ...]
 
 
-def case_names(cases: Sequence[Mapping[str, Any]]) -> List[str]:
+def case_names(cases: Sequence[Mapping[str, Any]]) -> list[str]:
     """Each case's ``name`` (default ``case <n>``); names must be unique so a held-out case can be named."""
     names = [str(case.get("name", f"case {i + 1}")) for i, case in enumerate(cases)]
     repeated = sorted({name for name in names if names.count(name) > 1})
@@ -33,7 +34,7 @@ def case_names(cases: Sequence[Mapping[str, Any]]) -> List[str]:
     return names
 
 
-def splits(names: Sequence[str], *, test: Any = None, folds: Optional[int] = None, seed: int = 0) -> List[Split]:
+def splits(names: Sequence[str], *, test: Any = None, folds: int | None = None, seed: int = 0) -> list[Split]:
     """The splits asked for: none (no ``test`` or ``folds``), one train/test split, or ``folds`` folds.
 
     ``test`` is a share of the cases between 0 and 1 (rounded, at least one case on each side) or a list

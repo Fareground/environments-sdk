@@ -4,7 +4,8 @@ from __future__ import annotations
 import ast
 import math
 import operator
-from typing import Any, Callable, Dict, Mapping, Optional
+from collections.abc import Callable, Mapping
+from typing import Any
 
 from ..world.entity import Entity as _Entity
 from .base import MAX_INT_BITS, MAX_LIST_LEN, MAX_TEXT_LEN, ExprError, PrivateRead, Untrusted, WrongKind, charge
@@ -14,7 +15,7 @@ __all__ = ["attr", "EVERYONE", "map_key"]
 _ENTITY_FIELDS = frozenset({"id", "name", "type", "alive", "at"})
 
 
-def attr(obj: Any, name: str, source: Optional[str] = None, scope: Any = None) -> Any:
+def attr(obj: Any, name: str, source: str | None = None, scope: Any = None) -> Any:
     """Read ``obj.name`` under expression semantics (entities, dicts, records). With the ``scope`` it is read in, an
     agent's private property is refused while ``$viewer`` is bound to anyone but that agent."""
     if name.startswith("_"):
@@ -77,7 +78,7 @@ class _Everyone:
 EVERYONE = _Everyone()
 
 
-def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]) -> None:
+def _check_visible(entity: _Entity, name: str, scope: Any, source: str | None) -> None:
     """Refuse (:class:`PrivateRead`) reading ``entity``'s private ``name`` in what one agent is shown or offered, or
     in text sent to several (:data:`EVERYONE`). Game logic binds no ``$viewer`` and reads the true state; an agent
     always sees its own properties."""
@@ -100,7 +101,7 @@ def _check_visible(entity: _Entity, name: str, scope: Any, source: Optional[str]
         "(an action's do, an event) and show that", source)
 
 
-def _check_metric(values: Mapping[str, Any], name: str, scope: Any, source: Optional[str]) -> None:
+def _check_metric(values: Mapping[str, Any], name: str, scope: Any, source: str | None) -> None:
     """Refuse (:class:`PrivateRead`) reading metric ``name`` (in ``$metrics`` or ``$series``), worked out from agents'
     private properties, in what an agent is shown or offered."""
     world, viewer = scope.world, scope.vars.get("viewer")
@@ -248,7 +249,7 @@ def _arith(op: Callable[[Any, Any], Any]) -> Callable[[Any, Any, str], Any]:
     return lambda a, b, source: _finite(op(_number(a, source), _number(b, source)), source)
 
 
-_BINARY: Dict[type, Callable[[Any, Any, str], Any]] = {
+_BINARY: dict[type, Callable[[Any, Any, str], Any]] = {
     ast.Add: _add,
     ast.Sub: _arith(operator.sub),
     ast.Mult: _mul,
@@ -269,7 +270,7 @@ def _ordered(op: Callable[[Any, Any], bool]) -> Callable[[Any, Any, str], bool]:
     return run
 
 
-_COMPARE: Dict[type, Callable[[Any, Any, str], bool]] = {
+_COMPARE: dict[type, Callable[[Any, Any, str], bool]] = {
     ast.Eq: lambda a, b, s: _eq(a, b),
     ast.NotEq: lambda a, b, s: not _eq(a, b),
     ast.Lt: _ordered(operator.lt),

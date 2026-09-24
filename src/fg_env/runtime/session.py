@@ -18,9 +18,10 @@ runs the async participants of a simultaneous stage concurrently.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import os
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ToolSpec
 from ..assets.delivery import Attachment
@@ -43,9 +44,9 @@ class ToolResult:
     ok: bool
     text: str
     ended: bool = False
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
     #: Files delivered with the result (an action's `attach`, a view's, or the asset properties inspect shows).
-    attachments: List[Attachment] = field(default_factory=list)
+    attachments: list[Attachment] = field(default_factory=list)
 
     def __str__(self) -> str:
         return self.text
@@ -54,7 +55,7 @@ class ToolResult:
 class Wake:
     """One agent's turn. Obtained from the runtime; never constructed directly."""
 
-    def __init__(self, turn: "Turn"):
+    def __init__(self, turn: Turn):
         self._turn = turn
 
     # -- who / when / why -----------------------------------------------------
@@ -84,7 +85,7 @@ class Wake:
         return self._turn.reason
 
     @property
-    def me(self) -> Dict[str, Any]:
+    def me(self) -> dict[str, Any]:
         """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``: changing it changes nothing
         in the world. Read under the run's lock, so it never catches another agent's sealed choices being tried."""
         actor = self._turn.actor
@@ -109,30 +110,31 @@ class Wake:
         return self._turn.update
 
     @property
-    def attachments(self) -> List[Attachment]:
+    def attachments(self) -> list[Attachment]:
         """The files delivered with the brief and the update (reading them reads both): each has ``type``, ``name``,
-        ``media_type``, ``caption``, ``alt``, ``size``, ``hash``, ``read()`` for its bytes and ``text()`` for text files."""
+        ``media_type``, ``caption``, ``alt``, ``size``, ``hash``, ``read()`` for its bytes and ``text()`` for text
+        files."""
         self.brief
         self.update
         return self._turn.attachments()
 
     @property
-    def tools(self) -> List[ToolSpec]:
+    def tools(self) -> list[ToolSpec]:
         """Tools legal right now. Recomputed after every call."""
         if not self._turn._offered:
             self._turn.record("tools")
         return self._offer(self._turn.tools())
 
-    def _offer(self, tools: List[ToolSpec]) -> List[ToolSpec]:
+    def _offer(self, tools: list[ToolSpec]) -> list[ToolSpec]:
         exposure = self._turn.exposure
         if exposure is not None and tools:
             with self._turn.env._lock:
                 exposure.offered(tools)
         return tools
 
-    def tools_for(self, provider: str = "anthropic") -> List[Dict[str, Any]]:
+    def tools_for(self, provider: str = "anthropic") -> list[dict[str, Any]]:
         """Tool definitions in a provider's format: ``anthropic`` or ``openai``."""
-        converters: Dict[str, Callable[[ToolSpec], Dict[str, Any]]] = {
+        converters: dict[str, Callable[[ToolSpec], dict[str, Any]]] = {
             "anthropic": ToolSpec.to_anthropic,
             "openai": ToolSpec.to_openai,
         }
@@ -142,7 +144,7 @@ class Wake:
 
     # -- acting ------------------------------------------------------------------------
 
-    def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def call(self, name: str, args: dict[str, Any] | None = None) -> ToolResult:
         """Execute one tool call. Invalid calls cost nothing but a call and return what to fix."""
         turn = self._turn
         with turn.env._lock:  # a call made after the deadline is refused, so it is no step on the tape
@@ -151,7 +153,7 @@ class Wake:
                 turn.record("call", name, _copy(args))
             return turn.call(name, args)
 
-    def upload(self, source: Union[bytes, str, "os.PathLike[str]"], name: Optional[str] = None) -> str:
+    def upload(self, source: bytes | str | os.PathLike[str], name: str | None = None) -> str:
         """Store a file for this agent — bytes, or a path your own code chose — and return its id, to pass as a
         `file` argument (``{"asset": id}``). Its kind is recognised from its bytes; it is untrusted like any
         participant text."""
@@ -171,7 +173,7 @@ class Wake:
                 return ToolResult(True, "Turn already ended.", True)
             return self.call(END_TURN, {})
 
-    def clone(self, *, participants: Any = None, seed: Optional[int] = None, same_luck: bool = False) -> "Branch":
+    def clone(self, *, participants: Any = None, seed: int | None = None, same_luck: bool = False) -> Branch:
         """A private copy of the whole run, paused exactly here in this turn, to look ahead on.
 
         Try tool calls on it (``branch.call``), let it play on (``branch.run`` or ``branch.advance``) and
@@ -234,12 +236,12 @@ class Wake:
         return self._turn.done
 
     @property
-    def time_limit(self) -> Optional[float]:
+    def time_limit(self) -> float | None:
         """Wall-clock seconds this turn may take, or None when it has no limit."""
         return self._turn.time_limit
 
     @property
-    def time_left(self) -> Optional[float]:
+    def time_left(self) -> float | None:
         """Seconds left before the turn ends (None when it has no limit)."""
         return self._turn.time_left()
 

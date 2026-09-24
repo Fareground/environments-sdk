@@ -6,8 +6,9 @@ page cannot drift from what the engine accepts.
 from __future__ import annotations
 
 import json
+import types
 import typing
-from typing import Any, Dict, List, Optional, Tuple, Type
+from typing import Any
 
 from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
@@ -15,8 +16,8 @@ from pydantic_core import PydanticUndefined
 from .. import contract as C
 from ..effects.runner import EFFECT_OPS
 from ..expr import FUNCTIONS, FunctionSpec
-from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 from ..registry import FAMILIES, OPS, FamilySpec, ModeSpec
+from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 
 __all__ = ["SECTIONS", "section_page", "roots_table", "expressions_page", "FUNCTION_GROUPS", "function_groups",
            "functions_index", "functions_page", "effects_page", "mechanisms_page", "family_page", "mode_page"]
@@ -25,7 +26,7 @@ __all__ = ["SECTIONS", "section_page", "roots_table", "expressions_page", "FUNCT
 EVERYWHERE = "$inputs $world $physics $clock $round $stage $metrics $series $arm $pattern"
 
 #: (section, where in it, the extra roots available there).
-ROOTS: List[Tuple[str, str, str]] = [
+ROOTS: list[tuple[str, str, str]] = [
     ("actions", "when", "$actor ($params too: such a requirement is checked when the action is called)"),
     ("actions", "params.*.where", "$actor $it $i $params (earlier params)"),
     ("actions", "params.*.min/max/values/default", "$actor $params (earlier params)"),
@@ -63,44 +64,75 @@ ROOTS: List[Tuple[str, str, str]] = [
 ]
 
 #: (section, models documented, shape, what it declares). The order is the guide's.
-SECTIONS: List[Tuple[str, List[Type[BaseModel]], str, str]] = [
-    ("brief", [C.Brief], "Brief", "Static text every agent reads first: the situation, the rules, and per-type role text."),
+SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
+    ("brief", [C.Brief], "Brief",
+     "Static text every agent reads first: the situation, the rules, and per-type role text."),
     ("clock", [C.Clock], "Clock", "How long a run lasts (`rounds`, default 20) and what one round is called."),
-    ("inputs", [C.InputSpec], "{name: InputSpec}", "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
+    ("inputs", [C.InputSpec], "{name: InputSpec}",
+     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
     ("world", [C.PropSpec], "{prop: default | PropSpec}", "Global properties ($world.x)."),
-    ("assets", [C.AssetSpec], "{asset: AssetSpec}", "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets')."),
-    ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}", "Kinds of entities and their properties; `agent: true` makes a type act."),
+    ("assets", [C.AssetSpec], "{asset: AssetSpec}",
+     "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see "
+     "guide('assets')."),
+    ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}",
+     "Kinds of entities and their properties; `agent: true` makes a type act."),
     ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
-    ("population", [C.PopulationSpec], "[PopulationSpec]", "Generated entities: a count, or one per data row, with sampled traits."),
-    ("records", [C.RecordSpec], "{record: RecordSpec}", "Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`."),
-    ("actions", [C.ActionSpec, C.ParamSpec, C.Condition], "{action: ActionSpec}", "What agents can do: each is one typed tool with requirements and atomic effects. A rule that fails while an action applies (a division by zero, an overflow) refuses and undoes that action alone; the run goes on and its diagnostics name the rule."),
-    ("stages", [C.StageSpec], "[StageSpec]", "The steps of every round: who acts, how (sequential or sealed simultaneous), which actions."),
+    ("population", [C.PopulationSpec], "[PopulationSpec]",
+     "Generated entities: a count, or one per data row, with sampled traits."),
+    ("records", [C.RecordSpec], "{record: RecordSpec}",
+     "Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`."),
+    ("actions", [C.ActionSpec, C.ParamSpec, C.Condition], "{action: ActionSpec}",
+     "What agents can do: each is one typed tool with requirements and atomic effects. A rule that fails while an "
+     "action applies (a division by zero, an overflow) refuses and undoes that action alone; the run goes on and its "
+     "diagnostics name the rule."),
+    ("stages", [C.StageSpec], "[StageSpec]",
+     "The steps of every round: who acts, how (sequential or sealed simultaneous), which actions."),
     ("views", [C.ViewSpec], "{view: ViewSpec}", "What agents read each turn: single lines or ranked, filtered lists."),
-    ("events", [C.EventSpec], "[EventSpec]", "What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a condition holds, or by chance."),
-    ("triggers", [C.TriggerSpec], "[TriggerSpec]", "What the world does the moment a condition becomes true (checked after every action and effect block), unlike an event, which runs at a set point of the round."),
-    ("end", [C.EndSpec], "[EndSpec]", "Conditions that end the run early, with an optional winner ($result.winner in outputs)."),
-    ("metrics", [C.MetricSpec], "{metric: expr | MetricSpec}", "Values sampled every round ($metrics.x latest, $series.x every round)."),
+    ("events", [C.EventSpec], "[EventSpec]",
+     "What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a "
+     "condition holds, or by chance."),
+    ("triggers", [C.TriggerSpec], "[TriggerSpec]",
+     "What the world does the moment a condition becomes true (checked after every action and effect block), unlike an "
+     "event, which runs at a set point of the round."),
+    ("end", [C.EndSpec], "[EndSpec]",
+     "Conditions that end the run early, with an optional winner ($result.winner in outputs)."),
+    ("metrics", [C.MetricSpec], "{metric: expr | MetricSpec}",
+     "Values sampled every round ($metrics.x latest, $series.x every round)."),
     ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}", "The typed results of a run."),
-    ("invariants", [C.InvariantSpec], "[expr | InvariantSpec]", "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); a break by anything else fails the run."),
-    ("mechanisms", [], "{name: {kind, mode, ...config}}", "Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms')."),
+    ("invariants", [C.InvariantSpec], "[expr | InvariantSpec]",
+     "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); "
+     "a break by anything else fails the run."),
+    ("mechanisms", [], "{name: {kind, mode, ...config}}",
+     "Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms')."),
     ("game", [C.GameSpec], "GameSpec", "Seats and what each scores, for tournaments, game search and gyms."),
-    ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space", "Positions: a grid, a graph of places or a plane, with values on cells."),
-    ("relations", [C.RelationSpec], "{relation: RelationSpec}", "Typed links between entities (trust, follows), with fields."),
+    ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space",
+     "Positions: a grid, a graph of places or a plane, with values on cells."),
+    ("relations", [C.RelationSpec], "{relation: RelationSpec}",
+     "Typed links between entities (trust, follows), with fields."),
     ("links", [C.LinkSpec], "[LinkSpec]", "Links made at build: listed, from data rows, or generated networks."),
-    ("physics", [C.PhysicsSpec, C.PhysicsVar, C.EntityDynamics, C.EntityVar], "PhysicsSpec", "Continuous variables integrated every round (world-level and per entity)."),
-    ("feeds", [C.FeedSpec], "{feed: FeedSpec}", "External data written into world props or records, answered by host adapters."),
-    ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}", "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
+    ("physics", [C.PhysicsSpec, C.PhysicsVar, C.EntityDynamics, C.EntityVar], "PhysicsSpec",
+     "Continuous variables integrated every round (world-level and per entity)."),
+    ("feeds", [C.FeedSpec], "{feed: FeedSpec}",
+     "External data written into world props or records, answered by host adapters."),
+    ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}",
+     "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
-    ("calibration", [C.CalibrationSpec], "CalibrationSpec", "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
-    ("defs", [C.DefSpec], "{name: expr | DefSpec}", "Reusable expressions, called like built-ins: $utility($actor, 3)."),
-    ("blocks", [C.BlockSpec], "{name: BlockSpec}", "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
-    ("imports", [], "[path]", "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others."),
+    ("calibration", [C.CalibrationSpec], "CalibrationSpec",
+     "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a "
+     "load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
+    ("defs", [C.DefSpec], "{name: expr | DefSpec}",
+     "Reusable expressions, called like built-ins: $utility($actor, 3)."),
+    ("blocks", [C.BlockSpec], "{name: BlockSpec}",
+     "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
+    ("imports", [], "[path]",
+     "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and "
+     "imported files may import others."),
 ]
 
 _SECTION_INDEX = {name: (models, shape, doc) for name, models, shape, doc in SECTIONS}
 
 
-def _roots_rows(section: Optional[str] = None) -> List[str]:
+def _roots_rows(section: str | None = None) -> list[str]:
     return [f"| {name}.{where} | {roots} |" if section is None else f"| {where} | {roots} |"
             for name, where, roots in ROOTS if section in (None, name)]
 
@@ -137,11 +169,12 @@ _CORE_GROUPS = {
 }
 _MODULE_GROUPS = {
     "stdlib.mathx": "math", "stdlib.linalg": "math", "stdlib.dists": "random", "stdlib.strings": "text",
-    "stdlib.words": "game", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
+    "stdlib.words": "game", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
+    "stdlib.sets": "lists", "stdlib.stats": "stats",
     "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
-    "mechanisms.econ_assets": "economy", "mechanisms.econ_replenishment_rules": "economy", "mechanisms.market_stats": "market",
-    "mechanisms.book_functions": "market",
+    "mechanisms.econ_assets": "economy", "mechanisms.econ_replenishment_rules": "economy",
+    "mechanisms.market_stats": "market", "mechanisms.book_functions": "market",
     "mechanisms.book_rules": "market",
     "mechanisms.package_auction": "market", "mechanisms.auction_reads": "market", "mechanisms.memory": "mind",
     "patterns.runtime": "world",
@@ -173,9 +206,9 @@ def _group(spec: FunctionSpec) -> str:
     return families[0] if len(families) == 1 else _OTHER
 
 
-def function_groups() -> Dict[str, List[FunctionSpec]]:
+def function_groups() -> dict[str, list[FunctionSpec]]:
     """Every registered function by group: the general groups first, then mechanism families."""
-    out: Dict[str, List[FunctionSpec]] = {group: [] for group in [*FUNCTION_GROUPS, *FAMILIES, _OTHER]}
+    out: dict[str, list[FunctionSpec]] = {group: [] for group in [*FUNCTION_GROUPS, *FAMILIES, _OTHER]}
     for spec in sorted(FUNCTIONS.values(), key=lambda s: s.name):
         out[_group(spec)].append(spec)
     return {group: specs for group, specs in out.items() if specs}
@@ -188,7 +221,7 @@ def functions_index() -> str:
     for group in [g for g in groups if g in FUNCTION_GROUPS]:
         lines.append(f"- `{group}` ({FUNCTION_GROUPS[group]}): " + " ".join(f"${s.name}" for s in groups[group]))
     lines += ["", "Mechanism functions, for reading a mechanism family's state (a board, a deck, a market …); each "
-              "group is also on its family's page:", ""]
+                  "group is also on its family's page:", ""]
     for group in [g for g in groups if g not in FUNCTION_GROUPS]:
         about = FAMILIES[group].doc if group in FAMILIES else ""
         lines.append(f"- `{group}` ({about.rstrip('.')}): " + " ".join(f"${s.name}" for s in groups[group]))
@@ -222,7 +255,8 @@ def mechanisms_page() -> str:
              "Declare `\"mechanisms\": {name: {\"kind\": <family>, \"mode\": <mode>, ...config}}`. Each expands into",
              "ordinary actions, stages, world props and events you can read, preview and override (declare the same",
              "name yourself to replace a generated part, a named event or end entry included, but not a world",
-             "property: that is the mechanism's state; two mechanisms generating one name is an error). A declared stage that offers only mechanisms' actions and sets no",
+             "property: that is the mechanism's state; two mechanisms generating one name is an error). A declared "
+             "stage that offers only mechanisms' actions and sets no",
              "`max_actions` gives each attached mechanism the actions per turn it has in its own stage. Combine",
              "them freely, several of one mode included: a function reading a mechanism takes its name as the last",
              "argument (`$decisions('committee')`), optional while the contract has only one of that mode. Only a",
@@ -243,7 +277,8 @@ def family_page(name: str) -> str:
     family = FAMILIES[name]
     lines = [f"## Mechanism family `{name}`", "", family.doc, ""]
     if family.shared:
-        lines += ["Named the same in every mode:"] + [f"- `{key}`: {meaning}" for key, meaning in family.shared.items()] + [""]
+        lines += (["Named the same in every mode:"]
+                  + [f"- `{key}`: {meaning}" for key, meaning in family.shared.items()] + [""])
     lines += [f"Modes (`\"kind\": \"{name}\", \"mode\": ...`; read one with `guide('{name}.<mode>')`):"]
     lines += [f"- `{mode}`: {spec.doc.split('. ')[0].rstrip('.')}." for mode, spec in family.modes.items()]
     specs = function_groups().get(name, [])
@@ -275,7 +310,7 @@ def mode_page(spec: ModeSpec) -> str:
     return "\n".join(lines)
 
 
-def _public(family: FamilySpec, mode: str) -> List[str]:
+def _public(family: FamilySpec, mode: str) -> list[str]:
     """The actions of a mode an author writes (the mechanism's own bookkeeping actions left out)."""
     return [action for action, op in family.actions.get(mode, {}).items() if not op.internal]
 
@@ -287,19 +322,19 @@ def _type_name(annotation: Any, field: str) -> str:
         return "effects"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
-    if origin is typing.Union:
+    if origin in (typing.Union, types.UnionType):
         names = [_type_name(a, field) for a in args if a is not type(None)]
         return " | ".join(dict.fromkeys(names))
-    if origin in (list, List):
+    if origin is list:
         return f"[{_type_name(args[0], field)}]" if args else "list"
-    if origin in (dict, Dict):
+    if origin is dict:
         return "object"
     if isinstance(annotation, type) and issubclass(annotation, BaseModel):
         return annotation.__name__
     return {str: "text", int: "int", float: "number", bool: "bool"}.get(annotation, "any")
 
 
-def _fields(model: Type[BaseModel]) -> str:
+def _fields(model: type[BaseModel]) -> str:
     lines = [f"**{model.__name__}** — {(model.__doc__ or '').strip()}"]
     for name, info in model.model_fields.items():
         key = info.alias or name
@@ -312,9 +347,9 @@ def _fields(model: Type[BaseModel]) -> str:
     return "\n".join(lines)
 
 
-def _nested_models(model: Type[BaseModel]) -> List[Type[BaseModel]]:
+def _nested_models(model: type[BaseModel]) -> list[type[BaseModel]]:
     """Models used inside ``model``'s fields (in lists, maps and optionals too), each once, depth first."""
-    found: List[Type[BaseModel]] = []
+    found: list[type[BaseModel]] = []
 
     def visit(annotation: Any) -> None:
         if isinstance(annotation, type) and issubclass(annotation, BaseModel):

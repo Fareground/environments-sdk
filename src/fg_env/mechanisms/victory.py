@@ -7,11 +7,11 @@
                 "conditions": [{"first_to": 10, "score": "$it.gold"}, {"last_standing": true},
                                {"most": "$it.gold", "at": 30}]}
 
-Conditions are tried in order wherever the engine checks `end` (after start events, after each
-stage, at the end of the round); ``first_to`` and ``objectives`` are also checked the moment any action
-commits, so under sequential turns the first player to get there wins alone. ``most`` is decided at the
-end of its round, and ``stable`` counts rounds at the end of each round. The winner is one id, a list of ids when players share a win, a
-team value (``last_team``), or null when nobody wins.
+Conditions are tried in order wherever the engine checks `end` (after start events, after each stage, at the end of the
+round); ``first_to`` and ``objectives`` are also checked the moment any action commits, so under sequential turns the
+first player to get there wins alone. ``most`` is decided at the end of its round, and ``stable`` counts rounds at the
+end of each round. The winner is one id, a list of ids when players share a win, a team value (``last_team``), or null
+when nobody wins.
 
 When ``who`` is an agent type the mechanism also fills the contract's ``game`` section where the author
 left it unset: the seats are ``who`` and each seat's return is ``$won($actor, <name>)`` — 1 for the
@@ -20,7 +20,8 @@ a run can end with no winner, so no class holds for every run.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -42,25 +43,26 @@ _PARTS = {"score": "first_to", "at": "most", "rounds": "stable", "where": "elimi
 class VictoryCondition(Config):
     """One way the game ends. Give exactly one of the kinds."""
 
-    first_to: Optional[Number] = Field(None, description="A player whose `score` reaches this wins.")
-    score: Optional[str] = Field(None, description="The score for first_to ($it).")
-    most: Optional[str] = Field(None, description="Highest of this score ($it) wins at round `at`.")
-    at: Union[int, str, None] = Field(None, description="Round most is decided (default: the last round).")
-    last_standing: Optional[bool] = Field(None, description="The last player still in wins.")
-    last_team: Optional[str] = Field(None, description="Team of each player ($it): the last team with players in wins.")
-    win_when: Optional[str] = Field(None, description="Cooperative win: every player still in wins when true.")
-    lose_when: Optional[str] = Field(None, description="Cooperative loss: nobody wins when true.")
-    stable: Optional[str] = Field(None, description="Ends when this holds at the end of `rounds` rounds in a row.")
-    rounds: Optional[int] = Field(None, ge=1, description="Rounds in a row for stable.")
-    eliminate: Optional[str] = Field(None, description="A type: when none of it is left (see where), the players still in win.")
-    where: Optional[str] = Field(None, description="Which of the eliminate type count ($it).")
-    objectives: Optional[List[str]] = Field(None, description="A player for whom all these hold ($it) wins.")
-    name: Optional[str] = Field(None, description="How the run's ended_by reads (default: the kind).")
-    winner: Optional[str] = Field(None, description="Expression naming the winner instead of the default.")
+    first_to: Number | None = Field(None, description="A player whose `score` reaches this wins.")
+    score: str | None = Field(None, description="The score for first_to ($it).")
+    most: str | None = Field(None, description="Highest of this score ($it) wins at round `at`.")
+    at: int | str | None = Field(None, description="Round most is decided (default: the last round).")
+    last_standing: bool | None = Field(None, description="The last player still in wins.")
+    last_team: str | None = Field(None, description="Team of each player ($it): the last team with players in wins.")
+    win_when: str | None = Field(None, description="Cooperative win: every player still in wins when true.")
+    lose_when: str | None = Field(None, description="Cooperative loss: nobody wins when true.")
+    stable: str | None = Field(None, description="Ends when this holds at the end of `rounds` rounds in a row.")
+    rounds: int | None = Field(None, ge=1, description="Rounds in a row for stable.")
+    eliminate: str | None = Field(None,
+                                  description="A type: when none of it is left (see where), the players still in win.")
+    where: str | None = Field(None, description="Which of the eliminate type count ($it).")
+    objectives: list[str] | None = Field(None, description="A player for whom all these hold ($it) wins.")
+    name: str | None = Field(None, description="How the run's ended_by reads (default: the kind).")
+    winner: str | None = Field(None, description="Expression naming the winner instead of the default.")
     say: str = Field("", description="Announcement (template); default names the winner.")
 
     @model_validator(mode="after")
-    def _shape(self) -> "VictoryCondition":
+    def _shape(self) -> VictoryCondition:
         given = [k for k in KINDS if getattr(self, k) is not None and getattr(self, k) is not False]
         if len(given) != 1:
             raise ValueError(f"give exactly one of: {', '.join(KINDS)} (got {', '.join(given) or 'none'})")
@@ -87,17 +89,21 @@ class VictoryConfig(Config):
     who: str = Field(..., description="The type whose members can win (subtypes included).")
     alive: str = Field("true", description="Who is still in ($it), e.g. $it.hp > 0 — any condition, not only the "
                                            "built-in `alive` (false once an entity is removed).")
-    conditions: List[VictoryCondition] = Field(
+    conditions: list[VictoryCondition] = Field(
         ..., min_length=1,
-        description="Tried in order; each one of {first_to + score}, {most, at}, {last_standing: true}, {last_team}, "
-                    "{win_when}, {lose_when}, {stable, rounds}, {eliminate, where}, {objectives}; plus name, winner, say.")
-    tiebreak: List[str] = Field(default_factory=list, description="Expressions ($it) that decide ties in order, highest first.")
-    ties: Literal["share", "none", "random"] = Field("share", description="A tie left after tiebreaks: share the win, none (nobody wins) or pick at random (seeded).")
+        description="Tried in order; each one of {first_to + score}, {most, at}, {last_standing: true}, "
+                    "{last_team}, {win_when}, {lose_when}, {stable, rounds}, {eliminate, where}, "
+                    "{objectives}; plus name, winner, say.")
+    tiebreak: list[str] = Field(default_factory=list,
+                                description="Expressions ($it) that decide ties in order, highest first.")
+    ties: Literal["share", "none", "random"] = Field("share",
+                                                     description="A tie left after tiebreaks: share the win, none "
+                                                                 "(nobody wins) or pick at random (seeded).")
 
 
-def _labelled(cfg: VictoryConfig) -> List[Tuple[str, VictoryCondition]]:
+def _labelled(cfg: VictoryConfig) -> list[tuple[str, VictoryCondition]]:
     """Each condition with the name its end reads (repeated names numbered: most, most_2)."""
-    used: Dict[str, int] = {}
+    used: dict[str, int] = {}
     out = []
     for condition in cfg.conditions:
         label = condition.name or _NAMES.get(condition.kind, condition.kind)
@@ -114,17 +120,17 @@ def _labelled(cfg: VictoryConfig) -> List[Tuple[str, VictoryCondition]]:
       example={"who": "player", "alive": "not $it.bankrupt",
                "conditions": [{"first_to": 10, "score": "$it.points"}, {"last_standing": True},
                               {"most": "$it.points"}], "tiebreak": ["$it.cash"]}, ends=lambda cfg: True)
-def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     players = cfg.who
     common.types_in(contract, players, "who")
     alive = f"({cfg.alive})"
     in_play = f"$filter({players}, {alive})"
     breaks = [f"({t})" for t in cfg.tiebreak]
-    end: List[Dict[str, Any]] = []
-    events: List[Dict[str, Any]] = []
-    world: Dict[str, Any] = {}
+    end: list[dict[str, Any]] = []
+    events: list[dict[str, Any]] = []
+    world: dict[str, Any] = {}
 
-    def best_of(items: str, keys: List[str]) -> str:
+    def best_of(items: str, keys: list[str]) -> str:
         ranked = f"$best({items}, [{', '.join(keys) or '0'}]"
         if cfg.ties == "share":  # the one winner, else every player tied for the win (null when nobody is left)
             return f"({ranked}, 'none') or {ranked}, 'all') or null)"
@@ -133,8 +139,8 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
     for index, (label, c) in enumerate(_labelled(cfg)):
         field = f"conditions[{index}]"
         kind = c.kind
-        when: Optional[str] = None
-        winner: Optional[str]
+        when: str | None = None
+        winner: str | None
         if kind == "first_to":
             reached = f"$filter({players}, {alive} and ({c.score}) >= ({c.first_to}))"
             when, winner = f"$len({reached}) > 0", best_of(reached, [f"({c.score})", *breaks])
@@ -152,7 +158,8 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
         elif kind == "stable":
             streak = f"{name}_{label}_streak"
             world[streak] = {"type": "int", "default": 0, "description": f"Rounds in a row that {label} has held."}
-            events.append({"name": streak, "phase": "end", "do": [f"$world.{streak} = $world.{streak} + 1 if ({c.stable}) else 0"]})
+            events.append({"name": streak, "phase": "end",
+                           "do": [f"$world.{streak} = $world.{streak} + 1 if ({c.stable}) else 0"]})
             when, winner = f"$world.{streak} >= {c.rounds}", None
         elif kind == "eliminate":
             common.types_in(contract, str(c.eliminate), f"{field}.eliminate")
@@ -167,21 +174,21 @@ def _expand(name: str, cfg: VictoryConfig, contract: Mapping[str, Any]) -> Dict[
         say = c.say or _default_say(kind, winner)
         if kind == "most":
             entry = {"end": label, "say": say, **({"winner": winner} if winner else {})}
-            events.append({"name": f"{name}_{label}", "phase": "end", "at": c.at if c.at is not None else "$clock.rounds",
-                           "do": [entry]})
+            events.append({"name": f"{name}_{label}", "phase": "end",
+                           "at": c.at if c.at is not None else "$clock.rounds", "do": [entry]})
             continue
         race = kind in ("first_to", "objectives")  # the first to get there wins: checked the moment an action commits
         end.append({"name": label, "when": when, "say": say, **({"winner": winner} if winner else {}),
                     **({"check": "action"} if race else {})})
     if not cfg.conditions:
         raise MechanismError("give at least one condition", None, "conditions")
-    fragment: Dict[str, Any] = {"end": end, "events": events, **({"world": world} if world else {})}
+    fragment: dict[str, Any] = {"end": end, "events": events, **({"world": world} if world else {})}
     if common.is_agent_type(contract, players):
         fragment["game"] = {"players": players, "returns": f"$won($actor, '{name}')"}
     return fragment
 
 
-def _default_say(kind: str, winner: Optional[str]) -> str:
+def _default_say(kind: str, winner: str | None) -> str:
     if kind == "lose_when":
         return "The players lose."
     if kind == "win_when":
@@ -202,9 +209,9 @@ def _key(call: Call, value: Any) -> Any:
 
 
 @function("best(items, by, ties?)",
-          "The best of `items` by `by` (a value or list of values, highest first): always one item — a tie is broken at "
-          "random (seeded) with ties 'random' (default), or gives null with 'none'; null when empty. ties 'all' always "
-          "gives a list: every item tied for best ([] when empty).",
+          "The best of `items` by `by` (a value or list of values, highest first): always one item — a tie is broken "
+          "at random (seeded) with ties 'random' (default), or gives null with 'none'; null when empty. ties 'all' "
+          "always gives a list: every item tied for best ([] when empty).",
           min_args=2, max_args=3, lazy=[1])
 def _best(call: Call) -> Any:
     items = call.collection(0)
@@ -231,8 +238,8 @@ def _best(call: Call) -> Any:
 
 
 @function("won(entity, victory)",
-          "The entity's share of the win once the victory mechanism has ended the run: 1 for the winner (or every player "
-          "of the winning team), 1/n when n players share the win, 0 otherwise and while the run goes on; e.g. "
+          "The entity's share of the win once the victory mechanism has ended the run: 1 for the winner (or every "
+          "player of the winning team), 1/n when n players share the win, 0 otherwise and while the run goes on; e.g. "
           "$won($actor, 'victory').",
           min_args=2, max_args=2)
 def _won(call: Call) -> float:

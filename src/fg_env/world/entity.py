@@ -1,9 +1,8 @@
 """Entity instances: the things in a running world."""
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
 
 # Runtime value for a property
-PropertyValue = Union[float, int, str, bool, List[str], None]
+PropertyValue = float | int | str | bool | list[str] | None
 
 
 @dataclass
@@ -15,8 +14,8 @@ class Entity:
     id: str
     name: str
     entity_type: str
-    properties: Dict[str, PropertyValue] = field(default_factory=dict)
-    location_id: Optional[str] = None
+    properties: dict[str, PropertyValue] = field(default_factory=dict)
+    location_id: str | None = None
     alive: bool = True
 
     def get(self, prop_name: str, default: PropertyValue = None) -> PropertyValue:

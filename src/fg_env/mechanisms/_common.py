@@ -13,28 +13,34 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from difflib import get_close_matches
-from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, Optional, Sequence, Tuple, Type, TypeVar, Union
+from typing import (
+    Any,
+    Literal,
+    TypeVar,
+)
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
-from ..errors import RunError
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
+from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, config_data, describe, use_key
+from ..world.entity import Entity
 
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "parsed", "uses", "config",
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "whole", "entities_of",
-    "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a", "is_agent_type",
+    "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
+    "is_agent_type",
 ]
 
 M = TypeVar("M", bound=BaseModel)
 
 #: A number, or an expression giving one.
-Number = Union[float, str]
-Effects = List[Any]
+Number = float | str
+Effects = list[Any]
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 
@@ -51,8 +57,8 @@ ToolsSetting = Literal["each", "one", "auto"]
 def tools_field() -> Any:
     """The ``tools`` field every mode that generates several agent tools declares, with one meaning."""
     return Field("each", description="How the generated tools are offered: each (one tool per action) | one (one tool "
-                                     "named after the mechanism, whose `action` argument lists the actions legal now) | "
-                                     "auto (one tool only when every action takes the same arguments).")
+                                     "named after the mechanism, whose `action` argument lists the actions legal now) "
+                                     "| auto (one tool only when every action takes the same arguments).")
 
 
 class ModifierSpec(Config):
@@ -66,11 +72,11 @@ class ModifierSpec(Config):
 # Config lookup
 # ---------------------------------------------------------------------------
 
-_CACHE: Dict[Tuple[int, str], Tuple[Any, Any]] = {}
+_CACHE: dict[tuple[int, str], tuple[Any, Any]] = {}
 _CACHE_LIMIT = 1_024
 
 
-def parsed(raw: Mapping[str, Any], model: Type[M]) -> M:
+def parsed(raw: Mapping[str, Any], model: type[M]) -> M:
     """``raw`` (a contract's mechanism entry) validated as ``model``; parsed once per entry object."""
     key = (id(raw), model.__name__)
     hit = _CACHE.get(key)
@@ -83,14 +89,14 @@ def parsed(raw: Mapping[str, Any], model: Type[M]) -> M:
     return value
 
 
-def uses(contract: Any, kind: str) -> List[Tuple[str, Mapping[str, Any]]]:
+def uses(contract: Any, kind: str) -> list[tuple[str, Mapping[str, Any]]]:
     """``(name, raw config)`` of every mechanism of ``kind`` in a parsed contract or contract data."""
     mechanisms = contract.get("mechanisms") if isinstance(contract, Mapping) else contract.mechanisms
     return [(name, raw) for name, raw in (mechanisms or {}).items()
             if use_key(raw) == kind]
 
 
-def config(world: Any, name: str, kind: str, model: Type[M], where: str) -> M:
+def config(world: Any, name: str, kind: str, model: type[M], where: str) -> M:
     """The config of the mechanism ``name`` of ``kind`` at run time."""
     raw = world.contract.mechanisms.get(name)
     if not isinstance(raw, Mapping) or use_key(raw) != kind:
@@ -112,7 +118,7 @@ def suggest(name: str, options: Iterable[str]) -> str:
     return f"did you mean '{hint[0]}'?" if hint else f"choices: {', '.join(listed) or 'none'}"
 
 
-def types_in(contract: Mapping[str, Any], names: Union[str, Sequence[str]], field: str) -> List[str]:
+def types_in(contract: Mapping[str, Any], names: str | Sequence[str], field: str) -> list[str]:
     """``names`` as a list, each a declared type."""
     listed = [names] if isinstance(names, str) else list(names)
     declared = contract.get("types") or {}
@@ -125,8 +131,8 @@ def types_in(contract: Mapping[str, Any], names: Union[str, Sequence[str]], fiel
 def raw_is_a(contract: Mapping[str, Any], type_name: str, ancestor: str) -> bool:
     """``type_name`` is ``ancestor`` or extends it (on contract data)."""
     types = contract.get("types") or {}
-    seen: List[str] = []
-    current: Optional[str] = type_name
+    seen: list[str] = []
+    current: str | None = type_name
     while current is not None and current not in seen:
         if current == ancestor:
             return True
@@ -139,8 +145,8 @@ def raw_is_a(contract: Mapping[str, Any], type_name: str, ancestor: str) -> bool
 def is_agent_type(contract: Mapping[str, Any], type_name: str) -> bool:
     """``type_name`` is an agent type, or extends one (on contract data)."""
     types = contract.get("types") or {}
-    seen: List[str] = []
-    current: Optional[str] = type_name
+    seen: list[str] = []
+    current: str | None = type_name
     while current is not None and current not in seen and isinstance(types.get(current), Mapping):
         if types[current].get("agent"):
             return True
@@ -149,7 +155,7 @@ def is_agent_type(contract: Mapping[str, Any], type_name: str) -> bool:
     return False
 
 
-def actions_by(contract: Mapping[str, Any], type_names: Sequence[str]) -> List[str]:
+def actions_by(contract: Mapping[str, Any], type_names: Sequence[str]) -> list[str]:
     """Actions (declared so far) that agents of any of ``type_names`` may take."""
     out = []
     for name, action in (contract.get("actions") or {}).items():
@@ -162,8 +168,8 @@ def actions_by(contract: Mapping[str, Any], type_names: Sequence[str]) -> List[s
     return out
 
 
-def check_names(contract: Mapping[str, Any], names: Union[str, Sequence[str]], field: str,
-                carrier_types: Sequence[str]) -> List[str]:
+def check_names(contract: Mapping[str, Any], names: str | Sequence[str], field: str,
+                carrier_types: Sequence[str]) -> list[str]:
     """Action names (or "all": every action the carriers may take) that must be declared."""
     if names == "all":
         return actions_by(contract, carrier_types)
@@ -223,7 +229,7 @@ def whole(value: Any, where: str, low: int = 1) -> int:
     return value
 
 
-def entities_of(world: Any, value: Any, where: str) -> List[Entity]:
+def entities_of(world: Any, value: Any, where: str) -> list[Entity]:
     """Entities from an entity, an id, or a list of them (nulls skipped)."""
     items = value if isinstance(value, (list, tuple)) else [value]
     out = []
@@ -237,7 +243,7 @@ def entities_of(world: Any, value: Any, where: str) -> List[Entity]:
     return out
 
 
-def carriers(world: Any, type_names: Sequence[str]) -> List[Entity]:
+def carriers(world: Any, type_names: Sequence[str]) -> list[Entity]:
     """Alive entities of any of the types (subtypes included), once each, in creation order."""
     kinds = {kind for type_name in type_names for kind in world.contract.subtypes(type_name)}
     return [e for e in world.entities.values() if e.alive and e.entity_type in kinds]
@@ -254,7 +260,7 @@ def plain(value: Any) -> Any:
     return value
 
 
-def by_types(action: Any) -> List[str]:
+def by_types(action: Any) -> list[str]:
     """The agent types that may take an action (an ActionSpec or action data)."""
     by = action.get("by") if isinstance(action, Mapping) else action.by
     return [by] if isinstance(by, str) else list(by or [])
@@ -265,11 +271,11 @@ def by_types(action: Any) -> List[str]:
 # ---------------------------------------------------------------------------
 
 #: ``source(world, entity, prop)`` → ``[(add, mul), ...]`` for every modifier on that property.
-ModifierSource = Callable[[Any, Entity, str], Iterable[Tuple[float, float]]]
-MODIFIER_SOURCES: List[ModifierSource] = []
+ModifierSource = Callable[[Any, Entity, str], Iterable[tuple[float, float]]]
+MODIFIER_SOURCES: list[ModifierSource] = []
 
 
-def modifier_terms(world: Any, raw: Any, entity: Entity, where: str) -> Tuple[float, float]:
+def modifier_terms(world: Any, raw: Any, entity: Entity, where: str) -> tuple[float, float]:
     """``(add, mul)`` of one modifier: a number (added), an expression (added) or ``{add, mul}``."""
     if isinstance(raw, ModifierSpec):
         add, mul = raw.add, raw.mul
@@ -304,7 +310,7 @@ def _effective(call: Call) -> Any:
                 mul *= m
     except RunError as exc:
         raise ExprError(str(exc), call.source) from None
-    value: Union[int, float] = (base + add) * mul
+    value: int | float = (base + add) * mul
     spec = world.prop_spec(entity, prop)
     if spec.min is not None:
         value = max(spec.min, value)

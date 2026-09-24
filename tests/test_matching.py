@@ -12,10 +12,12 @@ def _market(students, schools, seats=1, agents=(), **extra):
     return {
         "name": "Admissions",
         "clock": {"rounds": 1},
-        "types": {"student": {"agent": "student" in agents}, "school": {"agent": "school" in agents, "props": {"capacity": 1}}},
+        "types": {"student": {"agent": "student" in agents},
+                  "school": {"agent": "school" in agents, "props": {"capacity": 1}}},
         "entities": {**{s: {"type": "student", "props": {"admit_prefs": prefs}} for s, prefs in students.items()},
-                     **{c: {"type": "school", "props": {"admit_prefs": prefs, "capacity": seats if isinstance(seats, int)
-                                                        else seats[c]}} for c, prefs in schools.items()}},
+                     **{c: {"type": "school",
+                            "props": {"admit_prefs": prefs, "capacity": seats if isinstance(seats, int)
+                                      else seats[c]}} for c, prefs in schools.items()}},
         "mechanisms": {"admit": {"kind": "groups", "mode": "matching", "who": "student", "to": "school",
                                  "seats": "$it.capacity", **extra}},
     }
@@ -72,7 +74,8 @@ def _blocking_pairs(students, schools, seats, match):
 
 
 def _random_instance(rng, n_students, n_schools):
-    students = {f"s{i}": rng.sample([f"c{j}" for j in range(n_schools)], rng.randint(0, n_schools)) for i in range(n_students)}
+    students = {f"s{i}": rng.sample([f"c{j}" for j in range(n_schools)], rng.randint(0, n_schools))
+                for i in range(n_students)}
     schools = {f"c{j}": rng.sample(list(students), rng.randint(0, n_students)) for j in range(n_schools)}
     seats = {c: rng.randint(0, 3) for c in schools}
     return students, schools, seats

@@ -17,7 +17,8 @@ HAGGLE = {
     "clock": {"rounds": 1},
     "world": {"ask": 100, "bid": 40, "deal": 0},
     "types": {"seller": {"agent": True}, "buyer": {"agent": True}},
-    "entities": {"sam": {"type": "seller"}, "sue": {"type": "seller"}, "bob": {"type": "buyer"}, "bea": {"type": "buyer"}},
+    "entities": {"sam": {"type": "seller"}, "sue": {"type": "seller"}, "bob": {"type": "buyer"},
+                 "bea": {"type": "buyer"}},
     "records": {"table": {"fields": {"text": "text"}}},
     "actions": {
         "lower": {"by": "seller", "params": {"by": {"type": "int", "min": 1, "max": 9}},

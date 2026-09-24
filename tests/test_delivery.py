@@ -15,7 +15,8 @@ RADIO = {
         "say": {"by": "station", "params": {"text": "text"},
                 "do": [{"post": "air", "text": "$params.text", "cash": "$actor.cash", "delay": 2}, "$actor.cash += 5"]},
         "say_then_fail": {"by": "station", "do": [{"post": "air", "text": "lost", "delay": 1}, {"fail": "static"}]},
-        "flare": {"by": "station", "do": [{"emit": "flare", "say": "{$actor.name} fired a flare.", "delay": 1, "to": "ben"}]},
+        "flare": {"by": "station",
+                  "do": [{"emit": "flare", "say": "{$actor.name} fired a flare.", "delay": 1, "to": "ben"}]},
         "shout": {"by": "station", "do": [{"post": "air", "text": "hey", "drop": "$world.loss"}]},
         "ping": {"by": "station", "do": [{"wake": "ben", "why": "ping", "drop": 1}]},
         "wait": {"by": "station", "do": []},
@@ -42,7 +43,8 @@ def test_a_delayed_post_arrives_later_with_what_it_said_when_sent():
     env.run(_play({}), rounds=1)
     [entry] = env.world.records("air")
     assert entry["round"] == 3 and entry["author"] == "ana" and entry["cash"] == 10  # the cash when sent
-    assert isinstance(entry["text"], Untrusted) and entry["text"] == "hello $actor.cash {$world.loss}"  # never evaluated
+    assert (isinstance(entry["text"], Untrusted) and entry["text"]
+            == "hello $actor.cash {$world.loss}")  # never evaluated
 
 
 def test_a_refused_action_sends_nothing():

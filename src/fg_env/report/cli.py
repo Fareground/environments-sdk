@@ -5,7 +5,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 __all__ = ["add_report_command"]
 
@@ -19,7 +19,7 @@ def _json(path: str, flag: str) -> Any:
         raise ValueError(f"{flag} {path} is not valid JSON: {exc}") from None
 
 
-def _requirements(items: Optional[List[str]]) -> Optional[Dict[str, str]]:
+def _requirements(items: list[str] | None) -> dict[str, str] | None:
     if not items:
         return None
     out = {}
@@ -36,8 +36,8 @@ def _requirements(items: Optional[List[str]]) -> Optional[Dict[str, str]]:
 
 def cmd_report(args: argparse.Namespace) -> int:
     from ..analysis.validate import validate
-    from ..experiments.experiment import experiment
     from ..errors import ContractError
+    from ..experiments.experiment import experiment
     from ..runtime.measure import RunResult
     from . import report
 

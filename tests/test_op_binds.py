@@ -1,8 +1,8 @@
 """Native effect ops that bind locals for later effects and templates."""
+from family_fixtures import Nothing, scratch_family
+
 import fg_env
 from fg_env.registry import family_action, mode
-
-from family_fixtures import Nothing, scratch_family
 
 
 def test_a_native_op_can_bind_a_local_that_later_effects_and_outcomes_read():

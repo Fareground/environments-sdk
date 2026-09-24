@@ -11,34 +11,35 @@ measures, defs, arms and calibration (:mod:`.rules`).
 from __future__ import annotations
 
 import copy
+from collections.abc import Iterable, Mapping
 from difflib import get_close_matches
-from typing import Any, Dict, Iterable, List, Mapping, Optional, Set, Tuple
+from typing import Any
 
 from pydantic import ValidationError
 
 from .. import contract as C
-from .actions import ActionChecks
-from .inventory import check_inventory
-from .effects import EffectChecks
-from .roots import BASE, ENTITY_FIELDS, Types
-from .privacy import PrivacyChecks
-from .rules import RuleChecks
-from .scans import check_scans
-from .world import WorldChecks
+from ..assets.checks import check_assets
 from ..contract import Contract
 from ..contract.base import TYPE_SYNONYMS
-from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
+from ..contract.parse_errors import validation_issues
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
 from ..expr.base import WrongKind
 from ..expr.calls import suggest_function
 from ..expr.codegen import _ITEM_ROOTS
-from ..contract.parse_errors import validation_issues
+from ..expr.template import compile_template, quoted_placeholders
 from ..patterns.check import check_pattern_call, check_patterns
 from ..runtime.returns import check_game
-from ..expr.template import compile_template, quoted_placeholders
 from ..world.live import prop_type
-from ..assets.checks import check_assets
+from .actions import ActionChecks
+from .effects import EffectChecks
+from .inventory import check_inventory
+from .privacy import PrivacyChecks
+from .roots import BASE, ENTITY_FIELDS, Types
+from .rules import RuleChecks
+from .scans import check_scans
+from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
+from .world import WorldChecks
 
 __all__ = ["parse_contract", "check_contract"]
 
@@ -47,7 +48,7 @@ __all__ = ["parse_contract", "check_contract"]
 _OTHER_COLLECTION_FUNCS = frozenset({"first", "last"})
 
 
-def _collection_funcs() -> Set[str]:
+def _collection_funcs() -> set[str]:
     """Functions whose first argument is a collection: a bare word there must be a type or record."""
     return {name for name, spec in FUNCTIONS.items()
             if spec.signature.split("(", 1)[1].startswith("items")} | _OTHER_COLLECTION_FUNCS
@@ -82,7 +83,7 @@ def parse_contract(data: Any) -> Contract:
         raise ContractError(_dedupe(validation_issues(exc))) from None
 
 
-def _dedupe(issues: Iterable[Issue]) -> List[Issue]:
+def _dedupe(issues: Iterable[Issue]) -> list[Issue]:
     seen, out = set(), []
     for issue in issues:
         key = (issue.path, issue.message)
@@ -92,7 +93,7 @@ def _dedupe(issues: Iterable[Issue]) -> List[Issue]:
     return out
 
 
-def check_contract(contract: Contract) -> List[Issue]:
+def check_contract(contract: Contract) -> list[Issue]:
     """All semantic errors and warnings (errors first)."""
     checker = _Checker(contract)
     checker.run()
@@ -103,11 +104,12 @@ def check_contract(contract: Contract) -> List[Issue]:
 class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleChecks):
     def __init__(self, contract: Contract):
         self.c = contract
-        self.issues: List[Issue] = []
-        self.type_props: Dict[str, Set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
+        self.issues: list[Issue] = []
+        self.type_props: dict[str, set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
         self.agents = contract.agent_types()
-        words: Set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
-        words |= {s.name for s in contract.stage_list()} | set(contract.metrics) | set(contract.policies) | set(contract.arms)
+        words: set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
+        words |= ({s.name for s in contract.stage_list()} | set(contract.metrics) | set(contract.policies)
+                  | set(contract.arms))
         for kind in contract.types:
             for spec in contract.props_of(kind).values():
                 words |= {str(v) for v in spec.values or []}
@@ -123,13 +125,13 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
 
     # -- reporting -----------------------------------------------------------------
 
-    def error(self, path: str, message: str, fix: Optional[str] = None) -> None:
+    def error(self, path: str, message: str, fix: str | None = None) -> None:
         self.issues.append(Issue(path, message, fix))
 
-    def warn(self, path: str, message: str, fix: Optional[str] = None) -> None:
+    def warn(self, path: str, message: str, fix: str | None = None) -> None:
         self.issues.append(Issue(path, message, fix, "warning"))
 
-    def _suggest(self, name: str, options: Iterable[str]) -> Optional[str]:
+    def _suggest(self, name: str, options: Iterable[str]) -> str | None:
         hint = get_close_matches(name, list(options), n=1)
         return f"did you mean '{hint[0]}'?" if hint else None
 
@@ -142,8 +144,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         hint = get_close_matches(name, list(spellings), n=1)
         return f"did you mean '{spellings[hint[0]]}'?" if hint else f"types: {', '.join(options)}"
 
-    def order_setting(self, order: Optional[str], path: str, words: Tuple[str, ...], roots: Iterable[str],
-                      types: Optional[Types] = None) -> None:
+    def order_setting(self, order: str | None, path: str, words: tuple[str, ...], roots: Iterable[str],
+                      types: Types | None = None) -> None:
         """An `order` setting: one of ``words``, or an expression (lowest first). A bare word is never an expression."""
         if order is None or order in words:
             return
@@ -158,7 +160,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         listed = list(options)
         return self._suggest(name, listed) or (f"{what}: {', '.join(listed)}" if listed else f"no {what} declared")
 
-    def _type(self, name: Optional[str], path: str, agent: bool = False) -> bool:
+    def _type(self, name: str | None, path: str, agent: bool = False) -> bool:
         if name is None:
             return False
         if name not in self.c.types:
@@ -172,8 +174,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
 
     # -- expressions ---------------------------------------------------------------
 
-    def expr(self, source: Any, path: str, roots: Iterable[str], types: Optional[Types] = None,
-             params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
+    def expr(self, source: Any, path: str, roots: Iterable[str], types: Types | None = None,
+             params: Mapping[str, C.ParamSpec] | None = None) -> None:
         if not isinstance(source, str):
             return
         if not is_expr(source) and not source.strip():
@@ -186,8 +188,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             return
         self._refs(compiled, path, set(roots), types or {}, params or {})
 
-    def condition(self, source: Any, path: str, roots: Iterable[str], types: Optional[Types] = None,
-                  params: Optional[Mapping[str, C.ParamSpec]] = None, fix: Optional[str] = None) -> None:
+    def condition(self, source: Any, path: str, roots: Iterable[str], types: Types | None = None,
+                  params: Mapping[str, C.ParamSpec] | None = None, fix: str | None = None) -> None:
         """A condition: an expression, or true / false. Text there (a bare word like `deal`) is always true."""
         self.expr(source, path, roots, types, params)
         if not isinstance(source, str) or is_expr(source):
@@ -200,7 +202,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             self.error(path, f"`{source}` is the text '{value}', which is always true: a condition is an expression",
                        fix or self._condition_fix(value, set(roots)))
 
-    def _condition_fix(self, word: str, roots: Set[str]) -> str:
+    def _condition_fix(self, word: str, roots: set[str]) -> str:
         if word in self.c.world:
             return f"did you mean $world.{word}?"
         owners = [f"${root}.{word}" for root in ("actor", "it", "viewer") if root in roots]
@@ -208,8 +210,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             return f"did you mean {' or '.join(owners)}?"
         return "write an expression like `$world.open` or `$round > 3`; true and false are the constants"
 
-    def value(self, raw: Any, path: str, roots: Iterable[str], types: Optional[Types] = None,
-              params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
+    def value(self, raw: Any, path: str, roots: Iterable[str], types: Types | None = None,
+              params: Mapping[str, C.ParamSpec] | None = None) -> None:
         """A literal, a template text, or an expression (deeply, for lists and objects)."""
         if isinstance(raw, str) and "{$" in raw:
             self.template(raw, path, None, roots, types, params)
@@ -222,8 +224,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             for key, item in raw.items():
                 self.value(item, f"{path}.{key}", roots, types, params)
 
-    def template(self, source: Optional[str], path: str, subject: Optional[str], roots: Iterable[str],
-                 types: Optional[Types] = None, params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
+    def template(self, source: str | None, path: str, subject: str | None, roots: Iterable[str],
+                 types: Types | None = None, params: Mapping[str, C.ParamSpec] | None = None) -> None:
         if source is None:
             return
         try:
@@ -232,12 +234,13 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             self.error(path, exc.detail, f"template: {source}")
             return
         for placeholder in quoted_placeholders(source):
-            self.warn(path, f"wraps {placeholder} in «»: participant text already reads inside «», so this shows ««…»», "
-                            "and other text in «» reads as written by participants", f"write {placeholder} without the «»")
+            self.warn(path, f"wraps {placeholder} in «»: participant text already reads inside «», so this shows "
+                            "««…»», and other text in «» reads as written by participants",
+                      f"write {placeholder} without the «»")
         for expr in compiled.expressions:
             self._refs(expr, path, set(roots), types or {}, params or {})
 
-    def _refs(self, compiled: Any, path: str, roots: Set[str], types: Types,
+    def _refs(self, compiled: Any, path: str, roots: set[str], types: Types,
               params: Mapping[str, C.ParamSpec]) -> None:
         # An unknown callee may be the collection function that binds $it, $i and $outer (a misspelled $max): report
         # the name to repair, not those roots. Independent errors are kept.
@@ -287,19 +290,20 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             if symbol in self.c.types and len(chain) == 2:
                 spec = self.c.props_of(symbol).get(chain[1])
                 self._compare((spec.values, prop_type(spec)) if spec else None, chain, word, path, compiled.source)
-        actor_props: Set[str] = set()
+        actor_props: set[str] = set()
         for kind in types.get("actor", ()):
             actor_props |= self.type_props.get(kind, set())
         for word in compiled.symbols:
             if word in actor_props and word not in self.known_words:
-                self.warn(path, f"bare word '{word}' is the text '{word}'", f"did you mean $actor.{word}? — in `{compiled.source}`")
+                self.warn(path, f"bare word '{word}' is the text '{word}'",
+                          f"did you mean $actor.{word}? — in `{compiled.source}`")
         for chain in compiled.paths:
             self._chain(chain, path, types, params, compiled.source)
         for _, symbol, chain in compiled.item_paths:
             if symbol in self.c.types and len(chain) > 1:
                 self._prop({symbol}, chain[1], path, compiled.source, "it")
 
-    def _chain(self, chain: Tuple[str, ...], path: str, types: Types, params: Mapping[str, C.ParamSpec],
+    def _chain(self, chain: tuple[str, ...], path: str, types: Types, params: Mapping[str, C.ParamSpec],
                source: str) -> None:
         root, fields = chain[0], chain[1:]
         if not fields:
@@ -323,7 +327,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                 self.error(path, f"$inputs.{first}: no such input",
                            self._suggest(first, self.c.inputs) or "declare it under `inputs`")
         elif root == "physics":
-            known = set(self.c.physics.vars) | set(self.c.physics.params) | set(self.c.physics.read) if self.c.physics else set()
+            known = (set(self.c.physics.vars) | set(self.c.physics.params) | set(self.c.physics.read) if self.c.physics
+                     else set())
             if first not in known:
                 self.error(path, f"$physics.{first}: no such physics variable or param", self._suggest(first, known))
         elif root == "metrics":
@@ -337,7 +342,8 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                 self.error(path, f"$clock.{first}: no such field",
                            "clock fields: round, rounds, left, unit, date, start, label, time, horizon")
 
-    def _spec_for(self, chain: Tuple[str, ...], types: Types, params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[Any, str]]:
+    def _spec_for(self, chain: tuple[str, ...], types: Types,
+                  params: Mapping[str, C.ParamSpec]) -> tuple[Any, str] | None:
         """``(allowed values, kind)`` of the field a chain reads, when statically known."""
         root = chain[0]
         named = self.c.entities.get(root[len("entity("):-1]) if root.startswith("entity(") else None
@@ -378,11 +384,13 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             return spec_in.values, spec_in.type
         return None
 
-    def _compare(self, known: Optional[Tuple[Any, str]], chain: Tuple[str, ...], word: str, path: str, source: str) -> None:
+    def _compare(self, known: tuple[Any, str] | None, chain: tuple[str, ...], word: str, path: str,
+                 source: str) -> None:
         field = "$" + ".".join(chain)
         if known is None:
             if word in _NULL_WORDS:
-                self.warn(path, f"'{word}' is the text '{word}', not an empty value", f"write null for no value — in `{source}`")
+                self.warn(path, f"'{word}' is the text '{word}', not an empty value",
+                          f"write null for no value — in `{source}`")
             return
         values, kind = known
         if values:
@@ -390,13 +398,16 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             if word not in allowed:
                 hint = get_close_matches(word, allowed, n=1)
                 self.error(path, f"{field} is one of {', '.join(allowed)}; '{word}' is not",
-                           (f"did you mean '{hint[0]}'?" if hint else "compare with one of the values") + f" — in `{source}`")
+                           (f"did you mean '{hint[0]}'?" if hint else "compare with one of the values")
+                           + f" — in `{source}`")
         elif kind in ("number", "int", "bool"):
-            self.error(path, f"{field} is a {kind}, compared with the text '{word}'", f"fix the comparison — in `{source}`")
+            self.error(path, f"{field} is a {kind}, compared with the text '{word}'",
+                       f"fix the comparison — in `{source}`")
         elif word in _NULL_WORDS:
-            self.warn(path, f"'{word}' is the text '{word}', not an empty value", f"write null for no value — in `{source}`")
+            self.warn(path, f"'{word}' is the text '{word}', not an empty value",
+                      f"write null for no value — in `{source}`")
 
-    def _prop(self, type_names: Set[str], field: str, path: str, source: str, root: str) -> None:
+    def _prop(self, type_names: set[str], field: str, path: str, source: str, root: str) -> None:
         if field in ENTITY_FIELDS or field.isdigit():
             return
         known = [t for t in type_names if t in self.type_props]

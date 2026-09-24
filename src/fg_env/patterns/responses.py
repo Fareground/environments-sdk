@@ -5,7 +5,8 @@ A response is called with its driver: ``$pattern.price_effect($it.price)`` (and 
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -26,7 +27,8 @@ class ElasticityConfig(PatternConfig):
     elasticity: Number = Field(..., description="% change in quantity per % change in price at the reference (−1.5).")
     reference: Number = Field(1.0, description="The price where the effect is 1.")
     form: Literal["constant", "linear"] = Field("constant", description="constant: (price/reference)^elasticity | "
-                                                                       "linear: 1 + elasticity·(price/reference − 1), never below 0.")
+                                                                        "linear: 1 + elasticity·(price/reference − "
+                                                                        "1), never below 0.")
 
 
 @kind("elasticity", "response", "response", ElasticityConfig,
@@ -47,13 +49,16 @@ def _elasticity(ctx: Any, price: Any) -> float:
 
 class CrossPriceConfig(PatternConfig):
     kind: Literal["cross_price"] = "cross_price"
-    reference: Union[Number, Dict[str, Number]] = Field(..., description="Reference price: one for all keys, or {key: price}.")
+    reference: Number | dict[str, Number] = Field(...,
+                                                  description="Reference price: one for all keys, or {key: price}.")
     own: Number = Field(..., description="Own-price elasticity (on the diagonal).")
-    cross: Number = Field(0.0, description="Cross-price elasticity toward the other keys (> 0: substitutes, < 0: complements).")
-    groups: Union[Dict[str, str], str, None] = Field(None, description="{key: group}: cross effects only within a group "
-                                                                       "(tiers of the same part).")
-    matrix: Union[List[List[Number]], str, None] = Field(None, description="Full elasticities instead of own/cross: "
-                                                                          "row i is how item i answers each price, in key order.")
+    cross: Number = Field(0.0,
+                          description="Cross-price elasticity toward the other keys (> 0: substitutes, < 0: "
+                                      "complements).")
+    groups: dict[str, str] | str | None = Field(None, description="{key: group}: cross effects only within a group "
+                                                                  "(tiers of the same part).")
+    matrix: list[list[Number]] | str | None = Field(None, description="Full elasticities instead of own/cross: row i "
+                                                                      "is how item i answers each price, in key order.")
 
 
 @kind("cross_price", "response", "response", CrossPriceConfig,
@@ -62,7 +67,8 @@ class CrossPriceConfig(PatternConfig):
       example={"kind": "cross_price", "keys": ["economy", "premium"], "reference": {"economy": 20, "premium": 35},
                "own": -1.8, "cross": 0.6},
       args=("prices",), params=("reference", "own", "cross", "groups", "matrix"),
-      words=lambda cfg: f"substitution: own elasticity {cfg.own}, cross {cfg.cross}" + (" within groups" if cfg.groups else ""))
+      words=lambda cfg: f"substitution: own elasticity {cfg.own}, cross {cfg.cross}"
+      + (" within groups" if cfg.groups else ""))
 def _cross_price(ctx: Any, prices: Any) -> float:
     if not isinstance(prices, Mapping):
         raise ctx.fail(f"the prices must be a map of {{key: price}}, got {type(prices).__name__}")
@@ -93,8 +99,9 @@ def _cross_price(ctx: Any, prices: Any) -> float:
 
 class SaturationConfig(PatternConfig):
     kind: Literal["saturation"] = "saturation"
-    form: Literal["hill", "logistic", "exponential"] = Field("hill", description="hill: limit·x^shape/(half^shape + x^shape) | "
-                                                           "logistic: limit/(1 + e^(−steepness·(x − midpoint))) | exponential: limit·(1 − e^(−x/scale)).")
+    form: Literal["hill", "logistic", "exponential"] = Field("hill", description="hill: limit·x^shape/(half^shape + "
+                                                           "x^shape) | logistic: limit/(1 + e^(−steepness·(x − "
+                                                           "midpoint))) | exponential: limit·(1 − e^(−x/scale)).")
     limit: Number = Field(1.0, description="The most it gives.")
     base: Number = Field(0.0, description="Added to the result (the level with no driver).")
     half: Number = Field(1.0, description="hill: the driver giving half the limit.")
@@ -151,7 +158,8 @@ def _threshold(ctx: Any, x: Any) -> float:
 class LearningCurveConfig(PatternConfig):
     kind: Literal["learning_curve"] = "learning_curve"
     first: Number = Field(..., description="Cost (or time) of the first unit.")
-    rate: Number = Field(0.8, description="Progress ratio: each doubling of cumulative units multiplies the cost by it.")
+    rate: Number = Field(0.8,
+                         description="Progress ratio: each doubling of cumulative units multiplies the cost by it.")
     floor: Number = Field(0.0, description="Lowest it gets.")
 
 
@@ -167,7 +175,9 @@ def _learning_curve(ctx: Any, units: Any) -> float:
 
 class NetworkConfig(PatternConfig):
     kind: Literal["network"] = "network"
-    form: Literal["power", "log"] = Field("power", description="power: base + strength·users^exponent | log: base + strength·ln(1 + users).")
+    form: Literal["power", "log"] = Field("power",
+                                          description="power: base + strength·users^exponent | log: base + "
+                                                      "strength·ln(1 + users).")
     strength: Number = Field(..., description="How much users add.")
     exponent: Number = Field(1.0, description="power: 1 linear, 2 Metcalfe-like, < 1 diminishing.")
     base: Number = Field(1.0, description="Value with no users.")
@@ -188,12 +198,12 @@ def _network(ctx: Any, users: Any) -> float:
 class HazardConfig(PatternConfig):
     kind: Literal["hazard"] = "hazard"
     form: Literal["constant", "weibull", "loglogistic", "table"] = Field(
-        "constant", description="constant: the same chance at every age | weibull: rising (shape > 1) or falling (< 1) | "
-                                "loglogistic: rising then falling | table: one chance per age.")
+        "constant", description="constant: the same chance at every age | weibull: rising (shape > 1) or falling (< "
+                                "1) | loglogistic: rising then falling | table: one chance per age.")
     rate: Number = Field(0.05, description="constant: chance per `span`.")
     shape: Number = Field(1.0, description="weibull, loglogistic: the curve's shape.")
     scale: Number = Field(10.0, description="weibull, loglogistic: typical age, in clock units.")
-    values: Union[List[Number], str, None] = Field(None, description="table: chance at age 0, 1, 2 … (the last repeats).")
+    values: list[Number] | str | None = Field(None, description="table: chance at age 0, 1, 2 … (the last repeats).")
     span: Number = Field(1.0, description="Clock units the chance covers (usually one round).")
 
 
@@ -227,5 +237,5 @@ def _hazard(ctx: Any, age: Any) -> float:
     return 1.0 if now <= 0 else min(1.0, max(0.0, 1 - later / now))
 
 
-def _unused(_: Optional[Any]) -> None:  # pragma: no cover
+def _unused(_: Any | None) -> None:  # pragma: no cover
     return None

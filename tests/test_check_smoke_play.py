@@ -62,7 +62,8 @@ def test_explicit_rounds_play_exactly_that_many():
 
 
 def test_a_declared_policy_that_crashes_is_reported_with_its_name():
-    broken = shop(policies={"steady": {"rules": [{"do": "order", "with": {"qty": "$actor.stock / ($actor.stock - 10)"}}]}})
+    broken = shop(policies={"steady": {"rules": [{"do": "order",
+                                                  "with": {"qty": "$actor.stock / ($actor.stock - 10)"}}]}})
     found = errors(fg_env.check(broken))
     assert [i.path for i in found] == ["policies.steady.rules[0]"]
     assert "division by zero" in found[0].message
@@ -70,7 +71,8 @@ def test_a_declared_policy_that_crashes_is_reported_with_its_name():
 
 
 def test_a_type_default_policy_that_crashes_is_reported():
-    broken = shop(policies={"steady": {"rules": [{"do": "order", "with": {"qty": "$actor.stock / ($actor.stock - 10)"}}]}})
+    broken = shop(policies={"steady": {"rules": [{"do": "order",
+                                                  "with": {"qty": "$actor.stock / ($actor.stock - 10)"}}]}})
     broken["types"]["retailer"]["policy"] = "steady"
     found = errors(fg_env.check(broken))
     assert [i.path for i in found] == ["policies.steady.rules[0]"]
@@ -129,7 +131,8 @@ def test_random_agents_choose_among_more_candidates_than_a_tool_lists():
     crowd = {"name": "Gifts", "clock": {"rounds": 1},
              "types": {"p": {"agent": True, "props": {"gifts": 0}}},
              "population": [{"type": "p", "count": 80}],
-             "actions": {"give": {"by": "p", "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
+             "actions": {"give": {"by": "p",
+                                  "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
                                   "do": ["$params.to.gifts += 1"], "terminal": True}},
              "outputs": {"gifts": {"expr": "$sum(p, $it.gifts)", "type": "int"}}}
     result = fg_env.run(crowd, "random", seed=1)

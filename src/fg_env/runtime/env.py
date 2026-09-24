@@ -9,39 +9,40 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from typing import Any, Callable, Dict, List, Mapping, Optional
+from collections.abc import Callable, Mapping
+from typing import Any
 
-from ..world.entity import Entity
 from ..actions.book import ActionBook
+from ..actions.reads import InspectCache, inspect_rule
 from ..assets.store import AssetStore
-from .budget import Budget, is_seconds
-from ..world.build import build_world
 from ..contract import MAX_ROUNDS, Contract
-from .diagnostics import diagnose
-from .driving import WAITING, Driver, run_on_worker
+from ..copying.previews import Previews
+from ..copying.replay import Origin
+from ..copying.snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from ..effects.runner import EffectRunner
-from .end_state import end_state
 from ..errors import RunError
-from .exposure import ExposureLog, asks_seen, recording
 from ..expr import ExprError
-from .forgetting import forget, reads_log
-from .happenings import Happenings
 from ..host.hosts import count_host_tokens
 from ..host.tape import tape_of
-from .measure import RunResult, Stats
-from .perception import Perception
-from ..copying.previews import Previews
-from ..actions.reads import InspectCache, inspect_rule
-from ..copying.replay import Origin
-from .returns import measured
+from ..sampling.seeds import SeedTree
+from ..world.build import build_world
+from ..world.entity import Entity
+from ..world.live import _plain
+from .budget import Budget, is_seconds
 from .checks import RunChecks
 from .diagnosis import Diagnosis
+from .diagnostics import diagnose
+from .driving import WAITING, Driver, run_on_worker
+from .end_state import end_state
+from .exposure import ExposureLog, asks_seen, recording
+from .forgetting import forget, reads_log
+from .happenings import Happenings
+from .measure import RunResult, Stats
+from .perception import Perception
+from .returns import measured
 from .rounds import RunRounds, _Steps, _Where
 from .stages import RunStages
-from ..sampling.seeds import SeedTree
-from ..copying.snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from .turn import Memory, entity_dict
-from ..world.live import _plain
 
 __all__ = ["Env", "SNAPSHOT_VERSION"]
 
@@ -64,14 +65,14 @@ class Env(RunChecks, RunRounds, RunStages):
     _inspectable: bool
     _end_on_action: bool
 
-    def __init__(self, contract: Contract, inputs: Dict[str, Any], seed: int, arm: Optional[str] = None,
-                 parallel: int = 8, exposures: bool = False, assets: Optional[AssetStore] = None, events: bool = True):
+    def __init__(self, contract: Contract, inputs: dict[str, Any], seed: int, arm: str | None = None,
+                 parallel: int = 8, exposures: bool = False, assets: AssetStore | None = None, events: bool = True):
         self.contract = contract
         self.inputs = inputs
         self.seed = seed
         self.arm = arm
         #: The load-time calibration report (None when the contract fits nothing or this session set the inputs).
-        self.calibration: Optional[Dict[str, Any]] = None
+        self.calibration: dict[str, Any] | None = None
         self.parallel = max(1, parallel)
         self.seeds = SeedTree(seed)
         self.world = build_world(contract, inputs, self.seeds, arm, assets)
@@ -81,16 +82,16 @@ class Env(RunChecks, RunRounds, RunStages):
         self.perception = Perception(contract, self.world)
         self.stats = Stats()
         #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
-        self.agent_stats: Dict[str, Stats] = {}
+        self.agent_stats: dict[str, Stats] = {}
         self.status = "ready"
-        self.ended_by: Optional[str] = None
-        self.error: Optional[str] = None
-        self._memories: Dict[str, Memory] = {}
-        self._briefs: Dict[str, str] = {}
-        self._inspect_cache: Optional[InspectCache] = None
+        self.ended_by: str | None = None
+        self.error: str | None = None
+        self._memories: dict[str, Memory] = {}
+        self._briefs: dict[str, str] = {}
+        self._inspect_cache: InspectCache | None = None
         #: The assets each agent's brief attaches (fixed with the brief text).
-        self._brief_assets: Dict[str, List[str]] = {}
-        self._used_round: Dict[str, Dict[str, int]] = {}
+        self._brief_assets: dict[str, list[str]] = {}
+        self._used_round: dict[str, dict[str, int]] = {}
         self._fired_once: set = set()
         self._lock = threading.RLock()
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
@@ -98,36 +99,36 @@ class Env(RunChecks, RunRounds, RunStages):
         self._running = threading.Lock()
         self.driver = Driver(self)
         #: Wall-clock seconds per turn for stages that set no `time_limit` (None: no limit).
-        self.time_limit: Optional[float] = None
-        self.budget: Optional[Budget] = None
+        self.time_limit: float | None = None
+        self.budget: Budget | None = None
         #: Recorded when asked, or when the contract's rules ask `$seen`.
         self.world.exposures = ExposureLog() if exposures or asks_seen(contract) else None
         if exposures and not events:
-            raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown to "
-                             "replay against it: drop one of them")
+            raise ValueError("events=False keeps no event log, but exposures=True records what every agent was shown "
+                             "to replay against it: drop one of them")
         #: Whether results carry the event log; without it the run forgets what nothing can read (see forgetting.py).
         self._keep_events = events
         self._reads_log = reads_log(contract) if not events else True
         self.happenings = Happenings(self)
         self.previews = Previews(self)
-        self._on_event: Optional[Callable[[Dict[str, Any]], None]] = None
+        self._on_event: Callable[[dict[str, Any]], None] | None = None
         self._emitted = 0
         self._turn_count = 0
         #: The round in progress while a run is stopped inside it, and where in it the run is.
-        self._cursor: Optional[_Steps] = None
+        self._cursor: _Steps | None = None
         self._where = _Where()
         #: Last truth value of each trigger's condition, and triggers that fired once.
-        self._trigger_armed: Dict[int, bool] = {}
+        self._trigger_armed: dict[int, bool] = {}
         self._triggers_fired: set = set()
         self._in_round = False
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
         #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
         self._inspectable = any(self._inspect_rule(kind) is not False for kind in contract.types)
         #: The state each invariant was last found to hold in (see _check_invariants).
-        self._invariant_held: Dict[int, Any] = {}
+        self._invariant_held: dict[int, Any] = {}
         self._end_on_action = any(end.check == "action" for end in contract.end)
         #: The log as plain data for results, converted once per event (see _event_rows).
-        self._rows: List[Dict[str, Any]] = []
+        self._rows: list[dict[str, Any]] = []
         self._rows_last: Any = None
         self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
         self._check_invariants("build", "build")
@@ -142,19 +143,19 @@ class Env(RunChecks, RunRounds, RunStages):
     def round(self) -> int:
         return self.world.round
 
-    def run(self, participants: Any = None, *, rounds: Optional[int] = None,
-            stop: Optional[Callable[["Env"], bool]] = None,
-            on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-            raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None,
-            budget: Optional[Mapping[str, Any]] = None) -> RunResult:
+    def run(self, participants: Any = None, *, rounds: int | None = None,
+            stop: Callable[[Env], bool] | None = None,
+            on_event: Callable[[dict[str, Any]], None] | None = None,
+            raise_errors: bool = False, hosts: Any = None, time_limit: float | None = None,
+            budget: Mapping[str, Any] | None = None) -> RunResult:
         """Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 
-        ``participants`` is a callable for every agent, or a mapping from entity id, type or
-        ``"*"`` to a participant (a callable — plain or ``async def`` — ``"random"``, ``"idle"``,
-        ``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
-        participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
-        adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
-        stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use :meth:`arun`.
+        ``participants`` is a callable for every agent, or a mapping from entity id, type or ``"*"`` to a participant (a
+        callable — plain or ``async def`` — ``"random"``, ``"idle"``, ``"policy:<name>"``). Agents without one use their
+        type's ``policy`` or ``"random"``. Every participant is offered the contract's in-turn host tools; ``hosts``
+        binds the run to host adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn
+        for stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use
+        :meth:`arun`.
 
         ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
         continues exactly where it stopped on the next call; finishing a round that was
@@ -162,11 +163,11 @@ class Env(RunChecks, RunRounds, RunStages):
         """
         return self._run(participants, rounds, stop, on_event, raise_errors, hosts, time_limit, budget, None)
 
-    async def arun(self, participants: Any = None, *, rounds: Optional[int] = None,
-                   stop: Optional[Callable[["Env"], bool]] = None,
-                   on_event: Optional[Callable[[Dict[str, Any]], None]] = None,
-                   raise_errors: bool = False, hosts: Any = None, time_limit: Optional[float] = None,
-                   budget: Optional[Mapping[str, Any]] = None) -> RunResult:
+    async def arun(self, participants: Any = None, *, rounds: int | None = None,
+                   stop: Callable[[Env], bool] | None = None,
+                   on_event: Callable[[dict[str, Any]], None] | None = None,
+                   raise_errors: bool = False, hosts: Any = None, time_limit: float | None = None,
+                   budget: Mapping[str, Any] | None = None) -> RunResult:
         """:meth:`run` as a coroutine, for use inside a running event loop.
 
         Async participants run on this loop — so clients bound to it work — and a simultaneous
@@ -174,15 +175,15 @@ class Env(RunChecks, RunRounds, RunStages):
         the loop stays free while it plays; ``stop`` and ``on_event`` are called from that thread.
         Cancelling the call stops the run at its next safe point.
         """
-        def play(loop: asyncio.AbstractEventLoop, halt: Callable[["Env"], bool]) -> RunResult:
+        def play(loop: asyncio.AbstractEventLoop, halt: Callable[[Env], bool]) -> RunResult:
             return self._run(participants, rounds, halt, on_event, raise_errors, hosts, time_limit, budget, loop)
 
         result: RunResult = await run_on_worker(play, stop)
         return result
 
-    def _run(self, participants: Any, rounds: Optional[int], stop: Optional[Callable[["Env"], bool]],
-             on_event: Optional[Callable[[Dict[str, Any]], None]], raise_errors: bool, hosts: Any,
-             time_limit: Optional[float], budget: Any, loop: Optional[asyncio.AbstractEventLoop]) -> RunResult:
+    def _run(self, participants: Any, rounds: int | None, stop: Callable[[Env], bool] | None,
+             on_event: Callable[[dict[str, Any]], None] | None, raise_errors: bool, hosts: Any,
+             time_limit: float | None, budget: Any, loop: asyncio.AbstractEventLoop | None) -> RunResult:
         if rounds is not None and (isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 0):
             raise ValueError(f"rounds must be a whole number ≥ 0, got {rounds!r}")
         if rounds is not None and rounds > MAX_ROUNDS:
@@ -224,18 +225,18 @@ class Env(RunChecks, RunRounds, RunStages):
         """Run exactly one round (or finish the round a stopped run is in)."""
         return self.run(participants, rounds=1)
 
-    def entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    def entity(self, entity_id: str) -> dict[str, Any] | None:
         """A copy of one entity: ``{id, name, type, alive, at, props}``, or None."""
         found = self.world.entities.get(entity_id)
         return entity_dict(found) if found is not None else None
 
-    def entities(self, type_name: Optional[str] = None, alive: bool = True) -> List[Dict[str, Any]]:
+    def entities(self, type_name: str | None = None, alive: bool = True) -> list[dict[str, Any]]:
         """Copies of entities, optionally of one type (subtypes included) and only alive ones."""
         kinds = set(self.contract.subtypes(type_name)) if type_name else None
         return [entity_dict(e) for e in self.world.entities.values()
                 if (kinds is None or e.entity_type in kinds) and (e.alive or not alive)]
 
-    def records(self, name: str) -> List[Dict[str, Any]]:
+    def records(self, name: str) -> list[dict[str, Any]]:
         """A detached, JSON-safe copy of a declared record stream.
 
         Host applications use records to render engine-native timelines,
@@ -247,15 +248,15 @@ class Env(RunChecks, RunRounds, RunStages):
         return [_plain(dict(entry)) for entry in self.world.records(name)]
 
     @property
-    def props(self) -> Dict[str, Any]:
+    def props(self) -> dict[str, Any]:
         """A copy of the world's global properties."""
         return _plain(dict(self.world.props))
 
     def result(self) -> RunResult:
         count_host_tokens(self)
-        outputs: Dict[str, Any] = {}
-        issues: List[Dict[str, Any]] = []
-        returns: Dict[str, float] = {}
+        outputs: dict[str, Any] = {}
+        issues: list[dict[str, Any]] = []
+        returns: dict[str, float] = {}
         if self.status != "failed":  # unfinished runs get provisional outputs and returns
             outputs, problems, returns = measured(self.contract, self.world, self.finished)
             issues = [p.to_dict() for p in problems]
@@ -266,8 +267,8 @@ class Env(RunChecks, RunRounds, RunStages):
             series={k: list(v) for k, v in self.world.series.items()}, winner=end.get("winner"),
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
-            events=self._event_rows() if self._keep_events else [], time=self.world.time if self.world.continuous else None,
-            exposures=recording(self),
+            events=self._event_rows() if self._keep_events else [],
+            time=self.world.time if self.world.continuous else None, exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
@@ -279,16 +280,16 @@ class Env(RunChecks, RunRounds, RunStages):
         )
 
     @property
-    def frames(self) -> List[Dict[str, Any]]:
+    def frames(self) -> list[dict[str, Any]]:
         """Spectator frames so far: ``[{round, views: {name: text}, time?, final?}]``."""
         return self.previews.frames
 
-    def spectate(self) -> Dict[str, str]:
+    def spectate(self) -> dict[str, str]:
         """Every spectator view (``"for": "spectator"``) rendered against the world now, by name. Changes
         nothing: views that draw randomness use a stream of their own."""
         return self.previews.spectate()
 
-    def preview(self, entity_id: str, stage: Optional[str] = None, participants: Any = None) -> Dict[str, Any]:
+    def preview(self, entity_id: str, stage: str | None = None, participants: Any = None) -> dict[str, Any]:
         """What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
 
         Between rounds this plays the next round on a copy up to the agent's turn — scheduled
@@ -301,14 +302,14 @@ class Env(RunChecks, RunRounds, RunStages):
         """
         return self.previews.preview(entity_id, stage, participants)
 
-    def snapshot(self) -> Dict[str, Any]:
+    def snapshot(self) -> dict[str, Any]:
         """Everything needed to continue this run later, as JSON-safe data: between rounds, or stopped part-way
         through a round (``run(stop=...)``)."""
         return take_snapshot(self)
 
     @classmethod
     def restore(cls, contract: Any, snapshot: Mapping[str, Any], parallel: int = 8, hosts: Any = None,
-                data_dir: Any = None) -> "Env":
+                data_dir: Any = None) -> Env:
         """Continue a run from :meth:`snapshot`. ``contract`` is the contract it was taken with
         (a :class:`Contract`, dict, path or JSON text; the snapshot's arm is applied if needed).
         ``hosts`` answers host judgment; answers already recorded in the snapshot are never asked again.
@@ -324,7 +325,7 @@ class Env(RunChecks, RunRounds, RunStages):
             bind(env, hosts)
         return env
 
-    def clone(self) -> "Env":
+    def clone(self) -> Env:
         """An independent copy of this run now, continuing exactly as it would.
 
         Between rounds it is a restored snapshot; a run stopped part-way through a round (``run(stop=...)``) is
@@ -334,7 +335,7 @@ class Env(RunChecks, RunRounds, RunStages):
 
         return clone_env(self)
 
-    def fork(self, **changes: Any) -> "Env":
+    def fork(self, **changes: Any) -> Env:
         """A new run continuing this one from now under changes, leaving this run untouched: another ``arm``
         (``None`` for none), ``inputs``, a contract ``patch`` or a whole replacement ``contract``, a ``seed`` for
         the luck from here on, and intervention ``effects`` applied at the fork (logged as a `fork` event,
@@ -349,11 +350,12 @@ class Env(RunChecks, RunRounds, RunStages):
 
     # -- driving -----------------------------------------------------------------------
 
-    def _play(self, rounds: Optional[int], stop: Optional[Callable[["Env"], bool]]) -> None:
+    def _play(self, rounds: int | None, stop: Callable[[Env], bool] | None) -> None:
         completed = 0
         while not self.finished:
             if self._cursor is None:
-                if (rounds is not None and completed >= rounds) or (self.budget is not None and self.budget.enforce(self)):
+                if (rounds is not None and completed >= rounds) or (
+                        self.budget is not None and self.budget.enforce(self)):
                     return
                 if stop is not None and stop(self):
                     self.status = "stopped"
@@ -397,13 +399,13 @@ class Env(RunChecks, RunRounds, RunStages):
     def _brief(self, actor: Entity) -> str:
         brief = self._briefs.get(actor.id)
         if brief is None:
-            attached: List[str] = []
+            attached: list[str] = []
             brief = self._briefs[actor.id] = self.perception.brief(actor, attached)
             if attached:
                 self._brief_assets[actor.id] = attached
         return brief
 
-    def _event_rows(self) -> List[Dict[str, Any]]:
+    def _event_rows(self) -> list[dict[str, Any]]:
         """The log as plain data, each event converted once, so a result costs the same late in a run as early.
         Results share the converted events; the log only grows at its end or loses events a rollback undid, so the
         rows are rebuilt only when their last event is no longer where it was."""

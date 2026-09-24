@@ -107,7 +107,8 @@ def test_a_trigger_an_action_sets_off_that_crosses_a_bound_refuses_the_action():
 
 
 def test_saturating_is_written_with_clamp():
-    capped = {**SHOP, "stages": [], "events": [{"phase": "end", "do": ["$world.stock = $clamp($world.stock - 5, 0, 3)"]}]}
+    capped = {**SHOP, "stages": [],
+              "events": [{"phase": "end", "do": ["$world.stock = $clamp($world.stock - 5, 0, 3)"]}]}
     env = fg_env.load(capped, seed=1)
     assert env.run().status == "completed"
     assert env.props["stock"] == 0
@@ -160,7 +161,8 @@ def test_a_layer_cell_past_its_bound_is_refused_and_rolled_back():
 
 
 def test_a_layer_default_outside_the_bounds_fails_the_build():
-    bad = {**FIELD, "space": {"grid": {"rows": 1, "cols": 2}, "layers": {"sugar": {"default": "$cell[1] * 9", "max": 5}}}}
+    bad = {**FIELD,
+           "space": {"grid": {"rows": 1, "cols": 2}, "layers": {"sugar": {"default": "$cell[1] * 9", "max": 5}}}}
     with pytest.raises(RunError, match="layer 'sugar' cannot go above 5: it would be 9"):
         fg_env.load(bad, seed=1)
 

@@ -27,14 +27,14 @@ __all__ = ["reads_log", "forget"]
 _LEAST_TAPE = 1_000
 
 
-def reads_log(contract: "Contract") -> bool:
+def reads_log(contract: Contract) -> bool:
     """Whether the contract's rules read events older than an agent's news, so the run must keep them all."""
     text = json.dumps(contract.model_dump(by_alias=True, exclude_defaults=True), default=str)
     return ("$events" in text or "$seen" in text or contract.game is not None
             or any(use_key(raw) in (MEMORY, PROCEDURE) for raw in contract.mechanisms.values()))
 
 
-def forget(env: "Env") -> None:
+def forget(env: Env) -> None:
     """At a round's start: drop the events no living agent's news can reach any more, and move the replay base here
     when the tape has outgrown the world. Nothing is ever forgotten from a run whose rules read the log."""
     if env._reads_log:

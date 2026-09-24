@@ -1,6 +1,7 @@
 """Automatically generated integer inputs must remain inside authored bounds."""
-import pytest
 import copy
+
+import pytest
 
 import fg_env
 
@@ -75,6 +76,7 @@ def test_boundary_checks_find_nested_configured_input_failures_and_preserve_data
     assert scope.severity == 'warning' and scope.evidence['limited']
     assert scope.evidence['cases'] == 1
     import json
+
     from fg_env.__main__ import main
     path = tmp_path / 'bounds.json'
     path.write_text(json.dumps(c))

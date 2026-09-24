@@ -7,11 +7,22 @@ import os
 import random
 
 import pytest
+from game_contracts import GAMES
 
 import fg_env
-from fg_env.game.algorithms import (CFRSolver, ISMCTSBot, MCTSBot, TabularPolicy, best_response, determinize,
-                                    exploitability, extract_tree, minimax, nash_conv, policy_values)
-from game_contracts import GAMES
+from fg_env.game.algorithms import (
+    CFRSolver,
+    ISMCTSBot,
+    MCTSBot,
+    TabularPolicy,
+    best_response,
+    determinize,
+    exploitability,
+    extract_tree,
+    minimax,
+    nash_conv,
+    policy_values,
+)
 
 slow = pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), reason="slow verification: set FG_ENV_SLOW=1")
 

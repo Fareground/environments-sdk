@@ -4,19 +4,20 @@ from __future__ import annotations
 import json
 import os
 import re
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
 from ..api import ContractLike, load
 from ..copying.branch import Branch, copy_pilot, fresh_copy
-from ..describe.walk import draws
-from ..runtime.driving import Unpausable
-from ..errors import ContractError, Issue
-from ..copying.replay import Tape
-from ..runtime.returns import seat_ids, seat_returns
 from ..copying.direct import NotCopyable
-from ..runtime.env import Env
+from ..copying.replay import Tape
 from ..copying.snapshot import contract_hash, decode, encode, run_identity
 from ..copying.stepping import SteppedEnv, Stepper
+from ..describe.walk import draws
+from ..errors import ContractError, Issue
+from ..runtime.driving import Unpausable
+from ..runtime.env import Env
+from ..runtime.returns import seat_ids, seat_returns
 from .observe import digest
 from .runs import ThreadedRun, can_step
 from .space import COMBINATION_LIMIT, ActionSpace
@@ -35,7 +36,7 @@ class Game:
     node when chance is explicit); agents that are not seats are played by ``others``.
     """
 
-    def __init__(self, root: Env, *, players: Optional[Sequence[str]], others: Any, chance: str, turn_based: bool,
+    def __init__(self, root: Env, *, players: Sequence[str] | None, others: Any, chance: str, turn_based: bool,
                  dry_run: bool, limit: int):
         self._root = root
         self.contract = root.contract
@@ -48,8 +49,8 @@ class Game:
             problems.append(Issue("game.players", "there are no seats", "declare agent entities, or `game.players`"))
         if problems:
             raise ContractError(problems, title="the game has no valid seats")
-        self.players: List[str] = seats
-        self._seats: Dict[str, int] = {seat: index for index, seat in enumerate(seats)}
+        self.players: list[str] = seats
+        self._seats: dict[str, int] = {seat: index for index, seat in enumerate(seats)}
         self._others = others
         self.chance = chance
         self.turn_based = turn_based
@@ -57,25 +58,26 @@ class Game:
         self.limit = limit
         self.space = ActionSpace(root, limit)
         slug = re.sub(r"[^a-z0-9]+", "_", self.contract.name.lower()).strip("_") or "game"
-        self.id = f"{slug}@{contract_hash(self.contract)[:8]}:{run_identity(root.seed, root.arm, encode(root.inputs))[:8]}"
+        identity = run_identity(root.seed, root.arm, encode(root.inputs))
+        self.id = f"{slug}@{contract_hash(self.contract)[:8]}:{identity[:8]}"
         # The same decisions from the initial state always reach the same state (the engine is deterministic under
         # the game's seed), so legal calls are remembered by history — unless `others` may decide differently.
         self._remembers = others is None or isinstance(others, str) or (
             isinstance(others, Mapping) and all(isinstance(value, str) for value in others.values()))
-        self._legal_by_history: Dict[Tuple[bytes, int], Any] = {}
-        self._info: Optional[Dict[str, Any]] = None
+        self._legal_by_history: dict[tuple[bytes, int], Any] = {}
+        self._info: dict[str, Any] | None = None
         #: Steps every new state starts with (see :meth:`start_at`).
-        self._prefix: List[Dict[str, Any]] = []
+        self._prefix: list[dict[str, Any]] = []
         players_now = self.players
         #: How a state reads every seat's return; also read ahead at chance nodes when no randomness is drawn.
-        self._returns_of: Callable[[Any], Dict[str, float]] = \
+        self._returns_of: Callable[[Any], dict[str, float]] = \
             lambda env: seat_returns(self.contract, env.world, players_now)
         spec = self.contract.game
         returns = spec.returns if spec is not None else None
         self._prefetch = self._returns_of if returns is not None and not draws(self.contract, [returns]) else None
         #: Whether states are stepped on the caller's thread (see :mod:`.runs`), and the stepped run they copy.
         self._stepped = can_step(self)
-        self._template: Optional[Stepper] = None
+        self._template: Stepper | None = None
 
     def _remembered(self, history: bytes, seat: int) -> Any:
         return self._legal_by_history.get((history, seat)) if self._remembers else None
@@ -95,7 +97,7 @@ class Game:
         return self.space.size
 
     @property
-    def info(self) -> Dict[str, Any]:
+    def info(self) -> dict[str, Any]:
         """The game's derived metadata (dynamics, chance, information, players, length, action space; see
         ``fg-env describe --metadata``), computed once."""
         if self._info is None:
@@ -165,7 +167,8 @@ class Game:
             data = json.loads(text)
         except (TypeError, ValueError) as exc:
             raise ValueError(f"not a serialized game state: {exc}") from None
-        if not isinstance(data, Mapping) or data.get("fg_env_game_state") != 1 or not isinstance(data.get("history"), list):
+        if (not isinstance(data, Mapping) or data.get("fg_env_game_state") != 1
+            or not isinstance(data.get("history"), list)):
             raise ValueError("not a serialized game state (from GameState.serialize())")
         if data.get("game") != self.id:
             raise ValueError(f"the state belongs to game {data.get('game')!r}, not {self.id!r}")
@@ -177,14 +180,14 @@ class Game:
                 state._apply(entry["player"], {"tool": entry["tool"], "args": entry["args"]})
         return state
 
-    def rebuilt(self) -> "Game":
+    def rebuilt(self) -> Game:
         """The same game built again from its contract, inputs, arm and seed (a determinism check compares the two)."""
         root = self._root
         fresh = load(root.origin.unarmed, inputs=root.inputs, seed=root.seed, arm=root.arm)
         return self._like(Game(fresh, players=self.players, others=self._others, chance=self.chance,
                                turn_based=self.turn_based, dry_run=self.dry_run, limit=self.limit))
 
-    def start_at(self, steps: Sequence[Mapping[str, Any]]) -> "Game":
+    def start_at(self, steps: Sequence[Mapping[str, Any]]) -> Game:
         """The same game starting where ``steps`` lead from its initial state (see :mod:`fg_env.game.steps`;
         a playthrough's steps work). Its states' histories begin with those steps."""
         started = self._like(Game(self._root, players=self.players, others=self._others, chance=self.chance,
@@ -194,12 +197,12 @@ class Game:
         started.new_initial_state().close()  # the steps must be playable: fail here, not later
         return started
 
-    def _like(self, other: "Game") -> "Game":
+    def _like(self, other: Game) -> Game:
         other._prefix = list(self._prefix)
         other.id = self.id
         return other
 
-    def as_turn_based(self) -> "Game":
+    def as_turn_based(self) -> Game:
         """The same game with sealed simultaneous turns played one seat at a time (later seats cannot see
         earlier seats' sealed choices)."""
         return self._like(Game(self._root, players=self.players, others=self._others, chance=self.chance,
@@ -209,10 +212,10 @@ class Game:
         return f"<Game {self.id}: {self.num_players()} seats, {self.num_distinct_actions()} actions>"
 
 
-def game(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, seed: int = 0, arm: Optional[str] = None,
-         players: Optional[Sequence[str]] = None, others: Any = None, chance: str = "explicit",
+def game(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed: int = 0, arm: str | None = None,
+         players: Sequence[str] | None = None, others: Any = None, chance: str = "explicit",
          simultaneous: str = "joint", dry_run: bool = True, max_combinations: int = COMBINATION_LIMIT,
-         hosts: Any = None, data_dir: Union[str, "os.PathLike[str]", None] = None) -> Game:
+         hosts: Any = None, data_dir: str | os.PathLike[str] | None = None) -> Game:
     """A contract as a game for search, solving and learning code.
 
     * ``players`` — the seats (entity ids); default: the contract's ``game.players`` (else every agent), in seat order.

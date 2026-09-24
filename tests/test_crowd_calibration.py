@@ -19,11 +19,11 @@ SEEDS, ROUNDS = 6, 120
 def _session(seed):
     last = "$book(x).last"
     # Profit against simply holding the starting cash and shares, marked at the last price.
-    edge = {kind: f"$avg($map(x_{kind}, $it.cash + $it.x_reserved_cash + ($it.x_shares + $it.x_reserved_shares) * {last}"
-                  f" - {cash} - {shares} * {last}))" for kind, (_, cash, shares) in CROWD.items()}
+    edge = {kind: f"$avg($map(x_{kind}, $it.cash + $it.x_reserved_cash + ($it.x_shares + $it.x_reserved_shares) * "
+                  f"{last} - {cash} - {shares} * {last}))" for kind, (_, cash, shares) in CROWD.items()}
     contract = {"name": "Crowd", "clock": {"rounds": ROUNDS}, "types": {"trader": {"agent": True}},
-                "mechanisms": {"x": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 100, "conserve": "round",
-                                     "crowd": {kind: {"count": n, "cash": cash, "shares": shares}
+                "mechanisms": {"x": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 100,
+                                     "conserve": "round", "crowd": {kind: {"count": n, "cash": cash, "shares": shares}
                                                for kind, (n, cash, shares) in CROWD.items()}}},
                 "metrics": {"value": "$world.x_value"},
                 "outputs": {**edge, "prices": "$series.x_price", "values": "$series.value",

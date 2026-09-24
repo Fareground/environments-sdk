@@ -12,7 +12,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import fg_env
 from fg_env.guides import guide_parts
@@ -33,9 +33,9 @@ def page_name(part: str) -> str:
     return f"reference-{part.replace('.', '-')}.md"
 
 
-def reference_pages() -> Dict[str, str]:
+def reference_pages() -> dict[str, str]:
     """One page per guide part, and the index that lists them."""
-    pages: Dict[str, str] = {}
+    pages: dict[str, str] = {}
     index = ["# Contract reference", "",
              "Generated from the installed source models, expression registry and authoring guides. Regenerate with "
              "`make docs`.", "",
@@ -54,7 +54,7 @@ def _is_public(obj: Any) -> bool:
     return inspect.isfunction(obj) or inspect.isclass(obj)
 
 
-def _entry(heading: str, name: str, obj: Any) -> List[str]:
+def _entry(heading: str, name: str, obj: Any) -> list[str]:
     lines = [f"{heading} `{name}`", ""]
     try:
         lines += ["```pyi", f"{name.rpartition('.')[2]}{inspect.signature(obj)}", "```", ""]
@@ -91,7 +91,7 @@ def api_page() -> str:
     return "\n".join(lines) + "\n"
 
 
-def example_contracts() -> List[Path]:
+def example_contracts() -> list[Path]:
     """Every example contract. A folder named like a contract beside it (`exchange_flagship/`) holds that contract's
     imports and data, not examples of its own."""
     found = sorted(CONTRACTS.glob("*.json"))
@@ -136,14 +136,14 @@ def examples_readme() -> str:
     return f"{before}{TABLE_START}\n{examples_table()}\n{TABLE_END}{after}"
 
 
-def generated() -> Dict[Path, str]:
+def generated() -> dict[Path, str]:
     files = {DOCS / name: text for name, text in reference_pages().items()}
     files[DOCS / "api.md"] = api_page()
     files[EXAMPLES / "README.md"] = examples_readme()
     return files
 
 
-def stale(files: Dict[Path, str]) -> List[Path]:
+def stale(files: dict[Path, str]) -> list[Path]:
     """Reference pages on disk that no guide part generates any more."""
     return sorted(p for p in DOCS.glob("reference-*.md") if p not in files)
 

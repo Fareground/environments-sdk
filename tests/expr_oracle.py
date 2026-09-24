@@ -1,40 +1,41 @@
 """The reference evaluator the compiled expression language is checked against.
 
-This is the closure compiler the language shipped with before expressions were compiled to Python code, kept
-verbatim: one closure per syntax node, evaluated by calling them. It shares only what the compiled language did
-not replace — parsing (``_preprocess``, ``_restore_words``, the node whitelist) and the value helpers (``attr``, the operators,
-``Call``) — so a difference between the two is a difference in compilation, never in a helper both call.
-Used by the differential tests only.
+This is the closure compiler the language shipped with before expressions were compiled to Python code, kept verbatim:
+one closure per syntax node, evaluated by calling them. It shares only what the compiled language did not replace —
+parsing (``_preprocess``, ``_restore_words``, the node whitelist) and the value helpers (``attr``, the operators,
+``Call``) — so a difference between the two is a difference in compilation, never in a helper both call. Used by the
+differential tests only.
 """
 from __future__ import annotations
 
 import ast
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, FrozenSet, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from fg_env.expr.base import _BUDGET, EVAL_BUDGET, ExprError, charge, truthy
 from fg_env.expr.calls import FUNCTIONS, Call, EqualityGuard, Evaluator
 from fg_env.expr.codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, _chain, _entity_chain
 from fg_env.expr.compile import _ALLOWED, _MAX_NODES, _MAX_SOURCE, _preprocess, _restore_words
 from fg_env.expr.scope import Scope
-from fg_env.expr.values import _BINARY, _COMPARE, _describe, _number, attr, map_key
 from fg_env.expr.syntax_hints import syntax_message
+from fg_env.expr.values import _BINARY, _COMPARE, _describe, _number, attr, map_key
 
 
 @dataclass(frozen=True)
 class OracleExpr:
     source: str
     run: Evaluator
-    roots: FrozenSet[str]
-    functions: FrozenSet[str]
-    symbols: FrozenSet[str]
-    paths: FrozenSet[Tuple[str, ...]]
-    calls: FrozenSet[Tuple[str, Optional[str]]]
-    item_paths: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...]]]
-    comparisons: FrozenSet[Tuple[Tuple[str, ...], str]]
-    item_comparisons: FrozenSet[Tuple[str, Optional[str], Tuple[str, ...], str]]
-    arity_errors: FrozenSet[Tuple[str, str]]
-    methods: FrozenSet[Tuple[str, str, int]]
+    roots: frozenset[str]
+    functions: frozenset[str]
+    symbols: frozenset[str]
+    paths: frozenset[tuple[str, ...]]
+    calls: frozenset[tuple[str, str | None]]
+    item_paths: frozenset[tuple[str, str | None, tuple[str, ...]]]
+    comparisons: frozenset[tuple[tuple[str, ...], str]]
+    item_comparisons: frozenset[tuple[str, str | None, tuple[str, ...], str]]
+    arity_errors: frozenset[tuple[str, str]]
+    methods: frozenset[tuple[str, str, int]]
 
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
@@ -87,7 +88,8 @@ def compile_oracle(source: str) -> OracleExpr:
                             + (f": write ${called}(...)" if called else ""), source)
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
                 and not node.value.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)) and node.value.id not in _LITERAL_NAMES:
-            raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write ${node.value.id}.{node.attr}",
+            raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write "
+                            f"${node.value.id}.{node.attr}",
                             source)
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ExprError(f"private field '{node.attr}' cannot be read", source)
@@ -104,7 +106,8 @@ def compile_oracle(source: str) -> OracleExpr:
 
 
 def _root_method(func: ast.AST) -> bool:
-    return isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id.startswith(_ROOT_PREFIX)
+    return (isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name)
+            and func.value.id.startswith(_ROOT_PREFIX))
 
 
 class _Compiler:
@@ -178,9 +181,10 @@ class _Compiler:
     _Tuple = _List
 
     def _Dict(self, node: ast.Dict) -> Evaluator:
-        keys: List[str] = []
+        keys: list[str] = []
         for key in node.keys:
-            if isinstance(key, ast.Constant) and isinstance(key.value, (str, int, float)) and not isinstance(key.value, bool):
+            if (isinstance(key, ast.Constant) and isinstance(key.value, (str, int, float))
+                and not isinstance(key.value, bool)):
                 keys.append(str(key.value))
             elif isinstance(key, ast.Name) and not key.id.startswith("__"):
                 keys.append(key.id)
@@ -227,7 +231,7 @@ class _Compiler:
 
         return run_or
 
-    def _word(self, node: ast.AST) -> List[str]:
+    def _word(self, node: ast.AST) -> list[str]:
         if isinstance(node, ast.Name) and not node.id.startswith("__") and node.id not in _LITERAL_NAMES:
             return [node.id]
         if isinstance(node, (ast.List, ast.Tuple)):
@@ -260,7 +264,7 @@ class _Compiler:
             run.guard = guard
         return run
 
-    def _guard(self, node: ast.AST) -> Optional[EqualityGuard]:
+    def _guard(self, node: ast.AST) -> EqualityGuard | None:
         if not (isinstance(node, ast.Compare) and len(node.ops) == 1 and isinstance(node.ops[0], ast.Eq)):
             return None
         for field_side, value_side in ((node.left, node.comparators[0]), (node.comparators[0], node.left)):

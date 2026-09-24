@@ -9,7 +9,8 @@ import fg_env
 CENTRE = {"name": "Rate days", "clock": {"rounds": 1}, "types": {"t": {"props": {"v": 0}}},
           "inputs": {"patience": {"type": "number", "default": 0.5, "min": 0, "max": 1},
                      "load": {"type": "number", "default": 1, "min": 0, "max": 10}},
-          "outputs": {"rate": {"type": "number", "expr": "$inputs.load * (1 - $inputs.patience) / 10 + $normal(0, 0.002)"}}}
+          "outputs": {"rate": {"type": "number",
+                               "expr": "$inputs.load * (1 - $inputs.patience) / 10 + $normal(0, 0.002)"}}}
 #: (load, calls offered, recorded abandonment): the quiet days' few calls recorded rates well below their true 5%.
 DAYS = [(1, 40, 0.025), (1, 60, 0.033), (2, 200, 0.09), (3, 500, 0.156), (4, 900, 0.198), (4, 1100, 0.203)]
 
@@ -19,7 +20,8 @@ def _fit(**options):
               "targets": {"rate": {"value": rate, **({"count": calls} if "count" in options else {}),
                                    **({"pool": True} if "pool" in options else {})}}}
              for i, (load, calls, rate) in enumerate(DAYS)]
-    return fg_env.analysis.calibrate(CENTRE, cases, {"patience": {"low": 0, "high": 1}}, runs=4, budget=30, method="golden")
+    return fg_env.analysis.calibrate(CENTRE, cases, {"patience": {"low": 0, "high": 1}}, runs=4, budget=30,
+                                     method="golden")
 
 
 def test_relative_per_day_errors_let_the_quiet_days_pull_patience_up_and_the_drift_is_flagged():
@@ -46,10 +48,12 @@ def test_a_pooled_target_is_one_error_over_every_day():
 
 def test_cases_draw_their_own_seeds_so_averaging_over_days_averages_their_noise_while_candidates_share_them():
     same_day = [{"name": f"copy {i}", "inputs": {"load": 3}, "targets": {"rate": 0.15}} for i in range(3)]
-    result = fg_env.analysis.calibrate(CENTRE, same_day, {"patience": {"low": 0, "high": 1}}, runs=2, budget=6, method="golden")
+    result = fg_env.analysis.calibrate(CENTRE, same_day, {"patience": {"low": 0, "high": 1}}, runs=2, budget=6,
+                                       method="golden")
     simulated = [row["simulated"] for row in result.targets]
     assert len(set(simulated)) == 3  # identical days, different seeds
-    pooled = fg_env.analysis.calibrate(CENTRE, same_day, {"patience": {"low": 0, "high": 1}}, runs=2, budget=6, method="golden",
+    pooled = fg_env.analysis.calibrate(CENTRE, same_day, {"patience": {"low": 0, "high": 1}}, runs=2, budget=6,
+                                       method="golden",
                               workers=2)
     assert pooled.to_dict() == result.to_dict()
 
@@ -62,4 +66,5 @@ def test_cases_draw_their_own_seeds_so_averaging_over_days_averages_their_noise_
 ])
 def test_count_and_pool_mistakes_say_what_to_fix(spec, message):
     with pytest.raises(ValueError, match=message):
-        fg_env.analysis.calibrate(CENTRE, [{"name": "a", "targets": {"rate": spec}}], {"patience": {"low": 0, "high": 1}}, runs=1)
+        fg_env.analysis.calibrate(CENTRE, [{"name": "a", "targets": {"rate": spec}}],
+                                  {"patience": {"low": 0, "high": 1}}, runs=1)

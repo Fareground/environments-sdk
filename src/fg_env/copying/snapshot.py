@@ -12,23 +12,24 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Tuple, Type, TypeVar
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any, TypeVar
 
-from ..world.entity import Entity
 from ..assets.store import AssetStore
-from ..runtime.budget import Budget
 from ..contract import Contract
 from ..errors import ContractError, RunError, SnapshotError
 from ..expr import Untrusted
+from ..runtime.budget import Budget
 from ..runtime.exposure import ExposureLog
 from ..runtime.measure import Stats
+from ..world.entity import Entity
 from ..world.live import Abort, Entry, LogEvent
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
 
-__all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot", "restore_env",
-           "restore_state", "matching_contract", "check_snapshot", "recording_start"]
+__all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot",
+           "restore_env", "restore_state", "matching_contract", "check_snapshot", "recording_start"]
 
 SNAPSHOT_VERSION = 3
 
@@ -54,7 +55,8 @@ class _KeepArm:
 #: A fork's default arm: the one the run already has.
 KEEP_ARM: Any = _KeepArm()
 
-_FORK_HINT = "to continue it under changes, use fg_env.fork(original_contract, snapshot, arm=..., inputs=..., patch=...)"
+_FORK_HINT = ("to continue it under changes, use fg_env.fork(original_contract, snapshot, arm=..., inputs=..., "
+              "patch=...)")
 
 
 #: Values encoded and decoded as they are (a subclass, like Untrusted text, is not one of them). Plain values are
@@ -95,7 +97,7 @@ def _key(value: Any) -> Any:
     return tuple(_key(v) for v in value) if isinstance(value, list) else value
 
 
-def take_snapshot(env: "Env") -> Dict[str, Any]:
+def take_snapshot(env: Env) -> dict[str, Any]:
     w = env.world
     if env._in_round:
         if env.status == "failed":
@@ -130,7 +132,8 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
         "fired_once": sorted(env._fired_once),
         "turn_count": env._turn_count,
         "triggers": {"armed": {str(k): v for k, v in env._trigger_armed.items()}, "fired": sorted(env._triggers_fired)},
-        "memory": {k: {"cursor": m.cursor, "views": encode(m.views), "turns": m.turns} for k, m in env._memories.items()},
+        "memory": {k: {"cursor": m.cursor, "views": encode(m.views), "turns": m.turns}
+                   for k, m in env._memories.items()},
         "rng": [state[0], list(state[1]), state[2]],
         "stats": env.stats.to_dict(),
         "agent_stats": {key: env.agent_stats[key].to_dict() for key in sorted(env.agent_stats)},
@@ -145,18 +148,18 @@ def take_snapshot(env: "Env") -> Dict[str, Any]:
     }
 
 
-def _identity(env: "Env") -> Dict[str, Any]:
+def _identity(env: Env) -> dict[str, Any]:
     """What every snapshot of ``env`` starts with: the engine version and the contract and run it belongs to."""
     inputs = encode(env.inputs)
     return {"fg_env_snapshot": SNAPSHOT_VERSION, "contract": contract_hash(env.contract), **_rule_origin(env),
             "run": run_identity(env.seed, env.arm, inputs), "seed": env.seed, "arm": env.arm, "inputs": inputs}
 
 
-def _part_way(env: "Env") -> Dict[str, Any]:
+def _part_way(env: Env) -> dict[str, Any]:
     """A run stopped part-way through a round: its base, the tape since, and the host answers recorded so far (so
     the replay never asks a host again)."""
-    from .branch import fresh_copy
     from ..host.tape import TAPE
+    from .branch import fresh_copy
     from .pilot import PilotedEnv
 
     tape = env.origin.tape
@@ -175,7 +178,7 @@ def _part_way(env: "Env") -> Dict[str, Any]:
                                   for number, (actor, entries) in sorted(tape.turns.items())]}}
 
 
-def _replay_part_way(env: "Env", held: Mapping[str, Any], round_: int) -> None:
+def _replay_part_way(env: Env, held: Mapping[str, Any], round_: int) -> None:
     """Play ``env``, rebuilt from the base of a part-way snapshot, back along its tape to where it was stopped."""
     from ..host.turn_tools import wrap
     from .replay import Playback, Tape
@@ -198,7 +201,7 @@ def _replay_part_way(env: "Env", held: Mapping[str, Any], round_: int) -> None:
                             "it was taken with, unedited")
 
 
-def recording_start(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
+def recording_start(snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """``snapshot`` as the start of a recording: its exposure log given as counts, because the recording that
     continues from it holds those first entries (a result never carries its exposures twice)."""
     held = snapshot.get("exposures")
@@ -206,7 +209,7 @@ def recording_start(snapshot: Mapping[str, Any]) -> Dict[str, Any]:
     return {**{key: value for key, value in snapshot.items() if key != "start"}, "exposures": counts}
 
 
-def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contract, Contract]:
+def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> tuple[Contract, Contract]:
     """``(taken with, unarmed)``: the contract the snapshot was taken with — as given, or with the snapshot's
     arm applied — and that contract before its arm."""
     from ..api import apply_arm, parse
@@ -231,7 +234,7 @@ def matching_contract(contract: Any, snapshot: Mapping[str, Any]) -> Tuple[Contr
 
 
 
-def _rule_origin(env: "Env") -> Dict[str, Any]:
+def _rule_origin(env: Env) -> dict[str, Any]:
     """Keep a different rule base only when future variant selection needs it."""
     from ..api import contract_source
 
@@ -252,7 +255,8 @@ def _restore_rule_origin(snapshot: Mapping[str, Any], fallback: Contract) -> Con
     if "rule_origin" not in snapshot:
         return fallback
     held = snapshot["rule_origin"]
-    if not isinstance(held, Mapping) or not isinstance(held.get("source"), Mapping) or not isinstance(held.get("hash"), str):
+    if (not isinstance(held, Mapping) or not isinstance(held.get("source"), Mapping)
+        or not isinstance(held.get("hash"), str)):
         raise SnapshotError("snapshot rule_origin must contain its original contract source and hash")
     try:
         # Sources are already import-resolved. Never read files named inside saved data.
@@ -278,7 +282,7 @@ def check_snapshot(snapshot: Any) -> None:
                             f"describes one run; restore it unedited — {_FORK_HINT}")
 
 
-def restore_env(cls: Type[_E], contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+def restore_env(cls: type[_E], contract: Any, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
     matched, unarmed = matching_contract(contract, snapshot)
     held = snapshot.get("part_way")
     base = held["base"] if isinstance(held, Mapping) else snapshot
@@ -319,7 +323,7 @@ def _check_props(w: Any) -> None:
             w.props[prop] = checked(spec, w.props[prop], f"world.{prop}")
 
 
-def restore_state(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
+def restore_state(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int = 8) -> _E:
     """A run rebuilt from a snapshot into ``contract``, which the caller has matched to it."""
     try:
         return _restore(cls, contract, snapshot, parallel)
@@ -329,7 +333,7 @@ def restore_state(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any]
         raise SnapshotError(f"the snapshot is incomplete or corrupted ({type(exc).__name__}: {exc})") from None
 
 
-def _restore(cls: Type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int) -> _E:
+def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int) -> _E:
     from ..physics.model import PhysicsModel
 
     env = cls(contract, decode(snapshot["inputs"]), int(snapshot["seed"]), snapshot.get("arm"), parallel,

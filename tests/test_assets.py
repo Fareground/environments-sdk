@@ -4,13 +4,12 @@ import json
 import os
 
 import pytest
+from asset_fixtures import PDF, REPORT, TRIAL, Reader, hashes, patched, png, trial
 
 import fg_env
 from fg_env import host
 from fg_env.assets import blobs
 from fg_env.errors import ContractError
-
-from asset_fixtures import PDF, REPORT, TRIAL, Reader, hashes, patched, png, trial
 
 
 def _load(tmp_path, contract=None, **kwargs):
@@ -24,7 +23,8 @@ def test_files_and_folders_become_assets_with_their_hash_type_and_caption(tmp_pa
     store = _load(tmp_path, seed=1).world.assets
     assert sorted(store.assets) == ["agreement", "photos/dock.png", "photos/seam.png", "report"]
     seam = store.get("photos/seam.png")
-    assert (seam.kind, seam.media_type, seam.caption, seam.alt) == ("image", "image/png", "Photo seam.png", "A weld photo")
+    assert (seam.kind, seam.media_type, seam.caption, seam.alt) == ("image", "image/png", "Photo seam.png", "A weld "
+                                                                                                            "photo")
     assert seam.hash == hashlib.sha256(png(color=(10, 200, 30))).hexdigest()[:32]
     assert (store.get("agreement").kind, store.get("report").media_type) == ("pdf", "text/markdown")
 
@@ -34,7 +34,8 @@ def test_asset_reads_an_assets_details_in_expressions(tmp_path):
                                 "size": "$asset(agreement).size", "text": "$asset(report).text",
                                 "none": "$asset(null)"})
     result = _load(tmp_path, contract, seed=1).run(rounds=1)
-    assert result.outputs == {"caption": "Photo seam.png", "kind": "text", "size": len(PDF), "text": REPORT, "none": None}
+    assert result.outputs == {"caption": "Photo seam.png", "kind": "text", "size": len(PDF), "text": REPORT,
+                              "none": None}
 
 
 def test_a_data_column_of_type_asset_names_files_by_path(tmp_path):
@@ -44,7 +45,8 @@ def test_a_data_column_of_type_asset_names_files_by_path(tmp_path):
     contract = {"name": "Shop", "inputs": {"items": {"type": "table", "source": "shop/items.csv",
                                                      "columns": {"sku": "text", "photo": "asset"}}},
                 "types": {"item": {"props": {"photo": {"type": "asset"}}}, "buyer": {"agent": True}},
-                "population": [{"type": "item", "from": "$inputs.items", "id": "{$row.sku}", "props": {"photo": "$row.photo"}}],
+                "population": [{"type": "item", "from": "$inputs.items", "id": "{$row.sku}",
+                                "props": {"photo": "$row.photo"}}],
                 "entities": {"b": {"type": "buyer"}}, "actions": {"look_around": {"by": "buyer"}},
                 "outputs": {"media": "$asset($entity(mug).photo).media_type"}}
     path = tmp_path / "shop.json"
@@ -150,7 +152,8 @@ def test_no_seat_ever_receives_a_file_the_rules_hide_from_it(tmp_path, seed):
     store = env.world.assets
     own = {"pat": store.get("report").hash, "dana": store.get("photos/seam.png").hash}
     agreement = store.get("agreement").hash
-    offered = {store.get(env.entity(e)["props"]["file"]).hash for e in ("p1", "d1") if env.entity(e)["props"]["offered"]}
+    offered = {store.get(env.entity(e)["props"]["file"]).hash for e in ("p1", "d1")
+               if env.entity(e)["props"]["offered"]}
     for wake in result.exposures["wakes"]:
         allowed = {agreement} | ({own.get(wake["entity"])} if wake["round"] == 1 else offered)
         assert hashes(wake) <= allowed, (wake["entity"], wake["round"], wake.get("assets"))
@@ -158,7 +161,9 @@ def test_no_seat_ever_receives_a_file_the_rules_hide_from_it(tmp_path, seed):
 
 
 def test_inspect_shows_public_asset_properties_and_never_another_entitys_private_one(tmp_path):
-    contract = patched(types={**TRIAL["types"], "poster": {"inspect": True, "props": {"image": {"type": "asset", "default": "photos/dock.png"}}}},
+    contract = patched(types={**TRIAL["types"],
+                              "poster": {"inspect": True,
+                                         "props": {"image": {"type": "asset", "default": "photos/dock.png"}}}},
                        entities={**TRIAL["entities"], "board": {"type": "poster"}})
     env = _load(tmp_path, contract, seed=1)
     seen = {}
@@ -217,7 +222,8 @@ def test_recordings_and_snapshots_hold_hashes_never_bytes(tmp_path):
     dumped = json.dumps(result.to_dict()) + json.dumps(env.snapshot())
     for data in (PDF, png(color=(10, 200, 30))):
         assert data.hex() not in dumped and __import__("base64").b64encode(data).decode() not in dumped
-    assert {row["id"] for row in result.assets["assets"]} == {"agreement", "report", "photos/seam.png", "photos/dock.png"}
+    assert {row["id"] for row in result.assets["assets"]} == {"agreement", "report", "photos/seam.png",
+                                                              "photos/dock.png"}
     assert any(wake.get("assets") for wake in result.exposures["wakes"])
 
 
@@ -268,7 +274,8 @@ def test_a_saved_run_carries_its_files_and_replays_where_they_were_never_read(tm
 
 def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):
     path = trial(tmp_path)
-    (tmp_path / "files" / "report.md").write_text(f"Only here: {tmp_path}", encoding="utf-8")  # bytes no other test holds
+    (tmp_path / "files" / "report.md").write_text(f"Only here: {tmp_path}",
+                                                  encoding="utf-8")  # bytes no other test holds
     env = fg_env.load(path, seed=1)
     asset = env.world.assets.get("report")
     (tmp_path / "files" / "report.md").write_text("tampered", encoding="utf-8")
@@ -277,9 +284,9 @@ def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):
 
 
 def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, monkeypatch):
+    from fg_env.copying.stepping import Stepper
     from fg_env.game import apply_step, game
     from fg_env.game import state as game_state
-    from fg_env.copying.stepping import Stepper
 
     (tmp_path / "photo.png").write_bytes(png())
     contract = {"name": "Photo duel", "clock": {"rounds": 3},
@@ -305,7 +312,8 @@ def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, mon
     apply_step(child, {"seat": 0, "tool": "submit_photo", "args": {"photo": {"data": submitted, "name": "mine.png"}}})
     mine, theirs = child._run._run().world.assets, state._run._run().world.assets
     assert mine is not theirs and mine.has("photo") and theirs.has("photo")
-    assert [key for key in mine.assets if key.startswith("upload:")] and not any(key.startswith("upload:") for key in theirs.assets)
+    assert ([key for key in mine.assets if key.startswith("upload:")]
+            and not any(key.startswith("upload:") for key in theirs.assets))
     child.close()
     state.close()
 
@@ -314,10 +322,12 @@ def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, mon
 
 
 def test_a_describe_host_captions_a_file_once_and_every_copy_reads_the_recorded_answer(tmp_path):
-    contract = patched(assets={**TRIAL["assets"], "photos": {**TRIAL["assets"]["photos"], "caption": "", "describe": "vision"}},
+    contract = patched(assets={**TRIAL["assets"],
+                               "photos": {**TRIAL["assets"]["photos"], "caption": "", "describe": "vision"}},
                        outputs={"caption": "$asset('photos/seam.png').caption"})
     path = trial(tmp_path, contract)
-    vision = host.stubs.StubDescriber(lambda request: {"caption": f"Close-up of {request['asset']['name']}", "text": ""})
+    vision = host.stubs.StubDescriber(lambda request: {"caption": f"Close-up of {request['asset']['name']}",
+                                                       "text": ""})
     env = host.load(path, hosts={"vision": vision}, seed=1)
     assert len(vision.calls) == 2 and vision.calls[0]["attachments"][0]["data"]
     result = env.run(rounds=1)

@@ -7,17 +7,18 @@ walk would reach; streaks by how unlikely a run of same-direction moves is under
 events and actions by how rarely they happen (in one round out of N). ``significance`` is the
 matching tail probability.
 
-Moments are named in the clock's own terms (``Week 7 (2026-10-12)``, ``09:30–10:00``; see :mod:`fg_env.runtime.clock_words`).
-One measure's moment is told once — a move later undone is a reversal, not also a peak — and a moment names what
-happened with it when the run shows it: other measures moving sharply in the same round, and the world's events
-(news, emitted happenings) in that round or the one before.
+Moments are named in the clock's own terms (``Week 7 (2026-10-12)``, ``09:30–10:00``; see
+:mod:`fg_env.runtime.clock_words`). One measure's moment is told once — a move later undone is a reversal, not also a
+peak — and a moment names what happened with it when the run shows it: other measures moving sharply in the same round,
+and the world's events (news, emitted happenings) in that round or the one before.
 """
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from statistics import median
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
 from ..runtime.clock_words import period_label, plural, span_label
 from ..runtime.measure import RunResult, shown
@@ -35,7 +36,8 @@ _REVERSAL_SHARE = 0.5
 _MIN_STREAK = 3
 #: Event kinds that are bookkeeping around actions rather than moments of their own.
 _ACTION_KINDS = ("action", "outcome")
-#: A narrative tells moments at least this surprising (a two-sided 10% tail); the rest are the run's usual ups and downs.
+#: A narrative tells moments at least this surprising (a two-sided 10% tail); the rest are the run's usual ups and
+#: downs.
 _NOTABLE_SCORE = 1.645
 #: Moments a run too short to judge surprise still tells: its largest changes.
 _SHORT_RUN_MOMENTS = 3
@@ -50,14 +52,14 @@ class Highlight:
     subject: str
     score: float
     text: str
-    data: Dict[str, Any] = field(default_factory=dict)
+    data: dict[str, Any] = field(default_factory=dict)
 
     @property
     def significance(self) -> float:
         """Two-sided tail probability matching the score."""
         return 2.0 * (1.0 - _normal_cdf(self.score))
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"kind": self.kind, "round": self.round, "subject": self.subject, "score": round(self.score, 3),
                 "significance": round(self.significance, 4), "text": self.text, "data": self.data}
 
@@ -120,11 +122,11 @@ def move_score(index: int, changes: Sequence[float]) -> float:
     return _cap(two_sided_z(1.0 / len(changes))) if size > centre else 0.0
 
 
-def _series_candidates(name: str, values: List[float], words: _Words) -> List[Highlight]:
+def _series_candidates(name: str, values: list[float], words: _Words) -> list[Highlight]:
     if len(values) < 3 or max(values) == min(values):
         return []
     changes = [b - a for a, b in zip(values, values[1:])]
-    out: List[Highlight] = []
+    out: list[Highlight] = []
     top = max(range(len(changes)), key=lambda i: (abs(changes[i]), -i))
     if changes[top] != 0:
         out += _move(name, values, changes, top, words)
@@ -139,7 +141,7 @@ def _change_text(change: float, before: float) -> str:
     return f"{_fmt(abs(change))}" + (f" ({change / abs(before):+.0%})" if before else "")
 
 
-def _move(name: str, values: List[float], changes: List[float], i: int, words: _Words) -> List[Highlight]:
+def _move(name: str, values: list[float], changes: list[float], i: int, words: _Words) -> list[Highlight]:
     change, before, after, round_ = changes[i], values[i], values[i + 1], i + 2
     z = move_score(i, changes)
     typical = median([abs(c) for c in changes])
@@ -159,11 +161,12 @@ def _move(name: str, values: List[float], changes: List[float], i: int, words: _
         return [Highlight("reversal", round_, name, _cap(z * min(1.0, share)),
                           f"{name} {verb} {_change_text(change, before)}{words.when(round_)}, then {again} {amount} "
                           f"{words.by(back_round)}", {**data, "undone_by": back_round, "share_undone": share})]
-    return [Highlight("move", round_, name, z, f"{name} {verb} {_change_text(change, before)} to {_fmt(after)}"
-                                              f"{words.when(round_)}: the largest one-{words.word} move{ratio}", data)]
+    return [Highlight("move", round_, name, z, f"{name} {verb} {_change_text(change, before)} to "
+                                               f"{_fmt(after)}{words.when(round_)}: the largest one-{words.word} "
+                                               f"move{ratio}", data)]
 
 
-def _extremes(name: str, values: List[float], changes: List[float], words: _Words) -> List[Highlight]:
+def _extremes(name: str, values: list[float], changes: list[float], words: _Words) -> list[Highlight]:
     spread = sd(changes) * math.sqrt(len(changes))
     if spread <= 0:
         return []
@@ -188,8 +191,8 @@ def _extremes(name: str, values: List[float], changes: List[float], words: _Word
     return out
 
 
-def _streak(name: str, values: List[float], changes: List[float], words: _Words) -> Optional[Highlight]:
-    best: Tuple[int, int, int] = (0, 0, 0)  # length, start, sign
+def _streak(name: str, values: list[float], changes: list[float], words: _Words) -> Highlight | None:
+    best: tuple[int, int, int] = (0, 0, 0)  # length, start, sign
     start = 0
     while start < len(changes):
         sign = (changes[start] > 0) - (changes[start] < 0)
@@ -212,9 +215,9 @@ def _streak(name: str, values: List[float], changes: List[float], words: _Words)
                      f"{_fmt(values[first])} to {_fmt(values[first + length])}", {"length": length})
 
 
-def _event_candidates(result: RunResult, words: _Words) -> List[Highlight]:
+def _event_candidates(result: RunResult, words: _Words) -> list[Highlight]:
     total_rounds = max(1, result.rounds)
-    groups: Dict[Tuple[str, str], List[Dict[str, Any]]] = {}
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
     for event in result.events:
         kind = str(event.get("kind"))
         data = event.get("data") or {}
@@ -247,7 +250,9 @@ def _event_candidates(result: RunResult, words: _Words) -> List[Highlight]:
                 silence = _one_sided_z((1.0 - min(rate, 1.0 - 1e-9)) ** gap)
                 if silence > 0:
                     out.append(Highlight("last", last, subject, silence,
-                                         words.heading(last, f"last {subject}; none in the {gap} {plural(words.word, gap)} after"),
+                                         words.heading(last,
+                                                       f"last {subject}; none in the {gap} {plural(words.word, gap)} "
+                                                       "after"),
                                          {"rounds": len(rounds_with)}))
         else:
             times = f" ({len(events)} times)" if len(events) > 1 else ""
@@ -264,11 +269,11 @@ def _event_candidates(result: RunResult, words: _Words) -> List[Highlight]:
     return out
 
 
-def _one_account(candidates: List[Highlight]) -> List[Highlight]:
+def _one_account(candidates: list[Highlight]) -> list[Highlight]:
     """One measure's moment in one round is told once: the strongest account (a reversal over the move it undoes, a
     move over the peak it made)."""
-    best: Dict[Tuple[str, int], Highlight] = {}
-    rest: List[Highlight] = []
+    best: dict[tuple[str, int], Highlight] = {}
+    rest: list[Highlight] = []
     for c in candidates:
         if c.kind not in _KIND_ORDER:
             rest.append(c)
@@ -280,10 +285,10 @@ def _one_account(candidates: List[Highlight]) -> List[Highlight]:
     return rest + list(best.values())
 
 
-def _merge_moves(candidates: List[Highlight]) -> List[Highlight]:
+def _merge_moves(candidates: list[Highlight]) -> list[Highlight]:
     """Moves of several measures in the same round are one moment: keep the strongest and say how the others moved."""
-    by_round: Dict[int, List[Highlight]] = {}
-    rest: List[Highlight] = []
+    by_round: dict[int, list[Highlight]] = {}
+    rest: list[Highlight] = []
     for c in candidates:
         (by_round.setdefault(c.round, []) if c.kind in ("move", "reversal") else rest).append(c)
     merged = []
@@ -292,7 +297,8 @@ def _merge_moves(candidates: List[Highlight]) -> List[Highlight]:
         lead = moves[0]
         if len(moves) > 1:
             also = [m.subject for m in moves[1:]]
-            told = [f"{m.subject} {'rose' if m.data['change'] > 0 else 'fell'} {_change_text(m.data['change'], m.data['from'])}"
+            told = [f"{m.subject} {'rose' if m.data['change'] > 0 else 'fell'} "
+                    f"{_change_text(m.data['change'], m.data['from'])}"
                     for m in moves[1:]]
             lead = Highlight(lead.kind, lead.round, lead.subject, lead.score,
                              f"{lead.text}, while {', '.join(told)}", {**lead.data, "also": also})
@@ -300,9 +306,9 @@ def _merge_moves(candidates: List[Highlight]) -> List[Highlight]:
     return rest + merged
 
 
-def _candidates(result: RunResult, words: _Words, metrics: Optional[Sequence[str]]) -> List[Highlight]:
+def _candidates(result: RunResult, words: _Words, metrics: Sequence[str] | None) -> list[Highlight]:
     names = list(metrics) if metrics is not None else list(result.series)
-    candidates: List[Highlight] = []
+    candidates: list[Highlight] = []
     for name in names:
         if name not in result.series:
             raise ValueError(f"no series '{name}' in this run (series: {', '.join(result.series) or 'none'})")
@@ -316,7 +322,7 @@ def _candidates(result: RunResult, words: _Words, metrics: Optional[Sequence[str
     return candidates
 
 
-def highlights(result: RunResult, *, top: int = 5, metrics: Optional[Sequence[str]] = None) -> List[Highlight]:
+def highlights(result: RunResult, *, top: int = 5, metrics: Sequence[str] | None = None) -> list[Highlight]:
     """The ``top`` most notable moments of a run, most surprising first (ties: earliest first).
 
     ``metrics`` limits which metric series are scanned (default: all). Event-based moments need
@@ -327,10 +333,10 @@ def highlights(result: RunResult, *, top: int = 5, metrics: Optional[Sequence[st
     return _candidates(result, _Words(result, inline=True), metrics)[:top]
 
 
-def _world_happenings(result: RunResult) -> Dict[int, List[str]]:
+def _world_happenings(result: RunResult) -> dict[int, list[str]]:
     """What the world announced each round (news and emitted happenings everyone saw, not an agent's own doings such as
     "Ben did not act."), for naming causes."""
-    out: Dict[int, List[str]] = {}
+    out: dict[int, list[str]] = {}
     for event in result.events:
         if (event.get("kind") in _ACTION_KINDS + ("record", "end") or event.get("to") or event.get("actor")
                 or not event.get("text")):
@@ -366,7 +372,7 @@ def narrative(result: RunResult, *, limit: int = 10) -> str:
     explained = {said for near in causes.values() for said in near}
     moments = [h for h in moments if h.data.get("said") not in explained]  # told with the move it came with
     told = explained | {said for h in moments for said in [h.data.get("said")] if said}
-    entries: List[Tuple[int, int, str]] = [
+    entries: list[tuple[int, int, str]] = [
         (h.round, 0, f"{words.label(h.round, capital=True)}: {h.text}"
                      + (f" — around then: {' '.join(causes[id(h)])}" if causes.get(id(h)) else "")) for h in moments]
     for round_, texts in sorted(happenings.items()):

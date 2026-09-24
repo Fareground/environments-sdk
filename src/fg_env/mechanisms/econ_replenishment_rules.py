@@ -8,13 +8,13 @@ from __future__ import annotations
 
 import math
 from statistics import NormalDist
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..patterns.runtime import key_text
 from ..registry import family_action
+from ..world.entity import Entity
 from ..world.live import Abort
 from .econ_assets import balance, burn_money, credit_of
 from .econ_base import DEMAND, REPLENISHMENT, config_of, entity_of, props
@@ -22,12 +22,12 @@ from .econ_demand import DemandConfig
 from .econ_demand_trade import number_of, stock_in
 from .econ_replenishment import NEEDS, POLICIES, LeadTimeRef, ReplenishmentConfig
 
-__all__: List[str] = []
+__all__: list[str] = []
 
 _NORMAL = NormalDist()
 
 
-def _configs(world: Any, name: str, where: str) -> Tuple[ReplenishmentConfig, DemandConfig]:
+def _configs(world: Any, name: str, where: str) -> tuple[ReplenishmentConfig, DemandConfig]:
     config: ReplenishmentConfig = config_of(world, name, REPLENISHMENT, where)
     return config, config_of(world, config.demand, DEMAND, where)
 
@@ -45,7 +45,7 @@ def _lead_key(runner: Any, lead: LeadTimeRef, item: Entity) -> Any:
     return runner.eval(lead.key, {"it": item}) if lead.key else item
 
 
-def _lead_moments(runner: Any, config: ReplenishmentConfig, item: Entity, where: str) -> Tuple[float, float]:
+def _lead_moments(runner: Any, config: ReplenishmentConfig, item: Entity, where: str) -> tuple[float, float]:
     """Mean and standard deviation of an item's lead time, in clock units."""
     lead = config.lead_time
     if not isinstance(lead, LeadTimeRef):
@@ -68,7 +68,7 @@ def _lead_moments(runner: Any, config: ReplenishmentConfig, item: Entity, where:
     return scale * param("mean"), scale * param("sd")
 
 
-def _lead_draw(runner: Any, config: ReplenishmentConfig, item: Entity, where: str) -> Tuple[float, float]:
+def _lead_draw(runner: Any, config: ReplenishmentConfig, item: Entity, where: str) -> tuple[float, float]:
     """This order's lead time in clock units, and the pattern's draw (1 for a known lead time)."""
     lead = config.lead_time
     if not isinstance(lead, LeadTimeRef):
@@ -88,7 +88,8 @@ def _lead_draw(runner: Any, config: ReplenishmentConfig, item: Entity, where: st
 # ---------------------------------------------------------------------------
 
 
-def _context(runner: Any, name: str, config: ReplenishmentConfig, demand: DemandConfig, item: Entity, base: str) -> Dict[str, Any]:
+def _context(runner: Any, name: str, config: ReplenishmentConfig, demand: DemandConfig, item: Entity,
+             base: str) -> dict[str, Any]:
     """The locals policy expressions read for one item now."""
     world = runner.world
     p = props(item)
@@ -102,7 +103,8 @@ def _context(runner: Any, name: str, config: ReplenishmentConfig, demand: Demand
         forecast, sd = sum(expected) / len(expected), math.sqrt(max(0.0, sum(variances) / len(variances)))
     elif config.forecast == "recent":
         forecast = average
-        sd = math.sqrt(sum((v - average) ** 2 for v in recent) / (len(recent) - 1)) if len(recent) > 1 else math.sqrt(average)
+        sd = (math.sqrt(sum((v - average) ** 2 for v in recent) / (len(recent) - 1)) if len(recent) > 1
+              else math.sqrt(average))
     else:
         forecast = number_of(runner, config.forecast, {"it": item}, f"{base}.forecast", low=0)
         sd = math.sqrt(forecast)
@@ -136,7 +138,7 @@ def _policy(runner: Any, config: ReplenishmentConfig, item: Entity, base: str) -
     return str(policy)
 
 
-def _wanted(runner: Any, config: ReplenishmentConfig, policy: str, ctx: Dict[str, Any], base: str) -> Tuple[int, float]:
+def _wanted(runner: Any, config: ReplenishmentConfig, policy: str, ctx: dict[str, Any], base: str) -> tuple[int, float]:
     """Units the policy orders now, and the order-up-to point it aimed at."""
     position = ctx["position"]
 
@@ -162,7 +164,8 @@ def _wanted(runner: Any, config: ReplenishmentConfig, policy: str, ctx: Dict[str
     return 0, position
 
 
-def _fitted(runner: Any, config: ReplenishmentConfig, item: Entity, qty: int, position: int, base: str) -> Tuple[int, str]:
+def _fitted(runner: Any, config: ReplenishmentConfig, item: Entity, qty: int, position: int,
+            base: str) -> tuple[int, str]:
     """``qty`` within the case pack, minimum and maximum order and capacity; 0 and why when nothing fits."""
     scope = {"it": item}
     pack = max(1, round(number_of(runner, config.case_pack, scope, f"{base}.case_pack", low=0)))
@@ -205,16 +208,19 @@ def _place(runner: Any, name: str, config: ReplenishmentConfig, demand: DemandCo
     lead, factor = _lead_draw(runner, config, item, f"{base}.lead_time")
     due = world.round + max(1, round(lead / _step(world)))
     p = props(item)
-    unit = number_of(runner, config.unit_cost if config.unit_cost is not None else demand.cost, scope, f"{base}.unit_cost", low=0)
+    unit = number_of(runner, config.unit_cost if config.unit_cost is not None else demand.cost, scope,
+                     f"{base}.unit_cost", low=0)
     fee = number_of(runner, config.order_cost, scope, f"{base}.order_cost", low=0)
     account, currency = config.account or demand.account, config.currency or demand.currency
     if account is not None and currency is not None:
         holder = entity_of(world, account, f"{base}.account", "the account")
         burn_money(world, currency, holder, qty * unit, f"{name}_suppliers", base)
         burn_money(world, currency, holder, fee, f"{name}_ordering", base)
-    pipeline = [list(entry) for entry in p[f"{name}_pipeline"]] + [[due, qty, world.round, round(lead, 6), round(factor, 6)]]
+    pipeline = ([list(entry) for entry in p[f"{name}_pipeline"]]
+                + [[due, qty, world.round, round(lead, 6), round(factor, 6)]])
     for prop, value in ((f"{name}_pipeline", pipeline), (f"{name}_on_order", int(p[f"{name}_on_order"]) + qty),
-                        (f"{name}_orders", int(p[f"{name}_orders"]) + 1), (f"{name}_units_ordered", int(p[f"{name}_units_ordered"]) + qty),
+                        (f"{name}_orders", int(p[f"{name}_orders"]) + 1),
+                        (f"{name}_units_ordered", int(p[f"{name}_units_ordered"]) + qty),
                         (f"{name}_last_order", qty), (f"{name}_purchases", float(p[f"{name}_purchases"]) + qty * unit),
                         (f"{name}_ordering", float(p[f"{name}_ordering"]) + fee)):
         world.set_prop(item, prop, value)
@@ -223,9 +229,11 @@ def _place(runner: Any, name: str, config: ReplenishmentConfig, demand: DemandCo
     world.set_world(f"{name}_spent", {"round": world.round, "amount": used + qty * unit + fee})
 
 
-def _cost_of(runner: Any, config: ReplenishmentConfig, demand: DemandConfig, item: Entity, qty: int, base: str) -> Tuple[float, float]:
+def _cost_of(runner: Any, config: ReplenishmentConfig, demand: DemandConfig, item: Entity, qty: int,
+             base: str) -> tuple[float, float]:
     scope = {"it": item}
-    unit = number_of(runner, config.unit_cost if config.unit_cost is not None else demand.cost, scope, f"{base}.unit_cost", low=0)
+    unit = number_of(runner, config.unit_cost if config.unit_cost is not None else demand.cost, scope,
+                     f"{base}.unit_cost", low=0)
     return unit, number_of(runner, config.order_cost, scope, f"{base}.order_cost", low=0)
 
 
@@ -236,7 +244,7 @@ def _cost_of(runner: Any, config: ReplenishmentConfig, demand: DemandConfig, ite
 
 @family_action("economy", ("replenishment",), "arrivals", internal=True,
                example='{"economy": "reorder", "action": "arrivals"}  (orders due this round enter stock)')
-def _arrivals(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _arrivals(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config, demand = _configs(world, name, where)
@@ -252,19 +260,22 @@ def _arrivals(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
         world.set_prop(item, f"{name}_pipeline", [entry for entry in pipeline if entry[0] > world.round])
         world.set_prop(item, f"{name}_on_order", int(props(item)[f"{name}_on_order"]) - units)
         for entry in due if recording else []:
-            world.post(f"{name}_orders", {"time": str(date) if date else str(world.round), "item": item.id, "placed": entry[2],
-                                          "arrived": world.round, "qty": entry[1], "lead_time": entry[3], "factor": entry[4]},
+            world.post(f"{name}_orders",
+                       {"time": str(date) if date else str(world.round), "item": item.id, "placed": entry[2],
+                        "arrived": world.round, "qty": entry[1], "lead_time": entry[3],
+                        "factor": entry[4]},
                        None, None, f"mechanisms.{name}.record")
 
 
 @family_action("economy", ("replenishment",), "review", internal=True,
-               example='{"economy": "reorder", "action": "review"}  (accrue this round\'s costs, then order by the policy)')
-def _review(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"economy": "reorder", "action": "review"}  (accrue this round\'s costs, then order by the '
+                       'policy)')
+def _review(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config, demand = _configs(world, name, where)
     base = f"mechanisms.{name}"
-    wanted: List[Tuple[float, int, Entity, int, int]] = []
+    wanted: list[tuple[float, int, Entity, int, int]] = []
     for index, item in enumerate(world.alive_of(demand.items)):
         _accrue(runner, name, config, demand, item, base)
         review = number_of(runner, config.review_every, {"it": item}, f"{base}.review_every", low=1)
@@ -301,13 +312,14 @@ def _accrue(runner: Any, name: str, config: ReplenishmentConfig, demand: DemandC
                                (f"{name}_backorder_cost", "backorder_cost", int(p[f"{config.demand}_backlog"]))):
         rate = getattr(config, field)
         if units and rate != 0:
-            world.set_prop(item, prop, float(p[prop]) + units * number_of(runner, rate, scope, f"{base}.{field}", low=0))
+            world.set_prop(item, prop,
+                           float(p[prop]) + units * number_of(runner, rate, scope, f"{base}.{field}", low=0))
 
 
 @family_action("economy", ("replenishment",), "order", keys=("item", "qty"), required=("item", "qty"),
                example='{"economy": "reorder", "action": "order", "item": "$params.item", "qty": 24}  '
                        '(order stock now: rounded to the case pack, within capacity, the budget and the account)')
-def _order(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _order(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config, demand = _configs(world, name, where)
@@ -327,7 +339,8 @@ def _order(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
     unit, fee = _cost_of(runner, config, demand, item, qty, base)
     left = _money_left(runner, config, demand, name, base)
     if qty * unit + fee > left + 1e-9:
-        raise Abort(f"{qty} × {item.name} costs {qty * unit + fee:.2f}; only {max(0.0, left):.2f} is available this round.")
+        raise Abort(f"{qty} × {item.name} costs {qty * unit + fee:.2f}; only {max(0.0, left):.2f} is available this "
+                    "round.")
     _place(runner, name, config, demand, item, qty, base)
 
 
@@ -336,7 +349,8 @@ def _order(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
 # ---------------------------------------------------------------------------
 
 _PROPS = {"orders": "orders", "units_ordered": "units_ordered", "purchases": "purchases", "holding_cost": "holding",
-          "order_cost": "ordering", "stockout_cost": "stockout_cost", "backorder_cost": "backorder_cost", "on_order": "on_order"}
+          "order_cost": "ordering", "stockout_cost": "stockout_cost", "backorder_cost": "backorder_cost",
+          "on_order": "on_order"}
 _COSTS = ("holding_cost", "order_cost", "stockout_cost", "backorder_cost")
 
 
@@ -354,20 +368,22 @@ def _item_value(world: Any, name: str, config: ReplenishmentConfig, demand: Dema
 
 
 @function("replenishment_totals(mechanism, measure, by?)",
-          "A replenishment mechanism's total: orders, units_ordered, purchases, holding_cost, order_cost, stockout_cost, "
-          "backorder_cost, total_cost, on_order or stock_value (units on hand at unit cost, now) — overall, or {key: total} "
-          "by 'item' or 'group'.", min_args=2, max_args=3)
+          "A replenishment mechanism's total: orders, units_ordered, purchases, holding_cost, order_cost, "
+          "stockout_cost, backorder_cost, total_cost, on_order or stock_value (units on hand at unit cost, now) — "
+          "overall, or {key: total} by 'item' or 'group'.", min_args=2, max_args=3)
 def _replenishment_totals(call: Call) -> Any:
     world: Any = call.scope.world
     name, measure, by = str(call.arg(0)), str(call.arg(1)), call.arg(2)
     config, demand = _configs(world, name, call.source)
     known = [*_PROPS, "total_cost", "stock_value"]
     if measure not in known:
-        raise ExprError(f"$replenishment_totals: unknown measure '{measure}' (measures: {', '.join(known)})", call.source)
+        raise ExprError(f"$replenishment_totals: unknown measure '{measure}' (measures: {', '.join(known)})",
+                        call.source)
     if by not in (None, "item", "group") or (by == "group" and demand.group is None):
-        raise ExprError(f"$replenishment_totals: `by` is item or group (with the demand's `group`), got {by!r}", call.source)
+        raise ExprError(f"$replenishment_totals: `by` is item or group (with the demand's `group`), got {by!r}",
+                        call.source)
     group = compile_expr(demand.group) if by == "group" and demand.group else None
-    out: Dict[Optional[str], float] = {}
+    out: dict[str | None, float] = {}
     for item in world.entities_of(demand.items):
         if measure == "stock_value" and not item.alive:
             continue

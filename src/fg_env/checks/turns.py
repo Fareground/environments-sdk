@@ -1,7 +1,8 @@
 """Checks for how turns run and who sees what: time limits, atomic turns, spectator views."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, AbstractSet
+from collections.abc import Set as AbstractSet
+from typing import TYPE_CHECKING
 
 from .. import contract as C
 from ..runtime.perception import SPECTATOR
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
 __all__ = ["check_stage_turns", "check_spectator_view", "spectator_audience_issues"]
 
 
-def check_stage_turns(checker: "_Checker", stage: C.StageSpec, path: str, base: AbstractSet[str]) -> None:
+def check_stage_turns(checker: _Checker, stage: C.StageSpec, path: str, base: AbstractSet[str]) -> None:
     """`time_limit`, `on_timeout`, `atomic` and `valid` of one stage."""
     agents = {"actor": set(checker.agents)}
     limit = stage.time_limit
@@ -33,7 +34,7 @@ def check_stage_turns(checker: "_Checker", stage: C.StageSpec, path: str, base: 
         checker.warn(f"{path}.atomic", "the stage wakes nobody, so there is no turn to make atomic")
 
 
-def check_spectator_view(checker: "_Checker", name: str, view: C.ViewSpec, base: AbstractSet[str]) -> None:
+def check_spectator_view(checker: _Checker, name: str, view: C.ViewSpec, base: AbstractSet[str]) -> None:
     """A view for spectators: no reader, so no $actor; rendered once per round, never as a look."""
     path = f"views.{name}"
     for key, used in (("look", view.look), ("only_changes", view.only_changes), ("stages", view.stages is not None)):
@@ -57,7 +58,7 @@ def check_spectator_view(checker: "_Checker", name: str, view: C.ViewSpec, base:
         checker.error(f"{path}.limit", "must be at least 1")
 
 
-def spectator_audience_issues(checker: "_Checker", name: str, view: C.ViewSpec) -> bool:
+def spectator_audience_issues(checker: _Checker, name: str, view: C.ViewSpec) -> bool:
     """Report `for` lists that mix spectators with agents; True when the view is a spectator view."""
     if view.for_ == SPECTATOR:
         return True

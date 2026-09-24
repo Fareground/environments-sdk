@@ -20,7 +20,8 @@ def _models():
     for info in pkgutil.walk_packages(fg_env.__path__, "fg_env."):
         module = importlib.import_module(info.name)
         for obj in vars(module).values():
-            if inspect.isclass(obj) and issubclass(obj, BaseModel) and obj.__module__.startswith("fg_env") and obj not in seen:
+            if (inspect.isclass(obj) and issubclass(obj, BaseModel) and obj.__module__.startswith("fg_env")
+                and obj not in seen):
                 seen.add(obj)
                 yield obj
 

@@ -2,14 +2,14 @@
 type-name field types, and the base models."""
 from __future__ import annotations
 
-from typing import Annotated, Any, List
+from typing import Annotated, Any
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, WithJsonSchema, model_validator
 from pydantic_core import PydanticCustomError
 
 __all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_LIST_ITEMS", "OUTPUT_TYPES",
-           "one_or_many", "Effects", "TYPE_SYNONYMS", "SPELLINGS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES", "MAX_TURN_CALLS",
-           "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS"]
+           "one_or_many", "Effects", "TYPE_SYNONYMS", "SPELLINGS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES",
+           "MAX_TURN_CALLS", "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS"]
 
 CONTRACT_VERSION = "1"
 
@@ -27,7 +27,7 @@ def one_or_many(value: Any) -> Any:
 
 
 #: A list of effects, or one effect (an assignment text or an operation object) on its own.
-Effects = Annotated[List[Any], BeforeValidator(one_or_many),
+Effects = Annotated[list[Any], BeforeValidator(one_or_many),
                     WithJsonSchema({"anyOf": [{"type": "array", "items": {}}, {"type": "string"}, {"type": "object"}]})]
 
 #: Common spellings of the type names, read as the names the contract uses.

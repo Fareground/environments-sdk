@@ -4,12 +4,13 @@ from __future__ import annotations
 import copy
 import itertools
 import math
-from typing import Any, Iterator, Tuple
+from collections.abc import Iterator
+from typing import Any
 
 from ..contract.inputs import check_value, resolve_inputs
 
 
-def _values(spec: Any, value: Any, path: tuple) -> Iterator[Tuple[tuple, Any]]:
+def _values(spec: Any, value: Any, path: tuple) -> Iterator[tuple[tuple, Any]]:
     choices = []
     if spec.type in ("int", "number"):
         low, high = spec.min, spec.max

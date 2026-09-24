@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Dict, List, Optional, Tuple
 
 from ..space import Action
 from ..state import GameState
@@ -29,7 +28,7 @@ class RandomRolloutEvaluator:
             raise ValueError(f"rollouts must be a whole number ≥ 1, got {rollouts!r}")
         self.rollouts = rollouts
 
-    def evaluate(self, state: GameState, rng: random.Random) -> List[float]:
+    def evaluate(self, state: GameState, rng: random.Random) -> list[float]:
         """Mean returns over the rollouts (the state itself is left unchanged)."""
         totals = [0.0] * state.game.num_players()
         for _ in range(self.rollouts):
@@ -41,7 +40,7 @@ class RandomRolloutEvaluator:
         return [total / self.rollouts for total in totals]
 
 
-def play_out(state: GameState, rng: random.Random) -> List[float]:
+def play_out(state: GameState, rng: random.Random) -> list[float]:
     """Play ``state`` to the end with uniformly random legal calls and chance by its probabilities; its returns."""
     while not state.is_terminal():
         if state.is_chance_node():
@@ -67,11 +66,11 @@ class _Node:
     def __init__(self, players: int):
         self.visits = 0
         self.totals = [0.0] * players
-        self.children: Dict[object, Tuple[Optional[Action], "_Node"]] = {}
-        self.untried: Optional[List[Action]] = None
-        self.available: Dict[object, int] = {}
+        self.children: dict[object, tuple[Action | None, _Node]] = {}
+        self.untried: list[Action] | None = None
+        self.available: dict[object, int] = {}
 
-    def child(self, key: object, action: Optional[Action], players: int) -> "_Node":
+    def child(self, key: object, action: Action | None, players: int) -> _Node:
         found = self.children.get(key)
         if found is None:
             found = (action, _Node(players))
@@ -86,7 +85,7 @@ def _key(action: Action) -> object:
     return action.id if action.id is not None else action.text
 
 
-def _backup(path: List[_Node], values: List[float]) -> None:
+def _backup(path: list[_Node], values: list[float]) -> None:
     for node in path:
         node.visits += 1
         node.totals = [total + value for total, value in zip(node.totals, values)]
@@ -105,7 +104,7 @@ class MCTSBot:
     """UCT search with ``simulations`` simulations per decision. ``uct_c`` weighs exploration against the mean
     return (scale it with the game's returns); ``evaluator`` scores new leaves (default: one random rollout)."""
 
-    def __init__(self, simulations: int = 1000, *, uct_c: float = 2.0, evaluator: Optional[RandomRolloutEvaluator] = None,
+    def __init__(self, simulations: int = 1000, *, uct_c: float = 2.0, evaluator: RandomRolloutEvaluator | None = None,
                  seed: int = 0):
         if isinstance(simulations, bool) or not isinstance(simulations, int) or simulations < 1:
             raise ValueError(f"simulations must be a whole number ≥ 1, got {simulations!r}")
@@ -121,7 +120,7 @@ class MCTSBot:
         player = state.current_player()
         return _choice(self.search(state), player)
 
-    def search(self, state: GameState) -> "_Node":
+    def search(self, state: GameState) -> _Node:
         players = state.game.num_players()
         root = _Node(players)
         for _ in range(self.simulations):
@@ -133,7 +132,7 @@ class MCTSBot:
             _backup(path, values)
         return root
 
-    def _simulate(self, working: GameState, root: _Node, players: int) -> Tuple[List[_Node], List[float]]:
+    def _simulate(self, working: GameState, root: _Node, players: int) -> tuple[list[_Node], list[float]]:
         node, path = root, [root]
         while True:
             if working.is_terminal():
@@ -165,7 +164,7 @@ class MCTSBot:
             working.apply_action(chosen)
             path.append(node)
 
-    def _leaf(self, working: GameState) -> List[float]:
+    def _leaf(self, working: GameState) -> list[float]:
         if self.evaluator is not None:
             return self.evaluator.evaluate(working, self.rng)
         return play_out(working, self.rng)
@@ -188,9 +187,9 @@ def determinize(state: GameState, seat: int, rng: random.Random, tries: int = DE
     raise ValueError(f"no state consistent with seat {seat}'s information state was found in {tries} draws")
 
 
-def _own_view_of_history(state: GameState, seat: int) -> List[Optional[Step]]:
+def _own_view_of_history(state: GameState, seat: int) -> list[Step | None]:
     """The decisions so far with everything but the seat's own calls blanked: None to draw again."""
-    out: List[Optional[Step]] = []
+    out: list[Step | None] = []
     for entry in state.history():
         if "player" in entry and entry["player"] == seat:
             out.append({"seat": seat, "tool": entry["tool"], "args": entry["args"]})
@@ -199,13 +198,13 @@ def _own_view_of_history(state: GameState, seat: int) -> List[Optional[Step]]:
     return out
 
 
-def _recall(information_state: str) -> List[str]:
+def _recall(information_state: str) -> list[str]:
     head, _, _ = information_state.rpartition("\n\nNow:")
     return head.splitlines()
 
 
-def _draw(state: GameState, seat: int, steps: List[Optional[Step]], target: List[str],
-          rng: random.Random) -> Optional[GameState]:
+def _draw(state: GameState, seat: int, steps: list[Step | None], target: list[str],
+          rng: random.Random) -> GameState | None:
     drawn = state.game.new_initial_state()
     try:
         for step in steps:
@@ -216,7 +215,8 @@ def _draw(state: GameState, seat: int, steps: List[Optional[Step]], target: List
                 continue
             if drawn.is_chance_node():
                 options = [(outcome, p) for outcome, p in drawn.chance_outcomes()]
-                keep = [(outcome, p) for outcome, p in options if _consistent_after(drawn, {"chance": outcome}, seat, target)]
+                keep = [(outcome, p) for outcome, p in options
+                        if _consistent_after(drawn, {"chance": outcome}, seat, target)]
                 if not keep:
                     raise _Rejected
                 outcome = rng.choices([o for o, _ in keep], [p for _, p in keep])[0]
@@ -238,12 +238,12 @@ class _Rejected(Exception):
     pass
 
 
-def _consistent(state: GameState, seat: int, target: List[str]) -> bool:
+def _consistent(state: GameState, seat: int, target: list[str]) -> bool:
     recall = _recall(state.information_state_string(seat))
     return recall == target[:len(recall)]
 
 
-def _consistent_after(state: GameState, step: Step, seat: int, target: List[str]) -> bool:
+def _consistent_after(state: GameState, step: Step, seat: int, target: list[str]) -> bool:
     child = state.clone()
     try:
         apply_step(child, step)
@@ -269,7 +269,8 @@ class ISMCTSBot:
 
     def step(self, state: GameState) -> Action:
         if state.is_terminal() or state.is_chance_node() or state.is_simultaneous_node():
-            raise ValueError("IS-MCTS decides for one seat: the state is terminal, a chance node or a simultaneous node")
+            raise ValueError("IS-MCTS decides for one seat: the state is terminal, a chance node or a simultaneous "
+                             "node")
         seat = state.current_player()
         players = state.game.num_players()
         root = _Node(players)
@@ -282,7 +283,7 @@ class ISMCTSBot:
             _backup(path, values)
         return _choice(root, seat)
 
-    def _simulate(self, working: GameState, root: _Node, players: int) -> Tuple[List[_Node], List[float]]:
+    def _simulate(self, working: GameState, root: _Node, players: int) -> tuple[list[_Node], list[float]]:
         node, path = root, [root]
         while True:
             if working.is_terminal():
@@ -295,7 +296,8 @@ class ISMCTSBot:
                 path.append(node)
                 continue
             if working.is_simultaneous_node():
-                raise ValueError("IS-MCTS decides one seat at a time: search game.as_turn_based() for simultaneous stages")
+                raise ValueError("IS-MCTS decides one seat at a time: search game.as_turn_based() for simultaneous "
+                                 "stages")
             player = working.current_player()
             legal = working.legal_tool_calls(player)
             if not legal:

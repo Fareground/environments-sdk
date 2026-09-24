@@ -10,13 +10,13 @@ import os
 import random
 
 import pytest
+from game_contracts import GAMES, TIC_TAC_TOE, load_game
 
 import fg_env
-from fg_env.game import apply_step, game, random_step
-from fg_env.game.runs import ThreadedRun
 from fg_env.copying.direct import _ENV_FIELDS, _TURN_FIELDS, _WORLD_FIELDS
 from fg_env.copying.stepping import Stepper
-from game_contracts import GAMES, TIC_TAC_TOE, load_game
+from fg_env.game import apply_step, game, random_step
+from fg_env.game.runs import ThreadedRun
 
 EXAMPLES = sorted(GAMES.glob("*.json"))
 SIMULTANEOUS = ["biased_pennies", "first_price_auction", "goofspiel", "prisoners_dilemma", "rock_paper_scissors"]
@@ -127,7 +127,8 @@ def test_a_run_that_records_exposures_is_copied_with_what_every_agent_was_shown(
 
 def test_clones_at_a_chance_node_inside_a_call_take_each_outcome_like_piloted_clones():
     stepped, piloted = _pair(GAMES / "leduc_poker.json", seed=6)
-    steps = [{"chance": 0}, {"chance": 1}, {"seat": 0, "tool": "call", "args": {}}, {"seat": 1, "tool": "call", "args": {}}]
+    steps = [{"chance": 0}, {"chance": 1}, {"seat": 0, "tool": "call", "args": {}},
+             {"seat": 1, "tool": "call", "args": {}}]
     here, there = stepped.new_initial_state(), piloted.new_initial_state()
     for step in steps:
         apply_step(here, step)
@@ -201,7 +202,8 @@ def test_sample_legal_action_draws_the_same_call_from_stepped_and_piloted_states
 def test_a_stepped_state_that_fails_fails_like_a_piloted_one():
     broken = load_game("nim")
     # Checked at the round's end, a break is the world's and fails the run (an action's own commit would be refused).
-    broken["invariants"] = [{"expr": "$world.stones == $inputs.stones", "why": "nobody may take a stone", "check": "round"}]
+    broken["invariants"] = [{"expr": "$world.stones == $inputs.stones", "why": "nobody may take a stone",
+                             "check": "round"}]
     stepped, piloted = _pair(broken)
     outcomes = []
     for subject in (stepped, piloted):

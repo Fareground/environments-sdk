@@ -90,5 +90,5 @@ def test_no_module_level_import_cycles():
     assert not cycles, (
         "modules that import each other at load time: "
         + "; ".join(" <-> ".join(cycle) for cycle in cycles)
-        + ". Break the cycle: move what both need into a module neither imports, or import inside the function"
-        " that uses it.")
+        + ". Break the cycle: move what both need into a module neither imports, or import inside the function that "
+          "uses it.")

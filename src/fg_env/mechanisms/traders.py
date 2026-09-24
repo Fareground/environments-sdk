@@ -28,22 +28,23 @@ once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the pos
 from __future__ import annotations
 
 import math
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from collections.abc import Callable
+from typing import Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
+from ..world.entity import Entity
 from ..world.live import Abort
+from .book_rules import venue
 from .common import lot_floor, number
 from .ledger import Account, balance
 from .market_stats import log_returns, stdev
-from .book_rules import venue
 from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, short_room, top
 
 __all__ = ["DEFAULTS", "run_algo"]
 
 #: Default parameters per strategy (overridden by a crowd's ``params``).
-DEFAULTS: Dict[str, Dict[str, float]] = {
+DEFAULTS: dict[str, dict[str, float]] = {
     "market_maker": {"activity": 1.0, "half_spread_ticks": 2.0, "vol_mult": 0.5, "quote_mult": 1.0,
                      "inventory_mult": 8.0, "layers": 2, "position_mult": 16.0, "impact": 1.0, "toxicity_mult": 2.0},
     "momentum": {"activity": 0.5, "lookback": 5, "threshold_sigma": 0.5, "size_mult": 1.0, "position_mult": 4.0},
@@ -58,12 +59,13 @@ DEFAULTS: Dict[str, Dict[str, float]] = {
 #: carries over from the round before.
 LAST_WEIGHT, TOXICITY_MEMORY = 0.3, 0.7
 #: Per-trader dispersion: parameter → (low, high) multiplier drawn once.
-_DISPERSION: Dict[str, Dict[str, tuple]] = {
+_DISPERSION: dict[str, dict[str, tuple]] = {
     "market_maker": {"half_spread_ticks": (0.7, 1.6), "quote_mult": (0.6, 1.5), "inventory_mult": (0.7, 1.3),
                      "vol_mult": (0.7, 1.3)},
     "momentum": {"lookback": (0.4, 2.0), "threshold_sigma": (0.6, 1.8), "size_mult": (0.5, 1.6)},
     "mean_reversion": {"window": (0.5, 1.8), "z_threshold": (0.7, 1.4), "size_mult": (0.5, 1.5)},
-    "fundamentalist": {"noise_sigma": (0.5, 1.6), "margin_sigma": (0.6, 1.8), "patience": (0.8, 1.2), "size_mult": (0.6, 1.6)},
+    "fundamentalist": {"noise_sigma": (0.5, 1.6), "margin_sigma": (0.6, 1.8), "patience": (0.8, 1.2),
+                       "size_mult": (0.6, 1.6)},
     "noise": {"market_prob": (0.8, 1.2), "herding": (0.3, 1.7)},
     "passive": {"size_mult": (0.6, 1.4)},
 }
@@ -76,12 +78,12 @@ def _clamp(value: float, low: float, high: float) -> float:
 class _View:
     """What a coded trader sees when it acts."""
 
-    def __init__(self, world: Any, name: str, cfg: OrderBookConfig, trader: Entity, state: Dict[str, Any]):
+    def __init__(self, world: Any, name: str, cfg: OrderBookConfig, trader: Entity, state: dict[str, Any]):
         self.world, self.name, self.cfg, self.trader, self.state = world, name, cfg, trader, state
         self.venue = venue(world, name)
         self.last, self.bid, self.ask, self.mid = top(world, name)
         self.tick, self.lot = self.venue.tick, self.venue.lot
-        self.prices: List[float] = list(world.props.get(f"{name}_closes") or []) + [self.last]
+        self.prices: list[float] = list(world.props.get(f"{name}_closes") or []) + [self.last]
         assumed = _setting(world, name, "volatility", cfg.volatility, trader, 0.0)
         if assumed <= 0:
             raise RunError(f"volatility must be above 0, got {assumed!r}", f"mechanisms.{name}.volatility")
@@ -94,26 +96,30 @@ class _View:
         self.flow = max(0.0, _setting(world, name, "flow_scale", cfg.flow_scale, trader, 1.0))
         self.sentiment = _clamp(_setting(world, name, "sentiment", cfg.sentiment, trader, 0.0), -1.0, 1.0)
         p = props_for(name)
-        self.position = balance(world, Account(trader, p["shares"])) + balance(world, Account(trader, p["reserved_shares"]))
+        self.position = (balance(world, Account(trader, p["shares"]))
+                         + balance(world, Account(trader, p["reserved_shares"])))
         self.inventory = self.position - float(state.get("start", 0.0))
         self.cash = balance(world, Account(trader, cfg.currency))
-        self.orders: List[str] = []
+        self.orders: list[str] = []
 
     def room(self, side: str, mult: float) -> float:
         cap = mult * self.base
         return max(0.0, cap - self.inventory) if side == "buy" else max(0.0, cap + self.inventory)
 
-    def order(self, side: str, qty: float, price: Optional[float] = None, kind: Optional[str] = None) -> None:
+    def order(self, side: str, qty: float, price: float | None = None, kind: str | None = None) -> None:
         """Submit one order; a leg that is not possible (cash, shares, band) is skipped without undoing the others."""
         qty = lot_floor(qty, self.lot)
         if qty <= 0 or (price is not None and price <= 0):
             return
         if side == "buy":
-            unit = (price if price is not None else (self.ask or self.last)) * (1 + max(self.venue.maker, self.venue.taker))
-            qty = min(qty, lot_floor(balance(self.world, Account(self.trader, self.cfg.currency)) / unit, self.lot)) if unit > 0 else 0
+            quoted = price if price is not None else (self.ask or self.last)
+            unit = quoted * (1 + max(self.venue.maker, self.venue.taker))
+            qty = (min(qty, lot_floor(balance(self.world, Account(self.trader, self.cfg.currency)) / unit, self.lot))
+                   if unit > 0 else 0)
         else:
             free = balance(self.world, Account(self.trader, props_for(self.name)["shares"]))
-            qty = min(qty, lot_floor(max(0.0, free + short_room(self.world, self.name, self.cfg, self.trader)), self.lot))
+            qty = min(qty,
+                      lot_floor(max(0.0, free + short_room(self.world, self.name, self.cfg, self.trader)), self.lot))
         if qty <= 0:
             return
         journal = self.world.journal
@@ -133,16 +139,18 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
     if decide is None:
         raise Abort(f"You have no trading strategy on {cfg.instrument or name} (strategies: {', '.join(_STRATEGIES)}).")
     stored: Any = trader.properties.get(p["algo"]) or {}
-    state: Dict[str, Any] = dict(stored)
+    state: dict[str, Any] = dict(stored)
     rng = world.rng
     if "p" not in state:
         where = f"mechanisms.{name}.crowd.{strategy}.params"
-        overrides = {key: number(world, raw, f"{where}.{key}", actor=trader) for key, raw in _overrides(cfg, strategy).items()}
+        overrides = {key: number(world, raw, f"{where}.{key}", actor=trader)
+                     for key, raw in _overrides(cfg, strategy).items()}
         params = {**DEFAULTS[strategy], **overrides}
         for key, (low, high) in _DISPERSION[strategy].items():
             params[key] = params[key] * rng.uniform(low, high)
         state["p"] = params
-        state["start"] = balance(world, Account(trader, p["shares"])) + balance(world, Account(trader, p["reserved_shares"]))
+        state["start"] = (balance(world, Account(trader, p["shares"]))
+                          + balance(world, Account(trader, p["reserved_shares"])))
     receipt = "Your strategy stayed out this turn."
     guarded = state["p"].get("stop_loss", 0) > 0
     view = _View(world, name, cfg, trader, state) if guarded and not world.props.get(f"{name}_halted") else None
@@ -164,7 +172,7 @@ def _setting(world: Any, name: str, field: str, raw: Any, trader: Entity, defaul
     return default if raw is None else number(world, raw, f"mechanisms.{name}.{field}", actor=trader)
 
 
-def _stopped_out(v: _View, p: Dict[str, float]) -> bool:
+def _stopped_out(v: _View, p: dict[str, float]) -> bool:
     """Track the position's entry price; liquidate at market when its loss passes the stop. True when it did."""
     held, entry = float(v.state.get("held", 0.0)), float(v.state.get("entry", v.last))
     inventory = v.inventory
@@ -183,7 +191,7 @@ def _stopped_out(v: _View, p: Dict[str, float]) -> bool:
     return True
 
 
-def _copy_state(state: Dict[str, Any]) -> Dict[str, Any]:
+def _copy_state(state: dict[str, Any]) -> dict[str, Any]:
     return {k: (dict(v) if isinstance(v, dict) else v) for k, v in state.items()}
 
 
@@ -192,12 +200,12 @@ def _period(v: _View, rounds: float) -> int:
     return (v.world.round - 1) // max(1, int(rounds)) + 1
 
 
-def _overrides(cfg: OrderBookConfig, strategy: str) -> Dict[str, Union[float, str]]:
+def _overrides(cfg: OrderBookConfig, strategy: str) -> dict[str, float | str]:
     crowd = cfg.crowd.get(strategy)  # type: ignore[call-overload]
     return dict(crowd.params) if crowd is not None else {}
 
 
-def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
+def _market_maker(v: _View, p: dict[str, float], rng: Any) -> None:
     cancel_all(v.world, v.name, v.trader)
     last, bid, ask, mid = top(v.world, v.name)
     state = v.state
@@ -218,8 +226,8 @@ def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
     if abs(inventory) > limit:
         v.order("sell" if inventory > 0 else "buy", min(abs(inventory) - limit / 2, quote_qty))
         held = props_for(v.name)
-        inventory = balance(v.world, Account(v.trader, held["shares"])) + balance(v.world, Account(v.trader, held["reserved_shares"])) \
-            - float(v.state.get("start", 0.0))
+        inventory = (balance(v.world, Account(v.trader, held["shares"]))
+                     + balance(v.world, Account(v.trader, held["reserved_shares"])) - float(v.state.get("start", 0.0)))
     load = _clamp(inventory / limit, -1.5, 1.5)
     centre = centre_price / v.tick - _clamp(inventory / limit, -1.0, 1.0) * half * 0.8
     for layer in range(int(p["layers"])):
@@ -232,7 +240,7 @@ def _market_maker(v: _View, p: Dict[str, float], rng: Any) -> None:
         v.order("sell", size * _clamp(1.0 + load, 0.25, 1.75), round(ask_t * v.tick, 10))
 
 
-def _outside_flow(v: _View) -> Tuple[float, float]:
+def _outside_flow(v: _View) -> tuple[float, float]:
     """Last round's aggressive (net, gross) quantity from everyone but market makers."""
     flow = v.world.props.get(f"{v.name}_flow") or {}
     sides = [sides for kind, sides in flow.items() if kind != "market_maker"]
@@ -240,7 +248,7 @@ def _outside_flow(v: _View) -> Tuple[float, float]:
             sum(float(s.get("buy", 0)) + float(s.get("sell", 0)) for s in sides))
 
 
-def _momentum(v: _View, p: Dict[str, float], rng: Any) -> None:
+def _momentum(v: _View, p: dict[str, float], rng: Any) -> None:
     lookback = max(2, int(p["lookback"]))
     if len(v.prices) <= lookback or v.prices[-lookback - 1] <= 0:
         return
@@ -259,7 +267,7 @@ def _momentum(v: _View, p: Dict[str, float], rng: Any) -> None:
         v.order("sell", min(qty, v.room("sell", p["position_mult"])))
 
 
-def _mean_reversion(v: _View, p: Dict[str, float], rng: Any) -> None:
+def _mean_reversion(v: _View, p: dict[str, float], rng: Any) -> None:
     window = max(4, int(p["window"]))
     if len(v.prices) < window:
         return
@@ -294,7 +302,7 @@ def _fair_value(v: _View) -> float:
     return float(value)
 
 
-def _fundamentalist(v: _View, p: Dict[str, float], rng: Any) -> None:
+def _fundamentalist(v: _View, p: dict[str, float], rng: Any) -> None:
     if v.state.get("noise_round") != _period(v, p["value_rounds"]):
         v.state["noise"] = rng.gauss(0.0, p["noise_sigma"] * v.sigma)
         v.state["noise_round"] = _period(v, p["value_rounds"])
@@ -318,7 +326,7 @@ def _fundamentalist(v: _View, p: Dict[str, float], rng: Any) -> None:
         v.order("sell", min(qty, v.room("sell", p["position_mult"])), price)
 
 
-def _noise(v: _View, p: Dict[str, float], rng: Any) -> None:
+def _noise(v: _View, p: dict[str, float], rng: Any) -> None:
     tilt = v.sentiment * p["sentiment_sensitivity"]
     if len(v.prices) >= 3 and v.prices[-3] > 0:
         recent = v.prices[-1] / v.prices[-3] - 1.0
@@ -337,7 +345,7 @@ def _noise(v: _View, p: Dict[str, float], rng: Any) -> None:
         v.order("sell", qty, (v.ask if v.ask is not None else v.mid) + offset)
 
 
-def _passive(v: _View, p: Dict[str, float], rng: Any) -> None:
+def _passive(v: _View, p: dict[str, float], rng: Any) -> None:
     if v.state.get("side_round") != _period(v, p["side_rounds"]):
         v.state["side"] = "buy" if rng.random() < _clamp(0.5 + 0.5 * p["direction_bias"], 0.0, 1.0) else "sell"
         v.state["side_round"] = _period(v, p["side_rounds"])
@@ -347,7 +355,7 @@ def _passive(v: _View, p: Dict[str, float], rng: Any) -> None:
     v.order(side, min(v.base * v.flow * p["size_mult"], v.room(side, p["position_mult"])))
 
 
-_STRATEGIES: Dict[str, Callable[[_View, Dict[str, float], Any], None]] = {
+_STRATEGIES: dict[str, Callable[[_View, dict[str, float], Any], None]] = {
     "market_maker": _market_maker, "momentum": _momentum, "mean_reversion": _mean_reversion,
     "fundamentalist": _fundamentalist, "noise": _noise, "passive": _passive,
 }

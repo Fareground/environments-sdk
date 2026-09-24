@@ -7,8 +7,8 @@ roles, population, subject matter, and rules for its custom scenario.
 from .catalog import (
     EngineCatalog,
     EngineNotFound,
-    EngineUnavailable,
     EngineSpec,
+    EngineUnavailable,
     catalog,
     clone,
     get,

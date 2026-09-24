@@ -4,10 +4,9 @@ import json
 import statistics
 
 import pytest
+from patterns_helpers import errors, series, world
 
 import fg_env
-
-from patterns_helpers import errors, series, world
 
 
 def _messages(patterns, **options):
@@ -16,7 +15,8 @@ def _messages(patterns, **options):
 
 def test_an_unknown_kind_or_field_is_named_with_the_closest_choice():
     (path, message, fix), = _messages({"s": {"kind": "seasonl"}})
-    assert path == "patterns.s.kind" and "'seasonl' is not a pattern kind" in message and fix == "did you mean 'seasonal'?"
+    assert (path == "patterns.s.kind" and "'seasonl' is not a pattern kind" in message and fix
+            == "did you mean 'seasonal'?")
     (path, message, fix), = _messages({"t": {"kind": "trend", "slop": 1}})
     assert path == "patterns.t.slop" and "`slop` is not a field of a `trend` pattern" in message
     assert fix.startswith("did you mean 'slope'?")
@@ -52,7 +52,8 @@ def test_parameters_may_read_draws_inputs_keys_and_rows():
 
 def test_reads_and_calls_must_match_what_the_pattern_takes():
     patterns = {"p": {"kind": "elasticity", "elasticity": -1}, "s": {"kind": "seasonal", "keys": ["a"], "profile": [1]}}
-    issues = _messages(patterns, metrics={"x": "$pattern.p", "y": "$pattern.s", "z": "$pattern.p(1, 2)", "u": "$pattern.q"})
+    issues = _messages(patterns,
+                       metrics={"x": "$pattern.p", "y": "$pattern.s", "z": "$pattern.p(1, 2)", "u": "$pattern.q"})
     found = {path: message for path, message, _ in issues}
     assert found["metrics.x"] == "$pattern.p is read with (price)"
     assert found["metrics.y"] == "$pattern.s is read with (key)"
@@ -82,7 +83,8 @@ def test_structural_mistakes_are_reported_on_their_path():
 
 def test_a_recorded_pattern_is_a_metric_of_its_own_name():
     contract = world({"t": {"kind": "trend", "slope": 1, "start": 0, "record": True},
-                      "k": {"kind": "draw", "keys": ["a", "b"], "dist": "uniform", "low": 1, "high": 1, "record": True}},
+                      "k": {"kind": "draw", "keys": ["a", "b"], "dist": "uniform", "low": 1, "high": 1,
+                            "record": True}},
                      outputs={"last": "$metrics.t", "total": "$sum($series.t, $it)"}, rounds=3)
     result = fg_env.run(contract, "idle", seed=1)
     assert result.series["t"] == [0, 1, 2] and result.outputs == {"last": 2, "total": 3}
@@ -91,11 +93,13 @@ def test_a_recorded_pattern_is_a_metric_of_its_own_name():
 
 def test_uncertainty_draws_each_parameter_once_per_run_around_its_value():
     patterns = {"p": {"kind": "elasticity", "elasticity": -1.5, "reference": 1, "uncertainty": {"elasticity": 0.2}}}
-    draws = [fg_env.run(world(patterns, metrics={"e": "$log($pattern.p(2)) / $log(2)"}, rounds=2), "idle", seed=s).series["e"]
+    draws = [fg_env.run(world(patterns, metrics={"e": "$log($pattern.p(2)) / "
+                                                      "$log(2)"}, rounds=2), "idle", seed=s).series["e"]
              for s in range(400)]
     assert all(a == b for a, b in draws)
     values = [a for a, _ in draws]
-    assert statistics.fmean(values) == pytest.approx(-1.5, abs=0.03) and statistics.pstdev(values) == pytest.approx(0.2, rel=0.12)
+    assert (statistics.fmean(values) == pytest.approx(-1.5, abs=0.03) and statistics.pstdev(values)
+            == pytest.approx(0.2, rel=0.12))
     exact = {"p": {**patterns["p"], "uncertainty": {"elasticity": 0}}}
     assert series(exact, {"e": "$pattern.p(2)"}, rounds=1)["e"][0] == pytest.approx(2 ** -1.5)
 

@@ -8,10 +8,9 @@ import statistics
 from datetime import date, timedelta
 
 import pytest
+from patterns_helpers import world
 
 import fg_env
-
-from patterns_helpers import world
 
 WEEKS = {"unit": "week", "start": "2020-01-06"}
 
@@ -133,7 +132,8 @@ def test_weather_recovers_its_seasonal_normal_and_the_persistence_of_departures(
                      clock={"unit": "week", "start": "2000-01-03"}, rounds=1040, metrics={"t": "$pattern.t"})
     temps = fg_env.run(contract, "idle", seed=6).series["t"]
     rows = [{"t": week, "temp": value} for week, value in enumerate(temps)]
-    result = _fitted({"w": {"kind": "weather", "mean": 0, "fit": {"data": "$inputs.history", "value": "temp", "time": "t"}}},
+    result = _fitted({"w": {"kind": "weather", "mean": 0,
+                            "fit": {"data": "$inputs.history", "value": "temp", "time": "t"}}},
                      rows, clock={"unit": "week", "start": "2000-01-03"}, rounds=1040)
     assert _param(result, "w", "mean") == pytest.approx(18, abs=0.5)
     assert _param(result, "w", "amplitude") == pytest.approx(9, abs=0.6)
@@ -156,8 +156,10 @@ def test_carryover_retain_is_found_by_grid_search():
 
 def test_saturation_and_bass_diffusion_are_recovered_by_search():
     rng = random.Random(8)
-    rows = [{"x": x, "y": 1 + 3 * x * x / (4 + x * x) + rng.gauss(0, 0.05)} for x in (rng.uniform(0, 10) for _ in range(300))]
-    result = _fitted({"s": {"kind": "saturation", "shape": 1, "fit": {"data": "$inputs.history", "value": "y", "x": "x"}}}, rows)
+    rows = [{"x": x, "y": 1 + 3 * x * x / (4 + x * x) + rng.gauss(0, 0.05)}
+            for x in (rng.uniform(0, 10) for _ in range(300))]
+    fit = {"data": "$inputs.history", "value": "y", "x": "x"}
+    result = _fitted({"s": {"kind": "saturation", "shape": 1, "fit": fit}}, rows)
     assert _param(result, "s", "limit") == pytest.approx(3, abs=0.2)
     assert _param(result, "s", "half") == pytest.approx(2, abs=0.2)
     assert _param(result, "s", "shape") == pytest.approx(2, abs=0.3)
@@ -210,15 +212,18 @@ def _shop(stock_cap=None):
         "types": {"clerk": {"agent": True},
                   "sku": {"props": {"category": "pads", "price": 20.0, "promo": 0.0, "demand": 0, "stock": 0}}},
         "entities": {"clerk": {"type": "clerk"}},
-        "population": [{"type": "sku", "from": "$inputs.skus", "id": "{$row.sku}", "props": {"category": "$row.category"}}],
+        "population": [{"type": "sku", "from": "$inputs.skus", "id": "{$row.sku}",
+                        "props": {"category": "$row.category"}}],
         "records": {"history": {"fields": {"date": "text", "sku": "text", "price": "number", "promo": "number",
                                            "units": "int", "stockout": "int", "demand": "int"}, "notify": False}},
         "patterns": {
             "growth": {"kind": "trend", "form": "exponential", "rate": "$inputs.growth"},
-            "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base", "of": ["growth"]},
+            "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base",
+                       "of": ["growth"]},
             "price_effect": {"kind": "elasticity", "table": "$inputs.cats", "column": "category",
                              "elasticity": "$row.elasticity", "reference": 20},
-            "promo": {"kind": "promotion", "keys": "sku", "input": "$it.promo", "lift": "$inputs.lift", "form": "exponential"},
+            "promo": {"kind": "promotion", "keys": "sku", "input": "$it.promo", "lift": "$inputs.lift",
+                      "form": "exponential"},
             "sales": {"kind": "counts", "dispersion": "$inputs.k"},
             "wobble": {"kind": "noise", "sd": 0.2}, "roll": {"kind": "noise", "dist": "uniform"},
         },
@@ -229,7 +234,8 @@ def _shop(stock_cap=None):
                 "$it.promo = 0.3 if $pattern.roll($it) < 0.15 else 0",
                 "$it.stock = $floor($inputs.cap * $row_base($it) * (0.5 + $pattern.roll($it.id + 'stock')))"]},
             {"phase": "end", "each": "sku", "do": [
-                "$it.demand = $pattern.sales($pattern.demand($it) * $pattern.price_effect($it.price, $it.category) * $pattern.promo($it), $it)",
+                "$it.demand = $pattern.sales($pattern.demand($it) * $pattern.price_effect($it.price, $it.category) * "
+                "$pattern.promo($it), $it)",
                 {"post": "history", "date": "$clock.date", "sku": "$it.id", "price": "$it.price", "promo": "$it.promo",
                  "units": sold, "stockout": f"1 if {sold} < $it.demand else 0", "demand": "$it.demand"}]},
         ],
@@ -250,7 +256,8 @@ def _shop_fit(contract, rows, **fit):
     guess["inputs"]["skus"]["default"] = [{**s, "base": 10.0} for s in SHOP_SKUS]
     guess["inputs"]["growth"]["default"], guess["inputs"]["lift"]["default"] = 0.0, 0.1
     guess["patterns"]["demand"]["fit"] = {"data": "$inputs.history", "value": "units", "time": "date", "key": "sku",
-                                          "x": {"price_effect": {"column": "price", "key": "$row.category"}, "promo": "promo"},
+                                          "x": {"price_effect": {"column": "price", "key": "$row.category"},
+                                                "promo": "promo"},
                                           "noise": "sales", **fit}
     return fg_env.analysis.fit_patterns(guess)
 
@@ -311,13 +318,15 @@ def test_a_stockout_that_sold_nothing_still_tells_a_slow_sellers_demand_was_at_l
 
 def test_fitted_parameters_are_written_back_as_inputs_with_errors_that_runs_draw_from():
     rng = random.Random(13)
-    rows = [{"price": p, "units": 50 * (p / 20) ** -1.2 * math.exp(rng.gauss(0, 0.3))} for p in (rng.uniform(10, 30) for _ in range(60))]
+    rows = [{"price": p, "units": 50 * (p / 20) ** -1.2 * math.exp(rng.gauss(0, 0.3))}
+            for p in (rng.uniform(10, 30) for _ in range(60))]
     result = _fitted({"p": {"kind": "elasticity", "elasticity": -1, "reference": 20,
                             "fit": {"data": "$inputs.history", "value": "units", "x": "price"}}}, rows,
                      metrics={"e": "$log($pattern.p(40)) / $log(2)"})
     fitted = result.contract
     assert fitted["patterns"]["p"]["elasticity"] == "$inputs.p_elasticity"
-    assert fitted["patterns"]["p"]["uncertainty"] == {"elasticity": "$inputs.p_elasticity_se * $inputs.parameter_uncertainty"}
+    assert (fitted["patterns"]["p"]["uncertainty"]
+            == {"elasticity": "$inputs.p_elasticity_se * $inputs.parameter_uncertainty"})
     estimate, error = fitted["inputs"]["p_elasticity"]["default"], fitted["inputs"]["p_elasticity_se"]["default"]
     draws = [fg_env.run(fitted, "idle", seed=s, rounds=1).series["e"][0] for s in range(60)]
     assert statistics.pstdev(draws) == pytest.approx(error, rel=0.3)
@@ -420,15 +429,17 @@ def test_fitted_scales_and_a_seasonal_profile_carry_errors_as_wide_as_their_esti
                 for day in weeks for sku, base in bases.items()]
         inputs = _fitted({"season": {"kind": "seasonal", "period": "year", "profile": [1] * 12},
                           "demand": {"kind": "product", "table": "$inputs.skus", "column": "sku", "scale": "$row.base",
-                                     "of": ["season"], "fit": {"data": "$inputs.history", "value": "units", "time": "time",
-                                                                "key": "sku", "noise": "sales"}},
+                                     "of": ["season"],
+                                     "fit": {"data": "$inputs.history", "value": "units", "time": "time",
+                                              "key": "sku", "noise": "sales"}},
                           "sales": {"kind": "counts", "dispersion": 1}}, rows, clock=WEEKS, rounds=104,
                          inputs={"skus": {"type": "table", "default": [{"sku": s, "base": 1.0} for s in bases]}}
                          ).contract["inputs"]
         for row in inputs["demand_fit"]["default"]:
             estimates[row["sku"]].append((row["scale"], row["scale_se"]))
         for name, slot in (("first", 0), ("peak", 5)):
-            estimates[name].append((inputs["season_profile"]["default"][slot], inputs["season_profile_se"]["default"][slot]))
+            estimates[name].append((inputs["season_profile"]["default"][slot],
+                                    inputs["season_profile_se"]["default"][slot]))
     for name, pairs in estimates.items():  # the first month is what the fit measures the others from, yet has an error
         spread = statistics.stdev(value for value, _ in pairs)
         assert 0.7 < statistics.fmean(error for _, error in pairs) / spread < 1.4, name

@@ -6,9 +6,9 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
+from fg_env.contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from fg_env.errors import ContractError
 from fg_env.experiments.experiment import Job, run_jobs
-from fg_env.contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 
@@ -21,7 +21,8 @@ BETTING = {
     "entities": {"ann": {"type": "player"}},
     "actions": {"bet_{s}": {"for": STREETS, "as": "s", "make": {
         "by": "player", "description": "Bet on the {s}.", "do": ["$actor.bets_{s} += 1"], "terminal": True}}},
-    "stages": [{"for": STREETS, "as": "s", "index": "i", "make": {"name": "{s}", "actions": ["bet_{s}"], "max_calls": "{i+2}"}}],
+    "stages": [{"for": STREETS, "as": "s", "index": "i",
+                "make": {"name": "{s}", "actions": ["bet_{s}"], "max_calls": "{i+2}"}}],
     "outputs": {"bets": "$map(player, $it.bets_flop + $it.bets_turn + $it.bets_river)"},
 }
 
@@ -43,11 +44,13 @@ def test_list_items_and_named_entries_are_generated_with_placeholders_keeping_ty
 
 
 def test_ranges_fields_offsets_nested_loops_and_a_macro_under_a_plain_key():
-    data = fg_env.expand({"name": "x", "links": {"for": {"range": [1, 7, 3]}, "as": "n", "make": {"from": "p{n}", "to": "p{n+1}"}},
+    data = fg_env.expand({"name": "x",
+                          "links": {"for": {"range": [1, 7, 3]}, "as": "n", "make": {"from": "p{n}", "to": "p{n+1}"}},
                           "cells": [{"for": [{"row": "a", "cols": [1, 2]}, {"row": "b", "cols": [3]}], "as": "r",
                                      "make": {"for": "{r.cols}", "as": "c", "make": "{r.row}{c}:{r.cols.0}"}}],
-                          "grid": {"c_{x}_{y}": {"for": {"range": 2}, "as": "x", "make": {"for": {"range": 2}, "as": "y",
-                                                                                           "make": "{x}{y}"}}}})
+                          "grid": {"c_{x}_{y}": {"for": {"range": 2}, "as": "x",
+                                    "make": {"for": {"range": 2}, "as": "y",
+                                              "make": "{x}{y}"}}}})
     assert data["links"] == [{"from": "p1", "to": "p2"}, {"from": "p4", "to": "p5"}]
     assert data["cells"] == ["a1:1", "a2:1", "b3:3"]
     assert data["grid"] == {"c_0_0": "00", "c_0_1": "01", "c_1_0": "10", "c_1_1": "11"}
@@ -69,7 +72,8 @@ def test_templates_literal_braces_and_unrelated_placeholders_are_left_alone():
     ({"m": {"k_1": 0, "k_{x}": {"for": [1], "as": "x", "make": 1}}}, "m.k_{x}", "'k_1' is given twice"),
     ({"l": [{"for": [{"p": 1}], "as": "x", "make": "{x.q}"}]}, "l[0].make", "x has no field 'q'"),
     ({"l": [{"for": ["a"], "as": "x", "make": "{x+1}"}]}, "l[0].make", "only a whole number can be offset"),
-    ({"l": [{"for": [1], "as": "x", "make": {"for": [2], "as": "x", "make": 1}}]}, "l[0].make.as", "already a variable"),
+    ({"l": [{"for": [1], "as": "x", "make": {"for": [2], "as": "x", "make": 1}}]}, "l[0].make.as",
+     "already a variable"),
     ({"l": [{"for": [1], "as": "x", "index": "x", "make": 1}]}, "l[0].index", "both name 'x'"),
     ({"l": [{"for": {"range": [0, 5, 0]}, "as": "x", "make": 1}]}, "l[0].for.range", "step cannot be 0"),
     ({"l": [{"for": {"range": 10 ** 9}, "as": "x", "make": 1}]}, "l[0].for.range", "macros generate at most"),
@@ -86,7 +90,8 @@ def test_every_malformed_macro_is_reported_at_once_and_limits_hold():
     with pytest.raises(ContractError) as excinfo:
         fg_env.expand({"name": "bad", "a": [{"for": 1, "as": "x", "make": 1}], "b": [{"for": [1], "make": 1}]})
     assert [p for p, _ in _issues(excinfo)] == ["a[0].for", "b[0]"]
-    too_many = {"name": "big", "l": [{"for": {"range": 200}, "as": "x", "make": {"for": {"range": 200}, "as": "y", "make": 1}}]}
+    too_many = {"name": "big",
+                "l": [{"for": {"range": 200}, "as": "x", "make": {"for": {"range": 200}, "as": "y", "make": 1}}]}
     with pytest.raises(ContractError, match=f"more than {MAX_MACRO_ITEMS:,} values"):
         fg_env.expand(too_many)
     deep: dict = {"for": [1], "as": f"v{MAX_MACRO_DEPTH}", "make": 1}
@@ -107,14 +112,17 @@ def test_check_reports_and_load_refuses_a_contract_whose_macros_cannot_expand_li
 def test_each_imported_file_expands_its_own_macros_and_the_contract_wins(tmp_path):
     (tmp_path / "parts").mkdir()
     (tmp_path / "parts" / "bets.json").write_text(json.dumps({
-        "actions": {"bet_{s}": {"for": STREETS, "as": "s", "make": {"by": "player", "do": ["$actor.bets_{s} += 1"], "terminal": True}}}}))
+        "actions": {"bet_{s}": {"for": STREETS, "as": "s",
+                                "make": {"by": "player", "do": ["$actor.bets_{s} += 1"], "terminal": True}}}}))
     main_contract = {**BETTING, "imports": ["parts/bets.json"],
-                     "actions": {"bet_{s}": {"for": ["flop"], "as": "s", "make": {"by": "player", "do": ["$actor.bets_{s} += 5"],
-                                                                                     "terminal": True}}}}
+                     "actions": {"bet_{s}": {"for": ["flop"], "as": "s",
+                                             "make": {"by": "player", "do": ["$actor.bets_{s} += 5"],
+                                                         "terminal": True}}}}
     path = tmp_path / "main.json"
     path.write_text(json.dumps(main_contract))
     actions = fg_env.expand(path)["actions"]
-    assert actions["bet_flop"]["do"] == ["$actor.bets_flop += 5"] and actions["bet_river"]["do"] == ["$actor.bets_river += 1"]
+    assert (actions["bet_flop"]["do"] == ["$actor.bets_flop += 5"] and actions["bet_river"]["do"]
+            == ["$actor.bets_river += 1"])
     results = run_jobs(path, [Job({}, None, 1), Job({}, None, 2)], participants="random", rounds=1, workers=2)
     assert all(r.status != "failed" for r in results), [r.error for r in results]
 
@@ -153,11 +161,13 @@ def test_parliament_readings_written_once_run_every_reading_in_order():
     assert list(phases)[:3] == ["reading_1", "reading_2", "reading_3"]
     assert phases["reading_2"]["next"][0]["to"] == "committee" and phases["reading_1"]["stages"][0]["actions"] == []
     everyone_aye = {"mp": lambda wake: wake.call("vote", {"choice": "aye"}) if wake.stage.startswith("division")
-                    else wake.call("amend", {"text": "Exempt small workshops."}) if wake.stage == "bill_committee" else wake.end()}
+                    else wake.call("amend", {"text": "Exempt small workshops."}) if wake.stage == "bill_committee"
+                    else wake.end()}
     result = fg_env.run(EXAMPLES / "parliament_bill.json", everyone_aye, seed=3)
     assert result.status == "ended", result.error
     assert result.outputs["phases"] == ["reading_1", "reading_2", "committee", "reading_3", "assent"]
     assert result.outputs["outcome"] == "assent" and result.outputs["amendments"] == 5
     defeated = fg_env.run(EXAMPLES / "parliament_bill.json", {"mp": lambda wake: wake.call("vote", {"choice": "no"})
-                                                              if wake.stage.startswith("division") else wake.end()}, seed=3)
+                                                              if wake.stage.startswith("division") else wake.end()},
+                          seed=3)
     assert defeated.outputs["phases"] == ["reading_1", "defeated"]

@@ -3,16 +3,25 @@ from __future__ import annotations
 
 import json
 import math
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
-from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _LISTED_UNKNOWN, _STEP_TOLERANCE, _item_count, _item_spec, _list_bounds, _preview
 from ..assets.intake import file_value
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, truthy
 from ..expr.template import compile_template, format_value
+from ..world.entity import Entity
 from ..world.live import _plain
+from .params import (
+    _LISTED_UNKNOWN,
+    _STEP_TOLERANCE,
+    MAX_SAFE_INT,
+    TEXT_MAX_LEN,
+    _item_count,
+    _item_spec,
+    _list_bounds,
+    _preview,
+)
 
 if TYPE_CHECKING:
     from .book import ActionBook
@@ -26,7 +35,8 @@ _NUMBER_TEXT = 64
 class ActionValidation:
     """Argument validation for actions (mixed into :class:`~fg_env.actions.book.ActionBook`)."""
 
-    def validate(self: "ActionBook", actor: Entity, name: str, args: Any) -> Tuple[Dict[str, Any], Optional[str]]:  # type: ignore[misc]
+    def validate(self: ActionBook, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any],  # type: ignore[misc]
+                 str | None]:
         """Resolve arguments to typed values. Returns (params, None) or ({}, correction text). A coded policy checks
         its call before making it, so the answer is remembered for the same arguments in the same state."""
         if not isinstance(args, dict):
@@ -36,13 +46,14 @@ class ActionValidation:
                                                     lambda: self._validate(actor, name, args))
         return dict(params), problem
 
-    def _validate(self: "ActionBook", actor: Entity, name: str, args: Any) -> Tuple[Dict[str, Any], Optional[str]]:  # type: ignore[misc]
+    def _validate(self: ActionBook, actor: Entity, name: str, args: Any) -> tuple[dict[str, Any],  # type: ignore[misc]
+                  str | None]:
         spec = self.contract.actions[name]
         if args is None:
             args = {}
         if not isinstance(args, dict):
             return {}, f"arguments must be an object of named arguments, got {_preview(args)}"
-        problems: List[str] = []
+        problems: list[str] = []
         unknown = [key for key in args if not isinstance(key, str) or key not in spec.params]
         if unknown:
             listed = ", ".join(key if isinstance(key, str) and len(key) <= 60 else _preview(key)
@@ -50,8 +61,8 @@ class ActionValidation:
             if len(unknown) > _LISTED_UNKNOWN:
                 listed += f" and {len(unknown) - _LISTED_UNKNOWN} more"
             problems.append(f"unknown argument(s) {listed} (arguments: {', '.join(spec.params) or 'none'})")
-        params: Dict[str, Any] = {}
-        seen: List[str] = []
+        params: dict[str, Any] = {}
+        seen: list[str] = []
         for pname, param in spec.params.items():
             failed = [p for p in seen if p not in params]  # earlier arguments that were wrong or missing
             seen.append(pname)
@@ -98,8 +109,9 @@ class ActionValidation:
             return {}, refused
         return params, None
 
-    def _value(self: "ActionBook", actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,  # type: ignore[misc]
-               params: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    def _value(self: ActionBook, actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+               raw: Any,
+               params: dict[str, Any]) -> tuple[Any, str | None]:
         kind = param.type
         if kind in ("number", "int"):
             value = _number_arg(raw)
@@ -113,7 +125,7 @@ class ActionValidation:
                 if isinstance(value, float) and not value.is_integer():
                     return None, f"must be a whole number, got {_preview(raw) if isinstance(raw, str) else raw}"
                 value = int(value)
-            scope: Optional[Scope] = None  # built only for a bound that is an expression
+            scope: Scope | None = None  # built only for a bound that is an expression
             for key, label, bound, bad in (("min", "at least", param.min, lambda v, b: v < b),
                                            ("max", "at most", param.max, lambda v, b: v > b)):
                 if bound is None:
@@ -189,8 +201,8 @@ class ActionValidation:
             return None, f"{shown} is not a valid {param.of} {_given(param, params)} (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
 
-    def enum_values(self: "ActionBook", actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
-                    params: Dict[str, Any]) -> List[Any]:
+    def enum_values(self: ActionBook, actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+                    params: dict[str, Any]) -> list[Any]:
         """The values an enum parameter allows, given the arguments before it."""
         values = param.values
         if isinstance(values, str):
@@ -199,10 +211,12 @@ class ActionValidation:
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
         if values is not None and not isinstance(values, (list, tuple)):
-            raise RunError(f"values must give a list, got {format_value(values)}", f"actions.{action}.params.{pname}.values")
+            raise RunError(f"values must give a list, got {format_value(values)}",
+                           f"actions.{action}.params.{pname}.values")
         return [_plain(v) for v in (values or [])]
 
-    def _chosen(self: "ActionBook", actor: Entity, param: ParamSpec, raw: Any, params: Dict[str, Any]) -> Optional[Entity]:  # type: ignore[misc]
+    def _chosen(self: ActionBook, actor: Entity, param: ParamSpec, raw: Any,  # type: ignore[misc]
+                params: dict[str, Any]) -> Entity | None:
         """The entity an argument names by id when it plainly qualifies — found without listing every
         choice, which coded crowds would otherwise pay on every call. None sends the argument through the
         full listing, which decides every other case (names, refusals, errors) exactly as before."""
@@ -223,8 +237,9 @@ class ActionValidation:
             holds = False  # the full listing reports it
         return entity if holds else None
 
-    def _list_value(self: "ActionBook", actor: Entity, action: str, pname: str, param: ParamSpec, raw: Any,  # type: ignore[misc]
-                    params: Dict[str, Any]) -> Tuple[Any, Optional[str]]:
+    def _list_value(self: ActionBook, actor: Entity, action: str, pname: str, param: ParamSpec,  # type: ignore[misc]
+                    raw: Any,
+                    params: dict[str, Any]) -> tuple[Any, str | None]:
         if isinstance(raw, str):  # a model sometimes sends a list as JSON text or comma-separated words
             text = raw.strip()
             try:
@@ -234,7 +249,7 @@ class ActionValidation:
             raw = decoded if isinstance(decoded, list) else [part.strip() for part in text.split(",") if part.strip()]
         if not isinstance(raw, (list, tuple)):
             return None, f"must be a list, got {_preview(raw)}"
-        def count(bound: Any, key: str) -> Optional[int]:
+        def count(bound: Any, key: str) -> int | None:
             path = f"actions.{action}.params.{pname}.{key}"
             try:
                 value = compile_expr(bound)(self.world.scope(actor=actor, viewer=actor, params=params)) \
@@ -249,7 +264,7 @@ class ActionValidation:
         if len(raw) > high:
             return None, f"allows at most {high} item(s), got {len(raw)}"
         item = _item_spec(param)
-        values: List[Any] = []
+        values: list[Any] = []
         seen: set = set()
         for index, element in enumerate(raw):
             value, problem = self._value(actor, action, pname, item, element, params)
@@ -278,7 +293,7 @@ def _number_arg(raw: Any) -> Any:
     return raw
 
 
-def _given(param: ParamSpec, params: Dict[str, Any]) -> str:
+def _given(param: ParamSpec, params: dict[str, Any]) -> str:
     """Where an entity choice was refused: "here", or the earlier arguments its `where` reads ("given a=b1")."""
     read = sorted({path[1] for path in compile_expr(param.where).paths if path[0] == "params" and len(path) > 1}) \
         if param.where is not None else []
@@ -288,5 +303,5 @@ def _given(param: ParamSpec, params: Dict[str, Any]) -> str:
     return "given " + ", ".join(shown)
 
 
-def _waiting_on(pname: str, failed: List[str]) -> str:
+def _waiting_on(pname: str, failed: list[str]) -> str:
     return f"{pname} can be checked once {', '.join(failed)} {'is' if len(failed) == 1 else 'are'} corrected"

@@ -8,7 +8,8 @@ reports all name rounds through here, so they agree.
 from __future__ import annotations
 
 import datetime as _dt
-from typing import Any, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any
 
 from ..stdlib.dates import calendar_date
 
@@ -52,7 +53,7 @@ def plural(word: str, count: int) -> str:
     return word if count == 1 else f"{word}s"
 
 
-def round_start(clock: Mapping[str, Any], round_: int) -> Optional[_dt.datetime]:
+def round_start(clock: Mapping[str, Any], round_: int) -> _dt.datetime | None:
     """When a sub-day round starts, or None without a start date-time."""
     start = clock.get("start")
     if not start or not sub_day(clock):
@@ -72,7 +73,7 @@ def _day(moment: _dt.datetime) -> str:
     return f"{moment.strftime('%a')} {moment.day} {moment.strftime('%b')}"
 
 
-def period_label(clock: Mapping[str, Any], round_: int, *, capital: bool = False, rounds: Optional[int] = None) -> str:
+def period_label(clock: Mapping[str, Any], round_: int, *, capital: bool = False, rounds: int | None = None) -> str:
     """One round as a reader names it: ``09:30–10:00`` (``Mon 14 Sep 09:30–10:00`` when ``rounds`` span more than a
     day), ``Week 7 (2026-10-12)``, ``week 7`` without a date, ``round 7`` on a clock without units."""
     begin = round_start(clock, round_)
@@ -88,7 +89,7 @@ def period_label(clock: Mapping[str, Any], round_: int, *, capital: bool = False
     return f"{text} ({date})" if date else text
 
 
-def span_label(clock: Mapping[str, Any], first: int, last: int, *, rounds: Optional[int] = None) -> str:
+def span_label(clock: Mapping[str, Any], first: int, last: int, *, rounds: int | None = None) -> str:
     """Rounds ``first`` to ``last`` together: ``09:00–11:00``, ``weeks 3–5 (2026-01-19 to 2026-02-02)``."""
     if first == last:
         return period_label(clock, first, rounds=rounds)
@@ -108,7 +109,7 @@ def span_label(clock: Mapping[str, Any], first: int, last: int, *, rounds: Optio
     return text
 
 
-def _spans_days(clock: Mapping[str, Any], rounds: Optional[int]) -> bool:
+def _spans_days(clock: Mapping[str, Any], rounds: int | None) -> bool:
     if rounds is None:
         return False
     first, last = round_start(clock, 1), round_start(clock, rounds)

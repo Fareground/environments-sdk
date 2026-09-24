@@ -114,9 +114,9 @@ def test_missing_authors_and_explicit_recipients_preserve_full_scan_semantics():
 
 
 def test_indexed_reads_charge_accessible_work_and_still_bound_large_results():
+    from fg_env.errors import RunError
     from fg_env.expr import evaluate
     from fg_env.expr.base import shared_budget
-    from fg_env.errors import RunError
 
     env = fg_env.load(contract())
     for i in range(50):

@@ -2,7 +2,8 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Mapping, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..runtime.measure import ending
 from ..tournament.result import _columns
@@ -31,8 +32,8 @@ def _call(call: Mapping[str, Any]) -> str:
 
 def overview(data: Mapping[str, Any]) -> str:
     run = data["run"]
-    lines = [f"{run['status']} after {run['rounds']} round(s){ending(run['status'], run['ended_by'])} (seed {run['seed']}"
-             f"{', arm ' + run['arm'] if run['arm'] else ''}); {run['wakes']} wake(s)"]
+    lines = [f"{run['status']} after {run['rounds']} round(s){ending(run['status'], run['ended_by'])} (seed "
+             f"{run['seed']}{', arm ' + run['arm'] if run['arm'] else ''}); {run['wakes']} wake(s)"]
     if run["winner"] is not None:
         lines.append(f"winner: {run['winner']}")
     if run["budget"] and run["budget"].get("exhausted"):
@@ -52,8 +53,8 @@ def turns(wakes: Sequence[Mapping[str, Any]]) -> str:
 
 def _turn(wake: Mapping[str, Any]) -> str:
     when = f", time {wake['time']:g}" if "time" in wake else ""
-    lines = [f"Wake {wake['wake']}: {wake['entity']} ({wake['type']}), round {wake['round']}{when}, stage {wake['stage']}, "
-             f"turn {wake['turn']}{' (reaction)' if wake['kind'] == 'reaction' else ''}",
+    lines = [f"Wake {wake['wake']}: {wake['entity']} ({wake['type']}), round {wake['round']}{when}, stage "
+             f"{wake['stage']}, turn {wake['turn']}{' (reaction)' if wake['kind'] == 'reaction' else ''}",
              f"Why: {wake['reason']}"]
     for key in ("brief", "update"):
         text = wake[key]
@@ -100,19 +101,20 @@ def search(hits: Sequence[Mapping[str, Any]], text: str) -> str:
 
 
 def invalid(rows: Sequence[Mapping[str, Any]]) -> str:
-    lines = [f"{_prefix(row)} call {row['call']} {row['tool']}{(' ' + args_text(row['args'])) if args_text(row['args']) else ''}"
-             f" → {row['error']}: {one_line(row['correction'])}" for row in rows]
+    lines = [f"{_prefix(row)} call {row['call']} "
+             f"{row['tool']}{(' ' + args_text(row['args'])) if args_text(row['args']) else ''} → {row['error']}: "
+             f"{one_line(row['correction'])}" for row in rows]
     return "\n".join(lines) or "every call went through"
 
 
-def agent(data: Dict[str, Any]) -> str:
+def agent(data: dict[str, Any]) -> str:
     lines = [f"{data['entity']} ({data['type']}): {data['turns']} turn(s), {data['calls']} call(s), "
              f"{data['invalid']} invalid ({data['invalid_rate']:.0%}), {data['rejected']} rejected, "
              f"{data['timeouts']} timeout(s), {data['undone']} undone"]
     if data["llm_calls"] or data["input_tokens"] or data["output_tokens"]:
         lines.append(f"model: {data['llm_calls']} call(s), {data['input_tokens']:,} tokens in, "
                      f"{data['output_tokens']:,} tokens out")
-    tools: List[List[str]] = [["tool", "calls", "ok", "refused"]] + [
+    tools: list[list[str]] = [["tool", "calls", "ok", "refused"]] + [
         [name, str(t["calls"]), str(t["ok"]), str(t["refused"])] for name, t in data["tools"].items()]
     if len(tools) > 1:
         lines += _columns(tools)

@@ -38,15 +38,16 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import TYPE_CHECKING, Any, Dict, Iterable, List, Mapping, Optional, Set
+from collections.abc import Iterable, Mapping
+from typing import TYPE_CHECKING, Any
 
 from ..world.entity import Entity
 from ..world.live import Entry, LogEvent
 
 if TYPE_CHECKING:
     from ..actions.book import ToolSpec
-    from ..effects.chance import ChanceNode
     from ..contract import Contract
+    from ..effects.chance import ChanceNode
     from .env import Env
     from .session import ToolResult
     from .turn import Turn
@@ -57,7 +58,7 @@ __all__ = ["Shown", "Exposure", "ExposureLog", "asks_seen", "recording", "text_h
 HASH_DIGITS = 16
 
 
-def asks_seen(contract: "Contract") -> bool:
+def asks_seen(contract: Contract) -> bool:
     """Whether the contract's rules call `$seen`, so the run must record what agents were shown."""
     return "$seen(" in json.dumps(contract.model_dump(by_alias=True, exclude_defaults=True), default=str)
 
@@ -77,10 +78,10 @@ class Shown:
     __slots__ = ("views", "news", "events", "entries")
 
     def __init__(self) -> None:
-        self.views: List[tuple] = []
-        self.news: List[int] = []
-        self.events: List[int] = []
-        self.entries: List[int] = []
+        self.views: list[tuple] = []
+        self.news: list[int] = []
+        self.events: list[int] = []
+        self.entries: list[int] = []
 
     def item(self, value: Any) -> None:
         """Note an item a view listed, when it is something `$seen` can ask about."""
@@ -93,11 +94,11 @@ class Shown:
 class Exposure:
     """One wake's record, filled in while the turn runs (always under the run's lock)."""
 
-    def __init__(self, log: "ExposureLog", turn: "Turn", kind: str):
+    def __init__(self, log: ExposureLog, turn: Turn, kind: str):
         self.log = log
         self.staged = turn.staged
         world = self._world = turn.env.world
-        record: Dict[str, Any] = {"entity": turn.actor.id, "type": turn.actor.entity_type, "round": turn.round,
+        record: dict[str, Any] = {"entity": turn.actor.id, "type": turn.actor.entity_type, "round": turn.round,
                                   "stage": turn.stage.name, "turn": turn.number, "kind": kind,
                                   "reason": str.__str__(turn.reason)}
         if world.continuous:
@@ -107,11 +108,11 @@ class Exposure:
         record.update(brief=None, update=None, views=[], news=[], entries=[], view_events=[], tools=[],
                       tool_sets=[], calls=[])
         self.record = record
-        self._deferred: List[Shown] = []
+        self._deferred: list[Shown] = []
         #: The record as appended to the log, once the turn has closed.
-        self.logged: Optional[Dict[str, Any]] = None
+        self.logged: dict[str, Any] | None = None
 
-    def _text(self, text: str) -> Dict[str, Any]:
+    def _text(self, text: str) -> dict[str, Any]:
         return {"hash": self.log.keep(text), "chars": len(text), "tokens": tokens(text)}
 
     def read_brief(self, text: str) -> None:
@@ -127,7 +128,7 @@ class Exposure:
     def _show(self, shown: Shown, look: bool) -> None:
         record = self.record
         for name, text in shown.views:
-            view: Dict[str, Any] = {"name": name, "hash": self.log.keep(text)}
+            view: dict[str, Any] = {"name": name, "hash": self.log.keep(text)}
             if look:
                 view["look"] = True
             record["views"].append(view)
@@ -149,7 +150,7 @@ class Exposure:
         delivered = self.record.setdefault("assets", [])
         delivered.extend({"id": asset.id, "hash": asset.hash, "in": where} for asset in assets)
 
-    def offered(self, tools: Iterable["ToolSpec"]) -> None:
+    def offered(self, tools: Iterable[ToolSpec]) -> None:
         listed = list(tools)
         record = self.record
         for tool in listed:
@@ -159,8 +160,8 @@ class Exposure:
         if not record["tool_sets"] or record["tool_sets"][-1] != digest:
             record["tool_sets"].append(digest)
 
-    def called(self, name: Any, args: Any, result: "ToolResult") -> None:
-        call: Dict[str, Any] = {"tool": name if isinstance(name, str) else repr(name), "args": _jsonable(args),
+    def called(self, name: Any, args: Any, result: ToolResult) -> None:
+        call: dict[str, Any] = {"tool": name if isinstance(name, str) else repr(name), "args": _jsonable(args),
                                 "ok": result.ok, "ended": result.ended, "result": self.log.keep(result.text)}
         error = result.data.get("error") if result.data else None
         if error:
@@ -179,7 +180,7 @@ class Exposure:
                 if value:
                     usage[key] = usage.get(key, 0) + value
 
-    def close(self, turn: "Turn") -> None:
+    def close(self, turn: Turn) -> None:
         """Finish the record and append it to the log (called once, in the engine's turn order)."""
         record = self.record
         record["invalid"] = turn.stats.invalid_calls
@@ -197,12 +198,12 @@ class ExposureLog:
     """Every wake's record plus an index answering `$seen`."""
 
     def __init__(self) -> None:
-        self.texts: Dict[str, str] = {}
-        self.wakes: List[Dict[str, Any]] = []
-        self.chance: List[Dict[str, Any]] = []
-        self._events: Dict[str, Set[int]] = {}
-        self._entries: Dict[str, Set[int]] = {}
-        self._views: Dict[str, Set[str]] = {}
+        self.texts: dict[str, str] = {}
+        self.wakes: list[dict[str, Any]] = []
+        self.chance: list[dict[str, Any]] = []
+        self._events: dict[str, set[int]] = {}
+        self._entries: dict[str, set[int]] = {}
+        self._views: dict[str, set[str]] = {}
 
     def keep(self, text: str) -> str:
         plain = str.__str__(text)
@@ -210,15 +211,15 @@ class ExposureLog:
         self.texts.setdefault(digest, plain)
         return digest
 
-    def open(self, turn: "Turn", kind: str) -> Exposure:
+    def open(self, turn: Turn, kind: str) -> Exposure:
         return Exposure(self, turn, kind)
 
-    def append(self, record: Dict[str, Any]) -> Dict[str, Any]:
+    def append(self, record: dict[str, Any]) -> dict[str, Any]:
         logged = {"wake": len(self.wakes), **record}
         self.wakes.append(logged)
         return logged
 
-    def picked(self, node: "ChanceNode", index: int, round: int) -> None:
+    def picked(self, node: ChanceNode, index: int, round: int) -> None:
         """Note an outcome a chooser picked (sampled outcomes need no note: the seed replays them)."""
         self.chance.append({"chance": node.name, "site": node.site, "index": index,
                             "label": node.outcomes[index].label, "round": round})
@@ -228,7 +229,7 @@ class ExposureLog:
         self._entries.setdefault(entity_id, set()).update(shown.entries)
         self._views.setdefault(entity_id, set()).update(name for name, _ in shown.views)
 
-    def seen(self, viewer: Any, item: Any) -> Optional[bool]:
+    def seen(self, viewer: Any, item: Any) -> bool | None:
         """Whether ``viewer`` was shown ``item`` (an event, a record entry, or a view by name); None when
         ``item`` is none of those."""
         viewer_id = viewer.id if isinstance(viewer, Entity) else viewer
@@ -240,13 +241,13 @@ class ExposureLog:
             return item in self._views.get(viewer_id, ())
         return None
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         # Sorted: concurrent turns store their texts in whatever order they finish.
         return {"texts": dict(sorted(self.texts.items())), "wakes": [_detached(w) for w in self.wakes],
                 "chance": [dict(pick) for pick in self.chance]}
 
     @classmethod
-    def from_dict(cls, data: Mapping[str, Any]) -> "ExposureLog":
+    def from_dict(cls, data: Mapping[str, Any]) -> ExposureLog:
         log = cls()
         log.texts = dict(data.get("texts") or {})
         log.chance = [dict(pick) for pick in data.get("chance") or []]
@@ -259,7 +260,7 @@ class ExposureLog:
         return log
 
 
-def recording(env: "Env") -> Dict[str, Any]:
+def recording(env: Env) -> dict[str, Any]:
     """``result.exposures``: the exposure log and, for a run that continues a fork, the ``start`` it replays from."""
     log = env.world.exposures
     if log is None:
@@ -270,7 +271,7 @@ def recording(env: "Env") -> Dict[str, Any]:
     return data
 
 
-def _detached(record: Mapping[str, Any]) -> Dict[str, Any]:
+def _detached(record: Mapping[str, Any]) -> dict[str, Any]:
     """A copy of a logged wake that usage reported later (added to the log's own record) leaves unchanged."""
     return {**record, **{key: dict(record[key]) for key in ("usage", "late_usage") if key in record}}
 

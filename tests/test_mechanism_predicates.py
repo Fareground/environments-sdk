@@ -3,9 +3,9 @@ import copy
 import json
 
 import pytest
+from test_mech_dynamics import ARENA, MAGES, _script
 
 import fg_env
-from test_mech_dynamics import ARENA, MAGES, _script
 
 CONDITIONS = [('false', False), ('1 > 2', False), ('true', True), ('1 < 2', True)]
 
@@ -74,6 +74,7 @@ def test_channel_interrupt_controls_pending_resolution_and_restore(condition, in
 @pytest.mark.parametrize('condition,enabled', CONDITIONS)
 def test_demand_filter_and_report_replay_agree(condition, enabled):
     from store_fixtures import store
+
     from fg_env.report.demand import _replay
     c = store(rounds=1, rate=0, segments={'bulk': {'rate': 3, 'where': condition}})
     env = fg_env.load(c, seed=1)

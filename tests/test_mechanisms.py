@@ -40,7 +40,8 @@ def test_a_ballot_short_of_quorum_still_shows_its_counts_but_decides_nothing():
     short = tally("plurality", {"a": "x", "b": "x", "c": "y"}, ["x", "y"], eligible=10, quorum=0.5)
     assert short["reason"] == "no quorum" and short["winner"] is None and not short["decided"]
     assert short["counts"] == {"x": 2, "y": 1} and short["turnout"] == pytest.approx(0.3)
-    tied = tally("plurality", {"a": "x", "b": "y"}, ["x", "y"], eligible=10, quorum=0.5)  # no seed needed: no tie is drawn
+    tied = tally("plurality", {"a": "x", "b": "y"}, ["x", "y"], eligible=10,
+                 quorum=0.5)  # no seed needed: no tie is drawn
     assert tied["counts"] == {"x": 1, "y": 1} and tied["winner"] is None
 
 
@@ -150,7 +151,8 @@ def test_quorum_and_one_ballot_per_voter():
         wake.end()
 
     fg_env.load({**COUNCIL, "stages": [{"name": "talk", "turns": "sequential", "max_actions": 2}],
-                 "mechanisms": {"budget": {**COUNCIL["mechanisms"]["budget"], "stage": "talk"}}}, seed=1).run(double, rounds=1)
+                 "mechanisms": {"budget": {**COUNCIL["mechanisms"]["budget"], "stage": "talk"}}},
+                seed=1).run(double, rounds=1)
     assert True in seen
 
 
@@ -160,7 +162,8 @@ def test_a_declared_event_or_end_entry_replaces_the_generated_one_of_its_name():
             "events": [{"name": "win_most", "phase": "end", "at": 2, "do": [{"end": "most", "winner": "$entity(b)"}]}],
             "end": [{"name": "first_to", "when": "false"}],
             "mechanisms": {"win": {"kind": "flow", "mode": "victory", "who": "p",
-                                   "conditions": [{"first_to": 0, "score": "$it.score"}, {"most": "$it.score", "at": 4}]}}}
+                                   "conditions": [{"first_to": 0, "score": "$it.score"},
+                                                  {"most": "$it.score", "at": 4}]}}}
     contract = fg_env.parse(race)
     assert [e.name for e in contract.events] == ["win_most"] and [e.when for e in contract.end] == ["false"]
     result = fg_env.run(race, seed=1)
@@ -189,7 +192,8 @@ def test_authors_override_generated_parts_and_arms_patch_mechanism_config():
 
 def _security_council(**config):
     council = {"kind": "decision", "mode": "ballot", "who": "member", "options": ["adopt", "reject"],
-               "method": "supermajority", "threshold": 0.6, "threshold_of": "members", "veto": "$it.permanent", **config}
+               "method": "supermajority", "threshold": 0.6, "threshold_of": "members", "veto": "$it.permanent",
+               **config}
     return {"name": "Council", "clock": {"rounds": 1},
             "types": {"member": {"agent": True, "props": {"permanent": False, "shares": 1}}},
             "entities": {**{p: {"type": "member", "props": {"permanent": True}} for p in ("p1", "p2")},
@@ -220,7 +224,8 @@ def test_ballot_weights_votes_measures_the_threshold_over_members_and_honours_a_
     assert not vetoed["passed"] and vetoed["vetoed"] == ["p1"]
     assert result(_security_council(), {**yes, "p1": "abstain", "e3": "adopt"})["passed"]
     assert not result(_security_council(), {"p1": "adopt", "p2": "adopt", "e1": "reject"})["passed"]  # 2 of 5 members
-    shareholders = _security_council(method="majority", threshold=None, threshold_of="votes", veto=None, weight="$it.shares")
+    shareholders = _security_council(method="majority", threshold=None, threshold_of="votes", veto=None,
+                                     weight="$it.shares")
     shareholders["entities"]["e3"]["props"] = {"shares": 10}
     held = result(shareholders, {"p1": "adopt", "p2": "adopt", "e1": "adopt", "e2": "adopt", "e3": "reject"})
     assert held["winner"] == "reject" and held["counts"] == {"reject": 10, "adopt": 4}
@@ -263,7 +268,8 @@ def test_mechanism_config_errors_say_what_to_fix():
 
 
 def test_a_mode_written_as_the_kind_names_its_family():
-    old = next(i for i in _issues(_budget(kind="ballot", voters="member", options=["a"])) if i.path == "mechanisms.budget.kind")
+    old = next(i for i in _issues(_budget(kind="ballot", voters="member", options=["a"])) if i.path
+               == "mechanisms.budget.kind")
     assert old.message == "'ballot' is a mode of kind 'decision'"
     assert '"kind": "decision", "mode": "ballot"' in old.fix
 
@@ -284,7 +290,8 @@ def test_check_warns_when_an_authored_action_replaces_a_generated_one_without_it
     silent = {**COUNCIL, "actions": {"budget_vote": {**expanded, "do": []}}}
     warned = [i for i in fg_env.check(silent) if i.severity == "warning" and i.path == "actions.budget_vote"]
     assert len(warned) == 1 and "budget" in warned[0].message and "fg-env expand" in warned[0].fix
-    guarded = {**COUNCIL, "actions": {"budget_vote": {**expanded, "when": [{"expr": "$actor.mood >= 0", "why": "Too upset."}]}}}
+    guarded = {**COUNCIL,
+               "actions": {"budget_vote": {**expanded, "when": [{"expr": "$actor.mood >= 0", "why": "Too upset."}]}}}
     assert not [i for i in fg_env.check(guarded) if i.path == "actions.budget_vote"]
 
 
@@ -341,7 +348,8 @@ def test_guide_documents_mechanisms_and_native_ops():
 
 def test_a_def_shadows_a_built_in_function_of_the_same_name():
     contract = {**COUNCIL, "defs": {"median": {"args": ["x"], "expr": "$x * 10"}},
-                "world": {"shown": 0}, "stages": [{"name": "s", "turns": "sequential", "on_enter": ["$world.shown = $median(4)"]}]}
+                "world": {"shown": 0},
+                "stages": [{"name": "s", "turns": "sequential", "on_enter": ["$world.shown = $median(4)"]}]}
     issues = fg_env.check(contract)
     assert not [i for i in issues if i.severity == "error"], issues
     assert any("shadows the built-in $median" in i.message for i in issues)
@@ -355,7 +363,8 @@ SHOP_LIST = {
     "clock": {"rounds": 1},
     "world": {"picked": {"type": "list", "default": []}},
     "types": {"shopper": {"agent": True}, "item": {"props": {"price": 1}}},
-    "entities": {"s": {"type": "shopper"}, "apple": {"type": "item"}, "pear": {"type": "item"}, "fig": {"type": "item"}},
+    "entities": {"s": {"type": "shopper"}, "apple": {"type": "item"}, "pear": {"type": "item"},
+                 "fig": {"type": "item"}},
     "actions": {
         "rank": {"by": "shopper", "params": {"order": {"type": "list", "values": ["red", "green", "blue"],
                                                        "min_items": 2, "max_items": 3}},
@@ -416,7 +425,8 @@ def test_ranked_ballot_runs_instant_runoff():
 
 
 def _scratch_contract(family, mode_name, **sections):
-    return {"name": "Scratch", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p"}},
+    return {"name": "Scratch", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+            "entities": {"p": {"type": "p"}},
             "stages": [{"name": "s", "turns": "sequential"}], "mechanisms": {"n": {"kind": family, "mode": mode_name}},
             **sections}
 
@@ -430,9 +440,9 @@ def _go(env):
 
 
 def test_a_family_op_is_identified_by_its_own_key_even_with_core_op_named_fields():
-    from fg_env.registry import family_action, mode
-
     from family_fixtures import Nothing, scratch_family
+
+    from fg_env.registry import family_action, mode
 
     with scratch_family("test_nudge"):
         mode("test_nudge", "counter", Nothing, "A counter.")(lambda name, config, contract: {})
@@ -455,9 +465,9 @@ def test_a_family_op_is_identified_by_its_own_key_even_with_core_op_named_fields
 
 
 def test_a_post_keeps_fields_named_like_family_ops_and_undeclared_mixes_are_ambiguous():
-    from fg_env.registry import family_action, mode
-
     from family_fixtures import Nothing, scratch_family
+
+    from fg_env.registry import family_action, mode
 
     with scratch_family("test_stamp"):
         mode("test_stamp", "pad", Nothing, "A stamp pad.")(lambda name, config, contract: {})
@@ -474,17 +484,17 @@ def test_a_post_keeps_fields_named_like_family_ops_and_undeclared_mixes_are_ambi
         env = fg_env.load(contract, seed=1)
         _go(env)
         assert [row["test_stamp"] for row in env.world.records_store["log"]] == ["hello"] and env.props["stamped"] == 0
-        mixed = {**contract, "actions": {"go": {"by": "p", "do": [{"test_stamp": "n", "action": "stamp", "move": "$actor"}],
-                                                "terminal": True}}}
+        mixed = {**contract,
+                 "actions": {"go": {"by": "p", "do": [{"test_stamp": "n", "action": "stamp", "move": "$actor"}],
+                                    "terminal": True}}}
         assert any("names exactly one" in i.message for i in _issues(mixed))
 
 
 def test_guide_renders_factory_defaults_of_mode_config():
+    from family_fixtures import scratch_family
     from pydantic import BaseModel, Field
 
     from fg_env.registry import mode
-
-    from family_fixtures import scratch_family
 
     class WithFactory(BaseModel):
         tiebreak: list = Field(default_factory=list, description="Tie-breakers.")
@@ -496,9 +506,9 @@ def test_guide_renders_factory_defaults_of_mode_config():
 
 
 def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blamed_on_participants():
-    from fg_env.registry import family_action, mode
-
     from family_fixtures import Nothing, scratch_family
+
+    from fg_env.registry import family_action, mode
 
     def crash(name, config, contract):
         raise KeyError("missing piece")
@@ -509,7 +519,8 @@ def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blam
     with scratch_family("test_crash"):
         mode("test_crash", "expand", Nothing, "Crashes while expanding.")(crash)
         mode("test_crash", "ops", Nothing, "Has crashing actions.")(lambda name, config, contract: {})
-        family_action("test_crash", ("ops",), "checked", example="{}", check=bad_check)(lambda runner, effect, vars, where: None)
+        family_action("test_crash", ("ops",), "checked", example="{}", check=bad_check)(
+            lambda runner, effect, vars, where: None)
 
         @family_action("test_crash", ("ops",), "boom", example="{}")
         def _boom(runner, effect, vars, where):
@@ -521,7 +532,8 @@ def test_crashing_extensions_are_reported_against_their_use_never_raised_or_blam
         hooked = {**base, "mechanisms": {"vote": {"kind": "decision", "mode": "ballot", "who": "p", "options": ["a"],
                                                   "stage": "nowhere"}}}
         assert any("there is no stage 'nowhere'" in i.message for i in fg_env.check(hooked))
-        checked = {**base, "actions": {"go": {"by": "p", "do": [{"test_crash": "n", "action": "checked"}], "terminal": True}}}
+        checked = {**base,
+                   "actions": {"go": {"by": "p", "do": [{"test_crash": "n", "action": "checked"}], "terminal": True}}}
         assert any("the `test_crash.checked` check failed: ValueError" in i.message for i in fg_env.check(checked))
         env = fg_env.load({**base, "actions": {"go": {"by": "p", "do": [{"test_crash": "n", "action": "boom"}],
                                                       "terminal": True}}}, seed=1)

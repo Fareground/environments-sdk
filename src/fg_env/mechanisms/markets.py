@@ -18,6 +18,8 @@ with conserved :func:`.ledger.move` calls.
 """
 from __future__ import annotations
 
+# The order is the order the modes are listed in.
+# isort: off
 from . import market_stats  # noqa: F401
 from . import order_book  # noqa: F401
 from . import book_mechanism  # noqa: F401
@@ -27,5 +29,7 @@ from . import package_auction  # noqa: F401
 from . import auction_mechanism  # noqa: F401
 from . import auction_reads  # noqa: F401
 from . import posted  # noqa: F401
+# isort: on
 
-__all__ = ["market_stats", "order_book", "book_mechanism", "traders", "amm", "package_auction", "auction_mechanism", "auction_reads", "posted"]
+__all__ = ["market_stats", "order_book", "book_mechanism", "traders", "amm", "package_auction", "auction_mechanism",
+           "auction_reads", "posted"]

@@ -16,15 +16,16 @@ Shapes (how a kind is read):
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Type, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 __all__ = ["Number", "PatternConfig", "FitSpec", "KindSpec", "KINDS", "GROUPS", "SHAPES", "kind", "MEMORY_STATE"]
 
 #: A number, or an expression over ``$inputs`` (and ``$key``/``$row`` for keyed patterns) giving one.
-Number = Union[float, str]
+Number = float | str
 
 #: The world property holding memory patterns' state between rounds (managed by the engine).
 MEMORY_STATE = "patterns_memory"
@@ -32,9 +33,10 @@ MEMORY_STATE = "patterns_memory"
 SHAPES = ("signal", "process", "draw", "response", "memory", "composite")
 
 #: Groups in the order the guide teaches them: (name, what the group is for).
-GROUPS: Dict[str, str] = {
+GROUPS: dict[str, str] = {
     "time": "values that follow time: trends, seasons, calendars, cycles, lifecycles, steps and data series",
-    "random": "random paths drawn from seeded streams: walks, mean reversion, autoregression, volatility, regimes, shocks, noise, weather",
+    "random": "random paths drawn from seeded streams: walks, mean reversion, autoregression, volatility, regimes, "
+              "shocks, noise, weather",
     "response": "how a quantity answers a driver: price elasticity, substitution, promotions, saturation, thresholds, "
                 "reference prices, learning curves, network effects, hazards",
     "population": "differences between entities and how things spread: draws, segments, diffusion, habit and fatigue",
@@ -50,8 +52,8 @@ class FitFactor(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     column: str = Field(..., description="Column holding the driver (price, promotion depth).")
-    key: Optional[str] = Field(None, description="Its key, as an expression over $key and $row (the product's table row): "
-                                                 "$row.category.")
+    key: str | None = Field(None, description="Its key, as an expression over $key and $row (the product's table row): "
+                                              "$row.category.")
 
 
 class FitSpec(BaseModel):
@@ -61,23 +63,25 @@ class FitSpec(BaseModel):
 
     data: str = Field(..., description="Expression over $inputs giving the rows (a table input, e.g. $inputs.history).")
     value: str = Field(..., description="Column holding the observed quantity.")
-    time: Optional[str] = Field(None, description="Column holding when each row happened: an ISO date, or clock units "
-                                                  "from round 1 (0, 1, 2 …). Needed by time patterns.")
-    key: Optional[str] = Field(None, description="Column holding each row's key (keyed patterns fit one set of parameters per key).")
-    x: Union[str, Dict[str, Union[str, "FitFactor"]], None] = Field(
+    time: str | None = Field(None, description="Column holding when each row happened: an ISO date, or clock units "
+                                               "from round 1 (0, 1, 2 …). Needed by time patterns.")
+    key: str | None = Field(None,
+                            description="Column holding each row's key (keyed patterns fit one set of parameters per "
+                                        "key).")
+    x: str | dict[str, str | FitFactor] | None = Field(
         None, description="Column holding the driver a response answers (price, spend, exposure); for a product, "
                           "{pattern: column or {column, key}} for every response that multiplies it in the data "
                           "(its price response, its promotion), fitted together with it.")
-    noise: Optional[str] = Field(None, description="A product's counts pattern: its dispersion is estimated from the "
-                                                   "same rows, around the fitted means.")
-    mean: Optional[str] = Field(None, description="Column holding the expected value of each row (counts: the spread "
-                                                  "around it is what is estimated).")
-    censored: Optional[str] = Field(None, description="Column that is 1 (or true) where demand went unmet — sales capped "
-                                                      "by a stockout, so the true value was more than the one recorded. "
-                                                      "Those rows are fitted as censored (expectation–maximisation), not "
-                                                      "dropped.")
-    where: Optional[str] = Field(None, description="Keep only rows where this holds ($row), e.g. $row.returns == 0.")
-    adjust: List[str] = Field(default_factory=list, description="Patterns already fitted that the value is divided by "
+    noise: str | None = Field(None, description="A product's counts pattern: its dispersion is estimated from the "
+                                                "same rows, around the fitted means.")
+    mean: str | None = Field(None, description="Column holding the expected value of each row (counts: the spread "
+                                               "around it is what is estimated).")
+    censored: str | None = Field(None, description="Column that is 1 (or true) where demand went unmet — sales capped "
+                                                   "by a stockout, so the true value was more than the one recorded. "
+                                                   "Those rows are fitted as censored (expectation–maximisation), not "
+                                                   "dropped.")
+    where: str | None = Field(None, description="Keep only rows where this holds ($row), e.g. $row.returns == 0.")
+    adjust: list[str] = Field(default_factory=list, description="Patterns already fitted that the value is divided by "
                                                                 "first (a season before a price response); for counts, "
                                                                 "their product is the expected value.")
 
@@ -90,20 +94,21 @@ class PatternConfig(BaseModel):
     kind: str
     description: str = Field("", description="What it stands for, in plain words.")
     unit: str = ""
-    keys: Union[str, List[Any], None] = Field(
+    keys: str | list[Any] | None = Field(
         None, description="One instance per key: an entity type (keys are its ids), a list, or an expression over "
                           "$inputs giving the keys. Read with the key as the last argument: $pattern.season($it.sku).")
-    table: Optional[str] = Field(None, description="Expression over $inputs giving one row per key; parameters read "
-                                                   "the row as $row (per-SKU profiles). Keys default to its `column`.")
-    column: Optional[str] = Field(None, description="The table column holding each row's key.")
-    min: Optional[Number] = Field(None, description="Lowest value it gives.")
-    max: Optional[Number] = Field(None, description="Highest value it gives.")
+    table: str | None = Field(None, description="Expression over $inputs giving one row per key; parameters read "
+                                                "the row as $row (per-SKU profiles). Keys default to its `column`.")
+    column: str | None = Field(None, description="The table column holding each row's key.")
+    min: Number | None = Field(None, description="Lowest value it gives.")
+    max: Number | None = Field(None, description="Highest value it gives.")
     record: bool = Field(False, description="Record it every round as a metric of the same name ($series.<name>).")
-    fit: Optional[FitSpec] = Field(None, description="Estimate its parameters from data with fg_env.analysis.fit_patterns.")
-    uncertainty: Dict[str, Union[Number, List[Number]]] = Field(
-        default_factory=dict, description="{parameter: standard error} (written by fit): each run draws the parameter "
-                                          "once from a normal around its value, so forecasts carry estimation uncertainty. "
-                                          "An error of 0 uses the value as it is.")
+    fit: FitSpec | None = Field(None,
+                                description="Estimate its parameters from data with fg_env.analysis.fit_patterns.")
+    uncertainty: dict[str, Number | list[Number]] = Field(
+        default_factory=dict, description="{parameter: standard error} (written by fit): each run draws the "
+                                          "parameter once from a normal around its value, so forecasts carry "
+                                          "estimation uncertainty. An error of 0 uses the value as it is.")
 
     @property
     def keyed(self) -> bool:
@@ -120,34 +125,34 @@ class KindSpec:
     name: str
     group: str
     shape: str
-    model: Type[PatternConfig]
+    model: type[PatternConfig]
     doc: str
-    example: Dict[str, Any]
+    example: dict[str, Any]
     evaluate: Evaluate
     #: Names of the arguments it is called with (a function of the config when they depend on it).
-    args: Union[Tuple[str, ...], Callable[[Any], Tuple[str, ...]]] = ()
+    args: tuple[str, ...] | Callable[[Any], tuple[str, ...]] = ()
     #: Draws from the pattern's own stream (an unkeyed random pattern may be given a key to separate streams).
     random: bool = False
     #: One sentence saying what a config does, for describe.
     words: Callable[[Any], str] = lambda cfg: ""
     #: Fields evaluated once per run (and key) — the rest are read raw.
-    params: Tuple[str, ...] = ()
+    params: tuple[str, ...] = ()
     #: For memory kinds: the next state after a round, given the context, the input now and the state before.
-    commit: Optional[Callable[..., Dict[str, Any]]] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
+    commit: Callable[..., dict[str, Any]] | None = None
+    extra: dict[str, Any] = field(default_factory=dict)
 
-    def arg_names(self, cfg: Any) -> Tuple[str, ...]:
+    def arg_names(self, cfg: Any) -> tuple[str, ...]:
         return self.args(cfg) if callable(self.args) else self.args
 
 
-KINDS: Dict[str, KindSpec] = {}
+KINDS: dict[str, KindSpec] = {}
 
 
 def kind(name: str, group: str, shape: Literal["signal", "process", "draw", "response", "memory", "composite"],
-         model: Type[PatternConfig], doc: str, *, example: Dict[str, Any],
-         args: Union[Tuple[str, ...], Callable[[Any], Tuple[str, ...]]] = (), random: bool = False,
-         words: Callable[[Any], str] = lambda cfg: "", params: Tuple[str, ...] = (),
-         commit: Optional[Callable[..., Dict[str, Any]]] = None) -> Callable[[Evaluate], Evaluate]:
+         model: type[PatternConfig], doc: str, *, example: dict[str, Any],
+         args: tuple[str, ...] | Callable[[Any], tuple[str, ...]] = (), random: bool = False,
+         words: Callable[[Any], str] = lambda cfg: "", params: tuple[str, ...] = (),
+         commit: Callable[..., dict[str, Any]] | None = None) -> Callable[[Evaluate], Evaluate]:
     """Register a pattern kind. ``params`` are the fields that may be expressions (evaluated once per run and key)."""
     if group not in GROUPS:
         raise ValueError(f"unknown pattern group '{group}'")

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 import threading
-from typing import Any, Callable, Mapping, Optional
+from collections.abc import Callable, Mapping
+from typing import Any
 
 __all__ = [
     "EVAL_BUDGET", "MAX_INT_BITS", "MAX_LIST_LEN", "MAX_RANGE", "MAX_TEXT_LEN", "Untrusted", "tainted", "derived",
-    "ExprError", "PrivateRead", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy", "EXPRESSION_WORDS",
+    "ExprError", "PrivateRead", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy",
+    "EXPRESSION_WORDS",
 ]
 
 _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
@@ -65,7 +67,7 @@ def derived(text: str, *sources: Any) -> str:
 class ExprError(ValueError):
     """An expression is malformed or cannot be evaluated against the current state."""
 
-    def __init__(self, message: str, source: Optional[str] = None):
+    def __init__(self, message: str, source: str | None = None):
         self.source = source
         self.detail = message
         super().__init__(f"{message} — in `{source}`" if source else message)
@@ -105,7 +107,7 @@ class _Budget(threading.local):
 _BUDGET = _Budget()
 
 
-def charge(amount: int, source: Optional[str] = None) -> None:
+def charge(amount: int, source: str | None = None) -> None:
     """Count ``amount`` units of work against the running evaluation's budget."""
     budget = _BUDGET
     budget.used += amount
@@ -120,7 +122,7 @@ def charge(amount: int, source: Optional[str] = None) -> None:
             "narrow what it loops over or split the work across rounds", source)
 
 
-def check_size(value: Any, source: Optional[str]) -> Any:
+def check_size(value: Any, source: str | None) -> Any:
     """Refuse lists and text longer than :data:`MAX_LIST_LEN` / :data:`MAX_TEXT_LEN`."""
     if isinstance(value, str):
         if len(value) > MAX_TEXT_LEN:

@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any, List, Optional
+from typing import Any
 
-from ..expr import MAX_TEXT_LEN, Call, check_size, charge, derived, function
+from ..expr import MAX_TEXT_LEN, Call, charge, check_size, derived, function
 from ._args import fail, int_arg, optional_text, text_arg
 from .regex import PatternError, compile_pattern, search
 
@@ -13,13 +13,14 @@ MAX_SIMILAR_LEN = 1_000
 _WORD = re.compile(r"[^\W_]+(?:['’-][^\W_]+)*")  # linear: every repetition consumes a letter or digit
 
 
-def _pieces(parts: List[str], *sources: Any) -> List[str]:
+def _pieces(parts: list[str], *sources: Any) -> list[str]:
     return check_size([derived(part, *sources) for part in parts], None)
 
 
-@function("split(text, separator?)", "Text cut into a list at each `separator` (default: runs of whitespace, ends trimmed).",
+@function("split(text, separator?)",
+          "Text cut into a list at each `separator` (default: runs of whitespace, ends trimmed).",
           min_args=1, max_args=2)
-def _split(call: Call) -> List[str]:
+def _split(call: Call) -> list[str]:
     text = text_arg(call, 0)
     if len(call) < 2 or call.arg(1) is None:
         return _pieces(text.split(), text)
@@ -30,14 +31,15 @@ def _split(call: Call) -> List[str]:
 
 
 @function("chars(text)", "The characters of text as a list.", min_args=1, max_args=1)
-def _chars(call: Call) -> List[str]:
+def _chars(call: Call) -> list[str]:
     text = text_arg(call, 0)
     return _pieces(list(text), text)
 
 
-@function("words(text)", "The words in text (letters and digits, keeping inner apostrophes and hyphens), punctuation dropped.",
+@function("words(text)",
+          "The words in text (letters and digits, keeping inner apostrophes and hyphens), punctuation dropped.",
           min_args=1, max_args=1)
-def _words(call: Call) -> List[str]:
+def _words(call: Call) -> list[str]:
     text = text_arg(call, 0)
     return _pieces(_WORD.findall(text), text)
 
@@ -60,7 +62,8 @@ def _trim(call: Call) -> str:
     return derived(text.strip(), text)
 
 
-@function("replace(text, old, new)", "Text with every `old` replaced by `new` (case-sensitive).", min_args=3, max_args=3)
+@function("replace(text, old, new)", "Text with every `old` replaced by `new` (case-sensitive).", min_args=3,
+          max_args=3)
 def _replace(call: Call) -> str:
     text, old, new = text_arg(call, 0), text_arg(call, 1, "the text to find"), text_arg(call, 2, "the replacement text")
     if not old:
@@ -73,13 +76,14 @@ def _replace(call: Call) -> str:
     return derived(text.replace(old, new), text, new)
 
 
-def _position(call: Call, index: int, length: int, default: Optional[int]) -> Optional[int]:
+def _position(call: Call, index: int, length: int, default: int | None) -> int | None:
     if index >= len(call) or call.arg(index) is None:
         return default
     return int_arg(call, index, what="a character position (negative counts from the end)")
 
 
-@function("substr(text, start, end?)", "Characters from `start` up to (not including) `end`; negative positions count from the end.",
+@function("substr(text, start, end?)",
+          "Characters from `start` up to (not including) `end`; negative positions count from the end.",
           min_args=2, max_args=3)
 def _substr(call: Call) -> str:
     text = text_arg(call, 0)
@@ -98,7 +102,8 @@ def _ends_with(call: Call) -> bool:
     return text_arg(call, 0).endswith(text_arg(call, 1, "the suffix text"))
 
 
-@function("index_of(text, part)", "Position of the first `part` in text (case-sensitive), or -1.", min_args=2, max_args=2)
+@function("index_of(text, part)", "Position of the first `part` in text (case-sensitive), or -1.", min_args=2,
+          max_args=2)
 def _index_of(call: Call) -> int:
     return text_arg(call, 0).find(text_arg(call, 1, "the text to find"))
 
@@ -112,7 +117,8 @@ def _count_text(call: Call) -> int:
     return text_arg(call, 0).count(part)
 
 
-@function("pad(text, width, fill?, side?)", "Text padded with `fill` (default a space) to `width` characters; `side` left (default), right or both.",
+@function("pad(text, width, fill?, side?)",
+          "Text padded with `fill` (default a space) to `width` characters; `side` left (default), right or both.",
           min_args=2, max_args=4)
 def _pad(call: Call) -> str:
     text = text_arg(call, 0)
@@ -145,7 +151,8 @@ def _repeat_text(call: Call) -> str:
 
 
 @function("matches(text, pattern)",
-          "True when the regular expression occurs in text. Linear-time subset: . [a-z] [^x] \\d \\w \\s ^ $ ( ) (?: ) | * + ? {m,n}; no backreferences or lookaround.",
+          "True when the regular expression occurs in text. Linear-time subset: . [a-z] [^x] \\d \\w \\s ^ $ ( ) (?: ) "
+          "| * + ? {m,n}; no backreferences or lookaround.",
           min_args=2, max_args=2)
 def _matches(call: Call) -> bool:
     text = text_arg(call, 0)
@@ -157,7 +164,9 @@ def _matches(call: Call) -> bool:
     return search(program, text, lambda steps: charge(steps, call.source))
 
 
-@function("similar(a, b)", "How alike two texts are, 0–1: 1 minus the edit (Levenshtein) distance over the longer length. Case-sensitive.",
+@function("similar(a, b)",
+          "How alike two texts are, 0–1: 1 minus the edit (Levenshtein) distance over the longer length. "
+          "Case-sensitive.",
           min_args=2, max_args=2)
 def _similar(call: Call) -> float:
     a, b = text_arg(call, 0), text_arg(call, 1)

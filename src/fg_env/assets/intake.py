@@ -13,9 +13,10 @@ from __future__ import annotations
 import base64
 import binascii
 import os
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 from . import blobs
 from .kinds import HARD_MAX_BYTES, KINDS, MAX_BYTES
@@ -32,7 +33,7 @@ _SHAPES = ('{"data": "<base64>", "name": "file name"}, {"text": "<document text>
            'or {"asset": "<id of a file submitted in this run>"}')
 
 
-def file_schema(param: "ParamSpec") -> Dict[str, Any]:
+def file_schema(param: ParamSpec) -> dict[str, Any]:
     kinds = param.kinds or list(KINDS)
     limit = _limit(param)
     return {"type": "object", "additionalProperties": False, "properties": {
@@ -44,12 +45,13 @@ def file_schema(param: "ParamSpec") -> Dict[str, Any]:
         + f"A file ({', '.join(kinds)}; at most {limit:,} bytes)."}
 
 
-def _limit(param: "ParamSpec") -> int:
+def _limit(param: ParamSpec) -> int:
     kinds = param.kinds or list(KINDS)
-    return min(param.max_bytes if param.max_bytes is not None else max(MAX_BYTES[kind] for kind in kinds), HARD_MAX_BYTES)
+    return min(param.max_bytes if param.max_bytes is not None else max(MAX_BYTES[kind] for kind in kinds),
+               HARD_MAX_BYTES)
 
 
-def _file_params(turn: "Turn", name: Any, args: Mapping[str, Any]) -> Dict[str, "ParamSpec"]:
+def _file_params(turn: Turn, name: Any, args: Mapping[str, Any]) -> dict[str, ParamSpec]:
     contract, env = turn.env.contract, turn.env
     if not isinstance(name, str):
         return {}
@@ -59,7 +61,7 @@ def _file_params(turn: "Turn", name: Any, args: Mapping[str, Any]) -> Dict[str, 
         members = list(env.actions.groups.get(name, ()))
         picked = args.get("action")
         members = [m for m in members if picked in (m, m.removeprefix(f"{name}_"))] or members
-    found: Dict[str, "ParamSpec"] = {}
+    found: dict[str, ParamSpec] = {}
     for member in members:
         for pname, param in contract.actions[member].params.items():
             if param.type == "file":
@@ -67,7 +69,7 @@ def _file_params(turn: "Turn", name: Any, args: Mapping[str, Any]) -> Dict[str, 
     return found
 
 
-def intake(turn: "Turn", name: Any, args: Any) -> Any:
+def intake(turn: Turn, name: Any, args: Any) -> Any:
     """``args`` with every submitted file stored and replaced by its id (call under the run's lock)."""
     if not isinstance(args, Mapping):
         return args
@@ -81,7 +83,7 @@ def intake(turn: "Turn", name: Any, args: Any) -> Any:
     return out
 
 
-def _stored(turn: "Turn", param: "ParamSpec", raw: Any) -> Any:
+def _stored(turn: Turn, param: ParamSpec, raw: Any) -> Any:
     data, name, problem = _payload(raw)
     if problem is not None:
         return {"invalid": problem}
@@ -94,7 +96,7 @@ def _stored(turn: "Turn", param: "ParamSpec", raw: Any) -> Any:
     return {"asset": asset.id}
 
 
-def _payload(raw: Any) -> Tuple[Optional[bytes], Any, Optional[str]]:
+def _payload(raw: Any) -> tuple[bytes | None, Any, str | None]:
     """``(bytes, name, None)`` for a file to store, ``(None, None, None)`` to leave as it is, or a problem."""
     if isinstance(raw, (bytes, bytearray)):
         return bytes(raw), None, None
@@ -124,11 +126,11 @@ def _payload(raw: Any) -> Tuple[Optional[bytes], Any, Optional[str]]:
     return None, None, None
 
 
-def _record(turn: "Turn", asset: Asset) -> None:
+def _record(turn: Turn, asset: Asset) -> None:
     turn.record("upload", asset.to_dict())
 
 
-def upload(turn: "Turn", source: Union[bytes, bytearray, str, "os.PathLike[str]"], name: Optional[str] = None) -> str:
+def upload(turn: Turn, source: bytes | bytearray | str | os.PathLike[str], name: str | None = None) -> str:
     """Store a file for the turn's agent (bytes, or a path the participant's own code chose); returns its id."""
     if isinstance(source, (bytes, bytearray)):
         data = bytes(source)
@@ -152,15 +154,15 @@ def upload(turn: "Turn", source: Union[bytes, bytearray, str, "os.PathLike[str]"
 
 
 @contextmanager
-def previewed(turn: "Turn", name: Any, args: Any) -> Iterator[Tuple[Any, Optional[str]]]:
+def previewed(turn: Turn, name: Any, args: Any) -> Iterator[tuple[Any, str | None]]:
     """``(args, problem)`` as :func:`intake` would make them — files replaced by the ids they would get — for a check
     that must change nothing (a game's legality check before the call is made). Accepted files are known to the store
     only inside the block, which then leaves it exactly as it was: nothing is recorded, nothing is kept."""
     params = _file_params(turn, name, args) if isinstance(args, Mapping) else {}
     store = turn.env.world.assets
-    added: List[str] = []
+    added: list[str] = []
     out: Any = dict(args) if params else args
-    problem: Optional[str] = None
+    problem: str | None = None
     try:
         for pname, param in params.items():
             raw = out.get(pname)
@@ -184,7 +186,7 @@ def previewed(turn: "Turn", name: Any, args: Any) -> Iterator[Tuple[Any, Optiona
             store.assets.pop(key, None)
 
 
-def file_value(world: "SdkWorld", param: "ParamSpec", raw: Any) -> Tuple[Any, Optional[str]]:
+def file_value(world: SdkWorld, param: ParamSpec, raw: Any) -> tuple[Any, str | None]:
     """A `file` argument as a submitted asset id, or what to fix."""
     if isinstance(raw, Mapping) and isinstance(raw.get("invalid"), str):
         return None, raw["invalid"]

@@ -1,8 +1,9 @@
 """Inventory literals fail at their authored path, before world construction."""
 import copy
 
-import fg_env
 import pytest
+
+import fg_env
 
 BASE = {
     "name": "Inventory authoring",

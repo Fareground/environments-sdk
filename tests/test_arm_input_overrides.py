@@ -20,8 +20,9 @@ def _overrides(result):
 def test_a_caller_input_that_replaces_an_arm_input_still_wins_and_is_reported():
     result = fg_env.run(BREAKER, arm="halt", inputs={"breaker": False, "fee": 0.2}, seed=1)
     assert result.outputs["breaker"] is False
-    assert _overrides(result) == [("arms.halt.inputs.breaker", "the caller's input breaker=false replaced arm 'halt''s "
-                                                               "breaker=true, so these runs do not test what the arm sets")]
+    assert _overrides(result) == [("arms.halt.inputs.breaker", "the caller's input breaker=false replaced arm "
+                                                               "'halt''s breaker=true, so these runs do not test what "
+                                                               "the arm sets")]
     assert "diagnostic: arms.halt.inputs.breaker" in result.summary()
 
 

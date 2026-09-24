@@ -57,6 +57,7 @@ def test_world_noise_uses_the_same_exact_law():
 def test_nonlinear_refinement_tracks_the_same_analytical_brownian_path(seed):
     # Roberts (2012), arXiv:1210.0933, example 2.1: X(t)=sinh(t+W(t)).
     import random
+
     from fg_env.physics.stochastic_integration import integrate_noise
 
     w = random.Random(seed).gauss(0, 1)
@@ -87,6 +88,7 @@ def test_public_coupled_stochastic_dynamics_preserve_damped_difference_variance(
 def test_time_varying_noise_starting_at_zero_converges():
     # Integral_0^1 t dW has variance integral_0^1 t²dt=1/3.
     import random
+
     from fg_env.physics.stochastic_integration import integrate_noise
 
     values = [integrate_noise(lambda y, t: ([0.0], [t]), [0.0], 0, 1,
@@ -97,6 +99,7 @@ def test_time_varying_noise_starting_at_zero_converges():
 
 def test_unattainable_stochastic_precision_fails_instead_of_silently_accepting():
     import random
+
     from fg_env.physics.stochastic_integration import integrate_noise
 
     with pytest.raises(ArithmeticError, match="convergence|work limit"):
@@ -106,6 +109,7 @@ def test_unattainable_stochastic_precision_fails_instead_of_silently_accepting()
 
 def test_refinement_preserves_the_parent_brownian_increment():
     import random
+
     from fg_env.physics.stochastic_integration import integrate_noise
 
     expected = random.Random(19).gauss(0, 1)

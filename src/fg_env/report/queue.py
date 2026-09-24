@@ -7,14 +7,13 @@ A queue is recognised by the outputs its mechanism generates (``<name>_staff_by_
 """
 from __future__ import annotations
 
-
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..runtime.clock_words import plural, span_label, unit_word
-from ..runtime.measure import RunResult
-from ..runtime.measure import _usable_output
+from ..runtime.measure import RunResult, _usable_output
 from .evidence import Option, summary
 from .words import Namer
 
@@ -26,16 +25,16 @@ _PATTERN = re.compile(r"\$pattern\.([A-Za-z_][A-Za-z0-9_]*)")
 _INPUT = re.compile(r"\$inputs\.([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def queues_in(outputs: Mapping[str, Any]) -> List[str]:
+def queues_in(outputs: Mapping[str, Any]) -> list[str]:
     """Names of the service queues whose outputs a run has."""
     return sorted(name[: -len("_staff_by_interval")] for name in outputs
                   if name.endswith("_staff_by_interval")
                   and f"{name[: -len('_staff_by_interval')]}_service_level_by_interval" in outputs)
 
 
-def blocks(staff: Sequence[Any]) -> List[Tuple[int, int, int]]:
+def blocks(staff: Sequence[Any]) -> list[tuple[int, int, int]]:
     """``(first interval, last interval, staff)`` for every stretch of equal staffing."""
-    out: List[Tuple[int, int, int]] = []
+    out: list[tuple[int, int, int]] = []
     for index, value in enumerate(staff):
         count = int(value)
         if out and out[-1][2] == count:
@@ -48,14 +47,14 @@ def blocks(staff: Sequence[Any]) -> List[Tuple[int, int, int]]:
 @dataclass
 class QueueView:
     name: str
-    config: Dict[str, Any]
-    clock: Dict[str, Any]
+    config: dict[str, Any]
+    clock: dict[str, Any]
     rounds: int
     #: The input values the queue's numbers read (a run's inputs, or the contract's defaults).
-    inputs: Dict[str, Any] = field(default_factory=dict)
+    inputs: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
-    def of(cls, name: str, run: RunResult, contract: Any) -> "QueueView":
+    def of(cls, name: str, run: RunResult, contract: Any) -> QueueView:
         raw = contract.mechanisms.get(name) if contract is not None else None
         return cls(name, dict(raw) if isinstance(raw, Mapping) else {}, dict(run.clock or {}), run.rounds,
                    dict(run.inputs))
@@ -70,7 +69,7 @@ class QueueView:
         return next(iter(servers)).replace("_", " ") if len(servers) == 1 else "staff"
 
     @property
-    def target(self) -> Optional[float]:
+    def target(self) -> float | None:
         targets = [c.get("target") for c in (self.config.get("channels") or {}).values() if isinstance(c, Mapping)]
         found = [float(t) for t in targets if isinstance(t, (int, float))]
         return min(found) if found else None
@@ -80,14 +79,14 @@ class QueueView:
             return span_label(self.clock, first + 1, last + 1, rounds=self.rounds)
         return f"interval {first + 1}" if first == last else f"intervals {first + 1}–{last + 1}"
 
-    def staff(self, option: Option) -> List[int]:
+    def staff(self, option: Option) -> list[int]:
         key = f"{self.name}_staff_by_interval"
         plan = next((run.outputs[key] for run in option.runs
                      if _usable_output(run, key) and isinstance(run.outputs.get(key), list)), None)
         return [int(v) for v in plan] if isinstance(plan, list) else []
 
     @classmethod
-    def declared(cls, name: str, contract: Any, inputs: Mapping[str, Any]) -> "QueueView":
+    def declared(cls, name: str, contract: Any, inputs: Mapping[str, Any]) -> QueueView:
         """A queue read from its contract alone (an optimisation's report has no runs): the clock's start and length
         come from ``inputs`` or the inputs' defaults."""
         clock = contract.clock
@@ -103,7 +102,7 @@ class QueueView:
                    {"mode": clock.mode, "unit": clock.unit, "step": clock.step, "start": resolved(clock.start)},
                    rounds if isinstance(rounds, int) else 0, values)
 
-    def staffing_input(self) -> Optional[str]:
+    def staffing_input(self) -> str | None:
         """The list input a single pool's staff reads per interval (``$inputs.<name>[$interval]``), if any."""
         servers = [spec for spec in (self.config.get("servers") or {}).values() if isinstance(spec, Mapping)]
         found = re.search(r"\$inputs\.([A-Za-z_][A-Za-z0-9_]*)\[\$interval\]", str(servers[0].get("staff"))) \
@@ -126,9 +125,9 @@ class QueueView:
         return (f"Staff between {low} and {peak[2]} {word} per {unit_word(self.clock)}, most ({peak[2]}) "
                 f"{self.when(peak[0], peak[1])}; the plan table lists every change.")
 
-    def _per_interval(self, option: Option, output: str) -> List[List[float]]:
+    def _per_interval(self, option: Option, output: str) -> list[list[float]]:
         """For each interval, the value of ``output`` in every run (runs without one left out)."""
-        columns: List[List[float]] = []
+        columns: list[list[float]] = []
         key = f"{self.name}_{output}"
         for run in option.runs:
             if not _usable_output(run, key):
@@ -141,14 +140,14 @@ class QueueView:
                     columns[index].append(float(value))
         return columns
 
-    def plan_rows(self, option: Option, namer: Namer) -> List[List[str]]:
+    def plan_rows(self, option: Option, namer: Namer) -> list[list[str]]:
         """One row per stretch of equal staffing: when, staff, customers, service level (80% range), worst interval."""
         offered = self._per_interval(option, "offered_by_interval")
         service = self._per_interval(option, "service_level_by_interval")
         rows = []
         for a, b, count in blocks(self.staff(option)):
-            per_run: List[float] = []
-            worst: List[float] = []
+            per_run: list[float] = []
+            worst: list[float] = []
             for run in range(len(option.runs)):
                 weights = [(offered[i][run], service[i][run]) for i in range(a, b + 1)
                            if i < len(offered) and i < len(service) and run < len(offered[i]) and run < len(service[i])]
@@ -156,20 +155,21 @@ class QueueView:
                 if total > 0:
                     per_run.append(sum(w * s for w, s in weights) / total)
                     worst.append(min(s for w, s in weights if w > 0))
-            customers = summary([sum(offered[i][run] for i in range(a, b + 1) if i < len(offered) and run < len(offered[i]))
+            customers = summary([sum(offered[i][run] for i in range(a, b + 1) if i < len(offered) and run
+                                     < len(offered[i]))
                                  for run in range(len(option.runs))])
             level, low = summary(per_run), summary(worst)
             rows.append([self.when(a, b), str(count), f"{customers.median:,.0f}" if customers else "—",
                          _ranged(level) if level else "—", f"{low.median:.0%}" if low else "—"])
         return rows
 
-    def busiest(self, option: Option) -> Optional[int]:
+    def busiest(self, option: Option) -> int | None:
         offered = self._per_interval(option, "offered_by_interval")
         means = [summary(column) for column in offered]
         ranked = [(s.mean, -i) for i, s in enumerate(means) if s is not None]
         return -max(ranked)[1] if ranked else None
 
-    def peak_driver(self, option: Option, contract: Any) -> Optional[str]:
+    def peak_driver(self, option: Option, contract: Any) -> str | None:
         """What makes the busiest interval busy: every factor of the product patterns its arrivals read."""
         index = self.busiest(option)
         if contract is None or index is None or self.clock.get("mode", "rounds") != "rounds":
@@ -177,23 +177,25 @@ class QueueView:
         from ..patterns.decompose import decompose
 
         channels = self.config.get("channels") or {}
-        names = [n for c in channels.values() if isinstance(c, Mapping) for n in _PATTERN.findall(str(c.get("arrivals", "")))]
+        names = [n for c in channels.values() if isinstance(c, Mapping)
+                 for n in _PATTERN.findall(str(c.get("arrivals", "")))]
         for pattern in dict.fromkeys(names):
             spec = contract.patterns.get(pattern) or {}
             if spec.get("kind") != "product" or spec.get("keys") or spec.get("table"):
                 continue
             row = decompose(contract, pattern, rounds=[index + 1], inputs=option.inputs).rows[0]
             adds = sorted(row["adds"].items(), key=lambda item: -abs(item[1]))
-            told = [f"{_factor_name(contract, factor, row)} {'adds' if amount >= 0 else 'takes away'} {abs(amount):,.0f}"
+            told = [f"{_factor_name(contract, factor, row)} {'adds' if amount >= 0 else 'takes away'} "
+                    f"{abs(amount):,.0f}"
                     for factor, amount in adds if abs(amount) >= 0.5]
             customers = summary(self._per_interval(option, "offered_by_interval")[index])
             if not told or customers is None:
                 continue
-            return (f"The busiest {unit_word(self.clock)} is {self.when(index, index)}, with about {customers.mean:,.0f} "
-                    f"customers: of the {row['total']:,.0f} expected, " + ", ".join(told) + ".")
+            return (f"The busiest {unit_word(self.clock)} is {self.when(index, index)}, with about "
+                    f"{customers.mean:,.0f} customers: of the {row['total']:,.0f} expected, " + ", ".join(told) + ".")
         return None
 
-    def horizon_driver(self, option: Option, contract: Any) -> Optional[str]:
+    def horizon_driver(self, option: Option, contract: Any) -> str | None:
         """What each factor of the product patterns its arrivals read adds over the whole run: the day of the week, and
         time of day at its busiest and quietest (see :mod:`.pattern_effects`)."""
         run = option.runs[0] if option.runs else None
@@ -203,7 +205,8 @@ class QueueView:
         from .pattern_effects import Effects, clauses, factor_of
 
         for channel, spec in (self.config.get("channels") or {}).items():
-            for pattern in dict.fromkeys(_PATTERN.findall(str(spec.get("arrivals", "")) if isinstance(spec, Mapping) else "")):
+            for pattern in dict.fromkeys(_PATTERN.findall(str(spec.get("arrivals", "")) if isinstance(spec, Mapping)
+                                                          else "")):
                 raw = contract.patterns.get(pattern) or {}
                 if raw.get("kind") != "product" or raw.get("keys") or raw.get("table"):
                     continue
@@ -212,15 +215,17 @@ class QueueView:
                 factors = {name: factor_of(contract, name) for name in rows[0]["factors"]} if rows else {}
                 effects = Effects()
                 for index, row in enumerate(rows):
-                    slots = {name: self._slot(name, contract, row, index) for name, f in factors.items() if f.how == "calendar"}
+                    slots = {name: self._slot(name, contract, row, index) for name, f in factors.items() if f.how
+                             == "calendar"}
                     effects.add(index + 1, float(row["total"]), {n: float(v) for n, v in row["factors"].items()}, slots)
-                told = clauses(effects, factors, unit_word(self.clock), f"{self.rounds} {plural(unit_word(self.clock), 2)}")
+                told = clauses(effects, factors, unit_word(self.clock),
+                               f"{self.rounds} {plural(unit_word(self.clock), 2)}")
                 if told:
                     return (f"Over the day, of about {effects.amount:,.0f} expected {channel.replace('_', ' ')}: "
                             + "; ".join(told.values()) + ".")
         return None
 
-    def _slot(self, pattern: str, contract: Any, row: Mapping[str, Any], index: int) -> Tuple[str, str]:
+    def _slot(self, pattern: str, contract: Any, row: Mapping[str, Any], index: int) -> tuple[str, str]:
         if (contract.patterns.get(pattern) or {}).get("period") == "week" and row.get("date"):
             import datetime as _dt
 
@@ -229,12 +234,12 @@ class QueueView:
         label = self.when(index, index)
         return label, f"at {label}"
 
-    def assumptions(self, owner: bool = False) -> List[str]:
+    def assumptions(self, owner: bool = False) -> list[str]:
         """How the queue behaves, in the reader's words; the analyst also reads each duration's distribution."""
         return [re.sub(r" \((?:exponential|lognormal|gamma|normal|uniform|erlang)\)", "", text) if owner else text
                 for text in self._assumed()]
 
-    def _assumed(self) -> List[str]:
+    def _assumed(self) -> list[str]:
         out = []
         for name, channel in (self.config.get("channels") or {}).items():
             if not isinstance(channel, Mapping):
@@ -259,7 +264,7 @@ def _ranged(level: Any) -> str:
     return f"{level.median:.0%} ({level.low:.0%}–{level.high:.0%})"
 
 
-def _amount(raw: Any, inputs: Mapping[str, Any]) -> Tuple[str, bool]:
+def _amount(raw: Any, inputs: Mapping[str, Any]) -> tuple[str, bool]:
     """A config number as a reader sees it, and whether an expression adjusts it: a literal, the input it reads, or
     (for an expression that scales an input, like patience during an outage) that input's value, normally."""
     if isinstance(raw, (int, float)) and not isinstance(raw, bool):

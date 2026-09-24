@@ -5,17 +5,18 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import re
+from collections.abc import Iterable
 from pathlib import PurePath
-from typing import TYPE_CHECKING, Iterable, Optional, Set
+from typing import TYPE_CHECKING
 
-from ..physics.model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from .. import contract as C
-from .roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
-from .space import check_space
+from ..contract.inputs import DATA_SUFFIXES, check_value
 from ..effects.runner import POST_KEYS
 from ..expr import EXPRESSION_WORDS, is_expr
-from ..contract.inputs import DATA_SUFFIXES, check_value
+from ..physics.model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from ..world.defaults import default_order
+from .roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
+from .space import check_space
 
 if TYPE_CHECKING:
     from . import _Checker
@@ -30,7 +31,7 @@ _NUMBER_TEXT = re.compile(r"-?\d+(\.\d+)?")
 class WorldChecks:
     """The world-model sections of a contract (mixed into the contract checker)."""
 
-    def _inputs(self: "_Checker") -> None:  # type: ignore[misc]
+    def _inputs(self: _Checker) -> None:  # type: ignore[misc]
         def visit(spec: C.InputSpec, path: str) -> None:
             if spec.type not in C.INPUT_TYPES:
                 self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.INPUT_TYPES))
@@ -50,7 +51,8 @@ class WorldChecks:
                     self.error(f"{path}.source", f"'{spec.source}' is not a supported data file",
                                f"use one of: {', '.join(DATA_SUFFIXES)}")
                 elif source.suffix.lower() == ".csv" and spec.type != "table":
-                    self.error(f"{path}.source", f"a CSV file gives a table, but this input is {spec.type}", "set type: table")
+                    self.error(f"{path}.source", f"a CSV file gives a table, but this input is {spec.type}",
+                               "set type: table")
                 if spec.default is not None:
                     self.warn(f"{path}.default", "is never used: the data file provides the value",
                               "remove the default, or the source")
@@ -68,7 +70,7 @@ class WorldChecks:
         for name, spec in self.c.inputs.items():
             visit(spec, f"inputs.{name}")
 
-    def _brief(self: "_Checker") -> None:  # type: ignore[misc]
+    def _brief(self: _Checker) -> None:  # type: ignore[misc]
         roots, types = BASE | {"actor"}, {"actor": set(self.agents)}
         self.template(self.c.brief.situation or None, "brief.situation", "actor", roots, types)
         self.template(self.c.brief.rules or None, "brief.rules", "actor", roots, types)
@@ -76,7 +78,7 @@ class WorldChecks:
             if self._type(type_name, f"brief.roles.{type_name}", agent=True):
                 self.template(text, f"brief.roles.{type_name}", "actor", roots, {"actor": {type_name}})
 
-    def _clock_space(self: "_Checker") -> None:  # type: ignore[misc]
+    def _clock_space(self: _Checker) -> None:  # type: ignore[misc]
         clock = self.c.clock
         self._count(clock.rounds, "clock.rounds")
         if clock.start and is_expr(clock.start):
@@ -104,7 +106,8 @@ class WorldChecks:
         if self.c.space is not None:
             check_space(self, self.c.space)
 
-    def _prop_spec(self: "_Checker", spec: C.PropSpec, path: str, roots: Iterable[str], types: Optional[Types] = None) -> None:  # type: ignore[misc]
+    def _prop_spec(self: _Checker, spec: C.PropSpec, path: str, roots: Iterable[str],  # type: ignore[misc]
+                   types: Types | None = None) -> None:
         if spec.type is not None and spec.type not in C.PROP_TYPES:
             self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.PROP_TYPES))
         if spec.type == "enum" and not spec.values:
@@ -115,7 +118,7 @@ class WorldChecks:
                       f'{{"type": "text", "default": "{spec.default}"}} to keep text')
         self.value(spec.default, f"{path}.default", roots, types or {})
 
-    def _keyword_names(self: "_Checker") -> None:  # type: ignore[misc]
+    def _keyword_names(self: _Checker) -> None:  # type: ignore[misc]
         """Names expressions read cannot be the language's own words (`$count(in)`, `$it.not`)."""
         named = [(f"types.{t}", t) for t in self.c.types]
         named += [(f"entities.{e}", e) for e in self.c.entities]
@@ -128,7 +131,7 @@ class WorldChecks:
                 self.error(path, f"'{name}' is a word expressions use themselves, so they cannot name it",
                            f"rename it, e.g. '{name}_'")
 
-    def _types_and_world(self: "_Checker") -> None:  # type: ignore[misc]
+    def _types_and_world(self: _Checker) -> None:  # type: ignore[misc]
         for name, spec in self.c.types.items():
             if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name):
                 self.error(f"types.{name}", "type names are letters, digits and underscores")
@@ -137,8 +140,8 @@ class WorldChecks:
                     fix = ("remove name from props; set name on the entity or population entry, outside props"
                            if prop == "name" else "choose another property name; built-in entity fields already exist")
                     self.error(f"types.{name}.props.{prop}", f"'{prop}' is a built-in entity field", fix)
-                self._prop_spec(prop_spec, f"types.{name}.props.{prop}", BASE - {"metrics", "series"} | {"row", "i", "it"},
-                                {"it": {name}})
+                self._prop_spec(prop_spec, f"types.{name}.props.{prop}",
+                                BASE - {"metrics", "series"} | {"row", "i", "it"}, {"it": {name}})
             if spec.extends is not None:
                 if spec.extends not in self.c.types:
                     self.error(f"types.{name}.extends", f"'{spec.extends}' is not a declared type",
@@ -149,9 +152,11 @@ class WorldChecks:
                 self.condition(spec.inspect, f"types.{name}.inspect", BASE | {"viewer", "it"},
                           {"viewer": set(self.agents), "it": set(self.c.subtypes(name))})
             if spec.policy is not None and spec.policy not in self.c.policies:
-                self.error(f"types.{name}.policy", f"'{spec.policy}' is not a declared policy", self._suggest(spec.policy, self.c.policies))
+                self.error(f"types.{name}.policy", f"'{spec.policy}' is not a declared policy",
+                           self._suggest(spec.policy, self.c.policies))
             if self.c.is_agent(name) and not any(
-                any(self.c.is_a(name, b) for b in ([a.by] if isinstance(a.by, str) else a.by)) for a in self.c.actions.values()
+                any(self.c.is_a(name, b) for b in ([a.by] if isinstance(a.by, str) else a.by))
+                for a in self.c.actions.values()
             ) and not any(self.c.is_a(other, name) and other != name for other in self.c.types):
                 self.warn(f"types.{name}", "agent type has no actions", "add an action with `by`")
         for prop, world_spec in self.c.world.items():
@@ -162,7 +167,7 @@ class WorldChecks:
                        + " → ".join(f"$world.{name}" for name in cycle),
                        "give one of them a literal default and set it in an opening event")
 
-    def _entities(self: "_Checker") -> None:  # type: ignore[misc]
+    def _entities(self: _Checker) -> None:  # type: ignore[misc]
         for eid, spec in self.c.entities.items():
             path = f"entities.{eid}"
             if self._type(spec.type, f"{path}.type"):
@@ -192,7 +197,7 @@ class WorldChecks:
                     self.error(f"{path}.props.{prop}", f"'{group.type}' has no property '{prop}'",
                                self._suggest(prop, self.type_props[group.type]))
                 self.value(raw, f"{path}.props.{prop}", BASE | {"row", "i", "it"}, it_types)
-            names: Set[str] = set()
+            names: set[str] = set()
             for m_index, archetype in enumerate(group.mix):
                 mpath = f"{path}.mix[{m_index}]"
                 if archetype.name in names:
@@ -227,16 +232,19 @@ class WorldChecks:
                 self.template(members.name, f"{mpath}.name", None, BASE | {"parent", "row", "i"}, parent)
                 self.template(members.brief, f"{mpath}.brief", None, BASE | {"parent", "row", "i"}, parent)
 
-    def _relations(self: "_Checker") -> None:  # type: ignore[misc]
+    def _relations(self: _Checker) -> None:  # type: ignore[misc]
         for index, link in enumerate(self.c.links):
             path = f"links[{index}]"
             if link.relation not in self.c.relations:
                 self.error(f"{path}.relation", f"'{link.relation}' is not a declared relation",
                            self._suggest(link.relation, self.c.relations) or "declare it under `relations`")
             if not is_expr(link.value) and (isinstance(link.value, bool) or not isinstance(link.value, (int, float))):
-                self.error(f"{path}.value", f"a link value must be a number, got {json.dumps(link.value, default=str)[:60]}",
-                           "one number per link; declare other data as the relation's `props` and set them with `props`")
-            graphs = ("complete", "ring", "random", "small_world", "scale_free", "blocks", "lattice", "star", "bipartite")
+                self.error(f"{path}.value",
+                           f"a link value must be a number, got {json.dumps(link.value, default=str)[:60]}",
+                           "one number per link; declare other data as the relation's `props` and set them with "
+                           "`props`")
+            graphs = ("complete", "ring", "random", "small_world", "scale_free", "blocks", "lattice", "star",
+                      "bipartite")
             if link.rows is not None:
                 self.expr(link.rows, f"{path}.rows", BASE)
             elif link.among is not None:
@@ -261,16 +269,18 @@ class WorldChecks:
             else:
                 for key, raw in (("from", link.from_), ("to", link.to)):
                     if not is_expr(raw) and raw not in self.c.entities:
-                        self.warn(f"{path}.{key}", f"'{raw}' is not a named entity", "use an id from `entities` or an expression")
+                        self.warn(f"{path}.{key}", f"'{raw}' is not a named entity",
+                                  "use an id from `entities` or an expression")
 
-    def _physics(self: "_Checker") -> None:  # type: ignore[misc]
+    def _physics(self: _Checker) -> None:  # type: ignore[misc]
         spec = self.c.physics
         if spec is None:
             return
         names = set(spec.vars) | set(spec.params) | set(spec.read) | set(_CONSTS) | set(_FUNCS) | {"t"}
         for name in spec.read:
             if name in spec.vars or name in spec.params:
-                self.error(f"physics.read.{name}", f"'{name}' is also a variable or param, so the read would be ignored",
+                self.error(f"physics.read.{name}",
+                           f"'{name}' is also a variable or param, so the read would be ignored",
                            "give the read its own name and use it in the rates")
         for name, raw in spec.params.items():
             self.value(raw, f"physics.params.{name}", {"inputs", "world"})
@@ -293,7 +303,7 @@ class WorldChecks:
                 self.error(path, "write targets are 'world.<prop>' or '<type>.<prop>'")
             self._physics_expr(src, path, names)
 
-    def _physics_expr(self: "_Checker", source: str, path: str, names: Set[str]) -> None:  # type: ignore[misc]
+    def _physics_expr(self: _Checker, source: str, path: str, names: set[str]) -> None:  # type: ignore[misc]
         try:
             compiled = _CompiledExpr(source)
         except PhysicsExprError as exc:
@@ -303,7 +313,7 @@ class WorldChecks:
         if unknown:
             self.error(path, f"unknown name(s) {sorted(unknown)}", "use physics variables, params or read names")
 
-    def _records(self: "_Checker") -> None:  # type: ignore[misc]
+    def _records(self: _Checker) -> None:  # type: ignore[misc]
         for name, spec in self.c.records.items():
             path = f"records.{name}"
             for field, kind in spec.fields.items():
@@ -316,6 +326,6 @@ class WorldChecks:
                                "rename the field")
             if spec.visible != "all":
                 self.condition(spec.visible, f"{path}.visible", BASE | {"viewer", "it"}, {"viewer": set(self.agents)},
-                               fix='"all" shows every entry to everyone; otherwise write an expression over $viewer and $it, '
-                                   'e.g. `$it.author == $viewer.id`')
+                               fix='"all" shows every entry to everyone; otherwise write an expression over $viewer '
+                                   'and $it, e.g. `$it.author == $viewer.id`')
             self.template(spec.show, f"{path}.show", "it", BASE | {"actor", "it"}, {"actor": set(self.agents)})

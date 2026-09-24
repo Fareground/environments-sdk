@@ -11,13 +11,15 @@ from fg_env import host
 from fg_env.expr import Untrusted
 from fg_env.host.stubs import StubTools
 
-COUNCIL = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json").read_text())
+COUNCIL = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json")
+                     .read_text())
 
 
 def researcher(log):
     """Searches once in every turn (even past the run's limit), recalls in round 2, posts, forecasts."""
     def participant(wake):
-        log.append((wake.entity_id, wake.round, wake.stage, wake.call("search", {"query": f"metro delays {wake.stage}"})))
+        log.append((wake.entity_id, wake.round, wake.stage,
+                    wake.call("search", {"query": f"metro delays {wake.stage}"})))
         if wake.round == 2 and wake.stage == "discuss":
             log.append((wake.entity_id, wake.round, "recall", wake.call("recall", {"query": "metro delays"})))
         if wake.stage == "discuss":
@@ -121,7 +123,8 @@ def test_shared_evidence_is_published_in_seat_order_at_the_end_of_the_round():
     env = host.load(shared, hosts={"web_search": StubTools()}, seed=1)
     host.run(env, researcher([]), rounds=1)
     entries = env.world.records("search")
-    assert [e["author"] for e in entries] == ["panelist_1", "panelist_1", "panelist_2", "panelist_2", "panelist_3", "panelist_3"]
+    assert [e["author"] for e in entries] == ["panelist_1", "panelist_1", "panelist_2", "panelist_2", "panelist_3",
+                                              "panelist_3"]
     assert all(e["round"] == 1 and isinstance(e["text"], Untrusted) for e in entries)
     assert all(item["shared"] for item in env.entity("panelist_3")["props"]["search_evidence"])
 
@@ -153,9 +156,11 @@ def test_host_tool_config_and_actions_say_what_to_fix():
     shared["mechanisms"]["search"]["share"] = "all"
     assert any("`share` is not a field of `host` mode `tool`" in i for i in issues(shared))
     called = copy.deepcopy(COUNCIL)
-    called["events"] = [{"do": [{"host": "search", "action": "call"}]}, {"do": [{"host": "story", "action": "call", "args": {}}]}]
+    called["events"] = [{"do": [{"host": "search", "action": "call"}]},
+                        {"do": [{"host": "story", "action": "call", "args": {}}]}]
     found = issues(called)
     assert any("`host.call` needs `args`" in i for i in found)
     assert any("'call' is not an action of story (host recap)" in i and "actions: write" in i for i in found)
     page = fg_env.guide("host.tool")
-    assert page.startswith("### `host.tool`") and "- `call`" in page and "- `publish`" not in page and "`private`" in page
+    assert (page.startswith("### `host.tool`") and "- `call`" in page and "- `publish`" not in page
+            and "`private`" in page)

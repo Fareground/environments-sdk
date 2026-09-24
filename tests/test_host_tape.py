@@ -19,7 +19,8 @@ PITCH = {
     "actions": {"pitch": {"by": "founder", "params": {"text": "text"},
                           "do": [{"host": "panel", "action": "judge", "text": "$params.text", "subject": "$actor"}],
                           "terminal": True}},
-    "mechanisms": {"panel": {"kind": "host", "mode": "judge", "who": "founder", "into": "points", "criteria": {"quality": {}}}},
+    "mechanisms": {"panel": {"kind": "host", "mode": "judge", "who": "founder", "into": "points",
+                             "criteria": {"quality": {}}}},
     "outputs": {"points": "$entity(ana).points"},
 }
 
@@ -109,7 +110,9 @@ def test_hosts_validate_what_they_are_given():
 
 def test_an_undeclared_host_op_is_a_check_error():
     def pitch_does(*effects):
-        return [str(i) for i in fg_env.check({**PITCH, "actions": {"pitch": {**PITCH["actions"]["pitch"], "do": list(effects)}}})]
+        return [str(i)
+                for i in fg_env.check({**PITCH,
+                                       "actions": {"pitch": {**PITCH["actions"]["pitch"], "do": list(effects)}}})]
 
     assert any("`host` names a declared host mechanism, got 'nope'" in i
                for i in pitch_does({"host": "nope", "action": "judge", "text": "$params.text"}))

@@ -4,7 +4,8 @@ by luck, and what one step either way does."""
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..analysis.optimise_result import OptimisationResult
 from .queue import QueueView, blocks
@@ -21,7 +22,8 @@ _MET = {"feasible": "met with {confidence:.0%} confidence",
          "borderline": "only just: not settled with {confidence:.0%} confidence", "infeasible": "not met"}
 _FRESH = {"feasible": "every requirement held with confidence", "borderline": "no requirement clearly failed",
           "infeasible": "a requirement clearly failed"}
-_GOAL = re.compile(r"^\s*(maximi[sz]e|max|minimi[sz]e|min)\s+(?:(mean|median|p\d{1,2})\s+of\s+)?(.+?)\s*$", re.IGNORECASE)
+_GOAL = re.compile(r"^\s*(maximi[sz]e|max|minimi[sz]e|min)\s+(?:(mean|median|p\d{1,2})\s+of\s+)?(.+?)\s*$",
+                   re.IGNORECASE)
 
 
 def _named(text: str, namer: Namer, measures: Sequence[str]) -> str:
@@ -29,15 +31,15 @@ def _named(text: str, namer: Namer, measures: Sequence[str]) -> str:
     return _NAME.sub(lambda m: namer.name(m.group(0)) if m.group(0) in measures else m.group(0), text)
 
 
-def _measure_of(text: str, measures: Sequence[str]) -> Optional[str]:
+def _measure_of(text: str, measures: Sequence[str]) -> str | None:
     return next((token for token in _NAME.findall(text) if token in measures), None)
 
 
-def _value(namer: Namer, measure: Optional[str], value: Any) -> str:
+def _value(namer: Namer, measure: str | None, value: Any) -> str:
     return "n/a" if value is None else namer.value(measure, value) if measure else f"{value:.4g}"
 
 
-def _plan(opt: OptimisationResult, views: Sequence[QueueView]) -> Optional[tuple]:
+def _plan(opt: OptimisationResult, views: Sequence[QueueView]) -> tuple | None:
     """``(view, staff per interval)`` when the decision is a queue's staffing vector."""
     for view in views:
         name = view.staffing_input()
@@ -47,10 +49,12 @@ def _plan(opt: OptimisationResult, views: Sequence[QueueView]) -> Optional[tuple
     return None
 
 
-def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueView], measures: Sequence[str]) -> List[str]:
+def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueView],
+                   measures: Sequence[str]) -> list[str]:
     if opt.best is None or opt.estimates is None:
-        return [f"The optimiser traced a trade-off between {' and '.join(_named(o, namer, measures) for o in opt.objectives)} "
-                f"({len(opt.frontier)} decisions where neither can improve without the other getting worse), not one choice."]
+        return ["The optimiser traced a trade-off between "
+                f"{' and '.join(_named(o, namer, measures) for o in opt.objectives)} ({len(opt.frontier)} decisions "
+                "where neither can improve without the other getting worse), not one choice."]
     lines = {"feasible": [], "borderline": [_BORDERLINE]}.get(
         opt.verdict, ["No decision tried meets every constraint; the closest is below."])
     found = _plan(opt, views)
@@ -61,21 +65,23 @@ def recommendation(opt: OptimisationResult, namer: Namer, views: Sequence[QueueV
         measure = _measure_of(row["objective"], measures)
         what = namer.name(measure) if measure else (match.group(3) if match else row["objective"])
         spread = row.get("low") is not None and row["low"] != row["high"]
-        interval = f" (95% CI {_value(namer, measure, row['low'])}–{_value(namer, measure, row['high'])})" if spread else ""
-        lines.append(f"Expected {what}: {_value(namer, measure, row['value'])}{interval}, over {row['n']} runs the search "
-                     "did not use.")
+        interval = (f" (95% CI {_value(namer, measure, row['low'])}–{_value(namer, measure, row['high'])})" if spread
+                    else "")
+        lines.append(f"Expected {what}: {_value(namer, measure, row['value'])}{interval}, over {row['n']} runs the "
+                     "search did not use.")
     lines += [_constraint(row, namer, measures, found[0] if found else None) for row in opt.estimates["constraints"]]
     holdout = opt.holdout
     if holdout:
         fresh = holdout["best"]["objectives"][0]
         measure = _measure_of(fresh["objective"], measures)
         held = _FRESH[holdout["best"]["verdict"]]
-        lines.append(f"Checked again on {holdout['seeds']} fresh seeds: {namer.name(measure) if measure else 'objective'} "
-                     f"{_value(namer, measure, fresh['value'])}; {held}.")
+        lines.append(f"Checked again on {holdout['seeds']} fresh seeds: "
+                     f"{namer.name(measure) if measure else 'objective'} {_value(namer, measure, fresh['value'])}; "
+                     f"{held}.")
     return lines
 
 
-def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str], view: Optional[QueueView]) -> str:
+def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str], view: QueueView | None) -> str:
     text = _named(row["constraint"], namer, measures)
     verdict = _MET[row["verdict"]].format(confidence=row["confidence"])
     if row["value"] is None:
@@ -94,7 +100,7 @@ def _constraint(row: Mapping[str, Any], namer: Namer, measures: Sequence[str], v
     return f"{text.capitalize()}: {row.get('stat', 'mean')} {_value(namer, measure, row['value'])} — {verdict}."
 
 
-def plan_table(opt: OptimisationResult, views: Sequence[QueueView]) -> Optional[Table]:
+def plan_table(opt: OptimisationResult, views: Sequence[QueueView]) -> Table | None:
     found = _plan(opt, views)
     if found is None:
         return None
@@ -103,11 +109,12 @@ def plan_table(opt: OptimisationResult, views: Sequence[QueueView]) -> Optional[
                  [[view.when(a, b), str(count)] for a, b, count in blocks(staff)])
 
 
-def risks(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> List[str]:
+def risks(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> list[str]:
     out = []
     holdout = opt.holdout or {}
     if holdout.get("seed_luck"):
-        out.append("The choice may have won by luck: " + "; ".join(_named(r, namer, measures) for r in holdout["reasons"])
+        out.append("The choice may have won by luck: "
+                   + "; ".join(_named(r, namer, measures) for r in holdout["reasons"])
                    + ". Trust the fresh seeds, and search again with more runs.")
     for text in holdout.get("short_within_noise", []):
         out.append(f"On fresh seeds {_named(text, namer, measures)} fell short, within noise.")
@@ -120,9 +127,9 @@ def risks(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> Lis
     return out
 
 
-def drivers(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> List[str]:
+def drivers(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> list[str]:
     """What one step either way from a feasible choice breaks (the constraints that make it the choice)."""
-    out: List[str] = []
+    out: list[str] = []
     if not opt.feasible:
         return out
     for row in opt.sensitivity:
@@ -134,12 +141,12 @@ def drivers(opt: OptimisationResult, namer: Namer, measures: Sequence[str]) -> L
     return out
 
 
-def summary(opt: OptimisationResult) -> List[str]:
+def summary(opt: OptimisationResult) -> list[str]:
     """The optimiser's own account, for the analyst."""
     return [line for line in opt.report().splitlines() if line.strip()]
 
 
-def as_dict(opt: OptimisationResult) -> Dict[str, Any]:
+def as_dict(opt: OptimisationResult) -> dict[str, Any]:
     holdout = opt.holdout or {}
     return {"decision": opt.best, "feasible": opt.feasible, "verdict": opt.verdict, "estimates": opt.estimates,
             "fresh_seeds": holdout.get("best"), "seed_luck": bool(holdout.get("seed_luck")),

@@ -5,16 +5,16 @@ Every change still goes through the run's atomic blocks (:meth:`Env._atomic`).
 from __future__ import annotations
 
 import heapq
-from typing import TYPE_CHECKING, Any, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from .delivery import run_delivery
-from ..effects.runner import each_items, removed_since
 from ..contract import StageSpec
-from ..world.build import whole_setting
+from ..effects.runner import each_items, removed_since
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, compile_expr, truthy
-from .sync_events import run_sync
 from ..expr.template import compile_template
+from ..world.build import whole_setting
+from .delivery import run_delivery
+from .sync_events import run_sync
 from .turn import Turn
 
 if TYPE_CHECKING:
@@ -31,7 +31,7 @@ class Happenings:
     TRIGGER_DEPTH = 8
     REACTION_DEPTH = 4
 
-    def __init__(self, env: "Env"):
+    def __init__(self, env: Env):
         self.env = env
         self._trigger_depth = 0
         self._reaction_depth = 0
@@ -100,7 +100,7 @@ class Happenings:
                 world.emit("news", text, data={"event": event.name or index})
             world.journal.clear()
 
-    def _ordered(self, event: Any, items: List[Any], name: str, path: str) -> List[Any]:
+    def _ordered(self, event: Any, items: list[Any], name: str, path: str) -> list[Any]:
         """An `each` event's items in its `order`: shuffled from the run's seed, or by a key (lowest first)."""
         world = self.env.world
         if event.order is None:
@@ -109,7 +109,8 @@ class Happenings:
             world.rng.shuffle(items)
             return items
         key = compile_expr(event.order)
-        keyed = [(key(world.scope(**{name: item, "i": position})), position, item) for position, item in enumerate(items)]
+        keyed = [(key(world.scope(**{name: item, "i": position})), position, item)
+                 for position, item in enumerate(items)]
         try:
             keyed.sort(key=lambda entry: (entry[0], entry[1]))
         except TypeError:
@@ -175,11 +176,12 @@ class Happenings:
         finally:
             self._trigger_depth -= 1
 
-    def react(self, stage: Optional[StageSpec]) -> None:
-        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage — offered the actions the wake names, else the stage's: once the
-        action that woke them has committed, so a reaction answers it and cannot undo it. While an agent's action is
-        still committing (and could yet be undone), they wait for it to finish. Reactions to reactions nested deeper
-        than :attr:`REACTION_DEPTH` become ordinary wakes: agents that keep answering each other never fail the run."""
+    def react(self, stage: StageSpec | None) -> None:
+        """Give every agent asked to react (`wake` with `now`) a turn right away, in the current stage — offered the
+        actions the wake names, else the stage's: once the action that woke them has committed, so a reaction answers it
+        and cannot undo it. While an agent's action is still committing (and could yet be undone), they wait for it to
+        finish. Reactions to reactions nested deeper than :attr:`REACTION_DEPTH` become ordinary wakes: agents that keep
+        answering each other never fail the run."""
         env, world = self.env, self.env.world
         if world.journal.holding:
             return

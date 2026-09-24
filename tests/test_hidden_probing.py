@@ -15,11 +15,13 @@ VAULT = {
     "clock": {"rounds": 2},
     "types": {"p": {"agent": True, "props": {"won": False, "code": {"type": "int", "default": 0, "private": True}}},
               "vault": {"props": {"code": {"type": "int", "default": 0, "private": True}}}},
-    "entities": {"a": {"type": "p"}, "b": {"type": "p", "props": {"code": 6}}, "v": {"type": "vault", "props": {"code": 6}}},
+    "entities": {"a": {"type": "p"}, "b": {"type": "p", "props": {"code": 6}},
+                 "v": {"type": "vault", "props": {"code": 6}}},
     "actions": {
         "guess": {"by": "p", "description": "Guess the vault code (0-9). One guess per turn.",
                   "params": {"x": {"type": "int", "min": 0, "max": 9}},
-                  "do": [{"if": "$params.x != $entity(v).code", "then": [{"fail": "Wrong code."}]}, "$actor.won = true"]},
+                  "do": [{"if": "$params.x != $entity(v).code", "then": [{"fail": "Wrong code."}]},
+                         "$actor.won = true"]},
         "duel": {"by": "p", "params": {"x": {"type": "int", "min": 0, "max": 9},
                                        "t": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
                  "do": [{"if": "$params.x != $params.t.code", "then": [{"fail": "Wrong."}]}, "$actor.won = true"]},
@@ -141,7 +143,8 @@ def test_a_post_only_its_owner_reads_may_carry_its_private_property():
     own["actions"]["poke"] = {"by": "p", "do": [{"post": "log", "text": "mine is {$actor.secret}"}]}
     assert not [i for i in fg_env.check(own) if "private" in i.message]
     directed = copy.deepcopy(LEAKY_POST)
-    directed["actions"]["poke"] = {"by": "p", "do": [{"post": "log", "to": "$actor", "text": "mine is {$actor.secret}"}]}
+    directed["actions"]["poke"] = {"by": "p",
+                                   "do": [{"post": "log", "to": "$actor", "text": "mine is {$actor.secret}"}]}
     assert not [i for i in fg_env.check(directed) if "private" in i.message]
     result = fg_env.run(directed, lambda wake: wake.call("poke"), seed=1)
     assert result.stats["faulted_actions"] == 0 and result.stats["actions"] == 3

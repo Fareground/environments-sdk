@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from difflib import get_close_matches
 from importlib.resources import files
 from pathlib import Path
-from typing import Any, Dict, Iterator, Mapping, Optional, Tuple, Union
+from typing import Any
 
 
 class EngineNotFound(KeyError):
@@ -27,15 +28,15 @@ class EngineSpec:
     summary: str
     description: str
     status: str
-    path: Optional[str] = None
-    resources: Tuple[str, ...] = ()
+    path: str | None = None
+    resources: tuple[str, ...] = ()
 
     @property
     def available(self) -> bool:
         """Whether this SDK version ships a cloneable implementation."""
         return self.path is not None
 
-    def source(self) -> Dict[str, Any]:
+    def source(self) -> dict[str, Any]:
         """Read this engine's reusable starter contract."""
         if self.path is None:
             raise EngineUnavailable(
@@ -45,7 +46,7 @@ class EngineSpec:
         resource = files("fg_env.engines").joinpath(self.path)
         return json.loads(resource.read_text(encoding="utf-8"))
 
-    def materialized_source(self) -> Dict[str, Any]:
+    def materialized_source(self) -> dict[str, Any]:
         """Return a self-contained contract with bundled files inlined."""
         if self.path is None:
             return self.source()
@@ -62,7 +63,7 @@ class EngineSpec:
                 spec["default"] = resolved[name]
         return result
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "title": self.title,
@@ -96,13 +97,13 @@ class EngineCatalog:
             fix = f"did you mean {hint[0]!r}? " if hint else ""
             raise EngineNotFound(f"unknown engine {engine_id!r}; {fix}engines: {', '.join(self._by_id)}") from None
 
-    def list(self, *, available: Optional[bool] = None) -> list[EngineSpec]:
+    def list(self, *, available: bool | None = None) -> list[EngineSpec]:
         engines = list(self._engines)
         if available is not None:
             engines = [engine for engine in engines if engine.available is available]
         return engines
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "source": self.source,
@@ -127,7 +128,7 @@ def _read_catalog() -> EngineCatalog:
     return EngineCatalog(raw)
 
 
-_CATALOG: Optional[EngineCatalog] = None
+_CATALOG: EngineCatalog | None = None
 
 
 def catalog() -> EngineCatalog:
@@ -138,7 +139,7 @@ def catalog() -> EngineCatalog:
     return _CATALOG
 
 
-def list_engines(*, available: Optional[bool] = None) -> list[EngineSpec]:
+def list_engines(*, available: bool | None = None) -> list[EngineSpec]:
     """List behavioral engines, optionally filtered by implementation availability."""
     return catalog().list(available=available)
 
@@ -148,14 +149,14 @@ def get(engine_id: str) -> EngineSpec:
     return catalog().get(engine_id)
 
 
-def _named(source: Dict[str, Any], name: Optional[str]) -> Dict[str, Any]:
+def _named(source: dict[str, Any], name: str | None) -> dict[str, Any]:
     result = copy.deepcopy(source)
     if name:
         result["name"] = name
     return result
 
 
-def clone(engine_id: str, destination: Union[str, Path], *, name: Optional[str] = None,
+def clone(engine_id: str, destination: str | Path, *, name: str | None = None,
           overwrite: bool = False) -> Path:
     """Clone a reusable engine contract into a project-owned JSON file."""
     engine = get(engine_id)
@@ -178,7 +179,7 @@ def clone(engine_id: str, destination: Union[str, Path], *, name: Optional[str] 
     return path
 
 
-def load(engine_id: str, *, inputs: Optional[Mapping[str, Any]] = None, seed: int = 0) -> Any:
+def load(engine_id: str, *, inputs: Mapping[str, Any] | None = None, seed: int = 0) -> Any:
     """Load a reusable engine as :class:`fg_env.Env`."""
     engine = get(engine_id)
     if engine.path is None:

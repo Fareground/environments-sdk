@@ -46,7 +46,8 @@ DUEL = {
         "bolt": {"params": {"target": {"type": "entity", "of": "wizard", "where": "$it.id != $actor.id"}},
                  "when": "$actor.mana >= 1", "why": "You need 1 mana.", "on_push": ["$actor.mana -= 1"],
                  "resolve": ["$params.target.hp -= 3"], "show": "at {$params.target.name}"},
-        "counterspell": {"starts": False, "on": ["bolt", "counterspell"], "when": "$actor.mana >= 2", "why": "You need 2 mana.",
+        "counterspell": {"starts": False, "on": ["bolt", "counterspell"], "when": "$actor.mana >= 2",
+                         "why": "You need 2 mana.",
                          "on_push": ["$actor.mana -= 2"], "resolve": [{"flow": "spells", "action": "counter"}]}}}}},
     "outputs": {"hp": "$map(wizard, $it.hp)"},
 }
@@ -87,7 +88,9 @@ def test_only_those_who_owe_an_answer_are_woken_and_the_view_says_what_they_may_
         if wake.entity_id == "bob" and wake.stage == "spells_stack":
             seen["bob_update"] = wake.update
             seen["waiting"] = _read(env, "$stack(spells, waiting)")
-            seen["can_counter"] = _read(env, "[$stack(spells, can_push, counterspell, bob), $stack(spells, can_push, counterspell, ann)]")
+            seen["can_counter"] = _read(env,
+                                        "[$stack(spells, can_push, counterspell, bob), $stack(spells, can_push, "
+                                        "counterspell, ann)]")
         if not wake.done:
             wake.end()
 
@@ -115,7 +118,8 @@ def test_waiting_windows_carry_the_stack_across_rounds_and_snapshots():
 
 def test_a_refused_push_rolls_the_action_back_and_says_why():
     contract = json.loads(json.dumps(DUEL))
-    contract["actions"] = {"force_counter": {"by": "wizard", "do": [{"flow": "spells", "action": "push", "item": "counterspell"}]}}
+    contract["actions"] = {"force_counter": {"by": "wizard",
+                                             "do": [{"flow": "spells", "action": "push", "item": "counterspell"}]}}
     contract["stages"] = [{"name": "main", "actions": ["force_counter"]}]
     env = fg_env.load(contract, seed=1)
     script = Script({"ann": [("force_counter", {})]})
@@ -127,24 +131,29 @@ def test_a_refused_push_rolls_the_action_back_and_says_why():
 COURT = {
     "name": "Objection",
     "clock": {"rounds": 6},
-    "world": {"admitted": {"type": "list", "default": []}, "excluded": {"type": "list", "default": []}, "sustained": False},
+    "world": {"admitted": {"type": "list", "default": []}, "excluded": {"type": "list", "default": []},
+              "sustained": False},
     "types": {"attorney": {"agent": True}, "judge": {"agent": True}},
     "entities": {"pat": {"type": "attorney", "name": "Pat"}, "dana": {"type": "attorney", "name": "Dana"},
                  "ito": {"type": "judge", "name": "Judge Ito"}},
     "actions": {"offer": {"by": "attorney", "params": {"exhibit": {"type": "text", "max_len": 40}},
-                          "do": [{"flow": "trial", "action": "push", "item": "exhibit", "params": {"name": "$params.exhibit"}}],
+                          "do": [{"flow": "trial", "action": "push", "item": "exhibit",
+                                  "params": {"name": "$params.exhibit"}}],
                           "terminal": True}},
     "mechanisms": {"trial": {
         "kind": "flow",
         "mode": "procedure",
         "phases": {
             "evidence": {"stages": [{"name": "direct", "actions": ["offer"], "who": "$is($it, attorney)"}],
-                         "next": [{"to": "verdict", "when": "$len($world.admitted) + $len($world.excluded) >= 2 and $stack(trial, top) == null"}]},
+                         "next": [{"to": "verdict",
+                                   "when": "$len($world.admitted) + $len($world.excluded) >= 2 and $stack(trial, top) "
+                                           "== null"}]},
             "verdict": {"terminal": True}},
         "stack": {"who": ["attorney", "judge"], "reopen": False, "kinds": {
             "exhibit": {"tool": False, "params": {"name": "text"}, "show": "{$params.name}",
                         "responders": "$is($it, attorney) and $it.id != $item.by",
-                        "resolve": ["$world.admitted += $params.name"], "countered": ["$world.excluded += $params.name"]},
+                        "resolve": ["$world.admitted += $params.name"],
+                        "countered": ["$world.excluded += $params.name"]},
             "objection": {"starts": False, "on": ["exhibit"], "who": "attorney",
                           "params": {"ground": {"type": "enum", "values": ["hearsay", "relevance"]}},
                           "responders": "$is($it, judge)",
@@ -169,7 +178,8 @@ def test_courtroom_objection_is_ruled_on_before_the_exhibit_and_a_sustained_one_
     assert result.status == "ended", result.error
     assert all(ok for _, _, ok, _ in script.results), script.results
     assert result.outputs == {"admitted": ["Photo"], "excluded": ["Invoice"], "phases": ["evidence", "verdict"]}
-    assert "trial_objection" not in {tool for _, tools in script.offered["ito"] for tool in tools}  # only attorneys object
+    assert "trial_objection" not in {tool for _, tools in script.offered["ito"]
+                                     for tool in tools}  # only attorneys object
     first_day = [e.text for e in env.world.log if e.kind == "trial_stack" and e.round == 1]
     assert [t.split(" [")[0] for t in first_day] == [
         "Pat pushes exhibit", "Dana pushes objection", "Judge Ito pushes ruling", "The ruling", "The objection",
@@ -240,7 +250,8 @@ def test_stack_runs_with_random_agents_resume_exactly_from_a_snapshot():
 ])
 def test_stack_config_errors_say_what_to_fix(stack, message):
     contract = json.loads(json.dumps(DUEL))
-    contract["mechanisms"]["spells"] = {"kind": "flow", "mode": "procedure", "stack": {"who": "wizard", "kinds": {"bolt": {}}, **stack}}
+    contract["mechanisms"]["spells"] = {"kind": "flow", "mode": "procedure",
+                                        "stack": {"who": "wizard", "kinds": {"bolt": {}}, **stack}}
     with pytest.raises(ContractError) as excinfo:
         fg_env.load(contract)
     assert message in str(excinfo.value)

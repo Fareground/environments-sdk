@@ -6,7 +6,7 @@ statistics (``volatility``, ``kurtosis`` …) use log returns and need a positiv
 from __future__ import annotations
 
 import math
-from typing import Callable, Dict, List, Sequence, Tuple
+from collections.abc import Callable, Sequence
 
 from .stats import mean, sd
 
@@ -17,7 +17,7 @@ __all__ = ["STATISTICS", "statistic", "log_returns", "autocorrelation", "excess_
 _CLUSTERING_LAGS = 5
 
 
-def log_returns(series: Sequence[float]) -> List[float]:
+def log_returns(series: Sequence[float]) -> list[float]:
     if any(v <= 0 for v in series):
         raise ValueError("return statistics need a positive series (prices, levels); this one has values ≤ 0")
     return [math.log(b / a) for a, b in zip(series, series[1:])]
@@ -86,7 +86,7 @@ def _clustering(series: Sequence[float]) -> float:
 
 
 #: name → (function(series, argument), argument default, plain description)
-STATISTICS: Dict[str, Tuple[Callable[[Sequence[float], int], float], int, str]] = {
+STATISTICS: dict[str, tuple[Callable[[Sequence[float], int], float], int, str]] = {
     "mean": (lambda s, a: mean(s), 0, "average value"),
     "sd": (lambda s, a: sd(s), 0, "standard deviation of the values"),
     "min": (lambda s, a: min(s), 0, "smallest value"),

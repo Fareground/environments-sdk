@@ -2,11 +2,11 @@
 agents that never act, and the tokens its hosts spent."""
 import copy
 
+from test_host_tape import PITCH, pitcher
+
 import fg_env
 from fg_env import host
 from fg_env.host.stubs import StubEvaluator
-
-from test_host_tape import PITCH, pitcher
 
 LEDGER = {
     "name": "Ledger",

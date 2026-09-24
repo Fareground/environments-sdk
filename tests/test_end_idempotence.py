@@ -2,9 +2,9 @@
 import copy
 
 import pytest
+from test_turn_limit_feedback import contract
 
 import fg_env
-from test_turn_limit_feedback import contract
 
 
 @pytest.mark.parametrize('simultaneous', [False, True])

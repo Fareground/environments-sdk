@@ -45,14 +45,12 @@ packages = ["src/fg_env"]
 
 [tool.ruff]
 target-version = "py311"
-line-length = 100
+line-length = 120
 src = ["src"]
 
 [tool.ruff.lint]
-# Conservative ruleset for now; tighten over time. Run `ruff check --statistics .` to see what's noisy.
-select = ["E", "F", "W", "B"]
+select = ["E", "F", "W", "B", "I", "UP"]
 ignore = [
-    "E501",  # line-too-long — many long expression strings
     "E731",  # lambda assignments — used intentionally
     "E741",  # ambiguous names (l, I, O) — present in math-heavy code
     "E702",  # multiple statements on one line (semicolon)

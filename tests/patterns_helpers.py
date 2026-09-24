@@ -2,15 +2,15 @@
 from __future__ import annotations
 
 import copy
-from typing import Any, Dict, Optional
+from typing import Any
 
 import fg_env
 
 
-def world(patterns: Dict[str, Any], *, rounds: int = 6, clock: Optional[Dict[str, Any]] = None,
-          metrics: Optional[Dict[str, Any]] = None, **sections: Any) -> Dict[str, Any]:
+def world(patterns: dict[str, Any], *, rounds: int = 6, clock: dict[str, Any] | None = None,
+          metrics: dict[str, Any] | None = None, **sections: Any) -> dict[str, Any]:
     """A contract with one idle agent, the given patterns, and a metric for every recorded measure."""
-    contract: Dict[str, Any] = {
+    contract: dict[str, Any] = {
         "name": "Patterns under test",
         "clock": {"rounds": rounds, **(clock or {})},
         "types": {"clerk": {"agent": True}, **sections.pop("types", {})},
@@ -23,8 +23,8 @@ def world(patterns: Dict[str, Any], *, rounds: int = 6, clock: Optional[Dict[str
     return contract
 
 
-def series(patterns: Dict[str, Any], measures: Dict[str, str], *, seed: int = 1, values: Optional[Dict[str, Any]] = None,
-           **options: Any) -> Dict[str, list]:
+def series(patterns: dict[str, Any], measures: dict[str, str], *, seed: int = 1, values: dict[str, Any] | None = None,
+           **options: Any) -> dict[str, list]:
     """Every measure's value each round of an idle run (``values`` are the run's input values)."""
     contract = world(patterns, metrics=measures, **options)
     result = fg_env.run(contract, "idle", seed=seed, inputs=values or {})
@@ -32,5 +32,5 @@ def series(patterns: Dict[str, Any], measures: Dict[str, str], *, seed: int = 1,
     return {name: result.series[name] for name in measures}
 
 
-def errors(contract: Dict[str, Any]) -> list:
+def errors(contract: dict[str, Any]) -> list:
     return [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]

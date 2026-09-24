@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import inspect
 import re
+from collections.abc import Iterator, Mapping, Sequence
 from functools import lru_cache
-from typing import Any, Dict, FrozenSet, Iterator, List, Mapping, Sequence, Set, Tuple
+from typing import Any
 
 from ..contract import Contract
 from ..expr import FUNCTIONS
@@ -21,25 +22,26 @@ _SETUP = frozenset({"world", "types", "entities", "population", "links", "relati
 _RULES = frozenset({"actions", "events", "triggers", "stages", "end", "defs", "blocks", "physics", "invariants",
                     "feeds"})
 #: Fields whose text an agent reads: briefs, descriptions, news, outcomes, entries, titles, refusal reasons.
-_TEXT_FIELDS = frozenset({"brief", "description", "outcome", "announce", "say", "show", "why", "title", "empty", "invalid"})
+_TEXT_FIELDS = frozenset({"brief", "description", "outcome", "announce", "say", "show", "why", "title", "empty",
+                          "invalid"})
 #: Parameter fields that shape the tool an agent is offered (choices and bounds); they are rules too.
 _TOOL_FIELDS = frozenset({"values", "where", "min", "max"})
 #: Sections read as data about the contract, not by the running world: raw mechanism config is already expanded,
 #: arm patches apply only when that arm runs, policies are participants, metrics and outputs measure.
 _ASIDE = frozenset({"mechanisms", "arms", "policies", "inputs", "metrics", "outputs"})
 #: Fields holding effect lists.
-_EFFECT_LISTS = frozenset({"do", "otherwise", "then", "else", "on_enter", "on_exit", "on_idle", "on_wake", "on_turn_end",
-                           "on_timeout", "on_create", "on_remove"})
+_EFFECT_LISTS = frozenset({"do", "otherwise", "then", "else", "on_enter", "on_exit", "on_idle", "on_wake",
+                           "on_turn_end", "on_timeout", "on_create", "on_remove"})
 #: Type fields whose effects run whenever an entity is created or removed, during play too.
 _HOOKS = frozenset({"on_create", "on_remove"})
 
 
-def dumped(contract: Contract) -> Dict[str, Any]:
+def dumped(contract: Contract) -> dict[str, Any]:
     """The parsed contract (mechanisms expanded) as plain data with contract field names."""
     return contract.model_dump(by_alias=True)
 
 
-def texts(node: Any, path: str = "") -> Iterator[Tuple[str, str]]:
+def texts(node: Any, path: str = "") -> Iterator[tuple[str, str]]:
     """Every string in ``node`` (a dumped contract) with its path: ``actions.buy.do[0]``."""
     if isinstance(node, str):
         yield path, node
@@ -51,7 +53,7 @@ def texts(node: Any, path: str = "") -> Iterator[Tuple[str, str]]:
             yield from texts(value, f"{path}[{index}]")
 
 
-def effect_nodes(node: Any, path: str = "") -> Iterator[Tuple[str, Dict[str, Any]]]:
+def effect_nodes(node: Any, path: str = "") -> Iterator[tuple[str, dict[str, Any]]]:
     """Every object in ``node`` with its path (effect operations are among them)."""
     if isinstance(node, dict):
         yield path, node
@@ -62,7 +64,7 @@ def effect_nodes(node: Any, path: str = "") -> Iterator[Tuple[str, Dict[str, Any
             yield from effect_nodes(value, f"{path}[{index}]")
 
 
-def _parts(path: str) -> List[str]:
+def _parts(path: str) -> list[str]:
     return [part for part in re.split(r"[.\[\]]", path) if part and not part.isdigit()]
 
 
@@ -72,13 +74,14 @@ def in_effects(path: str) -> bool:
     return bool(parts) and parts[0] not in _ASIDE and bool(_EFFECT_LISTS.intersection(parts))
 
 
-def roles(path: str) -> FrozenSet[str]:
-    """Where text at ``path`` acts: ``setup``, ``rules`` and/or ``shown`` (to agents); empty for measurement and data."""
+def roles(path: str) -> frozenset[str]:
+    """Where text at ``path`` acts: ``setup``, ``rules`` and/or ``shown`` (to agents); empty for measurement and data.
+    """
     parts = _parts(path)
     if not parts or parts[0] in _ASIDE:
         return frozenset()
     last = parts[-1]
-    found: Set[str] = set()
+    found: set[str] = set()
     if parts[0] in ("brief", "views") or last in _TEXT_FIELDS or ("params" in parts and last in _TOOL_FIELDS):
         found.add("shown")
     if parts[0] in _SETUP and last not in _TEXT_FIELDS:
@@ -90,12 +93,12 @@ def roles(path: str) -> FrozenSet[str]:
     return frozenset(found)
 
 
-def calls(text: str) -> Set[str]:
+def calls(text: str) -> set[str]:
     """Names of functions an expression text calls (``$shuffle(...)`` → ``shuffle``)."""
     return set(_CALL.findall(text))
 
 
-def world_reads(text: str) -> Set[str]:
+def world_reads(text: str) -> set[str]:
     """World properties an expression text reads (``$world.pot`` → ``pot``)."""
     return set(_WORLD.findall(text))
 
@@ -108,13 +111,14 @@ def _uses_rng(target: Any) -> bool:
 
 
 @lru_cache(maxsize=1)
-def random_functions() -> FrozenSet[str]:
-    """Built-in functions whose implementation draws from the run's random generator (or whose source is unavailable)."""
+def random_functions() -> frozenset[str]:
+    """Built-in functions whose implementation draws from the run's random generator (or whose source is unavailable).
+    """
     return frozenset(name for name, spec in FUNCTIONS.items() if _uses_rng(spec.impl))
 
 
 @lru_cache(maxsize=1)
-def random_ops() -> FrozenSet[str]:
+def random_ops() -> frozenset[str]:
     """Native effect ops — family actions as ``family.action`` — whose implementation draws from the run's random
     generator (or whose source is unavailable)."""
     plain = {name for name, spec in OPS.items() if spec.select is None and _uses_rng(spec.run)}
@@ -127,7 +131,7 @@ def draws(contract: Contract, texts: Sequence[str]) -> bool:
     """Whether evaluating any of ``texts`` may draw randomness (a random function, directly or through a def): reading
     what does not draw changes nothing, so it may be read ahead, or skipped when nobody reads it."""
     drawing, pending = random_functions(), list(texts)
-    seen: Set[str] = set()
+    seen: set[str] = set()
     while pending:
         called = calls(pending.pop())
         if called & drawing:
@@ -139,7 +143,7 @@ def draws(contract: Contract, texts: Sequence[str]) -> bool:
     return False
 
 
-def ops_in(node: Mapping[str, Any]) -> Set[str]:
+def ops_in(node: Mapping[str, Any]) -> set[str]:
     """The native ops an effect object names, a family op as ``family.action``."""
     names = {key for key in node if key in OPS}
     for family in FAMILIES:
@@ -149,9 +153,9 @@ def ops_in(node: Mapping[str, Any]) -> Set[str]:
     return names
 
 
-def mechanism_kinds(contract: Contract) -> Set[str]:
+def mechanism_kinds(contract: Contract) -> set[str]:
     """What the contract's mechanisms are: each ``family.mode`` and its family."""
-    out: Set[str] = set()
+    out: set[str] = set()
     for raw in contract.mechanisms.values():
         key = use_key(raw)
         if key is not None:

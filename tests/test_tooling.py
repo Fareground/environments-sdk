@@ -1,7 +1,8 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 import pytest
+from test_runtime import SHOP
 
 import fg_env
 from fg_env.__main__ import main
@@ -10,9 +11,6 @@ from fg_env.expr import FUNCTIONS
 from fg_env.guides import guide, guide_parts, schema
 from fg_env.guides.pages import SECTIONS, function_groups
 from fg_env.registry import FAMILIES
-
-from test_runtime import SHOP
-
 
 #: The core guide must stay short enough to read before writing a first contract (characters / 4 ≈ tokens).
 CORE_TOKENS = 6_000
@@ -25,8 +23,8 @@ def test_the_core_guide_is_short_and_maps_every_part():
         assert f"`{name}`" in core
     for family in FAMILIES:
         assert f"| `{family}` |" in core
-    for topic in ("model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns", "recipes", "macros",
-                  "running", "checklist"):
+    for topic in ("model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns", "recipes",
+                  "macros", "running", "checklist"):
         assert f"- `{topic}` —" in core
     assert guide("core") == core
 
@@ -151,8 +149,8 @@ REPEAT = {
     "actions": {"wait": {"by": "trader", "do": []}},
     "events": [{"phase": "end", "do": [{
         "repeat": 10,
-        "while": "$count(order, $it.side == buy) > 0 and $count(order, $it.side == sell) > 0 and "
-                 "$top(order, $it.price, 1, $it.side == buy)[0].price >= $sort(order, $it.price, 1, $it.side == sell)[0].price",
+        "while": "$count(order, $it.side == buy) > 0 and $count(order, $it.side == sell) > 0 and $top(order, "
+                 "$it.price, 1, $it.side == buy)[0].price >= $sort(order, $it.price, 1, $it.side == sell)[0].price",
         "do": ["$bid = $top(order, $it.price, 1, $it.side == buy)[0]",
                "$ask = $sort(order, $it.price, 1, $it.side == sell)[0]",
                {"remove": "$bid"}, {"remove": "$ask"}, "$world.trades += 1"]}]}],
@@ -285,7 +283,8 @@ def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_command
 def test_the_command_list_names_each_command_once_and_no_two_alike(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])
-    listed = [line.split()[0] for line in capsys.readouterr().out.splitlines() if line.startswith("    ") and line.split()]
+    listed = [line.split()[0] for line in capsys.readouterr().out.splitlines() if line.startswith("    ")
+              and line.split()]
     assert "check" in listed and "playtest" in listed and "optimise" in listed and "describe" in listed
     # `checks` next to `check`, both spellings of optimise and `info` beside `describe` confused first-time users.
     assert not {"checks", "optimize", "info"} & set(listed)

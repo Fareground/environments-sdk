@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
-from typing import Any, Dict, Mapping, Optional
+from typing import Any
 
 from ..api import ContractLike
 from .game import Game, game
@@ -48,15 +49,16 @@ class GameBench:
     def clones_per_second(self) -> float:
         return self.clones / self.clone_seconds if self.clone_seconds > 0 else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {**asdict(self), "states_per_second": self.states_per_second,
                 "playouts_per_second": self.playouts_per_second,
-                "rollout_states_per_second": self.rollout_states_per_second, "clones_per_second": self.clones_per_second}
+                "rollout_states_per_second": self.rollout_states_per_second,
+                "clones_per_second": self.clones_per_second}
 
     def summary(self) -> str:
-        return (f"{self.game}: {self.playouts_per_second:,.1f} random playouts/s "
-                f"({self.states_per_second:,.0f} states/s; {self.rollout_states_per_second:,.0f} states/s sampling moves "
-                f"without listing), {self.clones_per_second:,.1f} clone+apply/s")
+        return (f"{self.game}: {self.playouts_per_second:,.1f} random playouts/s ({self.states_per_second:,.0f} "
+                f"states/s; {self.rollout_states_per_second:,.0f} states/s sampling moves without listing), "
+                f"{self.clones_per_second:,.1f} clone+apply/s")
 
 
 def _random_move(state: GameState, rng: random.Random) -> None:
@@ -75,7 +77,7 @@ def _sampled_move(state: GameState, rng: random.Random) -> None:
 
 
 def bench_game(source: ContractLike | Game, *, playouts: int = 50, clones: int = 200, seed: int = 0,
-               inputs: Optional[Mapping[str, Any]] = None) -> GameBench:
+               inputs: Mapping[str, Any] | None = None) -> GameBench:
     """Time ``playouts`` random playouts from the start (listing the legal calls at every state, then again sampling
     each move without listing, as rollouts do), then ``clones`` clone-and-apply steps from states met along random
     playouts (every state is branched once, one random move applied to the copy)."""
@@ -113,4 +115,5 @@ def bench_game(source: ContractLike | Game, *, playouts: int = 50, clones: int =
             done += 1
             _random_move(state, rng)
         state.close()
-    return GameBench(subject.id, playouts, states, playout_seconds, rollout_states, rollout_seconds, clones, clone_seconds)
+    return GameBench(subject.id, playouts, states, playout_seconds, rollout_states, rollout_seconds, clones,
+                     clone_seconds)

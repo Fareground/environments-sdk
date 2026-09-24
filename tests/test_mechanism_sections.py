@@ -1,15 +1,13 @@
 """Mechanisms extend declared actions through action_hooks, generate other mechanisms, and document nested config."""
-from typing import Dict
 
 import pytest
+from family_fixtures import Nothing, scratch_family
 from pydantic import BaseModel, ConfigDict, Field
 
 import fg_env
 from fg_env.guides import guide
 from fg_env.mechanisms import expand_mechanisms
 from fg_env.registry import mode
-
-from family_fixtures import Nothing, scratch_family
 
 FAMILY = "test_sections"
 
@@ -23,7 +21,7 @@ class _Rule(BaseModel):
 
 class _WithRules(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    rules: Dict[str, _Rule] = Field(default_factory=dict, description="Rules by name.")
+    rules: dict[str, _Rule] = Field(default_factory=dict, description="Rules by name.")
 
 
 GUARD = {"when": [{"expr": "$actor.cash > 0", "why": "you are broke"}], "do": ["$actor.cash -= 1"]}
@@ -33,7 +31,8 @@ SHOUT = {"shout": {"by": "player", "when": "$round > 0", "do": ["$world.noise +=
 @pytest.fixture(autouse=True, scope="module")
 def sections_family():
     with scratch_family(FAMILY):
-        mode(FAMILY, "guard", Nothing, "Guards the shout action.")(lambda name, cfg, contract: {"action_hooks": {"shout": GUARD}})
+        mode(FAMILY, "guard", Nothing, "Guards the shout "
+                                       "action.")(lambda name, cfg, contract: {"action_hooks": {"shout": GUARD}})
         mode(FAMILY, "inner", Nothing, "Marks that it ran.")(lambda name, cfg, contract: {"world": {f"{name}_ran": 1}})
         mode(FAMILY, "outer", Nothing, "Generates an inner mechanism.")(
             lambda name, cfg, contract: {"mechanisms": {f"{name}_inner": {"kind": FAMILY, "mode": "inner"}}})
@@ -77,14 +76,16 @@ def test_the_guide_documents_nested_mechanism_config_and_nested_typos_name_their
     assert "**_Rule**" in section and "`limit`" in section
     _, issues = expand_mechanisms({"mechanisms": {"r": {**_use("rules"), "rules": {"a": {"limt": 1}}}}})
     assert [(i.path, i.message, i.fix) for i in issues] == [
-        ("mechanisms.r.rules.a.limt", "`limt` is not a field of `rules.a`", "did you mean 'limit'? `rules.a` takes: limit")]
+        ("mechanisms.r.rules.a.limt", "`limt` is not a field of `rules.a`",
+         "did you mean 'limit'? `rules.a` takes: limit")]
 
 
 AUCTION = {"sale": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder"}}
 
 
-@pytest.mark.parametrize("section, value, shape", [("entities", [{"type": "bidder"}], "an object"), ("world", [], "an object"),
-                                                   ("stages", {"bid": {}}, "a list"), ("events", "none", "a list")])
+@pytest.mark.parametrize("section, value, shape",
+                         [("entities", [{"type": "bidder"}], "an object"), ("world", [], "an object"),
+                          ("stages", {"bid": {}}, "a list"), ("events", "none", "a list")])
 def test_a_malformed_section_is_reported_as_such_before_any_mechanism_expands(section, value, shape):
     contract = {"name": "Sale", "types": {"bidder": {"agent": True}}, section: value, "mechanisms": AUCTION}
     found = [i for i in fg_env.check(contract) if i.severity == "error"]

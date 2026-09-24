@@ -3,7 +3,7 @@
 Each is deterministic (its choices follow from the turn it is in) and stops when the turn is over.
 """
 import random
-from typing import Any, Dict
+from typing import Any
 
 from fg_env.participants.builtin import sample_args
 
@@ -35,7 +35,7 @@ def spammer(wake: Any) -> None:
         wake.call(name, args)
 
 
-def _edge(prop: Dict[str, Any], high: bool) -> Any:
+def _edge(prop: dict[str, Any], high: bool) -> Any:
     if "enum" in prop:
         return prop["enum"][-1 if high else 0] if prop["enum"] else ""
     kind = prop.get("type")
@@ -73,7 +73,7 @@ def prober(wake: Any) -> None:
         wake.call(tool.name, args)
 
 
-def _outside(prop: Dict[str, Any]) -> Any:
+def _outside(prop: dict[str, Any]) -> Any:
     """A value the parameter's schema rules out."""
     if "enum" in prop:
         return "no such choice"
@@ -100,7 +100,8 @@ def probing(agent: Any) -> Any:
 
 def played(result: Any) -> tuple:
     """What a run did, leaving out the refused calls themselves."""
-    kept = [{k: e.get(k) for k in ("round", "kind", "actor", "text", "data")} for e in result.events if e["kind"] != "refused"]
+    kept = [{k: e.get(k) for k in ("round", "kind", "actor", "text", "data")} for e in result.events if e["kind"]
+            != "refused"]
     return result.status, result.outputs, result.state, kept
 
 

@@ -2,12 +2,11 @@
 import json
 
 import pytest
+from test_exposures import TOWN, reader
+from test_runtime import SHOP
 
 import fg_env
 from fg_env.__main__ import main
-
-from test_exposures import TOWN, reader
-from test_runtime import SHOP
 
 TOKENS_IN, TOKENS_OUT = 100, 10
 

@@ -2,8 +2,9 @@
 import copy
 import json
 
-import fg_env
 import pytest
+
+import fg_env
 
 CONTRACT = {
     "name": "Independent supply agreements",
@@ -56,7 +57,8 @@ def test_exit_obeys_breach_policy_and_preserves_independent_deal(removed, manual
             if wake.entity_id in ("a", "c"):
                 assert wake.call("deals_propose", {"to": "b" if wake.entity_id == "a" else "d", "price": 10}).ok
             if wake.entity_id in ("b", "d"):
-                assert wake.call("deals_accept", {"offer": "deals_offer_1" if wake.entity_id == "b" else "deals_offer_2"}).ok
+                offer = "deals_offer_1" if wake.entity_id == "b" else "deals_offer_2"
+                assert wake.call("deals_accept", {"offer": offer}).ok
             if wake.entity_id == "d":
                 assert wake.call("exit", {"target": removed}).ok
         elif manual and wake.entity_id == "c":

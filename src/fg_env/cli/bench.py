@@ -7,12 +7,13 @@ With no contracts, the reference models in the source tree's ``examples/contract
 from __future__ import annotations
 
 import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence
+from typing import Any
 
-from ..runtime import rounds as _run_rounds
 from ..api import load, parse
+from ..runtime import rounds as _run_rounds
 
 __all__ = ["REFERENCE_MODELS", "PHASES", "BenchResult", "bench", "bench_table"]
 
@@ -34,7 +35,7 @@ class BenchResult:
     build_ms: float
     run_ms: float
     #: Milliseconds per round spent in each phase (see :data:`PHASES`).
-    phases: Dict[str, float] = field(default_factory=dict)
+    phases: dict[str, float] = field(default_factory=dict)
 
     @property
     def ms_per_round(self) -> float:
@@ -44,7 +45,7 @@ class BenchResult:
     def rounds_per_second(self) -> float:
         return 1000.0 * self.rounds / self.run_ms if self.run_ms else 0.0
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"name": self.name, "rounds": self.rounds, "status": self.status, "build_ms": round(self.build_ms, 3),
                 "ms_per_round": round(self.ms_per_round, 3), "rounds_per_second": round(self.rounds_per_second, 2),
                 "phases_ms_per_round": {name: round(value, 3) for name, value in self.phases.items()}}
@@ -54,8 +55,8 @@ class _Stopwatch:
     """Exclusive time per phase: entering a phase pauses the one it runs inside."""
 
     def __init__(self) -> None:
-        self.spent: Dict[str, float] = {name: 0.0 for name in PHASES}
-        self._stack: List[List[Any]] = []
+        self.spent: dict[str, float] = {name: 0.0 for name in PHASES}
+        self._stack: list[list[Any]] = []
 
     def enter(self, phase: str) -> None:
         now = time.perf_counter()
@@ -102,8 +103,8 @@ class _Stopwatch:
         return timed
 
 
-def bench(contracts: Optional[Sequence[Any]] = None, *, rounds: Optional[int] = None, seed: int = 1,
-          inputs: Optional[Mapping[str, Any]] = None, participants: Any = None) -> List[BenchResult]:
+def bench(contracts: Sequence[Any] | None = None, *, rounds: int | None = None, seed: int = 1,
+          inputs: Mapping[str, Any] | None = None, participants: Any = None) -> list[BenchResult]:
     """Time each contract (a path, dict or :class:`Contract`; default the reference models) over ``rounds``
     rounds (default: its own length). ``inputs`` apply to every contract that declares them."""
     if rounds is not None and (isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1):
@@ -111,7 +112,7 @@ def bench(contracts: Optional[Sequence[Any]] = None, *, rounds: Optional[int] = 
     return [_measure(item, rounds, seed, dict(inputs or {}), participants) for item in _contracts(contracts)]
 
 
-def _contracts(contracts: Optional[Sequence[Any]]) -> List[Any]:
+def _contracts(contracts: Sequence[Any] | None) -> list[Any]:
     if contracts:
         return list(contracts)
     missing = [name for name in REFERENCE_MODELS if not (_EXAMPLES / f"{name}.json").exists()]
@@ -121,7 +122,7 @@ def _contracts(contracts: Optional[Sequence[Any]]) -> List[Any]:
     return [_EXAMPLES / f"{name}.json" for name in REFERENCE_MODELS]
 
 
-def _measure(contract: Any, rounds: Optional[int], seed: int, inputs: Dict[str, Any], participants: Any) -> BenchResult:
+def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any], participants: Any) -> BenchResult:
     declared = parse(contract).inputs
     started = time.perf_counter()
     env = load(contract, seed=seed, inputs={key: value for key, value in inputs.items() if key in declared})

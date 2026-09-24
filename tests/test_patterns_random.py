@@ -3,10 +3,9 @@ import math
 import statistics
 
 import pytest
+from patterns_helpers import series, world
 
 import fg_env
-
-from patterns_helpers import series, world
 
 
 def _corr(xs, ys):
@@ -14,7 +13,8 @@ def _corr(xs, ys):
 
 
 def test_a_random_walk_without_noise_moves_by_its_drift_and_stays_within_bounds():
-    got = series({"w": {"kind": "random_walk", "start": 0, "drift": 1, "sd": 0, "max": 3}}, {"w": "$pattern.w"}, rounds=6)
+    got = series({"w": {"kind": "random_walk", "start": 0, "drift": 1, "sd": 0, "max": 3}}, {"w": "$pattern.w"},
+                 rounds=6)
     assert got["w"] == [0, 1, 2, 3, 3, 3]
 
 
@@ -25,7 +25,8 @@ def test_a_geometric_walk_compounds_its_drift():
 
 
 def test_mean_reversion_closes_the_gap_exponentially_and_its_spread_matches_theory():
-    calm = series({"m": {"kind": "mean_reversion", "mean": 10, "rate": 0.5, "start": 20}}, {"m": "$pattern.m"}, rounds=4)
+    calm = series({"m": {"kind": "mean_reversion", "mean": 10, "rate": 0.5, "start": 20}}, {"m": "$pattern.m"},
+                  rounds=4)
     assert calm["m"] == pytest.approx([10 + 10 * math.exp(-0.5 * t) for t in range(4)])
     long = series({"m": {"kind": "mean_reversion", "mean": 0, "rate": 0.2, "sd": 1}}, {"m": "$pattern.m"}, rounds=4000)
     assert statistics.pstdev(long["m"][200:]) == pytest.approx(1 / math.sqrt(0.4), rel=0.12)
@@ -62,7 +63,8 @@ def test_scheduled_shocks_last_then_end_and_random_ones_respect_gap_and_limit():
     fading = series({"s": {"kind": "shocks", "at": [1], "size": -0.5, "half_life": 1, "form": "multiply"}},
                     {"s": "$pattern.s"}, rounds=4)
     assert fading["s"] == pytest.approx([1, 0.5, 0.75, 0.875])
-    spaced = series({"s": {"kind": "shocks", "chance": 1, "gap": 2, "limit": 3, "size": 1}}, {"s": "$pattern.s"}, rounds=12)
+    spaced = series({"s": {"kind": "shocks", "chance": 1, "gap": 2, "limit": 3, "size": 1}}, {"s": "$pattern.s"},
+                    rounds=12)
     assert spaced["s"] == [1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0]
 
 
@@ -95,7 +97,8 @@ def test_draws_are_fixed_for_a_run_per_key_and_follow_their_distribution():
     first, second = result.series["d"]
     assert first == second
     values = list(first.values())
-    assert statistics.fmean(values) == pytest.approx(5, abs=0.2) and statistics.pstdev(values) == pytest.approx(2, rel=0.08)
+    assert (statistics.fmean(values) == pytest.approx(5, abs=0.2) and statistics.pstdev(values)
+            == pytest.approx(2, rel=0.08))
 
 
 def test_correlated_draws_per_key_carry_their_covariance():
@@ -109,8 +112,8 @@ def test_correlated_draws_per_key_carry_their_covariance():
 
 def test_segments_split_keys_by_share_and_give_their_values():
     contract = world({"s": {"kind": "segments", "keys": "$range(3000)", "segments": {
-        "bargain": {"share": 3, "values": {"elasticity": -2.4}}, "loyal": {"share": 1, "values": {"elasticity": -0.8}}}}},
-        metrics={"s": "$pattern_values('s')"}, rounds=1)
+        "bargain": {"share": 3, "values": {"elasticity": -2.4}},
+        "loyal": {"share": 1, "values": {"elasticity": -0.8}}}}}, metrics={"s": "$pattern_values('s')"}, rounds=1)
     values = list(fg_env.run(contract, "idle", seed=3).series["s"][0].values())
     bargain = [v for v in values if v["segment"] == "bargain"]
     assert len(bargain) / len(values) == pytest.approx(0.75, abs=0.03)
@@ -143,5 +146,6 @@ def test_arms_share_random_paths_so_policies_compare_on_the_same_luck():
 
 
 def test_a_key_on_an_unkeyed_random_pattern_gives_each_item_its_own_draws():
-    got = series({"n": {"kind": "noise"}}, {"a": "$pattern.n", "b": "$pattern.n('x')", "c": "$pattern.n('x')"}, rounds=3)
+    got = series({"n": {"kind": "noise"}}, {"a": "$pattern.n", "b": "$pattern.n('x')", "c": "$pattern.n('x')"},
+                 rounds=3)
     assert got["b"] == got["c"] != got["a"]

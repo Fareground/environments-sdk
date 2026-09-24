@@ -8,27 +8,38 @@ cannot drift from what the engine accepts.
 """
 from __future__ import annotations
 
+from collections.abc import Callable
 from difflib import get_close_matches
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any
 
 from .. import contract as C
-from .authoring import AUTHORING
-from .pages import (SECTIONS, effects_page, expressions_page, family_page, function_groups, functions_index,
-                    functions_page, mechanisms_page, mode_page, section_page)
 from ..analysis.optimise_guide import OPTIMISE
 from ..assets.guide import ASSETS
+from ..contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from ..engines import list_engines
-from .text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
+from ..expr.template import FORMATS
 from ..patterns.guide import patterns_page
 from ..patterns.schema import patterns_definitions, patterns_field_schema
-from ..contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from ..registry import FAMILIES
-from ..expr.template import FORMATS
+from .authoring import AUTHORING
+from .pages import (
+    SECTIONS,
+    effects_page,
+    expressions_page,
+    family_page,
+    function_groups,
+    functions_index,
+    functions_page,
+    mechanisms_page,
+    mode_page,
+    section_page,
+)
+from .text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
 
 __all__ = ["guide", "schema", "guide_parts"]
 
 
-def schema() -> Dict[str, Any]:
+def schema() -> dict[str, Any]:
     """JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning)."""
     out = C.Contract.model_json_schema(by_alias=True)
     out["$defs"] = {**out.get("$defs", {}), **patterns_definitions()}
@@ -110,7 +121,7 @@ def _game_page() -> str:
     return family_page("game") + "\n\n" + section_page("game")
 
 
-_TOPICS: Dict[str, Callable[[], str]] = {
+_TOPICS: dict[str, Callable[[], str]] = {
     "core": _core,
     "authoring": lambda: AUTHORING,
     "model": lambda: MODEL,
@@ -130,7 +141,7 @@ _TOPICS: Dict[str, Callable[[], str]] = {
 }
 
 
-def guide_parts() -> List[str]:
+def guide_parts() -> list[str]:
     """Every name ``guide`` accepts, in the order ``guide('all')`` renders them (``all`` itself last)."""
     sections = [name for name, *_ in SECTIONS if name not in _TOPICS and name not in FAMILIES]
     names = ["core", "authoring", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
@@ -142,7 +153,7 @@ def guide_parts() -> List[str]:
     return [*names, "inspect", "running", "optimise", "checklist", "all"]
 
 
-def _render(part: str) -> Optional[str]:
+def _render(part: str) -> str | None:
     if part in _TOPICS:
         return _TOPICS[part]()
     if part == "game":
@@ -159,11 +170,11 @@ def _render(part: str) -> Optional[str]:
     return None
 
 
-def guide(part: Optional[str] = None) -> str:
+def guide(part: str | None = None) -> str:
     """The map of every part, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
-    ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group (``"functions.stats"``),
-    a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for everything.
-    With no part, the map of every part; start with ``guide("authoring")``."""
+    ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group
+    (``"functions.stats"``), a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for
+    everything. With no part, the map of every part; start with ``guide("authoring")``."""
     if part is None:
         return _core()
     if part == "all":

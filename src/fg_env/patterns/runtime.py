@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import math
 import threading
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel
 
@@ -29,10 +30,10 @@ __all__ = ["PatternRuntime", "Ctx", "PatternsView", "parsed_patterns", "key_text
 
 #: Deepest nesting of patterns reading patterns (composites, draws in parameters).
 _MAX_DEPTH = 24
-_PARSED: Dict[int, Tuple[Any, Dict[str, PatternConfig]]] = {}
+_PARSED: dict[int, tuple[Any, dict[str, PatternConfig]]] = {}
 
 
-def parsed_patterns(raw: Mapping[str, Any]) -> Dict[str, PatternConfig]:
+def parsed_patterns(raw: Mapping[str, Any]) -> dict[str, PatternConfig]:
     """A contract's ``patterns`` validated by their kinds (parsed once per contract object)."""
     hit = _PARSED.get(id(raw))
     if hit is not None and hit[0] is raw:
@@ -60,13 +61,13 @@ class Ctx:
 
     __slots__ = ("rt", "name", "cfg", "spec", "key", "t", "source", "depth")
 
-    def __init__(self, rt: "PatternRuntime", name: str, key: Optional[str], t: float, source: str, depth: int = 0):
+    def __init__(self, rt: PatternRuntime, name: str, key: str | None, t: float, source: str, depth: int = 0):
         self.rt, self.name, self.key, self.t, self.source, self.depth = rt, name, key, t, source, depth
         self.cfg = rt.configs[name]
         self.spec: KindSpec = KINDS[self.cfg.kind]
 
     @property
-    def world(self) -> "SdkWorld":
+    def world(self) -> SdkWorld:
         return self.rt.world
 
     @property
@@ -80,19 +81,20 @@ class Ctx:
         """A parameter's value for this key (expressions evaluated once per run)."""
         return self.rt.param(self.name, self.key, field, self.source, self.depth)
 
-    def number(self, field: str, low: Optional[float] = None, high: Optional[float] = None) -> float:
+    def number(self, field: str, low: float | None = None, high: float | None = None) -> float:
         value = self.param(field)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
             raise self.fail(f"`{field}` must be a finite number, got {value!r}")
         if (low is not None and value < low) or (high is not None and value > high):
-            span = f"from {low:g}" if high is None else (f"up to {high:g}" if low is None else f"from {low:g} to {high:g}")
+            span = f"from {low:g}" if high is None else (f"up to {high:g}" if low is None
+                                                         else f"from {low:g} to {high:g}")
             raise self.fail(f"`{field}` must be {span}, got {value:g}")
         return float(value)
 
-    def optional(self, field: str, low: Optional[float] = None, high: Optional[float] = None) -> Optional[float]:
+    def optional(self, field: str, low: float | None = None, high: float | None = None) -> float | None:
         return None if getattr(self.cfg, field) is None else self.number(field, low, high)
 
-    def numbers(self, field: str) -> List[float]:
+    def numbers(self, field: str) -> list[float]:
         value = self.param(field)
         if not isinstance(value, list) or not all(isinstance(v, (int, float)) and not isinstance(v, bool)
                                                   and math.isfinite(v) for v in value):
@@ -107,7 +109,7 @@ class Ctx:
         u = self.stream("u", *parts).random()
         return min(max(u, 1e-12), 1 - 1e-12)
 
-    def step(self, t: Optional[float] = None) -> int:
+    def step(self, t: float | None = None) -> int:
         """The step of a random process ``t`` falls in (``every`` clock units each, by default one round)."""
         every = self.every()
         return max(0, math.floor((self.t if t is None else t) / every + 1e-9))
@@ -116,10 +118,10 @@ class Ctx:
         raw = getattr(self.cfg, "every", None)
         return float(raw) if raw is not None else step_length(self.clock)
 
-    def moment(self, t: Optional[float] = None) -> Any:
+    def moment(self, t: float | None = None) -> Any:
         return moment(self.clock, self.t if t is None else t)
 
-    def row(self) -> Optional[Mapping[str, Any]]:
+    def row(self) -> Mapping[str, Any] | None:
         return self.rt.row(self.name, self.key, self.source)
 
     def path(self, n: int, first: Any, advance: Any) -> Any:
@@ -127,7 +129,7 @@ class Ctx:
         ``advance(ctx, rng, state, step)`` each next one, drawing in order from the pattern's own stream."""
         return self.rt.path(self, n, first, advance)
 
-    def operand(self, name: str, key: Optional[str]) -> Any:
+    def operand(self, name: str, key: str | None) -> Any:
         """Another pattern's value at this time, for ``key``."""
         return self.rt.evaluate(name, key, [], self.t, self.source, self.depth + 1)
 
@@ -138,7 +140,7 @@ class Ctx:
     def input(self) -> Any:
         return self.rt.memory_input(self)
 
-    def state(self) -> Optional[Dict[str, Any]]:
+    def state(self) -> dict[str, Any] | None:
         entries = (self.rt.world.props.get(MEMORY_STATE) or {}).get(self.name) or {}
         return entries.get(self.key or "")
 
@@ -146,10 +148,10 @@ class Ctx:
 class PatternsView:
     """``$pattern`` — ``$pattern.winter`` reads a pattern now; ``$pattern.lift($it.price, $it.sku)`` calls one."""
 
-    def __init__(self, runtime: "PatternRuntime"):
+    def __init__(self, runtime: PatternRuntime):
         self._runtime = runtime
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         return self._runtime.call(name, [], source or "")
 
     def expr_call(self, name: str, args: Sequence[Any], source: str) -> Any:
@@ -159,19 +161,19 @@ class PatternsView:
 class PatternRuntime:
     """The declared patterns of one world."""
 
-    def __init__(self, world: "SdkWorld"):
+    def __init__(self, world: SdkWorld):
         self.world = world
         self.configs = parsed_patterns(world.contract.patterns)
         self.view = PatternsView(self)
         #: Read every parameter at its estimate: no draws from its standard error (see :meth:`at_estimates`).
         self.estimates = False
-        self._params: Dict[Tuple[str, Optional[str], str], Any] = {}
-        self._rows: Dict[str, Dict[str, Mapping[str, Any]]] = {}
-        self._keys: Dict[str, List[str]] = {}
-        self._paths: Dict[Tuple[str, str], List[Any]] = {}
+        self._params: dict[tuple[str, str | None, str], Any] = {}
+        self._rows: dict[str, dict[str, Mapping[str, Any]]] = {}
+        self._keys: dict[str, list[str]] = {}
+        self._paths: dict[tuple[str, str], list[Any]] = {}
         self._lock = threading.RLock()
 
-    def bound_to(self, world: "SdkWorld") -> "PatternRuntime":
+    def bound_to(self, world: SdkWorld) -> PatternRuntime:
         """This runtime for a copy of its world (a clone of the same run: same contract, seed and inputs), sharing
         everything derived from them — parameters, rows, keys and random paths are the same values for both."""
         copy = PatternRuntime.__new__(PatternRuntime)
@@ -181,7 +183,7 @@ class PatternRuntime:
 
     # -- reading ------------------------------------------------------------------------
 
-    def call(self, name: str, args: List[Any], source: str) -> Any:
+    def call(self, name: str, args: list[Any], source: str) -> Any:
         cfg = self._config(name, source)
         spec = KINDS[cfg.kind]
         names = spec.arg_names(cfg)
@@ -189,7 +191,7 @@ class PatternRuntime:
         stream_key = spec.random and not cfg.keyed and len(args) == len(names) + 1
         if len(args) != wanted and not stream_key:
             raise ExprError(f"$pattern.{name} {_signature(name, names, cfg.keyed, spec.random)}", source)
-        key: Optional[str] = None
+        key: str | None = None
         if cfg.keyed or stream_key:
             try:
                 key = key_text(args[-1])
@@ -200,7 +202,7 @@ class PatternRuntime:
                 self._check_key(name, key, source)
         return self.evaluate(name, key, args, now(self.world), source)
 
-    def evaluate(self, name: str, key: Optional[str], args: Sequence[Any], t: float, source: str, depth: int = 0) -> Any:
+    def evaluate(self, name: str, key: str | None, args: Sequence[Any], t: float, source: str, depth: int = 0) -> Any:
         """The value of ``name`` for ``key`` at time ``t`` (memory patterns only at the world's own time)."""
         if depth > _MAX_DEPTH:
             raise ExprError(f"patterns read each other more than {_MAX_DEPTH} deep (a cycle through {name}?)", source)
@@ -215,13 +217,14 @@ class PatternRuntime:
                 value = min(ctx.number("max"), value)
         return value
 
-    def values(self, name: str, source: str) -> Dict[str, Any]:
+    def values(self, name: str, source: str) -> dict[str, Any]:
         """``{key: value}`` of a keyed pattern read without arguments, over every key."""
         cfg = self._config(name, source)
         if not cfg.keyed:
             raise ExprError(f"$pattern_values('{name}'): '{name}' has no keys; read it as $pattern.{name}", source)
         if KINDS[cfg.kind].arg_names(cfg):
-            raise ExprError(f"$pattern_values('{name}'): '{name}' takes arguments, so it has no value by itself", source)
+            raise ExprError(f"$pattern_values('{name}'): '{name}' takes arguments, so it has no value by itself",
+                            source)
         t = now(self.world)
         return {key: self.evaluate(name, key, [], t, source) for key in self.keys(name, source)}
 
@@ -243,14 +246,14 @@ class PatternRuntime:
         self.estimates = True
         self._params.clear()
 
-    def param(self, name: str, key: Optional[str], field: str, source: str, depth: int = 0) -> Any:
+    def param(self, name: str, key: str | None, field: str, source: str, depth: int = 0) -> Any:
         cache = (name, key, field)
         if cache in self._params:
             return self._params[cache]
         raw = _plain(getattr(self.configs[name], field))
         value = raw
         if _dynamic(raw):
-            roots: Dict[str, Any] = {"inputs": self.world.inputs, "pattern": _Nested(self, depth), "key": key}
+            roots: dict[str, Any] = {"inputs": self.world.inputs, "pattern": _Nested(self, depth), "key": key}
             row = self.row(name, key, source) if self.configs[name].table is not None and key is not None else None
             roots["row"] = row
             try:
@@ -262,11 +265,12 @@ class PatternRuntime:
         self._params[cache] = value
         return value
 
-    def _uncertain(self, name: str, key: Optional[str], field: str, value: Any, source: str, depth: int) -> Any:
+    def _uncertain(self, name: str, key: str | None, field: str, value: Any, source: str, depth: int) -> Any:
         """``value`` drawn once per run from a normal with the parameter's standard error (elementwise for lists)."""
         raw = self.configs[name].uncertainty[field]
         scope = Scope({"inputs": self.world.inputs, "pattern": _Nested(self, depth), "key": key,
-                       "row": self.row(name, key, source) if self.configs[name].table is not None and key is not None else None},
+                       "row": self.row(name, key, source) if self.configs[name].table is not None and key is not None
+                       else None},
                       self.world)
         try:
             error = resolve(raw, scope)
@@ -281,14 +285,14 @@ class PatternRuntime:
         drawn = [v + e * rng.gauss(0.0, 1.0) if e > 0 else v for v, e in zip(values, errors)]
         return drawn if isinstance(value, list) else drawn[0]
 
-    def cached(self, name: str, key: Optional[str], label: str, build: Any) -> Any:
+    def cached(self, name: str, key: str | None, label: str, build: Any) -> Any:
         """A value derived once per run from a pattern's fixed parameters (an index of its data, a schedule)."""
         slot = (name, key, "#" + label)
         if slot not in self._params:
             self._params[slot] = build()
         return self._params[slot]
 
-    def keys(self, name: str, source: str) -> List[str]:
+    def keys(self, name: str, source: str) -> list[str]:
         """Every key of a keyed pattern now (an entity type's living ids, or the listed keys)."""
         cfg = self.configs[name]
         if isinstance(cfg.keys, str) and cfg.keys in self.world.contract.types:
@@ -309,7 +313,7 @@ class PatternRuntime:
                 raise ExprError(f"patterns.{name}.keys: {exc}", source) from None
         return self._keys[name]
 
-    def row(self, name: str, key: Optional[str], source: str) -> Optional[Mapping[str, Any]]:
+    def row(self, name: str, key: str | None, source: str) -> Mapping[str, Any] | None:
         if self.configs[name].table is None or key is None:
             return None
         rows = self._table(name, source)
@@ -318,7 +322,7 @@ class PatternRuntime:
             raise ExprError(f"patterns.{name}: its table has no row for key '{key}' (keys: {shown})", source)
         return rows[key]
 
-    def _table(self, name: str, source: str) -> Dict[str, Mapping[str, Any]]:
+    def _table(self, name: str, source: str) -> dict[str, Mapping[str, Any]]:
         if name not in self._rows:
             cfg = self.configs[name]
             try:
@@ -327,7 +331,7 @@ class PatternRuntime:
                 raise ExprError(f"patterns.{name}.table: {exc.detail}", source) from None
             if not isinstance(rows, list) or not all(isinstance(r, Mapping) for r in rows):
                 raise ExprError(f"patterns.{name}.table must give a list of rows, got {type(rows).__name__}", source)
-            indexed: Dict[str, Mapping[str, Any]] = {}
+            indexed: dict[str, Mapping[str, Any]] = {}
             for index, row in enumerate(rows):
                 if cfg.column not in row:
                     raise ExprError(f"patterns.{name}.table: row {index} has no column '{cfg.column}'", source)
@@ -367,7 +371,7 @@ class PatternRuntime:
 
     def memory_input(self, ctx: Ctx) -> Any:
         cfg = ctx.cfg
-        values: Dict[str, Any] = {"key": ctx.key, "row": ctx.row() if cfg.table is not None else None}
+        values: dict[str, Any] = {"key": ctx.key, "row": ctx.row() if cfg.table is not None else None}
         if isinstance(cfg.keys, str) and cfg.keys in self.world.contract.types and ctx.key is not None:
             values["it"] = self.world.entities.get(ctx.key)
         try:
@@ -385,7 +389,7 @@ class PatternRuntime:
         for name in names:
             where = f"patterns.{name}"
             entries = dict(store.get(name) or {})
-            keys: List[Optional[str]] = list(self.keys(name, where)) if self.configs[name].keyed else [None]
+            keys: list[str | None] = list(self.keys(name, where)) if self.configs[name].keyed else [None]
             for key in keys:
                 ctx = Ctx(self, name, key, t, where)
                 try:
@@ -402,7 +406,7 @@ class _Nested:
     def __init__(self, runtime: PatternRuntime, depth: int):
         self._runtime, self._depth = runtime, depth
 
-    def expr_attr(self, name: str, source: Optional[str]) -> Any:
+    def expr_attr(self, name: str, source: str | None) -> Any:
         return self.expr_call(name, [], source or "")
 
     def expr_call(self, name: str, args: Sequence[Any], source: str) -> Any:

@@ -4,32 +4,35 @@ from __future__ import annotations
 
 import heapq
 import threading
+from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Iterator, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from .entity import Entity
-from ..physics.model import PhysicsModel, _CompiledExpr
 from ..assets.store import AssetStore
 from ..contract import MAX_ENTITIES, Contract, PropSpec
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import FatalRunError, RunError
+from ..expr import FUNCTIONS, ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
 from ..expr.calls import suggest_function
-from ..expr import ExprError, FUNCTIONS, Scope, Untrusted, World, compile_expr, is_expr, truthy
-from .props import finite_number as _finite_number, prop_type, shown_value as _shown_value
-from .record_index import RecordAuthors, author_only
-from .record_events import RecordEvents
+from ..expr.template import format_value
+from ..patterns.runtime import PatternRuntime
+from ..physics import world as world_physics
+from ..physics.model import PhysicsModel, _CompiledExpr
 from ..sampling.seeds import DrawSite, SeedTree
 from ..stdlib.dates import calendar_date
-from ..expr.template import format_value
+from . import links as _links
+from .defaults import default_order
+from .entity import Entity
+from .links import Link
+from .parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
+from .props import finite_number as _finite_number
+from .props import prop_type
+from .props import shown_value as _shown_value
+from .record_events import RecordEvents
+from .record_index import RecordAuthors, author_only
 from .space import Spatial, position_of
 from .type_index import TypeIndex
-from . import links as _links
-from ..physics import world as world_physics
-from ..patterns.runtime import PatternRuntime
-from .links import Link
-from .defaults import default_order
-from .parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
 
 if TYPE_CHECKING:
     from ..runtime.sync_events import WriteBuffer
@@ -43,16 +46,16 @@ class _TurnLocal:
 
     __slots__ = ("rng", "pending", "deadline", "draws", "depth", "luckless")
     rng: Any
-    pending: Optional[List[Dict[str, Any]]]
-    deadline: Optional[float]
+    pending: list[dict[str, Any]] | None
+    deadline: float | None
     draws: int
     depth: int
-    luckless: Optional[str]
+    luckless: str | None
 
 
 #: The turn running in this thread or asyncio task, as ``(world, state)``. A context variable rather
 #: than a thread-local, so async participants sharing one event-loop thread each keep their own.
-_TURN: ContextVar[Optional[Tuple["SdkWorld", _TurnLocal]]] = ContextVar("fg_env_turn", default=None)
+_TURN: ContextVar[tuple[SdkWorld, _TurnLocal] | None] = ContextVar("fg_env_turn", default=None)
 
 
 class Abort(Exception):
@@ -69,15 +72,15 @@ class LuckAhead(BaseException):
 
 
 class OutOfBounds(Abort):
-    """A number past a declared min or max (a property's, a link value's or a layer cell's). An agent's action is refused like any :class:`Abort`; world
-    logic (an event, a stage hook, a trigger no action set off) that does it fails the run, because that is a
-    contract bug no agent can fix."""
+    """A number past a declared min or max (a property's, a link value's or a layer cell's). An agent's action is
+    refused like any :class:`Abort`; world logic (an event, a stage hook, a trigger no action set off) that does it
+    fails the run, because that is a contract bug no agent can fix."""
 
 
 class SdkWorld(World):
     """World store for one run. Expressions read it through the :class:`World` interface."""
 
-    def __init__(self, contract: Contract, inputs: Dict[str, Any], seeds: SeedTree, arm: Optional[str] = None):
+    def __init__(self, contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm: str | None = None):
         self.contract = contract
         self.inputs = inputs
         self.seeds = seeds
@@ -85,62 +88,65 @@ class SdkWorld(World):
         self._local = threading.local()
         self.rng = seeds.rng("world")
         #: How many times each draw site has drawn this round (see :class:`~fg_env.sampling.seeds.DrawSite`).
-        self.firings: Dict[str, int] = {}
-        self.entities: Dict[str, Entity] = {}
-        self.props: Dict[str, Any] = {}
-        self.links: Dict[str, Dict[Tuple[str, str], float]] = {name: {} for name in contract.relations}
+        self.firings: dict[str, int] = {}
+        self.entities: dict[str, Entity] = {}
+        self.props: dict[str, Any] = {}
+        self.links: dict[str, dict[tuple[str, str], float]] = {name: {} for name in contract.relations}
         #: relation → (a, b) → the link's fields (relations that declare props)
-        self.link_fields: Dict[str, Dict[Tuple[str, str], Dict[str, Any]]] = {name: {} for name in contract.relations}
+        self.link_fields: dict[str, dict[tuple[str, str], dict[str, Any]]] = {name: {} for name in contract.relations}
         #: relation → entity id → {linked entity id: number of edges between them}
-        self.adjacent: Dict[str, Dict[str, Dict[str, int]]] = {name: {} for name in contract.relations}
-        self.records_store: Dict[str, List[Entry]] = {name: [] for name in contract.records}
+        self.adjacent: dict[str, dict[str, dict[str, int]]] = {name: {} for name in contract.relations}
+        self.records_store: dict[str, list[Entry]] = {name: [] for name in contract.records}
         #: Retained record entries by sequence number (entries dropped by `keep` are removed).
-        self.entry_by_seq: Dict[int, Entry] = {}
+        self.entry_by_seq: dict[int, Entry] = {}
         self.record_authors = RecordAuthors(
             {name: spec.visible for name, spec in contract.records.items()}, self.records_store)
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
-        self.entity_briefs: Dict[str, str] = {}
-        self.log: List[LogEvent] = []
+        self.entity_briefs: dict[str, str] = {}
+        self.log: list[LogEvent] = []
         self.record_events = RecordEvents((), self.entry_by_seq, contract)
-        self.physics: Optional[PhysicsModel] = None
-        self.physics_writes: List[Tuple[str, _CompiledExpr]] = []
-        self.entity_dynamics: List[Any] = []
+        self.physics: PhysicsModel | None = None
+        self.physics_writes: list[tuple[str, _CompiledExpr]] = []
+        self.entity_dynamics: list[Any] = []
         self.round = 0
-        self.stage: Optional[str] = None
+        self.stage: str | None = None
         self.rounds = 0
-        self.metrics: Dict[str, Any] = {}
-        self.series: Dict[str, List[Any]] = {}
-        self.scheduled: List[Tuple[float, int, Dict[str, Any]]] = []
-        self.wake_requests: Dict[str, str] = {}
-        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits: id, why, and the
+        self.metrics: dict[str, Any] = {}
+        self.series: dict[str, list[Any]] = {}
+        self.scheduled: list[tuple[float, int, dict[str, Any]]] = []
+        self.wake_requests: dict[str, str] = {}
+        #: Agents asked to react right away (`wake` with `now`), answered as soon as the change commits: id, why, and
+        #: the
         #: actions offered (None: the stage's).
-        self.reactions: List[Tuple[str, str, Optional[List[str]]]] = []
+        self.reactions: list[tuple[str, str, list[str] | None]] = []
         #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
         self.time = 0.0
-        self.horizon: Optional[float] = None
-        #: The calendar date of round 1: ``clock.start`` as written or read from ``$inputs`` at build (None without one).
-        self.start: Optional[str] = None
-        self.wake_at: Dict[str, float] = {}
+        self.horizon: float | None = None
+        #: The calendar date of round 1: ``clock.start`` as written or read from ``$inputs`` at build (None without
+        #: one).
+        self.start: str | None = None
+        self.wake_at: dict[str, float] = {}
         #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
         self._schedule_seq = 0
         #: The declared space, resolved at build (sizes may read $inputs); None without one.
-        self.space: Optional[Spatial] = None
+        self.space: Spatial | None = None
         #: While a sync event runs, where property and layer writes wait to land together.
-        self.buffer: Optional["WriteBuffer"] = None
-        self.end_request: Optional[Dict[str, Any]] = None
-        #: Chooses the outcome of a `chance` effect instead of the random stream (explicit chance; see effects/chance.py).
-        self.chance_picker: Optional[Callable[[Any], int]] = None
-        self.counters: Dict[str, int] = {}
+        self.buffer: WriteBuffer | None = None
+        self.end_request: dict[str, Any] | None = None
+        #: Chooses the outcome of a `chance` effect instead of the random stream (explicit chance; see
+        #: effects/chance.py).
+        self.chance_picker: Callable[[Any], int] | None = None
+        self.counters: dict[str, int] = {}
         self.journal = Journal()
         #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).
-        self.lifecycle: Optional[Callable[[str, Entity, str], None]] = None
+        self.lifecycle: Callable[[str, Entity, str], None] | None = None
         #: What each agent was shown (an :class:`~fg_env.runtime.exposure.ExposureLog`), when the run records it.
         self.exposures: Any = None
         #: Names of properties written since the build (read by the run's diagnostics; see runtime/diagnosis.py).
-        self.written: "set[str]" = set()
+        self.written: set[str] = set()
         #: Ids of the entities created or given property values since the invariants last held, in order (None: not
         #: known, so every invariant is checked whole; see runtime/checks.py).
-        self.touched: Optional[Dict[str, None]] = None
+        self.touched: dict[str, None] | None = None
         #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see runtime/diagnosis.py).
         self.watched_writes: Any = None
         #: The run's diagnosis counts (a run_diagnosis.Diagnosis), set by the run.
@@ -160,16 +166,17 @@ class SdkWorld(World):
                          for t, props in self._type_props.items() if contract.is_agent(t)}
         #: Every type's private properties: none is shown to agents by the engine, so game logic reading one of
         #: another entity is a hidden read (see :attr:`hidden_reads`).
-        self._hidden = {t: frozenset(p for p, spec in props.items() if spec.private) for t, props in self._type_props.items()}
+        self._hidden = {t: frozenset(p for p, spec in props.items() if spec.private)
+                        for t, props in self._type_props.items()}
         self.private_metrics = private_metrics(contract, frozenset().union(*self._private.values()))
         self.private_names = frozenset().union(*self._hidden.values())
         self.hidden_reads = 0
         #: Def results for the current world state (see :meth:`call_def`).
-        self._def_cache: Dict[Any, Any] = {}
+        self._def_cache: dict[Any, Any] = {}
         self._def_cache_state: Any = None
         self._def_cache_on = False
         #: What :meth:`remembered` worked out for the current world state.
-        self._remembered: Dict[Any, Any] = {}
+        self._remembered: dict[Any, Any] = {}
         self._remembered_state: Any = None
         self._subtypes = {t: set(contract.subtypes(t)) for t in contract.types}
         #: The living entities of every type, kept current by create and remove.
@@ -198,7 +205,7 @@ class SdkWorld(World):
     def rng(self, value: Any) -> None:
         self._rng = value
 
-    def turn_deadline(self) -> Optional[float]:
+    def turn_deadline(self) -> float | None:
         """When the turn running in this thread or task must end (``time.monotonic()``), or None."""
         return getattr(self._here(), "deadline", None)
 
@@ -207,8 +214,8 @@ class SdkWorld(World):
         return getattr(self._here(), "draws", 0)
 
     @contextmanager
-    def turn_context(self, rng: Any, pending: Optional[List[Dict[str, Any]]],
-                     deadline: Optional[float] = None) -> Iterator[None]:
+    def turn_context(self, rng: Any, pending: list[dict[str, Any]] | None,
+                     deadline: float | None = None) -> Iterator[None]:
         """Inside the block — in this thread or asyncio task only — random draws use ``rng``, ``$pending`` is
         ``pending`` and the turn ends at ``deadline`` (``time.monotonic()``; None: no limit), which host calls made in
         it respect. Blocks nest (a reaction inside a turn) and restore on exit."""
@@ -262,11 +269,12 @@ class SdkWorld(World):
 
     # -- expression interface ------------------------------------------------
 
-    def entities_of(self, type_name: str) -> List[Entity]:
+    def entities_of(self, type_name: str) -> list[Entity]:
         return list(self.alive_of(type_name))
 
-    def alive_of(self, type_name: str) -> List[Entity]:
-        """The living entities of a type (subtypes included) in creation order — a shared list: read it, never change it."""
+    def alive_of(self, type_name: str) -> list[Entity]:
+        """The living entities of a type (subtypes included) in creation order — a shared list: read it, never change
+        it."""
         if type_name not in self.contract.types:
             raise ExprError(f"'{type_name}' is not a declared type (types: {', '.join(self.contract.types)})")
         return self.types.alive(type_name, compact=self.journal.mark() == 0)
@@ -287,7 +295,7 @@ class SdkWorld(World):
         if self.contract.space is not None:
             self.space = Spatial(self, self.contract.space)
 
-    def entity(self, entity_id: Any) -> Optional[Entity]:
+    def entity(self, entity_id: Any) -> Entity | None:
         if isinstance(entity_id, Entity):
             return entity_id
         return self.entities.get(entity_id) if isinstance(entity_id, str) else None
@@ -298,13 +306,13 @@ class SdkWorld(World):
     def is_hidden(self, type_name: str, prop: str) -> bool:
         return prop in self._hidden.get(type_name, ())
 
-    def records(self, name: str) -> List[Entry]:
+    def records(self, name: str) -> list[Entry]:
         if name not in self.records_store:
             known = ", ".join(self.records_store) or "none declared"
             raise ExprError(f"'{name}' is not a declared record (records: {known})")
         return self.records_store[name]
 
-    def events(self, kind: Optional[str], viewer: Any = None) -> List[LogEvent]:
+    def events(self, kind: str | None, viewer: Any = None) -> list[LogEvent]:
         """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
         seen = viewer if isinstance(viewer, Entity) else None
         candidates = self.record_events.candidates(self.contract, seen) if kind == "record" and seen else self.log
@@ -324,20 +332,20 @@ class SdkWorld(World):
         entry = self.entry_by_seq.get(event.data.get("entry"))
         return record in self.contract.records and entry is not None and self.entry_visible(record, entry, viewer)
 
-    def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:
+    def relation(self, a: Any, b: Any, kind: str) -> float | None:
         return _links.relation(self, a, b, kind)
 
-    def neighbors(self, entity: Any, kind: str) -> List[Entity]:
+    def neighbors(self, entity: Any, kind: str) -> list[Entity]:
         return _links.neighbors(self, entity, kind)
 
-    def link_view(self, a: Any, b: Any, kind: str) -> Optional[Link]:
+    def link_view(self, a: Any, b: Any, kind: str) -> Link | None:
         """The live ``kind`` link from a to b, or None."""
         return _links.link_view(self, a, b, kind)
 
-    def links_of(self, entity: Any, kind: str) -> List[Link]:
+    def links_of(self, entity: Any, kind: str) -> list[Link]:
         return _links.links_of(self, entity, kind)
 
-    def visible_records(self, name: str, viewer: Any) -> List[Entry]:
+    def visible_records(self, name: str, viewer: Any) -> list[Entry]:
         rows = self.records(name)
         if not isinstance(viewer, Entity):
             return rows
@@ -350,7 +358,7 @@ class SdkWorld(World):
         self.record_authors = RecordAuthors(
             {name: spec.visible for name, spec in self.contract.records.items()}, self.records_store)
 
-    def entry_visible(self, record: str, entry: Entry, viewer: Optional[Entity]) -> bool:
+    def entry_visible(self, record: str, entry: Entry, viewer: Entity | None) -> bool:
         if viewer is None:
             return True
         to = entry.get("to")
@@ -381,7 +389,7 @@ class SdkWorld(World):
     def defines(self, name: str) -> bool:
         return name in self.contract.defs
 
-    def call_def(self, name: str, args: List[Any], source: str, viewer: Any = None) -> Any:
+    def call_def(self, name: str, args: list[Any], source: str, viewer: Any = None) -> Any:
         """Call the def ``name``. It sees the caller's ``viewer`` (bound while rendering for, or offering choices to,
         one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
         spec = self.contract.defs.get(name)
@@ -389,7 +397,8 @@ class SdkWorld(World):
             hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
             raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
         if len(args) != len(spec.args):
-            raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got {len(args)}", source)
+            raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got "
+                            f"{len(args)}", source)
         local = self._here()  # the running turn's state, read once: nothing before the evaluation changes it
         key = self._def_key(name, args, viewer)
         if key is not None:
@@ -413,11 +422,12 @@ class SdkWorld(World):
             local.depth = depth
         # A call that drew a random number is never reused; with the same state and arguments a call that
         # drew nothing takes the same path again, so its value is exactly what a fresh call would return.
-        if key is not None and self.draws() == drawn and self.state_version() == state and isinstance(value, _CACHEABLE):
+        if (key is not None and self.draws() == drawn and self.state_version() == state
+            and isinstance(value, _CACHEABLE)):
             self._def_cache[key] = value
         return value
 
-    def remembered(self, key: Tuple[Any, ...], work: Callable[[], Any]) -> Any:
+    def remembered(self, key: tuple[Any, ...], work: Callable[[], Any]) -> Any:
         """``work()``, reused under ``key`` while the world stays as it is: one turn asks for the same choices and
         tools several times (legality, its tools, validating a call, diagnostics). Work that drew at random is never
         reused."""
@@ -446,11 +456,11 @@ class SdkWorld(World):
         pending = getattr(self._here(), "pending", None)
         return (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
 
-    def _def_key(self, name: str, args: List[Any], viewer: Any) -> Optional[Tuple[Any, ...]]:
+    def _def_key(self, name: str, args: list[Any], viewer: Any) -> tuple[Any, ...] | None:
         """A cache key for a def call, or None when the call cannot be cached."""
         if not self._def_cache_on:
             return None
-        parts: List[Any] = [name]
+        parts: list[Any] = [name]
         for arg in [viewer, *args]:
             if isinstance(arg, Entity):
                 parts.append(("$entity", arg.id))
@@ -483,9 +493,9 @@ class SdkWorld(World):
     def scope(self, **values: Any) -> Scope:
         return self._scope(self._here(), values)
 
-    def _scope(self, local: Any, values: Dict[str, Any]) -> Scope:
+    def _scope(self, local: Any, values: dict[str, Any]) -> Scope:
         """A scope over the world as ``local`` (the running turn's state) sees it, with ``values`` as extra roots."""
-        base: Dict[str, Any] = {
+        base: dict[str, Any] = {
             "inputs": self.inputs,
             "world": self._props_view,
             "physics": self._physics_view,
@@ -524,7 +534,7 @@ class SdkWorld(World):
 
         self.journal.push(undo)
 
-    def date(self) -> Optional[str]:
+    def date(self) -> str | None:
         clock = self.contract.clock
         elapsed = self.time if self.continuous else max(0, max(1, self.round) - 1)
         return calendar_date(self.start, clock.unit, clock.step, elapsed)
@@ -541,7 +551,7 @@ class SdkWorld(World):
 
     # -- mutation (journaled) --------------------------------------------------
 
-    def _coerce(self, spec: Optional[PropSpec], value: Any, where: str, owner: str = "") -> Any:
+    def _coerce(self, spec: PropSpec | None, value: Any, where: str, owner: str = "") -> Any:
         """``value`` as ``spec`` stores it. A number past a declared min or max is refused (:class:`Abort`), never
         clamped: an action is rolled back and its actor told why, like a transfer that does not fit. ``owner``
         names who holds the property in that refusal."""
@@ -627,7 +637,8 @@ class SdkWorld(World):
         if model is None:
             raise RunError("this environment declares no physics", f"physics.{name}")
         if not _finite_number(value):
-            raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", f"physics.{name}")
+            raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}",
+                           f"physics.{name}")
         if name in model.variables:
             var = model.variables[name]
             old = var.value
@@ -657,8 +668,8 @@ class SdkWorld(World):
         self.journal.push(lambda: self.counters.__setitem__(type_name, old))
         return candidate
 
-    def create(self, type_name: str, entity_id: Optional[str], name: Optional[str],
-               props: Dict[str, Any], at: Any, scope: Scope, where: str, evaluate: bool = True) -> Entity:
+    def create(self, type_name: str, entity_id: str | None, name: str | None,
+               props: dict[str, Any], at: Any, scope: Scope, where: str, evaluate: bool = True) -> Entity:
         """Create an entity. ``props`` values that are expressions are evaluated when ``evaluate`` is
         true (contract text); runtime values from native ops pass ``evaluate=False``. Participant text
         is never evaluated, whatever it looks like."""
@@ -677,7 +688,8 @@ class SdkWorld(World):
         declared = self._type_props[type_name]
         unknown = set(props) - set(declared)
         if unknown:
-            raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: {', '.join(declared) or 'none'})", where)
+            raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: "
+                           f"{', '.join(declared) or 'none'})", where)
         entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None)
         space = self.space
         if at is not None:  # placed first, so props can read the position: `$layer(sugar, $it.at)`
@@ -717,7 +729,7 @@ class SdkWorld(World):
         return entity
 
     @staticmethod
-    def _prop_order(raws: Dict[str, Any], expressions: Dict[str, Any], where: str) -> Iterable[str]:
+    def _prop_order(raws: dict[str, Any], expressions: dict[str, Any], where: str) -> Iterable[str]:
         """The order a new entity's props are evaluated in: declaration order (``raws`` itself), but each prop after
         the props it reads through `$it`, whichever order they are written in."""
         if not any("$it." in raw for raw in expressions.values()):
@@ -772,7 +784,7 @@ class SdkWorld(World):
         if full is not None:
             raise Abort(f"{entity.name} {what}: {full}.")
 
-    def link(self, kind: str, a: Any, b: Any, value: Any, where: str, fields: Optional[Dict[str, Any]] = None) -> None:
+    def link(self, kind: str, a: Any, b: Any, value: Any, where: str, fields: dict[str, Any] | None = None) -> None:
         """Create or update a link (``value`` None keeps the current value; see :func:`links.link`)."""
         _links.link(self, kind, a, b, value, where, fields)
 
@@ -785,14 +797,16 @@ class SdkWorld(World):
     def rebuild_adjacency(self) -> None:
         _links.rebuild_adjacency(self)
 
-    def post(self, record: str, fields: Dict[str, Any], author: Optional[str],
-             to: Optional[Tuple[str, ...]], where: str) -> Entry:
+    def post(self, record: str, fields: dict[str, Any], author: str | None,
+             to: tuple[str, ...] | None, where: str) -> Entry:
         spec = self.contract.records.get(record)
         if spec is None:
-            raise RunError(f"'{record}' is not a declared record (records: {', '.join(self.contract.records) or 'none'})", where)
+            raise RunError(f"'{record}' is not a declared record (records: "
+                           f"{', '.join(self.contract.records) or 'none'})", where)
         unknown = set(fields) - set(spec.fields)
         if unknown:
-            raise RunError(f"record '{record}' has no fields {sorted(unknown)} (fields: {', '.join(spec.fields)})", where)
+            raise RunError(f"record '{record}' has no fields {sorted(unknown)} (fields: {', '.join(spec.fields)})",
+                           where)
         entry = Entry()
         entry.world = self
         for name, kind in spec.fields.items():
@@ -809,7 +823,7 @@ class SdkWorld(World):
         rows.append(entry)
         self.record_authors.add(record, entry)
         self.entry_by_seq[entry["seq"]] = entry
-        dropped: List[Entry] = []
+        dropped: list[Entry] = []
         if spec.keep is not None and len(rows) > spec.keep:
             dropped = rows[: len(rows) - spec.keep]
             del rows[: len(rows) - spec.keep]
@@ -837,8 +851,8 @@ class SdkWorld(World):
                 "record": record, "entry": entry["seq"], "fields": {name: entry[name] for name in spec.fields}})
         return entry
 
-    def emit(self, kind: str, text: str, *, actor: Optional[str] = None,
-             to: Optional[Iterable[str]] = None, data: Optional[Dict[str, Any]] = None) -> LogEvent:
+    def emit(self, kind: str, text: str, *, actor: str | None = None,
+             to: Iterable[str] | None = None, data: dict[str, Any] | None = None) -> LogEvent:
         self._seq += 1
         event = LogEvent(self._seq, self.round, kind, text, actor,
                          tuple(to) if to is not None else None, dict(data or {}), self.stage,
@@ -858,11 +872,11 @@ class SdkWorld(World):
         self.journal.push(undo)
         return event
 
-    def schedule(self, due_round: float, effects: List[Any], vars: Dict[str, Any], path: str,
-                 delivery: Optional[Dict[str, Any]] = None) -> None:
+    def schedule(self, due_round: float, effects: list[Any], vars: dict[str, Any], path: str,
+                 delivery: dict[str, Any] | None = None) -> None:
         """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
         or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
-        item: Dict[str, Any] = {"effects": effects, "vars": {k: freeze(v) for k, v in vars.items()},
+        item: dict[str, Any] = {"effects": effects, "vars": {k: freeze(v) for k, v in vars.items()},
                                 "capture_version": CAPTURE_VERSION, "path": path}
         if delivery is not None:
             item["delivery"] = delivery
@@ -877,7 +891,7 @@ class SdkWorld(World):
 
         self.journal.push(undo)
 
-    def request_reaction(self, entity_id: str, why: str, actions: Optional[List[str]] = None) -> None:
+    def request_reaction(self, entity_id: str, why: str, actions: list[str] | None = None) -> None:
         entry = (entity_id, why, actions)
         self.reactions.append(entry)
 
@@ -907,7 +921,7 @@ class SdkWorld(World):
             self.end_request = {"name": name, "winner": winner, "text": text}
             self.journal.push(lambda: setattr(self, "end_request", None))
 
-    def thaw(self, vars: Dict[str, Any], *, version: int = 0) -> Dict[str, Any]:
+    def thaw(self, vars: dict[str, Any], *, version: int = 0) -> dict[str, Any]:
         return {k: thaw(v, self, version=version) for k, v in vars.items()}
 
     # -- physics (see world_physics) --------------------------------------------------
@@ -915,7 +929,7 @@ class SdkWorld(World):
     def build_physics(self) -> None:
         world_physics.build_physics(self)
 
-    def step_physics(self, elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
+    def step_physics(self, elapsed: float | None = None) -> list[dict[str, Any]]:
         """Advance physics one round, or by ``elapsed`` clock time on a continuous clock. Integrated variables stay
         inside their bounds; a formula written to a property past its bounds has nothing to refuse, so it fails."""
         try:
@@ -926,7 +940,7 @@ class SdkWorld(World):
 
     # -- helpers ---------------------------------------------------------------
 
-    def _key(self, kind: str, a: str, b: str) -> Tuple[str, str]:
+    def _key(self, kind: str, a: str, b: str) -> tuple[str, str]:
         return _links.edge_key(self, kind, a, b)
 
     def _check_location(self, at: Any, where: str) -> Any:
@@ -954,7 +968,7 @@ def within_bounds(spec: Any, value: float, subject: str) -> None:
     raise OutOfBounds(f"{subject} {limit}: it would be {format_value(value)}.")
 
 
-def _short(value: Optional[float]) -> str:
+def _short(value: float | None) -> str:
     if value is None:
         return ""
     return f"{value:.10g}" if isinstance(value, float) else str(value)

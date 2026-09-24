@@ -2,8 +2,9 @@
 import copy
 import json
 
-import fg_env
 import pytest
+
+import fg_env
 
 CONTRACT = {
     "name": "Composed adoption",

@@ -14,8 +14,9 @@ from __future__ import annotations
 import copy
 import random
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional
+from typing import Any
 
 from ..api import ContractLike, expand
 from .game import game
@@ -26,7 +27,7 @@ __all__ = ["repeated", "misere", "zerosum", "zero_sum_check", "UtilityCheck"]
 _ACTOR = re.compile(r"\$actor\b")
 
 
-def _contract(source: ContractLike) -> Dict[str, Any]:
+def _contract(source: ContractLike) -> dict[str, Any]:
     data = copy.deepcopy(expand(source, mechanisms=True))
     spec = data.get("game")
     if not isinstance(spec, dict) or not spec.get("returns"):
@@ -35,14 +36,14 @@ def _contract(source: ContractLike) -> Dict[str, Any]:
     return data
 
 
-def _seat_types(data: Mapping[str, Any]) -> List[str]:
+def _seat_types(data: Mapping[str, Any]) -> list[str]:
     listed = data["game"].get("players")
     if listed:
         return [listed] if isinstance(listed, str) else list(listed)
     return [name for name, spec in (data.get("types") or {}).items() if isinstance(spec, dict) and spec.get("agent")]
 
 
-def _add_rule(data: Dict[str, Any], text: str) -> None:
+def _add_rule(data: dict[str, Any], text: str) -> None:
     brief = data.setdefault("brief", {})
     brief["rules"] = f"{brief['rules']} {text}" if brief.get("rules") else text
 
@@ -55,7 +56,7 @@ def _ends_early(node: Any) -> bool:
     return False
 
 
-def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_total") -> Dict[str, Any]:
+def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_total") -> dict[str, Any]:
     """The one-round game played ``rounds`` times in a row. After every round each seat's return for that round is
     added to its ``total_prop``, which is the new return; what happened in earlier rounds stays in every seat's
     history. Events with ``at`` still fire only in the rounds they name."""
@@ -65,7 +66,8 @@ def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_t
     length = (data.get("clock") or {}).get("rounds", 20)
     if length != 1:
         raise ValueError(f"repeated() repeats one-round games, and this contract lasts {length} rounds")
-    if data.get("end") or _ends_early(data.get("actions")) or _ends_early(data.get("events")) or _ends_early(data.get("blocks")):
+    if (data.get("end") or _ends_early(data.get("actions")) or _ends_early(data.get("events"))
+        or _ends_early(data.get("blocks"))):
         raise ValueError("the contract can end a run early (`end`), which would stop the repetition; repeat games "
                          "whose rounds always run to the end")
     spec = data["game"]
@@ -92,7 +94,7 @@ def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_t
     return data
 
 
-def misere(source: ContractLike) -> Dict[str, Any]:
+def misere(source: ContractLike) -> dict[str, Any]:
     """The same game with every return (and declared reward) negated."""
     data = _contract(source)
     spec = data["game"]
@@ -112,7 +114,7 @@ def misere(source: ContractLike) -> Dict[str, Any]:
     return data
 
 
-def zerosum(source: ContractLike) -> Dict[str, Any]:
+def zerosum(source: ContractLike) -> dict[str, Any]:
     """The same game with each seat's return minus the mean return of all seats (seats of one type)."""
     data = _contract(source)
     types = _seat_types(data)
@@ -171,7 +173,7 @@ _TOLERANCE = 1e-9
 
 
 def zero_sum_check(source: ContractLike, *, playouts: int = 100, seed: int = 0,
-                   inputs: Optional[Mapping[str, Any]] = None) -> UtilityCheck:
+                   inputs: Mapping[str, Any] | None = None) -> UtilityCheck:
     """Play ``playouts`` random games and report how their returns add up (see :class:`UtilityCheck`)."""
     if isinstance(playouts, bool) or not isinstance(playouts, int) or playouts < 1:
         raise ValueError(f"playouts must be a whole number ≥ 1, got {playouts!r}")

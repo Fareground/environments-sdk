@@ -7,10 +7,10 @@ cached list. Lists are in creation order, exactly as a scan of the world would g
 from __future__ import annotations
 
 import heapq
-from typing import Dict, Iterable, List, Optional
+from collections.abc import Iterable
 
-from .entity import Entity
 from ..contract import Contract
+from .entity import Entity
 
 __all__ = ["TypeIndex"]
 
@@ -21,12 +21,13 @@ class TypeIndex:
     def __init__(self, contract: Contract):
         self._kinds = {name: tuple(contract.subtypes(name)) for name in contract.types}
         #: exact type → the declared types whose members it counts as (itself and its ancestors)
-        self._queries = {kind: [name for name, kinds in self._kinds.items() if kind in kinds] for kind in contract.types}
+        self._queries = {kind: [name for name, kinds in self._kinds.items() if kind in kinds]
+                         for kind in contract.types}
         #: exact type → every entity ever made of it, in creation order (removed ones until compacted)
-        self._members: Dict[str, List[Entity]] = {name: [] for name in contract.types}
-        self._alive: Dict[str, Optional[List[Entity]]] = {}
+        self._members: dict[str, list[Entity]] = {name: [] for name in contract.types}
+        self._alive: dict[str, list[Entity] | None] = {}
         #: entity id → its creation position (only the order matters)
-        self.ordinal: Dict[str, int] = {}
+        self.ordinal: dict[str, int] = {}
         self._next = 0
         #: How many entities are alive, of every type.
         self.living = 0
@@ -61,7 +62,7 @@ class TypeIndex:
         for name in self._queries[entity.entity_type]:
             self._alive[name] = None
 
-    def alive(self, type_name: str, compact: bool) -> List[Entity]:
+    def alive(self, type_name: str, compact: bool) -> list[Entity]:
         """The living members of ``type_name`` — the cached list itself, which callers must not change.
         ``compact`` (nothing left to roll back) also forgets removed members for good."""
         cached = self._alive.get(type_name)

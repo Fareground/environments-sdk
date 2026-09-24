@@ -30,28 +30,27 @@ rule that never settles is reported instead of silently truncated.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Sequence
 from difflib import get_close_matches
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any
 
-from ..world.entity import Entity
+from ..contract import MAX_CREATE, one_or_many
 from ..errors import RunError
-from ..runtime.clock_math import advance_time
-from ..contract import MAX_CREATE
-from ..runtime.delivery import dropped, send
-from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, is_expr, map_key, resolve, truthy
-from ..expr.values import _eq
+from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, map_key, resolve, truthy
 from ..expr.template import compile_template, format_value
-from ..world.links import Link
+from ..expr.values import _eq
 from ..registry import OPS, OpSpec, family_action_hint
+from ..runtime.clock_math import advance_time
+from ..runtime.delivery import dropped, send
+from ..world.entity import Entity
+from ..world.links import Link
 from ..world.live import Abort, SdkWorld
 from ..world.parts import PhysicsView, PropsView
-from .statements import Statement, capture_roots, compile_statement, split_statement, structured_capture_roots
-
-from ..contract import one_or_many
+from .statements import Statement, capture_roots, compile_statement, structured_capture_roots
 
 __all__ = ["EFFECT_OPS", "EffectRunner"]
 
-EFFECT_OPS: Dict[str, Tuple[str, ...]] = {
+EFFECT_OPS: dict[str, tuple[str, ...]] = {
     "if": ("if", "then", "else"),
     "each": ("each", "where", "do", "as"),
     "create": ("create", "count", "id", "name", "props", "at", "as"),
@@ -83,7 +82,7 @@ _NOT_ASSIGNABLE = "can only assign to an entity's property, a link's field, $wor
 _NUMBERS = (int, float)
 
 
-def _to_ids(value: Any, where: str) -> Optional[Tuple[str, ...]]:
+def _to_ids(value: Any, where: str) -> tuple[str, ...] | None:
     if value is None:
         return None
     if isinstance(value, Entity):
@@ -113,7 +112,7 @@ def _entity(value: Any, world: SdkWorld, where: str, what: str = "an entity") ->
     raise RunError(f"expected {what}, got {value!r}", where)
 
 
-def each_items(value: Any, world: SdkWorld, where: str) -> List[Any]:
+def each_items(value: Any, world: SdkWorld, where: str) -> list[Any]:
     """What an `each` (of an effect, an event or a policy rule) goes over: a type's entities, a list, one entity."""
     if isinstance(value, str) and world.is_type(value):
         return list(world.entities_of(value))
@@ -143,7 +142,7 @@ class EffectRunner:
     def __init__(self, world: SdkWorld):
         self.world = world
         self._hook_depth = 0
-        self._hooks: Dict[Tuple[str, str], List[Tuple[str, List[Any]]]] = {}
+        self._hooks: dict[tuple[str, str], list[tuple[str, list[Any]]]] = {}
         world.lifecycle = self.lifecycle
 
     def lifecycle(self, hook: str, entity: Entity, where: str) -> None:
@@ -155,8 +154,8 @@ class EffectRunner:
         if not hooks:
             return
         if self._hook_depth >= self.HOOK_DEPTH:
-            raise RunError(f"{hook} hooks set each other off more than {self.HOOK_DEPTH} levels deep "
-                           f"(does {entity.entity_type}'s {hook} create or remove another {entity.entity_type}?)", where)
+            raise RunError(f"{hook} hooks set each other off more than {self.HOOK_DEPTH} levels deep (does "
+                           f"{entity.entity_type}'s {hook} create or remove another {entity.entity_type}?)", where)
         self._hook_depth += 1
         try:
             for type_name, effects in hooks:
@@ -164,7 +163,7 @@ class EffectRunner:
         finally:
             self._hook_depth -= 1
 
-    def run(self, effects: List[Any], vars: Dict[str, Any], path: str) -> None:
+    def run(self, effects: list[Any], vars: dict[str, Any], path: str) -> None:
         for index, effect in enumerate(one_or_many(effects) or []):
             try:
                 if isinstance(effect, str):
@@ -177,14 +176,16 @@ class EffectRunner:
                 raise RunError(str(exc), f"{path}[{index}]") from None
             except OverflowError:  # its own text varies by platform
                 raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
-            except ArithmeticError as exc:  # a contract rule's arithmetic failed: the rule's fault, never the participant's
+            # a contract rule's arithmetic failed: the rule's fault, never the participant's
+            except ArithmeticError as exc:
                 raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
-            except TypeError as exc:  # values the rule combines that do not fit: the rule's fault, never the participant's
+            # values the rule combines that do not fit: the rule's fault, never the participant's
+            except TypeError as exc:
                 raise RunError(f"could not apply: {exc}", f"{path}[{index}]") from None
 
     # -- statements ------------------------------------------------------------
 
-    def _statement(self, source: str, vars: Dict[str, Any], path: str, index: int) -> None:
+    def _statement(self, source: str, vars: dict[str, Any], path: str, index: int) -> None:
         stmt = compile_statement(source)
         scope = self.world.scope(**vars)
         value = stmt.value(scope)
@@ -199,7 +200,7 @@ class EffectRunner:
             if not isinstance(owner, (Entity, Link, PropsView, PhysicsView)):
                 raise RunError(_NOT_ASSIGNABLE.format(source=source), f"{path}[{index}]")
             prop = stmt.steps[0][1]
-            rest: List[Tuple[str, Any]] = []
+            rest: list[tuple[str, Any]] = []
         else:
             owner, prop, rest = self._owner(stmt, scope, source, f"{path}[{index}]")
         if rest:
@@ -217,12 +218,12 @@ class EffectRunner:
         else:
             self.world.set_physics(prop, value)
 
-    def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> Tuple[Any, str, List[Tuple[str, Any]]]:
+    def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> tuple[Any, str, list[tuple[str, Any]]]:
         """The deepest entity / link / $world / $physics on the target path, the property written on it, and
         the element path (resolved keys) inside that property's value."""
         current = stmt.base(scope)  # type: ignore[misc]
-        found: Optional[Tuple[Any, int]] = None
-        resolved: List[Tuple[str, Any]] = []
+        found: tuple[Any, int] | None = None
+        resolved: list[tuple[str, Any]] = []
         for position, (kind, step) in enumerate(stmt.steps):
             key = step(scope) if kind == "index" else step
             resolved.append((kind, key))
@@ -251,7 +252,7 @@ class EffectRunner:
             return container[name]
         return attr(container, str(key), source)
 
-    def _set_in(self, container: Any, path: List[Tuple[str, Any]], op: str, value: Any, source: str,
+    def _set_in(self, container: Any, path: list[tuple[str, Any]], op: str, value: Any, source: str,
                 label: str) -> Any:
         """A copy of ``container`` with the element at ``path`` assigned (or combined with ``op``)."""
         kind, key = path[0]
@@ -291,7 +292,8 @@ class EffectRunner:
         except OverflowError:
             raise ExprError(f"`{op}` gives a result too large to represent", source) from None
         if isinstance(result, int) and not isinstance(result, bool) and result.bit_length() > MAX_INT_BITS:
-            raise ExprError(f"a whole number of {result.bit_length():,} bits is past the limit of {MAX_INT_BITS:,} bits",
+            raise ExprError(f"a whole number of {result.bit_length():,} bits is past the limit of {MAX_INT_BITS:,} "
+                            "bits",
                             source)
         return check_size(result, source)
 
@@ -326,7 +328,7 @@ class EffectRunner:
 
     # -- keyed operations ------------------------------------------------------
 
-    def _keyed(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _keyed(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         ops = select_ops(effect)
         if len(ops) != 1:
             if not ops:
@@ -351,17 +353,17 @@ class EffectRunner:
         except Exception as exc:  # a mechanism op crashed: the op's fault at this path, never the participant's
             raise RunError(f"`{ops[0]}` failed: {type(exc).__name__}: {exc}", where) from exc
 
-    def eval(self, value: Any, vars: Dict[str, Any]) -> Any:
+    def eval(self, value: Any, vars: dict[str, Any]) -> Any:
         """Evaluate an expression (or a structure of them) with these locals."""
         return resolve(value, self.world.scope(**vars))
 
-    def text(self, template: Optional[str], vars: Dict[str, Any]) -> str:
+    def text(self, template: str | None, vars: dict[str, Any]) -> str:
         """Render a template with these locals."""
         if not template:
             return ""
         return compile_template(template, None).render(self.world.scope(**vars))
 
-    def said(self, template: Optional[str], vars: Dict[str, Any], to: Optional[Sequence[str]]) -> str:
+    def said(self, template: str | None, vars: dict[str, Any], to: Sequence[str] | None) -> str:
         """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
         properties may show."""
         viewer = self.world.entities.get(to[0]) if to is not None and len(to) == 1 else None
@@ -370,15 +372,15 @@ class EffectRunner:
     _eval = eval
     _text = text
 
-    def _condition(self, value: Any, vars: Dict[str, Any]) -> bool:
+    def _condition(self, value: Any, vars: dict[str, Any]) -> bool:
         # These fields are checked as expressions, even without a $ reference.
         return truthy(compile_expr(value)(self.world.scope(**vars)) if isinstance(value, str) else value)
 
-    def _op_if(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_if(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         branch = "then" if self._condition(effect["if"], vars) else "else"
         self.run(effect.get(branch) or [], vars, f"{where}.{branch}")
 
-    def _op_each(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_each(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         name = effect.get("as") or "it"
         items = each_items(self._eval(effect["each"], vars), self.world, where)
         where_expr = effect.get("where")
@@ -403,13 +405,13 @@ class EffectRunner:
             if watch is not None:
                 self.world.watched_writes = None
 
-    def _op_create(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_create(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         count = self._eval(effect.get("count", 1), vars)
         if isinstance(count, bool) or not isinstance(count, int) or count < 0:
             raise RunError(f"count must be a whole number ≥ 0, got {count!r}", where)
         if count > MAX_CREATE:
             raise RunError(f"count {count:,} is more than the limit of {MAX_CREATE:,} entities per create", where)
-        made: List[Entity] = []
+        made: list[Entity] = []
         for n in range(count):
             inner = {**vars, "i": n + 1}
             entity_id = self._text(effect.get("id"), inner) or None
@@ -420,12 +422,12 @@ class EffectRunner:
         if effect.get("as"):
             vars[effect["as"]] = made[0] if count == 1 else made
 
-    def _op_remove(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_remove(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         value = self._eval(effect["remove"], vars)
         for item in value if isinstance(value, list) else [value]:
             self.world.remove(_entity(item, self.world, where), where)
 
-    def _op_transfer(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_transfer(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         prop = effect["transfer"]
         source = _entity(self._eval(effect.get("from"), vars), self.world, where, "a `from` entity")
         target = _entity(self._eval(effect.get("to"), vars), self.world, where, "a `to` entity")
@@ -454,12 +456,12 @@ class EffectRunner:
         self.world.set_prop(source, prop, have - amount)
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
 
-    def _hidden(self, entity: Entity, prop: str, vars: Dict[str, Any]) -> bool:
+    def _hidden(self, entity: Entity, prop: str, vars: dict[str, Any]) -> bool:
         """Whether a refusal must not show ``entity``'s ``prop``: it is private and the actor, who is told, is
         someone else."""
         return bool(self.world.prop_spec(entity, prop).private) and getattr(vars.get("actor"), "id", None) != entity.id
 
-    def _op_link(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_link(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         value = self._eval(effect["value"], vars) if "value" in effect else None
         fields = effect.get("props") or {}
         if not isinstance(fields, dict):
@@ -467,15 +469,15 @@ class EffectRunner:
         self.world.link(effect["link"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
                         value, where, {name: self._eval(raw, vars) for name, raw in fields.items()})
 
-    def _op_unlink(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_unlink(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         self.world.unlink(effect["unlink"], self._eval(effect.get("from"), vars), self._eval(effect.get("to"), vars),
                           where)
 
-    def _op_move(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_move(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         entity = _entity(self._eval(effect["move"], vars), self.world, where)
         self.world.move(entity, self._eval(effect.get("to"), vars), where)
 
-    def _op_post(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_post(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         if self._dropped(effect, vars, where):
             return
         if "author" in effect:
@@ -491,7 +493,7 @@ class EffectRunner:
              {"kind": "post", "record": effect["post"], "fields": fields, "author": author,
               "to": list(to) if to is not None else None}, where)
 
-    def _entry_reader(self, record: str, author: Optional[str], to: Optional[Sequence[str]]) -> Any:
+    def _entry_reader(self, record: str, author: str | None, to: Sequence[str] | None) -> Any:
         """Who an entry is shown to, as its fields are worked out: its one reader (its author and whom it is sent `to`),
         whose own private properties it may carry; everyone when several read it; None — game logic reading the true
         state — when the record's `visible` rule decides."""
@@ -501,7 +503,7 @@ class EffectRunner:
         spec = self.world.contract.records.get(record)
         return EVERYONE if spec is not None and spec.visible == "all" else None
 
-    def _op_emit(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_emit(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         if self._dropped(effect, vars, where):
             return
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
@@ -512,20 +514,20 @@ class EffectRunner:
               "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
               "data": {k: _plain_value(v) for k, v in data.items()}}, where)
 
-    def _dropped(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> bool:
+    def _dropped(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> bool:
         """Roll the effect's ``drop`` chance (a lossy channel): True when the message is lost."""
         return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
 
-    def _op_fail(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_fail(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         actor = vars.get("actor")  # the refusal is text the actor is shown
         text = self.text(effect["fail"], {**vars, "viewer": actor} if isinstance(actor, Entity) else vars)
         raise Abort(text or "That is not possible right now.")
 
-    def _op_end(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_end(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None
         self.world.request_end(str(effect["end"]), _plain_value(winner), self._text(effect.get("say"), vars))
 
-    def _op_after(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_after(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         delay = self._eval(effect["after"], vars)
         world = self.world
         if world.continuous:
@@ -549,7 +551,7 @@ class EffectRunner:
             captured = {name: value for name, value in vars.items() if name in roots}
         world.schedule(due, effects, captured, f"{where}.do")
 
-    def _op_wake(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_wake(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         why = self._text(effect.get("why"), vars) or "You were asked to act."
         world = self.world
         delay = self._eval(effect["in"], vars) if "in" in effect else 0
@@ -570,11 +572,12 @@ class EffectRunner:
             if world.continuous:
                 world.set_wake_at(entity_id, advance_time(world.time, delay, where))
 
-    def _op_block(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_block(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         name = effect["block"]
         spec = self.world.contract.blocks.get(name)
         if spec is None:
-            raise RunError(f"'{name}' is not a declared block (blocks: {', '.join(self.world.contract.blocks) or 'none'})", where)
+            raise RunError(f"'{name}' is not a declared block (blocks: "
+                           f"{', '.join(self.world.contract.blocks) or 'none'})", where)
         given = effect.get("with") or {}
         if set(given) != set(spec.args):
             raise RunError(f"block '{name}' takes arguments {spec.args}, got {sorted(given)}", where)
@@ -588,12 +591,12 @@ class EffectRunner:
         finally:
             self._depth = depth
 
-    def _op_chance(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_chance(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         from .chance import run_chance
 
         run_chance(self, effect, vars, where)
 
-    def _op_repeat(self, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+    def _op_repeat(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         limit = self._eval(effect["repeat"], vars)
         if isinstance(limit, bool) or not isinstance(limit, int) or not 0 <= limit <= REPEAT_CEILING:
             raise RunError(f"`repeat` needs a whole-number limit from 0 to {REPEAT_CEILING}, got {limit!r}", where)
@@ -606,7 +609,7 @@ class EffectRunner:
             raise RunError(f"`repeat` reached its limit of {limit} while `{condition}` still holds", where)
 
 
-def _without_one_each(items: List[Any], drop: List[Any]) -> List[Any]:
+def _without_one_each(items: list[Any], drop: list[Any]) -> list[Any]:
     """``items`` with one copy removed for each item of ``drop`` that is there (``[1, 2, 2] -= 2`` leaves
     ``[1, 2]``), compared as ``==`` compares: entities by id, maps and lists by content."""
     kept = list(items)
@@ -636,7 +639,7 @@ def _plain_value(value: Any) -> Any:
     return value
 
 
-def select_ops(effect: Dict[str, Any]) -> List[str]:
+def select_ops(effect: dict[str, Any]) -> list[str]:
     """The operation(s) an effect object names; anything but exactly one is an error for the caller.
 
     * A ``post``'s other keys are record fields, whatever they are called (a field may be named
@@ -653,18 +656,16 @@ def select_ops(effect: Dict[str, Any]) -> List[str]:
     return core + native
 
 
-def all_ops() -> Dict[str, Tuple[str, ...]]:
+def all_ops() -> dict[str, tuple[str, ...]]:
     """Every effect operation and the keys it takes: the core ones, then registered native ops."""
     return {**EFFECT_OPS, **{name: spec.keys for name, spec in OPS.items()}}
 
 
-def registered_op(name: str) -> Optional[OpSpec]:
+def registered_op(name: str) -> OpSpec | None:
     return OPS.get(name)
 
 
-def is_statement(value: Any) -> bool:
-    return isinstance(value, str) and is_expr(value) and split_statement(value) is not None
-
 
 from .. import mechanisms as _mechanisms  # noqa: E402,F401  (registers native ops and mechanism kinds)
+
 assert not set(EFFECT_OPS) & set(OPS), "a registered op shadows a core effect"

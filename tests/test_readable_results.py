@@ -28,7 +28,8 @@ def test_small_numbers_keep_three_significant_digits():
 
 def test_an_unknown_format_is_reported_with_a_suggestion():
     contract = {**SHARES, "outputs": {"cash": {"expr": "1", "format": "mony"}}}
-    assert "outputs.cash.format: unknown format 'mony' → did you mean 'money'?" in [str(i) for i in fg_env.check(contract)]
+    assert ("outputs.cash.format: unknown format 'mony' → did you mean "
+            "'money'?") in [str(i) for i in fg_env.check(contract)]
 
 
 def test_saved_results_keep_their_formats(tmp_path):

@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from . import _check_exposures, _guarded, _inputs, _pairs, _UsageError
 
@@ -13,7 +13,7 @@ __all__ = ["add_run_commands", "budget_arg", "save_frames"]
 TRACE_VIEWS = ("overview", "turn", "timeline", "search", "invalid", "agent", "replay")
 
 
-def budget_arg(items: Optional[List[str]]) -> Optional[Dict[str, Any]]:
+def budget_arg(items: list[str] | None) -> dict[str, Any] | None:
     """``--budget tokens=100000 --budget on_exhaust=idle`` as a budget mapping (None when not given)."""
     return _pairs(items, "--budget") or None
 
@@ -59,7 +59,7 @@ def cmd_trace(args: argparse.Namespace) -> int:
     return 0
 
 
-def _turn_args(rest: List[str]) -> List[Any]:
+def _turn_args(rest: list[str]) -> list[Any]:
     usage = "usage: fg-env trace FILE turn WAKE (a number), or turn AGENT ROUND (a number)"
     if len(rest) not in (1, 2):
         raise _UsageError(usage)
@@ -93,7 +93,8 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
 
 def _share(name: str, value: Any) -> float:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise _UsageError(f"--mode expects NAME=SHARE with a share of the seats, like resident=0.75; got {name}={value!r}")
+        raise _UsageError("--mode expects NAME=SHARE with a share of the seats, like resident=0.75; got "
+                          f"{name}={value!r}")
     return float(value)
 
 
@@ -116,7 +117,8 @@ def add_run_commands(sub: Any) -> None:
     p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
     p.add_argument("--inputs-file", help="JSON file of inputs")
     p.add_argument("--arm", help="experiment arm to apply")
-    p.add_argument("--focal", required=True, metavar="PARTICIPANT", help="random | idle | policy:<name> | anthropic:<model> | openai:<model>")
+    p.add_argument("--focal", required=True, metavar="PARTICIPANT",
+                   help="random | idle | policy:<name> | anthropic:<model> | openai:<model>")
     p.add_argument("--background", metavar="PARTICIPANT", help="plays every other agent (default: type policy)")
     p.add_argument("--baseline", metavar="PARTICIPANT", help="plays the focal seats in the paired runs "
                                                              "(default: the background)")

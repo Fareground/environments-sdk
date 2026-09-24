@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
-from ..world.entity import Entity
 from ..contract import UTILITIES, Contract
 from ..errors import Issue, RunError
 from ..expr import ExprError, compile_expr
 from ..expr.template import format_value
+from ..world.entity import Entity
 
 __all__ = ["seat_ids", "seat_returns", "seat_rewards", "measured", "utility_issues", "check_game", "run_result"]
 
@@ -16,7 +17,7 @@ __all__ = ["seat_ids", "seat_returns", "seat_rewards", "measured", "utility_issu
 UTILITY_TOLERANCE = 1e-9
 
 
-def seat_ids(contract: Contract, world: Any) -> List[str]:
+def seat_ids(contract: Contract, world: Any) -> list[str]:
     """The seats, in seat order: every entity (alive or not) of the players' types."""
     spec = contract.game
     listed = spec.players if spec is not None and spec.players else contract.agent_types()
@@ -35,7 +36,7 @@ def seat_ids(contract: Contract, world: Any) -> List[str]:
     return [entity.id for _, _, entity in keyed]
 
 
-def seat_returns(contract: Contract, world: Any, seats: Optional[Sequence[str]] = None) -> Dict[str, float]:
+def seat_returns(contract: Contract, world: Any, seats: Sequence[str] | None = None) -> dict[str, float]:
     """Each seat's return so far, or ``{}`` when the contract declares none."""
     spec = contract.game
     if spec is None or spec.returns is None:
@@ -43,7 +44,7 @@ def seat_returns(contract: Contract, world: Any, seats: Optional[Sequence[str]] 
     return _per_seat(world, spec.returns, "game.returns", seat_ids(contract, world) if seats is None else seats)
 
 
-def seat_rewards(contract: Contract, world: Any, seats: Sequence[str]) -> Optional[Dict[str, float]]:
+def seat_rewards(contract: Contract, world: Any, seats: Sequence[str]) -> dict[str, float] | None:
     """Each seat's declared reward now, or None when rewards follow the change in returns."""
     spec = contract.game
     if spec is None or spec.rewards is None:
@@ -51,7 +52,7 @@ def seat_rewards(contract: Contract, world: Any, seats: Sequence[str]) -> Option
     return _per_seat(world, spec.rewards, "game.rewards", seats)
 
 
-def run_result(world: Any) -> Dict[str, Any]:
+def run_result(world: Any) -> dict[str, Any]:
     """`$result`: how the run has ended so far. ``winner`` is what an `end` named — its entities as entities
     (removed ones too), several as a list, anything else as it is — or null; ``ended_by`` is the end's name, or null
     while the run goes on or when it ran out of rounds."""
@@ -66,10 +67,10 @@ def run_result(world: Any) -> Dict[str, Any]:
     return {"winner": entity(ending.get("winner")), "ended_by": ending.get("name")}
 
 
-def _per_seat(world: Any, source: str, path: str, seats: Sequence[str]) -> Dict[str, float]:
+def _per_seat(world: Any, source: str, path: str, seats: Sequence[str]) -> dict[str, float]:
     expr = compile_expr(source)
     result = run_result(world)
-    out: Dict[str, float] = {}
+    out: dict[str, float] = {}
     for seat in seats:
         entity = world.entities.get(seat)
         if not isinstance(entity, Entity):
@@ -84,7 +85,7 @@ def _per_seat(world: Any, source: str, path: str, seats: Sequence[str]) -> Dict[
     return out
 
 
-def measured(contract: Contract, world: Any, finished: bool) -> Tuple[Dict[str, Any], List[Issue], Dict[str, float]]:
+def measured(contract: Contract, world: Any, finished: bool) -> tuple[dict[str, Any], list[Issue], dict[str, float]]:
     """A run's outputs, their issues (a finished run's utility problems included) and its returns so far."""
     from .measure import compute_outputs
 
@@ -93,7 +94,7 @@ def measured(contract: Contract, world: Any, finished: bool) -> Tuple[Dict[str, 
     return outputs, issues + (utility_issues(contract, returns) if finished else []), returns
 
 
-def utility_issues(contract: Contract, returns: Dict[str, float]) -> List[Issue]:
+def utility_issues(contract: Contract, returns: dict[str, float]) -> list[Issue]:
     """Problems with a finished run's returns against the declared utility class."""
     spec = contract.game
     if spec is None or not returns:
@@ -102,19 +103,22 @@ def utility_issues(contract: Contract, returns: Dict[str, float]) -> List[Issue]
     total = sum(values)
     slack = UTILITY_TOLERANCE * max(1.0, sum(abs(v) for v in values))
     fix = "fix game.returns, or declare the utility class these returns really have"
-    issues: List[Issue] = []
+    issues: list[Issue] = []
     if spec.utility == "zero_sum" and abs(total) > slack:
         issues.append(Issue("game.utility", f"is zero_sum, but the returns add up to {total:.10g}", fix))
     if spec.utility == "constant_sum" and spec.total is not None and abs(total - spec.total) > slack:
-        issues.append(Issue("game.utility", f"is constant_sum ({spec.total:g}), but the returns add up to {total:.10g}", fix))
+        issues.append(Issue("game.utility", f"is constant_sum ({spec.total:g}), but the returns add up to {total:.10g}",
+                            fix))
     if spec.utility == "identical" and max(values) - min(values) > slack:
         issues.append(Issue("game.utility", f"is identical, but the returns differ: {returns}", fix))
     bound_fix = "fix game.returns, or widen the declared bound"
     for seat, value in returns.items():
         if spec.min_return is not None and value < spec.min_return - slack:
-            issues.append(Issue("game.min_return", f"is {spec.min_return:g}, but {seat} finished with {value:.10g}", bound_fix))
+            issues.append(Issue("game.min_return", f"is {spec.min_return:g}, but {seat} finished with {value:.10g}",
+                                bound_fix))
         if spec.max_return is not None and value > spec.max_return + slack:
-            issues.append(Issue("game.max_return", f"is {spec.max_return:g}, but {seat} finished with {value:.10g}", bound_fix))
+            issues.append(Issue("game.max_return", f"is {spec.max_return:g}, but {seat} finished with {value:.10g}",
+                                bound_fix))
     return issues
 
 
@@ -152,18 +156,20 @@ def check_game(checker: Any) -> None:
         checker.issues.extend(claim_issues(game_metadata(checker.c), claims))
 
 
-def utility_class(contract: Contract) -> Tuple[str, List[str]]:
+def utility_class(contract: Contract) -> tuple[str, list[str]]:
     """The utility class the returns have, with the evidence: derived when every seat's return is one constant,
     otherwise the declared class, which every finished run is checked against."""
     spec = contract.game
     if spec is None or spec.returns is None:
-        return "unknown", ["the contract declares no per-player returns, so zero-sum or constant-sum cannot be established"]
+        return ("unknown",
+                ["the contract declares no per-player returns, so zero-sum or constant-sum cannot be established"])
     try:
-        constant: Optional[float] = float(spec.returns)
+        constant: float | None = float(spec.returns)
     except ValueError:
         constant = None
     if constant is not None:
         holds = {"identical", "general_sum", "constant_sum"} | ({"zero_sum"} if constant == 0 else set())
-        return (spec.utility if spec.utility in holds else "identical"), [f"every seat's return is the constant {constant:g}"]
+        return ((spec.utility if spec.utility in holds else "identical"),
+                [f"every seat's return is the constant {constant:g}"])
     return spec.utility, [f"game.utility declares {spec.utility}; every finished run's returns are checked against it "
                           "(a run that breaks it is not ok)"]

@@ -1,7 +1,8 @@
-"""Static checks for ``patterns``: parameters stay fixed for a run, references resolve, reads match each kind's shape."""
+"""Static checks for ``patterns``: parameters stay fixed for a run, references resolve, reads match each kind's shape.
+"""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, FrozenSet, List, Optional, Set
+from typing import TYPE_CHECKING, Any
 
 from ..expr import ExprError, compile_expr, is_expr
 from . import timebase as tb
@@ -18,7 +19,7 @@ __all__ = ["check_patterns", "check_pattern_call", "configs"]
 _FIXED = ("draw", "segments")
 
 
-def configs(contract: Any) -> Dict[str, PatternConfig]:
+def configs(contract: Any) -> dict[str, PatternConfig]:
     out = {}
     for name, spec in contract.patterns.items():
         cfg, _ = validated(name, spec)
@@ -27,13 +28,14 @@ def configs(contract: Any) -> Dict[str, PatternConfig]:
     return out
 
 
-def check_patterns(checker: "_Checker", base: FrozenSet[str]) -> None:
+def check_patterns(checker: _Checker, base: frozenset[str]) -> None:
     declared = configs(checker.c)
     for name, cfg in declared.items():
         path = f"patterns.{name}"
         kind = KINDS[cfg.kind]
         _keys(checker, cfg, path)
-        roots = {"inputs", "pattern"} | ({"key"} if cfg.keyed else set()) | ({"row"} if cfg.table is not None else set())
+        roots = ({"inputs", "pattern"} | ({"key"} if cfg.keyed else set())
+                 | ({"row"} if cfg.table is not None else set()))
         fields = [*kind.params, "min", "max"]
         for field in fields:
             _fixed(checker, declared, getattr(cfg, field, None), f"{path}.{field}", roots)
@@ -59,33 +61,36 @@ def check_patterns(checker: "_Checker", base: FrozenSet[str]) -> None:
     _cycles(checker, declared)
 
 
-def _record(checker: "_Checker", name: str, cfg: PatternConfig, path: str) -> None:
+def _record(checker: _Checker, name: str, cfg: PatternConfig, path: str) -> None:
     source = checker.c._source if isinstance(checker.c._source, dict) else {}
     if name in (source.get("metrics") or {}):
         checker.error(f"{path}.record", f"a metric is already named '{name}'",
                       "rename the metric or the pattern (a recorded pattern is a metric of its own name)")
     wanted = KINDS[cfg.kind].arg_names(cfg)
     if wanted:
-        checker.error(f"{path}.record", f"'{name}' is called with {', '.join(wanted)}, so it has no value of its own to record",
+        checker.error(f"{path}.record",
+                      f"'{name}' is called with {', '.join(wanted)}, so it has no value of its own to record",
                       "record a metric that calls it instead")
 
 
-def _keys(checker: "_Checker", cfg: PatternConfig, path: str) -> None:
+def _keys(checker: _Checker, cfg: PatternConfig, path: str) -> None:
     if isinstance(cfg.keys, str):
         if is_expr(cfg.keys):
             checker.expr(cfg.keys, f"{path}.keys", {"inputs"})
         elif cfg.keys not in checker.c.types:
             checker.error(f"{path}.keys", f"'{cfg.keys}' is not a declared type",
-                          checker._suggest(cfg.keys, checker.c.types) or "give an entity type, a list, or an expression over $inputs")
+                          checker._suggest(cfg.keys, checker.c.types)
+                          or "give an entity type, a list, or an expression over $inputs")
     if cfg.table is not None:
         checker.expr(cfg.table, f"{path}.table", {"inputs"})
         if cfg.column is None:
-            checker.error(f"{path}.column", "a table needs `column`: the column holding each row's key", 'add "column": "sku"')
+            checker.error(f"{path}.column", "a table needs `column`: the column holding each row's key",
+                          'add "column": "sku"')
     elif cfg.column is not None:
         checker.error(f"{path}.column", "`column` names the key column of a `table`", "add `table` or remove `column`")
 
 
-def _fixed(checker: "_Checker", declared: Dict[str, PatternConfig], raw: Any, path: str, roots: Set[str]) -> None:
+def _fixed(checker: _Checker, declared: dict[str, PatternConfig], raw: Any, path: str, roots: set[str]) -> None:
     """A parameter: a literal, or an expression over the roots fixed for a run, calling nothing random."""
     if hasattr(raw, "model_dump"):
         raw = raw.model_dump()
@@ -107,7 +112,8 @@ def _fixed(checker: "_Checker", declared: Dict[str, PatternConfig], raw: Any, pa
     for root in sorted(compiled.roots - roots):
         checker.error(path, f"${root} is not available in a pattern parameter",
                       "parameters are fixed for a run: read $inputs" + (", $key" if "key" in roots else "")
-                      + (", $row" if "row" in roots else "") + " or a draw pattern; state belongs in an argument or a memory input")
+                      + (", $row" if "row" in roots else "")
+                      + " or a draw pattern; state belongs in an argument or a memory input")
         return
     from ..describe.walk import random_functions  # imported late: describe imports the API, which imports the checker
 
@@ -124,7 +130,7 @@ def _fixed(checker: "_Checker", declared: Dict[str, PatternConfig], raw: Any, pa
     checker.expr(raw, path, roots)
 
 
-def _operands(checker: "_Checker", declared: Dict[str, PatternConfig], name: str, cfg: Any, path: str) -> None:
+def _operands(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: Any, path: str) -> None:
     for index, (item, other_name) in enumerate(zip(cfg.of, operand_names(cfg))):
         at = f"{path}.of[{index}]"
         other = declared.get(other_name)
@@ -148,7 +154,7 @@ def _operands(checker: "_Checker", declared: Dict[str, PatternConfig], name: str
                 checker.error(f"{at}.key", f"'{other_name}' has no keys", "name it on its own")
 
 
-def _time(checker: "_Checker", cfg: Any, path: str) -> None:
+def _time(checker: _Checker, cfg: Any, path: str) -> None:
     clock = checker.c.clock
     # a start read from $inputs is only known at build, so dates are checked there
     known_start = clock.start is not None and not is_expr(clock.start)
@@ -174,7 +180,7 @@ def _time(checker: "_Checker", cfg: Any, path: str) -> None:
                     checker.error(at, str(exc), "write clock units from round 1 or an ISO date with clock.start set")
 
 
-def _fit(checker: "_Checker", declared: Dict[str, PatternConfig], name: str, cfg: PatternConfig, path: str) -> None:
+def _fit(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: PatternConfig, path: str) -> None:
     fit = cfg.fit
     assert fit is not None
     checker.expr(fit.data, f"{path}.fit.data", {"inputs"})
@@ -185,23 +191,27 @@ def _fit(checker: "_Checker", declared: Dict[str, PatternConfig], name: str, cfg
                           checker._suggest(adjusted, declared))
     if isinstance(fit.x, dict):
         if cfg.kind != "product":
-            checker.error(f"{path}.fit.x", "only a product fit names responses by pattern", "give the driver's column: \"x\": \"price\"")
+            checker.error(f"{path}.fit.x", "only a product fit names responses by pattern",
+                          "give the driver's column: \"x\": \"price\"")
         for factor, spec in fit.x.items():
             other = declared.get(factor)
             if other is None or factor == name:
-                checker.error(f"{path}.fit.x.{factor}", f"'{factor}' is not another declared pattern", checker._suggest(factor, declared))
+                checker.error(f"{path}.fit.x.{factor}", f"'{factor}' is not another declared pattern",
+                              checker._suggest(factor, declared))
             elif not KINDS[other.kind].arg_names(other) and KINDS[other.kind].shape != "memory":
                 checker.error(f"{path}.fit.x.{factor}", f"'{factor}' is not called with a driver",
                               "name it in `of` instead")
             key = getattr(spec, "key", None)
             if key is not None:
-                checker.expr(key, f"{path}.fit.x.{factor}.key", {"inputs", "key"} | ({"row"} if cfg.table is not None else set()))
+                checker.expr(key, f"{path}.fit.x.{factor}.key",
+                             {"inputs", "key"} | ({"row"} if cfg.table is not None else set()))
     if fit.noise is not None and (fit.noise not in declared or declared[fit.noise].kind != "counts"):
-        checker.error(f"{path}.fit.noise", f"'{fit.noise}' is not a declared counts pattern", checker._suggest(fit.noise, declared))
+        checker.error(f"{path}.fit.noise", f"'{fit.noise}' is not a declared counts pattern",
+                      checker._suggest(fit.noise, declared))
     _calibrated(checker, declared, name, cfg)
 
 
-def _calibrated(checker: "_Checker", declared: Dict[str, PatternConfig], name: str, cfg: PatternConfig) -> None:
+def _calibrated(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: PatternConfig) -> None:
     """Warn about a fitted input that the ``calibration`` section also tunes: every load would replace the estimate."""
     calibration = checker.c.calibration
     if calibration is None or cfg.fit is None:
@@ -221,15 +231,16 @@ def _calibrated(checker: "_Checker", declared: Dict[str, PatternConfig], name: s
                 checker.warn(f"patterns.{pattern}.{field}",
                              f"$inputs.{tuned[0]} is fitted from data (patterns.{name}.fit) and also tuned at every "
                              "load by calibration.params, so each load replaces the estimate",
-                             f"remove '{tuned[0]}' from calibration.params, or drop the fit and let calibration tune it")
+                             f"remove '{tuned[0]}' from calibration.params, or drop the fit and let calibration tune "
+                             "it")
 
 
-def _cycles(checker: "_Checker", declared: Dict[str, PatternConfig]) -> None:
-    edges: Dict[str, List[str]] = {name: operand_names(cfg) if KINDS[cfg.kind].shape == "composite" else []
+def _cycles(checker: _Checker, declared: dict[str, PatternConfig]) -> None:
+    edges: dict[str, list[str]] = {name: operand_names(cfg) if KINDS[cfg.kind].shape == "composite" else []
                                    for name, cfg in declared.items()}
-    state: Dict[str, int] = {}
+    state: dict[str, int] = {}
 
-    def visit(name: str, trail: List[str]) -> Optional[List[str]]:
+    def visit(name: str, trail: list[str]) -> list[str] | None:
         state[name] = 1
         for other in edges.get(name, []):
             if state.get(other) == 1:
@@ -249,7 +260,7 @@ def _cycles(checker: "_Checker", declared: Dict[str, PatternConfig]) -> None:
                 return
 
 
-def check_pattern_call(checker: "_Checker", compiled: Any, path: str) -> None:
+def check_pattern_call(checker: _Checker, compiled: Any, path: str) -> None:
     """Reads (``$pattern.x``) and calls (``$pattern.x(a, key)``) of patterns in one expression."""
     declared = configs(checker.c)
     called = {name for root, name, _ in compiled.methods if root == "pattern"}

@@ -12,7 +12,8 @@ import fg_env
 def contract(**overrides):
     c = {
         "name": "Secrets", "clock": {"rounds": 1},
-        "types": {"p": {"agent": True, "props": {"coins": 5, "secret": {"type": "int", "default": 0, "private": True}}}},
+        "types": {"p": {"agent": True,
+                        "props": {"coins": 5, "secret": {"type": "int", "default": 0, "private": True}}}},
         "entities": {"a": {"type": "p", "props": {"secret": 1}}, "b": {"type": "p", "props": {"secret": 9}},
                      "c": {"type": "p", "props": {"secret": 3}}},
         "records": {"chat": {"fields": {"text": "text"}}},

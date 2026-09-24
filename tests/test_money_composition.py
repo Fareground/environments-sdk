@@ -42,7 +42,8 @@ def economy(mechanisms, **extra):
             "types": {"trader": {"agent": True, "props": {"cash": 10000, "acme_shares": 100}}},
             "entities": {t: {"type": "trader"} for t in "ab"},
             "stages": [{"name": "trade", "turns": "sequential", "max_actions": 10, "max_calls": 12}],
-            "mechanisms": {name: {**use, **({"stage": "trade"} if use["kind"] == "market" else {})} for name, use in mechanisms.items()},
+            "mechanisms": {name: {**use, **({"stage": "trade"} if use["kind"] == "market" else {})}
+                           for name, use in mechanisms.items()},
             **extra}
 
 
@@ -54,7 +55,8 @@ def errors(contract):
 def test_markets_sharing_cash_never_refuse_each_other(pair):
     contract = economy({name: MARKETS[name] for name in pair})
     assert not errors(contract)
-    _, replies = play(contract, {(1, "a"): [c for m in pair for c in SELLS[m]], (1, "b"): [c for m in pair for c in BUYS[m]]})
+    _, replies = play(contract,
+                      {(1, "a"): [c for m in pair for c in SELLS[m]], (1, "b"): [c for m in pair for c in BUYS[m]]})
     assert all(reply.ok for _, reply in replies), [(tool, reply.text) for tool, reply in replies]
 
 
@@ -71,21 +73,25 @@ def test_author_wages_taxes_and_dividends_run_beside_a_book():
 
 
 def test_a_ledger_counts_the_cash_its_markets_hold():
-    contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader", "currencies": {"cash": {"start": 1000}},
+    contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader",
+                                  "currencies": {"cash": {"start": 1000}},
                                   "sources": {"wage": {"to": "trader", "amount": 50}}},
                         "acme": MARKETS["acme"], "pm": MARKETS["pm"], "sale": MARKETS["sale"]})
     contract["types"]["trader"]["props"] = {"acme_shares": 100}
     assert not errors(contract)
-    _, replies = play(contract, {(1, "a"): [("acme_sell", {"qty": 5, "price": 50}), ("pm_buy", {"outcome": "up", "spend": 100}),
-                                            ("sale_bid", {"price": 10})],
-                                 (1, "b"): [("acme_buy", {"qty": 5, "price": 50}), ("acme_buy", {"qty": 1, "price": 40})]},
+    _, replies = play(contract,
+                      {(1, "a"): [("acme_sell", {"qty": 5, "price": 50}), ("pm_buy", {"outcome": "up", "spend": 100}),
+                                  ("sale_bid", {"price": 10})],
+                       (1, "b"): [("acme_buy", {"qty": 5, "price": 50}),
+                                  ("acme_buy", {"qty": 1, "price": 40})]},
                      rounds=2)
     assert all(reply.ok for _, reply in replies), [(tool, reply.text) for tool, reply in replies]
 
 
 def test_a_ledger_starts_its_supply_from_everything_that_holds_its_currency():
     crowd = {**MARKETS["acme"], "crowd": {"noise": {"count": 3, "cash": 500, "shares": 10}}}
-    contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader", "currencies": {"cash": {"start": 1000}}},
+    contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader",
+                                  "currencies": {"cash": {"start": 1000}}},
                         "acme": crowd, "pm": MARKETS["pm"]})
     contract["types"]["trader"]["props"] = {"acme_shares": 100}
     assert not errors(contract)
@@ -95,7 +101,8 @@ def test_a_ledger_starts_its_supply_from_everything_that_holds_its_currency():
 
 
 def test_a_ledger_still_catches_cash_the_author_creates_outside_its_sources():
-    contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader", "currencies": {"cash": {"start": 1000}}},
+    contract = economy({"money": {"kind": "economy", "mode": "ledger", "who": "trader",
+                                  "currencies": {"cash": {"start": 1000}}},
                         "acme": MARKETS["acme"]},
                        actions={"earn": {"by": "trader", "do": ["$actor.cash += 100"]}})
     contract["types"]["trader"]["props"] = {"acme_shares": 100}
@@ -109,16 +116,20 @@ def test_mechanisms_attached_to_one_declared_stage_share_its_turn():
                 "types": {"trader": {"agent": True, "props": {"cash": 1000, "acme_shares": 10}}},
                 "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}},
                 "stages": [{"name": "floor", "turns": "sequential"}],
-                "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 10, "stage": "floor"},
+                "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 10,
+                                        "stage": "floor"},
                                "chat": {"kind": "social", "mode": "channels", "who": "trader", "stage": "floor"},
-                               "v": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["y", "n"], "stage": "floor"}}}
+                               "v": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["y", "n"],
+                                     "stage": "floor"}}}
     _, replies = play(contract, {(1, "a"): [("chat_say", {"channel": "general", "text": "selling"}),
                                             ("acme_sell", {"qty": 1, "price": 10}), ("acme_cancel_all", {}),
                                             ("v_vote", {"choice": "y"})]})
     assert all(reply.ok for _, reply in replies), [(tool, reply.text) for tool, reply in replies]
     declared = json.loads(json.dumps(contract))
     declared["stages"][0]["max_actions"] = 1
-    _, replies = play(declared, {(1, "a"): [("chat_say", {"channel": "general", "text": "hi"}), ("acme_sell", {"qty": 1, "price": 10})]})
+    _, replies = play(declared,
+                      {(1, "a"): [("chat_say", {"channel": "general", "text": "hi"}),
+                                  ("acme_sell", {"qty": 1, "price": 10})]})
     assert [reply.ok for _, reply in replies] == [True, False]  # the author's own budget stands
     game = json.loads(json.dumps(contract))
     game["actions"] = {"move": {"by": "trader", "do": []}}

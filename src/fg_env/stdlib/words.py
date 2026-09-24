@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from typing import Any, List
+from typing import Any
 
 from ..expr import Call, derived, function
 from ._args import fail, optional_text, text_arg
@@ -10,7 +10,7 @@ from ._args import fail, optional_text, text_arg
 GREEN, YELLOW, GRAY = "green", "yellow", "gray"
 
 
-def wordle_feedback(guess: str, answer: str) -> List[str]:
+def wordle_feedback(guess: str, answer: str) -> list[str]:
     """Per-letter feedback. Greens are placed first; a yellow is given only while the answer still has an
     unmatched copy of that letter, so repeated letters are never over-reported."""
     marks = [GRAY] * len(guess)
@@ -28,12 +28,15 @@ def wordle_feedback(guess: str, answer: str) -> List[str]:
 
 
 @function("wordle_feedback(guess, answer)",
-          "Wordle marks per letter of `guess` against `answer` (same length, case-insensitive): green (right place), yellow (elsewhere, respecting repeated letters), gray.",
+          "Wordle marks per letter of `guess` against `answer` (same length, case-insensitive): green (right place), "
+          "yellow (elsewhere, respecting repeated letters), gray.",
           min_args=2, max_args=2)
-def _wordle_feedback(call: Call) -> List[str]:
+def _wordle_feedback(call: Call) -> list[str]:
     guess, answer = text_arg(call, 0, "the guess text").lower(), text_arg(call, 1, "the answer text").lower()
     if len(guess) != len(answer):
-        raise fail(call, f"the guess has {len(guess)} letters but the answer has {len(answer)}; validate the guess length first")
+        raise fail(call,
+                   f"the guess has {len(guess)} letters but the answer has {len(answer)}; validate the guess length "
+                   "first")
     return wordle_feedback(guess, answer)  # fixed labels, never participant text
 
 
@@ -53,7 +56,8 @@ def _letters(call: Call, value: Any) -> set:
 
 
 @function("mask(word, revealed, hidden?)",
-          "Hangman view of `word`: letters in `revealed` (a list or text, case-insensitive) shown, other letters and digits replaced by `hidden` (default _); spaces and punctuation always shown.",
+          "Hangman view of `word`: letters in `revealed` (a list or text, case-insensitive) shown, other letters and "
+          "digits replaced by `hidden` (default _); spaces and punctuation always shown.",
           min_args=2, max_args=3)
 def _mask(call: Call) -> str:
     word = text_arg(call, 0, "the secret word")
@@ -66,7 +70,8 @@ def _mask(call: Call) -> str:
     return derived(out, word, hidden)
 
 
-@function("anagram(a, b)", "True when the two texts use exactly the same letters (case, spaces and punctuation ignored).",
+@function("anagram(a, b)",
+          "True when the two texts use exactly the same letters (case, spaces and punctuation ignored).",
           min_args=2, max_args=2)
 def _anagram(call: Call) -> bool:
     def letters(text: str) -> Counter:

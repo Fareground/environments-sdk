@@ -7,14 +7,15 @@ as a run diagnostic and in experiment tables.
 from __future__ import annotations
 
 import json
-from typing import Any, List, Mapping, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any
 
 from ..contract import Contract
 
 __all__ = ["arm_input_overrides", "override_message"]
 
 
-def arm_input_overrides(contract: Contract, arm: Optional[str], inputs: Mapping[str, Any]) -> List[Tuple[str, Any, Any]]:
+def arm_input_overrides(contract: Contract, arm: str | None, inputs: Mapping[str, Any]) -> list[tuple[str, Any, Any]]:
     """``(input, the arm's value, the value used)`` for every input ``arm`` sets that ``inputs`` holds differently.
     Inputs read from a data file are left out: their loaded value is not comparable with what the arm wrote."""
     if arm is None or arm not in contract.arms:
@@ -30,8 +31,8 @@ def arm_input_overrides(contract: Contract, arm: Optional[str], inputs: Mapping[
 
 
 def override_message(arm: str, name: str, arm_value: Any, given: Any) -> str:
-    return (f"the caller's input {name}={_shown(given)} replaced arm '{arm}''s {name}={_shown(arm_value)}, so these runs do "
-            "not test what the arm sets")
+    return (f"the caller's input {name}={_shown(given)} replaced arm '{arm}''s {name}={_shown(arm_value)}, so these "
+            "runs do not test what the arm sets")
 
 
 def _shown(value: Any) -> str:

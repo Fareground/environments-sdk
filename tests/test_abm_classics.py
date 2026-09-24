@@ -1,4 +1,5 @@
-"""The agent-based modelling classics shipped as contracts reproduce their known results, and `fg-env bench` times them."""
+"""The agent-based modelling classics shipped as contracts reproduce their known results, and `fg-env bench` times them.
+"""
 import json
 from pathlib import Path
 

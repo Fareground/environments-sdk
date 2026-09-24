@@ -36,7 +36,8 @@ def test_followup_changes_preserve_previous_rule_patch(arm, change):
             'same_arm': {'arm': arm}}[change]
     second = first.fork(**opts)
     result = second.run()
-    expected = start + (10 if change == 'effects' else 0) + 4 * 2 * (4 if change == 'inputs' else first.inputs['demand'])
+    expected = (start + (10 if change == 'effects' else 0)
+                + 4 * 2 * (4 if change == 'inputs' else first.inputs['demand']))
     assert result.ok
     assert result.outputs['total'] == expected
     if change == 'patch':

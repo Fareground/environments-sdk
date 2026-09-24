@@ -10,7 +10,7 @@ from __future__ import annotations
 import datetime as _dt
 import math
 from dataclasses import dataclass
-from typing import Any, List, Optional
+from typing import Any
 
 from ..stdlib.dates import parse_moment, shift
 
@@ -28,7 +28,7 @@ class Calendar:
     """The clock as patterns read it: the resolved start date (``clock.start`` may be read from ``$inputs``), the unit,
     the units per round and whether time is continuous."""
 
-    start: Optional[str]
+    start: str | None
     unit: str
     step: int
     mode: str
@@ -45,7 +45,7 @@ def _unit(clock: Any) -> str:
     return str(clock.unit).lower().rstrip("s")
 
 
-def unit_days(clock: Any) -> Optional[float]:
+def unit_days(clock: Any) -> float | None:
     """Days in one clock unit, or None for a unit without a calendar length (turn, round, tick)."""
     return UNIT_DAYS.get(_unit(clock))
 
@@ -71,7 +71,7 @@ def parse_date(text: str) -> _dt.datetime:
     return parsed if isinstance(parsed, _dt.datetime) else _dt.datetime.combine(parsed, _dt.time())
 
 
-def moment(clock: Any, t: float) -> Optional[_dt.datetime]:
+def moment(clock: Any, t: float) -> _dt.datetime | None:
     """The calendar moment at ``t``, or None without ``clock.start`` or a calendar unit."""
     if not clock.start:
         return None
@@ -159,7 +159,7 @@ def slot(clock: Any, t: float, period: Any, slots: int) -> int:
     return min(slots - 1, int(position(clock, t, period) * slots))
 
 
-def days_covered(clock: Any, t: float) -> List[_dt.date]:
+def days_covered(clock: Any, t: float) -> list[_dt.date]:
     """The calendar days one round starting at ``t`` covers (one day for daily or shorter rounds)."""
     first = moment(clock, t)
     if first is None:

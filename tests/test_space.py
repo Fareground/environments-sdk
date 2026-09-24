@@ -16,7 +16,8 @@ def _grid(**grid):
         "types": {"walker": {"agent": True, "props": {}}, "rock": {"props": {}}},
         "entities": {"a": {"type": "walker", "at": [2, 2]}, "b": {"type": "walker", "at": [2, 3]},
                      "c": {"type": "rock", "at": [0, 0]}, "d": {"type": "rock", "at": [4, 4]}},
-        "actions": {"step": {"by": "walker", "params": {"to": {"type": "list", "items": {"type": "int"}, "unique": False}},
+        "actions": {"step": {"by": "walker",
+                             "params": {"to": {"type": "list", "items": {"type": "int"}, "unique": False}},
                              "do": [{"move": "$actor", "to": "$params.to"}]}},
     }
 
@@ -139,8 +140,9 @@ WANDER = {
             {"move": "$actor", "to": "$choice($cells($actor))"},
             "$actor.n = $count($near($actor, 1))",
             {"if": "$chance(0.3)", "then": [{"fail": "stumbled"}]}]},
-        "hatch": {"by": "ant", "when": "$count(ant) < 20", "do": [{"create": "ant", "at": "$actor.at"},
-                                                                 {"if": "$chance(0.5)", "then": [{"remove": "$actor"}]}]}},
+        "hatch": {"by": "ant", "when": "$count(ant) < 20",
+                  "do": [{"create": "ant", "at": "$actor.at"},
+                         {"if": "$chance(0.5)", "then": [{"remove": "$actor"}]}]}},
     "stages": [{"name": "go", "order": "random"}],
     "metrics": {"crowd": "$sum(ant, $len($at($it)))"},
 }
@@ -178,7 +180,8 @@ GRAPH = {
     "space": {"graph": {"nodes": "$inputs.towns",
                         "edges": [["a", "b"], {"from": "b", "to": "c", "weight": 2}, ["c", "d"]]}},
     "types": {"trader": {"props": {}}},
-    "entities": {"t1": {"type": "trader", "at": "d"}, "t2": {"type": "trader", "at": "b"}, "t3": {"type": "trader", "at": "a"}},
+    "entities": {"t1": {"type": "trader", "at": "d"}, "t2": {"type": "trader", "at": "b"},
+                 "t3": {"type": "trader", "at": "a"}},
 }
 
 

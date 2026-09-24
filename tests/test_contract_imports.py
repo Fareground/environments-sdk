@@ -31,7 +31,8 @@ def test_imported_sections_merge_nested_imports_resolve_and_the_contract_wins(tm
         "types": {"player": {"agent": True, "props": {"cash": 10}}},
         "actions": {"pay": {"by": "player", "do": ["$actor.cash -= 1"], "terminal": True},
                     "wave": {"by": "player", "do": [], "terminal": True}}})
-    _write(tmp_path / "lib" / "more" / "rules.json", {"world": {"pot": 0}, "defs": {"broke": {"args": ["p"], "expr": "$p.cash <= 0"}}})
+    _write(tmp_path / "lib" / "more" / "rules.json",
+           {"world": {"pot": 0}, "defs": {"broke": {"args": ["p"], "expr": "$p.cash <= 0"}}})
     main = _main(tmp_path, ["lib/cards.json"],
                  actions={"wave": {"by": "player", "do": ["$world.pot += 1"], "terminal": True}})
     assert [i for i in fg_env.check(main) if i.severity == "error"] == []

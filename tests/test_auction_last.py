@@ -44,8 +44,9 @@ def test_last_moves_to_the_next_closed_lot_and_reports_an_unsold_one():
 
 
 def test_a_uniform_lot_lists_every_winner_at_the_one_clearing_price():
-    uniform = {**SALE, "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "uniform", "who": "bidder",
-                                               "stock": 3, "units": 3}}}
+    uniform = {**SALE,
+               "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "uniform", "who": "bidder",
+                                       "stock": 3, "units": 3}}}
     env = fg_env.load(uniform, seed=1)
     ids = [e["id"] for e in env.entities("bidder")]
     prices = dict(zip(ids, [50, 90, 70]))

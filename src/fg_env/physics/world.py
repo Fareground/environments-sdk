@@ -1,13 +1,13 @@
 """Atomic evolution of shared world and entity quantities between decisions."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from .model import _CONSTS, _FUNCS, PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
-from .entities import EntityDynamicsStep
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
 from ..world.props import finite_number, shown_value
+from .entities import EntityDynamicsStep
+from .model import _CONSTS, _FUNCS, PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
 
 if TYPE_CHECKING:
     from ..world.live import SdkWorld
@@ -15,17 +15,18 @@ if TYPE_CHECKING:
 __all__ = ["build_physics", "step_physics"]
 
 
-def build_physics(world: "SdkWorld") -> None:
+def build_physics(world: SdkWorld) -> None:
     spec = world.contract.physics
     if spec is None:
         return
     scope = world.scope()
-    params: Dict[str, float] = {}
+    params: dict[str, float] = {}
     for name, raw in spec.params.items():
         params[name] = _constant(world, raw, f"physics.params.{name}")
     for name in spec.read:
         if name in spec.vars or name in spec.params:
-            raise RunError(f"'{name}' is both a read name and a variable or param; give the read its own name", f"physics.read.{name}")
+            raise RunError(f"'{name}' is both a read name and a variable or param; give the read its own name",
+                           f"physics.read.{name}")
         params.setdefault(name, 0.0)
     variables = []
     for name, var in spec.vars.items():
@@ -45,7 +46,7 @@ def build_physics(world: "SdkWorld") -> None:
     _refresh_reads(world)
 
 
-def step_physics(world: "SdkWorld", elapsed: Optional[float] = None) -> List[Dict[str, Any]]:
+def step_physics(world: SdkWorld, elapsed: float | None = None) -> list[dict[str, Any]]:
     """Advance a complete physical interval atomically, including all writebacks."""
     spec, model = world.contract.physics, world.physics
     if spec is None or model is None:
@@ -74,7 +75,7 @@ def step_physics(world: "SdkWorld", elapsed: Optional[float] = None) -> List[Dic
         raise
 
 
-def advance_equations(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
+def advance_equations(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
     """Advance the equation subsystem; the caller owns interval atomicity."""
     spec, model = world.contract.physics, world.physics
     assert spec is not None and model is not None
@@ -102,7 +103,7 @@ def advance_equations(world: "SdkWorld", dt: float) -> List[Dict[str, Any]]:
     return changes
 
 
-def _refresh_reads(world: "SdkWorld") -> None:
+def _refresh_reads(world: SdkWorld) -> None:
     spec = world.contract.physics
     if spec is None or world.physics is None:
         return
@@ -115,7 +116,7 @@ def _refresh_reads(world: "SdkWorld") -> None:
         world.physics.params[name] = _number(value, f"physics.read.{name}")
 
 
-def _constant(world: "SdkWorld", raw: Any, where: str) -> float:
+def _constant(world: SdkWorld, raw: Any, where: str) -> float:
     try:
         value = compile_expr(raw)(world.scope()) if is_expr(raw) else raw
     except ExprError as exc:

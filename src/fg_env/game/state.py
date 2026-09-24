@@ -16,15 +16,16 @@ from __future__ import annotations
 import hashlib
 import json
 import random
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 from ..copying.branch import Branch, outcome_index
-from ..runtime.driving import Unpausable
-from ..errors import ContractError, Issue, RunError
-from ..runtime.returns import seat_rewards
 from ..copying.direct import NotCopyable
-from ..runtime.session import END_TURN, ToolResult
 from ..copying.snapshot import encode
+from ..errors import ContractError, Issue, RunError
+from ..runtime.driving import Unpausable
+from ..runtime.returns import seat_rewards
+from ..runtime.session import END_TURN, ToolResult
 from ..runtime.turn import Turn
 from .observe import digest, information_state, observation_struct, observation_text, state_key
 from .runs import Run, ThreadedRun, replayed
@@ -38,26 +39,26 @@ __all__ = ["GameState", "CHANCE", "SIMULTANEOUS", "TERMINAL"]
 #: ``current_player()`` at a chance node, a simultaneous node, and the end.
 CHANCE, SIMULTANEOUS, TERMINAL = -1, -2, -4
 
-ActionLike = Union[int, str, Action, Mapping[str, Any], Tuple[str, Mapping[str, Any]]]
-Legal = Tuple[List[Action], Dict[str, str]]
+ActionLike = int | str | Action | Mapping[str, Any] | tuple[str, Mapping[str, Any]]
+Legal = tuple[list[Action], dict[str, str]]
 
 
 class GameState:
     """One state of a :class:`~fg_env.game.Game`. ``apply_action`` changes it; ``child`` and ``clone``
     give new independent states. Players are seat indices (``game.players[i]`` is the entity id)."""
 
-    def __init__(self, game: "Game", run: Union[Branch, Run], history: List[Dict[str, Any]],
-                 previous: Optional[List[float]] = None, legal: Optional[Dict[int, Legal]] = None,
+    def __init__(self, game: Game, run: Branch | Run, history: list[dict[str, Any]],
+                 previous: list[float] | None = None, legal: dict[int, Legal] | None = None,
                  path: bytes = b""):
         self.game = game
         self._run: Run = ThreadedRun(run, game._prefetch) if isinstance(run, Branch) else run
         self._history = history
         self._previous = previous
-        self._legal: Dict[int, Legal] = dict(legal) if legal else {}
+        self._legal: dict[int, Legal] = dict(legal) if legal else {}
         #: A digest of the decisions so far: equal digests, equal states.
         self._path = path
         #: A call just found legal by sampling, applied without listing again.
-        self._verified: Optional[Tuple[int, str, str]] = None
+        self._verified: tuple[int, str, str] | None = None
 
     # -- whose decision -----------------------------------------------------------------------------
 
@@ -89,7 +90,7 @@ class GameState:
         assert turn is not None
         return self.game.seat(turn.actor.id)
 
-    def acting_players(self) -> List[int]:
+    def acting_players(self) -> list[int]:
         """Seats that decide now: every seat still choosing at a simultaneous node, else the current one."""
         turn = self._turn()
         if turn is None:
@@ -99,7 +100,7 @@ class GameState:
         actors = self._run.read(lambda env: [t.actor.id for t in env.origin.staged if not t.done])
         return [self.game.seat(actor) for actor in actors if actor in self.game.players]
 
-    def chance_outcomes(self) -> List[Tuple[int, float]]:
+    def chance_outcomes(self) -> list[tuple[int, float]]:
         """``(outcome, probability)`` for every possible outcome of the chance node."""
         pause = self._run.pause
         if pause is None or pause.kind != "chance" or pause.node is None:
@@ -108,26 +109,26 @@ class GameState:
 
     # -- actions -------------------------------------------------------------------------------------
 
-    def legal_actions(self, player: Optional[int] = None) -> List[int]:
+    def legal_actions(self, player: int | None = None) -> list[int]:
         """Ids of the legal listed calls (ascending); at a chance node, the possible outcomes."""
         if player is None and self.is_chance_node():
             return [outcome for outcome, _ in self.chance_outcomes()]
         return [action.id for action in self.legal_tool_calls(player) if action.id is not None]
 
-    def legal_actions_mask(self, player: Optional[int] = None) -> List[int]:
+    def legal_actions_mask(self, player: int | None = None) -> list[int]:
         legal = set(self.legal_actions(player))
         return [1 if index in legal else 0 for index in range(self.game.num_distinct_actions())]
 
-    def legal_tool_calls(self, player: Optional[int] = None) -> List[Action]:
+    def legal_tool_calls(self, player: int | None = None) -> list[Action]:
         """The legal calls whose arguments can be listed, as :class:`Action` (id, tool, args)."""
         return self._legal_for(player)[0]
 
-    def unlisted_actions(self, player: Optional[int] = None) -> Dict[str, str]:
+    def unlisted_actions(self, player: int | None = None) -> dict[str, str]:
         """Legal actions whose calls cannot be listed (free text, lists, …), with the reason; apply them as
         ``{"tool": ..., "args": {...}}``."""
         return self._legal_for(player)[1]
 
-    def sample_legal_action(self, rng: random.Random, player: Optional[int] = None) -> Optional[Action]:
+    def sample_legal_action(self, rng: random.Random, player: int | None = None) -> Action | None:
         """A uniformly random legal listed call of the seat (None when it has none) — the same choice as
         ``rng.choice(state.legal_tool_calls(player))``, found without listing every legal call, so random
         playouts are cheap. Applying it next does not list the legal calls either."""
@@ -139,7 +140,7 @@ class GameState:
             return rng.choice(known[0]) if known[0] else None
         actor_id, game = self.game.players[seat], self.game
 
-        def work(env: Any) -> Optional[Tuple[str, Dict[str, Any]]]:
+        def work(env: Any) -> tuple[str, dict[str, Any]] | None:
             turn = self._seat_turn(env, actor_id)
             return sample_call(env, turn, rng, limit=game.limit, dry_run=game.dry_run) if turn is not None else None
 
@@ -179,7 +180,7 @@ class GameState:
                              "action}), or play it one seat at a time with game.as_turn_based()")
         self._apply(self.current_player(), action)
 
-    def apply_actions(self, actions: Union[Mapping[int, ActionLike], Sequence[ActionLike]]) -> None:
+    def apply_actions(self, actions: Mapping[int, ActionLike] | Sequence[ActionLike]) -> None:
         """Every acting seat's sealed move at a simultaneous node (a mapping seat → action, or a list in
         ``acting_players()`` order). Each seat's turn ends after its move."""
         if not self.is_simultaneous_node():
@@ -202,12 +203,12 @@ class GameState:
                 self._call(seat, END_TURN, {})
         self._changed()
 
-    def child(self, action: ActionLike) -> "GameState":
+    def child(self, action: ActionLike) -> GameState:
         state = self.clone()
         state.apply_action(action)
         return state
 
-    def clone(self) -> "GameState":
+    def clone(self) -> GameState:
         try:
             run = self._run.clone()
         except NotCopyable:
@@ -217,7 +218,7 @@ class GameState:
 
     # -- scores --------------------------------------------------------------------------------------
 
-    def returns(self) -> List[float]:
+    def returns(self) -> list[float]:
         """Each seat's return so far (the contract's ``game.returns``)."""
         game = self.game
         if game.contract.game is None or game.contract.game.returns is None:
@@ -227,7 +228,7 @@ class GameState:
         values = run.read_prefetched() if run.prefetch is not None else run.read(game._returns_of)
         return [values[seat] for seat in game.players]
 
-    def rewards(self) -> List[float]:
+    def rewards(self) -> list[float]:
         """Each seat's reward for the last decision: the contract's ``game.rewards``, else the change in returns."""
         contract, players = self.game.contract, self.game.players
         declared = self._run.read(lambda env: seat_rewards(contract, env.world, players))
@@ -272,7 +273,7 @@ class GameState:
 
     # -- history -------------------------------------------------------------------------------------
 
-    def history(self) -> List[Dict[str, Any]]:
+    def history(self) -> list[dict[str, Any]]:
         """Every decision so far: ``{"player", "tool", "args"}`` or ``{"chance", "outcome"}``."""
         return [dict(entry) for entry in self._history]
 
@@ -287,7 +288,7 @@ class GameState:
         """The run's :class:`RunResult` so far."""
         return self._run.result()
 
-    def entity(self, entity_id: str) -> Optional[Dict[str, Any]]:
+    def entity(self, entity_id: str) -> dict[str, Any] | None:
         return self._run.entity(entity_id)
 
     def close(self) -> None:
@@ -303,15 +304,15 @@ class GameState:
 
     # -- internals -----------------------------------------------------------------------------------
 
-    def _safe_returns(self) -> Optional[List[float]]:
+    def _safe_returns(self) -> list[float] | None:
         contract = self.game.contract
         return self.returns() if contract.game is not None and contract.game.returns is not None else None
 
-    def _turn(self) -> Optional[Turn]:
+    def _turn(self) -> Turn | None:
         pause = self._run.pause
         return pause.wake._turn if pause is not None and pause.kind == "turn" and pause.wake is not None else None
 
-    def _seat(self, player: Optional[int]) -> int:
+    def _seat(self, player: int | None) -> int:
         if player is None:
             current = self.current_player()
             if current == SIMULTANEOUS:
@@ -321,7 +322,7 @@ class GameState:
             raise ValueError(f"player must be a seat index from 0 to {self.game.num_players() - 1}, got {player!r}")
         return player
 
-    def _legal_for(self, player: Optional[int]) -> Legal:
+    def _legal_for(self, player: int | None) -> Legal:
         seat = self._seat(player)
         if seat < 0:
             return [], {}
@@ -332,7 +333,7 @@ class GameState:
         if known is None:
             actor_id, game = self.game.players[seat], self.game
 
-            def work(env: Any) -> Tuple[List[Tuple[str, Dict[str, Any]]], Dict[str, str]]:
+            def work(env: Any) -> tuple[list[tuple[str, dict[str, Any]]], dict[str, str]]:
                 turn = self._seat_turn(env, actor_id)
                 return legal_calls(env, turn, limit=game.limit, dry_run=game.dry_run) if turn is not None else ([], {})
 
@@ -344,7 +345,7 @@ class GameState:
         self._legal[seat] = known
         return known
 
-    def _with_id(self, tool: str, args: Dict[str, Any]) -> Action:
+    def _with_id(self, tool: str, args: dict[str, Any]) -> Action:
         action = self.game.space.action(tool, args)
         if action.id is None and tool not in self.game.space.parametric:
             raise RunError(f"{action.text} is legal now but has no id: its arguments were not among the values "
@@ -352,7 +353,7 @@ class GameState:
                            "not depend on the state, so every value has an id", f"actions.{tool}")
         return action
 
-    def _seat_turn(self, env: Any, actor_id: str) -> Optional[Turn]:
+    def _seat_turn(self, env: Any, actor_id: str) -> Turn | None:
         turn = self._turn()
         if turn is not None and turn.actor.id == actor_id:
             return turn
@@ -360,7 +361,7 @@ class GameState:
             return next((t for t in env.origin.staged if t.actor.id == actor_id and not t.done), None)
         return None
 
-    def _resolve(self, action: ActionLike) -> Tuple[str, Dict[str, Any]]:
+    def _resolve(self, action: ActionLike) -> tuple[str, dict[str, Any]]:
         if isinstance(action, Action):
             return action.tool, dict(action.args)
         if isinstance(action, bool):
@@ -374,12 +375,13 @@ class GameState:
             args = action.get("args", action.get("input", {}))
             if isinstance(tool, str) and isinstance(args, Mapping):
                 return tool, dict(args)
-        if isinstance(action, tuple) and len(action) == 2 and isinstance(action[0], str) and isinstance(action[1], Mapping):
+        if (isinstance(action, tuple) and len(action) == 2 and isinstance(action[0], str)
+            and isinstance(action[1], Mapping)):
             return action[0], dict(action[1])
         raise ValueError(f"an action is an id, an Action, {{'tool': ..., 'args': {{...}}}}, (tool, args) or a tool "
                          f"name, got {action!r}")
 
-    def _checked(self, seat: int, action: ActionLike) -> Tuple[str, Dict[str, Any]]:
+    def _checked(self, seat: int, action: ActionLike) -> tuple[str, dict[str, Any]]:
         """The call, once it is known to be legal for ``seat``."""
         tool, args = self._resolve(action)
         if self._verified is not None and self._verified == (seat, tool, _args_key(args)):
@@ -393,7 +395,7 @@ class GameState:
         if tool in unlisted:
             actor_id = self.game.players[seat]
 
-            def check(env: Any) -> Optional[str]:
+            def check(env: Any) -> str | None:
                 from ..assets.intake import previewed
 
                 turn = self._seat_turn(env, actor_id)
@@ -410,7 +412,8 @@ class GameState:
                 return tool, args
             raise ValueError(f"{Action(action_id, tool, args).text} is not legal now: {problem}")
         shown = ", ".join(a.text for a in listed[:12]) + (" …" if len(listed) > 12 else "")
-        raise ValueError(f"{Action(action_id, tool, args).text} is not legal for seat {seat} now (legal: {shown or 'none'})")
+        raise ValueError(f"{Action(action_id, tool, args).text} is not legal for seat {seat} now (legal: "
+                         f"{shown or 'none'})")
 
     def _apply(self, seat: int, action: ActionLike) -> None:
         tool, args = self._checked(seat, action)
@@ -418,14 +421,15 @@ class GameState:
         self._call(seat, tool, args)
         self._changed()
 
-    def _call(self, seat: int, tool: str, args: Dict[str, Any]) -> None:
+    def _call(self, seat: int, tool: str, args: dict[str, Any]) -> None:
         result = self._decide(lambda run: run.call(tool, args))
         if result is not None and not result.ok and not result.data.get("spent"):  # refused by its luck: played
-            raise RunError(f"the engine refused {Action(None, tool, args).text} after it was found legal: {result.text}",
+            raise RunError(f"the engine refused {Action(None, tool, args).text} after it was found legal: "
+                           f"{result.text}",
                            f"actions.{tool}")
         self._record({"player": seat, "tool": tool, "args": args})
 
-    def _decide(self, decision: Callable[[Run], Optional[ToolResult]]) -> Optional[ToolResult]:
+    def _decide(self, decision: Callable[[Run], ToolResult | None]) -> ToolResult | None:
         """``decision`` on the state's run; a stepped run that cannot take it goes on as a piloted one."""
         try:
             return decision(self._run)
@@ -434,7 +438,7 @@ class GameState:
             self._run = replayed(self.game, self._history)
             return decision(self._run)
 
-    def _record(self, entry: Dict[str, Any]) -> None:
+    def _record(self, entry: dict[str, Any]) -> None:
         self._history.append(entry)
         step = json.dumps(encode(entry), sort_keys=True, default=str).encode()
         self._path = hashlib.blake2b(self._path + step, digest_size=20).digest()
@@ -448,7 +452,7 @@ class GameState:
         self._legal.clear()
         self._verified = None
 
-    def _pending(self, env: Any) -> Dict[str, Any]:
+    def _pending(self, env: Any) -> dict[str, Any]:
         pause = self._run.pause
         if pause is None:
             return {"over": True}

@@ -2,16 +2,17 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from collections.abc import Mapping
+from typing import Any
 
 from ..registry import MechanismError, mode, use_key
 from .cards import KEY, CardActionConfig, CardsConfig, Zone, card_family, id_prefix, slug, standard_cards, zones_for
 
-__all__: List[str] = []
+__all__: list[str] = []
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 _INSPECT = "$card_visible($it, $viewer)"
-_BASE_PROPS: Dict[str, Any] = {
+_BASE_PROPS: dict[str, Any] = {
     "rank": {"type": "any", "default": 0, "description": "Rank (standard decks: 2–14, ace high)."},
     "suit": {"type": "text", "default": ""},
     "zone": {"type": "text", "default": "deck", "description": "Where the card is."},
@@ -23,7 +24,7 @@ _BASE_PROPS: Dict[str, Any] = {
 }
 
 
-def _prop_default(value: Any) -> Dict[str, Any]:
+def _prop_default(value: Any) -> dict[str, Any]:
     if isinstance(value, bool):
         return {"type": "bool", "default": False}
     if isinstance(value, (int, float)):
@@ -38,18 +39,20 @@ def _prop_default(value: Any) -> Dict[str, Any]:
 
 
 def _card_entities(config: CardsConfig, zones: Mapping[str, Zone], taken: Mapping[str, Any], prefix: str
-                   ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+                   ) -> tuple[dict[str, Any], dict[str, Any]]:
     """Shared card entities (per-player cards are created in round 1) and the props their entries use."""
-    entities: Dict[str, Any] = {}
-    props: Dict[str, Any] = {}
+    entities: dict[str, Any] = {}
+    props: dict[str, Any] = {}
     if config.deck == "standard":
         for order, (card_id, name, rank, suit) in enumerate(standard_cards(config.jokers)):
-            entities[prefix + card_id] = {"type": config.type, "name": name, "props": {"rank": rank, "suit": suit, "order": order}}
+            entities[prefix + card_id] = {"type": config.type, "name": name,
+                                          "props": {"rank": rank, "suit": suit, "order": order}}
     else:
         for index, entry in enumerate(config.deck):
             zone = zones.get(entry.zone)
             if zone is None:
-                raise MechanismError(f"'{entry.zone}' is not a zone", f"zones: {', '.join(zones)}", f"deck[{index}].zone")
+                raise MechanismError(f"'{entry.zone}' is not a zone", f"zones: {', '.join(zones)}",
+                                     f"deck[{index}].zone")
             if zone.owned and not entry.per_player:
                 raise MechanismError(f"a shared card cannot start in the owned zone '{entry.zone}'",
                                      "set per_player: true, or start it in a shared zone", f"deck[{index}].zone")
@@ -75,20 +78,20 @@ def _card_entities(config: CardsConfig, zones: Mapping[str, Zone], taken: Mappin
     return entities, props
 
 
-def _tool(value: Any) -> Optional[CardActionConfig]:
+def _tool(value: Any) -> CardActionConfig | None:
     if value is None or value is False:
         return None
     return CardActionConfig() if value is True else value
 
 
-def _card_param(config: CardsConfig, where: Optional[str], description: str) -> Dict[str, Any]:
+def _card_param(config: CardsConfig, where: str | None, description: str) -> dict[str, Any]:
     rule = "$it.zone == 'hand' and $it.owner == $actor.id" + (f" and ({where})" if where else "")
     return {"type": "entity", "of": config.type, "where": rule, "description": description}
 
 
-def _action(config: CardsConfig, tool: CardActionConfig, description: str, params: Dict[str, Any], do: List[Any],
-            outcome: str, announce: Optional[str], private: bool = False) -> Dict[str, Any]:
-    action: Dict[str, Any] = {"by": config.who, "description": tool.description or description,
+def _action(config: CardsConfig, tool: CardActionConfig, description: str, params: dict[str, Any], do: list[Any],
+            outcome: str, announce: str | None, private: bool = False) -> dict[str, Any]:
+    action: dict[str, Any] = {"by": config.who, "description": tool.description or description,
                               "params": {**params, **tool.params}, "when": list(tool.when), "do": do + list(tool.do),
                               "outcome": tool.outcome or outcome, "terminal": tool.terminal}
     if private:
@@ -98,8 +101,8 @@ def _action(config: CardsConfig, tool: CardActionConfig, description: str, param
     return action
 
 
-def _actions(name: str, config: CardsConfig, zones: Mapping[str, Zone]) -> Dict[str, Any]:
-    actions: Dict[str, Any] = {}
+def _actions(name: str, config: CardsConfig, zones: Mapping[str, Zone]) -> dict[str, Any]:
+    actions: dict[str, Any] = {}
     play = _tool(config.play)
     if play is not None:
         target = play.to or "discard"
@@ -108,7 +111,8 @@ def _actions(name: str, config: CardsConfig, zones: Mapping[str, Zone]) -> Dict[
             raise MechanismError(f"'{target}' is not a zone", f"zones: {', '.join(zones)}", "play.to")
         public = zone.visible == "public"
         move = {"game": name, "action": "play", "cards": "$params.card", "to": target} if public else \
-            {"game": name, "action": "move", "cards": "$params.card", "to": target, **({"owner": "$actor"} if zone.owned else {})}
+            {"game": name, "action": "move", "cards": "$params.card", "to": target,
+             **({"owner": "$actor"} if zone.owned else {})}
         legal = " Only cards you may play now are listed." if play.where else ""
         actions[f"{name}_play"] = _action(
             config, play, f"Play a card from your hand to the {zone.title.lower()}.{legal}",
@@ -134,18 +138,19 @@ def _actions(name: str, config: CardsConfig, zones: Mapping[str, Zone]) -> Dict[
         actions[f"{name}_give"] = _action(
             config, give, "Give a card from your hand to another player (only the two of you see which).",
             {"card": _card_param(config, give.where, "The card to give."),
-             "to": {"type": "entity", "of": config.who, "where": "$it.id != $actor.id", "description": "Who receives it."}},
+             "to": {"type": "entity", "of": config.who, "where": "$it.id != $actor.id",
+                    "description": "Who receives it."}},
             [{"game": name, "action": "give", "cards": "$params.card", "to": "$params.to"}],
             "You passed {$params.card.name} to {$params.to.name}.", None, private=True)
     return actions
 
 
-def _events(name: str, config: CardsConfig) -> List[Dict[str, Any]]:
-    deal: Dict[str, Any] = {"game": name, "action": "deal", "qty": config.hand_size}
+def _events(name: str, config: CardsConfig) -> list[dict[str, Any]]:
+    deal: dict[str, Any] = {"game": name, "action": "deal", "qty": config.hand_size}
     if config.deal_to:
         deal["to"] = f"$filter({config.who}, {config.deal_to})"
     dealing = [deal] if config.hand_size not in (0, "0") else []
-    setup: Dict[str, Any] = {"name": f"{name}_setup", "at": 1, "do": [{"game": name, "action": "setup"}]}
+    setup: dict[str, Any] = {"name": f"{name}_setup", "at": 1, "do": [{"game": name, "action": "setup"}]}
     if config.deal == "start":
         setup["do"] += dealing + list(config.after_deal)
     elif config.deal == "never":
@@ -167,22 +172,26 @@ def _events(name: str, config: CardsConfig) -> List[Dict[str, Any]]:
       example={"who": "player", "hand_size": 7, "keep_top": True,
                "play": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"},
                "draw": True})
-def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:
-        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}",
+                             "who")
     if not _NAME.match(config.type):
         raise MechanismError(f"'{config.type}' is not a valid type name", "use letters, digits and _", "type")
     declared = types.get(config.type)
     if isinstance(declared, Mapping) and declared.get("inspect") != _INSPECT:
-        raise MechanismError(f"type '{config.type}' is declared without the card visibility rule, so hidden cards could be inspected",
+        raise MechanismError(f"type '{config.type}' is declared without the card visibility rule, so hidden cards "
+                             "could be inspected",
                              f"remove the declaration, or add \"inspect\": \"{_INSPECT}\"", "type")
     for zone_name in config.zones:
         if not _NAME.match(zone_name):
-            raise MechanismError(f"'{zone_name}' is not a valid zone name", "use letters, digits and _", f"zones.{zone_name}")
+            raise MechanismError(f"'{zone_name}' is not a valid zone name", "use letters, digits and _",
+                                 f"zones.{zone_name}")
     zones = zones_for(config)
     if not zones["hand"].owned or zones["hand"].visible == "public":
-        raise MechanismError("the hand zone must stay owned and not public", "declare another zone instead", "zones.hand")
+        raise MechanismError("the hand zone must stay owned and not public", "declare another zone instead",
+                             "zones.hand")
     decks = [n for n, use in (contract.get("mechanisms") or {}).items() if use_key(use) == KEY]
     for other in decks[:decks.index(name)]:
         if ((contract["mechanisms"][other].get("type") or CardsConfig.model_fields["type"].default) == config.type):
@@ -190,10 +199,11 @@ def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -
                                  f"give each deck its own card type, e.g. \"type\": \"{name}_card\"", "type")
     entities, entry_props = _card_entities(config, zones, contract.get("entities") or {}, id_prefix(name, len(decks)))
     props = {**_BASE_PROPS, **entry_props, **config.props}
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {config.type: {"description": f"A card of the {name} deck.", "props": props, "inspect": _INSPECT}},
         "entities": entities,
-        "world": {f"{name}_drawn": {"type": "list", "default": [], "description": "Cards moved by the last deal or draw."}},
+        "world": {f"{name}_drawn": {"type": "list", "default": [],
+                                    "description": "Cards moved by the last deal or draw."}},
         "events": _events(name, config),
         "actions": _actions(name, config, zones),
     }

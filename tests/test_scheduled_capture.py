@@ -120,7 +120,8 @@ def test_refused_parent_action_leaves_no_scheduled_work():
     c = {'name': 'Refused shipment', 'clock': {'rounds': 3},
          'types': {'worker': {'agent': True}}, 'entities': {'a': {'type': 'worker'}},
          'world': {'total': 0}, 'actions': {'ship': {'by': 'worker',
-            'do': ['$quantity = 7', {'after': 1, 'do': ['$world.total += $quantity']}, {'fail': 'Capacity unavailable'}]}},
+            'do': ['$quantity = 7', {'after': 1, 'do': ['$world.total += $quantity']},
+                   {'fail': 'Capacity unavailable'}]}},
          'outputs': {'total': '$world.total'}}
     env = fg_env.load(c, seed=1)
     def play(w):

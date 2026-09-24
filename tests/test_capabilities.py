@@ -14,7 +14,8 @@ EXCHANGE = {
     "world": {"trades": 0, "last": 10.0},
     "types": {
         "trader": {"agent": True, "props": {"cash": 100.0, "shares": 5, "locked": 0.0,
-                                            "style": {"type": "enum", "values": ["maker", "taker", "none"], "default": "none"}},
+                                            "style": {"type": "enum", "values": ["maker", "taker", "none"],
+                                                      "default": "none"}},
                    "inspect": "$viewer.id == $it.id"},
         "maker": {"extends": "trader"},
         "taker": {"extends": "trader", "props": {"urgency": 0.5}},
@@ -30,7 +31,8 @@ EXCHANGE = {
     "actions": {
         "bid": {"by": "trader", "params": {"price": {"type": "number", "min": 1, "max": 50}, "qty": "int"},
                 "do": [{"block": "rest", "with": {"who": "$actor", "price": "$params.price", "qty": "$params.qty"}},
-                       {"post": "tape", "text": "{$actor.name} bid {$params.qty} @ {$params.price|money}", "px": "$params.price"}],
+                       {"post": "tape", "text": "{$actor.name} bid {$params.qty} @ {$params.price|money}",
+                        "px": "$params.price"}],
                 "terminal": True},
         "note": {"by": "taker", "params": {"text": "text"}, "do": ["$entity(m).style = maker", "$actor.style = taker"]},
     },
@@ -49,7 +51,8 @@ def test_inheritance_defs_blocks_maps_and_outer_binding():
     issues = [i for i in fg_env.check(EXCHANGE) if i.severity == "error"]
     assert issues == []
     bids = {"m": (9, 2), "t": (11, 3)}
-    result = fg_env.run(EXCHANGE, lambda w: w.call("bid", {"price": bids[w.entity_id][0], "qty": bids[w.entity_id][1]}), seed=1, rounds=1)
+    result = fg_env.run(EXCHANGE, lambda w: w.call("bid", {"price": bids[w.entity_id][0], "qty": bids[w.entity_id][1]}),
+                        seed=1, rounds=1)
     env_view = None
     assert result.stats["actions"] == 2  # simultaneous commits are counted
     env = fg_env.load(EXCHANGE, seed=1)
@@ -83,7 +86,8 @@ def test_inspect_is_scoped_by_type_rules():
     seen = {}
 
     def agent(wake):
-        seen[wake.entity_id] = (wake.call("inspect", {"id": "t"}).text, wake.call("inspect", {"id": wake.entity_id}).text)
+        seen[wake.entity_id] = (wake.call("inspect", {"id": "t"}).text,
+                                wake.call("inspect", {"id": wake.entity_id}).text)
         wake.end()
 
     fg_env.run(EXCHANGE, agent, seed=1, rounds=1)
@@ -118,7 +122,8 @@ def test_end_conditions_wait_for_the_stage_but_end_effect_is_immediate():
         "types": {"p": {"agent": True, "props": {"score": 0}}},
         "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
         "actions": {"step": {"by": "p", "do": ["$actor.score += 1",
-                                              {"if": "$actor.score >= 2 and $actor.id == b", "then": [{"end": "b_first"}]}]}},
+                                              {"if": "$actor.score >= 2 and $actor.id == b",
+                                               "then": [{"end": "b_first"}]}]}},
         "end": [{"when": "$any(p, $it.score >= 1)", "name": "someone_scored"}],
         "outputs": {"scores": {"expr": "$map(p, $it.score)", "type": "list"}},
     }

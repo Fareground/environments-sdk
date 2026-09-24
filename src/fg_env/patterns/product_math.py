@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import math
 import sys
-from typing import Iterable, Sequence, Tuple
+from collections.abc import Iterable, Sequence
 
 _MIN_NORMAL = sys.float_info.min
 _MAX = sys.float_info.max
 
 
-def scaled_product(values: Iterable[float], start: float = 1.0) -> Tuple[float, int]:
+def scaled_product(values: Iterable[float], start: float = 1.0) -> tuple[float, int]:
     """Keep the binary exponent separate until the final conversion to a float."""
     mantissa, exponent = math.frexp(start)
     for value in values:

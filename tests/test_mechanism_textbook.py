@@ -15,7 +15,8 @@ def _prediction(maker, buy):
                 "entities": {"f1": {"type": "f"}, "f2": {"type": "f"}},
                 "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "f", "outcomes": ["yes", "no"],
                                      "maker": maker, "liquidity": 100, "resolve_at": 2, "outcome": "yes"}},
-                "outputs": {"price": "$amm('m').prices.yes", "cash": "$entity(f1).cash", "held": "$entity(f1).m_shares.yes"}}
+                "outputs": {"price": "$amm('m').prices.yes", "cash": "$entity(f1).cash",
+                            "held": "$entity(f1).m_shares.yes"}}
     env = fg_env.load(contract, seed=1)
 
     def trade(wake):
@@ -66,7 +67,8 @@ def test_one_ranked_profile_elects_the_textbook_winner_under_each_rule(method, w
 
 
 def _star(leaves, rounds, persistent, seed):
-    contract = {"name": "Star", "clock": {"rounds": rounds}, "types": {"u": {}}, "population": [{"type": "u", "count": leaves + 1}],
+    contract = {"name": "Star", "clock": {"rounds": rounds}, "types": {"u": {}},
+                "population": [{"type": "u", "count": leaves + 1}],
                 "relations": {"k": {"symmetric": True}}, "links": [{"relation": "k", "among": "u", "graph": "star"}],
                 "mechanisms": {"s": {"kind": "social", "mode": "diffusion", "who": "u", "over": "k", "model": "cascade",
                                      "p": 0.3, "persistent": persistent, "seeds": {"x": ["u_1"]}}},
@@ -86,13 +88,15 @@ def test_a_persistent_hub_retries_every_step_so_each_leaf_adopts_with_one_minus_
     leaves, seeds = 200, 6
     reach = [_star(leaves, 3, True, seed) for seed in range(seeds)]
     p = 1 - 0.7 ** 3
-    assert statistics.mean(reach) == pytest.approx(1 + leaves * p, abs=4 * math.sqrt(leaves * p * (1 - p) / seeds))  # 132.4
+    assert statistics.mean(reach) == pytest.approx(1 + leaves * p,
+                                                   abs=4 * math.sqrt(leaves * p * (1 - p) / seeds))  # 132.4
 
 
 def _yes_no(votes, **config):
     contract = {"name": "Vote", "clock": {"rounds": 1}, "types": {"m": {"agent": True}},
                 "population": [{"type": "m", "count": len(votes)}],
-                "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "m", "options": ["yes", "no"], **config}}}
+                "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "m", "options": ["yes", "no"],
+                                     **config}}}
     env = fg_env.load(contract, seed=1)
 
     def vote(wake):
@@ -113,7 +117,8 @@ def test_a_casting_vote_carries_a_one_one_majority_for_the_first_option():
 def test_a_ledger_counts_the_lmsr_seed_money_in_its_starting_supply_not_in_its_flows():
     contract = {"name": "Forecast", "clock": {"rounds": 1}, "types": {"f": {"agent": True}},
                 "entities": {"f1": {"type": "f"}, "f2": {"type": "f"}},
-                "mechanisms": {"money": {"kind": "economy", "mode": "ledger", "who": "f", "currencies": {"cash": {"start": 1000}}},
+                "mechanisms": {"money": {"kind": "economy", "mode": "ledger", "who": "f",
+                                         "currencies": {"cash": {"start": 1000}}},
                                "m": {"kind": "market", "mode": "prediction", "who": "f", "outcomes": ["yes", "no"],
                                      "maker": "lmsr", "liquidity": 100}}}
     env = fg_env.load(contract, seed=1)

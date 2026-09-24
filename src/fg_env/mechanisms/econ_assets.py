@@ -14,13 +14,14 @@ property (``$actor.goods.bread``), unique items are entities of a type named aft
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import math
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from collections.abc import Iterable
+from dataclasses import dataclass, field
+from typing import Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
+from ..world.entity import Entity
 from ..world.live import Abort
 from .econ_base import EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, maybe_entity, money, props, uses_of
 from .ledger import market_places
@@ -33,12 +34,12 @@ __all__ = ["Assets", "assets", "move_money", "mint_money", "burn_money", "held",
 class Assets:
     """Where every asset of a contract lives: built once per contract from its mechanisms."""
 
-    currencies: Dict[str, str] = field(default_factory=dict)  # currency → ledger
-    items: Dict[str, str] = field(default_factory=dict)  # item → inventory
-    props: Dict[str, str] = field(default_factory=dict)  # inventory → holder map property
-    pipes: Dict[str, List[str]] = field(default_factory=dict)  # item → world props holding pipelines of it
-    ledgers: Dict[str, Any] = field(default_factory=dict)
-    inventories: Dict[str, Any] = field(default_factory=dict)
+    currencies: dict[str, str] = field(default_factory=dict)  # currency → ledger
+    items: dict[str, str] = field(default_factory=dict)  # item → inventory
+    props: dict[str, str] = field(default_factory=dict)  # inventory → holder map property
+    pipes: dict[str, list[str]] = field(default_factory=dict)  # item → world props holding pipelines of it
+    ledgers: dict[str, Any] = field(default_factory=dict)
+    inventories: dict[str, Any] = field(default_factory=dict)
 
 
 def inventory_prop(name: str, config: Any) -> str:
@@ -62,7 +63,7 @@ def assets(world: Any) -> Assets:
     return cached(world, "assets", build)  # type: ignore[no-any-return]
 
 
-def _item(world: Any, item: Any, where: str) -> Tuple[str, str, Any]:
+def _item(world: Any, item: Any, where: str) -> tuple[str, str, Any]:
     """``(item, inventory, item spec)`` for an item name or a unique item's instance."""
     index = assets(world)
     if isinstance(item, Entity):
@@ -87,10 +88,11 @@ def is_holder(world: Any, entity: Entity, prop: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _ledger(world: Any, currency: Any, where: str) -> Tuple[str, Any]:
+def _ledger(world: Any, currency: Any, where: str) -> tuple[str, Any]:
     index = assets(world)
     if not isinstance(currency, str) or currency not in index.currencies:
-        raise RunError(f"'{currency}' is not a declared currency (currencies: {', '.join(index.currencies) or 'none'})", where)
+        raise RunError(f"'{currency}' is not a declared currency (currencies: {', '.join(index.currencies) or 'none'})",
+                       where)
     name = index.currencies[currency]
     return name, index.ledgers[name]
 
@@ -165,7 +167,7 @@ def burn_money(world: Any, currency: str, holder: Entity, value: float, sink: st
 # ---------------------------------------------------------------------------
 
 
-def _instances(world: Any, item: str, owner: Optional[str] = None) -> List[Entity]:
+def _instances(world: Any, item: str, owner: str | None = None) -> list[Entity]:
     return [e for e in world.entities.values() if e.alive and e.entity_type == item
             and (owner is None or props(e).get("owner") == owner)]
 
@@ -193,7 +195,7 @@ def _used_space(world: Any, entity: Entity, inventory: str) -> float:
     return used
 
 
-def space_left(world: Any, entity: Entity, inventory: str) -> Optional[float]:
+def space_left(world: Any, entity: Entity, inventory: str) -> float | None:
     prop = f"{assets(world).props[inventory]}_capacity"
     if not is_holder(world, entity, prop):
         return None
@@ -219,7 +221,7 @@ def _check_space(world: Any, entity: Entity, inventory: str, spec: Any, qty: int
 
 
 def put_items(world: Any, entity: Entity, item: str, qty: int, where: str,
-              batches: Optional[List[List[int]]] = None) -> None:
+              batches: list[list[int]] | None = None) -> None:
     """Add stackable items to a holder (capacity enforced). ``batches`` keeps the age of spoiling goods."""
     name, inventory, spec = _item(world, item, where)
     prop = _require_holder(world, entity, inventory, where)
@@ -242,7 +244,7 @@ def put_items(world: Any, entity: Entity, item: str, qty: int, where: str,
         world.set_prop(entity, f"{prop}_batches", ages)
 
 
-def take_items(world: Any, entity: Entity, item: str, qty: int, where: str) -> List[List[int]]:
+def take_items(world: Any, entity: Entity, item: str, qty: int, where: str) -> list[list[int]]:
     """Remove stackable items (oldest first); refuses when short. Returns the batches taken."""
     name, inventory, spec = _item(world, item, where)
     prop = _require_holder(world, entity, inventory, where)
@@ -254,7 +256,7 @@ def take_items(world: Any, entity: Entity, item: str, qty: int, where: str) -> L
         raise Abort(f"{entity.name} has only {have} {name}; {qty} are needed.")
     stock[name] = have - qty  # a used-up item stays listed at 0, so `$it.goods.bread` still reads a count
     world.set_prop(entity, prop, stock)
-    taken: List[List[int]] = []
+    taken: list[list[int]] = []
     if spec.shelf_life is not None:
         ages = dict(props(entity).get(f"{prop}_batches") or {})
         rows = [list(row) for row in ages.get(name, [])]
@@ -276,7 +278,7 @@ def take_items(world: Any, entity: Entity, item: str, qty: int, where: str) -> L
     return taken
 
 
-def _pick_instances(world: Any, owner: Entity, item: Any, qty: int, where: str) -> List[Entity]:
+def _pick_instances(world: Any, owner: Entity, item: Any, qty: int, where: str) -> list[Entity]:
     """Unique instances to hand over: the named instance, or the ``qty`` oldest of a kind."""
     instance = maybe_entity(world, item)
     if instance is not None and instance.alive and instance.entity_type != str(item):
@@ -307,9 +309,9 @@ def move_items(world: Any, item: Any, source: Entity, target: Entity, qty: int, 
 
 
 def make_items(world: Any, item: Any, target: Entity, qty: int, source: str, where: str,
-               props: Optional[Dict[str, Any]] = None, runner_scope: Any = None) -> List[Entity]:
+               props: dict[str, Any] | None = None, runner_scope: Any = None) -> list[Entity]:
     name, inventory, spec = _item(world, item, where)
-    made: List[Entity] = []
+    made: list[Entity] = []
     if qty == 0:
         return made
     if spec.unique:
@@ -349,7 +351,7 @@ def place_key(at: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _in_transit(world: Any, item: str, entity_ids: Optional[set]) -> int:
+def _in_transit(world: Any, item: str, entity_ids: set | None) -> int:
     total = 0
     for prop in assets(world).pipes.get(item, []):
         for node, pipes in (world.props.get(prop) or {}).items():
@@ -366,7 +368,7 @@ def _money_sum(values: Iterable[float]) -> float:
         return math.inf
 
 
-def total_of(world: Any, members: List[Entity], asset: str, where: str) -> float:
+def total_of(world: Any, members: list[Entity], asset: str, where: str) -> float:
     index = assets(world)
     if asset in index.currencies:
         return _money_sum(balance(world, e, asset, where) for e in members if is_holder(world, e, asset))
@@ -400,13 +402,13 @@ def _number_or_zero(value: Any) -> float:
     return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0.0
 
 
-def _market_places(world: Any, currency: str) -> Tuple[List[str], List[str]]:
+def _market_places(world: Any, currency: str) -> tuple[list[str], list[str]]:
     """Where the contract's markets hold ``currency`` for their traders (cached per contract)."""
     return cached(world, ("markets", currency),  # type: ignore[no-any-return]
                   lambda: market_places(world.contract.mechanisms, currency))
 
 
-def money_held(world: Any, currency: str) -> Tuple[List[float], str]:
+def money_held(world: Any, currency: str) -> tuple[list[float], str]:
     """Every balance of ``currency``: each holder's and what markets hold for their traders (escrow, reserves,
     vaults, fees), in one pass over the entities; a reason instead when a balance passes its credit limit."""
     holders, credited = _holder_types(world, currency), _holder_types(world, f"{currency}_credit")
@@ -425,7 +427,7 @@ def money_held(world: Any, currency: str) -> Tuple[List[float], str]:
     return balances, ""
 
 
-def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
+def conserved(world: Any, name: str, where: str) -> tuple[bool, str]:
     """Whether holdings of a ledger or inventory match its supply; a reason when they do not.
 
     It is an invariant, checked after every action, so it makes one pass over the entities."""
@@ -444,7 +446,8 @@ def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
                 expected = float(raw_expected)
             except (TypeError, ValueError, OverflowError):
                 return False, f"{currency} supply must be a finite number"
-            if isinstance(raw_expected, bool) or not isinstance(raw_expected, (int, float)) or not math.isfinite(expected):
+            if (isinstance(raw_expected, bool) or not isinstance(raw_expected, (int, float))
+                or not math.isfinite(expected)):
                 return False, f"{currency} supply must be a finite number"
             # Permit floating-point roundoff, not a fraction of a firm's entire balance.
             scale = max(abs(total), abs(expected), max((abs(value) for value in balances), default=0.0))
@@ -456,7 +459,7 @@ def conserved(world: Any, name: str, where: str) -> Tuple[bool, str]:
         config = index.inventories[name]
         prop = index.props[name]
         holders = _holder_types(world, prop)
-        totals: Dict[str, int] = {}
+        totals: dict[str, int] = {}
         for entity in world.entities.values():
             if not entity.alive or entity.entity_type not in holders:
                 continue
@@ -498,7 +501,8 @@ def _guard(call: Call, run: Any) -> Any:
 
 
 @function("has(agent, asset, qty?)",
-          "True when the agent holds at least `qty` (default 1) of an item or currency: $has($actor, bread, 2), $has($actor, cash, 5).",
+          "True when the agent holds at least `qty` (default 1) of an item or currency: $has($actor, bread, 2), "
+          "$has($actor, cash, 5).",
           min_args=2, max_args=3)
 def _has(call: Call) -> bool:
     world, agent, asset, qty = call.scope.world, _agent(call), call.arg(1), call.number(2, 1)
@@ -516,11 +520,12 @@ def _count_items(call: Call) -> int:
     return sum(held(world, agent, item) for item in assets(world).items)
 
 
-def owned(world: Any, agent: Entity, inventory: Optional[str], where: str) -> List[str]:
+def owned(world: Any, agent: Entity, inventory: str | None, where: str) -> list[str]:
     index = assets(world)
     if inventory is not None and inventory not in index.inventories:
-        raise RunError(f"'{inventory}' is not a declared inventory (inventories: {', '.join(index.inventories) or 'none'})", where)
-    out: List[str] = []
+        raise RunError(f"'{inventory}' is not a declared inventory (inventories: "
+                       f"{', '.join(index.inventories) or 'none'})", where)
+    out: list[str] = []
     for item, inv in index.items.items():
         if inventory is not None and inv != inventory:
             continue
@@ -532,17 +537,18 @@ def owned(world: Any, agent: Entity, inventory: Optional[str], where: str) -> Li
 
 
 @function("owned_items(agent, inventory?)",
-          "Items the agent holds now: stackable item names with a quantity above 0 and the ids of unique items it owns.",
+          "Items the agent holds now: stackable item names with a quantity above 0 and the ids of unique items it "
+          "owns.",
           min_args=1, max_args=2)
-def _owned_items(call: Call) -> List[str]:
+def _owned_items(call: Call) -> list[str]:
     world = call.scope.world
     return _guard(call, lambda: owned(world, _agent(call), call.arg(1), call.source))  # type: ignore[no-any-return]
 
 
-def items_text(world: Any, agent: Entity, inventory: Optional[str], where: str) -> str:
+def items_text(world: Any, agent: Entity, inventory: str | None, where: str) -> str:
     index = assets(world)
     names = [inventory] if inventory else list(index.inventories)
-    parts: List[str] = []
+    parts: list[str] = []
     for inv in names:
         for item, spec in index.inventories[inv].items.items():
             count = held(world, agent, item, where)
@@ -564,7 +570,7 @@ def _items_text(call: Call) -> str:
 
 @function("space_left(agent, inventory)", "Capacity the agent has left in an inventory, or null when unlimited.",
           min_args=2, max_args=2)
-def _space_left(call: Call) -> Optional[float]:
+def _space_left(call: Call) -> float | None:
     world, inventory = call.scope.world, call.arg(1)
     if inventory not in assets(world).inventories:
         raise ExprError(f"$space_left: '{inventory}' is not a declared inventory", call.source)
@@ -572,7 +578,8 @@ def _space_left(call: Call) -> Optional[float]:
 
 
 @function("net_worth(agent, prices?)",
-          "Money (at each currency's value) plus goods (at `prices` {item: price}, else each item's value) plus loans owed to the agent, minus loans it owes.",
+          "Money (at each currency's value) plus goods (at `prices` {item: price}, else each item's value) plus loans "
+          "owed to the agent, minus loans it owes.",
           min_args=1, max_args=2)
 def _net_worth(call: Call) -> float:
     world, agent, prices = call.scope.world, _agent(call), call.arg(1) or {}
@@ -613,7 +620,7 @@ def _total_held(call: Call) -> float:
 @function("money_held(ledger)", "Each currency of a ledger as held now, {currency: total}: every holder's balance and "
           "what markets hold for their traders (escrow, reserves, vaults, fees). The ledger's supply starts at it.",
           min_args=1, max_args=1)
-def _money_held(call: Call) -> Dict[str, float]:
+def _money_held(call: Call) -> dict[str, float]:
     world, name = call.scope.world, str(call.arg(0))
     ledger = assets(world).ledgers.get(name)
     if ledger is None:
@@ -629,16 +636,18 @@ def _loose_total(call: Call) -> int:
 
 
 @function("ground_items(inventory, place)", "Stackable items lying at a place: {item: qty}.", min_args=2, max_args=2)
-def _ground_items(call: Call) -> Dict[str, int]:
+def _ground_items(call: Call) -> dict[str, int]:
     world: Any = call.scope.world
     inventory = call.arg(0)
     if f"{inventory}_ground" not in world.props:
-        raise ExprError(f"$ground_items: inventory '{inventory}' has no ground (add drop or pickup to its actions)", call.source)
+        raise ExprError(f"$ground_items: inventory '{inventory}' has no ground (add drop or pickup to its actions)",
+                        call.source)
     return dict((world.props[f"{inventory}_ground"] or {}).get(place_key(call.arg(1))) or {})
 
 
 @function("conserved(ledger_or_inventory)",
-          "True while every currency or item of a ledger or inventory adds up to its supply (and no balance passes its credit limit).",
+          "True while every currency or item of a ledger or inventory adds up to its supply (and no balance passes its "
+          "credit limit).",
           min_args=1, max_args=1)
 def _conserved(call: Call) -> bool:
     world = call.scope.world

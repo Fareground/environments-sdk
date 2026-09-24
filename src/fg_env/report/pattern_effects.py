@@ -8,8 +8,9 @@ promotion, a launch, an outage) while it raises the quantity and while it lowers
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any
 
 __all__ = ["Effects", "Factor", "factor_of", "clauses"]
 
@@ -19,7 +20,8 @@ TOLD = 0.01
 _NAME_LENGTH = 40
 #: What a kind of pattern is called, and how its effect is told.
 _KIND_WORDS = {"trend": ("the trend", "overall"), "promotion": ("promotions", "switch"),
-               "elasticity": ("price changes", "overall"), "cross_price": ("customers switching between items", "overall"),
+               "elasticity": ("price changes", "overall"),
+               "cross_price": ("customers switching between items", "overall"),
                "lifecycle": ("", "switch"), "shocks": ("", "switch")}
 _PERIOD_WORDS = {"year": "the time of year", "week": "the day of the week", "day": "the time of day"}
 
@@ -67,7 +69,7 @@ class _Tally:
         return len(self.seen)
 
     @property
-    def adds(self) -> Optional[float]:
+    def adds(self) -> float | None:
         return self.total / self.without - 1 if self.without > 0 else None
 
 
@@ -75,7 +77,7 @@ class _Tally:
 class _FactorTally:
     overall: _Tally = field(default_factory=_Tally)
     #: Calendar slot → (its phrase, tally), in the order first seen.
-    slots: Dict[str, Tuple[str, _Tally]] = field(default_factory=dict)
+    slots: dict[str, tuple[str, _Tally]] = field(default_factory=dict)
     up: _Tally = field(default_factory=_Tally)
     down: _Tally = field(default_factory=_Tally)
 
@@ -85,9 +87,10 @@ class Effects:
     """What every factor added to one quantity (one group of one segment), round by round."""
 
     amount: float = 0.0
-    factors: Dict[str, _FactorTally] = field(default_factory=dict)
+    factors: dict[str, _FactorTally] = field(default_factory=dict)
 
-    def add(self, round_: int, amount: float, values: Mapping[str, float], slots: Mapping[str, Tuple[str, str]]) -> None:
+    def add(self, round_: int, amount: float, values: Mapping[str, float],
+            slots: Mapping[str, tuple[str, str]]) -> None:
         """One item's ``amount`` in a round with each factor's ``values`` and, for calendar factors, ``slots``
         (``{pattern: (slot, phrase)}``, like ``("January", "in January")``). Factors at zero are left out (nothing is
         known about what they add)."""
@@ -116,7 +119,7 @@ def _verb(value: float, plural: bool = False) -> str:
     return "take away" if plural else "takes away"
 
 
-def _calendar(factor: Factor, tally: _FactorTally) -> Optional[str]:
+def _calendar(factor: Factor, tally: _FactorTally) -> str | None:
     rows = [(phrase, slot, t.adds) for slot, (phrase, t) in tally.slots.items() if t.adds is not None]
     if not rows:
         return None
@@ -133,7 +136,7 @@ def _calendar(factor: Factor, tally: _FactorTally) -> Optional[str]:
     return f"{factor.word} " + " and ".join(parts) if parts else None
 
 
-def _switch(factor: Factor, tally: _FactorTally, unit: str) -> Optional[str]:
+def _switch(factor: Factor, tally: _FactorTally, unit: str) -> str | None:
     plural = factor.word.endswith("s")
     parts = []
     for part, verb in ((tally.up, "raise" if plural else "raises"), (tally.down, "lower" if plural else "lowers")):
@@ -145,7 +148,7 @@ def _switch(factor: Factor, tally: _FactorTally, unit: str) -> Optional[str]:
     return f"{factor.word} " + " and ".join(parts) if parts else None
 
 
-def _overall(factor: Factor, tally: _FactorTally, horizon: str) -> Optional[str]:
+def _overall(factor: Factor, tally: _FactorTally, horizon: str) -> str | None:
     adds = tally.overall.adds
     if adds is None or abs(adds) < TOLD:
         return None
@@ -153,10 +156,10 @@ def _overall(factor: Factor, tally: _FactorTally, horizon: str) -> Optional[str]
     return f"{factor.word} {_verb(adds, factor.word.endswith('s'))} {_share(adds)} over the {horizon}{against}"
 
 
-def clauses(effects: Effects, factors: Mapping[str, Factor], unit: str, horizon: str) -> Dict[str, str]:
+def clauses(effects: Effects, factors: Mapping[str, Factor], unit: str, horizon: str) -> dict[str, str]:
     """``{pattern: clause}`` for every factor that moves the quantity by at least :data:`TOLD` somewhere, strongest
     first: ``the time of year adds 38% in January and takes away 25% in July``."""
-    ranked: List[Tuple[float, str, str]] = []
+    ranked: list[tuple[float, str, str]] = []
     for pattern, tally in effects.factors.items():
         factor = factors.get(pattern)
         if factor is None:

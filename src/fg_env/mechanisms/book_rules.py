@@ -9,8 +9,9 @@ calibrated like any input; snapshots, clones and forks carry the resolved number
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Dict, Mapping, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple
 
 from ..errors import RunError
 from ..expr import Call, ExprError, function
@@ -25,12 +26,12 @@ class _Limit(NamedTuple):
     whole: bool
     low: float
     low_allowed: bool
-    high: Optional[float]
+    high: float | None
     optional: bool
 
 
 #: Every rule and the values it accepts.
-RULES: Dict[str, _Limit] = {
+RULES: dict[str, _Limit] = {
     "tick_size": _Limit(False, 0, False, None, False),
     "lot_size": _Limit(False, 0, False, None, False),
     "maker_fee_bps": _Limit(False, -1000, True, 1000, False),  # below 0: a rebate, paid out of the taker fee
@@ -58,12 +59,12 @@ class Venue:
     taker_fee_bps: float
     collar: float
     band: float
-    halt_pct: Optional[float]
+    halt_pct: float | None
     halt_rounds: int
-    halt_window: Optional[int]
+    halt_window: int | None
     short_limit: float
-    max_short_leverage: Optional[float]
-    order_ttl: Optional[int]
+    max_short_leverage: float | None
+    order_ttl: int | None
     max_orders: int
     bar_rounds: int
 
@@ -86,7 +87,8 @@ def rules_default(name: str, config: Any) -> Any:
     values = {rule: getattr(config, rule) for rule in RULES if getattr(config, rule) is not None}
     if not any(isinstance(value, str) for value in values.values()):
         return values
-    parts = ", ".join(f"{rule}: ({value})" if isinstance(value, str) else f"{rule}: {value!r}" for rule, value in values.items())
+    parts = ", ".join(f"{rule}: ({value})" if isinstance(value, str) else f"{rule}: {value!r}"
+                      for rule, value in values.items())
     return f"$book_rules({name}, {{{parts}}})"
 
 
@@ -110,7 +112,7 @@ def _checked(name: str, rule: str, value: Any) -> Any:
     return value
 
 
-def _rebate_checked(name: str, values: Dict[str, Any]) -> Dict[str, Any]:
+def _rebate_checked(name: str, values: dict[str, Any]) -> dict[str, Any]:
     """A maker rebate is paid out of the taker fee of the same fill, so it is at most that fee."""
     maker, taker = values.get("maker_fee_bps"), values.get("taker_fee_bps", 0)
     if maker is not None and maker < 0 and -maker > taker:
@@ -119,9 +121,10 @@ def _rebate_checked(name: str, values: Dict[str, Any]) -> Dict[str, Any]:
     return values
 
 
-@function("book_rules(name, rules)", "An order book's venue rules {tick_size, lot_size, ...}, each checked against its "
-          "limits; the book's generated `<name>_rules` world prop resolves its expressions through it.", min_args=2, max_args=2)
-def _rules_function(call: Call) -> Dict[str, Any]:
+@function("book_rules(name, rules)", "An order book's venue rules {tick_size, lot_size, ...}, each checked against "
+          "its limits; the book's generated `<name>_rules` world prop resolves its expressions through it.", min_args=2,
+          max_args=2)
+def _rules_function(call: Call) -> dict[str, Any]:
     name, rules = call.arg(0), call.arg(1)
     if not isinstance(rules, Mapping):
         raise ExprError(f"$book_rules: expected a map of rules, got {rules!r}", call.source)
@@ -131,7 +134,7 @@ def _rules_function(call: Call) -> Dict[str, Any]:
         raise ExprError(str(exc), call.source) from None
 
 
-_CACHE: Dict[int, Tuple[Mapping[str, Any], Venue]] = {}
+_CACHE: dict[int, tuple[Mapping[str, Any], Venue]] = {}
 _CACHE_SIZE = 256
 
 

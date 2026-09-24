@@ -22,7 +22,8 @@ def png(width=4, height=4, color=(200, 30, 30)):
 def wav(samples=64):
     """A valid, silent 8 kHz mono WAV."""
     data = b"\x80" * samples
-    return (b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVE" + b"fmt " + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 8000, 1, 8)
+    return (b"RIFF" + struct.pack("<I", 36 + len(data)) + b"WAVE" + b"fmt "
+            + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 8000, 1, 8)
             + b"data" + struct.pack("<I", len(data)) + data)
 
 
@@ -68,7 +69,8 @@ TRIAL = {
         {"name": "trial", "when": "$round >= 2", "actions": ["argue", "note"],
          "on_enter": [{"if": "not $world.trial_open", "then": [
              "$world.trial_open = true",
-             {"each": "exhibit", "where": "$it.offered", "do": [{"post": "evidence", "text": "$it.title", "file": "$it.file"}]}]}]},
+             {"each": "exhibit", "where": "$it.offered",
+              "do": [{"post": "evidence", "text": "$it.title", "file": "$it.file"}]}]}]},
     ],
     "views": {"own": {"for": "attorney", "stages": ["preparation"], "of": "exhibit", "where": "$it.side == $actor.side",
                       "show": "{title}", "attach": "$it.file"}},

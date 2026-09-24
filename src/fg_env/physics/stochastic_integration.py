@@ -8,17 +8,18 @@ from __future__ import annotations
 
 import math
 import random
-from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
+from collections.abc import Callable, Sequence
+from typing import Any
 
-Vector = List[float]
-Coefficients = Callable[[Vector, float], Tuple[Vector, Vector]]
-Bounds = Sequence[Tuple[Optional[float], Optional[float]]]
+Vector = list[float]
+Coefficients = Callable[[Vector, float], tuple[Vector, Vector]]
+Bounds = Sequence[tuple[float | None, float | None]]
 
 
 def integrate_noise(coefficients: Coefficients, initial: Vector, start: float, dt: float,
-                    streams: Dict[int, Any], bounds: Bounds, rtol: float = 0.01,
+                    streams: dict[int, Any], bounds: Bounds, rtol: float = 0.01,
                     atol: float = 1e-10,
-                    derivatives: Optional[Callable[[Vector, float], Vector]] = None) -> Vector:
+                    derivatives: Callable[[Vector, float], Vector] | None = None) -> Vector:
     if dt <= 0:
         return list(initial)
     drift, diffusion = coefficients(initial, start)
@@ -89,9 +90,10 @@ def integrate_noise(coefficients: Coefficients, initial: Vector, start: float, d
         # Conditional on the parent increment, the two children sum to it
         # exactly and each has the correct Gaussian variance for half a step.
         for index, parents in increments.items():
-            children: List[float] = []
+            children: list[float] = []
             for parent in parents:
                 left = parent/2 + bridges[index].gauss(0, math.sqrt(h/4))
                 children.extend((left, parent-left))
             increments[index] = children
-    raise ArithmeticError("stochastic timestep convergence was not established; reduce the clock tick or review the equations")
+    raise ArithmeticError("stochastic timestep convergence was not established; reduce the clock tick or review the "
+                          "equations")

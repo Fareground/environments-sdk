@@ -8,13 +8,14 @@ never leak. The engine (:mod:`.board_engine`) is pure; this module bridges it to
 from __future__ import annotations
 
 import weakref
+from collections.abc import Mapping
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Tuple
+from typing import Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, config_data, family_action, mode, use_key
+from ..world.entity import Entity
 from ..world.live import Abort
 from ._game import game_section
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score
@@ -30,7 +31,7 @@ KEY = "game.board"
 # ---------------------------------------------------------------------------
 
 #: Compiled rules per declared config object (kept alive with it, so ids are never reused).
-_COMPILED: Dict[int, Tuple[Mapping[str, Any], Rules]] = {}
+_COMPILED: dict[int, tuple[Mapping[str, Any], Rules]] = {}
 
 
 def rules_of(world: Any, name: Any) -> Rules:
@@ -41,7 +42,8 @@ def rules_of(world: Any, name: Any) -> Rules:
     raw = contract.mechanisms.get(name) if isinstance(name, str) else None
     if not isinstance(raw, Mapping) or use_key(raw) != KEY:
         boards = [n for n, m in contract.mechanisms.items() if use_key(m) == KEY]
-        raise MechanismError(f"'{name}' is not a declared game board", f"boards: {', '.join(boards) or 'none declared'}")
+        raise MechanismError(f"'{name}' is not a declared game board",
+                             f"boards: {', '.join(boards) or 'none declared'}")
     cached = _COMPILED.get(id(raw))
     if cached is not None and cached[0] is raw:
         return cached[1]
@@ -55,12 +57,12 @@ def rules_of(world: Any, name: Any) -> Rules:
 @dataclass
 class _State:
     version: int
-    fingerprint: Tuple[Any, ...]
+    fingerprint: tuple[Any, ...]
     pos: Pos
-    legal: Dict[int, List[Move]] = field(default_factory=dict)
+    legal: dict[int, list[Move]] = field(default_factory=dict)
 
 
-_STATES: "weakref.WeakKeyDictionary[Any, Dict[str, _State]]" = weakref.WeakKeyDictionary()
+_STATES: weakref.WeakKeyDictionary[Any, dict[str, _State]] = weakref.WeakKeyDictionary()
 
 
 def _prop(world: Any, rules: Rules, key: str) -> Any:
@@ -86,7 +88,7 @@ def _state(world: Any, rules: Rules) -> _State:
     return state
 
 
-def position_of(world: Any, rules: Rules, pieces: List[Entity]) -> Pos:
+def position_of(world: Any, rules: Rules, pieces: list[Entity]) -> Pos:
     """Build the engine position from piece entities and the board's world props."""
     geo, name = rules.geo, rules.name
     pos = Pos(geo.size, len(rules.sides))
@@ -120,7 +122,7 @@ def position_of(world: Any, rules: Rules, pieces: List[Entity]) -> Pos:
     return pos
 
 
-def _legal(state: _State, rules: Rules, side: int) -> List[Move]:
+def _legal(state: _State, rules: Rules, side: int) -> list[Move]:
     moves = state.legal.get(side)
     if moves is None:
         moves = state.legal[side] = legal(rules, state.pos, side)
@@ -143,7 +145,7 @@ def _over(world: Any, rules: Rules) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def _board(call: Call) -> Tuple[Any, Rules]:
+def _board(call: Call) -> tuple[Any, Rules]:
     world = call.scope.world
     try:
         return world, rules_of(world, call.arg(0))
@@ -155,7 +157,7 @@ def _board(call: Call) -> Tuple[Any, Rules]:
           "Legal moves of a player (default: the player to move) on a declared board, as move texts: "
           "e2-e4, b1xc3, e7-e8=Q, O-O, d3 (placement). Empty when the game is over or it is not their turn.",
           min_args=1, max_args=2)
-def _moves_function(call: Call) -> List[str]:
+def _moves_function(call: Call) -> list[str]:
     world, rules = _board(call)
     state = _state(world, rules)
     side = _side(rules, call.arg(1), call.source) if len(call) > 1 else state.pos.turn
@@ -179,7 +181,7 @@ def _is_side(rules: Rules, value: Any) -> bool:
 
 
 @function("board_at(board, cell)", "The piece entity on a cell, or null.", min_args=2, max_args=2)
-def _at_function(call: Call) -> Optional[Entity]:
+def _at_function(call: Call) -> Entity | None:
     world, rules = _board(call)
     state = _state(world, rules)
     cell = call.arg(1)
@@ -192,7 +194,7 @@ def _at_function(call: Call) -> Optional[Entity]:
 
 @function("board_cell(board, cell)", "A cell's declared properties (color, region, terrain …) as a map.",
           min_args=2, max_args=2)
-def _cell_function(call: Call) -> Dict[str, Any]:
+def _cell_function(call: Call) -> dict[str, Any]:
     _, rules = _board(call)
     cell = call.arg(1)
     if not isinstance(cell, str) or cell not in rules.geo.index:
@@ -218,12 +220,12 @@ def _line_function(call: Call) -> bool:
 
 @function("board_score(board)", "Each side's score as {side: points}: pieces on the board (plus surrounded area "
           "when the board scores area, plus komi).", min_args=1, max_args=1)
-def _score_function(call: Call) -> Dict[str, float]:
+def _score_function(call: Call) -> dict[str, float]:
     world, rules = _board(call)
     return dict(zip(rules.sides, score(rules, _state(world, rules).pos)))
 
 
-def _status(world: Any, rules: Rules, state: _State, viewer: Optional[int]) -> List[str]:
+def _status(world: Any, rules: Rules, state: _State, viewer: int | None) -> list[str]:
     pos, names = state.pos, rules.side_names
     lines = [_legend(rules)]
     if viewer is not None:
@@ -264,7 +266,8 @@ def _legend(rules: Rules) -> str:
     if cased:
         legend = ", ".join(f"{rules.symbols[(0, k)]} {rules.kind_names[k]}" for k in kinds)
         return f"Pieces: {legend} ({names[0]} upper case, {names[1]} lower case)."
-    return "Pieces: " + "; ".join(f"{names[s]} " + ", ".join(f"{rules.symbols[(s, k)]} {rules.kind_names[k]}" for k in kinds)
+    return "Pieces: " + "; ".join(f"{names[s]} "
+                                  + ", ".join(f"{rules.symbols[(s, k)]} {rules.kind_names[k]}" for k in kinds)
                                   for s in sides) + "."
 
 
@@ -284,7 +287,7 @@ def _op_rules(runner: Any, name: Any, where: str) -> Rules:
         raise RunError(str(exc) + (f" — {exc.fix}" if exc.fix else ""), where) from None
 
 
-def _mover(runner: Any, rules: Rules, state: _State, vars: Dict[str, Any]) -> int:
+def _mover(runner: Any, rules: Rules, state: _State, vars: dict[str, Any]) -> int:
     world = runner.world
     if _over(world, rules):
         raise Abort("The game is over.")
@@ -296,9 +299,10 @@ def _mover(runner: Any, rules: Rules, state: _State, vars: Dict[str, Any]) -> in
 
 
 @family_action("game", ("board",), "move", keys=("text",), required=("text",),
-               example='{"game": "chess", "action": "move", "text": "$params.move"}  (play a legal move for the side to '
-                       'move: captures, promotion, capture rules, chains, turn, and game-end detection; fails if illegal)')
-def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"game": "chess", "action": "move", "text": "$params.move"}  (play a legal move for the '
+                       'side to move: captures, promotion, capture rules, chains, turn, and game-end detection; fails '
+                       'if illegal)')
+def _move_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     rules = _op_rules(runner, effect["game"], where)
     world = runner.world
     state = _state(world, rules)
@@ -312,7 +316,7 @@ def _move_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
     _play(world, rules, state, move, side)
 
 
-def _find(moves: List[Move], text: Any) -> Optional[Move]:
+def _find(moves: list[Move], text: Any) -> Move | None:
     if not isinstance(text, str):
         return None
     wanted = text.strip()
@@ -324,8 +328,9 @@ def _find(moves: List[Move], text: Any) -> Optional[Move]:
 
 
 @family_action("game", ("board",), "pass",
-               example='{"game": "go", "action": "pass"}  (the side to move passes; enough passes in a row end the game by score)')
-def _pass_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"game": "go", "action": "pass"}  (the side to move passes; enough passes in a row end the '
+                       'game by score)')
+def _pass_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     rules = _op_rules(runner, effect["game"], where)
     world = runner.world
     state = _state(world, rules)
@@ -350,9 +355,10 @@ def _pass_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
 
 
 @family_action("game", ("board",), "setup", keys=("position", "turn"), required=("position",),
-               example='{"game": "chess", "action": "setup", "position": "$inputs.start", "turn": "black"}  (replace every '
-                       'piece with a position — board-symbol rows or {side: {kind: [cells]}} — and restart the game state)')
-def _setup_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"game": "chess", "action": "setup", "position": "$inputs.start", "turn": "black"}  '
+                       '(replace every piece with a position — board-symbol rows or {side: {kind: [cells]}} — and '
+                       'restart the game state)')
+def _setup_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     rules = _op_rules(runner, effect["game"], where)
     world = runner.world
     spec = runner.eval(effect["position"], vars)
@@ -387,7 +393,8 @@ def _set(world: Any, rules: Rules, key: str, value: Any) -> None:
 
 def _create(world: Any, rules: Rules, side: int, kind: str, cell: str, moved: bool, where: str) -> Entity:
     return world.create(rules.config.piece_type, None, f"{rules.side_names[side]} {rules.kind_names[kind]}",
-                        {"owner": rules.sides[side], "kind": kind, "cell": cell, "moved": moved}, None, world.scope(), where)
+                        {"owner": rules.sides[side], "kind": kind, "cell": cell, "moved": moved}, None, world.scope(),
+                        where)
 
 
 def _write(world: Any, rules: Rules, before: Pos, after: Pos) -> None:
@@ -397,7 +404,8 @@ def _write(world: Any, rules: Rules, before: Pos, after: Pos) -> None:
         if slot >= len(before.at):
             if after.at[slot] < 0:
                 continue  # placed and removed in the same move (suicide)
-            created = _create(world, rules, after.owner[slot], after.kind[slot], names[after.at[slot]], True, rules.name)
+            created = _create(world, rules, after.owner[slot], after.kind[slot], names[after.at[slot]], True,
+                              rules.name)
             after.ids[slot] = created.id
             continue
         entity = world.entities[before.ids[slot]]
@@ -415,7 +423,8 @@ def _write(world: Any, rules: Rules, before: Pos, after: Pos) -> None:
             world.set_prop(entity, "moved", after.moved[slot])
     _set(world, rules, "turn", rules.sides[after.turn])
     _set(world, rules, "chain", after.ids[after.chain] if after.chain >= 0 else "")
-    _set(world, rules, "ep", {"cell": names[after.ep_cell], "piece": after.ids[after.ep_piece]} if after.ep_cell >= 0 else {})
+    _set(world, rules, "ep",
+         {"cell": names[after.ep_cell], "piece": after.ids[after.ep_piece]} if after.ep_cell >= 0 else {})
     _set(world, rules, "ko", names[after.ko] if after.ko >= 0 else "")
     if rules.place_from == "hand" and rules.place_kinds:
         _set(world, rules, "hand", {side: dict(after.hand[i]) for i, side in enumerate(rules.sides)})
@@ -442,7 +451,8 @@ def _play(world: Any, rules: Rules, state: _State, move: Move, side: int) -> Non
     if played.flipped:
         report += f", flipping {played.flipped}"
     if played.continues:
-        report += f"; {rules.side_names[side]} must keep capturing with the piece on {rules.geo.names[after.at[played.piece]]}"
+        report += (f"; {rules.side_names[side]} must keep capturing with the piece on "
+                   f"{rules.geo.names[after.at[played.piece]]}")
     elif rules.royal and in_check(rules, after, after.turn):
         report += f"; {rules.side_names[after.turn]} is in check"
     _set(world, rules, "report", report + ".")
@@ -456,8 +466,8 @@ def _play(world: Any, rules: Rules, state: _State, move: Move, side: int) -> Non
     _judge(world, rules, before, after, side, moves, history, quiet)
 
 
-def _judge(world: Any, rules: Rules, before: Pos, after: Pos, mover: int, moves: List[Move],
-           history: List[str], quiet: int) -> None:
+def _judge(world: Any, rules: Rules, before: Pos, after: Pos, mover: int, moves: list[Move],
+           history: list[str], quiet: int) -> None:
     ending = _ending(rules, before, after, mover, moves, history, quiet)
     if ending == "pass":
         _next_turn(world, rules, after, moves)
@@ -465,7 +475,7 @@ def _judge(world: Any, rules: Rules, before: Pos, after: Pos, mover: int, moves:
         _finish(world, rules, after, ending[0], ending[1])
 
 
-def _ending(rules: Rules, before: Pos, after: Pos, mover: int, moves: List[Move], history: List[str],
+def _ending(rules: Rules, before: Pos, after: Pos, mover: int, moves: list[Move], history: list[str],
             quiet: int) -> Any:
     """How the game ends after a move: (reason, winner side or None), "pass" for a forced pass, or None."""
     config = rules.config
@@ -492,8 +502,9 @@ def _ending(rules: Rules, before: Pos, after: Pos, mover: int, moves: List[Move]
     return None
 
 
-def _next_turn(world: Any, rules: Rules, after: Pos, moves: Optional[List[Move]] = None) -> None:
-    """Pass automatically for every side that has no legal move (``no_moves: pass``); end by score when none can move."""
+def _next_turn(world: Any, rules: Rules, after: Pos, moves: list[Move] | None = None) -> None:
+    """Pass automatically for every side that has no legal move (``no_moves: pass``); end by score when none can move.
+    """
     if rules.config.no_moves != "pass" or rules.config.allow_pass:
         return
     current = after
@@ -527,12 +538,12 @@ def _finish_by_score(world: Any, rules: Rules, pos: Pos, reason: str) -> None:
     _finish(world, rules, pos, reason, winner, points)
 
 
-def _finish(world: Any, rules: Rules, pos: Pos, reason: str, winner: Optional[int],
-            points: Optional[List[float]] = None) -> None:
+def _finish(world: Any, rules: Rules, pos: Pos, reason: str, winner: int | None,
+            points: list[float] | None = None) -> None:
     names = rules.side_names
     if points is None and rules.config.score != "none":
         points = score(rules, pos)
-    result: Dict[str, Any] = {"winner": rules.sides[winner] if winner is not None else None, "reason": reason}
+    result: dict[str, Any] = {"winner": rules.sides[winner] if winner is not None else None, "reason": reason}
     if points is not None:
         result["score"] = {side: int(p) if float(p).is_integer() else p for side, p in zip(rules.sides, points)}
     _set(world, rules, "result", result)
@@ -548,7 +559,7 @@ def _finish(world: Any, rules: Rules, pos: Pos, reason: str, winner: Optional[in
 # ---------------------------------------------------------------------------
 
 
-def _initial_props(rules: Rules) -> Dict[str, Any]:
+def _initial_props(rules: Rules) -> dict[str, Any]:
     return {"turn": rules.sides[0], "chain": "", "ep": {}, "ko": "",
             "hand": {side: dict(rules.config.hand.get(side) or {}) for side in rules.sides},
             "ply": 0, "quiet": 0, "passes": 0, "history": [], "last": "", "report": "", "result": {}}
@@ -576,21 +587,21 @@ piece per cell (no stacks), dice are not built in."""
 @mode("game", "board", BoardConfig, _DOC, example={
     "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"},
       ends=lambda config: True)
-def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     rules = compile_rules(name, config)
     _check_shared_types(name, config, contract)
     players, piece_type = config.who, config.piece_type
     types = contract.get("types") or {}
     if players in types and not types[players].get("agent") and not types[players].get("extends"):
         raise MechanismError(f"who '{players}' is not an agent type", "set \"agent\": true on it", "who")
-    entities: Dict[str, Any] = {}
+    entities: dict[str, Any] = {}
     declared = contract.get("entities") or {}
     for index, side_id in enumerate(rules.sides):
         if side_id in declared and declared[side_id].get("type") != players:
             raise MechanismError(f"entity '{side_id}' is a {declared[side_id].get('type')}, not a {players}",
                                  f"make it type {players} or set `who`", "sides")
         entities[side_id] = {"type": players, "name": rules.side_names[index]}
-    counters: Dict[Tuple[int, str], int] = {}
+    counters: dict[tuple[int, str], int] = {}
     for side, kind, cell in parse_setup(rules, config.setup):
         counters[(side, kind)] = counters.get((side, kind), 0) + 1
         label = rules.kind_names[kind].lower().replace(" ", "_")
@@ -602,19 +613,22 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
     move, pass_ = f"{name}_move", f"{name}_pass"
     report = f"{{$world.{name}_report}}"
     turn = f"$world.{name}_turn"
-    actions: Dict[str, Any] = {move: {
+    actions: dict[str, Any] = {move: {
         "by": players, "description": _move_help(rules),
-        "params": {"move": {"type": "enum", "values": f"$board_moves('{name}', $actor)", "description": "One of your legal moves."}},
+        "params": {"move": {"type": "enum", "values": f"$board_moves('{name}', $actor)",
+                            "description": "One of your legal moves."}},
         "when": [{"expr": f"{turn} == $actor.id", "why": "It is not your turn."},
                  {"expr": f"$len($board_moves('{name}', $actor)) > 0", "why": "You have no legal move."}],
         "do": [{"game": name, "action": "move", "text": "$params.move"}],
         "outcome": report, "announce": report, "terminal": f"{turn} != $actor.id"}}
     if config.allow_pass:
         actions[pass_] = {"by": players, "description": "Pass instead of moving.",
-                          "when": [{"expr": f"{turn} == $actor.id and $world.{name}_chain == ''", "why": "You cannot pass now."}],
-                          "do": [{"game": name, "action": "pass"}], "outcome": report, "announce": report, "terminal": True}
+                          "when": [{"expr": f"{turn} == $actor.id and $world.{name}_chain == ''",
+                                    "why": "You cannot pass now."}],
+                          "do": [{"game": name, "action": "pass"}], "outcome": report, "announce": report,
+                          "terminal": True}
     chain_turn = max(2, rules.geo.size // 2) if rules.chains else 1
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {players: {"agent": True, "description": "A player at the board."},
                   piece_type: {"description": f"A piece on the {name} board.", "inspect": False, "props": {
                       "owner": {"type": "text", "default": "", "description": "Id of the side that owns it."},
@@ -640,7 +654,7 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
     return fragment
 
 
-def _game(name: str, rules: Rules, players: str) -> Dict[str, Any]:
+def _game(name: str, rules: Rules, players: str) -> dict[str, Any]:
     """Seats in side order; the winner scores one point from every other side, so the returns always add up to zero."""
     sides = "[" + ", ".join(f"'{side}'" for side in rules.sides) + "]"
     winner = f"$get($world.{name}_result, 'winner', null)"
@@ -662,7 +676,8 @@ def _move_help(rules: Rules) -> str:
     if rules.castles:
         parts.append("castling is " + " / ".join(dict.fromkeys(c.text for c in rules.castles)))
     if rules.place_kinds:
-        parts.append("placing a piece is its cell (d3)" if len(rules.place_kinds) == 1 else "placing is kind@cell (P@e4)")
+        parts.append("placing a piece is its cell (d3)" if len(rules.place_kinds) == 1
+                     else "placing is kind@cell (P@e4)")
     text = "Make your move: " + "; ".join(parts) + "." if parts else "Make your move."
     if rules.chains:
         text += " After a capture that can continue, the same piece must keep capturing."

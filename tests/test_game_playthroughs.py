@@ -9,10 +9,10 @@ import sys
 from pathlib import Path
 
 import pytest
+from game_contracts import GAMES
 
 import fg_env
 from fg_env.game.playthrough import steps_from_text
-from game_contracts import GAMES
 
 GOLDEN = Path(__file__).parent / "golden" / "playthroughs"
 EXAMPLES = sorted(GAMES.glob("*.json"))

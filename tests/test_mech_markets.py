@@ -100,7 +100,8 @@ def test_a_negative_maker_fee_is_a_rebate_paid_out_of_the_taker_fee():
         (1, "c"): [("acme_sell", {"qty": 10})],
         (1, "d"): [("acme_buy", {"qty": 10})]})
     a, b, c, d = (props(env, x) for x in "abcd")
-    assert b["acme_reserved_cash"] == 0 and b["cash"] == pytest.approx(10000 - 490 * 0.999)  # the resting buyer's rebate
+    assert (b["acme_reserved_cash"] == 0 and b["cash"]
+            == pytest.approx(10000 - 490 * 0.999))  # the resting buyer's rebate
     assert a["cash"] == pytest.approx(10000 + 500 * 1.001) and a["acme_fees_paid"] == pytest.approx(-0.5)
     assert c["cash"] == pytest.approx(10000 + 490 * 0.998) and d["cash"] == pytest.approx(10000 - 500 * 1.002)
     assert env.props["acme_fees"] == pytest.approx((490 + 500) * 0.001)
@@ -180,13 +181,15 @@ def test_cancel_returns_reservations_and_lists_only_own_orders():
         (1, "a"): [("acme_buy", {"qty": 10, "price": 49}), ("acme_sell", {"qty": 20, "price": 55}),
                    ("acme_sell", {"qty": 5, "price": 56})],
         (1, "b"): [("acme_sell", {"qty": 5, "price": 57})],
-        (2, "a"): [("acme_cancel", {"order": "acme_4"}), ("acme_cancel", {"order": "acme_1"}), ("acme_cancel_all", {})]})
+        (2, "a"): [("acme_cancel", {"order": "acme_4"}), ("acme_cancel", {"order": "acme_1"}),
+                   ("acme_cancel_all", {})]})
 
     def watching(wake):
         if (wake.round, wake.entity_id) == (2, "a"):
             schemas.update({t.name: t.input_schema for t in wake.tools})
             a = props(env, "a")
-            assert a["cash"] == pytest.approx(10000 - 490 * 1.001) and a["acme_reserved_cash"] == pytest.approx(490 * 1.001)
+            assert (a["cash"] == pytest.approx(10000 - 490 * 1.001) and a["acme_reserved_cash"]
+                    == pytest.approx(490 * 1.001))
             assert a["acme_shares"] == 75 and a["acme_reserved_shares"] == 25
         participant(wake)
 
@@ -212,7 +215,8 @@ def test_orders_snap_to_tick_and_lot_and_refusals_say_what_to_do():
 
 
 def test_self_trade_prevention_cancels_the_resting_order():
-    env, replies = play(book(), {(1, "a"): [("acme_buy", {"qty": 10, "price": 50}), ("acme_sell", {"qty": 5, "price": 49})]})
+    env, replies = play(book(),
+                        {(1, "a"): [("acme_buy", {"qty": 10, "price": 50}), ("acme_sell", {"qty": 5, "price": 49})]})
     assert "own opposite order" in replies[-1][3].text
     assert env.props["acme_bids"] == [] and env.props["acme_asks"][0]["owner"] == "a"
     assert props(env, "a")["cash"] == 10000 and props(env, "a")["acme_reserved_cash"] == 0
@@ -233,7 +237,8 @@ def test_orders_expire_and_short_selling_is_bounded():
 CROWD = {"name": "Crowd", "clock": {"rounds": 500},
          "types": {"trader": {"agent": True, "props": {"cash": 0}}},
          "population": [{"type": "trader", "count": 3, "props": {"cash": 5000, "acme_shares": 100}}],
-         "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50, "maker_fee_bps": 1,
+         "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
+                                 "maker_fee_bps": 1,
                                  "taker_fee_bps": 3, "halt_pct": 0.15, "short_limit": 20, "order_ttl": 5,
                                  "crowd": {"market_maker": {"count": 2, "cash": 50000, "shares": 1000},
                                            "noise": {"count": 6, "cash": 10000, "shares": 200}}}}}
@@ -248,24 +253,28 @@ def test_conservation_holds_over_500_rounds_of_random_traders_makers_and_noise()
     assert result.outputs["acme_trades"] > 1000 and result.outputs["acme_fees"] > 0
 
 
-@pytest.mark.parametrize("conserve, check", [(True, "action"), ("action", "action"), ("round", "round"), ("end", "end")])
+@pytest.mark.parametrize("conserve, check",
+                         [(True, "action"), ("action", "action"), ("round", "round"), ("end", "end")])
 def test_conservation_can_be_checked_after_every_action_every_round_or_at_the_end(conserve, check):
-    contract = {**CROWD, "clock": {"rounds": 3}, "mechanisms": {"acme": {**CROWD["mechanisms"]["acme"], "conserve": conserve}}}
+    contract = {**CROWD, "clock": {"rounds": 3},
+                "mechanisms": {"acme": {**CROWD["mechanisms"]["acme"], "conserve": conserve}}}
     assert [i.check for i in fg_env.parse(contract).invariants] == [check]
-    straight = fg_env.load({**contract, "mechanisms": {"acme": {**contract["mechanisms"]["acme"], "conserve": True}}}, seed=4)
+    straight = fg_env.load({**contract, "mechanisms": {"acme": {**contract["mechanisms"]["acme"], "conserve": True}}},
+                           seed=4)
     assert fg_env.load(contract, seed=4).run().to_dict() == straight.run().to_dict()
     unchecked = {**contract, "mechanisms": {"acme": {**contract["mechanisms"]["acme"], "conserve": False}}}
     assert fg_env.parse(unchecked).invariants == []
 
 
 def test_a_crowd_trades_on_its_book_but_is_not_one_of_the_traders_other_mechanisms_count():
-    """Coded crowd traders are `<book>_crowd`, beside `who` rather than under it: a ballot's quorum, a victory's candidates
-    and a channel's members are the declared traders only, while the crowd still trades (and conserves) on the book."""
+    """Coded crowd traders are `<book>_crowd`, beside `who` rather than under it: a ballot's quorum, a victory's
+    candidates and a channel's members are the declared traders only, while the crowd still trades (and conserves) on
+    the book."""
     contract = {**CROWD, "clock": {"rounds": 3},
                 "types": {"trader": {"agent": True, "props": {"cash": 0, "mood": "calm"}}},
                 "mechanisms": {**CROWD["mechanisms"],
-                               "fee": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["cut", "keep"],
-                                       "quorum": 0.5, "when": "$round == 2"},
+                               "fee": {"kind": "decision", "mode": "ballot", "who": "trader",
+                                       "options": ["cut", "keep"], "quorum": 0.5, "when": "$round == 2"},
                                "chat": {"kind": "social", "mode": "channels", "who": "trader"},
                                "win": {"kind": "flow", "mode": "victory", "who": "trader",
                                        "conditions": [{"most": "$it.cash + $it.acme_shares * $book(acme).last"}]}},
@@ -274,7 +283,8 @@ def test_a_crowd_trades_on_its_book_but_is_not_one_of_the_traders_other_mechanis
     crowd = [e for e in env.world.entities.values() if e.entity_type != "trader"]
     assert {e.entity_type for e in crowd} == {"acme_market_maker", "acme_noise"}
     assert crowd[0].properties["mood"] == "calm"  # a crowd trader keeps the traders' own props
-    assert all(env.contract.is_a(e.entity_type, "acme_crowd") and not env.contract.is_a(e.entity_type, "trader") for e in crowd)
+    assert all(env.contract.is_a(e.entity_type, "acme_crowd") and not env.contract.is_a(e.entity_type, "trader")
+               for e in crowd)
 
     def everyone_votes(wake):
         if "fee_vote" in [tool.name for tool in wake.tools]:
@@ -301,8 +311,8 @@ def test_coded_traders_produce_a_moving_stylized_facts_tape_across_seeds():
     contract = {"name": "Tape", "clock": {"rounds": 200}, "types": {"trader": {"agent": True}},
                 "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
                                         "volatility": 0.02, "crowd": crowd}},
-                "outputs": {"realism": {"expr": "$market_realism({prices: $series.acme_price, volumes: $series.acme_volume}, "
-                                                f"{reference})", "type": "map"}}}
+                "outputs": {"realism": {"expr": "$market_realism({prices: $series.acme_price, volumes: "
+                                                f"$series.acme_volume}}, {reference})", "type": "map"}}}
     trade_acf, mid_sigma = [], []
     for seed in range(1, 5):
         result = fg_env.load(contract, seed=seed).run()
@@ -341,7 +351,8 @@ def test_market_analytics():
     same = series_stats(prices, [10, 12, 9, 14, 10, 15])
     assert realism_score(same, same)["components"][0]["score"] == 1.0
     contract = {"name": "Stats", "clock": {"rounds": 1}, "types": {"thing": {}},
-                "outputs": {"r": "$returns([1, 2], log)", "vol": "$market_stats([100, 110, 100]).sigma", "ac": "$autocorr([1, 2, 3, 4, 5], 1)",
+                "outputs": {"r": "$returns([1, 2], log)", "vol": "$market_stats([100, 110, 100]).sigma",
+                            "ac": "$autocorr([1, 2, 3, 4, 5], 1)",
                             "k": "$excess_kurtosis([1, 2, 3, 4])", "s": "$market_stats([100, 101])",
                             "real": "$market_realism([100, 101, 100, 102], $market_stats([100, 102, 101, 103]))"}}
     assert not [i for i in fg_env.check(contract) if i.severity == "error"]
@@ -373,8 +384,8 @@ def test_lmsr_and_cpmm_math_invert_exactly():
 
 
 def market(maker, stage=True, **config):
-    mechanism = {"kind": "market", "mode": "prediction", "who": "trader", "outcomes": ["ada", "bo", "cy"], "maker": maker,
-                 "liquidity": 20, "fee_pct": 0.02, "resolve_at": 2, "outcome": "$world.truth", **config}
+    mechanism = {"kind": "market", "mode": "prediction", "who": "trader", "outcomes": ["ada", "bo", "cy"],
+                 "maker": maker, "liquidity": 20, "fee_pct": 0.02, "resolve_at": 2, "outcome": "$world.truth", **config}
     contract = {"name": "PM", "clock": {"rounds": 3}, "world": {"truth": "ada"},
                 "types": {"trader": {"agent": True, "props": {"cash": 100}}},
                 "entities": {t: {"type": "trader"} for t in "abc"}, "mechanisms": {"pm": mechanism}}
@@ -389,8 +400,10 @@ def test_prediction_market_trades_with_limits_resolves_and_pays(maker):
     assert not [i for i in fg_env.check(market(maker)) if i.severity == "error"]
     env, replies = play(market(maker), {
         (1, "a"): [("pm_buy", {"outcome": "ada", "shares": 10})],
-        (1, "b"): [("pm_buy", {"outcome": "bo", "spend": 20}), ("pm_buy", {"outcome": "cy", "shares": 500, "spend": 1})],
-        (2, "a"): [("pm_sell", {"outcome": "ada", "shares": 4}), ("pm_sell", {"outcome": "ada", "shares": 1, "receive": 5})]},
+        (1, "b"): [("pm_buy", {"outcome": "bo", "spend": 20}),
+                   ("pm_buy", {"outcome": "cy", "shares": 500, "spend": 1})],
+        (2, "a"): [("pm_sell", {"outcome": "ada", "shares": 4}),
+                   ("pm_sell", {"outcome": "ada", "shares": 1, "receive": 5})]},
         rounds=3)
     bought, sold, floor = replies_of(replies, "a")
     spent, limited = replies_of(replies, "b")
@@ -422,8 +435,8 @@ def test_prediction_market_conserves_cash_under_random_traders(maker):
 
 
 def house(fmt, **config):
-    mechanism = {"kind": "market", "mode": "auction", "format": fmt, "who": "bidder", "item": "a vase", "stock": 2, "reserve": 35,
-                 **config}
+    mechanism = {"kind": "market", "mode": "auction", "format": fmt, "who": "bidder", "item": "a vase", "stock": 2,
+                 "reserve": 35, **config}
     return {"name": "Auction", "clock": {"rounds": 6}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
             "entities": {t: {"type": "bidder"} for t in "abc"}, "mechanisms": {"house": mechanism}}
 
@@ -442,7 +455,8 @@ def test_sealed_auctions_pick_the_highest_bid_and_price_by_format(fmt, pays):
 
 def test_ties_go_to_the_earliest_bid_or_a_seeded_draw_and_a_lone_vickrey_bid_pays_the_reserve():
     plan = {(1, "a"): [("house_bid", {"price": 60})], (1, "b"): [("house_bid", {"price": 60})]}
-    seated = {**house("first_price", stage="bids"), "stages": [{"name": "bids", "turns": "simultaneous", "order": "seat"}]}
+    seated = {**house("first_price", stage="bids"),
+              "stages": [{"name": "bids", "turns": "simultaneous", "order": "seat"}]}
     env, _ = play(seated, plan)  # sealed bids commit in seat order only when the stage says so
     assert env.world.records("house_results")[-1]["winner"] == "a"
     winners = {play(house("first_price", ties="random"), plan, seed=s)[0].world.records("house_results")[-1]["winner"]
@@ -450,9 +464,11 @@ def test_ties_go_to_the_earliest_bid_or_a_seeded_draw_and_a_lone_vickrey_bid_pay
     assert winners == {"a", "b"}
     lone, _ = play(house("second_price"), {(1, "c"): [("house_bid", {"price": 90})]})
     assert props(lone, "c")["cash"] == 65 and lone.world.records("house_results")[-1]["note"] == "pays the reserve"
-    over, _ = play(house("second_price", reserve=45), {(1, "c"): [("house_bid", {"price": 90})], (1, "a"): [("house_bid", {"price": 50})]})
+    over, _ = play(house("second_price", reserve=45),
+                   {(1, "c"): [("house_bid", {"price": 90})], (1, "a"): [("house_bid", {"price": 50})]})
     assert over.world.records("house_results")[-1]["note"] == "pays the second-highest bid"
-    under, _ = play(house("second_price", reserve=45), {(1, "c"): [("house_bid", {"price": 90})], (1, "a"): [("house_bid", {"price": 40})]})
+    under, _ = play(house("second_price", reserve=45),
+                    {(1, "c"): [("house_bid", {"price": 90})], (1, "a"): [("house_bid", {"price": 40})]})
     assert under.world.records("house_results")[-1]["note"] == "pays the reserve"  # the reserve, not a's refused bid
 
 
@@ -501,7 +517,8 @@ def test_uniform_price_with_units_left_over_prices_at_the_reserve_when_no_bid_is
 def test_uniform_auction_sells_what_is_left_when_the_stock_is_smaller_than_a_lot():
     env, _ = play(house("uniform", units=3, stock=4, reserve=10, price_rule="highest_rejected"), {
         (1, "a"): [("house_bid", {"price": 30, "qty": 3})],
-        (2, "b"): [("house_bid", {"price": 40, "qty": 2})], (2, "c"): [("house_bid", {"price": 30, "qty": 1})]}, rounds=3)
+        (2, "b"): [("house_bid", {"price": 40, "qty": 2})], (2, "c"): [("house_bid", {"price": 30, "qty": 1})]},
+                  rounds=3)
     first, last = env.world.records("house_results")
     assert (first["winner"], first["qty"], first["price"]) == ("a", 3, 10)
     assert (last["winner"], last["qty"], last["price"]) == ("b", 1, 40)  # one unit left: b's other unit is rejected
@@ -521,7 +538,8 @@ def test_double_auction_clears_bids_and_asks_at_one_price():
         (1, "s"): [("house_ask", {"price": 30, "qty": 1})], (1, "t"): [("house_ask", {"price": 50, "qty": 1})]})
     assert props(env, "a")["house_units"] == 1 and props(env, "a")["cash"] == 55
     assert props(env, "s")["cash"] == 45 and props(env, "s")["house_units"] == 1
-    assert props(env, "b")["cash"] == 100 and props(env, "t")["house_units"] == 2 and props(env, "t")["house_escrow_units"] == 0
+    assert (props(env, "b")["cash"] == 100 and props(env, "t")["house_units"] == 2
+            and props(env, "t")["house_escrow_units"] == 0)
 
 
 @pytest.mark.parametrize("bids, asks, price", [
@@ -532,10 +550,12 @@ def test_double_auction_clears_bids_and_asks_at_one_price():
 ])
 def test_double_auction_clears_at_the_middle_of_the_market_clearing_range(bids, asks, price):
     contract = {"name": "Call", "clock": {"rounds": 1},
-                "types": {"buyer": {"agent": True, "props": {"cash": 1000}}, "seller": {"agent": True, "props": {"cash": 0}}},
+                "types": {"buyer": {"agent": True, "props": {"cash": 1000}},
+                          "seller": {"agent": True, "props": {"cash": 0}}},
                 "entities": {**{f"b{i}": {"type": "buyer"} for i in range(len(bids))},
                              **{f"s{i}": {"type": "seller", "props": {"sale_units": 1}} for i in range(len(asks))}},
-                "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "double", "who": "buyer", "sellers": "seller"}}}
+                "mechanisms": {"sale": {"kind": "market", "mode": "auction", "format": "double", "who": "buyer",
+                                        "sellers": "seller"}}}
     plan = {**{(1, f"b{i}"): [("sale_bid", {"price": p})] for i, p in enumerate(bids)},
             **{(1, f"s{i}"): [("sale_ask", {"price": p})] for i, p in enumerate(asks)}}
     env, _ = play(contract, plan)
@@ -546,7 +566,8 @@ def test_double_auction_clears_at_the_middle_of_the_market_clearing_range(bids, 
 @pytest.mark.parametrize("fmt", ["english", "first_price", "second_price"])
 def test_a_policy_that_bids_the_reported_min_bid_is_always_legal(fmt):
     contract = house(fmt, reserve=0, stock=1)
-    contract["policies"] = {"floor": {"rules": [{"when": "$auction(house).open and $auction(house).leader != $actor.id and $auction(house).min_bid < 3",
+    contract["policies"] = {"floor": {"rules": [{"when": "$auction(house).open and $auction(house).leader != $actor.id "
+                                                         "and $auction(house).min_bid < 3",
                                                  "do": "house_bid", "with": {"price": "$auction(house).min_bid"}}]}}
     contract["types"]["bidder"]["policy"] = "floor"
     result = fg_env.run(contract, None, seed=1)
@@ -557,9 +578,11 @@ def test_the_guide_names_where_each_market_keeps_its_goods_and_check_warns_on_a_
     assert "`<name>_units`" in fg_env.guide("market.auction") and "`<name>_shares`" in fg_env.guide("market.order_book")
     assert "`<name>_shares`" in fg_env.guide("market.prediction")
     contract = {"name": "Call", "clock": {"rounds": 1},
-                "types": {"buyer": {"agent": True, "props": {"cash": 100}}, "seller": {"agent": True, "props": {"units": 3}}},
+                "types": {"buyer": {"agent": True, "props": {"cash": 100}},
+                          "seller": {"agent": True, "props": {"units": 3}}},
                 "entities": {"b": {"type": "buyer"}, "s": {"type": "seller"}},
-                "mechanisms": {"auc": {"kind": "market", "mode": "auction", "format": "double", "who": "buyer", "sellers": "seller"}}}
+                "mechanisms": {"auc": {"kind": "market", "mode": "auction", "format": "double", "who": "buyer",
+                                       "sellers": "seller"}}}
     warned = [i for i in fg_env.check(contract) if i.path == "types.seller.props.units"]
     assert len(warned) == 1 and warned[0].severity == "warning" and warned[0].fix == "rename it to `auc_units`"
     contract["types"]["seller"]["props"] = {"auc_units": 3}
@@ -570,18 +593,21 @@ def tender(fmt, budget=1000, **config):
     """A city buying road contracts from builders (their `quality` feeds a scored award)."""
     contract = house(fmt, reverse=True, house="city", item="a road contract", reserve=80, **config)
     contract["types"].update(bidder={"agent": True, "props": {"cash": 0, "quality": 0}}, buyer={"props": {"cash": 0}})
-    contract["entities"] = {"a": {"type": "bidder", "props": {"quality": 1}}, "b": {"type": "bidder", "props": {"quality": 5}},
+    contract["entities"] = {"a": {"type": "bidder", "props": {"quality": 1}},
+                            "b": {"type": "bidder", "props": {"quality": 5}},
                             "c": {"type": "bidder"}, "city": {"type": "buyer", "props": {"cash": budget}}}
     return contract
 
 
 @pytest.mark.parametrize("fmt, paid", [("first_price", 50), ("second_price", 60)])
 def test_reverse_auction_awards_the_lowest_offer_and_pays_by_format(fmt, paid):
-    env, replies = play(tender(fmt), {(1, "a"): [("house_bid", {"price": 90})], (1, "b"): [("house_bid", {"price": 50})],
-                                      (1, "c"): [("house_bid", {"price": 60})]})
+    env, replies = play(tender(fmt),
+                        {(1, "a"): [("house_bid", {"price": 90})], (1, "b"): [("house_bid", {"price": 50})],
+                         (1, "c"): [("house_bid", {"price": 60})]})
     assert not replies_of(replies, "a")[0].ok  # above the most the house pays
     assert props(env, "b")["cash"] == paid and props(env, "b")["house_won"] == 1 and props(env, "c")["cash"] == 0
-    assert props(env, "b")["house_units"] == 0 and props(env, "city")["house_units"] == 1  # the winner delivers to the buyer
+    assert (props(env, "b")["house_units"] == 0 and props(env, "city")["house_units"]
+            == 1)  # the winner delivers to the buyer
     assert props(env, "city")["cash"] == 1000 - paid and env.props["house_stock"] == 1
     result = env.world.records("house_results")[-1]
     assert (result["winner"], result["price"]) == ("b", paid)
@@ -590,7 +616,8 @@ def test_reverse_auction_awards_the_lowest_offer_and_pays_by_format(fmt, paid):
 
 def test_a_lone_vickrey_offer_is_paid_the_reserve_and_the_house_never_pays_more_than_it_holds():
     lone, _ = play(tender("second_price"), {(1, "c"): [("house_bid", {"price": 30})]})
-    assert props(lone, "c")["cash"] == 80 and lone.world.records("house_results")[-1]["note"] == "lowest offer, paid the reserve"
+    assert (props(lone, "c")["cash"] == 80 and lone.world.records("house_results")[-1]["note"]
+            == "lowest offer, paid the reserve")
     broke, _ = play(tender("first_price", budget=40), {(1, "c"): [("house_bid", {"price": 50})]})
     assert broke.world.records("house_results")[-1]["winner"] == "" and props(broke, "city")["cash"] == 40
 
@@ -604,7 +631,8 @@ def test_a_scored_award_goes_to_the_best_score_not_the_best_price(reverse, a_pri
         contract = house("first_price", score="$it.quality * 10 + $price")
         contract["types"]["bidder"]["props"]["quality"] = 0
         contract["entities"]["b"] = {"type": "bidder", "props": {"quality": 5}}
-    env, _ = play(contract, {(1, "a"): [("house_bid", {"price": a_price})], (1, "b"): [("house_bid", {"price": b_price})]})
+    env, _ = play(contract,
+                  {(1, "a"): [("house_bid", {"price": a_price})], (1, "b"): [("house_bid", {"price": b_price})]})
     result = env.world.records("house_results")[-1]
     assert (result["winner"], result["price"]) == ("b", b_price) and props(env, "b")["cash"] == cash
     assert not auctions.audit(env.world, "house")
@@ -627,7 +655,8 @@ def test_misconfigured_tenders_say_how_to_fix_them(config, message):
     assert message in str(caught.value)
 
 
-@pytest.mark.parametrize("fmt, score", [("first_price", None), ("second_price", None), ("first_price", "$it.quality - $price")])
+@pytest.mark.parametrize("fmt, score",
+                         [("first_price", None), ("second_price", None), ("first_price", "$it.quality - $price")])
 def test_tenders_conserve_cash_and_units_with_random_bidders(fmt, score):
     contract = tender(fmt, stock=4, **({"score": score} if score else {}))
     contract["clock"]["rounds"] = 8
@@ -639,10 +668,12 @@ def test_tenders_conserve_cash_and_units_with_random_bidders(fmt, score):
 
 
 def test_a_tender_composes_with_a_declared_stage_and_outputs():
-    contract = {**tender("first_price", stage="bidding", stock=2), "stages": [{"name": "bidding", "turns": "simultaneous"}]}
+    contract = {**tender("first_price", stage="bidding", stock=2),
+                "stages": [{"name": "bidding", "turns": "simultaneous"}]}
     contract["clock"]["rounds"] = 2
     contract["outputs"] = {"spent": "1000 - $entity(city).cash"}
-    env, _ = play(contract, {(1, "a"): [("house_bid", {"price": 40})], (2, "c"): [("house_bid", {"price": 30})]}, rounds=2)
+    env, _ = play(contract, {(1, "a"): [("house_bid", {"price": 40})], (2, "c"): [("house_bid", {"price": 30})]},
+                  rounds=2)
     assert env.result().outputs["spent"] == 70 and env.result().outputs["house_prices"] == [40, 30]
 
 
@@ -671,10 +702,12 @@ def farm(stage=True, **config):
     mechanism = {"kind": "market", "mode": "posted", "who": "shopper", "sellers": "farmer", "sponsor_fee": 2,
                  "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 10, "capacity": 4,
                                          "negotiable": True, "floor": 2.5},
-                              "pears": {"seller": "ben", "item": "pears", "price": 4, "stock": 5, "rating": 4.5, "ratings": 2},
+                              "pears": {"seller": "ben", "item": "pears", "price": 4, "stock": 5, "rating": 4.5,
+                                        "ratings": 2},
                               "plums": {"seller": "ben", "item": "plums", "price": 2, "stock": 5}}, **config}
     contract = {"name": "Farm", "clock": {"rounds": 4},
-                "types": {"shopper": {"agent": True, "props": {"cash": 50}}, "farmer": {"agent": True, "props": {"cash": 10}}},
+                "types": {"shopper": {"agent": True, "props": {"cash": 50}},
+                          "farmer": {"agent": True, "props": {"cash": 10}}},
                 "entities": {"ana": {"type": "farmer", "name": "Ana"}, "ben": {"type": "farmer", "name": "Ben"},
                              "sam": {"type": "shopper"}, "tia": {"type": "shopper"}},
                 "mechanisms": {"market": mechanism}}
@@ -710,7 +743,8 @@ def test_shelf_ranks_sponsored_then_rating_then_price_and_promotions_cut_prices(
 def test_haggling_accepts_at_the_floor_counters_below_it_and_the_counter_can_be_accepted():
     env, replies = play(farm(), {
         (1, "sam"): [("market_offer", {"listing": "apples", "price": 2}), ("market_accept", {"listing": "apples"})],
-        (1, "tia"): [("market_offer", {"listing": "apples", "price": 2.6}), ("market_offer", {"listing": "apples", "price": 3.5}),
+        (1, "tia"): [("market_offer", {"listing": "apples", "price": 2.6}),
+                     ("market_offer", {"listing": "apples", "price": 3.5}),
                      ("market_offer", {"listing": "pears", "price": 1})]})
     countered, accepted = replies_of(replies, "sam")
     deal, too_much, fixed = replies_of(replies, "tia")
@@ -743,9 +777,10 @@ def errors_of(contract):
     return [i for i in fg_env.check(contract) if i.severity == "error"]
 
 
-@pytest.mark.parametrize("old, contract, mode", [("order_book", book(), "order_book"), ("auction", house("first_price"), "auction"),
-                                                 ("prediction", market("lmsr"), "prediction"),
-                                                 ("posted", farm(), "posted")])
+@pytest.mark.parametrize("old, contract, mode",
+                         [("order_book", book(), "order_book"), ("auction", house("first_price"), "auction"),
+                          ("prediction", market("lmsr"), "prediction"),
+                          ("posted", farm(), "posted")])
 def test_a_market_mode_written_as_the_kind_names_the_family(old, contract, mode):
     name, config = next(iter(contract["mechanisms"].items()))
     config = {key: value for key, value in config.items() if key != "mode"}
@@ -756,7 +791,8 @@ def test_a_market_mode_written_as_the_kind_names_the_family(old, contract, mode)
 
 def test_a_market_field_typo_or_an_old_field_name_names_the_mode_and_its_fields():
     typo = errors_of(book(tick_sise=0.05))
-    assert [(i.path, i.message) for i in typo] == [("mechanisms.acme.tick_sise", "`tick_sise` is not a field of `market` mode `order_book`")]
+    assert [(i.path, i.message) for i in typo] == [("mechanisms.acme.tick_sise",
+                                                    "`tick_sise` is not a field of `market` mode `order_book`")]
     assert typo[0].fix.startswith("did you mean 'tick_size'?") and "takes: who, start_price, currency" in typo[0].fix
     old = errors_of(house("first_price", bidders="bidder"))
     assert [i.message for i in old] == ["`bidders` is not a field of `market` mode `auction`"]
@@ -769,7 +805,8 @@ def _op_issues(contract, *effects):
 
 
 def test_market_actions_check_their_own_keys():
-    assert any(m == "`market.buy` needs `qty`" for _, m, _ in _op_issues(book(), {"market": "acme", "action": "buy", "price": 50}))
+    assert any(m == "`market.buy` needs `qty`"
+               for _, m, _ in _op_issues(book(), {"market": "acme", "action": "buy", "price": 50}))
     assert any(m == "'trader' is not part of `market.cancel_all`" for _, m, _ in _op_issues(
         book(), {"market": "acme", "action": "cancel_all", "trader": "a"}))
     path, message, fix = _op_issues(book(), {"market": "acme", "action": "bid"})[0]
@@ -783,10 +820,12 @@ def test_market_actions_check_their_own_keys():
         house("first_price"), {"market": "house", "action": "ask", "price": 10}))
     assert any(m == "`package` belongs to a combinatorial auction, not a first_price auction" for _, m, _ in _op_issues(
         house("first_price"), {"market": "house", "action": "bid", "price": 40, "package": ["x"]}))
-    assert any(m == "`market.bid` needs `price`" for _, m, _ in _op_issues(house("english"), {"market": "house", "action": "bid"}))
+    assert any(m == "`market.bid` needs `price`"
+               for _, m, _ in _op_issues(house("english"), {"market": "house", "action": "bid"}))
     assert any("needs `shares`, `spend` (money) or both" in m for _, m, _ in _op_issues(
         market("lmsr"), {"market": "pm", "action": "buy", "outcome": "ada"}))
-    assert any(m == "`market.resolve` needs `outcome`" for _, m, _ in _op_issues(market("lmsr"), {"market": "pm", "action": "resolve"}))
+    assert any(m == "`market.resolve` needs `outcome`"
+               for _, m, _ in _op_issues(market("lmsr"), {"market": "pm", "action": "resolve"}))
     assert any(m == "`market.promote` needs `rounds`" for _, m, _ in _op_issues(
         farm(), {"market": "market", "action": "promote", "listing": "apples", "pct": 0.1}))
     assert any(m == "'stars' is not part of `market.offer`" for _, m, _ in _op_issues(
@@ -795,7 +834,8 @@ def test_market_actions_check_their_own_keys():
 
 def test_market_actions_act_for_who_they_name():
     contract = {**book(), "events": [{"name": "quote", "phase": "start", "when": "$round == 1",
-                                      "do": [{"market": "acme", "action": "sell", "who": "a", "qty": 10, "price": 51}]}]}
+                                      "do": [{"market": "acme", "action": "sell", "who": "a", "qty": 10,
+                                              "price": 51}]}]}
     env, _ = play(contract, {})
     assert [(o["owner"], o["qty"], o["price"]) for o in env.props["acme_asks"]] == [("a", 10, 51)]
     assert not order_book.audit(env.world, "acme")
@@ -815,13 +855,15 @@ def test_tools_one_offers_a_book_as_a_single_tool():
         wake.end()
 
     env.run(trade, rounds=1)
-    assert "acme_buy" not in offered["a"] and offered["a"]["acme"].input_schema["properties"]["action"]["enum"] == ["buy", "sell"]
+    assert ("acme_buy" not in offered["a"] and offered["a"]["acme"].input_schema["properties"]["action"]["enum"]
+            == ["buy", "sell"])
     assert props(env, "b")["acme_shares"] == 104 and [o["qty"] for o in env.props["acme_asks"]] == [6]
 
 
 def test_guide_documents_the_market_family():
     page = fg_env.guide("market.auction")
-    assert page.startswith("### `market.auction`") and "`house`" in page and "- `bid`" in page and "- `tick`" not in page
+    assert (page.startswith("### `market.auction`") and "`house`" in page and "- `bid`" in page
+            and "- `tick`" not in page)
     family = fg_env.guide("market")
     assert all(f"- `{mode}`:" in family for mode in ("order_book", "auction", "prediction", "posted"))
     posted = fg_env.guide("market.posted")
@@ -865,8 +907,10 @@ def test_two_order_books_on_one_cash_prop_both_trade_and_settle():
                 "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}},
                 "stages": [{"name": "trade", "turns": "sequential", "order": "seat", "max_actions": 10}],
                 "mechanisms": books}
-    env, replies = play(contract, {(1, "a"): [("acme_sell", {"qty": 10, "price": 50}), ("beta_sell", {"qty": 10, "price": 20})],
-                                   (1, "b"): [("acme_buy", {"qty": 10, "price": 50}), ("beta_buy", {"qty": 10, "price": 20})]})
+    env, replies = play(contract,
+                        {(1, "a"): [("acme_sell", {"qty": 10, "price": 50}), ("beta_sell", {"qty": 10, "price": 20})],
+                         (1, "b"): [("acme_buy", {"qty": 10, "price": 50}),
+                                    ("beta_buy", {"qty": 10, "price": 20})]})
     assert all(reply.ok for *_, reply in replies), [reply.text for *_, reply in replies]
     assert props(env, "b")["cash"] == 10000 - 500 - 200 and props(env, "a")["cash"] == 10000 + 500 + 200
     assert props(env, "b")["acme_shares"] == 110 and props(env, "b")["beta_shares"] == 110
@@ -876,8 +920,8 @@ def test_a_prediction_market_resolving_to_an_outcome_it_does_not_list_is_an_erro
     contract = {"name": "Bad outcome", "clock": {"rounds": 3}, "world": {"truth": {"default": "w"}},
                 "types": {"forecaster": {"agent": True, "props": {"cash": 1000}}},
                 "entities": {"a": {"type": "forecaster"}, "b": {"type": "forecaster"}},
-                "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "forecaster", "outcomes": ["x", "y"],
-                                     "resolve_at": 2, "outcome": "$world.truth"}}}
+                "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "forecaster",
+                                     "outcomes": ["x", "y"], "resolve_at": 2, "outcome": "$world.truth"}}}
     assert any("the winning outcome must be one of x, y, got 'w'" in i.message
                for i in fg_env.check(contract) if i.severity == "error")
 

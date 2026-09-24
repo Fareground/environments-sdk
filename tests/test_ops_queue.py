@@ -148,14 +148,18 @@ def test_customers_who_gave_up_come_back_as_retries():
                           "retry": {"chance": 1, "delay": {"mean": 300}, "max": 2}}}
     result = run(centre(rounds=6, channels=channels, servers={"agents": {"staff": 8}}))
     assert result.outputs["q_retrials"] > 0
-    assert result.outputs["q_offered"] > sum(run(centre(rounds=6, channels={"calls": {**channels["calls"], "retry": None}},
-                                                        servers={"agents": {"staff": 8}})).outputs["q_offered_by_interval"])
+    no_retry = run(centre(rounds=6, channels={"calls": {**channels["calls"], "retry": None}},
+                          servers={"agents": {"staff": 8}}))
+    assert result.outputs["q_offered"] > sum(no_retry.outputs["q_offered_by_interval"])
 
 
 def test_a_continuous_clock_plays_the_same_intervals_as_a_round_clock():
-    rounds = run(centre(rounds=4, channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
-                        servers={"agents": {"staff": "$inputs.staffing[$interval]"}}), inputs={"staffing": [6, 8, 10, 12]})
-    continuous = centre(rounds=4, channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
+    rounds = run(centre(rounds=4,
+                        channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
+                        servers={"agents": {"staff": "$inputs.staffing[$interval]"}}),
+                 inputs={"staffing": [6, 8, 10, 12]})
+    continuous = centre(rounds=4,
+                        channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
                         servers={"agents": {"staff": "$inputs.staffing[$interval]"}},
                         clock={"mode": "continuous", "unit": "minute", "horizon": 120}, interval=1800)
     timed = run(continuous, inputs={"staffing": [6, 8, 10, 12]})
@@ -185,7 +189,8 @@ def test_config_mistakes_name_what_to_fix():
     unknown_skill = centre(servers={"agents": {"staff": 3, "skills": ["cals"]}})
     issues = [i for i in fg_env.check(unknown_skill, rounds=0) if i.severity == "error"]
     assert any("'cals' is not a channel" in i.message and "calls" in (i.fix or "") for i in issues)
-    unserved = centre(channels={"calls": {"arrivals": 1, "service": {"mean": 1}}, "chats": {"arrivals": 1, "service": {"mean": 1}}},
+    unserved = centre(channels={"calls": {"arrivals": 1, "service": {"mean": 1}},
+                                "chats": {"arrivals": 1, "service": {"mean": 1}}},
                       servers={"agents": {"staff": 3, "skills": ["calls"]}})
     assert any("no server pool serves chats" in i.message for i in fg_env.check(unserved, rounds=0))
     no_length = centre(clock={"rounds": 3})

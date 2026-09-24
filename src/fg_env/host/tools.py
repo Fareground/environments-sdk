@@ -8,15 +8,16 @@ published to the record ``search`` at the end of the round with ``private: false
 from __future__ import annotations
 
 import json
-from typing import Any, Dict, List, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Untrusted
-from ..registry import MechanismError, family_action, mode
 from ..expr.template import format_value
+from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from ..world.live import Abort
 from .common import agents_of, clip, config_of, prop_of, type_list
 from .protocols import HostError
@@ -33,16 +34,20 @@ class HostToolConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     host: str = Field(..., description="Host name of the service (a Tools adapter).")
-    who: Union[str, List[str]] = Field(..., description="Agent type(s) that may call it.")
+    who: str | list[str] = Field(..., description="Agent type(s) that may call it.")
     description: str = Field("", description="Tool description the agent reads.")
-    params: Dict[str, Any] = Field(default_factory=lambda: {"query": {"type": "text", "max_len": 300,
+    params: dict[str, Any] = Field(default_factory=lambda: {"query": {"type": "text", "max_len": 300,
                                                                       "description": "What to look up."}},
                                    description="Tool parameters, as action params (default: one text `query`).")
     max_calls_per_turn: int = Field(3, ge=1, le=50, description="Calls per turn.")
-    max_calls_per_run: Optional[int] = Field(None, ge=1, description="Calls per agent over the whole run.")
+    max_calls_per_run: int | None = Field(None, ge=1, description="Calls per agent over the whole run.")
     max_chars: int = Field(4000, ge=100, le=50_000, description="Longest result kept (longer results are cut).")
-    private: bool = Field(True, description="Evidence only the caller sees; false also publishes it to the record <name> at the end of the round.")
-    stages: Optional[List[str]] = Field(None, description="Stages where the tool is offered (default: every stage whose actions include it).")
+    private: bool = Field(True,
+                          description="Evidence only the caller sees; false also publishes it to the record <name> at "
+                                      "the end of the round.")
+    stages: list[str] | None = Field(None,
+                                     description="Stages where the tool is offered (default: every stage whose actions "
+                                                 "include it).")
 
 
 @mode("host", "tool", HostToolConfig,
@@ -50,24 +55,25 @@ class HostToolConfig(BaseModel):
            "the result «quoted» and keeps it as evidence in $actor.<name>_evidence (look: <name>_evidence), "
            "within per-turn and per-run limits. Results are recorded for replay.",
            example={"host": "web_search", "who": "panelist", "max_calls_per_turn": 2, "max_calls_per_run": 6})
-def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     by = type_list(contract, config.who, "who")
-    who: Union[str, List[str]] = by if len(by) > 1 else by[0]
+    who: str | list[str] = by if len(by) > 1 else by[0]
     if name in (contract.get("actions") or {}):
         raise MechanismError(f"an action named '{name}' already exists; the tool takes the mechanism's name",
                              "rename the mechanism or the action")
     calls, evidence = f"{name}_calls", f"{name}_evidence"
-    action: Dict[str, Any] = {
+    action: dict[str, Any] = {
         "by": who,
-        "description": (config.description or f"Use {name.replace('_', ' ')}.") + " The result is kept as evidence only you can see.",
+        "description": (config.description or f"Use {name.replace('_', ' ')}.")
+        + " The result is kept as evidence only you can see.",
         "params": config.params, "private": True, "per_turn": config.max_calls_per_turn,
         "do": [{"host": name, "action": "call", "args": "$params"}], "outcome": f"{{$last($actor.{evidence}).text}}",
     }
-    when: List[Dict[str, str]] = []
+    when: list[dict[str, str]] = []
     if config.max_calls_per_run is not None:
         when.append({"expr": f"$actor.{calls} < {config.max_calls_per_run}",
                      "why": f"You have used all {config.max_calls_per_run} {name} calls of this run."})
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {t: {"props": {calls: {"type": "int", "default": 0, "private": True},
                                 evidence: {"type": "list", "default": [], "private": True}}} for t in by},
         "world": {"host_tape": tape_prop()},
@@ -98,7 +104,7 @@ def fetch(world: Any, name: str, config: HostToolConfig, actor_id: str, args: Ma
     return result
 
 
-def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> Optional[str]:
+def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> str | None:
     """Ask the host before the tool applies, outside the run's lock; the answer lands on the tape under it.
 
     Returns the tape key of an answer this call added (None when it was on the tape already, or the host was not
@@ -124,7 +130,7 @@ def _result(answer: Any, limit: int) -> str:
 @family_action("host", ("tool",), "call", keys=("args",), required=("args",),
                example='{"host": "search", "action": "call", "args": "$params"}  '
                        '(call the host service for the actor; the result is added to $actor.search_evidence)')
-def _host_tool_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _host_tool_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
     config = config_of(world, name, KEY, HostToolConfig, where)
@@ -147,8 +153,9 @@ def _host_tool_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
 
 
 @family_action("host", ("tool",), "publish", internal=True,
-               example='{"host": "search", "action": "publish"}  (post every agent\'s unshared evidence to the record, in seat order)')
-def _publish_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"host": "search", "action": "publish"}  (post every agent\'s unshared evidence to the record, '
+                       'in seat order)')
+def _publish_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["host"]
     config = config_of(world, name, KEY, HostToolConfig, where)

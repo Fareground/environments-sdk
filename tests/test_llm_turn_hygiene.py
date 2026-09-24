@@ -119,10 +119,11 @@ def test_reads_do_not_spend_the_calls_an_agent_needs_to_act():
     assert outcome["reads"] == [True, True] and outcome["move"].ok
     assert "You have 2 tool calls this turn, and up to 2 free reads (look and inspect) that do not use them." \
         in outcome["update"]
-    assert outcome["tools"]["inspect"].endswith("Free: up to 2 reads (looks and inspects) per turn do not use a tool call.")
-    assert outcome["tools"]["look"] == ("Show one of these views: table (Players). What happened since your last turn is "
-                                        "already in your update. Free: up to 2 reads (looks and inspects) per turn do "
-                                        "not use a tool call.")
+    assert outcome["tools"]["inspect"].endswith("Free: up to 2 reads (looks and inspects) per turn do not use a tool "
+                                                "call.")
+    assert outcome["tools"]["look"] == ("Show one of these views: table (Players). What happened since your last turn "
+                                        "is already in your update. Free: up to 2 reads (looks and inspects) per turn "
+                                        "do not use a tool call.")
 
 
 def test_reads_past_the_free_allowance_are_refused_without_spending_the_call_needed_to_act():

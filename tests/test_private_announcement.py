@@ -19,7 +19,8 @@ def contract():
 
 
 def warnings(c):
-    return [i for i in fg_env.check(c, rounds=0) if i.path == "actions.report.announce" and "reads private" in i.message]
+    return [i for i in fg_env.check(c, rounds=0) if i.path == "actions.report.announce"
+            and "reads private" in i.message]
 
 
 def test_direct_disclosure_is_an_error_with_a_path_and_a_fix():

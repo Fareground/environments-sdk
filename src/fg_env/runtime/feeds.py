@@ -11,31 +11,32 @@ feed and the round, so replaying a recorded fallback never shifts any other draw
 from __future__ import annotations
 
 import copy
+from collections.abc import Mapping
 from functools import partial
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Tuple
+from typing import TYPE_CHECKING, Any
 
 from ..contract import FeedSpec
 from ..errors import RunError
 from ..expr import ExprError, Untrusted, compile_expr, resolve, truthy
 from ..host.protocols import HostError
 from ..host.tape import TAPE, consult, plain, request_key
-from ..world.props import prop_type
 from ..world.live import Abort
+from ..world.props import prop_type
 
 if TYPE_CHECKING:
-    from .env import Env
     from ..world.live import SdkWorld
+    from .env import Env
 
 __all__ = ["run_feeds", "feed_target"]
 
 
-def feed_target(spec: FeedSpec) -> Tuple[str, str]:
+def feed_target(spec: FeedSpec) -> tuple[str, str]:
     """``("world", prop)`` or ``("records", record)`` from a feed's ``into``."""
     owner, _, name = spec.into.partition(".")
     return owner, name
 
 
-def run_feeds(env: "Env") -> None:
+def run_feeds(env: Env) -> None:
     """Write this round's due feeds into the world, each in its own atomic change."""
     world = env.world
     for name, spec in env.contract.feeds.items():
@@ -53,7 +54,7 @@ def run_feeds(env: "Env") -> None:
             env._after_commit(f"feeds.{name}")
 
 
-def _due(world: "SdkWorld", name: str, spec: FeedSpec) -> bool:
+def _due(world: SdkWorld, name: str, spec: FeedSpec) -> bool:
     if (world.round - 1) % spec.every != 0:
         return False
     if spec.when is None:
@@ -64,7 +65,7 @@ def _due(world: "SdkWorld", name: str, spec: FeedSpec) -> bool:
         raise RunError(str(exc), f"feeds.{name}.when") from None
 
 
-def _pull(world: "SdkWorld", name: str, spec: FeedSpec) -> None:
+def _pull(world: SdkWorld, name: str, spec: FeedSpec) -> None:
     path = f"feeds.{name}"
     owner, target = feed_target(spec)
     try:
@@ -83,19 +84,20 @@ def _pull(world: "SdkWorld", name: str, spec: FeedSpec) -> None:
     _write(world, owner, target, answer, path)
 
 
-def _ask(request: Dict[str, Any], adapter: Any) -> Any:
+def _ask(request: dict[str, Any], adapter: Any) -> Any:
     return adapter.fetch(request)
 
 
-def _expects(world: "SdkWorld", owner: str, target: str) -> Any:
+def _expects(world: SdkWorld, owner: str, target: str) -> Any:
     if owner == "world":
         spec = world.contract.world[target]
         return {"type": prop_type(spec), **({"values": spec.values} if spec.values else {}),
-                **({"min": spec.min} if spec.min is not None else {}), **({"max": spec.max} if spec.max is not None else {})}
+                **({"min": spec.min} if spec.min is not None else {}),
+                **({"max": spec.max} if spec.max is not None else {})}
     return {"entries": dict(world.contract.records[target].fields)}
 
 
-def _fallback(world: "SdkWorld", name: str, spec: FeedSpec) -> Any:
+def _fallback(world: SdkWorld, name: str, spec: FeedSpec) -> Any:
     with world.drawing_from(world.seeds.rng("feeds", name, world.round)):
         try:
             return plain(resolve(copy.deepcopy(spec.fallback), world.scope()))
@@ -103,7 +105,7 @@ def _fallback(world: "SdkWorld", name: str, spec: FeedSpec) -> Any:
             raise RunError(str(exc), f"feeds.{name}.fallback") from None
 
 
-def _validate(world: "SdkWorld", owner: str, target: str, answer: Any) -> Any:
+def _validate(world: SdkWorld, owner: str, target: str, answer: Any) -> Any:
     """A host's answer in the shape its target takes, or :class:`HostError`."""
     if owner == "world":
         try:
@@ -133,13 +135,14 @@ def _entries(answer: Any) -> Any:
     return None
 
 
-def _write(world: "SdkWorld", owner: str, target: str, answer: Any, path: str) -> None:
+def _write(world: SdkWorld, owner: str, target: str, answer: Any, path: str) -> None:
     if owner == "world":
         world.set_world(target, answer)
         return
-    entries: List[Dict[str, Any]] = _entries(answer)
+    entries: list[dict[str, Any]] = _entries(answer)
     if entries is None:
-        raise RunError(f"a record feed gives one entry (an object of fields) or a list of them, got {answer!r:.80}", path)
+        raise RunError(f"a record feed gives one entry (an object of fields) or a list of them, got {answer!r:.80}",
+                       path)
     for entry in entries:
         world.post(target, entry, None, None, path)
 

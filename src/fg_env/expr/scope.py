@@ -1,7 +1,8 @@
 """What an expression reads: the :class:`World` it queries and the :class:`Scope` of named roots it runs in."""
 from __future__ import annotations
 
-from typing import Any, FrozenSet, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from .base import ExprError, _held
 
@@ -17,14 +18,14 @@ class World:
 
     rng: Any = None
     #: Every property name some type declares private: reading any other name needs no visibility check or count.
-    private_names: FrozenSet[str] = frozenset()
+    private_names: frozenset[str] = frozenset()
     #: Metrics worked out from agents' private properties: what an agent is shown may not read them.
-    private_metrics: FrozenSet[str] = frozenset()
+    private_metrics: frozenset[str] = frozenset()
     #: How many times game logic read a private property of an entity other than the one acting: a refused action
     #: that read one could tell its agent something hidden, so it costs the action.
     hidden_reads: int = 0
 
-    def entities_of(self, type_name: str) -> List[Any]:
+    def entities_of(self, type_name: str) -> list[Any]:
         raise ExprError(f"no entities of type '{type_name}' exist in this context")
 
     def alive_of(self, type_name: str) -> Sequence[Any]:
@@ -42,25 +43,25 @@ class World:
         """Whether entities of ``type_name`` declare ``prop`` private (an agent type or any other)."""
         return False
 
-    def records(self, name: str) -> List[Any]:
+    def records(self, name: str) -> list[Any]:
         raise ExprError(f"no record '{name}' exists in this context")
 
-    def visible_records(self, name: str, viewer: Any) -> List[Any]:
+    def visible_records(self, name: str, viewer: Any) -> list[Any]:
         return self.records(name)
 
-    def events(self, name: Optional[str], viewer: Any = None) -> List[Any]:
+    def events(self, name: str | None, viewer: Any = None) -> list[Any]:
         return []
 
-    def relation(self, a: Any, b: Any, kind: str) -> Optional[float]:
+    def relation(self, a: Any, b: Any, kind: str) -> float | None:
         return None
 
-    def neighbors(self, entity: Any, kind: str) -> List[Any]:
+    def neighbors(self, entity: Any, kind: str) -> list[Any]:
         return []
 
     def link_view(self, a: Any, b: Any, kind: str) -> Any:
         return None
 
-    def links_of(self, entity: Any, kind: str) -> List[Any]:
+    def links_of(self, entity: Any, kind: str) -> list[Any]:
         return []
 
     def distance(self, a: Any, b: Any) -> float:
@@ -83,7 +84,7 @@ class World:
         """Whether the contract declares a def called ``name`` (with or without arguments)."""
         return False
 
-    def call_def(self, name: str, args: List[Any], source: str, viewer: Any = None) -> Any:
+    def call_def(self, name: str, args: list[Any], source: str, viewer: Any = None) -> Any:
         """Call a contract-defined function (``defs``), which sees the caller's ``viewer``. The empty world has none."""
         from .calls import FUNCTIONS, suggest_function
 
@@ -101,11 +102,11 @@ class Scope:
 
     __slots__ = ("vars", "world")
 
-    def __init__(self, vars: Optional[Mapping[str, Any]] = None, world: World = _EMPTY_WORLD):
+    def __init__(self, vars: Mapping[str, Any] | None = None, world: World = _EMPTY_WORLD):
         self.vars: Mapping[str, Any] = {} if vars is None else vars
         self.world = world
 
-    def child(self, **values: Any) -> "Scope":
+    def child(self, **values: Any) -> Scope:
         return Scope({**self.vars, **values}, self.world)
 
     def root(self, name: str, source: str) -> Any:

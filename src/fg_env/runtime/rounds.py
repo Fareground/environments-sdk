@@ -2,19 +2,20 @@
 playing its stages in order, ending the round or the run, and atomic effect blocks."""
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Dict, Generator, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..actions.book import ACTION_BUDGET
-from .clock_math import advance_time
 from ..contract import StageSpec
+from ..errors import RunError
 from ..expr import shared_budget
+from ..world.entity import Entity
+from ..world.live import Abort, OutOfBounds
+from .clock_math import advance_time
 from .feeds import run_feeds
 from .measure import sample_metrics
 from .turn import Turn
-from ..errors import RunError
-from ..world.live import Abort, OutOfBounds
 
 if TYPE_CHECKING:
     from .env import Env
@@ -26,8 +27,8 @@ __all__ = ["RunRounds"]
 class _Point:
     """A safe point in a round. ``reasons`` names the agents about to be woken, and why."""
 
-    stage: Optional[StageSpec] = None
-    reasons: Dict[str, str] = field(default_factory=dict)
+    stage: StageSpec | None = None
+    reasons: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -38,11 +39,11 @@ class _Where:
     stage: int = 0
     pass_index: int = 0
     #: The agents of the pass being played, in turn order.
-    agents: List[Entity] = field(default_factory=list)
+    agents: list[Entity] = field(default_factory=list)
     #: The waiting turn's place: in ``agents`` (sequential), or among the stage's sealed turns (simultaneous).
     position: int = 0
     #: The waiting turn itself (set on a copy only).
-    turn: Optional[Turn] = None
+    turn: Turn | None = None
 
 
 #: A round's steps: its safe points (:class:`_Point`), and ``WAITING`` while a turn waits for a decision.
@@ -52,15 +53,15 @@ _Steps = Generator[Any, None, None]
 class RunRounds:
     """The round loop of a run (mixed into :class:`~fg_env.runtime.env.Env`)."""
 
-    ended_by: Optional[str]
+    ended_by: str | None
 
-    def _begin_round(self: "Env") -> bool:  # type: ignore[misc]
+    def _begin_round(self: Env) -> bool:  # type: ignore[misc]
         """Start the next round: scheduled effects, feeds, start events, physics. False if the run ended."""
         world = self.world
         self._in_round = True
         if self.status in ("ready", "stopped"):
             self.status = "running"
-        elapsed: Optional[float] = None
+        elapsed: float | None = None
         if world.continuous:
             elapsed = self._advance_time()
             if elapsed is None:  # the next moment is past the horizon
@@ -102,7 +103,7 @@ class RunRounds:
             return False
         return True
 
-    def _advance_time(self: "Env") -> Optional[float]:  # type: ignore[misc]
+    def _advance_time(self: Env) -> float | None:  # type: ignore[misc]
         """Move a continuous clock to the next round's moment; the time elapsed, or None past the horizon."""
         world, clock = self.world, self.contract.clock
         if world.round == 0:
@@ -122,7 +123,7 @@ class RunRounds:
         world.touch()
         return target - previous
 
-    def _next_due(self: "Env") -> Optional[float]:  # type: ignore[misc]
+    def _next_due(self: Env) -> float | None:  # type: ignore[misc]
         """The earliest moment something is due: a living agent's wake time or a scheduled effect."""
         world = self.world
         times = [at for entity_id, at in world.wake_at.items()
@@ -131,7 +132,7 @@ class RunRounds:
             times.append(world.scheduled[0][0])
         return min(times) if times else None
 
-    def _round(self: "Env", resumed: bool = False) -> _Steps:  # type: ignore[misc]
+    def _round(self: Env, resumed: bool = False) -> _Steps:  # type: ignore[misc]
         """A round, from its start — or, ``resumed``, from the waiting turn a copy of the run was taken in (see
         :class:`_Where`)."""
         world = self.world
@@ -172,10 +173,10 @@ class RunRounds:
         else:
             self.previews.frame(final=False)
 
-    def _ended(self: "Env") -> bool:  # type: ignore[misc]
+    def _ended(self: Env) -> bool:  # type: ignore[misc]
         return self.world.end_request is not None
 
-    def _finish(self: "Env") -> None:  # type: ignore[misc]
+    def _finish(self: Env) -> None:  # type: ignore[misc]
         world = self.world
         world.stage = None
         if not world.series or len(next(iter(world.series.values()), [])) < world.round:
@@ -186,7 +187,7 @@ class RunRounds:
         self._in_round = False
         self._final_event()
 
-    def _final_event(self: "Env") -> None:  # type: ignore[misc]
+    def _final_event(self: Env) -> None:  # type: ignore[misc]
         self._check_invariants("the run", "end")
         end = self.world.end_request or {}
         text = end.get("text") or (f"The run ended: {self.ended_by}." if self.ended_by != "rounds" else "Time is up.")
@@ -195,7 +196,7 @@ class RunRounds:
         self.previews.frame(final=True)
         self._flush_events()
 
-    def _atomic(self: "Env", effects: List[Any], vars: Dict[str, Any], path: str,  # type: ignore[misc]
+    def _atomic(self: Env, effects: list[Any], vars: dict[str, Any], path: str,  # type: ignore[misc]
                 check: bool = True, owner: Any = None) -> bool:
         """Apply ``effects`` as one undoable block. ``check=False``: one item of a block of world logic whose
         invariants are checked once it is whole (an `each` event), unless a trigger fires or an agent reacts first.
@@ -224,11 +225,11 @@ class RunRounds:
             self.happenings.react(self._stage_spec())
         return True
 
-    def _stage_spec(self: "Env") -> Optional[StageSpec]:  # type: ignore[misc]
+    def _stage_spec(self: Env) -> StageSpec | None:  # type: ignore[misc]
         name = self.world.stage
         return next((s for s in self.contract.stage_list() if s.name == name), None) if name else None
 
-    def _after_commit(self: "Env", path: str, check: bool = True) -> None:  # type: ignore[misc]
+    def _after_commit(self: Env, path: str, check: bool = True) -> None:  # type: ignore[misc]
         if check or self.world.reactions:
             self._check_invariants(path)
         if self._end_on_action:

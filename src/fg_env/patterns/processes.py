@@ -6,7 +6,7 @@ at any time is fixed by the seed, the pattern's name and its key — whoever ask
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -19,7 +19,7 @@ __all__ = ["RandomWalkConfig", "MeanReversionConfig", "AutoregressiveConfig", "V
 
 
 class _Stepped(PatternConfig):
-    every: Optional[float] = Field(None, gt=0, description="Clock units per step of the path (default: one round).")
+    every: float | None = Field(None, gt=0, description="Clock units per step of the path (default: one round).")
 
 
 def _bound(ctx: Any, value: float) -> float:
@@ -40,10 +40,12 @@ class RandomWalkConfig(_Stepped):
     start: Number = Field(0.0, description="Value at round 1.")
     drift: Number = Field(0.0, description="Added each step (form add) or log growth each step (form multiply).")
     sd: Number = Field(1.0, description="Standard deviation of each step's change (of its log with form multiply).")
-    form: Literal["add", "multiply"] = Field("add", description="add: x + drift + sd·z | multiply (geometric): x·e^(drift + sd·z).")
+    form: Literal["add", "multiply"] = Field("add",
+                                             description="add: x + drift + sd·z | multiply (geometric): x·e^(drift + "
+                                                         "sd·z).")
 
 
-def _walk_step(ctx: Any, rng: Any, state: Any, step: int) -> Tuple[float, Any]:
+def _walk_step(ctx: Any, rng: Any, state: Any, step: int) -> tuple[float, Any]:
     z = rng.gauss(0.0, 1.0)
     drift, sd = ctx.number("drift"), ctx.number("sd", 0)
     if ctx.cfg.form == "add":
@@ -60,7 +62,8 @@ def _walk_step(ctx: Any, rng: Any, state: Any, step: int) -> Tuple[float, Any]:
 @kind("random_walk", "random", "process", RandomWalkConfig, "A random walk, additive or geometric, with drift.",
       example={"kind": "random_walk", "start": 100, "drift": 0.001, "sd": 0.02, "form": "multiply"},
       random=True, params=("start", "drift", "sd", "min", "max"),
-      words=lambda cfg: f"a {'geometric ' if cfg.form == 'multiply' else ''}random walk from {cfg.start} (drift {cfg.drift}, sd {cfg.sd})")
+      words=lambda cfg: f"a {'geometric ' if cfg.form == 'multiply' else ''}random walk from {cfg.start} (drift "
+                        f"{cfg.drift}, sd {cfg.sd})")
 def _random_walk(ctx: Any) -> float:
     start = _bound(ctx, ctx.number("start"))
     return float(ctx.path(ctx.step(), lambda c, rng: (start, start), _walk_step))
@@ -76,10 +79,10 @@ class MeanReversionConfig(_Stepped):
     mean: Number = Field(..., description="The level it is pulled back to.")
     rate: Number = Field(..., description="Pull per clock unit (0.1: a gap shrinks by e^−0.1 ≈ 10% a unit).")
     sd: Number = Field(0.0, description="Noise per √unit (the long-run spread is sd / √(2·rate)).")
-    start: Optional[Number] = Field(None, description="Value at round 1 (default: the mean).")
+    start: Number | None = Field(None, description="Value at round 1 (default: the mean).")
 
 
-def _ou_step(ctx: Any, rng: Any, state: float, step: int) -> Tuple[float, float]:
+def _ou_step(ctx: Any, rng: Any, state: float, step: int) -> tuple[float, float]:
     mean, rate, sd, dt = ctx.number("mean"), ctx.number("rate", 0), ctx.number("sd", 0), ctx.every()
     decay = math.exp(-rate * dt)
     spread = sd * math.sqrt((1 - decay ** 2) / (2 * rate)) if rate > 0 else sd * math.sqrt(dt)
@@ -104,13 +107,15 @@ def _mean_reversion(ctx: Any) -> float:
 
 class AutoregressiveConfig(_Stepped):
     kind: Literal["autoregressive"] = "autoregressive"
-    coefficients: Union[List[Number], str] = Field(..., description="[φ1, φ2, …]: how much each earlier step carries into the next.")
+    coefficients: list[Number] | str = Field(...,
+                                             description="[φ1, φ2, …]: how much each earlier step carries into the "
+                                                         "next.")
     mean: Number = Field(0.0, description="The level deviations are measured from.")
     sd: Number = Field(1.0, description="Standard deviation of each step's new shock.")
-    start: Optional[Number] = Field(None, description="Value of the first steps (default: the mean).")
+    start: Number | None = Field(None, description="Value of the first steps (default: the mean).")
 
 
-def _ar_step(ctx: Any, rng: Any, state: List[float], step: int) -> Tuple[float, List[float]]:
+def _ar_step(ctx: Any, rng: Any, state: list[float], step: int) -> tuple[float, list[float]]:
     phis, mean = ctx.numbers("coefficients"), ctx.number("mean")
     deviation = sum(phi * past for phi, past in zip(phis, state)) + ctx.number("sd", 0) * rng.gauss(0.0, 1.0)
     value = _bound(ctx, mean + deviation)
@@ -143,18 +148,21 @@ class VolatilityConfig(_Stepped):
     beta: Number = Field(0.85, description="How much the last variance carries over (alpha + beta < 1 is stable).")
     mean: Number = Field(0.0, description="Mean return per step.")
     start: Number = Field(100.0, description="Level at round 1 (output level).")
-    output: Literal["returns", "level", "volatility"] = Field("returns", description="returns: each step's log return | "
-                                                                                    "level: start compounded by the returns | volatility: the standard deviation now.")
+    output: Literal["returns", "level", "volatility"] = Field("returns",
+                                                              description="returns: each step's log return | level: "
+                                                                          "start compounded by the returns | "
+                                                                          "volatility: the standard deviation now.")
 
 
-def _garch_first(ctx: Any, rng: Any) -> Tuple[float, Tuple[float, float, float]]:
+def _garch_first(ctx: Any, rng: Any) -> tuple[float, tuple[float, float, float]]:
     omega, alpha, beta = ctx.number("omega", 1e-300), ctx.number("alpha", 0), ctx.number("beta", 0)
     variance = omega / (1 - alpha - beta) if alpha + beta < 1 else omega
     state = (variance, 0.0, ctx.number("start"))
     return _garch_value(ctx, state), state
 
 
-def _garch_step(ctx: Any, rng: Any, state: Tuple[float, float, float], step: int) -> Tuple[float, Tuple[float, float, float]]:
+def _garch_step(ctx: Any, rng: Any, state: tuple[float, float, float],
+                step: int) -> tuple[float, tuple[float, float, float]]:
     variance, last, level = state
     variance = ctx.number("omega") + ctx.number("alpha") * last ** 2 + ctx.number("beta") * variance
     if not math.isfinite(variance) or variance > 1e300:
@@ -165,17 +173,19 @@ def _garch_step(ctx: Any, rng: Any, state: Tuple[float, float, float], step: int
     return _garch_value(ctx, new), new
 
 
-def _garch_value(ctx: Any, state: Tuple[float, float, float]) -> float:
+def _garch_value(ctx: Any, state: tuple[float, float, float]) -> float:
     variance, ret, level = state
     output = ctx.cfg.output
     return ret if output == "returns" else (level if output == "level" else math.sqrt(variance))
 
 
 @kind("volatility", "random", "process", VolatilityConfig,
-      "Volatility clustering (GARCH(1,1)): calm and turbulent spells, as returns, a price level or the volatility itself.",
+      "Volatility clustering (GARCH(1,1)): calm and turbulent spells, as returns, a price level or the volatility "
+      "itself.",
       example={"kind": "volatility", "omega": 0.00001, "alpha": 0.08, "beta": 0.9, "output": "level", "start": 50},
       random=True, params=("omega", "alpha", "beta", "mean", "start"),
-      words=lambda cfg: f"clustered volatility (GARCH ω {cfg.omega}, α {cfg.alpha}, β {cfg.beta}) giving its {cfg.output}")
+      words=lambda cfg: f"clustered volatility (GARCH ω {cfg.omega}, α {cfg.alpha}, β {cfg.beta}) giving its "
+                        f"{cfg.output}")
 def _volatility(ctx: Any) -> float:
     return float(ctx.path(ctx.step(), _garch_first, _garch_step))
 
@@ -187,14 +197,14 @@ def _volatility(ctx: Any) -> float:
 
 class RegimesConfig(_Stepped):
     kind: Literal["regimes"] = "regimes"
-    states: Dict[str, Any] = Field(..., description="{state: value}: what each state gives (a number, or a map read as "
+    states: dict[str, Any] = Field(..., description="{state: value}: what each state gives (a number, or a map read as "
                                                     "$pattern.economy.growth); null gives the state's name.")
-    transitions: Dict[str, Dict[str, Number]] = Field(..., description="{from: {to: probability per step}}; the rest of "
-                                                                       "the probability stays in the state.")
-    start: Optional[str] = Field(None, description="The state at round 1 (default: the first declared).")
+    transitions: dict[str, dict[str, Number]] = Field(..., description="{from: {to: probability per step}}; the "
+                                                                       "rest of the probability stays in the state.")
+    start: str | None = Field(None, description="The state at round 1 (default: the first declared).")
 
     @model_validator(mode="after")
-    def _names(self) -> "RegimesConfig":
+    def _names(self) -> RegimesConfig:
         if not self.states:
             raise ValueError("regimes need at least one state")
         for origin, targets in self.transitions.items():
@@ -206,7 +216,7 @@ class RegimesConfig(_Stepped):
         return self
 
 
-def _regime_step(ctx: Any, rng: Any, state: str, step: int) -> Tuple[str, str]:
+def _regime_step(ctx: Any, rng: Any, state: str, step: int) -> tuple[str, str]:
     targets = ctx.param("transitions").get(state) or {}
     roll, total = rng.random(), 0.0
     for target, chance in targets.items():
@@ -241,17 +251,24 @@ def _regimes(ctx: Any) -> Any:
 class ShocksConfig(_Stepped):
     kind: Literal["shocks"] = "shocks"
     chance: Number = Field(0.0, description="Probability a shock starts in a step.")
-    at: List[Union[float, str]] = Field(default_factory=list, description="Times shocks certainly start (clock units or ISO dates).")
-    recur: Optional[Number] = Field(None, description="Clock units between shocks that recur on schedule (from the window's start).")
+    at: list[float | str] = Field(default_factory=list,
+                                  description="Times shocks certainly start (clock units or ISO dates).")
+    recur: Number | None = Field(None,
+                                 description="Clock units between shocks that recur on schedule (from the window's "
+                                             "start).")
     size: Number = Field(1.0, description="Each shock's size (form add: added; multiply: 1 + size).")
     size_sd: Number = Field(0.0, description="Spread of each shock's size (normal).")
     lasts: int = Field(1, ge=1, description="Steps a shock stays at full size.")
-    half_life: Optional[Number] = Field(None, description="Steps for what is left of a shock to halve once it has lasted "
-                                                          "(without one it ends at once).")
-    window: Optional[List[Union[float, str, None]]] = Field(None, description="[first, last] times shocks may start (last may be null).")
-    limit: Optional[int] = Field(None, ge=1, description="Most shocks in a run.")
+    half_life: Number | None = Field(None, description="Steps for what is left of a shock to halve once it has lasted "
+                                                       "(without one it ends at once).")
+    window: list[float | str | None] | None = Field(None,
+                                                    description="[first, last] times shocks may start (last may be "
+                                                                "null).")
+    limit: int | None = Field(None, ge=1, description="Most shocks in a run.")
     gap: int = Field(0, ge=0, description="Steps after a shock starts before another can.")
-    form: Literal["add", "multiply"] = Field("add", description="add: a baseline of 0 plus every shock | multiply: 1 × (1 + each shock).")
+    form: Literal["add", "multiply"] = Field("add",
+                                             description="add: a baseline of 0 plus every shock | multiply: 1 × (1 + "
+                                                         "each shock).")
 
 
 def _in_window(ctx: Any, t: float) -> bool:
@@ -263,16 +280,19 @@ def _in_window(ctx: Any, t: float) -> bool:
     return first - 1e-9 <= t <= last + 1e-9
 
 
-def _shock_step(ctx: Any, rng: Any, state: Dict[str, Any], step: int) -> Tuple[float, Dict[str, Any]]:
+def _shock_step(ctx: Any, rng: Any, state: dict[str, Any], step: int) -> tuple[float, dict[str, Any]]:
     every, lasts = ctx.every(), ctx.cfg.lasts
     t = step * every
-    scheduled = ctx.cached("scheduled", lambda: {ctx.step(when(ctx, moment, f"at[{i}]")) for i, moment in enumerate(ctx.param("at"))})
+    scheduled = ctx.cached("scheduled",
+                           lambda: {ctx.step(when(ctx, moment, f"at[{i}]"))
+                                    for i, moment in enumerate(ctx.param("at"))})
     roll, jitter = rng.random(), rng.gauss(0.0, 1.0)  # both drawn every step, so a change of chance never shifts a size
     recur = ctx.optional("recur", 1e-9)
     window = ctx.param("window")
     origin = when(ctx, window[0], "window[0]") if window and window[0] is not None else 0.0
-    due = step in scheduled or (recur is not None and t + 1e-9 >= origin and abs(((t - origin) / recur) - round((t - origin) / recur)) < 1e-9)
-    starts: List[List[float]] = list(state["starts"])
+    due = step in scheduled or (recur is not None and t + 1e-9 >= origin
+                                and abs(((t - origin) / recur) - round((t - origin) / recur)) < 1e-9)
+    starts: list[list[float]] = list(state["starts"])
     blocked = (ctx.cfg.limit is not None and state["count"] >= ctx.cfg.limit) or \
         (starts and step - starts[-1][0] <= ctx.cfg.gap) or not _in_window(ctx, t)
     if not blocked and (due or roll < ctx.number("chance", 0, 1)):
@@ -308,8 +328,8 @@ def _shock_step(ctx: Any, rng: Any, state: Dict[str, Any], step: int) -> Tuple[f
 def _shocks(ctx: Any) -> float:
     empty = 0.0 if ctx.cfg.form == "add" else 1.0
     step0 = _shock_step(ctx, ctx.stream("first"), {"count": 0, "starts": []}, 0)
-    return float(ctx.path(ctx.step(), lambda c, rng: step0 if step0[0] != empty or step0[1]["starts"] else (empty, step0[1]),
-                          _shock_step))
+    return float(ctx.path(ctx.step(), lambda c,
+                          rng: step0 if step0[0] != empty or step0[1]["starts"] else (empty, step0[1]), _shock_step))
 
 
 # ---------------------------------------------------------------------------
@@ -319,7 +339,8 @@ def _shocks(ctx: Any) -> float:
 
 class NoiseConfig(_Stepped):
     kind: Literal["noise"] = "noise"
-    dist: Literal["normal", "uniform", "lognormal", "laplace"] = Field("normal", description="The distribution of each step's draw.")
+    dist: Literal["normal", "uniform", "lognormal", "laplace"] = Field("normal", description="The distribution of each "
+                                                                                             "step's draw.")
     mean: Number = Field(0.0, description="Centre (normal, laplace); log-mean (lognormal).")
     sd: Number = Field(1.0, description="Spread (normal, laplace: scale·√2; lognormal: log-sd).")
     low: Number = Field(0.0, description="Lowest value (uniform).")
@@ -355,11 +376,12 @@ class WeatherConfig(_Stepped):
     mean: Number = Field(..., description="Average over the year.")
     amplitude: Number = Field(0.0, description="Seasonal swing above and below the mean.")
     peak: Number = Field(0.55, description="Where in the year it is highest, from 0 to 1 (0.55 ≈ mid-July).")
-    persistence: Number = Field(0.7, description="How much of a step's departure from normal carries into the next (0–1).")
+    persistence: Number = Field(0.7,
+                                description="How much of a step's departure from normal carries into the next (0–1).")
     sd: Number = Field(1.0, description="Typical departure from the seasonal normal.")
 
 
-def _weather_step(ctx: Any, rng: Any, state: float, step: int) -> Tuple[float, float]:
+def _weather_step(ctx: Any, rng: Any, state: float, step: int) -> tuple[float, float]:
     phi = ctx.number("persistence", 0, 0.999999)
     anomaly = phi * state + ctx.number("sd", 0) * math.sqrt(1 - phi * phi) * rng.gauss(0.0, 1.0)
     return anomaly, anomaly
@@ -369,7 +391,8 @@ def _weather_step(ctx: Any, rng: Any, state: float, step: int) -> Tuple[float, f
       "Weather-like driver: a yearly seasonal normal plus persistent departures (autocorrelated), e.g. temperature.",
       example={"kind": "weather", "mean": 18, "amplitude": 9, "peak": 0.55, "persistence": 0.75, "sd": 3},
       random=True, params=("mean", "amplitude", "peak", "persistence", "sd"),
-      words=lambda cfg: f"weather-like: {cfg.mean} ± {cfg.amplitude} over the year, departures of {cfg.sd} that persist ({cfg.persistence})")
+      words=lambda cfg: f"weather-like: {cfg.mean} ± {cfg.amplitude} over the year, departures of {cfg.sd} that "
+                        f"persist ({cfg.persistence})")
 def _weather(ctx: Any) -> float:
     anomaly = ctx.path(ctx.step(), lambda c, rng: (c.number("sd", 0) * rng.gauss(0.0, 1.0),) * 2, _weather_step)
     try:

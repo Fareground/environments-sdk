@@ -5,14 +5,15 @@ Claims live in ``$world.<name>_claims`` ({space: [player ids]}) and each player'
 """
 from __future__ import annotations
 
-from typing import Any, cast, Dict, List, Mapping, Optional, Tuple, Union
+from collections.abc import Mapping
+from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from ..world.live import Abort
 from .contract_cache import parse_kind, per_contract
 
@@ -21,9 +22,9 @@ __all__ = ["SlotsConfig", "open_spaces"]
 KEY = "game.slots"
 
 
-def _props(entity: Entity) -> Dict[str, Any]:
+def _props(entity: Entity) -> dict[str, Any]:
     """An entity's properties, typed loosely: values are whatever the contract declared."""
-    return cast(Dict[str, Any], entity.properties)
+    return cast(dict[str, Any], entity.properties)
 
 
 
@@ -32,10 +33,10 @@ class SpaceConfig(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    capacity: Union[int, str] = Field(1, description="Workers it holds per round (number or expression).")
+    capacity: int | str = Field(1, description="Workers it holds per round (number or expression).")
     description: str = Field("", description="What placing a worker here does (shown on the board).")
-    when: Optional[str] = Field(None, description="Who may use it ($actor), e.g. \"$actor.wood >= 2\".")
-    do: List[Any] = Field(default_factory=list, description="Effects when a worker is placed ($actor).")
+    when: str | None = Field(None, description="Who may use it ($actor), e.g. \"$actor.wood >= 2\".")
+    do: list[Any] = Field(default_factory=list, description="Effects when a worker is placed ($actor).")
 
 
 class SlotsConfig(BaseModel):
@@ -44,14 +45,16 @@ class SlotsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     who: str = Field(..., description="Agent type that places workers.")
-    spaces: Dict[str, SpaceConfig] = Field(..., description="{space name: {capacity, description, when, do}}.")
-    per_round: Union[int, str] = Field(1, description="Workers each player places per round (number or expression over $it).")
+    spaces: dict[str, SpaceConfig] = Field(..., description="{space name: {capacity, description, when, do}}.")
+    per_round: int | str = Field(1, description="Workers each player places per round (number or expression over $it).")
     once_per_space: bool = Field(True, description="A player may claim each space at most once per round.")
-    stage: Optional[str] = Field(None, description="Offer the tool in this declared stage; default: a generated placement stage.")
+    stage: str | None = Field(None,
+                              description="Offer the tool in this declared stage; default: a generated placement "
+                                          "stage.")
     views: bool = Field(True, description="Generate the board view.")
 
 
-def _configs(world: Any) -> Dict[str, SlotsConfig]:
+def _configs(world: Any) -> dict[str, SlotsConfig]:
     return per_contract(world, KEY, lambda contract: parse_kind(contract, KEY, SlotsConfig), {})
 
 
@@ -62,14 +65,14 @@ def _config(world: Any, name: Any, where: str) -> SlotsConfig:
     return configs[name]
 
 
-def _number(world: Any, raw: Any, vars: Dict[str, Any], where: str) -> int:
+def _number(world: Any, raw: Any, vars: dict[str, Any], where: str) -> int:
     value = compile_expr(raw)(world.scope(**vars)) if is_expr(raw) else raw
     if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or float(value) != int(value):
         raise RunError(f"must be a whole number ≥ 0, got {value!r}", where)
     return int(value)
 
 
-def open_spaces(world: Any, name: str, config: SlotsConfig, player: Entity) -> List[str]:
+def open_spaces(world: Any, name: str, config: SlotsConfig, player: Entity) -> list[str]:
     """Spaces ``player`` may claim now, in declared order."""
     claims = world.props.get(f"{name}_claims") or {}
     out = []
@@ -90,9 +93,9 @@ def open_spaces(world: Any, name: str, config: SlotsConfig, player: Entity) -> L
 
 
 @family_action("game", ("slots",), "place", keys=("space", "who"), required=("space",),
-               example='{"game": "farm", "action": "place", "space": "$params.space"}  (claim a space for $actor or `who`; '
-                       'fails when it is full)')
-def _place_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"game": "farm", "action": "place", "space": "$params.space"}  (claim a space for $actor or '
+                       '`who`; fails when it is full)')
+def _place_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["game"]
     config = _config(world, name, where)
@@ -113,27 +116,29 @@ def _place_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: 
 
 
 @family_action("game", ("slots",), "reset", internal=True,
-               example='{"game": "farm", "action": "reset"}  (empty every space and give each player their workers back; '
-                       'generated every round)')
-def _reset_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"game": "farm", "action": "reset"}  (empty every space and give each player their workers '
+                       'back; generated every round)')
+def _reset_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["game"]
     config = _config(world, name, where)
     world.set_world(f"{name}_claims", {})
     for player in world.entities_of(config.who):
-        world.set_prop(player, f"{name}_workers", _number(world, config.per_round, {"it": player}, f"mechanisms.{name}.per_round"))
+        world.set_prop(player, f"{name}_workers",
+                       _number(world, config.per_round, {"it": player}, f"mechanisms.{name}.per_round"))
 
 
-def _function_config(call: Call) -> Tuple[str, SlotsConfig]:
+def _function_config(call: Call) -> tuple[str, SlotsConfig]:
     name = call.arg(0)
     configs = _configs(call.scope.world)
     if name not in configs:
-        raise ExprError(f"${call.name}: '{name}' is not a declared slots mechanism (slots: {', '.join(configs) or 'none'})", call.source)
+        raise ExprError(f"${call.name}: '{name}' is not a declared slots mechanism (slots: "
+                        f"{', '.join(configs) or 'none'})", call.source)
     return name, configs[name]
 
 
 @function("open_spaces(slots, player)", "Names of the action spaces `player` may claim now.", min_args=2, max_args=2)
-def _open_spaces_function(call: Call) -> List[str]:
+def _open_spaces_function(call: Call) -> list[str]:
     name, config = _function_config(call)
     player = call.scope.world.entity(call.arg(1))
     if player is None:
@@ -142,14 +147,16 @@ def _open_spaces_function(call: Call) -> List[str]:
 
 
 @function("claims(slots, space)", "The players with a worker on `space` this round.", min_args=2, max_args=2)
-def _claims_function(call: Call) -> List[Entity]:
+def _claims_function(call: Call) -> list[Entity]:
     name, _ = _function_config(call)
     world: Any = call.scope.world
-    return [world.entities[pid] for pid in (world.props.get(f"{name}_claims") or {}).get(call.arg(1)) or [] if pid in world.entities]
+    return [world.entities[pid] for pid in (world.props.get(f"{name}_claims") or {}).get(call.arg(1)) or []
+            if pid in world.entities]
 
 
-@function("slot_board(slots)", "Lines describing every action space: capacity, who claimed it, what it does.", min_args=1, max_args=1)
-def _slot_board_function(call: Call) -> List[str]:
+@function("slot_board(slots)", "Lines describing every action space: capacity, who claimed it, what it does.",
+          min_args=1, max_args=1)
+def _slot_board_function(call: Call) -> list[str]:
     name, config = _function_config(call)
     world: Any = call.scope.world
     claims = world.props.get(f"{name}_claims") or {}
@@ -158,7 +165,8 @@ def _slot_board_function(call: Call) -> List[str]:
         taken = [world.entities[pid].name for pid in claims.get(space) or [] if pid in world.entities]
         capacity = _number(world, spec.capacity, {}, f"mechanisms.{name}.spaces.{space}.capacity")
         state = ", ".join(taken) if taken else "open"
-        lines.append(f"{space} ({len(taken)}/{capacity}): {state}" + (f" — {spec.description}" if spec.description else ""))
+        lines.append(f"{space} ({len(taken)}/{capacity}): {state}"
+                     + (f" — {spec.description}" if spec.description else ""))
     return lines
 
 
@@ -168,11 +176,13 @@ def _slot_board_function(call: Call) -> List[str]:
       "board. Functions: $open_spaces, $claims.",
       example={"who": "farmer", "per_round": 2,
                "spaces": {"forest": {"capacity": 1, "description": "+2 wood", "do": ["$actor.wood += 2"]},
-                          "market": {"capacity": 2, "when": "$actor.wood >= 1", "do": ["$actor.wood -= 1", "$actor.coins += 3"]}}})
-def _expand_slots(name: str, config: SlotsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+                          "market": {"capacity": 2, "when": "$actor.wood >= 1",
+                                     "do": ["$actor.wood -= 1", "$actor.coins += 3"]}}})
+def _expand_slots(name: str, config: SlotsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:
-        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
+        raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}",
+                             "who")
     if not config.spaces:
         raise MechanismError("declare at least one space", None, "spaces")
     for space in config.spaces:
@@ -181,14 +191,15 @@ def _expand_slots(name: str, config: SlotsConfig, contract: Mapping[str, Any]) -
     counter = f"{name}_workers"
     tool = f"{name}_place"
     opened = f"$open_spaces('{name}', $actor)"
-    effects: List[Any] = [{"game": name, "action": "place", "space": "$params.space"}]
-    effects += [{"if": f"$params.space == '{space}'", "then": list(spec.do)} for space, spec in config.spaces.items() if spec.do]
+    effects: list[Any] = [{"game": name, "action": "place", "space": "$params.space"}]
+    effects += [{"if": f"$params.space == '{space}'", "then": list(spec.do)} for space, spec in config.spaces.items()
+                if spec.do]
     action = {"by": config.who, "description": "Place a worker on an open action space.",
               "params": {"space": {"type": "enum", "values": opened, "description": "The space to claim."}},
               "when": [{"expr": f"$actor.{counter} > 0", "why": "You have no workers left this round."},
                        {"expr": f"$len({opened}) > 0", "why": "Every space you could use is taken."}],
               "do": effects, "announce": "{$actor.name} places a worker on {$params.space}.", "terminal": True}
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {config.who: {"props": {counter: {"type": "int", "default": 0, "min": 0,
                                                    "description": "Workers left to place this round."}}}},
         "world": {f"{name}_claims": {"type": "map", "default": {}, "description": "{space: [player ids]} this round."}},
@@ -197,11 +208,12 @@ def _expand_slots(name: str, config: SlotsConfig, contract: Mapping[str, Any]) -
     }
     if config.stage is None:
         fragment["stages"] = [{"name": name, "turns": "sequential", "actions": [tool], "who": f"$it.{counter} > 0",
-                               "until": f"$all({config.who}, $it.{counter} == 0 or $len($open_spaces('{name}', $it)) == 0)",
+                               "until": f"$all({config.who}, $it.{counter} == 0 or $len($open_spaces('{name}', $it)) "
+                                        "== 0)",
                                "passes": 100, "max_actions": 1, "must_act": True, "on_idle": [f"$actor.{counter} = 0"]}]
     else:
         fragment["stage_hooks"] = {config.stage: {"actions": [tool]}}
     if config.views:
-        fragment["views"] = {f"{name}_board": {"for": config.who, "title": "Action spaces", "of": f"$slot_board('{name}')",
-                                               "show": "{$it}"}}
+        fragment["views"] = {f"{name}_board": {"for": config.who, "title": "Action spaces",
+                                               "of": f"$slot_board('{name}')", "show": "{$it}"}}
     return fragment

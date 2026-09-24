@@ -25,7 +25,8 @@ def contract(**overrides):
                       "params": {"pick": {"type": "enum", "values": "$map($records(notes), $it.text) + ['none']"}},
                       "do": ["$world.in_action = $len($records(notes))",
                              "$world.events_in_action = $len($events(record))",
-                             "$world.visible_in_action = $len($records(notes, $it.author == $actor or $actor.id in ($it.to or [])))"],
+                             "$world.visible_in_action = $len($records(notes, $it.author == $actor or $actor.id in "
+                             "($it.to or [])))"],
                       "outcome": "You can see {$len($records(notes))} note(s)."},
         },
         "stages": [

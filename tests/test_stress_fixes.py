@@ -12,7 +12,8 @@ COUNCIL = {
     "clock": {"rounds": 1},
     "types": {"member": {"agent": True, "props": {"field": "general", "ready": False,
                                                   "note": {"type": "text", "default": ""}}}},
-    "population": [{"type": "member", "count": 3, "brief": "Secret: you are member {$i} of {$count(member)}; {$actor.name}."}],
+    "population": [{"type": "member", "count": 3,
+                    "brief": "Secret: you are member {$i} of {$count(member)}; {$actor.name}."}],
     "records": {"chat": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
     "actions": {
         "say": {"by": "member", "params": {"text": "text"},

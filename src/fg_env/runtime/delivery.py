@@ -9,26 +9,27 @@ Scheduling is journaled: a message sent by an action that is then refused is nev
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
-from .clock_math import advance_time
 from ..errors import RunError
+from .clock_math import advance_time
 
 if TYPE_CHECKING:
-    from .env import Env
     from ..world.live import SdkWorld
+    from .env import Env
 
 __all__ = ["dropped", "send", "run_delivery"]
 
 
-def dropped(world: "SdkWorld", chance: Any, where: str) -> bool:
+def dropped(world: SdkWorld, chance: Any, where: str) -> bool:
     """Roll a message's ``drop`` chance: True when it is lost."""
     if isinstance(chance, bool) or not isinstance(chance, (int, float)) or not 0 <= chance <= 1:
         raise RunError(f"`drop` must be a chance from 0 to 1, got {chance!r}", where)
     return chance > 0 and world.rng.random() < chance
 
 
-def send(world: "SdkWorld", delay: Any, payload: Dict[str, Any], where: str) -> None:
+def send(world: SdkWorld, delay: Any, payload: dict[str, Any], where: str) -> None:
     """Deliver ``payload`` now (no delay) or schedule it ``delay`` rounds or clock time later."""
     if delay is None:
         deliver(world, payload, where)
@@ -47,7 +48,7 @@ def send(world: "SdkWorld", delay: Any, payload: Dict[str, Any], where: str) -> 
     world.schedule(due, [], {}, where, delivery=payload)
 
 
-def deliver(world: "SdkWorld", payload: Mapping[str, Any], where: str) -> None:
+def deliver(world: SdkWorld, payload: Mapping[str, Any], where: str) -> None:
     if payload["kind"] == "post":
         world.post(payload["record"], dict(payload["fields"]), payload["author"], _ids(payload["to"]), where)
     else:
@@ -55,7 +56,7 @@ def deliver(world: "SdkWorld", payload: Mapping[str, Any], where: str) -> None:
                    data=dict(payload["data"]))
 
 
-def run_delivery(env: "Env", item: Mapping[str, Any]) -> None:
+def run_delivery(env: Env, item: Mapping[str, Any]) -> None:
     """Deliver one scheduled message as its own atomic change."""
     world = env.world
     with env._lock:
@@ -69,5 +70,5 @@ def run_delivery(env: "Env", item: Mapping[str, Any]) -> None:
         env.happenings.react(env._stage_spec())
 
 
-def _ids(value: Optional[Any]) -> Optional[tuple]:
+def _ids(value: Any | None) -> tuple | None:
     return tuple(value) if value is not None else None

@@ -13,25 +13,26 @@ used, so replays stay exact.
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..actions.faults import guarded, refused_text
 from ..actions.book import ACTION_BUDGET, ToolSpec
-from ..runtime.driving import runs_concurrently
+from ..actions.faults import guarded, refused_text
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
+from ..expr.template import compile_template
 from ..participants import resolve_participant
 from ..registry import config_data, use_key
+from ..runtime.driving import runs_concurrently
 from ..runtime.session import ToolResult, Wake
-from ..expr.template import compile_template
 from ..world.live import Abort
 from .tape import discard
 
 if TYPE_CHECKING:
-    from ..world.entity import Entity
     from ..runtime.env import Env
     from ..runtime.turn import Turn
+    from ..world.entity import Entity
 
 __all__ = ["TurnTool", "turn_tools", "HostWake", "offer", "wrap"]
 
@@ -44,18 +45,18 @@ class TurnTool:
 
     action: str
     mechanism: str
-    stages: Optional[Tuple[str, ...]] = None
+    stages: tuple[str, ...] | None = None
     #: ``prefetch(env, mechanism, actor, params)`` asks the host before the tool applies, returning the tape key
     #: of an answer it added (None when it added none).
-    prefetch: Optional[Callable[["Env", str, "Entity", Mapping[str, Any]], Optional[str]]] = None
+    prefetch: Callable[[Env, str, Entity, Mapping[str, Any]], str | None] | None = None
 
 
-def turn_tools(contract: Any) -> Dict[str, TurnTool]:
+def turn_tools(contract: Any) -> dict[str, TurnTool]:
     """The in-turn tools a contract declares, by tool name."""
     from ..mechanisms.memory import MemoryConfig
     from .tools import HostToolConfig, prefetch
 
-    tools: Dict[str, TurnTool] = {}
+    tools: dict[str, TurnTool] = {}
     for name, raw in contract.mechanisms.items():
         key = use_key(raw)
         if key is None:
@@ -75,13 +76,13 @@ def turn_tools(contract: Any) -> Dict[str, TurnTool]:
 class HostWake(Wake):
     """A :class:`Wake` that also offers the contract's in-turn tools."""
 
-    def __init__(self, turn: "Turn", tools: Mapping[str, TurnTool]):
+    def __init__(self, turn: Turn, tools: Mapping[str, TurnTool]):
         super().__init__(turn)
         self._extras = dict(tools)
-        self._used: Dict[str, int] = {}
+        self._used: dict[str, int] = {}
 
     @property
-    def tools(self) -> List[ToolSpec]:
+    def tools(self) -> list[ToolSpec]:
         turn = self._turn
         base = [tool for tool in turn.tools() if tool.name not in self._extras]
         if turn.done or turn.calls_left <= 0:
@@ -89,7 +90,7 @@ class HostWake(Wake):
         extra = [self._spec(name) for name in self._extras if self._available(name) is None]
         return self._offer([t for t in base if t.kind != "end"] + extra + [t for t in base if t.kind == "end"])
 
-    def call(self, name: str, args: Optional[Dict[str, Any]] = None) -> ToolResult:
+    def call(self, name: str, args: dict[str, Any] | None = None) -> ToolResult:
         if name not in self._extras:
             return super().call(name, args)
         result = self._host_call(name, args)
@@ -99,7 +100,7 @@ class HostWake(Wake):
                 turn.exposure.called(name, args, result)
         return result
 
-    def _host_call(self, name: str, args: Optional[Dict[str, Any]]) -> ToolResult:
+    def _host_call(self, name: str, args: dict[str, Any] | None) -> ToolResult:
         turn, env = self._turn, self._turn.env
         step = ("call", name, dict(args) if isinstance(args, Mapping) else args)
         with env._lock:
@@ -129,7 +130,7 @@ class HostWake(Wake):
             self._spend(step)
             return turn._after(self._apply(name, params))
 
-    def _spend(self, step: Tuple[Any, ...]) -> None:
+    def _spend(self, step: tuple[Any, ...]) -> None:
         """The call takes effect: record it on the tape and count it (under the run's lock)."""
         turn = self._turn
         turn.record(*step)
@@ -137,7 +138,7 @@ class HostWake(Wake):
         turn.calls_left -= 1
         turn.stats.calls += 1
 
-    def _available(self, name: str) -> Optional[str]:
+    def _available(self, name: str) -> str | None:
         turn, env = self._turn, self._turn.env
         tool = self._extras[name]
         spec = env.contract.actions[name]
@@ -155,8 +156,9 @@ class HostWake(Wake):
             spec = env.actions.tool(self._turn.actor, name, staged=False)
         return ToolSpec(spec.name, spec.description, spec.input_schema, "look", False)
 
-    def _apply(self, name: str, params: Dict[str, Any]) -> ToolResult:
-        """Apply and commit the call; a rule that fails or an invariant it breaks refuses it (see :mod:`fg_env.actions.faults`)."""
+    def _apply(self, name: str, params: dict[str, Any]) -> ToolResult:
+        """Apply and commit the call; a rule that fails or an invariant it breaks refuses it (see
+        :mod:`fg_env.actions.faults`)."""
         turn = self._turn
         result, fault = guarded(turn.env, lambda: self._commit(name, params))
         if result is None:
@@ -166,10 +168,10 @@ class HostWake(Wake):
             return ToolResult(False, refused_text(name, fault), data={"error": "rejected"})
         return result
 
-    def _commit(self, name: str, params: Dict[str, Any]) -> ToolResult:
+    def _commit(self, name: str, params: dict[str, Any]) -> ToolResult:
         turn, env = self._turn, self._turn.env
         world, spec, path = env.world, env.contract.actions[name], f"actions.{name}"
-        vars: Dict[str, Any] = {"actor": turn.actor, "params": params}
+        vars: dict[str, Any] = {"actor": turn.actor, "params": params}
         mark = world.journal.mark()
         try:
             with shared_budget(ACTION_BUDGET, path):
@@ -215,10 +217,10 @@ def offer(participant: Callable[[Wake], Any], tools: Mapping[str, TurnTool]) -> 
 class _Default:
     """What the engine would use for an agent nobody named: its type's policy, else random."""
 
-    def __init__(self, env: "Env", tools: Mapping[str, TurnTool]):
+    def __init__(self, env: Env, tools: Mapping[str, TurnTool]):
         self.env = env
         self.tools = tools
-        self._resolved: Dict[str, Callable[[Wake], Any]] = {}
+        self._resolved: dict[str, Callable[[Wake], Any]] = {}
 
     def __call__(self, wake: Wake) -> Any:
         actor = wake._turn.actor
@@ -232,13 +234,13 @@ class _Default:
         return inner(HostWake(wake._turn, self.tools))
 
 
-def wrap(env: "Env", participants: Any = None) -> Any:
+def wrap(env: Env, participants: Any = None) -> Any:
     """Participants for ``env.run`` whose wakes offer the contract's in-turn host tools."""
     tools = turn_tools(env.contract)
     if not tools:
         return participants
     if participants is None:
-        spec: Dict[str, Any] = {}
+        spec: dict[str, Any] = {}
     elif callable(participants) or isinstance(participants, str):
         spec = {"*": participants}
     elif isinstance(participants, Mapping):
@@ -246,7 +248,7 @@ def wrap(env: "Env", participants: Any = None) -> Any:
     else:
         raise TypeError("participants must be a callable, a string, or a mapping")
     seed = env.seeds.derive("participant")
-    wrapped: Dict[str, Any] = {}
+    wrapped: dict[str, Any] = {}
     for key, value in spec.items():
         if isinstance(value, (_Extended, _Default)):  # already offers the tools
             wrapped[key] = value

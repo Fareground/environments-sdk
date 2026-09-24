@@ -12,11 +12,12 @@ from __future__ import annotations
 
 import hashlib
 import random
-from typing import Any, Callable, Optional, Union
+from collections.abc import Callable
+from typing import Any
 
 __all__ = ["SeedTree", "DrawSite", "LazyStream", "mint_seed"]
 
-PathPart = Union[str, int]
+PathPart = str | int
 
 
 def mint_seed() -> int:
@@ -36,13 +37,13 @@ class SeedTree:
         digest = hashlib.sha256(repr((self.seed, *path)).encode()).digest()
         return int.from_bytes(digest[:8], "big") >> 1
 
-    def child(self, *path: PathPart) -> "SeedTree":
+    def child(self, *path: PathPart) -> SeedTree:
         return SeedTree(self.derive(*path))
 
     def rng(self, *path: PathPart) -> random.Random:
         return random.Random(self.derive(*path))
 
-    def lazy_rng(self, *path: PathPart) -> "LazyStream":
+    def lazy_rng(self, *path: PathPart) -> LazyStream:
         """:meth:`rng`, seeded at its first use."""
         return LazyStream(lambda: self.rng(*path))
 
@@ -57,8 +58,8 @@ class LazyStream:
     __slots__ = ("_make", "_stream")
 
     def __init__(self, make: Callable[[], random.Random]):
-        self._make: Optional[Callable[[], random.Random]] = make
-        self._stream: Optional[random.Random] = None
+        self._make: Callable[[], random.Random] | None = make
+        self._stream: random.Random | None = None
 
     def __getattr__(self, name: str) -> Any:
         if self._stream is None:
@@ -78,7 +79,7 @@ class DrawSite:
 
     def __init__(self, key: str):
         self.key = key
-        self.stream: Optional[random.Random] = None
+        self.stream: random.Random | None = None
 
     def open(self, world: Any) -> random.Random:
         if self.stream is None:

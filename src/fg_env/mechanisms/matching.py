@@ -11,7 +11,8 @@ proposer ids, best first).
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Mapping, Optional, Union
+from collections.abc import Mapping
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -34,23 +35,24 @@ class MatchingConfig(BaseModel):
 
     who: str = Field(..., description="Type that proposes and is matched to at most one receiver (students, doctors).")
     to: str = Field(..., description="Type that receives proposals (schools, hospitals).")
-    seats: Union[int, str] = Field(1, description="Proposers one receiver accepts: a number or an expression over $it "
-                                                  "(the receiver), e.g. \"$it.capacity\".")
-    eligible: Optional[str] = Field(None, description="Which pairs may match: an expression over $proposer and $receiver, "
-                                                      "e.g. \"$receiver.id in $proposer.applied\". Rank tools offer only "
-                                                      "eligible partners, and rankings are cut to them before matching.")
-    stage: Optional[str] = Field(None, description="Rank during this declared stage and match when it ends, after the stage's "
-                                                "own on_exit effects (every time); default: a stage named after the mechanism, once.")
+    seats: int | str = Field(1, description="Proposers one receiver accepts: a number or an expression over $it "
+                                            "(the receiver), e.g. \"$it.capacity\".")
+    eligible: str | None = Field(None, description="Which pairs may match: an expression over $proposer and $receiver, "
+                                                   "e.g. \"$receiver.id in $proposer.applied\". Rank tools offer only "
+                                                   "eligible partners, and rankings are cut to them before matching.")
+    stage: str | None = Field(None, description="Rank during this declared stage and match when it ends, after the "
+                                                "stage's own on_exit effects (every time); default: a stage named "
+                                                "after the mechanism, once.")
 
 
-def stable_match(proposers: Mapping[str, List[str]], receivers: Mapping[str, List[str]],
-                 seats: Mapping[str, int]) -> Dict[str, List[str]]:
+def stable_match(proposers: Mapping[str, list[str]], receivers: Mapping[str, list[str]],
+                 seats: Mapping[str, int]) -> dict[str, list[str]]:
     """Proposer-optimal stable matching: each receiver's accepted proposers, best first.
 
     A pair is acceptable only when each lists the other. The result does not depend on the order proposals are
     made in, so no randomness is involved."""
     rank = {r: {p: i for i, p in enumerate(prefs)} for r, prefs in receivers.items()}
-    held: Dict[str, List[str]] = {r: [] for r in receivers}
+    held: dict[str, list[str]] = {r: [] for r in receivers}
     tried = {p: 0 for p in proposers}
     free = list(proposers)
     while free:
@@ -71,10 +73,11 @@ def stable_match(proposers: Mapping[str, List[str]], receivers: Mapping[str, Lis
     return held
 
 
-def _ranking(value: Any) -> List[str]:
+def _ranking(value: Any) -> list[str]:
     """A prefs prop as ids (it may hold entities or ids), first mention kept."""
     items = value if isinstance(value, list) else []
-    ids = (item if isinstance(item, str) else str(item.id) for item in items if isinstance(item, str) or hasattr(item, "id"))
+    ids = (item if isinstance(item, str) else str(item.id) for item in items if isinstance(item, str)
+           or hasattr(item, "id"))
     return list(dict.fromkeys(ids))
 
 
@@ -83,13 +86,14 @@ def clear(world: Any, name: str) -> None:
     proposers = list(world.entities_of(config.who))
     receivers = list(world.entities_of(config.to))
     where = f"mechanisms.{name}.seats"
-    seats: Dict[str, int] = {}
+    seats: dict[str, int] = {}
     for receiver in receivers:
         count = number(world, config.seats, where, it=receiver)
         if count < 0 or count != int(count):
             raise RunError(f"{receiver.id} has {count!r} seats; seats must be a whole number ≥ 0", where)
         seats[receiver.id] = int(count)
-    held = stable_match({p.id: _eligible(world, name, config, p, _ranking(props(p).get(f"{name}_prefs"))) for p in proposers},
+    held = stable_match({p.id: _eligible(world, name, config, p, _ranking(props(p).get(f"{name}_prefs")))
+                         for p in proposers},
                         {r.id: _ranking(props(r).get(f"{name}_prefs")) for r in receivers}, seats)
     matched = {p: r for r, accepted in held.items() for p in accepted}
     for proposer in proposers:
@@ -100,8 +104,9 @@ def clear(world: Any, name: str) -> None:
     world.emit(f"{name}_matched", f"The {name} matching is done: {len(matched)} of {len(proposers)} matched.")
 
 
-def _eligible(world: Any, name: str, config: MatchingConfig, proposer: Any, ranking: List[str]) -> List[str]:
-    """A proposer's ranking without the receivers ``eligible`` rules out (a pair needs both lists, so one side is enough)."""
+def _eligible(world: Any, name: str, config: MatchingConfig, proposer: Any, ranking: list[str]) -> list[str]:
+    """A proposer's ranking without the receivers ``eligible`` rules out (a pair needs both lists, so one side is
+    enough)."""
     if config.eligible is None:
         return ranking
     where = f"mechanisms.{name}.eligible"
@@ -118,16 +123,17 @@ def _eligible(world: Any, name: str, config: MatchingConfig, proposer: Any, rank
 
 
 @family_action("groups", ("matching",), "clear", internal=True,
-               example='{"groups": "admissions", "action": "clear"}  (run deferred acceptance on the submitted rankings)')
-def _clear_op(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"groups": "admissions", "action": "clear"}  (run deferred acceptance on the submitted '
+                       'rankings)')
+def _clear_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     try:
         clear(runner.world, effect["groups"])
     except RunError as exc:
         raise RunError(str(exc), exc.path or where) from None
 
 
-def _rank_action(name: str, by: str, other: str, where: Optional[str]) -> Dict[str, Any]:
-    ranking: Dict[str, Any] = {"type": "list", "of": other, "description": f"{other}s, best first."}
+def _rank_action(name: str, by: str, other: str, where: str | None) -> dict[str, Any]:
+    ranking: dict[str, Any] = {"type": "list", "of": other, "description": f"{other}s, best first."}
     if where is not None:
         ranking["where"] = where
     return {"by": by, "description": f"Rank the {other}s you would accept, best first; anyone you leave off is "
@@ -142,12 +148,12 @@ def _rank_action(name: str, by: str, other: str, where: Optional[str]) -> Dict[s
       "Two-sided stable matching (deferred acceptance, Gale–Shapley): `who` proposes to `to`, each receiver takes up "
       "to `seats`. Both sides rank the other in the private list prop `<name>_prefs` (ids, best first; unlisted = "
       "unacceptable): agent types get a `<name>_rank` tool (`<name>_rank_<type>` when both sides are agents), coded "
-      "entities carry the prop. `eligible` (over $proposer and $receiver, e.g. applications) limits the rank tools and cuts "
-      "every ranking to eligible partners. When the stage ends (after its own on_exit effects) the match is stable and the "
-      "best stable one for every proposer; read it as $it.<name>_match (a proposer's "
-      "receiver id, '' when unmatched) and $it.<name>_matches (a receiver's proposer ids). Output `<name>_matched`.",
+      "entities carry the prop. `eligible` (over $proposer and $receiver, e.g. applications) limits the rank tools "
+      "and cuts every ranking to eligible partners. When the stage ends (after its own on_exit effects) the match is "
+      "stable and the best stable one for every proposer; read it as $it.<name>_match (a proposer's receiver id, '' "
+      "when unmatched) and $it.<name>_matches (a receiver's proposer ids). Output `<name>_matched`.",
       example={"who": "student", "to": "school", "seats": "$it.capacity"})
-def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who")
     require_type(contract, config.to, "to")
     if config.who == config.to:
@@ -156,16 +162,20 @@ def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, A
     check_expr(config.seats, "seats", ["it"])
     check_expr(config.eligible, "eligible", ["proposer", "receiver"])
     pair = f"${name}_eligible"  # a def, so each side's tool reads the pair its own way round
-    prefs = {"type": "list", "default": [], "private": True, "description": f"Who this entity would accept in {name}, best first."}
+    prefs = {"type": "list", "default": [], "private": True,
+             "description": f"Who this entity would accept in {name}, best first."}
     agents = [t for t in (config.who, config.to) if is_agent_type(contract, t)]
     wheres = {config.who: f"{pair}($actor, $it)", config.to: f"{pair}($it, $actor)"} if config.eligible else {}
-    actions = {f"{name}_rank" if len(agents) == 1 else f"{name}_rank_{by}": _rank_action(name, by, other, wheres.get(by))
+    actions = {f"{name}_rank" if len(agents) == 1
+               else f"{name}_rank_{by}": _rank_action(name, by, other, wheres.get(by))
                for by, other in ((config.who, config.to), (config.to, config.who)) if by in agents}
-    fragment: Dict[str, Any] = {
+    fragment: dict[str, Any] = {
         "types": {config.who: {"props": {f"{name}_prefs": prefs, f"{name}_match": {
-                      "type": "text", "default": "", "description": f"The {config.to} matched to in {name} ('' when unmatched)."}}},
+                      "type": "text", "default": "",
+                      "description": f"The {config.to} matched to in {name} ('' when unmatched)."}}},
                   config.to: {"props": {f"{name}_prefs": prefs, f"{name}_matches": {
-                      "type": "list", "default": [], "description": f"The {config.who}s matched in {name}, best first."}}}},
+                      "type": "list", "default": [],
+                      "description": f"The {config.who}s matched in {name}, best first."}}}},
         "world": {f"{name}_cleared": {"type": "bool", "default": False}},
         "actions": actions,
         **({"defs": {pair[1:]: {"args": ["proposer", "receiver"], "expr": config.eligible,

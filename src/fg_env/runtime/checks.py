@@ -9,7 +9,7 @@ members created or changed since it last held, so an action costs the same howev
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any
 
 from ..errors import InvariantViolation, RunError
 from ..expr import EVERYONE, ExprError, Scope, compile_expr, item_conditions, truthy
@@ -28,9 +28,9 @@ _INVARIANT_MOMENTS = {"action": ("build", "action", "round"), "round": ("build",
 class RunChecks:
     """Invariants and end conditions of a run (mixed into :class:`~fg_env.runtime.env.Env`)."""
 
-    _invariant_held: Dict[int, Any]
+    _invariant_held: dict[int, Any]
 
-    def _check_invariants(self: "Env", path: str, moment: str = "action") -> None:  # type: ignore[misc]
+    def _check_invariants(self: Env, path: str, moment: str = "action") -> None:  # type: ignore[misc]
         """Check the invariants due at ``moment``: build, action (after a change), round or end. An
         invariant already found to hold in exactly this state — without drawing randomness — holds again,
         so it is not evaluated again."""
@@ -60,7 +60,7 @@ class RunChecks:
         if moment in _INVARIANT_MOMENTS["action"]:  # every action invariant was due, and holds
             world.touched = {}
 
-    def _touched_hold(self: "Env", invariant: Any) -> Optional[bool]:  # type: ignore[misc]
+    def _touched_hold(self: Env, invariant: Any) -> bool | None:  # type: ignore[misc]
         """Whether an `$all` invariant over members' own properties holds for every member created or changed since
         the invariants last held (the rest are as they were then); None when it must be checked whole."""
         world, touched = self.world, self.world.touched
@@ -78,7 +78,7 @@ class RunChecks:
                     return False
         return True
 
-    def _check_end(self: "Env", moment: str = "stage") -> None:  # type: ignore[misc]
+    def _check_end(self: Env, moment: str = "stage") -> None:  # type: ignore[misc]
         """Request the end of the run when an end condition holds. ``moment`` is ``stage`` (the round's set
         points: every condition) or ``action`` (something just committed: the conditions with `check: action`)."""
         world = self.world

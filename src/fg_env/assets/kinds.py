@@ -6,13 +6,12 @@ with its bytes, and a file a participant submits is recognised from its bytes on
 from __future__ import annotations
 
 from pathlib import PurePath
-from typing import Dict, Optional, Tuple
 
 __all__ = ["KINDS", "EXTENSIONS", "MAX_BYTES", "HARD_MAX_BYTES", "MAX_FOLDER_FILES", "MAX_CATALOG_BYTES",
            "MAX_TEXT_CHARS", "kind_of_name", "sniff", "agrees"]
 
 #: Every asset kind, with what it is for.
-KINDS: Dict[str, str] = {
+KINDS: dict[str, str] = {
     "image": "a picture: png, jpg, webp or gif",
     "pdf": "a PDF document",
     "text": "plain text or markdown (UTF-8)",
@@ -21,7 +20,7 @@ KINDS: Dict[str, str] = {
 }
 
 #: File extension → (kind, media type).
-EXTENSIONS: Dict[str, Tuple[str, str]] = {
+EXTENSIONS: dict[str, tuple[str, str]] = {
     ".png": ("image", "image/png"), ".jpg": ("image", "image/jpeg"), ".jpeg": ("image", "image/jpeg"),
     ".webp": ("image", "image/webp"), ".gif": ("image", "image/gif"), ".pdf": ("pdf", "application/pdf"),
     ".txt": ("text", "text/plain"), ".md": ("text", "text/markdown"), ".markdown": ("text", "text/markdown"),
@@ -29,7 +28,7 @@ EXTENSIONS: Dict[str, Tuple[str, str]] = {
 }
 
 #: Largest file of each kind by default (an asset's `max_bytes` or a parameter's may lower or raise it).
-MAX_BYTES: Dict[str, int] = {"image": 10_000_000, "pdf": 32_000_000, "text": 2_000_000, "audio": 25_000_000,
+MAX_BYTES: dict[str, int] = {"image": 10_000_000, "pdf": 32_000_000, "text": 2_000_000, "audio": 25_000_000,
                              "file": 32_000_000}
 #: No single file may be larger than this, whatever a contract declares.
 HARD_MAX_BYTES = 100_000_000
@@ -41,12 +40,12 @@ MAX_CATALOG_BYTES = 1_000_000_000
 MAX_TEXT_CHARS = 100_000
 
 
-def kind_of_name(name: str) -> Tuple[str, str]:
+def kind_of_name(name: str) -> tuple[str, str]:
     """``(kind, media type)`` a file name's extension declares; unknown extensions are generic files."""
     return EXTENSIONS.get(PurePath(name).suffix.lower(), ("file", "application/octet-stream"))
 
 
-def sniff(data: bytes) -> Tuple[str, str]:
+def sniff(data: bytes) -> tuple[str, str]:
     """``(kind, media type)`` recognised from a file's first bytes; anything unrecognised is a generic file."""
     head = data[:16]
     if head.startswith(b"\x89PNG\r\n\x1a\n"):
@@ -78,7 +77,7 @@ def _is_text(data: bytes) -> bool:
     return True
 
 
-def agrees(declared: Tuple[str, str], data: bytes) -> Optional[str]:
+def agrees(declared: tuple[str, str], data: bytes) -> str | None:
     """Why a file's bytes do not match the kind its extension declares, or None when they do."""
     kind, media = declared
     if kind == "file":

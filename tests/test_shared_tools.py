@@ -14,7 +14,8 @@ SHOP = {
                      "when": [{"expr": "$actor.cash > 0", "why": "You have no money."}],
                      "do": ["$actor.cash -= $params.qty", "$actor.apples += $params.qty"]},
         "shop_sell": {"by": "shopper", "tool": "shop", "description": "Sell apples back.",
-                      "params": {"qty": {"type": "int", "min": 1, "max": "$actor.apples", "description": "How many apples."}},
+                      "params": {"qty": {"type": "int", "min": 1, "max": "$actor.apples",
+                                         "description": "How many apples."}},
                       "when": [{"expr": "$actor.apples > 0", "why": "You have no apples."}],
                       "do": ["$actor.cash += $params.qty", "$actor.apples -= $params.qty"]},
         "shop_bag": {"by": "shopper", "tool": "shop", "description": "Take a bag.",
@@ -53,7 +54,8 @@ def test_shared_actions_become_one_flat_tool_listing_only_the_legal_actions():
 
 def test_a_call_routes_to_the_chosen_action_and_logs_it_under_its_own_name():
     env, seen, agent = _turn()
-    seen["script"] = [("shop", {"action": "buy", "qty": 2, "colour": None}), ("shop", {"action": "shop_sell", "qty": 1})]
+    seen["script"] = [("shop", {"action": "buy", "qty": 2, "colour": None}),
+                      ("shop", {"action": "shop_sell", "qty": 1})]
     result = env.run(agent, rounds=1)
     assert [c.ok for c in seen["calls"]] == [True, True], [c.text for c in seen["calls"]]
     assert env.entity("ann")["props"]["apples"] == 1 and env.entity("ann")["props"]["cash"] == 9

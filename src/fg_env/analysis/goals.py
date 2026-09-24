@@ -1,9 +1,9 @@
 """What an optimiser aims for: measures and objectives over a candidate's runs, with intervals.
 
-Objectives are written ``"maximise margin"``, ``"minimise staffing_cost"`` or ``"maximise p10 of margin"`` (risk
-averse: the 10th percentile over runs); the statistic is ``mean`` (the default), ``median`` or ``p1``…``p99``. A
-measure is an output or a metric (its final value) by name, or an expression over ``$outputs``, ``$metrics`` and
-``$inputs``: ``"maximise $outputs.revenue - $outputs.holding_cost"``, ``"maximise $min($values($outputs.fill_by_sku))"``.
+Objectives are written ``"maximise margin"``, ``"minimise staffing_cost"`` or ``"maximise p10 of margin"`` (risk averse:
+the 10th percentile over runs); the statistic is ``mean`` (the default), ``median`` or ``p1``…``p99``. A measure is an
+output or a metric (its final value) by name, or an expression over ``$outputs``, ``$metrics`` and ``$inputs``:
+``"maximise $outputs.revenue - $outputs.holding_cost"``, ``"maximise $min($values($outputs.fill_by_sku))"``.
 Constraints, per key and with a confidence, are :mod:`.constraints`; a candidate's verdict and rank, :mod:`.assessment`.
 
 Every value comes with a 95% interval: Student-t for a mean, Wilson for a share of runs, a seeded bootstrap for a
@@ -13,8 +13,9 @@ from __future__ import annotations
 
 import random
 import re
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..expr import ExprError, Scope, compile_expr, evaluate
 from ..runtime.measure import RunResult
@@ -37,10 +38,10 @@ class Stat:
     """How runs are summarised: ``mean``, ``median`` or a percentile ``pNN``."""
 
     name: str
-    q: Optional[float] = None
+    q: float | None = None
 
     @classmethod
-    def parse(cls, text: str) -> "Stat":
+    def parse(cls, text: str) -> Stat:
         word = text.lower()
         if word == "mean":
             return cls("mean")
@@ -53,12 +54,12 @@ class Stat:
     def of(self, values: Sequence[float]) -> float:
         return mean(values) if self.q is None else quantile(values, self.q)
 
-    def interval(self, values: Sequence[float], rng: random.Random) -> Tuple[Optional[float], Optional[float]]:
+    def interval(self, values: Sequence[float], rng: random.Random) -> tuple[float | None, float | None]:
         low, high, _ = self.spread(values, rng)
         return low, high
 
     def spread(self, values: Sequence[float], rng: random.Random
-               ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
+               ) -> tuple[float | None, float | None, float | None]:
         """The 95% interval and the standard error (``None`` with fewer than two values): Student-t for a mean, a
         seeded bootstrap for a percentile."""
         if len(values) < 2:
@@ -75,10 +76,10 @@ class Measure:
     """An output or metric by name, or an expression over ``$outputs``, ``$metrics`` and ``$inputs``."""
 
     text: str
-    named: Optional[Tuple[str, str]] = None
+    named: tuple[str, str] | None = None
 
     @classmethod
-    def parse(cls, contract: Any, text: str, where: str) -> "Measure":
+    def parse(cls, contract: Any, text: str, where: str) -> Measure:
         text = text.strip()
         if "$" not in text:
             try:
@@ -91,9 +92,9 @@ class Measure:
             raise ValueError(f"{where}: {exc}") from None
         return cls(text)
 
-    def per_run(self, runs: Sequence[RunResult]) -> List[Optional[float]]:
+    def per_run(self, runs: Sequence[RunResult]) -> list[float | None]:
         """One number per run (``None`` for a failed run); raises when completed runs give no number at all."""
-        out: List[Optional[float]] = []
+        out: list[float | None] = []
         shown = None
         for r in runs:
             if r.status == "failed":
@@ -108,10 +109,10 @@ class Measure:
                              "pick a numeric output or write an expression such as $outputs.by_key.x")
         return out
 
-    def per_run_keyed(self, runs: Sequence[RunResult]) -> List[Optional[Dict[str, Optional[float]]]]:
+    def per_run_keyed(self, runs: Sequence[RunResult]) -> list[dict[str, float | None] | None]:
         """One ``{key: number}`` per run for a list (keys are positions) or map output (``None`` for a failed run);
         raises when a completed run gives neither."""
-        out: List[Optional[Dict[str, Optional[float]]]] = []
+        out: list[dict[str, float | None] | None] = []
         for r in runs:
             if r.status == "failed":
                 out.append(None)
@@ -152,7 +153,7 @@ class Objective:
         return f"{verb} {self.stat.name} of {self.measure.text}"
 
 
-def parse_objectives(contract: Any, objective: Any) -> List[Objective]:
+def parse_objectives(contract: Any, objective: Any) -> list[Objective]:
     items = [objective] if isinstance(objective, str) else objective
     if not isinstance(items, Sequence) or isinstance(items, str) or not items or len(items) > MAX_OBJECTIVES \
             or not all(isinstance(i, str) for i in items):
@@ -170,19 +171,20 @@ def parse_objectives(contract: Any, objective: Any) -> List[Objective]:
     return out
 
 
-def stat_prefix(text: str) -> Tuple[Stat, str]:
+def stat_prefix(text: str) -> tuple[Stat, str]:
     """``p90 of cost`` → the statistic and ``cost`` (the mean when no statistic is named)."""
     match = _STAT.match(text)
     return (Stat.parse(match.group(1)), match.group(3)) if match else (Stat("mean"), text)
 
 
 def dominates(a: Sequence[float], b: Sequence[float]) -> bool:
-    """``a`` is at least as good as ``b`` everywhere and better somewhere (values already signed so larger is better)."""
+    """``a`` is at least as good as ``b`` everywhere and better somewhere (values already signed so larger is better).
+    """
     return all(x >= y for x, y in zip(a, b)) and any(x > y for x, y in zip(a, b))
 
 
 def paired(objective: Objective, runs_a: Sequence[RunResult], runs_b: Sequence[RunResult], rng: random.Random,
-           signed: bool = True) -> Optional[Dict[str, Any]]:
+           signed: bool = True) -> dict[str, Any] | None:
     """``a`` minus ``b`` on the objective, run by run on shared seeds, with a 95% interval (``None`` without pairs).
 
     ``signed`` turns the difference so that positive means ``a`` is better; otherwise it is the raw change."""

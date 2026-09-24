@@ -9,15 +9,16 @@ import copy
 import json
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any
 
 from ..errors import ContractError, Issue
 
 __all__ = ["TEMPLATES", "new"]
 
-_BLANK: Dict[str, Any] = {
+_BLANK: dict[str, Any] = {
     "name": "My environment",
-    "brief": {"situation": "Describe the world in a sentence or two.", "rules": "Say what agents can do and what happens."},
+    "brief": {"situation": "Describe the world in a sentence or two.",
+              "rules": "Say what agents can do and what happens."},
     "clock": {"rounds": 5},
     "types": {"worker": {"agent": True, "props": {"score": 0}}},
     "entities": {"ada": {"type": "worker"}, "bo": {"type": "worker"}},
@@ -29,7 +30,7 @@ _BLANK: Dict[str, Any] = {
     "outputs": {"top_score": "$max(worker, $it.score)"},
 }
 
-_GAME: Dict[str, Any] = {
+_GAME: dict[str, Any] = {
     "name": "Take the last stone",
     "brief": {"situation": "Two players share a pile of 15 stones.",
               "rules": "Take turns removing 1 to 3 stones. Whoever takes the last stone wins."},
@@ -41,7 +42,8 @@ _GAME: Dict[str, Any] = {
                          "params": {"count": {"type": "int", "min": 1, "max": "$min(3, $world.stones)"}},
                          "do": ["$world.stones -= $params.count", "$actor.taken += $params.count",
                                 {"if": "$world.stones == 0",
-                                 "then": {"end": "last_stone", "winner": "$actor", "say": "{$actor.name} takes the last stone."}}],
+                                 "then": {"end": "last_stone", "winner": "$actor",
+                                          "say": "{$actor.name} takes the last stone."}}],
                          "announce": "{$actor.name} takes {$params.count}; {$world.stones} left."}},
     "stages": [{"name": "play", "turns": "sequential", "must_act": True}],
     "views": {"pile": {"for": "player", "show": "Stones left: {$world.stones}."}},
@@ -49,7 +51,7 @@ _GAME: Dict[str, Any] = {
     "game": {"players": "player", "returns": "1 if $result.winner == $actor else 0"},
 }
 
-_MARKET: Dict[str, Any] = {
+_MARKET: dict[str, Any] = {
     "name": "Bread market",
     "brief": {"situation": "A baker sells bread to three households each day.",
               "rules": "Each morning the baker sets a price. Then households buy what they can afford.",
@@ -79,7 +81,7 @@ _MARKET: Dict[str, Any] = {
                 "loaves_sold": {"expr": "$metrics.sold", "type": "int"}},
 }
 
-_SIMULATION: Dict[str, Any] = {
+_SIMULATION: dict[str, Any] = {
     "name": "Wealth exchange",
     "brief": {"situation": "Fifty people start with the same wealth and trade at random.",
               "rules": "Every round each person with money gives one unit to a random other person."},
@@ -92,10 +94,11 @@ _SIMULATION: Dict[str, Any] = {
                         "amount": 1}]}],
     "metrics": {"gini": "$gini($map(person, $it.wealth))", "broke": "$count(person, $it.wealth == 0)"},
     "invariants": ["$sum(person, $it.wealth) == 5 * $inputs.people"],
-    "outputs": {"gini": {"expr": "$metrics.gini", "type": "number"}, "broke": {"expr": "$metrics.broke", "type": "int"}},
+    "outputs": {"gini": {"expr": "$metrics.gini", "type": "number"},
+                "broke": {"expr": "$metrics.broke", "type": "int"}},
 }
 
-_SOCIAL: Dict[str, Any] = {
+_SOCIAL: dict[str, Any] = {
     "name": "Town meeting",
     "brief": {"situation": "Five neighbours decide how to spend the town's small budget.",
               "rules": "Everyone speaks once, then the town votes on a park, a library or a road."},
@@ -118,7 +121,7 @@ _SOCIAL: Dict[str, Any] = {
 }
 
 #: Template name → (what it shows, the contract).
-TEMPLATES: Dict[str, tuple] = {
+TEMPLATES: dict[str, tuple] = {
     "blank": ("one agent type, one action, a view and an output: the smallest useful start", _BLANK),
     "game": ("a two-player turn-based game with a winner and per-seat returns", _GAME),
     "market": ("a seller and a crowd of buyers trading with money over days", _MARKET),
@@ -127,8 +130,8 @@ TEMPLATES: Dict[str, tuple] = {
 }
 
 
-def new(template: str = "blank", path: Union[str, "os.PathLike[str]", None] = None, *,
-        name: Optional[str] = None, overwrite: bool = False) -> Dict[str, Any]:
+def new(template: str = "blank", path: str | os.PathLike[str] | None = None, *,
+        name: str | None = None, overwrite: bool = False) -> dict[str, Any]:
     """A ready-to-run contract from a template (blank, game, market, simulation, social).
 
     With ``path`` it is also written there as JSON (an existing file is kept unless ``overwrite``); ``name``
@@ -138,7 +141,8 @@ def new(template: str = "blank", path: Union[str, "os.PathLike[str]", None] = No
 
         hint = get_close_matches(template, list(TEMPLATES), n=1)
         raise ContractError([Issue("(template)", f"'{template}' is not a template",
-                                   (f"did you mean '{hint[0]}'? " if hint else "") + f"templates: {', '.join(TEMPLATES)}")])
+                                   (f"did you mean '{hint[0]}'? " if hint else "")
+                                   + f"templates: {', '.join(TEMPLATES)}")])
     contract = copy.deepcopy(TEMPLATES[template][1])
     target = Path(path) if path is not None else None
     if name is not None:

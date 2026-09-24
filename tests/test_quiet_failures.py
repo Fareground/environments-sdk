@@ -13,7 +13,8 @@ CAPPED = {
     "types": {"p": {"agent": True, "props": {"x": {"type": "int", "default": 0, "min": 0, "max": 50}}}},
     "entities": {"a": {"type": "p"}},
     "actions": {"go": {"by": "p", "params": {"n": {"type": "int", "min": 0, "max": 100}},
-                       "when": [{"expr": "$params.n <= $inputs.cap", "why": "At most {$inputs.cap} (you asked {$params.n})."}],
+                       "when": [{"expr": "$params.n <= $inputs.cap",
+                                 "why": "At most {$inputs.cap} (you asked {$params.n})."}],
                        "do": "$actor.x += $params.n"},
                 "agree": {"by": "p", "do": "$world.agreed = true"}},
     "stages": [{"name": "talk", "until": "$world.agreed", "passes": 3}],
@@ -38,7 +39,9 @@ def test_a_stage_whose_until_never_holds_is_reported():
     assert not any(d["code"] == "stage_until_never_held" for d in agreed.diagnostics)
 
 
-@pytest.mark.parametrize("value, problem", [("lots", "finite number"), (90, r"entities\.a\.props\.x: a's x cannot go above 50"), (1.5, "whole number")])
+@pytest.mark.parametrize("value, problem",
+                         [("lots", "finite number"), (90, r"entities\.a\.props\.x: a's x cannot go above 50"),
+                          (1.5, "whole number")])
 def test_a_snapshot_holding_a_value_its_contract_does_not_allow_is_refused(value, problem):
     env = fg_env.load(CAPPED, seed=1)
     env.run(lambda wake: wake.call("go", {"n": 1}), rounds=1)

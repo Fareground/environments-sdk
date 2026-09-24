@@ -2,8 +2,9 @@
 from __future__ import annotations
 
 import json
+import types
 import typing
-from typing import Any, List
+from typing import Any
 
 from pydantic_core import PydanticUndefined
 
@@ -40,7 +41,7 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
   data and returns the contract with the estimates written back as inputs (plus their standard errors); see the
   estimators below. `fg_env.analysis.decompose(contract, "demand", key=...)` shows what each factor of a product or sum adds.
 * State that agents and events change is not a pattern: keep it in props written by events or `physics`, which read
-  patterns (`"$it.trust += $pattern.trust_noise($it)"`)."""
+  patterns (`"$it.trust += $pattern.trust_noise($it)"`)."""  # noqa: E501 — guide text: each line is shown as written
 
 _EXAMPLES = {
     "time": {"season": {"kind": "seasonal", "period": "year", "table": "$inputs.categories", "column": "category",
@@ -72,17 +73,18 @@ def _type_name(annotation: Any) -> str:
     origin = typing.get_origin(annotation)
     if origin is typing.Literal:
         return " | ".join(str(v) for v in typing.get_args(annotation))
-    if origin in (list, List):
+    if origin is list:
         return "list"
     if origin is dict:
         return "object"
-    if origin is typing.Union:
+    if origin in (typing.Union, types.UnionType):
         names = [_type_name(a) for a in typing.get_args(annotation) if a is not type(None)]
         return " | ".join(dict.fromkeys(names))
-    return {float: "number", int: "int", str: "text", bool: "bool"}.get(annotation, getattr(annotation, "__name__", "any"))
+    plain = {float: "number", int: "int", str: "text", bool: "bool"}
+    return plain.get(annotation, getattr(annotation, "__name__", "any"))
 
 
-def _fields(model: Any) -> List[str]:
+def _fields(model: Any) -> list[str]:
     lines = []
     for name, info in model.model_fields.items():
         if name in _COMMON:
@@ -90,7 +92,8 @@ def _fields(model: Any) -> List[str]:
         default = "" if info.default is PydanticUndefined or info.is_required() else \
             (f" = {json.dumps(info.default)}" if info.default is not None else "")
         required = " (required)" if info.is_required() else ""
-        lines.append(f"- `{name}`: {_type_name(info.annotation)}{default}{required} — {info.description or ''}".rstrip(" —"))
+        lines.append(f"- `{name}`: {_type_name(info.annotation)}{default}{required} — "
+                     f"{info.description or ''}".rstrip(" —"))
     return lines
 
 
@@ -99,7 +102,8 @@ def _call(spec: Any) -> str:
         args = spec.arg_names(spec.model.model_validate(spec.example))
     except Exception:  # an example that needs more context still documents the kind
         args = spec.args if not callable(spec.args) else ()
-    return f"`$pattern.<name>({', '.join(args)}[, key])`" if args else "`$pattern.<name>` (keyed: `$pattern.<name>(key)`)"
+    return (f"`$pattern.<name>({', '.join(args)}[, key])`" if args
+            else "`$pattern.<name>` (keyed: `$pattern.<name>(key)`)")
 
 
 _FITTING = """\
@@ -131,7 +135,7 @@ MAPE and R², what was estimated and what was assumed. `fit` blocks stay in the 
   experiment, sweep, backtest and validate — pass the input `parameter_uncertainty: 0` with them, since the contract
   already draws every fitted parameter itself.
 * `fg_env.analysis.decompose(contract, "demand", key="BRP-TOY-V")` shows every factor of a product or sum and what it adds,
-  round by round; `fg_env.analysis.describe(contract)` lists every pattern in plain words."""
+  round by round; `fg_env.analysis.describe(contract)` lists every pattern in plain words."""  # noqa: E501 — guide text: each line is shown as written
 
 
 def patterns_page() -> str:

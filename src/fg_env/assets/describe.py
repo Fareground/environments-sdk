@@ -7,7 +7,8 @@ same way. Host text reaches agents untrusted.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from ..expr import Untrusted
 from ..host.protocols import HostError
@@ -26,7 +27,7 @@ MAX_CAPTION_CHARS = 1_000
 _MAX_TEXT_CHARS = 100_000
 
 
-def described(world: Any, asset: Asset) -> Dict[str, Any]:
+def described(world: Any, asset: Asset) -> dict[str, Any]:
     """``{"caption", "text"}`` the asset's describe host wrote (recorded, replayed, or the fallback)."""
     request = {"task": "describe", "asset": {"id": asset.id, "name": asset.name, "type": asset.kind,
                                               "media_type": asset.media_type, "caption": asset.caption,
@@ -42,7 +43,7 @@ def described(world: Any, asset: Asset) -> Dict[str, Any]:
     return {key: Untrusted(value) if isinstance(value, str) and value else value for key, value in answer.items()}
 
 
-def _answer(answer: Any) -> Dict[str, str]:
+def _answer(answer: Any) -> dict[str, str]:
     if not isinstance(answer, Mapping):
         raise HostError('a describe answer is {"caption": text, "text": text}')
     caption, text = answer.get("caption", ""), answer.get("text", "")
@@ -55,7 +56,7 @@ def _answer(answer: Any) -> Dict[str, str]:
     return {"caption": caption, "text": text}
 
 
-def describe_assets(env: "Env") -> None:
+def describe_assets(env: Env) -> None:
     """Describe every asset that names a host, before round 1; copies of the run then start from the answers."""
     store = env.world.assets
     pending = [asset for asset in store.assets.values() if asset.describe]

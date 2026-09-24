@@ -5,29 +5,30 @@
     "mechanisms": {"memory": {"kind": "mind", "mode": "beliefs", "who": "villager", "decay": 0.1,
                               "secondhand": 0.6, "trust": "trusts", "share": true}}
 
-Each holder keeps a private map ``<name>`` of beliefs: ``{key: {value, confidence, source, told_by,
-round}}``. The ``mind`` op changes them: ``learn`` records something observed (source ``direct``); ``tell`` passes a belief on
-at lower confidence (× ``secondhand``, × the teller-to-listener ``trust`` link clamped to 0–1
-when a trust relation is named). A new belief replaces an existing one about the same key when
-its confidence is at least as high; the same value keeps the higher confidence. Every round
-confidence decays (exponentially or linearly) and beliefs below ``forget_below`` are forgotten.
+Each holder keeps a private map ``<name>`` of beliefs: ``{key: {value, confidence, source, told_by, round}}``. The
+``mind`` op changes them: ``learn`` records something observed (source ``direct``); ``tell`` passes a belief on at lower
+confidence (× ``secondhand``, × the teller-to-listener ``trust`` link clamped to 0–1 when a trust relation is named). A
+new belief replaces an existing one about the same key when its confidence is at least as high; the same value keeps the
+higher confidence. Every round confidence decays (exponentially or linearly) and beliefs below ``forget_below`` are
+forgotten.
 
 The map is a private prop, so inspect never shows it to others, and the generated view shows an
 agent only its own beliefs.
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..registry import MechanismError, family_action, mode
 from ..expr.template import format_value
+from ..registry import MechanismError, family_action, mode
+from ..world.entity import Entity
 from ..world.live import Abort
-from ._social import props, config_of, eid, entity, ids, named_use, require_type
+from ._social import config_of, eid, entity, ids, named_use, props, require_type
 
 __all__ = ["BeliefsConfig"]
 
@@ -42,11 +43,17 @@ class BeliefsConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     who: str = Field(..., description="Entity type that holds beliefs (subtypes included).")
-    decay: float = Field(0.1, ge=0, le=1, description="Confidence lost per round (a share with exponential, an amount with linear).")
-    decay_curve: Literal["exponential", "linear"] = Field("exponential", description="How confidence decays: exponential (loses a share of itself) or linear (loses a fixed amount).")
+    decay: float = Field(0.1, ge=0, le=1,
+                         description="Confidence lost per round (a share with exponential, an amount with linear).")
+    decay_curve: Literal["exponential", "linear"] = Field("exponential",
+                                                          description="How confidence decays: exponential (loses a "
+                                                                      "share of itself) or linear (loses a fixed "
+                                                                      "amount).")
     forget_below: float = Field(0.05, ge=0, le=1, description="Beliefs below this confidence are forgotten.")
     secondhand: float = Field(0.7, ge=0, le=1, description="Confidence multiplier for something one was told.")
-    trust: Optional[str] = Field(None, description="Relation from listener to teller scaling told confidence (value clamped to 0–1).")
+    trust: str | None = Field(None,
+                              description="Relation from listener to teller scaling told confidence (value clamped to "
+                                          "0–1).")
     share: bool = Field(False, description="Offer a `<name>_tell` tool: pass one of your beliefs to another holder.")
     views: bool = Field(True, description="Show each holder its own beliefs.")
     view_limit: int = Field(12, ge=1, le=100, description="Beliefs shown, most confident first.")
@@ -58,11 +65,11 @@ def _use(call: Call, index: int) -> tuple:
     return name, config_of(call.scope.world, name, KIND, BeliefsConfig)
 
 
-def _map(holder: Entity, name: str) -> Dict[str, Any]:
+def _map(holder: Entity, name: str) -> dict[str, Any]:
     return props(holder).get(name) or {}
 
 
-def _key(value: Any, where: Optional[str]) -> str:
+def _key(value: Any, where: str | None) -> str:
     if isinstance(value, Entity):
         return value.id
     if isinstance(value, bool) or not isinstance(value, (str, int, float)):
@@ -78,14 +85,15 @@ def _holder(world: Any, config: BeliefsConfig, value: Any, where: str) -> Entity
 
 
 def believe(world: Any, name: str, config: BeliefsConfig, holder: Entity, key: str, value: Any, confidence: float,
-            source: str, teller: Optional[str]) -> bool:
+            source: str, teller: str | None) -> bool:
     """Record a belief if it wins over what ``holder`` already holds. True when something changed."""
     confidence = max(0.0, min(1.0, float(confidence)))
     if confidence < config.forget_below:
         return False
     beliefs = dict(_map(holder, name))
     held = beliefs.get(key)
-    new = {"value": value, "confidence": round(confidence, 6), "source": source, "told_by": teller, "round": world.round}
+    new = {"value": value, "confidence": round(confidence, 6), "source": source, "told_by": teller,
+           "round": world.round}
     if held is not None:
         if held["value"] == value and held["confidence"] >= confidence:
             return False
@@ -109,8 +117,8 @@ def _agent(call: Call) -> Entity:
     return found  # type: ignore[no-any-return]
 
 
-@function("believes(agent, key, value?, mechanism?)", "True when the agent holds a belief about key (and, given a value, "
-          "believes exactly that) (beliefs mechanism).", min_args=2, max_args=4)
+@function("believes(agent, key, value?, mechanism?)", "True when the agent holds a belief about key (and, given a "
+          "value, believes exactly that) (beliefs mechanism).", min_args=2, max_args=4)
 def _believes_fn(call: Call) -> bool:
     name, _ = _use(call, 3)
     held = _map(_agent(call), name).get(_key(call.arg(1), call.source))
@@ -119,9 +127,9 @@ def _believes_fn(call: Call) -> bool:
     return call.arg(2) is None or held["value"] == _plain(call.arg(2))
 
 
-@function("belief(agent, key, mechanism?)", "The agent's belief about key: {value, confidence, source, told_by, round}, or "
-          "null.", min_args=2, max_args=3)
-def _belief_fn(call: Call) -> Optional[Dict[str, Any]]:
+@function("belief(agent, key, mechanism?)", "The agent's belief about key: "
+          "{value, confidence, source, told_by, round}, or null.", min_args=2, max_args=3)
+def _belief_fn(call: Call) -> dict[str, Any] | None:
     name, _ = _use(call, 2)
     held = _map(_agent(call), name).get(_key(call.arg(1), call.source))
     return dict(held) if held is not None else None
@@ -135,9 +143,9 @@ def _confidence_fn(call: Call) -> float:
     return float(held["confidence"]) if held is not None else 0.0
 
 
-@function("beliefs_of(agent, mechanism?)", "The agent's beliefs, most confident first: [{key, value, confidence, source, "
-          "told_by, round}].", min_args=1, max_args=2)
-def _beliefs_of_fn(call: Call) -> List[Dict[str, Any]]:
+@function("beliefs_of(agent, mechanism?)", "The agent's beliefs, most confident first: "
+          "[{key, value, confidence, source, told_by, round}].", min_args=1, max_args=2)
+def _beliefs_of_fn(call: Call) -> list[dict[str, Any]]:
     name, _ = _use(call, 1)
     rows = [{"key": key, **held} for key, held in _map(_agent(call), name).items()]
     rows.sort(key=lambda r: -r["confidence"])
@@ -153,11 +161,14 @@ def _plain(value: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-@family_action("mind", ("beliefs",), "learn", keys=("key", "who", "value", "confidence", "source", "from"), required=("key",),
-               example='{"mind": "memory", "action": "learn", "key": "wolf", "who": "$actor", "value": "$params.suspect.id", '
-                       '"confidence": 0.9}  (who, by default $actor, comes to believe key = value; source direct unless given; '
+@family_action("mind", ("beliefs",), "learn", keys=("key", "who", "value", "confidence", "source", "from"),
+               required=("key",),
+               example='{"mind": "memory", "action": "learn", "key": "wolf", "who": "$actor", "value": '
+                       '"$params.suspect.id", '
+                       '"confidence": 0.9}  (who, by default $actor, comes to believe key = value; source direct '
+                       'unless given; '
                        "`from` names who it came from)")
-def _learn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _learn(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
     config = config_of(world, name, KIND, BeliefsConfig)
@@ -177,11 +188,13 @@ def _learn(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
                 eid(teller, where) if teller is not None else None)
 
 
-@family_action("mind", ("beliefs",), "tell", keys=("key", "to", "who", "value", "confidence", "say"), required=("key", "to"),
-               templates=("say",),
-               example='{"mind": "memory", "action": "tell", "key": "wolf", "to": "$params.listener"}  (who, by default $actor, '
-                       "passes a belief on at secondhand confidence; `value` to tell something else, `say` for the listener's notice)")
-def _tell(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+@family_action("mind", ("beliefs",), "tell", keys=("key", "to", "who", "value", "confidence", "say"),
+               required=("key", "to"), templates=("say",),
+               example='{"mind": "memory", "action": "tell", "key": "wolf", "to": "$params.listener"}  (who, by '
+                       'default $actor, '
+                       "passes a belief on at secondhand confidence; `value` to tell something else, `say` for the "
+                       "listener's notice)")
+def _tell(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
     config = config_of(world, name, KIND, BeliefsConfig)
@@ -223,8 +236,9 @@ def _confidence_number(value: Any, where: str) -> None:
 
 
 @family_action("mind", ("beliefs",), "forget", keys=("key", "who"), required=("key",),
-               example='{"mind": "memory", "action": "forget", "key": "wolf", "who": "$actor"}  (who, by default $actor, drops a belief)')
-def _forget(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"mind": "memory", "action": "forget", "key": "wolf", "who": "$actor"}  (who, by default '
+                       '$actor, drops a belief)')
+def _forget(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
     config = config_of(world, name, KIND, BeliefsConfig)
@@ -242,7 +256,7 @@ def _forget(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: st
 
 @family_action("mind", ("beliefs",), "decay", internal=True,
                example='{"mind": "memory", "action": "decay"}  (one round of confidence decay; generated each round)')
-def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _decay(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["mind"]
     config = config_of(world, name, KIND, BeliefsConfig)
@@ -252,9 +266,10 @@ def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
         beliefs = _map(holder, name)
         if not beliefs:
             continue
-        kept: Dict[str, Any] = {}
+        kept: dict[str, Any] = {}
         for key, held in beliefs.items():
-            c = held["confidence"] * (1 - config.decay) if config.decay_curve == "exponential" else held["confidence"] - config.decay
+            c = (held["confidence"] * (1 - config.decay) if config.decay_curve == "exponential"
+                 else held["confidence"] - config.decay)
             if c >= config.forget_below:
                 kept[key] = {**held, "confidence": round(c, 6)}
         world.set_prop(holder, name, kept)
@@ -266,29 +281,32 @@ def _decay(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
 
 
 @mode("mind", "beliefs", BeliefsConfig,
-           "A private world model per agent: beliefs {key: {value, confidence, source, told_by, round}} in the private prop "
-           "`<name>`, changed by the `learn`, `tell` and `forget` actions, decaying every round. Told beliefs arrive at "
-           "secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), $belief(agent, key), "
-           "$confidence(agent, key), $beliefs_of(agent); with several beliefs mechanisms, name one as the last argument "
-           "($beliefs_of($actor, 'rumours')).",
+           "A private world model per agent: beliefs {key: {value, confidence, source, told_by, round}} in the "
+           "private prop `<name>`, changed by the `learn`, `tell` and `forget` actions, decaying every round. Told "
+           "beliefs arrive at secondhand confidence (scaled by trust). Read with $believes(agent, key, value?), "
+           "$belief(agent, key), $confidence(agent, key), $beliefs_of(agent); with several beliefs mechanisms, name "
+           "one as the last argument ($beliefs_of($actor, 'rumours')).",
            example={"who": "villager", "decay": 0.1, "secondhand": 0.6, "share": True})
-def _expand(name: str, config: BeliefsConfig, contract: Mapping[str, Any]) -> Dict[str, Any]:
+def _expand(name: str, config: BeliefsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who")
     if config.trust is not None and config.trust not in (contract.get("relations") or {}):
-        raise MechanismError(f"trust '{config.trust}' is not a declared relation", "declare it under relations", "trust")
-    fragment: Dict[str, Any] = {
+        raise MechanismError(f"trust '{config.trust}' is not a declared relation", "declare it under relations",
+                             "trust")
+    fragment: dict[str, Any] = {
         "types": {config.who: {"props": {name: {"type": "map", "default": {}, "private": True,
                                                     "description": "What this agent believes."}}}},
         "events": [{"name": f"{name}_decay", "phase": config.phase, "do": [{"mind": name, "action": "decay"}]}],
     }
     if config.views:
-        fragment["views"] = {name: {"for": config.who, "title": "What you believe", "of": f"$beliefs_of($actor, '{name}')",
+        fragment["views"] = {name: {"for": config.who, "title": "What you believe",
+                                    "of": f"$beliefs_of($actor, '{name}')",
                                     "limit": config.view_limit, "empty": "You hold no beliefs yet.",
-                                    "show": "{key}: {value} ({confidence|pct} sure, {$'seen yourself' if $it.source == 'direct' "
-                                            "else 'told by ' + $text($entity($it.told_by))})"}}
+                                    "show": "{key}: {value} ({confidence|pct} sure, {$'seen yourself' if "
+                                            "$it.source == 'direct' else 'told by ' + $text($entity($it.told_by))})"}}
     if config.share:
         fragment["actions"] = {f"{name}_tell": {
-            "by": config.who, "description": "Tell another agent one of your beliefs; they hold it less surely than you.",
+            "by": config.who,
+            "description": "Tell another agent one of your beliefs; they hold it less surely than you.",
             "params": {"about": {"type": "enum", "values": f"$keys($actor.{name})", "description": "Which belief."},
                        "to": {"type": "entity", "of": config.who, "description": "Who you tell."}},
             "when": [{"expr": f"$len($keys($actor.{name})) > 0", "why": "You hold no beliefs to share."}],

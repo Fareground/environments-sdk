@@ -7,7 +7,6 @@ import pytest
 import fg_env
 from fg_env.host.stubs import StubEvaluator
 
-
 ENGINE_IDS = {
     "market", "council", "dispute", "exchange", "legislature", "contest",
     "deliberation", "negotiation", "population", "network", "matching", "strategy",
@@ -108,7 +107,8 @@ def test_matching_engine_keeps_selector_thresholds_private():
     assert "Selector 1: appeal 0.77" in applicant and "minimum quality" not in applicant
     assert "private minimum quality is 0.52" in selector and "private minimum quality is 0.57" not in selector
     result = env.run()
-    assert result.outputs["placement_matched"] + result.outputs["unmatched_applicants"] == len(env.entities("applicant"))
+    assert (result.outputs["placement_matched"] + result.outputs["unmatched_applicants"]
+            == len(env.entities("applicant")))
 
 
 def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
@@ -188,7 +188,8 @@ def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path
                                   "exchange_flagship/calibration.json", "exchange_flagship/seats.json",
                                   "exchange_flagship/seed_history.csv", "forecast_council.json"])
 def test_examples_that_mirror_an_engine_starter_stay_identical_to_it(name):
-    """These examples are published copies of engine starters; the starter is the source, so a fix there reaches both."""
+    """These examples are published copies of engine starters; the starter is the source, so a fix there reaches both.
+    """
     root = Path(__file__).resolve().parents[1]
     starter = root / "src" / "fg_env" / "engines" / "starters" / name
     assert (root / "examples" / "contracts" / name).read_text() == starter.read_text(), (

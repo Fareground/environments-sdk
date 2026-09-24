@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import json
 import random
-from typing import Any, List, Mapping, Optional, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..api import ContractLike
 from .game import Game, game
@@ -19,8 +20,8 @@ from .steps import Step, apply_step, random_step, step_text
 __all__ = ["playthrough"]
 
 
-def playthrough(source: Union[ContractLike, Game], *, seed: int = 0, steps: Optional[Sequence[Mapping[str, Any]]] = None,
-                inputs: Optional[Mapping[str, Any]] = None, simultaneous: str = "joint", max_steps: int = 500) -> str:
+def playthrough(source: ContractLike | Game, *, seed: int = 0, steps: Sequence[Mapping[str, Any]] | None = None,
+                inputs: Mapping[str, Any] | None = None, simultaneous: str = "joint", max_steps: int = 500) -> str:
     """The playthrough text of one game: ``steps`` when given (see :mod:`.steps`), else random ones from ``seed``."""
     subject = source if isinstance(source, Game) else game(source, inputs=inputs, seed=seed, simultaneous=simultaneous)
     rng = random.Random(f"fg-env-playthrough:{seed}")
@@ -50,7 +51,7 @@ def playthrough(source: Union[ContractLike, Game], *, seed: int = 0, steps: Opti
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _header(subject: Game, seed: int) -> List[str]:
+def _header(subject: Game, seed: int) -> list[str]:
     info = subject.info
     spec = subject.contract.game
     lines = [f"# fg-env playthrough: {subject.contract.name}",
@@ -73,7 +74,7 @@ def _header(subject: Game, seed: int) -> List[str]:
     return lines + [""]
 
 
-def _describe(state: GameState, number: int) -> List[str]:
+def _describe(state: GameState, number: int) -> list[str]:
     lines = [f"# State {number}"]
     if state.is_terminal():
         lines.append("Terminal")
@@ -85,7 +86,8 @@ def _describe(state: GameState, number: int) -> List[str]:
         lines += ["Current player: chance", f"Chance outcomes: {outcomes}"]
     else:
         acting = state.acting_players()
-        who = "simultaneous " + ", ".join(str(seat) for seat in acting) if state.is_simultaneous_node() else str(acting[0])
+        who = ("simultaneous " + ", ".join(str(seat) for seat in acting) if state.is_simultaneous_node()
+               else str(acting[0]))
         lines.append(f"Current player: {who}")
         for seat in acting:
             listed = "; ".join(f"[{action.id}] {action.text}" for action in state.legal_tool_calls(seat))
@@ -101,17 +103,17 @@ def _describe(state: GameState, number: int) -> List[str]:
     return lines
 
 
-def _returns(state: GameState) -> List[str]:
+def _returns(state: GameState) -> list[str]:
     spec = state.game.contract.game
     if spec is None or spec.returns is None:
         return []
     return [f"Returns: [{', '.join(_number(value) for value in state.returns())}]"]
 
 
-def _number(value: Optional[float]) -> str:
+def _number(value: float | None) -> str:
     return "none" if value is None else f"{value:.6g}"
 
 
-def steps_from_text(text: str) -> List[Step]:
+def steps_from_text(text: str) -> list[Step]:
     """The steps a playthrough chose, read back from its text (to replay it exactly)."""
     return [json.loads(line[len("Step: "):]) for line in text.splitlines() if line.startswith("Step: ")]

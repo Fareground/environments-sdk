@@ -1,6 +1,6 @@
 """Throwaway mechanism families for tests of the extension spine."""
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 from pydantic import BaseModel, ConfigDict
 

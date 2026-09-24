@@ -3,10 +3,10 @@ import json
 import time
 from types import SimpleNamespace as NS
 
+from test_runtime import AUCTION, SHOP
+
 import fg_env
 from fg_env import participants
-
-from test_runtime import AUCTION, SHOP
 
 
 class FakeAnthropic:

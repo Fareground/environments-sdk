@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import heapq
 import math
+from collections.abc import Callable
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
 
@@ -35,17 +36,17 @@ class SpaceError(ValueError):
 class Geometry:
     """One declared space, resolved."""
 
-    def __init__(self, spec: "Space", resolve: Resolve):
+    def __init__(self, spec: Space, resolve: Resolve):
         self.torus = False
         self.neighborhood = "von_neumann"
         self.rows = self.cols = 0
         self.width = self.height = 0.0
-        self.nodes: List[str] = []
-        self._node_index: Dict[str, int] = {}
-        self._adjacent: Dict[str, List[Tuple[str, float]]] = {}
-        self._paths: Dict[str, Dict[str, float]] = {}
-        self._offsets: Dict[int, List[Tuple[int, int]]] = {}
-        self._within: Dict[Tuple[int, int], List[int]] = {}
+        self.nodes: list[str] = []
+        self._node_index: dict[str, int] = {}
+        self._adjacent: dict[str, list[tuple[str, float]]] = {}
+        self._paths: dict[str, dict[str, float]] = {}
+        self._offsets: dict[int, list[tuple[int, int]]] = {}
+        self._within: dict[tuple[int, int], list[int]] = {}
         if spec.grid is not None:
             self.kind = "grid"
             self.rows = _whole(resolve(spec.grid.rows, "space.grid.rows"), "space.grid.rows")
@@ -104,7 +105,8 @@ class Geometry:
     def place(self, at: Any) -> Any:
         """``at`` as a stored position: checked, and wrapped round on a torus."""
         if self.kind == "grid":
-            if not (isinstance(at, list) and len(at) == 2 and all(isinstance(v, int) and not isinstance(v, bool) for v in at)):
+            if not (isinstance(at, list) and len(at) == 2
+                    and all(isinstance(v, int) and not isinstance(v, bool) for v in at)):
                 raise SpaceError(f"a grid position is [row, col], got {at!r}")
             if self.torus:
                 return [at[0] % self.rows, at[1] % self.cols]
@@ -152,7 +154,7 @@ class Geometry:
             return 0.0
         return self._shortest(a).get(b, math.inf)
 
-    def _shortest(self, source: Any) -> Dict[str, float]:
+    def _shortest(self, source: Any) -> dict[str, float]:
         """Shortest-path distances from ``source`` to every place it reaches (the graph never changes)."""
         found = self._paths.get(source)
         if found is not None:
@@ -172,7 +174,7 @@ class Geometry:
 
     # -- cells near a cell ------------------------------------------------------------
 
-    def cells(self, center: Optional[Any] = None, radius: float = 1) -> List[Any]:
+    def cells(self, center: Any | None = None, radius: float = 1) -> list[Any]:
         """Every cell (no center), or the cells within ``radius`` of ``center`` other than itself — on a grid
         row by row around it, on a graph nearest first (then in declaration order)."""
         if self.kind == "plane":
@@ -181,7 +183,7 @@ class Geometry:
             return [self.position(cell) for cell in range(self.cell_count)]
         return [self.position(cell) for cell in self.cells_within(center, radius)[1:]]
 
-    def cells_within(self, center: Any, radius: float) -> List[int]:
+    def cells_within(self, center: Any, radius: float) -> list[int]:
         """Cell numbers within ``radius`` of a stored position, the center's own first, each once."""
         if self.kind == "graph":
             reach = self._shortest(center)
@@ -205,7 +207,7 @@ class Geometry:
             self._within[key] = found
         return found
 
-    def offsets(self, radius: int) -> List[Tuple[int, int]]:
+    def offsets(self, radius: int) -> list[tuple[int, int]]:
         """Grid steps within ``radius`` of a cell (not the cell itself), row by row."""
         found = self._offsets.get(radius)
         if found is None:
@@ -221,14 +223,14 @@ class Geometry:
             return _hex(dr, dc)
         return abs(dr) + abs(dc)
 
-    def adjacent(self, position: Any) -> List[Any]:
+    def adjacent(self, position: Any) -> list[Any]:
         """The positions next to one: its grid neighbourhood (row by row; fewer at an edge that does not
         wrap), or the places an edge joins it to (in edge order)."""
         if self.kind == "graph":
             return list(dict.fromkeys(node for node, _ in self._adjacent.get(position, []) if node in self._node_index))
         return self.cells(position, 1)
 
-    def neighbor_cells(self, cell: int) -> List[int]:
+    def neighbor_cells(self, cell: int) -> list[int]:
         """The cell numbers of :meth:`adjacent`."""
         if self.kind == "graph":
             return [self._node_index[node] for node in self.adjacent(self.nodes[cell])]
@@ -243,7 +245,7 @@ def _hex(dr: Any, dc: Any) -> Any:
     return max(abs(dr), abs(dc), abs(dr + dc))
 
 
-def _images(delta: int, size: int) -> Tuple[int, int, int]:
+def _images(delta: int, size: int) -> tuple[int, int, int]:
     delta %= size
     return delta, delta - size, delta + size
 

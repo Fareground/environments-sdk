@@ -15,13 +15,14 @@ between i and j, which is antisymmetric and between −1 and 1 (0 for pairs that
 from __future__ import annotations
 
 import math
-from typing import Any, Dict, List, Mapping, Sequence, Tuple
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from ..stdlib.linalg import eliminate
 
 __all__ = ["margins", "nash_average", "alpha_rank", "schulze"]
 
-Matrix = List[List[float]]
+Matrix = list[list[float]]
 
 #: Numbers this close to zero are zero (pivots, reduced costs, equilibrium weights).
 _EPSILON = 1e-9
@@ -57,7 +58,8 @@ def _simplex_max(objective: Sequence[float], rows: Matrix, bounds: Sequence[floa
         entering = next((j for j in range(n + m) if costs[j] < -_EPSILON), None)
         if entering is None:
             return costs[-1]
-        candidates = [(table[i][-1] / table[i][entering], basis[i], i) for i in range(m) if table[i][entering] > _EPSILON]
+        candidates = [(table[i][-1] / table[i][entering], basis[i], i) for i in range(m) if table[i][entering]
+                      > _EPSILON]
         _, _, row = min(candidates)
         lead = table[row][entering]
         table[row] = [v / lead for v in table[row]]
@@ -70,7 +72,7 @@ def _simplex_max(objective: Sequence[float], rows: Matrix, bounds: Sequence[floa
         basis[row] = entering
 
 
-def _support(payoff: Matrix) -> List[int]:
+def _support(payoff: Matrix) -> list[int]:
     """Strategies used by some equilibrium: j is in it when max p_j over {p ≥ 0, A·p ≤ 0, Σp ≤ 1} is above 0."""
     n = len(payoff)
     rows = [list(row) for row in payoff] + [[1.0] * n]
@@ -78,7 +80,7 @@ def _support(payoff: Matrix) -> List[int]:
     return [j for j in range(n) if _simplex_max([1.0 if k == j else 0.0 for k in range(n)], rows, bounds) > _EPSILON]
 
 
-def _max_entropy(payoff: Matrix, support: Sequence[int]) -> List[float]:
+def _max_entropy(payoff: Matrix, support: Sequence[int]) -> list[float]:
     """The maximum-entropy p on ``support`` with A·p = 0 on the support and A·p ≤ 0 elsewhere.
 
     Solved in the dual: p_i ∝ exp((A·ν)_i) over the support, minimizing log Σ exp(A·ν) with ν free on the
@@ -88,7 +90,7 @@ def _max_entropy(payoff: Matrix, support: Sequence[int]) -> List[float]:
     inside = set(support)
     nu = [0.0] * n
 
-    def weights(values: Sequence[float]) -> Tuple[List[float], float]:
+    def weights(values: Sequence[float]) -> tuple[list[float], float]:
         exponents = {i: math.fsum(payoff[i][k] * values[k] for k in range(n)) for i in support}
         top = max(exponents.values())
         total = math.fsum(math.exp(e - top) for e in exponents.values())
@@ -124,7 +126,7 @@ def _max_entropy(payoff: Matrix, support: Sequence[int]) -> List[float]:
     return weights(nu)[0]
 
 
-def nash_average(entrants: Sequence[str], payoff: Matrix) -> Dict[str, Any]:
+def nash_average(entrants: Sequence[str], payoff: Matrix) -> dict[str, Any]:
     """The maximum-entropy Nash equilibrium of the margin game and every entrant's payoff against it."""
     support = _support(payoff)
     p = _max_entropy(payoff, support)
@@ -140,11 +142,12 @@ def _fixation(delta: float, alpha: float, population: int) -> float:
         return 1.0 / population
     if delta > 0.0:
         return -math.expm1(-alpha * delta) / -math.expm1(-population * alpha * delta)
-    return math.exp((population - 1) * alpha * delta) * math.expm1(alpha * delta) / math.expm1(population * alpha * delta)
+    return (math.exp((population - 1) * alpha * delta) * math.expm1(alpha * delta)
+            / math.expm1(population * alpha * delta))
 
 
 def alpha_rank(entrants: Sequence[str], payoff: Matrix, alpha: float = ALPHA_RANK_ALPHA,
-               population: int = ALPHA_RANK_POPULATION) -> Dict[str, float]:
+               population: int = ALPHA_RANK_POPULATION) -> dict[str, float]:
     """Stationary mass of each entrant in the single-population α-Rank Markov chain (sums to 1)."""
     k = len(entrants)
     if k == 1:
@@ -164,8 +167,9 @@ def alpha_rank(entrants: Sequence[str], payoff: Matrix, alpha: float = ALPHA_RAN
     return {name: mass[i] / total for i, name in enumerate(entrants)}
 
 
-def schulze(entrants: Sequence[str], preferred: Mapping[str, Mapping[str, int]]) -> List[Dict[str, Any]]:
-    """Schulze order from ``preferred[a][b]`` = ballots ranking a above b. Entrants that no path separates share a rank."""
+def schulze(entrants: Sequence[str], preferred: Mapping[str, Mapping[str, int]]) -> list[dict[str, Any]]:
+    """Schulze order from ``preferred[a][b]`` = ballots ranking a above b. Entrants that no path separates share a rank.
+    """
     names = list(entrants)
     strength = {a: {b: (preferred[a][b] if preferred[a][b] > preferred[b][a] else 0) for b in names if b != a}
                 for a in names}
@@ -179,7 +183,7 @@ def schulze(entrants: Sequence[str], preferred: Mapping[str, Mapping[str, int]])
                 strength[a][b] = max(strength[a][b], min(strength[a][via], strength[via][b]))
     beats = {a: sum(1 for b in names if b != a and strength[a][b] > strength[b][a]) for a in names}
     order = sorted(names, key=lambda a: (-beats[a], names.index(a)))
-    rows: List[Dict[str, Any]] = []
+    rows: list[dict[str, Any]] = []
     for position, name in enumerate(order):
         tied = position > 0 and beats[name] == beats[order[position - 1]] and \
             strength[name][order[position - 1]] == strength[order[position - 1]][name]

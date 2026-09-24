@@ -1,7 +1,8 @@
 """Validate authored inventory literals before generated supply totals evaluate."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Mapping
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Any
 
 from ..expr import is_expr
 from ..registry import config_data, use_key
@@ -10,13 +11,13 @@ if TYPE_CHECKING:
     from . import _Checker
 
 
-def check_inventory(checker: "_Checker") -> None:
+def check_inventory(checker: _Checker) -> None:
     for name, raw in checker.c.mechanisms.items():
         if use_key(raw) == "economy.inventory":
             _check_one(checker, name, config_data(raw))
 
 
-def _check_one(checker: "_Checker", name: str, config: Mapping[str, Any]) -> None:
+def _check_one(checker: _Checker, name: str, config: Mapping[str, Any]) -> None:
     """The authored literals of one inventory mechanism."""
     contract = checker.c
     prop = config.get("prop") or name

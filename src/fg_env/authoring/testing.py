@@ -5,18 +5,18 @@ from __future__ import annotations
 import os
 import time
 from types import SimpleNamespace
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple
 
 from ..api import ContractLike, check, contract_source, load, parse
-from .sandbox import Sandbox, TooSlow, step
+from ..checks.smoke import EdgeAgent
 from ..contract import Contract
-from ..runtime.diagnostics import DEGRADING
 from ..host.hosts import Hosts
 from ..host.stubs import StubDescriber, StubEvaluator, StubFeed, StubGameMaster, StubRanker, StubTools, StubWriter
-from ..runtime.measure import RunResult
 from ..participants import Idle, RandomAgent
-from ..checks.smoke import EdgeAgent
+from ..runtime.diagnostics import DEGRADING
+from ..runtime.measure import RunResult
 from ..runtime.session import Wake
+from .sandbox import Sandbox, TooSlow, step
 
 __all__ = ["TEST_SEEDS", "MOST_SEEDS", "TEST_SECONDS", "Tested", "tested", "contract_problem", "StubHosts"]
 
@@ -39,14 +39,14 @@ class Tested(NamedTuple):
     #: How far the test runs got when the time budget ended them ("" when every run finished).
     untested: str = ""
     #: Its check's warnings.
-    warnings: Tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
     #: How many seeds random agents played it on.
     seeds: int = 0
     #: The hosts its runs consulted, answered by the SDK's stand-in stubs.
-    hosts: Tuple[str, ...] = ()
+    hosts: tuple[str, ...] = ()
 
 
-def tested(source: ContractLike, box: Optional[Sandbox] = None) -> Tested:
+def tested(source: ContractLike, box: Sandbox | None = None) -> Tested:
     """What testing the contract finds. Its ``problem`` is what stops it from working, or "": its first check error;
     else that it declares no outputs, or has an agent type with no action; else the first of its test runs — on each
     of :data:`TEST_SEEDS` with random agents and with idle ones (agents that never act), once with agents that choose
@@ -90,10 +90,10 @@ def _plain(source: ContractLike) -> Any:
     return str(source) if isinstance(source, os.PathLike) else source
 
 
-def _test(source: Any, seconds: float, seeds: List[int], most: int) -> Dict[str, Any]:
+def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str, Any]:
     """:func:`tested`'s work, in the child process: its findings as JSON data."""
     hosts, deadline = StubHosts(source), time.monotonic() + seconds
-    found: Dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": []}
+    found: dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": []}
     try:
         step("checking it")
         issues = check(source, hosts=hosts)
@@ -129,11 +129,11 @@ def _pointless(contract: Contract) -> str:
     return ""
 
 
-def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadline: float, seeds: List[int],
-           most: int) -> Tuple[str, str, int]:
+def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadline: float, seeds: list[int],
+           most: int) -> tuple[str, str, int]:
     """``(problem, untested, random seeds)`` from :func:`tested`'s runs, within ``deadline`` (the end of the
     ``seconds`` of the test budget)."""
-    plays: List[Tuple[Any, str, int, frozenset]] = [
+    plays: list[tuple[Any, str, int, frozenset]] = [
         (_Reading(RandomAgent(seed)) if agents == "random" else _Reading(Idle()), f"{agents} agents", seed,
          frozenset() if agents == "random" else _NOT_ACTING)
         for seed in seeds for agents in ("random", "idle")]
@@ -157,7 +157,7 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
     return _more_seeds(source, hosts, deadline, seeds, most)
 
 
-def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: List[int], most: int) -> Tuple[str, str, int]:
+def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], most: int) -> tuple[str, str, int]:
     """Random agents on further seeds, up to ``most`` in all, while each run is likely to finish before ``deadline``:
     ``(problem, "", seeds played)``."""
     played, seed, took = len(seeds), max(seeds), 0.0
@@ -221,9 +221,9 @@ class _Reading:
         self.agent(wake)
 
 
-def _reads(wake: Wake) -> List[Tuple[str, Dict[str, Any]]]:
+def _reads(wake: Wake) -> list[tuple[str, dict[str, Any]]]:
     """A ``look`` at every view ``wake`` offers, then an ``inspect`` of one entity (a different one each round)."""
-    reads: List[Tuple[str, Dict[str, Any]]] = []
+    reads: list[tuple[str, dict[str, Any]]] = []
     tools = {tool.name: tool.input_schema for tool in wake.tools}
     if "look" in tools:
         reads += [("look", {"view": view}) for view in tools["look"]["properties"]["view"]["enum"]]
@@ -246,7 +246,7 @@ class StubHosts(Hosts):
         except Exception:  # check reports what is wrong with it
             feeds = {}
         self.unbound = {spec.host for spec in feeds.values() if spec.fallback is not None}
-        self.asked: List[str] = []
+        self.asked: list[str] = []
         self._stub = SimpleNamespace(judge=StubEvaluator().judge, resolve=StubGameMaster().resolve,
                                      call=StubTools().call, write=StubWriter().write, rank=StubRanker().rank,
                                      fetch=StubFeed().fetch, describe=StubDescriber().describe)
@@ -259,5 +259,5 @@ class StubHosts(Hosts):
         return self._stub
 
     @property
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         return list(self.asked)

@@ -21,14 +21,15 @@ import os
 import threading
 import time
 from collections import deque
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import Future
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any, Callable, Deque, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError
 from ..participants import Idle, Participant, resolve_participant
+from ..world.entity import Entity
 from .session import END_TURN, Wake
 
 if TYPE_CHECKING:
@@ -37,7 +38,8 @@ if TYPE_CHECKING:
 
 __all__ = ["Driver", "is_async", "runs_concurrently", "background_loop", "run_on_worker", "WAITING", "Unpausable"]
 
-#: What a round yields while a participant that plays in steps waits for a decision (see :mod:`fg_env.copying.stepping`).
+#: What a round yields while a participant that plays in steps waits for a decision (see
+#: :mod:`fg_env.copying.stepping`).
 WAITING = object()
 
 
@@ -47,7 +49,7 @@ class Unpausable(BaseException):
 
 _LOOP_LOCK = threading.Lock()
 _IDLE = Idle()
-_LOOPS: Dict[int, asyncio.AbstractEventLoop] = {}
+_LOOPS: dict[int, asyncio.AbstractEventLoop] = {}
 
 
 def background_loop() -> asyncio.AbstractEventLoop:
@@ -64,11 +66,11 @@ def background_loop() -> asyncio.AbstractEventLoop:
 
 
 async def run_on_worker(play: Callable[[asyncio.AbstractEventLoop, Callable[[Any], bool]], Any],
-                        stop: Optional[Callable[[Any], bool]]) -> Any:
+                        stop: Callable[[Any], bool] | None) -> Any:
     """Await the blocking ``play(loop, halt)`` running in a worker thread, leaving this loop free for the
     participants it schedules. Cancelling the await makes ``halt`` true, so the run stops at its next safe point."""
     loop = asyncio.get_running_loop()
-    landed: "asyncio.Future[Any]" = loop.create_future()
+    landed: asyncio.Future[Any] = loop.create_future()
     cancelled = threading.Event()
 
     def halt(env: Any) -> bool:
@@ -76,7 +78,7 @@ async def run_on_worker(play: Callable[[asyncio.AbstractEventLoop, Callable[[Any
 
     def work() -> None:
         outcome: Any = None
-        error: Optional[BaseException] = None
+        error: BaseException | None = None
         try:
             outcome = play(loop, halt)
         except BaseException as exc:  # handed to the awaiting task
@@ -94,7 +96,7 @@ async def run_on_worker(play: Callable[[asyncio.AbstractEventLoop, Callable[[Any
         raise
 
 
-def _resolve(future: "asyncio.Future[Any]", result: Any, error: Optional[BaseException]) -> None:
+def _resolve(future: asyncio.Future[Any], result: Any, error: BaseException | None) -> None:
     if future.cancelled():
         return
     if error is not None:
@@ -109,7 +111,8 @@ def is_async(participant: Any) -> bool:
     for _ in range(8):
         if participant is None:
             return False
-        if inspect.iscoroutinefunction(participant) or inspect.iscoroutinefunction(getattr(participant, "__call__", None)):  # noqa: B004 — reads the __call__ method itself, not whether it exists
+        call = getattr(participant, "__call__", None)  # noqa: B004 — reads the __call__ method itself, not whether it exists
+        if inspect.iscoroutinefunction(participant) or inspect.iscoroutinefunction(call):
             return True
         participant = getattr(participant, "__wrapped__", None)
     return False
@@ -124,13 +127,13 @@ class _Flight:
 
     __slots__ = ("turn", "alone", "landed", "error", "future", "cancelled")
 
-    def __init__(self, turn: "Turn", alone: bool):
+    def __init__(self, turn: Turn, alone: bool):
         self.turn = turn
         #: Runs while no other flight does (a participant not marked concurrent, or a stage played in order).
         self.alone = alone
         self.landed = False
-        self.error: Optional[BaseException] = None
-        self.future: Optional[Future] = None
+        self.error: BaseException | None = None
+        self.future: Future | None = None
         self.cancelled = False
 
 
@@ -140,12 +143,12 @@ class Driver:
     #: Turns with a time limit run against the wall clock (copies of a run for search switch it off).
     timed = True
 
-    def __init__(self, env: "Env"):
+    def __init__(self, env: Env):
         self.env = env
-        self.spec: Dict[str, Any] = {}
-        self._resolved: Dict[str, Participant] = {}
+        self.spec: dict[str, Any] = {}
+        self._resolved: dict[str, Participant] = {}
         #: The loop async participants run on: the caller's under ``arun``, else the shared background loop.
-        self.loop: Optional[asyncio.AbstractEventLoop] = None
+        self.loop: asyncio.AbstractEventLoop | None = None
 
     # -- binding ----------------------------------------------------------------------
 
@@ -194,7 +197,7 @@ class Driver:
         self._resolved[actor.id] = participant
         return participant
 
-    def turn_tool_specs(self) -> Dict[str, Any]:
+    def turn_tool_specs(self) -> dict[str, Any]:
         """The contract's in-turn host tools (recall, note, host services), by name."""
         tools = self.__dict__.get("_turn_tools")
         if tools is None:
@@ -213,15 +216,15 @@ class Driver:
 
     # -- playing turns ----------------------------------------------------------------------
 
-    def drive(self, turns: Sequence["Turn"], together: bool = False) -> None:
+    def drive(self, turns: Sequence[Turn], together: bool = False) -> None:
         """Play ``turns``: one at a time, or — ``together``, a simultaneous stage — concurrently where the
         participants allow it. Participant failures raise :class:`RunError` once every turn has stopped."""
         for _ in self.drive_steps(turns, together):
             raise Unpausable(f"{turns[0].actor.id}'s turn waits for a decision where the run cannot pause "
                              "(a reaction inside another agent's call)")
 
-    def drive_steps(self, turns: Sequence["Turn"], together: bool = False,
-                    resume: Optional[int] = None) -> Iterator[object]:
+    def drive_steps(self, turns: Sequence[Turn], together: bool = False,
+                    resume: int | None = None) -> Iterator[object]:
         """:meth:`drive` as the engine's round plays it: a participant that plays its turn in steps (it has a
         ``steps(turn)`` generator) pauses the round by yielding :data:`WAITING` while it waits for a decision.
         ``resume`` continues a copy of the run at the turn with that index, which was waiting when it was copied.
@@ -239,7 +242,7 @@ class Driver:
         chosen = [(turn, self.participant(turn.actor)) for turn in played]
         concurrent = sum(1 for _, p in chosen if runs_concurrently(p))
         threaded = together and env.parallel > 1 and concurrent > 1
-        queue: Deque[Tuple["Turn", Participant, bool]] = deque()
+        queue: deque[tuple[Turn, Participant, bool]] = deque()
         if together:
             env.origin.staged = list(turns)  # sealed choices still being made (read by game states)
         try:
@@ -274,7 +277,7 @@ class Driver:
                 if together:
                     env.origin.staged = []
 
-    def finish(self, turn: "Turn") -> None:
+    def finish(self, turn: Turn) -> None:
         """Close a played turn: no more calls, its statistics added to the run's."""
         env = self.env
         with env._lock:
@@ -294,10 +297,10 @@ class Driver:
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit
                 turn.exposure.close(turn)
 
-    def _rng(self, turn: "Turn") -> Any:
+    def _rng(self, turn: Turn) -> Any:
         return self.env.seeds.lazy_rng("turn", turn.round, turn.number)
 
-    def _inline(self, turn: "Turn", participant: Participant, rng: Any) -> Any:
+    def _inline(self, turn: Turn, participant: Participant, rng: Any) -> Any:
         with self.env.world.turn_context(rng, turn.pending):
             try:
                 return _answer(turn, participant(Wake(turn)))
@@ -306,12 +309,12 @@ class Driver:
             except Exception as exc:
                 raise _failure(turn, exc) from exc
 
-    def _fly(self, queue: Deque[Tuple["Turn", Participant, bool]], flights: List[_Flight]) -> None:
+    def _fly(self, queue: deque[tuple[Turn, Participant, bool]], flights: list[_Flight]) -> None:
         """Launch queued turns (at most ``parallel`` at once; a turn that must run alone waits for the others)
         and wait until every flight has landed or been closed, enforcing deadlines. Waiting releases the run's lock."""
         env = self.env
         signal = env._signal
-        failures: List[_Flight] = []
+        failures: list[_Flight] = []
         with signal:
             try:
                 while queue or flights:
@@ -324,7 +327,7 @@ class Driver:
                             turn.done = True  # never started: the run is failing
                         queue.clear()
                     now = time.monotonic()
-                    wait: Optional[float] = None
+                    wait: float | None = None
                     for flight in list(flights):
                         turn = flight.turn
                         if not flight.landed and (failures or turn.expired(now)):
@@ -350,7 +353,7 @@ class Driver:
             assert error is not None
             raise _failure(first.turn, error) from error
 
-    def _launch(self, turn: "Turn", participant: Participant, alone: bool) -> _Flight:
+    def _launch(self, turn: Turn, participant: Participant, alone: bool) -> _Flight:
         flight = _Flight(turn, alone)
         if self.timed:
             turn.start_clock()
@@ -386,7 +389,7 @@ class Driver:
         turn, world = flight.turn, self.env.world
         loop = self.loop or background_loop()
         try:
-            running: Optional[asyncio.AbstractEventLoop] = asyncio.get_running_loop()
+            running: asyncio.AbstractEventLoop | None = asyncio.get_running_loop()
         except RuntimeError:
             running = None
         if running is loop:
@@ -416,13 +419,13 @@ class Driver:
 
     def _landed(self, flight: _Flight, future: Future) -> None:
         if future.cancelled():
-            error: Optional[BaseException] = None if flight.cancelled else \
+            error: BaseException | None = None if flight.cancelled else \
                 RunError(f"participant for {flight.turn.actor.id} was cancelled", f"participant:{flight.turn.actor.id}")
         else:
             error = future.exception()
         self._land(flight, error)
 
-    def _land(self, flight: _Flight, error: Optional[BaseException]) -> None:
+    def _land(self, flight: _Flight, error: BaseException | None) -> None:
         with self.env._signal:
             if error is not None and not flight.cancelled and not flight.turn.timed_out:
                 flight.error = error
@@ -440,7 +443,7 @@ class Driver:
 
     # -- auto turns ---------------------------------------------------------------------------
 
-    def _auto(self, turn: "Turn") -> bool:
+    def _auto(self, turn: Turn) -> bool:
         """Play a trivial turn without the agent: the only legal action when it takes no arguments,
         or nothing when no action is legal. False when the agent has a real choice."""
         env = self.env
@@ -458,23 +461,24 @@ class Driver:
         self.finish(turn)
         return True
 
-    def trivial(self, turn: "Turn") -> bool:
+    def trivial(self, turn: Turn) -> bool:
         """Whether :meth:`_auto` would play ``turn`` without the agent (it has no real choice)."""
         with self.env.world.turn_context(self._rng(turn), turn.pending):
             return self._choices(turn) is not None
 
     @staticmethod
-    def _choices(turn: "Turn") -> Optional[List[Any]]:
+    def _choices(turn: Turn) -> list[Any] | None:
         """The turn's action tools when it has no real choice (none, or one without arguments); else None."""
         acts = [tool for tool in turn.tools() if tool.kind == "act"]
         return None if len(acts) > 1 or (acts and acts[0].input_schema.get("properties")) else acts
 
 
-def _failure(turn: "Turn", exc: BaseException) -> RunError:
-    return RunError(f"participant for {turn.actor.id} raised {type(exc).__name__}: {exc}", f"participant:{turn.actor.id}")
+def _failure(turn: Turn, exc: BaseException) -> RunError:
+    return RunError(f"participant for {turn.actor.id} raised {type(exc).__name__}: {exc}",
+                    f"participant:{turn.actor.id}")
 
 
-def _answer(turn: "Turn", answer: Any) -> Any:
+def _answer(turn: Turn, answer: Any) -> Any:
     """What a participant's call handed back: an awaitable (an async participant's turn, still to run), or anything once
     it has called a tool (``lambda wake: wake.call("pass")`` returns the call's result). A value returned from a turn
     that called nothing is a move returned instead of made — nothing would be done, so the run fails and says how to

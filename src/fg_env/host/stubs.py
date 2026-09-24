@@ -9,9 +9,10 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Union
+from collections.abc import Callable, Mapping, Sequence
+from typing import Any
 
-FeedValues = Union[None, Callable[[Mapping[str, Any]], Any], Mapping[int, Any], Sequence[Any]]
+FeedValues = None | Callable[[Mapping[str, Any]], Any] | Mapping[int, Any] | Sequence[Any]
 
 __all__ = ["StubEvaluator", "StubGameMaster", "StubTools", "StubWriter", "StubRanker", "StubFeed", "StubDescriber"]
 
@@ -23,23 +24,23 @@ def _digest(*parts: Any) -> int:
 
 class _Recording:
     def __init__(self) -> None:
-        self.calls: List[Any] = []
+        self.calls: list[Any] = []
 
 
 class StubEvaluator(_Recording):
     """Scores each criterion from a hash of the text (or with ``scores(request)``)."""
 
-    def __init__(self, scores: Optional[Callable[[Mapping[str, Any]], Mapping[str, float]]] = None,
+    def __init__(self, scores: Callable[[Mapping[str, Any]], Mapping[str, float]] | None = None,
                  rationale: str = "Scored by the stub evaluator."):
         super().__init__()
         self._scores = scores
         self._rationale = rationale
 
-    def judge(self, request: Mapping[str, Any]) -> Dict[str, Any]:
+    def judge(self, request: Mapping[str, Any]) -> dict[str, Any]:
         self.calls.append(request)
         if self._scores is not None:
             return {"scores": dict(self._scores(request)), "rationale": self._rationale}
-        scores: Dict[str, float] = {}
+        scores: dict[str, float] = {}
         for criterion in request["criteria"]:
             low, high = criterion["min"], criterion["max"]
             h = _digest(request.get("judge"), criterion["name"], request.get("text"))
@@ -58,7 +59,7 @@ class StubGameMaster(_Recording):
     destination, news of the attempt. A rule it cannot fill with a value it knows to fit — no target, or a change from
     a number the request does not show — it leaves out."""
 
-    def __init__(self, resolve: Optional[Callable[[Mapping[str, Any]], Mapping[str, Any]]] = None):
+    def __init__(self, resolve: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None):
         super().__init__()
         self._resolve = resolve
 
@@ -66,7 +67,7 @@ class StubGameMaster(_Recording):
         self.calls.append(request)
         if self._resolve is not None:
             return self._resolve(request)
-        effects: List[Dict[str, Any]] = []
+        effects: list[dict[str, Any]] = []
         changed = set()
         for rule in request.get("allowed") or []:
             effect = _effect(rule, request)
@@ -77,7 +78,7 @@ class StubGameMaster(_Recording):
         return {"narration": "The stub game master lets it happen.", "effects": effects[:request.get("max_effects")]}
 
 
-def _effect(rule: Mapping[str, Any], request: Mapping[str, Any]) -> Optional[Dict[str, Any]]:
+def _effect(rule: Mapping[str, Any], request: Mapping[str, Any]) -> dict[str, Any] | None:
     """The effect ``rule`` allows, filled with values that fit it, or None."""
     actor = request.get("actor") or {}
     kind = rule.get("effect")
@@ -102,7 +103,7 @@ def _effect(rule: Mapping[str, Any], request: Mapping[str, Any]) -> Optional[Dic
     return None if value is None else {"effect": "set", "target": target, "prop": rule["prop"], "value": value}
 
 
-def _pick(ids: Sequence[str], actor: Any) -> Optional[str]:
+def _pick(ids: Sequence[str], actor: Any) -> str | None:
     return actor if actor in ids else (ids[0] if ids else None)
 
 
@@ -126,7 +127,7 @@ def _value(rule: Mapping[str, Any], current: Any) -> Any:
 class StubTools(_Recording):
     """Answers tool calls from a table of results, a function, or a fixed deterministic text."""
 
-    def __init__(self, results: Union[None, Mapping[str, str], Callable[[str, Mapping[str, Any]], str]] = None):
+    def __init__(self, results: None | Mapping[str, str] | Callable[[str, Mapping[str, Any]], str] = None):
         super().__init__()
         self._results = results
 
@@ -143,7 +144,7 @@ class StubTools(_Recording):
 class StubWriter(_Recording):
     """Writes text with ``write(request)``, or from the request's prompt deterministically."""
 
-    def __init__(self, write: Optional[Callable[[Mapping[str, Any]], str]] = None):
+    def __init__(self, write: Callable[[Mapping[str, Any]], str] | None = None):
         super().__init__()
         self._write = write
 
@@ -159,7 +160,8 @@ class StubWriter(_Recording):
             return f"So far: {len(entries)} new entries; the latest reads: {entries[-1]['text'] if entries else '—'}"
         if task == "reflection":
             memories = request.get("memories") or []
-            return f"Looking back on {len(memories)} memories, the latest matters most: {memories[-1] if memories else '—'}"
+            return (f"Looking back on {len(memories)} memories, the latest matters most: "
+                    f"{memories[-1] if memories else '—'}")
         return f"{task}: {request.get('prompt', '')}"
 
 
@@ -201,7 +203,7 @@ class StubDescriber(_Recording):
     """Describes files with ``describe(request)``, or from their metadata: the caption names the file's type and name,
     and a text file's content is its text."""
 
-    def __init__(self, describe: Optional[Callable[[Mapping[str, Any]], Mapping[str, Any]]] = None):
+    def __init__(self, describe: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None):
         super().__init__()
         self._describe = describe
 

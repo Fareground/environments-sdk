@@ -7,12 +7,11 @@ import json
 import re
 
 import pytest
+from game_contracts import NIM
 
 import fg_env
 from fg_env.__main__ import main
 from fg_env.analysis.runner import AnalysisError
-
-from game_contracts import NIM
 
 ROUNDS = 3
 PUBLIC_GOODS = {
@@ -130,7 +129,8 @@ def test_a_run_that_fails_is_left_out_of_its_pair_and_noted():
 def test_mistakes_in_a_suite_are_reported_before_anything_runs():
     with pytest.raises(ValueError, match="unknown field"):
         _free_riding([{"contract": PUBLIC_GOODS, "seat": "p0"}])
-    with pytest.raises(ValueError, match=r"scenario 'Public goods': seat 'p9' is not an agent the contract starts with"):
+    with pytest.raises(ValueError,
+                       match=r"scenario 'Public goods': seat 'p9' is not an agent the contract starts with"):
         _free_riding(seats=["p9"])
     with pytest.raises(ValueError, match="mode 'crowd' must be a share of the seats above 0 and at most 1"):
         _free_riding(modes={"crowd": 1.5})

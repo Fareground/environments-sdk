@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 from functools import lru_cache
 from statistics import NormalDist
-from typing import Any, Dict, List, Optional, Sequence, Tuple, TypeGuard
+from typing import Any, TypeGuard
 
 __all__ = [
     "Estimate", "is_number", "numeric", "mean", "sd", "t_quantile", "normal_quantile", "estimate",
@@ -34,18 +35,18 @@ class Estimate:
     """A mean with its uncertainty. ``low``/``high`` are ``None`` when fewer than two values exist."""
 
     n: int
-    mean: Optional[float]
-    sd: Optional[float] = None
-    se: Optional[float] = None
-    low: Optional[float] = None
-    high: Optional[float] = None
+    mean: float | None
+    sd: float | None = None
+    se: float | None = None
+    low: float | None = None
+    high: float | None = None
     level: float = 0.95
 
     @property
     def excludes_zero(self) -> bool:
         return self.low is not None and self.high is not None and (self.low > 0 or self.high < 0)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"n": self.n, "mean": self.mean, "sd": self.sd, "se": self.se, "low": self.low,
                 "high": self.high, "level": self.level}
 
@@ -62,7 +63,7 @@ def is_number(value: Any) -> TypeGuard[float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def numeric(value: Any) -> Optional[float]:
+def numeric(value: Any) -> float | None:
     """``value`` as a float: numbers as is, yes/no as 1/0, anything else ``None``."""
     if isinstance(value, bool):
         return 1.0 if value else 0.0
@@ -170,7 +171,7 @@ def estimate(values: Sequence[float], level: float = 0.95) -> Estimate:
     return Estimate(n, m, s, se, m - half, m + half, level)
 
 
-def wilson(successes: int, n: int, level: float = 0.95) -> Tuple[float, float]:
+def wilson(successes: int, n: int, level: float = 0.95) -> tuple[float, float]:
     """Wilson score interval for a proportion: honest at 0%, 100% and small n."""
     _check_level(level)
     if n <= 0:
@@ -209,7 +210,7 @@ def quantile(values: Sequence[float], q: float) -> float:
     return ordered[below] + (ordered[above] - ordered[below]) * (position - below)
 
 
-def ranks(values: Sequence[float]) -> List[float]:
+def ranks(values: Sequence[float]) -> list[float]:
     """1-based ranks; tied values share their average rank."""
     order = sorted(range(len(values)), key=lambda i: values[i])
     out = [0.0] * len(values)
@@ -225,7 +226,7 @@ def ranks(values: Sequence[float]) -> List[float]:
     return out
 
 
-def pearson(xs: Sequence[float], ys: Sequence[float]) -> Optional[float]:
+def pearson(xs: Sequence[float], ys: Sequence[float]) -> float | None:
     """Pearson correlation; ``None`` when either side has no variation or fewer than 3 pairs."""
     if len(xs) != len(ys):
         raise ValueError("correlation needs two sequences of the same length")
@@ -240,12 +241,12 @@ def pearson(xs: Sequence[float], ys: Sequence[float]) -> Optional[float]:
     return max(-1.0, min(1.0, sxy / math.sqrt(sxx * syy)))
 
 
-def spearman(xs: Sequence[float], ys: Sequence[float]) -> Optional[float]:
+def spearman(xs: Sequence[float], ys: Sequence[float]) -> float | None:
     """Rank correlation: monotone association, robust to outliers and scale."""
     return pearson(ranks(xs), ranks(ys))
 
 
-def fisher_interval(r: float, n: int, level: float = 0.95, rank: bool = True) -> Optional[Tuple[float, float]]:
+def fisher_interval(r: float, n: int, level: float = 0.95, rank: bool = True) -> tuple[float, float] | None:
     """Confidence interval for a correlation via Fisher's z (with the Spearman correction when ``rank``)."""
     _check_level(level)
     if n <= 3:
@@ -257,7 +258,7 @@ def fisher_interval(r: float, n: int, level: float = 0.95, rank: bool = True) ->
     return math.tanh(centre - z * se), math.tanh(centre + z * se)
 
 
-def correlation_ratio(xs: Sequence[float], ys: Sequence[float], bins: int, adjusted: bool = False) -> Optional[float]:
+def correlation_ratio(xs: Sequence[float], ys: Sequence[float], bins: int, adjusted: bool = False) -> float | None:
     """η²: the share of the variance of ``ys`` explained by the bin of ``xs`` (a first-order index).
 
     With at most ``bins`` distinct ``xs`` each value is its own group; otherwise ``xs`` is cut
@@ -276,7 +277,7 @@ def correlation_ratio(xs: Sequence[float], ys: Sequence[float], bins: int, adjus
         return None
     distinct = sorted(set(xs))
     if len(distinct) <= bins:
-        groups: Dict[Any, List[float]] = {}
+        groups: dict[Any, list[float]] = {}
         for x, y in zip(xs, ys):
             groups.setdefault(x, []).append(y)
     else:
@@ -313,7 +314,7 @@ def wasserstein(a: Sequence[float], b: Sequence[float]) -> float:
     return total
 
 
-def latin_hypercube(samples: int, dims: int, rng: random.Random) -> List[List[float]]:
+def latin_hypercube(samples: int, dims: int, rng: random.Random) -> list[list[float]]:
     """``samples`` points in the unit cube, exactly one in each of ``samples`` strata per dimension."""
     if samples < 1 or dims < 1:
         raise ValueError("a Latin hypercube needs at least one sample and one dimension")
@@ -325,7 +326,7 @@ def latin_hypercube(samples: int, dims: int, rng: random.Random) -> List[List[fl
     return [[columns[d][i] for d in range(dims)] for i in range(samples)]
 
 
-def levels(low: float, high: float, steps: int, log: bool = False) -> List[float]:
+def levels(low: float, high: float, steps: int, log: bool = False) -> list[float]:
     """``steps`` evenly spaced values from ``low`` to ``high`` (geometric spacing when ``log``)."""
     if steps < 1:
         raise ValueError("steps must be at least 1")

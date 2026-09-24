@@ -2,11 +2,11 @@
 turn an output into a probe to see it."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any
 
 from ..host.tape import TAPE
-from .measure import shown
 from ..world.live import _plain
+from .measure import shown
 
 if TYPE_CHECKING:
     from ..contract import Contract
@@ -24,11 +24,11 @@ LINE_WIDTH = 120
 TEXT_WIDTH = 24
 
 
-def end_state(contract: "Contract", world: "SdkWorld") -> Dict[str, Any]:
+def end_state(contract: Contract, world: SdkWorld) -> dict[str, Any]:
     """``{world: {prop: value}, types: {type: {alive, entities: [{id, props}]}}}``: every world property and, per
     type with living entities, how many there are and the first :data:`STATE_ROWS` with every property, private ones
     included."""
-    alive: Dict[str, List[Any]] = {}
+    alive: dict[str, list[Any]] = {}
     for entity in world.entities.values():
         if entity.alive:
             alive.setdefault(entity.entity_type, []).append(entity)
@@ -38,9 +38,9 @@ def end_state(contract: "Contract", world: "SdkWorld") -> Dict[str, Any]:
     return {"world": _plain(dict(world.props)), "types": types}
 
 
-def state_lines(state: Dict[str, Any], series: Dict[str, List[Any]]) -> List[str]:
+def state_lines(state: dict[str, Any], series: dict[str, list[Any]]) -> list[str]:
     """The summary's last lines: each metric's recent values, then the end state."""
-    lines: List[str] = []
+    lines: list[str] = []
     if series:
         lines.append(f"metrics (last {SERIES_TAIL} values):")
         lines += [_cut(f"  {name}: " + " → ".join(shown(v) for v in values[-SERIES_TAIL:]))
@@ -59,7 +59,7 @@ def state_lines(state: Dict[str, Any], series: Dict[str, List[Any]]) -> List[str
     return lines
 
 
-def _props(props: Dict[str, Any]) -> str:
+def _props(props: dict[str, Any]) -> str:
     """Every prop as ``name=value, …``, long text cut short so the row stays readable."""
     return ", ".join(f"{name}={_cut(value, TEXT_WIDTH) if isinstance(value, str) else shown(value)}"
                      for name, value in props.items())

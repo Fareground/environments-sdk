@@ -15,13 +15,14 @@ lists join with commas; null renders as ``—``.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
+from typing import Any
 
-from . import ExprError, Expr, Scope, Untrusted, compile_expr
+from . import Expr, ExprError, Scope, Untrusted, compile_expr
 
 __all__ = ["Template", "compile_template", "render", "format_value", "apply_format", "entity_handles",
            "quoted_placeholders"]
@@ -33,11 +34,11 @@ _REQUOTED = re.compile(r"«\s*(\{[^{}]*\})\s*»")
 #: a heading or a line of its own in what another agent reads.
 _BREAKS = re.compile(r"\s*[\r\n\v\f\x1c-\x1e\x85\u2028\u2029]\s*")
 #: While an agent's reading renders: which entities show their [id] handle after their name.
-_HANDLES: ContextVar[Optional[Callable[[Any], bool]]] = ContextVar("fg_env_entity_handles", default=None)
+_HANDLES: ContextVar[Callable[[Any], bool] | None] = ContextVar("fg_env_entity_handles", default=None)
 
 
 @contextmanager
-def entity_handles(show: Optional[Callable[[Any], bool]]) -> Iterator[None]:
+def entity_handles(show: Callable[[Any], bool] | None) -> Iterator[None]:
     """Render entities as ``Name [id]`` when ``show(entity)`` holds (None: names only) inside the block."""
     token = _HANDLES.set(show)
     try:
@@ -46,7 +47,7 @@ def entity_handles(show: Optional[Callable[[Any], bool]]) -> Iterator[None]:
         _HANDLES.reset(token)
 
 
-def quoted_placeholders(source: str) -> List[str]:
+def quoted_placeholders(source: str) -> list[str]:
     """The placeholders a template wraps in «» itself (``«{$it.text}»``)."""
     return _REQUOTED.findall(source) if "«" in source else []
 
@@ -91,7 +92,7 @@ def _decimals(n: int) -> Callable[[Any], str]:
     return run
 
 
-_FORMATS: Dict[str, Callable[[Any], str]] = {
+_FORMATS: dict[str, Callable[[Any], str]] = {
     "money": _money,
     "pct": lambda v: f"{v * 100:.0f}%" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
     "pct1": lambda v: f"{v * 100:.1f}%" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
@@ -118,11 +119,11 @@ def apply_format(value: Any, fmt: str) -> str:
 @dataclass(frozen=True)
 class Template:
     source: str
-    parts: Tuple[Any, ...]
-    expressions: Tuple[Expr, ...]
+    parts: tuple[Any, ...]
+    expressions: tuple[Expr, ...]
 
     def render(self, scope: Scope) -> str:
-        out: List[str] = []
+        out: list[str] = []
         for part in self.parts:
             if isinstance(part, str):
                 out.append(part)
@@ -141,16 +142,17 @@ class Template:
 
 
 @lru_cache(maxsize=4_096)
-def compile_template(source: str, subject: Optional[str] = "it") -> Template:
+def compile_template(source: str, subject: str | None = "it") -> Template:
     """Compile a template. Bare ``{field}`` reads ``$<subject>.field``."""
     if not isinstance(source, str):
         raise ExprError("a template must be text", str(source))
     stripped = source.strip()
-    if "{" not in stripped and stripped.startswith("$") and len(stripped) > 1 and (stripped[1].isalpha() or stripped[1] == "_"):
+    if ("{" not in stripped and stripped.startswith("$") and len(stripped) > 1
+        and (stripped[1].isalpha() or stripped[1] == "_")):
         source = "{" + stripped + "}"  # a text field holding only an expression renders its value
-    parts: List[Any] = []
-    exprs: List[Expr] = []
-    buf: List[str] = []
+    parts: list[Any] = []
+    exprs: list[Expr] = []
+    buf: list[str] = []
     i, n = 0, len(source)
     while i < n:
         ch = source[i]
@@ -211,5 +213,5 @@ def compile_template(source: str, subject: Optional[str] = "it") -> Template:
     return Template(source, tuple(parts), tuple(exprs))
 
 
-def render(source: str, scope: Scope, subject: Optional[str] = "it") -> str:
+def render(source: str, scope: Scope, subject: str | None = "it") -> str:
     return compile_template(source, subject).render(scope)

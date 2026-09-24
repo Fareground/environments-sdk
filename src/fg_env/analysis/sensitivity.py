@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
+from typing import Any
 
 from ..api import ContractLike
 from ..sampling.seeds import SeedTree
@@ -28,7 +29,7 @@ __all__ = ["sensitivity", "SensitivityResult"]
 #: Bootstrap resamples for the first-order index interval.
 _BOOTSTRAP = 200
 
-InputRanges = Union[Sequence[str], Mapping[str, Optional[Mapping[str, Any]]]]
+InputRanges = Sequence[str] | Mapping[str, Mapping[str, Any] | None]
 
 
 @dataclass
@@ -37,12 +38,14 @@ class SensitivityResult:
     output: str
     method: str
     runs: int
-    ranking: List[Dict[str, Any]]
-    details: Dict[str, Any] = field(default_factory=dict)
+    ranking: list[dict[str, Any]]
+    details: dict[str, Any] = field(default_factory=dict)
 
     def report(self) -> str:
-        unit = {"oat": "elasticity", "morris": "μ* (output change per full range)", "sobol": "first-order share"}[self.method]
-        lines = [f"Sensitivity of {self.output} in {self.contract}: {self.method}, {self.runs} run(s) per point", f"Ranked by {unit}:"]
+        unit = {"oat": "elasticity", "morris": "μ* (output change per full range)", "sobol": "first-order "
+                                                                                             "share"}[self.method]
+        lines = [f"Sensitivity of {self.output} in {self.contract}: {self.method}, {self.runs} run(s) per point",
+                 f"Ranked by {unit}:"]
         for rank, row in enumerate(self.ranking, 1):
             value = row["value"]
             text = "—" if value is None else f"{value:+.4g}" if self.method == "oat" else f"{value:.4g}"
@@ -51,12 +54,12 @@ class SensitivityResult:
             lines.append(f"  {rank}. {row['input']}: {text}{interval}{extra}")
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"contract": self.contract, "output": self.output, "method": self.method, "runs": self.runs,
                 "ranking": self.ranking, "details": self.details}
 
 
-def _ranges(contract: Any, inputs: InputRanges) -> Dict[str, Optional[Mapping[str, Any]]]:
+def _ranges(contract: Any, inputs: InputRanges) -> dict[str, Mapping[str, Any] | None]:
     if isinstance(inputs, Mapping):
         return dict(inputs)
     if isinstance(inputs, str) or not inputs:
@@ -65,9 +68,9 @@ def _ranges(contract: Any, inputs: InputRanges) -> Dict[str, Optional[Mapping[st
 
 
 def sensitivity(contract: ContractLike, inputs: InputRanges, output: str, *, method: str = "oat", runs: int = 5,
-                baseline: Optional[Mapping[str, Any]] = None, delta: float = 0.1, trajectories: int = 6,
-                levels: int = 4, samples: int = 20, arm: Optional[str] = None, participants: Any = None,
-                rounds: Optional[int] = None, seed: int = 0, workers: int = 1, level: float = 0.95,
+                baseline: Mapping[str, Any] | None = None, delta: float = 0.1, trajectories: int = 6,
+                levels: int = 4, samples: int = 20, arm: str | None = None, participants: Any = None,
+                rounds: int | None = None, seed: int = 0, workers: int = 1, level: float = 0.95,
                 data_dir: Any = None, hosts: Any = None) -> SensitivityResult:
     """Rank ``inputs`` by their influence on ``output`` (an output or a metric's final value).
 
@@ -103,9 +106,9 @@ def sensitivity(contract: ContractLike, inputs: InputRanges, output: str, *, met
     return SensitivityResult(parsed.name, output, method, runs, ranking, details)
 
 
-def _run_points(contract: Any, points: Sequence[Mapping[str, Any]], measure: Tuple[str, str], runs: int, *,
-                arm: Optional[str], participants: Any, rounds: Optional[int], seed: int, workers: int, hosts: Any
-                ) -> List[List[Optional[float]]]:
+def _run_points(contract: Any, points: Sequence[Mapping[str, Any]], measure: tuple[str, str], runs: int, *,
+                arm: str | None, participants: Any, rounds: int | None, seed: int, workers: int, hosts: Any
+                ) -> list[list[float | None]]:
     """Output values per point (outer) per seed (inner), common seeds across points."""
     seeds = runner.run_seeds(seed, runs)
     jobs = runner.jobs_for([(p, arm) for p in points], seeds)
@@ -120,16 +123,17 @@ def _default(contract: Any, name: str, fixed: Mapping[str, Any]) -> float:
     return float(value)
 
 
-def _oat(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], runs: int, fixed: Mapping[str, Any],
-         delta: float, *, level: float, **common: Any) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
-    points: List[Dict[str, Any]] = [dict(fixed)]
+def _oat(contract: Any, ranges: Mapping[str, Any], measure: tuple[str, str], runs: int, fixed: Mapping[str, Any],
+         delta: float, *, level: float, **common: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    points: list[dict[str, Any]] = [dict(fixed)]
     plan = {}
     for name, given in ranges.items():
         centre = _default(contract, name, fixed)
         spec = runner.input_spec(contract, name)
         low_bound = (given or {}).get("low", spec.min)
         high_bound = (given or {}).get("high", spec.max)
-        step = abs(centre) * delta if centre != 0 else delta * ((high_bound - low_bound) if low_bound is not None and high_bound is not None else 1.0)
+        step = abs(centre) * delta if centre != 0 else delta * ((high_bound - low_bound) if low_bound is not None
+                                                                and high_bound is not None else 1.0)
         down, up = centre - step, centre + step
         down = max(down, low_bound) if low_bound is not None else down
         up = min(up, high_bound) if high_bound is not None else up
@@ -142,14 +146,15 @@ def _oat(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], run
     values = _run_points(contract, points, measure, runs, **common)
     base = [v for v in values[0] if v is not None]
     base_mean = mean(base) if base else None
-    ranking: List[Dict[str, Any]] = []
+    ranking: list[dict[str, Any]] = []
     for name, (centre, down_v, up_v, index) in plan.items():
         if up_v == down_v:
             ranking.append({"input": name, "value": None, "note": " (range too narrow to perturb)"})
             continue
-        slopes = [(u - d) / (up_v - down_v) for d, u in zip(values[index], values[index + 1]) if d is not None and u is not None]
+        slopes = [(u - d) / (up_v - down_v) for d, u in zip(values[index], values[index + 1]) if d is not None
+                  and u is not None]
         slope = estimate(slopes, level)
-        row: Dict[str, Any] = {"input": name, "baseline": centre, "down": down_v, "up": up_v,
+        row: dict[str, Any] = {"input": name, "baseline": centre, "down": down_v, "up": up_v,
                                "slope": slope.to_dict()}
         if base_mean and centre != 0 and slope.mean is not None:
             factor = centre / base_mean
@@ -164,9 +169,9 @@ def _oat(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], run
     return ranking, {"baseline_output": base_mean, "delta": delta}
 
 
-def _morris(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], runs: int, fixed: Mapping[str, Any],
+def _morris(contract: Any, ranges: Mapping[str, Any], measure: tuple[str, str], runs: int, fixed: Mapping[str, Any],
             trajectories: int, grid_levels: int, *, level: float, seed: int, **common: Any
-            ) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+            ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     names = list(ranges)
     bounds = {n: runner.bounds(contract, n, ranges[n]) for n in names}
     step = grid_levels / (2.0 * (grid_levels - 1))
@@ -183,14 +188,14 @@ def _morris(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], 
             path.append(dict(unit))
         paths.append((order, path))
 
-    def actual(unit: Mapping[str, float]) -> Dict[str, Any]:
+    def actual(unit: Mapping[str, float]) -> dict[str, Any]:
         return {**fixed, **{n: runner.coerce_input(contract, n, bounds[n][0] + u * (bounds[n][1] - bounds[n][0]))
                             for n, u in unit.items()}}
 
     points = [actual(u) for _, path in paths for u in path]
     values = _run_points(contract, points, measure, runs, seed=seed, **common)
     means = [mean([v for v in cell if v is not None]) if any(v is not None for v in cell) else None for cell in values]
-    effects: Dict[str, List[float]] = {n: [] for n in names}
+    effects: dict[str, list[float]] = {n: [] for n in names}
     cursor = 0
     for order, path in paths:
         for k, name in enumerate(order):
@@ -200,7 +205,7 @@ def _morris(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], 
             if before is not None and after is not None and moved != 0:
                 effects[name].append((after - before) / moved)
         cursor += len(path)
-    ranking: List[Dict[str, Any]] = []
+    ranking: list[dict[str, Any]] = []
     for name in names:
         absolute = estimate([abs(e) for e in effects[name]], level)
         ranking.append({"input": name, "value": absolute.mean, "low": absolute.low, "high": absolute.high,
@@ -210,8 +215,8 @@ def _morris(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], 
     return ranking, {"trajectories": trajectories, "levels": grid_levels, "step": step, "bounds": bounds}
 
 
-def _sobol(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], runs: int, fixed: Mapping[str, Any],
-           samples: int, *, level: float, seed: int, **common: Any) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
+def _sobol(contract: Any, ranges: Mapping[str, Any], measure: tuple[str, str], runs: int, fixed: Mapping[str, Any],
+           samples: int, *, level: float, seed: int, **common: Any) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     names = list(ranges)
     bounds = {n: runner.bounds(contract, n, ranges[n]) for n in names}
     tree = SeedTree(seed)
@@ -219,10 +224,11 @@ def _sobol(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], r
     points = [{**fixed, **{n: runner.coerce_input(contract, n, bounds[n][0] + u * (bounds[n][1] - bounds[n][0]))
                            for n, u in zip(names, row)}} for row in unit]
     values = _run_points(contract, points, measure, runs, seed=seed, **common)
-    rows = [(p, mean([v for v in cell if v is not None])) for p, cell in zip(points, values) if any(v is not None for v in cell)]
+    rows = [(p, mean([v for v in cell if v is not None])) for p, cell in zip(points, values)
+            if any(v is not None for v in cell)]
     bins = max(2, int(math.sqrt(len(rows))))
     rng = tree.rng("sobol-bootstrap")
-    ranking: List[Dict[str, Any]] = []
+    ranking: list[dict[str, Any]] = []
     for name in names:
         xs = [float(p[name]) for p, _ in rows]
         ys = [y for _, y in rows]
@@ -235,7 +241,7 @@ def _sobol(contract: Any, ranges: Mapping[str, Any], measure: Tuple[str, str], r
 
 
 def _bootstrap(xs: Sequence[float], ys: Sequence[float], bins: int, rng: random.Random,
-               level: float) -> Optional[Tuple[float, float]]:
+               level: float) -> tuple[float, float] | None:
     n = len(xs)
     draws = []
     for _ in range(_BOOTSTRAP):

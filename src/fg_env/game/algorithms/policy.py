@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Mapping, Sequence, Union
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 __all__ = ["TabularPolicy"]
 
@@ -17,10 +18,10 @@ class TabularPolicy:
     """``{information-state key: {call text: probability}}``, with uniform play where a state is missing."""
 
     def __init__(self, table: Mapping[str, Mapping[str, float]], game: str = ""):
-        self.table: Dict[str, Dict[str, float]] = {key: dict(value) for key, value in table.items()}
+        self.table: dict[str, dict[str, float]] = {key: dict(value) for key, value in table.items()}
         self.game = game
 
-    def probabilities(self, infoset: str, actions: Sequence[str]) -> List[float]:
+    def probabilities(self, infoset: str, actions: Sequence[str]) -> list[float]:
         """The probability of each call (by text) in an information state; uniform when the policy has none."""
         if not actions:
             return []
@@ -37,16 +38,16 @@ class TabularPolicy:
     def __contains__(self, infoset: object) -> bool:
         return infoset in self.table
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {"fg_env_policy": 1, "game": self.game, "policy": self.table}
 
-    def save(self, path: Union[str, "os.PathLike[str]"]) -> None:
+    def save(self, path: str | os.PathLike[str]) -> None:
         with open(path, "w", encoding="utf-8") as handle:
             json.dump(self.to_dict(), handle, indent=1, sort_keys=True)
             handle.write("\n")
 
     @classmethod
-    def load(cls, path: Union[str, "os.PathLike[str]"]) -> "TabularPolicy":
+    def load(cls, path: str | os.PathLike[str]) -> TabularPolicy:
         try:
             with open(path, encoding="utf-8") as handle:
                 data = json.load(handle)
@@ -57,9 +58,11 @@ class TabularPolicy:
         return cls.from_dict(data, os.fspath(path))
 
     @classmethod
-    def from_dict(cls, data: Any, where: str = "policy") -> "TabularPolicy":
-        if not isinstance(data, Mapping) or data.get("fg_env_policy") != 1 or not isinstance(data.get("policy"), Mapping):
-            raise ValueError(f"{where} is not an fg_env policy (expected {{\"fg_env_policy\": 1, \"policy\": {{...}}}})")
+    def from_dict(cls, data: Any, where: str = "policy") -> TabularPolicy:
+        if (not isinstance(data, Mapping) or data.get("fg_env_policy") != 1
+            or not isinstance(data.get("policy"), Mapping)):
+            raise ValueError(f"{where} is not an fg_env policy (expected "
+                             "{\"fg_env_policy\": 1, \"policy\": {...}})")
         table = data["policy"]
         for key, value in table.items():
             if not isinstance(value, Mapping) or not all(

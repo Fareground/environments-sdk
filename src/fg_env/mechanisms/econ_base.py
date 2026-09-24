@@ -9,22 +9,24 @@ from __future__ import annotations
 
 import math
 import re
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, Union, cast
+from collections.abc import Mapping, Sequence
+from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key
+from ..world.entity import Entity
 from ..world.live import Abort
 
 __all__ = [
-    "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
-    "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param", "entity_of",
-    "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
-    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION", "LABOR", "SUBSCRIPTIONS",
-    "BOOKINGS",
+    "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list",
+    "require_types",
+    "require_currency", "lineage", "common_ancestor", "top_types", "declared_use", "guarded", "choice_param",
+    "entity_of", "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
+    "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION", "LABOR",
+    "SUBSCRIPTIONS", "BOOKINGS",
     "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
 ]
 
@@ -33,13 +35,14 @@ EPS = 1e-9
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: ``family.mode`` of every economy and agreements mode.
-LEDGER, INVENTORY, PRODUCTION, SUPPLY_CHAIN = "economy.ledger", "economy.inventory", "economy.production", "economy.supply_chain"
+LEDGER, INVENTORY, PRODUCTION, SUPPLY_CHAIN = ("economy.ledger", "economy.inventory", "economy.production",
+                                               "economy.supply_chain")
 DEMAND, REPLENISHMENT = "economy.demand", "economy.replenishment"
 NEGOTIATION, LABOR, SUBSCRIPTIONS, BOOKINGS = ("agreements.negotiation", "agreements.labor", "agreements.subscriptions",
                                                "agreements.bookings")
 
 #: ``family.mode`` → config model, registered by each module so runtime lookups can parse any use.
-CONFIG_MODELS: Dict[str, Type[BaseModel]] = {}
+CONFIG_MODELS: dict[str, type[BaseModel]] = {}
 
 
 def valid_name(name: str) -> bool:
@@ -47,11 +50,11 @@ def valid_name(name: str) -> bool:
     return bool(NAME.match(name)) and name not in EXPRESSION_WORDS
 
 
-def register_config(kind: str, model: Type[BaseModel]) -> None:
+def register_config(kind: str, model: type[BaseModel]) -> None:
     CONFIG_MODELS[kind] = model
 
 
-def _cache(world: Any) -> Dict[Any, Any]:
+def _cache(world: Any) -> dict[Any, Any]:
     cache = world.__dict__.get("_econ_configs")
     if cache is None or cache[0] is not world.contract:
         cache = (world.contract, {})
@@ -67,7 +70,8 @@ def config_of(world: Any, name: str, kind: str, where: str = "") -> Any:
         raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
         if not isinstance(raw, Mapping) or use_key(raw) != kind:
             declared = [n for n, u in world.contract.mechanisms.items() if use_key(u) == kind]
-            raise RunError(f"'{name}' is not a declared {describe(kind)} (declared: {', '.join(declared) or 'none'})", where)
+            raise RunError(f"'{name}' is not a declared {describe(kind)} (declared: {', '.join(declared) or 'none'})",
+                           where)
         try:
             cache[key] = CONFIG_MODELS[kind].model_validate(config_data(raw))
         except ValidationError as exc:  # expansion validated it already; only a patched contract lands here
@@ -75,7 +79,7 @@ def config_of(world: Any, name: str, kind: str, where: str = "") -> Any:
     return cache[key]
 
 
-def uses_of(world: Any, kind: str) -> Dict[str, Any]:
+def uses_of(world: Any, kind: str) -> dict[str, Any]:
     """Every declared use of ``kind``: ``{name: parsed config}``."""
     cache = _cache(world)
     key = ("kind", kind)
@@ -110,7 +114,7 @@ def cached(world: Any, key: Any, build: Any) -> Any:
 # ---------------------------------------------------------------------------
 
 
-def type_list(value: Union[str, Sequence[str]]) -> List[str]:
+def type_list(value: str | Sequence[str]) -> list[str]:
     return [value] if isinstance(value, str) else list(value)
 
 
@@ -121,7 +125,7 @@ def require_types(contract: Mapping[str, Any], names: Sequence[str], field: str)
             raise MechanismError(f"'{name}' is not a declared type", f"types: {', '.join(types) or 'none'}", field)
 
 
-def common_ancestor(contract: Mapping[str, Any], names: Sequence[str]) -> Optional[str]:
+def common_ancestor(contract: Mapping[str, Any], names: Sequence[str]) -> str | None:
     """The most specific type every one of ``names`` is (or extends), or None when they share none."""
     chains = [lineage(contract, name) for name in names]
     if not chains:
@@ -129,18 +133,18 @@ def common_ancestor(contract: Mapping[str, Any], names: Sequence[str]) -> Option
     return next((t for t in chains[0] if all(t in chain for chain in chains[1:])), None)
 
 
-def lineage(contract: Mapping[str, Any], name: str) -> List[str]:
+def lineage(contract: Mapping[str, Any], name: str) -> list[str]:
     """``name`` then its ancestors, nearest first (raw contract, before parsing)."""
     types = contract.get("types") or {}
-    chain: List[str] = []
-    current: Optional[str] = name
+    chain: list[str] = []
+    current: str | None = name
     while current is not None and current in types and current not in chain:
         chain.append(current)
         current = (types[current] or {}).get("extends")
     return chain
 
 
-def declared_names(contract: Mapping[str, Any], key: str, field: str) -> Dict[str, str]:
+def declared_names(contract: Mapping[str, Any], key: str, field: str) -> dict[str, str]:
     """Every name under ``field`` (``currencies``, ``items``) of the declared ``key`` mechanisms: {name: mechanism}."""
     return {name: other for other, use in (contract.get("mechanisms") or {}).items() if use_key(use) == key
             for name in (use.get(field) or {})}
@@ -152,7 +156,7 @@ def require_currency(contract: Mapping[str, Any], currency: str, field: str = "c
         raise MechanismError(f"'{currency}' is not a declared currency", "declare a ledger with it", field)
 
 
-def money_prop(contract: Mapping[str, Any], holder: str, currency: str, description: str = "") -> Dict[str, Any]:
+def money_prop(contract: Mapping[str, Any], holder: str, currency: str, description: str = "") -> dict[str, Any]:
     """``{currency: a number prop starting at 0}`` for a market's traders of type ``holder``, or ``{}`` when a ledger
     gives that type the currency: the ledger's starting balance then holds, whichever mechanism is declared first."""
     for use in (contract.get("mechanisms") or {}).values():
@@ -163,7 +167,7 @@ def money_prop(contract: Mapping[str, Any], holder: str, currency: str, descript
     return {currency: {"type": "number", "default": 0, **({"description": description} if description else {})}}
 
 
-def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> List[str]:
+def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> list[str]:
     """``names`` without any type whose ancestor is also listed (so no entity is counted twice)."""
     out = []
     for name in dict.fromkeys(names):
@@ -172,7 +176,7 @@ def top_types(contract: Mapping[str, Any], names: Sequence[str]) -> List[str]:
     return out
 
 
-def declared_use(contract: Mapping[str, Any], name: Optional[str], kind: str, field: str) -> Dict[str, Any]:
+def declared_use(contract: Mapping[str, Any], name: str | None, kind: str, field: str) -> dict[str, Any]:
     """The raw config of another mechanism this one refers to (declared earlier or later)."""
     uses = contract.get("mechanisms") or {}
     use = uses.get(name) if isinstance(name, str) else None
@@ -180,7 +184,8 @@ def declared_use(contract: Mapping[str, Any], name: Optional[str], kind: str, fi
         declared = [n for n, u in uses.items() if use_key(u) == kind]
         family, _, mode = kind.partition(".")
         raise MechanismError(f"'{name}' is not a declared {describe(kind)} mechanism",
-                             f"declare one, e.g. \"mechanisms\": {{\"{name or mode}\": {{\"kind\": \"{family}\", \"mode\": \"{mode}\", ...}}}}"
+                             "declare one, e.g. \"mechanisms\": "
+                             f"{{\"{name or mode}\": {{\"kind\": \"{family}\", \"mode\": \"{mode}\", ...}}}}"
                              + (f" (declared: {', '.join(declared)})" if declared else ""), field)
     return dict(use)
 
@@ -203,7 +208,7 @@ def guarded(expr: str, *params: str) -> str:
     return f"({expr}) if {present} else null"
 
 
-def choice_param(types: Sequence[str], where: str, description: str) -> Tuple[Dict[str, Any], str]:
+def choice_param(types: Sequence[str], where: str, description: str) -> tuple[dict[str, Any], str]:
     """A parameter choosing one entity of any of ``types``, and the expression reading the choice.
 
     One type becomes an entity parameter (names listed); several become an enum of ids whose
@@ -226,12 +231,12 @@ def entity_of(world: Any, value: Any, where: str, what: str = "an entity") -> En
     return found
 
 
-def props(entity: Entity) -> Dict[str, Any]:
+def props(entity: Entity) -> dict[str, Any]:
     """An entity's properties for reading (the legacy Entity annotates their values narrowly)."""
-    return cast(Dict[str, Any], entity.properties)
+    return cast(dict[str, Any], entity.properties)
 
 
-def maybe_entity(world: Any, value: Any) -> Optional[Entity]:
+def maybe_entity(world: Any, value: Any) -> Entity | None:
     if isinstance(value, Entity):
         return value
     if isinstance(value, str):
@@ -239,7 +244,7 @@ def maybe_entity(world: Any, value: Any) -> Optional[Entity]:
     return None
 
 
-def to_ids(value: Any) -> List[str]:
+def to_ids(value: Any) -> list[str]:
     if value is None:
         return []
     items = value if isinstance(value, (list, tuple)) else [value]
@@ -260,12 +265,13 @@ def amount(value: Any, where: str, what: str = "an amount") -> float:
     return value
 
 
-def bump(world: Any, prop: str, key: str, delta: float, group: Optional[str] = None) -> None:
+def bump(world: Any, prop: str, key: str, delta: float, group: str | None = None) -> None:
     """Add ``delta`` to ``$world.<prop>[key]`` (or ``[group][key]``), journaled."""
     current = dict(world.props.get(prop) or {})
     if group is None:
         value = current.get(key, 0) + delta
-        current[key] = int(value) if isinstance(value, float) and value.is_integer() and isinstance(delta, int) else value
+        current[key] = (int(value) if isinstance(value, float) and value.is_integer() and isinstance(delta, int)
+                        else value)
     else:
         inner = dict(current.get(group) or {})
         inner[key] = inner.get(key, 0) + delta
@@ -282,8 +288,8 @@ def money(value: Any) -> str:
     return format_value(value)
 
 
-def emit_to(world: Any, kind: str, text: str, to: Sequence[str], data: Optional[Dict[str, Any]] = None,
-            why: Optional[str] = None) -> None:
+def emit_to(world: Any, kind: str, text: str, to: Sequence[str], data: dict[str, Any] | None = None,
+            why: str | None = None) -> None:
     """Private news for some agents; ``why`` also asks the engine to tell them at their next turn."""
     recipients = [t for t in dict.fromkeys(to) if t]
     if not recipients:
@@ -294,7 +300,7 @@ def emit_to(world: Any, kind: str, text: str, to: Sequence[str], data: Optional[
             world.request_wake(entity_id, why)
 
 
-def run_hook(runner: Any, block: str, args: Dict[str, Any], path: str) -> None:
+def run_hook(runner: Any, block: str, args: dict[str, Any], path: str) -> None:
     """Run an author's effect block (``on_default``, ``on_breach``) for one item on its own.
 
     The mechanism has already recorded what happened. A refusal inside the block (``fail``, a short
@@ -306,4 +312,5 @@ def run_hook(runner: Any, block: str, args: Dict[str, Any], path: str) -> None:
         runner.run([{"block": block, "with": {key: f"${key}" for key in args}}], dict(args), path)
     except Abort as exc:
         world.journal.rollback(mark)
-        world.emit("mechanism_refused", f"{block} was refused: {exc.reason}", to=[], data={"block": block, "reason": exc.reason})
+        world.emit("mechanism_refused", f"{block} was refused: {exc.reason}", to=[],
+                   data={"block": block, "reason": exc.reason})

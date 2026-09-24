@@ -12,7 +12,8 @@ def _error(expression: str) -> str:
 
 
 @pytest.mark.parametrize("expression, expected", [
-    ("$max(($entity(a).c, 2)", "the `(` at character 5 (after `$max(`) is never closed — add `)` where what it holds ends"),
+    ("$max(($entity(a).c, 2)",
+     "the `(` at character 5 (after `$max(`) is never closed — add `)` where what it holds ends"),
     ("$entity(a).c + 1)", "the `)` at character 17 (after `$entity(a).c + 1)`) closes nothing — remove it, "
                           "or add the `(` it was meant to close"),
     ("[$entity(a).c, 2)", "the `[` at character 1 (after `[`) is closed by `)` at character 17 — close it with `]`"),

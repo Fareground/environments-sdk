@@ -5,21 +5,22 @@ import json
 import math
 import os
 import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from contextlib import contextmanager, suppress
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterator, List, Mapping, Optional, Sequence, Set, Tuple, TypeGuard
+from typing import Any, TypeGuard
 
-from . import workers as pools
 from ..api import ContractLike, contract_source, default_data_dir, load, located, parse
-from .arm_inputs import arm_input_overrides, override_message
-from ..runtime.budget import Budget
 from ..contract import Contract
 from ..errors import ContractError, Issue, RunError
+from ..runtime.budget import Budget
 from ..runtime.measure import RunResult, _usable_output
 from ..sampling.seeds import SeedTree
+from . import workers as pools
+from .arm_inputs import arm_input_overrides, override_message
 
 __all__ = ["experiment", "ExperimentResult", "ArmResult"]
 
@@ -35,12 +36,12 @@ def _critical(n: int) -> float:
     return _T95[n - 2] if 2 <= n <= len(_T95) + 1 else _Z95
 
 
-def _describe(values: List[Any]) -> Dict[str, Any]:
+def _describe(values: list[Any]) -> dict[str, Any]:
     present = [v for v in values if v is not None]
     if not present:
         return {"n": 0}
     if all(isinstance(v, dict) for v in present):
-        keys: List[str] = []
+        keys: list[str] = []
         for v in present:
             keys += [k for k in v if k not in keys]
         return {"n": len(present), "keys": {k: _describe([v.get(k) for v in present]) for k in keys}}
@@ -57,14 +58,14 @@ def _describe(values: List[Any]) -> Dict[str, Any]:
         return {"n": len(present), "rate": sum(present) / len(present)}
     if all(_is_number(v) for v in present):
         return {"n": len(present), **_moments(present)}
-    counts: Dict[str, int] = {}
+    counts: dict[str, int] = {}
     for v in present:
         key = str(v)
         counts[key] = counts.get(key, 0) + 1
     return {"n": len(present), "counts": dict(sorted(counts.items(), key=lambda kv: -kv[1]))}
 
 
-def _by_label(rows: List[Any]) -> Optional[Dict[str, Any]]:
+def _by_label(rows: list[Any]) -> dict[str, Any] | None:
     """A list of ``[label, value, ...]`` rows (a ranking) as label → value (or values), else None."""
     if not rows or not all(isinstance(row, list) and len(row) >= 2 and isinstance(row[0], str) for row in rows):
         return None
@@ -89,34 +90,36 @@ def _is_number(value: Any) -> TypeGuard[float]:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
-def _moments(values: List[float]) -> Dict[str, Any]:
+def _moments(values: list[float]) -> dict[str, Any]:
     n = len(values)
     mean = sum(values) / n
     sd = math.sqrt(sum((v - mean) ** 2 for v in values) / (n - 1)) if n > 1 else 0.0
     half = _critical(n) * sd / math.sqrt(n) if n > 1 else 0.0
-    return {"mean": mean, "sd": sd, "min": min(values), "max": max(values), "ci95": [mean - half, mean + half] if n > 1 else None}
+    return {"mean": mean, "sd": sd, "min": min(values), "max": max(values),
+            "ci95": [mean - half, mean + half] if n > 1 else None}
 
 
 @dataclass
 class ArmResult:
-    arm: Optional[str]
-    runs: List[RunResult]
-    outputs: Dict[str, Dict[str, Any]] = field(default_factory=dict)
-    #: Inputs of this arm the experiment's own inputs replaced, in plain words (see :mod:`fg_env.experiments.arm_inputs`).
-    overridden: List[str] = field(default_factory=list)
+    arm: str | None
+    runs: list[RunResult]
+    outputs: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Inputs of this arm the experiment's own inputs replaced, in plain words (see
+    #: :mod:`fg_env.experiments.arm_inputs`).
+    overridden: list[str] = field(default_factory=list)
 
     @property
-    def failed(self) -> List[RunResult]:
+    def failed(self) -> list[RunResult]:
         return [r for r in self.runs if r.status == "failed"]
 
 
 @dataclass
 class ExperimentResult:
-    arms: Dict[str, ArmResult]
-    seeds: List[int]
-    rounds: Optional[int] = None  # explicitly requested experiment window
+    arms: dict[str, ArmResult]
+    seeds: list[int]
+    rounds: int | None = None  # explicitly requested experiment window
 
-    def deltas(self, control: Optional[str] = None) -> Dict[str, Dict[str, Dict[str, Any]]]:
+    def deltas(self, control: str | None = None) -> dict[str, dict[str, dict[str, Any]]]:
         """Paired differences (arm − control) for every numeric or yes/no output.
 
         Run *i* of every arm shares a seed, so each difference compares like with like; a
@@ -131,11 +134,11 @@ class ExperimentResult:
         if label not in self.arms:
             raise KeyError(f"no arm '{label}' (arms: {', '.join(self.arms)})")
         base = self.arms[label]
-        out: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        out: dict[str, dict[str, dict[str, Any]]] = {}
         for name, arm in self.arms.items():
             if name == label:
                 continue
-            per_output: Dict[str, Dict[str, Any]] = {}
+            per_output: dict[str, dict[str, Any]] = {}
             for key in base.outputs:
                 diffs = []
                 for mine, theirs in zip(arm.runs, base.runs):
@@ -156,7 +159,7 @@ class ExperimentResult:
 
     def table(self) -> str:
         """Plain-text comparison of every output across arms."""
-        names: List[str] = []
+        names: list[str] = []
         for arm in self.arms.values():
             for key in arm.outputs:
                 if key not in names:
@@ -207,8 +210,9 @@ class ExperimentResult:
             lines.append(f"output issues: {len(output_errors)} run(s) (first: {first['path']}: {first['message']})")
         return "\n".join(lines)
 
-    def to_dict(self) -> Dict[str, Any]:
-        return {"seeds": self.seeds, "rounds": self.rounds, "deltas": self.deltas() if len(self.arms) > 1 else {}, "arms": {
+    def to_dict(self) -> dict[str, Any]:
+        return {"seeds": self.seeds, "rounds": self.rounds, "deltas": self.deltas() if len(self.arms) > 1 else {},
+                "arms": {
             label: {"outputs": arm.outputs, "runs": [r.to_dict(events=bool(r.exposures)) for r in arm.runs]}
             for label, arm in self.arms.items()}}
 
@@ -226,7 +230,7 @@ class Job:
     its own participants (used instead of the batch's for this run: a tournament seats different entrants)."""
 
     inputs: Mapping[str, Any]
-    arm: Optional[str]
+    arm: str | None
     seed: int
     tags: Mapping[str, Any] = field(default_factory=dict)
     participants: Any = None
@@ -238,8 +242,8 @@ def failed_run(job: Job, error: BaseException) -> RunResult:
                      outputs={}, metrics={}, series={}, error=f"{type(error).__name__}: {error}")
 
 
-def run_job(source: Any, job: Job, participants: Any = None, rounds: Optional[int] = None, events: bool = True,
-            data_dir: Any = None, budget: Optional[Mapping[str, Any]] = None, exposures: bool = False,
+def run_job(source: Any, job: Job, participants: Any = None, rounds: int | None = None, events: bool = True,
+            data_dir: Any = None, budget: Mapping[str, Any] | None = None, exposures: bool = False,
             hosts: Any = None) -> RunResult:
     """Run one job; a failure comes back as a failed run, never raised. A run that records exposures keeps its
     events whatever ``events`` says: a recording is replayed against them."""
@@ -256,16 +260,16 @@ class _Batch:
     """What every job of a batch sent to worker processes shares."""
 
     key: str
-    data: Dict[str, Any]
-    folder: Optional[str]
-    cwd: Optional[str]
-    rounds: Optional[int]
+    data: dict[str, Any]
+    folder: str | None
+    cwd: str | None
+    rounds: int | None
     events: bool
-    budget: Optional[Mapping[str, Any]]
+    budget: Mapping[str, Any] | None
     exposures: bool
 
 
-def _run_chunk(batch: _Batch, chunk: Sequence[Tuple[Job, Any]]) -> Tuple[List[RunResult], float]:
+def _run_chunk(batch: _Batch, chunk: Sequence[tuple[Job, Any]]) -> tuple[list[RunResult], float]:
     """Runs a chunk of ``(job, participants)`` in a worker process, the contract parsed once per worker; the seconds
     the chunk took come back with its results."""
     start = time.perf_counter()
@@ -281,16 +285,16 @@ def _run_chunk(batch: _Batch, chunk: Sequence[Tuple[Job, Any]]) -> Tuple[List[Ru
     return results, time.perf_counter() - start
 
 
-def _cwd() -> Optional[str]:
+def _cwd() -> str | None:
     try:
         return os.getcwd()
     except OSError:
         return None
 
 
-def _in_workers(contract: Contract, folder: Optional[Path], jobs: Sequence[Job], assigned: Callable[[Job], Any],
-                one: Callable[[Job], RunResult], workers: pools.Workers, rounds: Optional[int], events: bool,
-                budget: Optional[Mapping[str, Any]], exposures: bool) -> List[RunResult]:
+def _in_workers(contract: Contract, folder: Path | None, jobs: Sequence[Job], assigned: Callable[[Job], Any],
+                one: Callable[[Job], RunResult], workers: pools.Workers, rounds: int | None, events: bool,
+                budget: Mapping[str, Any] | None, exposures: bool) -> list[RunResult]:
     """Every job through worker processes, or in this process when that is measured to be sooner.
 
     With no measure of this contract's runs and no workers running, the first job runs here and is timed; the
@@ -300,7 +304,7 @@ def _in_workers(contract: Contract, folder: Optional[Path], jobs: Sequence[Job],
     data = contract_source(contract)
     where = str(folder) if folder else None
     key = pools.contract_key(data, where)
-    done: List[RunResult] = []
+    done: list[RunResult] = []
     cost = pools.job_seconds(key)
     started = workers.started
     clock = time.perf_counter()
@@ -332,10 +336,11 @@ def _check_workers(workers: Any) -> None:
 
 
 @contextmanager
-def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> Iterator[Optional[pools.Workers]]:
-    """Worker processes shared by many :func:`run_jobs` calls: this process's kept pool (:mod:`fg_env.experiments.workers`),
-    or with ``FG_ENV_KEEP_WORKERS=0`` a pool of its own closed when the block ends. Nothing starts until a batch needs
-    it. Yields ``None`` when runs stay in this process: one worker, participants that are callables, or hosts."""
+def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> Iterator[pools.Workers | None]:
+    """Worker processes shared by many :func:`run_jobs` calls: this process's kept pool
+    (:mod:`fg_env.experiments.workers`), or with ``FG_ENV_KEEP_WORKERS=0`` a pool of its own closed when the block ends.
+    Nothing starts until a batch needs it. Yields ``None`` when runs stay in this process: one worker, participants that
+    are callables, or hosts."""
     _check_workers(workers)
     if workers > 1 and hosts is None and _portable(participants):
         handle = pools.Workers(workers)
@@ -348,9 +353,9 @@ def worker_pool(workers: int, participants: Any = None, hosts: Any = None) -> It
 
 
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None,
-             participants_for: Optional[Callable[[Job], Any]] = None, rounds: Optional[int] = None, workers: int = 1,
-             events: bool = True, pool: Optional[pools.Pool] = None, data_dir: Any = None,
-             budget: Optional[Mapping[str, Any]] = None, exposures: bool = False, hosts: Any = None) -> List[RunResult]:
+             participants_for: Callable[[Job], Any] | None = None, rounds: int | None = None, workers: int = 1,
+             events: bool = True, pool: pools.Pool | None = None, data_dir: Any = None,
+             budget: Mapping[str, Any] | None = None, exposures: bool = False, hosts: Any = None) -> list[RunResult]:
     """Run every job, in order, returning one result per job.
 
     Problems the jobs share (bad inputs, an unknown arm, an unknown participant) raise before anything
@@ -373,7 +378,7 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
     def assigned(job: Job) -> Any:
         return job.participants if job.participants is not None else participants
 
-    probed: Set[Tuple[str, Optional[str]]] = set()
+    probed: set[tuple[str, str | None]] = set()
     bound = False
     for job in jobs:  # fail fast on what the jobs share
         key = (json.dumps(dict(job.inputs), sort_keys=True, default=str), job.arm)
@@ -413,20 +418,20 @@ def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = N
 
 
 def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participants: Any,
-              participants_for: Optional[Callable[[Job], Any]], rounds: Optional[int], workers: int,
-              folder: Any, budget: Optional[Mapping[str, Any]], exposures: bool, hosts: Any = None) -> List[RunResult]:
+              participants_for: Callable[[Job], Any] | None, rounds: int | None, workers: int,
+              folder: Any, budget: Mapping[str, Any] | None, exposures: bool, hosts: Any = None) -> list[RunResult]:
     """Each run's first ``branch_at`` rounds played once without an arm, then continued under every job's arm. The
     budget starts with the shared rounds and every continuation carries what they used (a fork keeps the budget)."""
     if isinstance(branch_at, bool) or not isinstance(branch_at, int) or branch_at < 0:
         raise ValueError(f"branch_at must be a whole number of rounds ≥ 0, got {branch_at!r}")
     if rounds is not None and branch_at > rounds:
         raise ValueError(f"branch_at ({branch_at}) is after the {rounds} rounds each run plays")
-    groups: Dict[Any, List[Job]] = {}
+    groups: dict[Any, list[Job]] = {}
     for job in jobs:
         groups.setdefault(job.tags["run"], []).append(job)
     rest = None if rounds is None else rounds - branch_at
 
-    def one(group: List[Job]) -> List[Tuple[Job, RunResult]]:
+    def one(group: list[Job]) -> list[tuple[Job, RunResult]]:
         first = group[0]
         try:
             shared = load(contract, inputs=dict(first.inputs), seed=first.seed, data_dir=folder, exposures=exposures,
@@ -438,7 +443,7 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
             raise
         except Exception as exc:  # the shared history failed: every arm of this run reports it
             return [(job, failed_run(job, exc)) for job in group]
-        done: List[Tuple[Job, RunResult]] = []
+        done: list[tuple[Job, RunResult]] = []
         for job in group:
             try:
                 forked = shared.fork(arm=job.arm)
@@ -460,11 +465,11 @@ def _branched(contract: Contract, jobs: Sequence[Job], branch_at: int, participa
     return [found[id(job)] for job in jobs]
 
 
-def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]] = None, seed: int = 0,
-               inputs: Optional[Mapping[str, Any]] = None, participants: Any = None,
-               participants_for: Optional[Callable[[int, Optional[str]], Any]] = None,
-               rounds: Optional[int] = None, workers: int = 1, data_dir: Any = None,
-               branch_at: Optional[int] = None, budget: Optional[Mapping[str, Any]] = None,
+def experiment(source: ContractLike, *, runs: int = 10, arms: list[str] | None = None, seed: int = 0,
+               inputs: Mapping[str, Any] | None = None, participants: Any = None,
+               participants_for: Callable[[int, str | None], Any] | None = None,
+               rounds: int | None = None, workers: int = 1, data_dir: Any = None,
+               branch_at: int | None = None, budget: Mapping[str, Any] | None = None,
                exposures: bool = False, hosts: Any = None, uncertainty: Any = None) -> ExperimentResult:
     """Run each arm ``runs`` times. Run *i* uses the same seed in every arm, so differences
     between arms come from the arm, not from luck. ``arms`` defaults to every declared arm
@@ -494,7 +499,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
         Budget.parse(budget)  # a mistake in the budget raises before anything runs
     contract = parse(source, data_dir)
     folder = default_data_dir(contract)
-    labels: List[Optional[str]] = list(arms) if arms is not None else (list(contract.arms) or [None])
+    labels: list[str | None] = list(arms) if arms is not None else (list(contract.arms) or [None])
     unknown = [a for a in labels if a is not None and a not in contract.arms]
     if unknown:
         raise ContractError([Issue("arms", f"not declared: {', '.join(map(str, unknown))}",
@@ -520,7 +525,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: Optional[List[str]
         results = run_jobs(contract, jobs, participants=participants,
                            participants_for=per_job if participants_for else None, rounds=rounds, workers=workers,
                            data_dir=folder, budget=budget, exposures=exposures, hosts=hosts)
-    out: Dict[str, ArmResult] = {}
+    out: dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]
         summary = {name: _describe([r.outputs.get(name) for r in arm_runs if _usable_output(r, name)])

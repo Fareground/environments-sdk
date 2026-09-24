@@ -1,5 +1,5 @@
-"""The ``economy.demand`` round: returns, promotions and prices at its start, demand and sales at its end — and the stock
-actions (``receive``, ``remove``) every other change of stock goes through, so ``$stock_conserved`` can prove it.
+"""The ``economy.demand`` round: returns, promotions and prices at its start, demand and sales at its end — and the
+stock actions (``receive``, ``remove``) every other change of stock goes through, so ``$stock_conserved`` can prove it.
 
 Random draws come from streams named by the mechanism, the purpose, the item, the segment and the round (and the counts
 pattern's own streams for demand), never from the run's shared stream: arms of an experiment see the same luck, and a
@@ -9,14 +9,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
-from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError
 from ..patterns.base import KINDS
 from ..patterns.observe import count_quantile
 from ..registry import family_action
+from ..world.entity import Entity
 from ..world.live import Abort
 from ._common import condition
 from .econ_assets import burn_money, mint_money
@@ -26,8 +26,8 @@ from .econ_demand import SEGMENT_TOTALS, DemandConfig, FactorRef, SegmentSpec, s
 __all__ = ["number_of", "read_term", "plan", "binomial", "stream", "stock_in", "stock_out"]
 
 
-def number_of(runner: Any, value: Any, vars: Dict[str, Any], where: str, low: Optional[float] = None,
-              high: Optional[float] = None) -> float:
+def number_of(runner: Any, value: Any, vars: dict[str, Any], where: str, low: float | None = None,
+              high: float | None = None) -> float:
     """A config value (a number or an expression over ``vars``) as a finite number within bounds."""
     result = value
     if isinstance(value, str) and "$" not in value:
@@ -43,7 +43,8 @@ def number_of(runner: Any, value: Any, vars: Dict[str, Any], where: str, low: Op
     if isinstance(result, bool) or not isinstance(result, (int, float)) or not math.isfinite(result):
         raise RunError(f"must give a number, got {result!r}", where)
     if (low is not None and result < low) or (high is not None and result > high):
-        span = f"at least {low:g}" if high is None else (f"at most {high:g}" if low is None else f"from {low:g} to {high:g}")
+        span = f"at least {low:g}" if high is None else (f"at most {high:g}" if low is None
+                                                         else f"from {low:g} to {high:g}")
         raise RunError(f"must be {span}, got {result:g}", where)
     return float(result)
 
@@ -92,14 +93,14 @@ class _Read:
     """A pattern read for an item: whether it takes every item's price, a driver, and a key."""
 
     pattern: str
-    key: Optional[str]
-    driver: Optional[str]
+    key: str | None
+    driver: str | None
     prices: bool
     responds: bool
     keyed: bool
 
 
-_Term = Union[float, str, _Read]
+_Term = float | str | _Read
 
 
 @dataclass(frozen=True)
@@ -107,7 +108,7 @@ class _Segment:
     name: str
     spec: SegmentSpec
     rate: _Term
-    factors: Tuple[_Term, ...]
+    factors: tuple[_Term, ...]
     noise_keyed: bool
     main: bool
 
@@ -120,12 +121,13 @@ def _term(world: Any, factor: Any) -> _Term:
     ref = factor if isinstance(factor, FactorRef) else FactorRef(pattern=factor)
     cfg = world.patterns.configs[ref.pattern]
     prices = cfg.kind == "cross_price"
-    return _Read(ref.pattern, ref.key, ref.driver, prices, not prices and bool(KINDS[cfg.kind].arg_names(cfg)), cfg.keyed)
+    return _Read(ref.pattern, ref.key, ref.driver, prices, not prices and bool(KINDS[cfg.kind].arg_names(cfg)),
+                 cfg.keyed)
 
 
-def plan(world: Any, name: str, config: DemandConfig) -> List[_Segment]:
+def plan(world: Any, name: str, config: DemandConfig) -> list[_Segment]:
     """Every segment with its reads resolved against the patterns (once per contract)."""
-    def build() -> List[_Segment]:
+    def build() -> list[_Segment]:
         out = []
         for index, (segment, spec) in enumerate(segments_of(config).items()):
             noise_keyed = spec.noise is not None and world.patterns.configs[spec.noise].keyed
@@ -136,12 +138,13 @@ def plan(world: Any, name: str, config: DemandConfig) -> List[_Segment]:
     return cached(world, ("demand-plan", name), build)  # type: ignore[no-any-return]
 
 
-def read_term(runner: Any, term: _Term, item: Entity, vars: Dict[str, Any], prices: Dict[str, float], where: str) -> float:
+def read_term(runner: Any, term: _Term, item: Entity, vars: dict[str, Any], prices: dict[str, float],
+              where: str) -> float:
     if isinstance(term, float):
         return term
     if isinstance(term, str):
         return number_of(runner, term, vars, where, low=0)
-    args: List[Any] = []
+    args: list[Any] = []
     if term.prices:
         args.append(prices)
     elif term.responds:
@@ -157,7 +160,7 @@ def read_term(runner: Any, term: _Term, item: Entity, vars: Dict[str, Any], pric
     return float(value)
 
 
-def _draw(runner: Any, name: str, segment: _Segment, item: Entity, mean: float, where: str) -> Tuple[int, float]:
+def _draw(runner: Any, name: str, segment: _Segment, item: Entity, mean: float, where: str) -> tuple[int, float]:
     """Units asked for around ``mean``, and the variance of that draw."""
     world = runner.world
     noise = segment.spec.noise
@@ -182,8 +185,9 @@ def _draw(runner: Any, name: str, segment: _Segment, item: Entity, mean: float, 
 
 
 @family_action("economy", ("demand",), "open", internal=True,
-               example='{"economy": "shop", "action": "open"}  (take back returns due, then read promotions and prices)')
-def _open(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+               example='{"economy": "shop", "action": "open"}  (take back returns due, then read promotions and '
+                       'prices)')
+def _open(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config: DemandConfig = config_of(world, name, DEMAND, where)
@@ -199,7 +203,7 @@ def _open(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str)
         world.set_prop(item, f"{name}_price", number_of(runner, config.price, scope, f"{base}.price", low=0))
 
 
-def _take_back(runner: Any, name: str, config: DemandConfig, due: List[Any], base: str) -> None:
+def _take_back(runner: Any, name: str, config: DemandConfig, due: list[Any], base: str) -> None:
     world = runner.world
     segments = segments_of(config)
     kept = _segment_store(world, name, config)
@@ -220,7 +224,8 @@ def _take_back(runner: Any, name: str, config: DemandConfig, due: List[Any], bas
             stock_in(world, name, config, item, back, "returned")
         cost = number_of(runner, config.cost, {"it": item}, f"{base}.cost", low=0)
         totals["cogs"] -= back * cost
-        for prop, delta in ((f"{name}_returned_total", units), (f"{name}_refunds", refund), (f"{name}_cogs", -back * cost)):
+        for prop, delta in ((f"{name}_returned_total", units), (f"{name}_refunds", refund),
+                            (f"{name}_cogs", -back * cost)):
             world.set_prop(item, prop, props(item)[prop] + delta)
     world.set_world(f"{name}_segments", kept)
     if config.account is not None and config.currency is not None and refunds:
@@ -246,7 +251,7 @@ class _Tally:
         self.demand = self.served = self.substituted = self.backordered = self.lost = self.spill_in = self.filled = 0
         self.revenue = self.expected = self.variance = 0.0
         self.stockout = False
-        self.sold_to: Dict[str, List[float]] = {}  # segment → [units, revenue]
+        self.sold_to: dict[str, list[float]] = {}  # segment → [units, revenue]
 
     def sell(self, segment: str, units: int, price: float) -> None:
         if units:
@@ -262,24 +267,24 @@ class _Row:
     __slots__ = ("segment", "item", "price", "demand", "unmet", "lost", "stock", "drivers")
 
     def __init__(self, segment: _Segment, item: Entity, price: float, demand: int, unmet: int, stock: int,
-                 drivers: Dict[str, float]):
+                 drivers: dict[str, float]):
         self.segment, self.item, self.price, self.demand, self.unmet = segment, item, price, demand, unmet
         self.lost, self.stock, self.drivers = 0, stock, drivers
 
 
 @family_action("economy", ("demand",), "trade", internal=True,
                example='{"economy": "shop", "action": "trade"}  (draw this round\'s demand and sell from stock)')
-def _trade(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _trade(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
     name = effect["economy"]
     config: DemandConfig = config_of(world, name, DEMAND, where)
     base = f"mechanisms.{name}"
     items = list(world.alive_of(config.items))
-    stock: Optional[Dict[str, int]] = None if config.stock is None else {i.id: int(props(i)[config.stock]) for i in items}
+    stock: dict[str, int] | None = None if config.stock is None else {i.id: int(props(i)[config.stock]) for i in items}
     tallies = {item.id: _Tally() for item in items}
     _fill_backorders(name, items, stock, tallies)
     prices = {item.id: float(props(item)[f"{name}_price"]) for item in items}
-    rows: List[_Row] = []
+    rows: list[_Row] = []
     for segment in plan(world, name, config):
         rows += _serve(runner, name, config, segment, items, prices, stock, tallies, base)
     backlog = _unmet(runner, name, config, rows, stock, tallies, base)
@@ -289,7 +294,7 @@ def _trade(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str
         _post(runner, name, rows, tallies)
 
 
-def _fill_backorders(name: str, items: List[Entity], stock: Optional[Dict[str, int]], tallies: Dict[str, _Tally]) -> None:
+def _fill_backorders(name: str, items: list[Entity], stock: dict[str, int] | None, tallies: dict[str, _Tally]) -> None:
     for item in items:
         waiting = int(props(item)[f"{name}_backlog"])
         if waiting and stock is not None and stock[item.id]:
@@ -298,20 +303,20 @@ def _fill_backorders(name: str, items: List[Entity], stock: Optional[Dict[str, i
             tallies[item.id].filled = filled
 
 
-def _serve(runner: Any, name: str, config: DemandConfig, segment: _Segment, items: List[Entity], prices: Dict[str, float],
-           stock: Optional[Dict[str, int]], tallies: Dict[str, _Tally], base: str) -> List[_Row]:
+def _serve(runner: Any, name: str, config: DemandConfig, segment: _Segment, items: list[Entity],
+           prices: dict[str, float], stock: dict[str, int] | None, tallies: dict[str, _Tally], base: str) -> list[_Row]:
     spec, path = segment.spec, base if segment.main else f"{base}.segments.{segment.name}"
     rows = []
     for item in items:
         price = prices[item.id]
-        scope: Dict[str, Any] = {"it": item, "price": price}
+        scope: dict[str, Any] = {"it": item, "price": price}
         if spec.where is not None and not condition(runner.world, spec.where, f"{path}.where", **scope):
             continue
         if spec.price is not None:
             price = number_of(runner, spec.price, scope, f"{path}.price", low=0)
             scope["price"] = price
         mean = read_term(runner, segment.rate, item, scope, prices, f"{path}.rate")
-        drivers: Dict[str, float] = {}
+        drivers: dict[str, float] = {}
         for index, term in enumerate(segment.factors):
             mean *= read_term(runner, term, item, scope, prices, f"{path}.factors[{index}]")
             if isinstance(term, _Read) and term.driver is not None:
@@ -332,11 +337,11 @@ def _serve(runner: Any, name: str, config: DemandConfig, segment: _Segment, item
     return rows
 
 
-def _unmet(runner: Any, name: str, config: DemandConfig, rows: List[_Row], stock: Optional[Dict[str, int]],
-           tallies: Dict[str, _Tally], base: str) -> Dict[str, int]:
+def _unmet(runner: Any, name: str, config: DemandConfig, rows: list[_Row], stock: dict[str, int] | None,
+           tallies: dict[str, _Tally], base: str) -> dict[str, int]:
     """Unmet demand tries substitutes, then waits or leaves. Returns the backorders placed, by item."""
     world = runner.world
-    backlog: Dict[str, int] = {}
+    backlog: dict[str, int] = {}
     for row in [r for r in rows if r.unmet]:
         item, segment, left = row.item, row.segment, row.unmet
         scope = {"it": item, "price": row.price}
@@ -349,7 +354,8 @@ def _unmet(runner: Any, name: str, config: DemandConfig, rows: List[_Row], stock
                     continue
                 listed = float(props(other)[f"{name}_price"])
                 price = listed if segment.spec.price is None else number_of(
-                    runner, segment.spec.price, {"it": other, "price": listed}, f"{base}.segments.{segment.name}.price", low=0)
+                    runner, segment.spec.price, {"it": other, "price": listed}, f"{base}.segments.{segment.name}.price",
+                    low=0)
                 stock[other.id] -= taken
                 tallies[other.id].spill_in += taken
                 tallies[other.id].sell(segment.name, taken, price)
@@ -365,7 +371,7 @@ def _unmet(runner: Any, name: str, config: DemandConfig, rows: List[_Row], stock
     return backlog
 
 
-def _substitutes(runner: Any, config: DemandConfig, item: Entity, base: str) -> List[Entity]:
+def _substitutes(runner: Any, config: DemandConfig, item: Entity, base: str) -> list[Entity]:
     world = runner.world
     try:
         listed = runner.eval(config.substitutes, {"it": item})
@@ -380,8 +386,8 @@ def _substitutes(runner: Any, config: DemandConfig, item: Entity, base: str) -> 
     return out
 
 
-def _settle(runner: Any, name: str, config: DemandConfig, items: List[Entity], stock: Optional[Dict[str, int]],
-            tallies: Dict[str, _Tally], backlog: Dict[str, int], rows: List[_Row], base: str) -> None:
+def _settle(runner: Any, name: str, config: DemandConfig, items: list[Entity], stock: dict[str, int] | None,
+            tallies: dict[str, _Tally], backlog: dict[str, int], rows: list[_Row], base: str) -> None:
     """Write the round into the items, the segment totals, the stock flows and the account."""
     world = runner.world
     kept = _segment_store(world, name, config)
@@ -400,7 +406,7 @@ def _settle(runner: Any, name: str, config: DemandConfig, items: List[Entity], s
         sold = tally.served + tally.spill_in + tally.filled
         sold_units += sold
         revenue += tally.revenue
-        updates: Dict[str, Any] = {
+        updates: dict[str, Any] = {
             "demand": tally.demand, "sold": sold, "lost": tally.lost, "stockout": tally.stockout,
             "expected": tally.expected, "variance": tally.variance,
             "backlog": int(p[f"{name}_backlog"]) - tally.filled + backlog.get(item.id, 0),
@@ -430,14 +436,14 @@ def _settle(runner: Any, name: str, config: DemandConfig, items: List[Entity], s
         mint_money(world, config.currency, account, revenue, f"{name}_sales", base)
 
 
-def _segment_store(world: Any, name: str, config: DemandConfig) -> Dict[str, Dict[str, Any]]:
+def _segment_store(world: Any, name: str, config: DemandConfig) -> dict[str, dict[str, Any]]:
     """A fresh copy of the per-segment totals, with every segment and measure present."""
     kept = world.props.get(f"{name}_segments") or {}
     return {segment: {measure: (kept.get(segment) or {}).get(measure, 0) for measure in SEGMENT_TOTALS}
             for segment in segments_of(config)}
 
 
-def _schedule_returns(runner: Any, name: str, tallies: Dict[str, _Tally], base: str) -> None:
+def _schedule_returns(runner: Any, name: str, tallies: dict[str, _Tally], base: str) -> None:
     world = runner.world
     config: DemandConfig = config_of(world, name, DEMAND, base)
     segments = segments_of(config)
@@ -462,7 +468,7 @@ def _schedule_returns(runner: Any, name: str, tallies: Dict[str, _Tally], base: 
         world.set_world(f"{name}_returns", pending)
 
 
-def _post(runner: Any, name: str, rows: List[_Row], tallies: Dict[str, _Tally]) -> None:
+def _post(runner: Any, name: str, rows: list[_Row], tallies: dict[str, _Tally]) -> None:
     world = runner.world
     date = runner.eval("$clock.date", {})
     time = str(date) if date else str(world.round)
@@ -471,7 +477,8 @@ def _post(runner: Any, name: str, rows: List[_Row], tallies: Dict[str, _Tally]) 
         tally, p = tallies[row.item.id], props(row.item)
         units = tally.sold_to.get(row.segment.name, (0, 0.0))[0]
         world.post(f"{name}_history", {
-            "time": time, "item": row.item.id, "segment": row.segment.name, "units": units, "stockout": 1 if row.unmet else 0,
+            "time": time, "item": row.item.id, "segment": row.segment.name, "units": units,
+            "stockout": 1 if row.unmet else 0,
             "demand": row.demand, "lost": row.lost, "stock": row.stock, "price": round(row.price, 4),
             "promo": p[f"{name}_promo"], **{k: round(v, 6) for k, v in row.drivers.items()}}, None, None, where)
 
@@ -481,7 +488,8 @@ def _post(runner: Any, name: str, rows: List[_Row], tallies: Dict[str, _Tally]) 
 # ---------------------------------------------------------------------------
 
 
-def _item_and_qty(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> Tuple[DemandConfig, Entity, int]:
+def _item_and_qty(runner: Any, effect: dict[str, Any], vars: dict[str, Any],
+                  where: str) -> tuple[DemandConfig, Entity, int]:
     world = runner.world
     config: DemandConfig = config_of(world, effect["economy"], DEMAND, where)
     if config.stock is None:
@@ -492,7 +500,7 @@ def _item_and_qty(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], whe
     return config, item, whole(runner.eval(effect["qty"], vars), where, "qty")
 
 
-def _flow_name(effect: Dict[str, Any], key: str, where: str) -> str:
+def _flow_name(effect: dict[str, Any], key: str, where: str) -> str:
     value = effect.get(key)
     if not isinstance(value, str) or not value or value in ("sold", "returned"):
         raise RunError(f"`{key}` names the flow in plain words (not sold or returned), got {value!r}", where)
@@ -503,7 +511,7 @@ def _flow_name(effect: Dict[str, Any], key: str, where: str) -> str:
                literal=("source",),
                example='{"economy": "shop", "action": "receive", "item": "$it", "qty": 12, "source": "supplier"}  '
                        '(units enter an item\'s stock from a named source)')
-def _receive(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _receive(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     config, item, qty = _item_and_qty(runner, effect, vars, where)
     stock_in(runner.world, effect["economy"], config, item, qty, _flow_name(effect, "source", where))
 
@@ -512,6 +520,6 @@ def _receive(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: s
                literal=("sink",),
                example='{"economy": "shop", "action": "remove", "item": "$it", "qty": 2, "sink": "damaged"}  '
                        '(units leave an item\'s stock into a named sink; refused when fewer are on hand)')
-def _remove(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
+def _remove(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     config, item, qty = _item_and_qty(runner, effect, vars, where)
     stock_out(runner.world, effect["economy"], config, item, qty, _flow_name(effect, "sink", where))

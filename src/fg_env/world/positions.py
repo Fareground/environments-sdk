@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import heapq
 import math
-from typing import Any, Callable, Collection, Dict, Iterable, List, Optional, Tuple
+from collections.abc import Callable, Collection, Iterable
+from typing import Any
 
 from .entity import Entity
 from .geometry import Geometry
@@ -22,7 +23,7 @@ _AREAS = 32
 #: Random cells tried before listing the empty ones, on a space that is mostly empty.
 _TRIES = 64
 
-Kinds = Optional[Collection[str]]
+Kinds = Collection[str] | None
 
 
 class PositionIndex:
@@ -30,8 +31,8 @@ class PositionIndex:
         self.geometry = geometry
         self._types = types
         #: bucket → entity id → entity
-        self._buckets: Dict[Any, Dict[str, Entity]] = {}
-        self._bucket_of: Dict[str, Any] = {}
+        self._buckets: dict[Any, dict[str, Entity]] = {}
+        self._bucket_of: dict[str, Any] = {}
 
     # -- upkeep ----------------------------------------------------------------------------
 
@@ -63,20 +64,20 @@ class PositionIndex:
 
     # -- queries ----------------------------------------------------------------------------
 
-    def at(self, position: Any, kinds: Kinds) -> List[Entity]:
+    def at(self, position: Any, kinds: Kinds) -> list[Entity]:
         found: Iterable[Entity] = self._buckets.get(self.bucket(position), {}).values()
         if self.geometry.kind == "plane":
             found = [entity for entity in found if entity.location_id == position]
         return self._ordered(entity for entity in found if kinds is None or entity.entity_type in kinds)
 
-    def occupants(self, cell: Any) -> List[Entity]:
+    def occupants(self, cell: Any) -> list[Entity]:
         """Entities in one grid cell or graph place, in no particular order."""
         return list(self._buckets.get(cell, {}).values())
 
-    def near(self, center: Any, radius: float, kinds: Kinds, exclude: Optional[str]) -> List[Entity]:
+    def near(self, center: Any, radius: float, kinds: Kinds, exclude: str | None) -> list[Entity]:
         """Entities within ``radius`` of a stored position (itself excluded when it is an entity's)."""
         geometry = self.geometry
-        buckets: Optional[List[Any]]
+        buckets: list[Any] | None
         if geometry.kind == "plane":
             buckets = self._areas(center, radius)
         elif geometry.kind == "grid" and (2 * radius + 1) ** 2 > len(self._bucket_of):
@@ -90,8 +91,8 @@ class PositionIndex:
                  and (not measure or geometry.distance(center, entity.location_id) <= radius)]
         return self._ordered(found)
 
-    def nearest(self, center: Any, kinds: Kinds, exclude: Optional[str],
-                qualifies: Callable[[Entity], bool]) -> Optional[Entity]:
+    def nearest(self, center: Any, kinds: Kinds, exclude: str | None,
+                qualifies: Callable[[Entity], bool]) -> Entity | None:
         """The closest entity ``qualifies`` accepts, trying candidates nearest first (ties in creation
         order); each candidate is tried at most once."""
         geometry = self.geometry
@@ -106,10 +107,10 @@ class PositionIndex:
                 radius *= 2
         return self._first(center, self._pool(None), math.inf, kinds, exclude, qualifies, tried)
 
-    def _first(self, center: Any, pool: Iterable[Entity], radius: float, kinds: Kinds, exclude: Optional[str],
-               qualifies: Callable[[Entity], bool], tried: set) -> Optional[Entity]:
+    def _first(self, center: Any, pool: Iterable[Entity], radius: float, kinds: Kinds, exclude: str | None,
+               qualifies: Callable[[Entity], bool], tried: set) -> Entity | None:
         geometry, order = self.geometry, self._types.ordinal
-        keyed: List[Tuple[float, int, Entity]] = []
+        keyed: list[tuple[float, int, Entity]] = []
         for entity in pool:
             if entity.id == exclude or entity.id in tried or (kinds is not None and entity.entity_type not in kinds):
                 continue
@@ -124,11 +125,11 @@ class PositionIndex:
                 return entity
         return None
 
-    def empty(self, kinds: Kinds) -> List[Any]:
+    def empty(self, kinds: Kinds) -> list[Any]:
         geometry = self.geometry
         return [geometry.position(cell) for cell in range(geometry.cell_count) if self._empty(cell, kinds)]
 
-    def random_empty(self, kinds: Kinds, rng: Any) -> Optional[Any]:
+    def random_empty(self, kinds: Kinds, rng: Any) -> Any | None:
         """A cell holding no entity (of ``kinds``) picked at random from the run's stream, or None."""
         geometry = self.geometry
         total = geometry.cell_count
@@ -146,16 +147,16 @@ class PositionIndex:
 
     # -- helpers ------------------------------------------------------------------------------
 
-    def _pool(self, buckets: Optional[Iterable[Any]]) -> List[Entity]:
+    def _pool(self, buckets: Iterable[Any] | None) -> list[Entity]:
         if buckets is None:
             return [entity for members in self._buckets.values() for entity in members.values()]
         return [entity for bucket in buckets for entity in self._buckets.get(bucket, {}).values()]
 
-    def _ordered(self, entities: Iterable[Entity]) -> List[Entity]:
+    def _ordered(self, entities: Iterable[Entity]) -> list[Entity]:
         order = self._types.ordinal
         return sorted(entities, key=lambda entity: order[entity.id])
 
-    def _areas(self, center: Any, radius: float) -> Optional[List[Tuple[int, int]]]:
+    def _areas(self, center: Any, radius: float) -> list[tuple[int, int]] | None:
         """Plane areas that may hold a position within ``radius`` of ``center``; None for all of them."""
         geometry = self.geometry
         reach_x = math.ceil(radius * _AREAS / geometry.width)
@@ -163,7 +164,7 @@ class PositionIndex:
         if 2 * reach_x + 1 >= _AREAS or 2 * reach_y + 1 >= _AREAS:
             return None
         bx, by = self.bucket(center)
-        areas: Dict[Tuple[int, int], None] = {}
+        areas: dict[tuple[int, int], None] = {}
         for x in range(bx - reach_x, bx + reach_x + 1):
             for y in range(by - reach_y, by + reach_y + 1):
                 if geometry.torus:

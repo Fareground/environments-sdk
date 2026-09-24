@@ -86,7 +86,8 @@ BROWNIAN = {
     "clock": {"rounds": 4},
     "types": {"particle": {"props": {"x": 0.0, "floor": 0.0}}},
     "population": [{"type": "particle", "count": 2000}],
-    "physics": {"substeps": 4, "params": {"sigma": 0.5}, "per": {"particle": {"vars": {"x": {"rate": "0", "noise": "sigma"}}}}},
+    "physics": {"substeps": 4, "params": {"sigma": 0.5},
+                "per": {"particle": {"vars": {"x": {"rate": "0", "noise": "sigma"}}}}},
     "outputs": {"var": "$variance($map(particle, $it.x))"},
 }
 
@@ -118,7 +119,8 @@ def test_bounds_hold_at_every_sub_step_of_a_noisy_variable():
 def test_world_variables_take_noise_too():
     contract = {"name": "Walk", "clock": {"rounds": 3}, "types": {"a": {"agent": True}},
                 "actions": {"wait": {"by": "a", "do": []}},
-                "physics": {"vars": {"price": {"start": 100, "rate": "0.01 * price", "noise": "0.2 * price", "min": 0}}},
+                "physics": {"vars": {"price": {"start": 100, "rate": "0.01 * price", "noise": "0.2 * price",
+                                               "min": 0}}},
                 "outputs": {"price": "$physics.price"}}
     runs = [_load(contract, seed=s).run().outputs["price"] for s in (1, 1, 2)]
     assert runs[0] == runs[1] != runs[2]
@@ -148,7 +150,8 @@ def test_a_run_split_by_a_snapshot_ends_exactly_like_a_straight_run():
 
 def test_the_checker_names_every_problem_with_per_entity_dynamics():
     contract = copy.deepcopy(DECAY)
-    contract["types"]["cell"]["props"].update({"label": "x", "note": "y", "count": {"type": "int", "default": 0}, "t": 1})
+    contract["types"]["cell"]["props"].update({"label": "x", "note": "y", "count": {"type": "int", "default": 0},
+                                               "t": 1})
     contract["types"]["hot_cell"] = {"extends": "cell"}
     contract["physics"]["params"] = {"scale": 1}
     contract["physics"]["per"] = {

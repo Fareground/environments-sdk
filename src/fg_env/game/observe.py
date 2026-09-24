@@ -14,13 +14,13 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
-from ..world.entity import Entity
 from ..contract import StageSpec
 from ..copying.snapshot import encode
 from ..expr.template import format_value
 from ..runtime.turn import Turn, entity_dict
+from ..world.entity import Entity
 from .space import as_turn
 
 if TYPE_CHECKING:
@@ -29,26 +29,26 @@ if TYPE_CHECKING:
 __all__ = ["observation_text", "observation_struct", "information_state", "state_key", "digest"]
 
 
-def _stage(env: "Env", turn: Optional[Turn]) -> StageSpec:
+def _stage(env: Env, turn: Turn | None) -> StageSpec:
     if turn is not None:
         return turn.stage
     return env._stage_spec() or env.contract.stage_list()[0]
 
 
-def _peek(env: "Env", actor: Entity, turn: Optional[Turn]) -> Turn:
+def _peek(env: Env, actor: Entity, turn: Turn | None) -> Turn:
     """A turn that only looks: the seat's own paused turn's picture, or a neutral one."""
     if turn is not None and turn.actor is actor:
         return Turn(env, actor, turn.stage, turn.reason, turn.staged, peek=True)
     return Turn(env, actor, _stage(env, turn), "", False, peek=True)
 
 
-def observation_text(env: "Env", actor: Entity, turn: Optional[Turn]) -> str:
+def observation_text(env: Env, actor: Entity, turn: Turn | None) -> str:
     peek = _peek(env, actor, turn)
     with as_turn(env, peek):
         return peek.update
 
 
-def observation_struct(env: "Env", actor: Entity, turn: Optional[Turn], actions: Optional[List[Any]]) -> Dict[str, Any]:
+def observation_struct(env: Env, actor: Entity, turn: Turn | None, actions: list[Any] | None) -> dict[str, Any]:
     peek = _peek(env, actor, turn)
     stage = peek.stage
     with as_turn(env, peek):
@@ -68,9 +68,9 @@ def observation_struct(env: "Env", actor: Entity, turn: Optional[Turn], actions:
             "actions": actions}
 
 
-def information_state(env: "Env", actor: Entity, turn: Optional[Turn]) -> str:
+def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
     peek = _peek(env, actor, turn)
-    lines: List[str] = [env.perception.brief(actor), "", "History:"]
+    lines: list[str] = [env.perception.brief(actor), "", "History:"]
     with as_turn(env, peek):
         for event in env.world.log:
             if not event.visible_to(actor.id):
@@ -92,7 +92,8 @@ def information_state(env: "Env", actor: Entity, turn: Optional[Turn]) -> str:
             block = env.perception.render_view(name, view, actor)
             if block:
                 lines.append(block)
-    sealed = [item for staged in env.origin.staged if staged.actor is actor and not staged.done for item in staged.pending]
+    sealed = [item for staged in env.origin.staged if staged.actor is actor and not staged.done
+              for item in staged.pending]
     if turn is not None and turn.actor is actor and turn.staged and not sealed:
         sealed = list(turn.pending)
     if sealed:
@@ -101,12 +102,12 @@ def information_state(env: "Env", actor: Entity, turn: Optional[Turn]) -> str:
     return "\n".join(lines)
 
 
-def state_key(env: "Env", pending: Dict[str, Any]) -> str:
+def state_key(env: Env, pending: dict[str, Any]) -> str:
     rows = [[e.id, e.entity_type, e.alive, e.location_id, encode(e.properties)] for e in env.world.entities.values()]
     return digest(json.dumps(_world_data(env, rows, pending), sort_keys=True, default=str))
 
 
-def visible_key(env: "Env", actor: Entity, pending: Dict[str, Any]) -> str:
+def visible_key(env: Env, actor: Entity, pending: dict[str, Any]) -> str:
     """A key for the state with what ``actor`` cannot see left out: other entities' private properties and events not
     addressed to it. Two states with equal keys differ at most in what the rules hide from ``actor``."""
     world, contract = env.world, env.contract
@@ -115,7 +116,8 @@ def visible_key(env: "Env", actor: Entity, pending: Dict[str, Any]) -> str:
         props = entity.properties
         if entity is not actor:
             specs = contract.props_of(entity.entity_type)
-            props = {key: value for key, value in props.items() if not (specs.get(key) is not None and specs[key].private)}
+            props = {key: value for key, value in props.items()
+                     if not (specs.get(key) is not None and specs[key].private)}
         rows.append([entity.id, entity.entity_type, entity.alive, entity.location_id, encode(props)])
     data = _world_data(env, rows, pending)
     data["log"] = [[event.round, event.kind, event.text, event.actor, encode(event.data)]
@@ -123,7 +125,7 @@ def visible_key(env: "Env", actor: Entity, pending: Dict[str, Any]) -> str:
     return digest(json.dumps(data, sort_keys=True, default=str))
 
 
-def _world_data(env: "Env", entities: List[Any], pending: Dict[str, Any]) -> Dict[str, Any]:
+def _world_data(env: Env, entities: list[Any], pending: dict[str, Any]) -> dict[str, Any]:
     world = env.world
     return {
         "entities": entities,

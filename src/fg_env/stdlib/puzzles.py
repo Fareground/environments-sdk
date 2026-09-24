@@ -14,7 +14,8 @@ instead of stalling the run. All randomness comes from the run's seeded generato
 """
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from collections.abc import Callable
+from typing import Any
 
 from ..expr import Call, _describe, _entity_id, charge, function
 from ._args import fail, map_arg, text_arg
@@ -40,7 +41,8 @@ def _popcount(mask: int) -> int:
     return bin(mask).count("1")
 
 
-def sudoku_search(cells: List[int], box: int, limit: int, spend: Charge, rng: Any = None) -> Tuple[int, Optional[List[int]]]:
+def sudoku_search(cells: list[int], box: int, limit: int, spend: Charge,
+                  rng: Any = None) -> tuple[int, list[int] | None]:
     """Solutions of a flat grid (0 = blank), counted up to ``limit``, and the first one found.
 
     Candidates are tried most-constrained cell first; with ``rng`` each cell's digits are tried in random order."""
@@ -58,7 +60,7 @@ def sudoku_search(cells: List[int], box: int, limit: int, spend: Charge, rng: An
             boxes[square] |= bit
     blanks = [index for index, value in enumerate(grid) if not value]
     full = (1 << n) - 1
-    found: List[Any] = [0, None]
+    found: list[Any] = [0, None]
 
     def search() -> None:
         spend(len(blanks))
@@ -101,7 +103,7 @@ def sudoku_search(cells: List[int], box: int, limit: int, spend: Charge, rng: An
     return found[0], found[1]
 
 
-def _grid(call: Call, value: Any, what: str) -> Tuple[List[int], int]:
+def _grid(call: Call, value: Any, what: str) -> tuple[list[int], int]:
     """A sudoku grid as flat cells and its box size."""
     if not isinstance(value, list) or not value:
         raise fail(call, f"{what} must be a list of rows, got {_describe(value)}")
@@ -109,24 +111,26 @@ def _grid(call: Call, value: Any, what: str) -> Tuple[List[int], int]:
     box = int(round(n ** 0.5))
     if box * box != n or not 2 <= box <= MAX_BOX:
         raise fail(call, f"{what} must have 4, 9 or 16 rows, got {n}")
-    cells: List[int] = []
+    cells: list[int] = []
     for r, row in enumerate(value):
         if not isinstance(row, list) or len(row) != n:
             raise fail(call, f"{what} row {r} must be a list of {n} cells, got {_describe(row)}")
         for c, cell in enumerate(row):
             cell = 0 if cell is None else cell
             if isinstance(cell, bool) or not isinstance(cell, (int, float)) or cell != int(cell) or not 0 <= cell <= n:
-                raise fail(call, f"{what} cell [{r}, {c}] must be a whole number 0–{n} (0 or null for a blank), got {_describe(cell)}")
+                raise fail(call,
+                           f"{what} cell [{r}, {c}] must be a whole number 0–{n} (0 or null for a blank), got "
+                           f"{_describe(cell)}")
             cells.append(int(cell))
     charge(len(cells), call.source)
     return cells, box
 
 
-def _rows(cells: List[int], n: int) -> List[List[int]]:
+def _rows(cells: list[int], n: int) -> list[list[int]]:
     return [cells[i:i + n] for i in range(0, n * n, n)]
 
 
-def _sudoku_puzzle(call: Call, options: Dict[Any, Any]) -> Dict[str, Any]:
+def _sudoku_puzzle(call: Call, options: dict[Any, Any]) -> dict[str, Any]:
     unknown = sorted(set(options) - {"box", "clues"})
     if unknown:
         raise fail(call, f"sudoku options are box and clues, not {', '.join(map(str, unknown))}")
@@ -136,8 +140,8 @@ def _sudoku_puzzle(call: Call, options: Dict[Any, Any]) -> Dict[str, Any]:
     n = box * box
     target = options.get("clues", 0)
     if isinstance(target, bool) or not isinstance(target, int) or not 0 <= target <= n * n:
-        raise fail(call, f"sudoku clues must be a whole number 0–{n * n} (the fewest to keep; 0 = as few as stay unique), "
-                         f"got {_describe(target)}")
+        raise fail(call, f"sudoku clues must be a whole number 0–{n * n} (the fewest to keep; 0 = as few as stay "
+                         f"unique), got {_describe(target)}")
     spend = _spender(call)
     _, solution = sudoku_search([0] * (n * n), box, 1, spend, call.rng)
     assert solution is not None
@@ -156,7 +160,7 @@ def _sudoku_puzzle(call: Call, options: Dict[Any, Any]) -> Dict[str, Any]:
     return {"puzzle": _rows(puzzle, n), "solution": _rows(solution, n), "clues": clues, "box": box}
 
 
-def _sudoku_check(cells: List[int], box: int) -> Dict[str, Any]:
+def _sudoku_check(cells: list[int], box: int) -> dict[str, Any]:
     n = box * box
     conflicts = []
     for index, value in enumerate(cells):
@@ -178,17 +182,19 @@ def _sudoku_check(cells: List[int], box: int) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def exact_cover_search(universe: List[Any], sets: Dict[str, List[Any]], limit: int, spend: Charge) -> Tuple[int, Optional[List[str]]]:
-    """Exact covers counted up to ``limit`` and the first found (set names in declaration order): Knuth's Algorithm X."""
+def exact_cover_search(universe: list[Any], sets: dict[str, list[Any]], limit: int,
+                       spend: Charge) -> tuple[int, list[str] | None]:
+    """Exact covers counted up to ``limit`` and the first found (set names in declaration order): Knuth's Algorithm X.
+    """
     order = {name: position for position, name in enumerate(sets)}
-    columns: Dict[Any, set] = {element: set() for element in universe}
+    columns: dict[Any, set] = {element: set() for element in universe}
     for name, elements in sets.items():
         for element in elements:
             columns[element].add(name)
-    found: List[Any] = [0, None]
-    chosen: List[str] = []
+    found: list[Any] = [0, None]
+    chosen: list[str] = []
 
-    def select(name: str) -> List[set]:
+    def select(name: str) -> list[set]:
         removed = []
         for element in sets[name]:
             for other in columns[element]:
@@ -198,7 +204,7 @@ def exact_cover_search(universe: List[Any], sets: Dict[str, List[Any]], limit: i
             removed.append(columns.pop(element))
         return removed
 
-    def deselect(name: str, removed: List[set]) -> None:
+    def deselect(name: str, removed: list[set]) -> None:
         for element in reversed(sets[name]):
             columns[element] = removed.pop()
             for other in columns[element]:
@@ -227,7 +233,7 @@ def exact_cover_search(universe: List[Any], sets: Dict[str, List[Any]], limit: i
     return found[0], found[1]
 
 
-def _cover(call: Call, problem: Dict[Any, Any]) -> Tuple[List[Any], Dict[str, List[Any]]]:
+def _cover(call: Call, problem: dict[Any, Any]) -> tuple[list[Any], dict[str, list[Any]]]:
     unknown = sorted(set(problem) - {"sets", "universe", "chosen"})
     if unknown:
         raise fail(call, f"an exact cover problem has sets, universe and chosen, not {', '.join(map(str, unknown))}")
@@ -236,7 +242,7 @@ def _cover(call: Call, problem: Dict[Any, Any]) -> Tuple[List[Any], Dict[str, Li
         raise fail(call, f"sets must be a map like {{a: [1, 2], b: [3]}}, got {_describe(raw_sets)}")
     if len(raw_sets) > MAX_COVER:
         raise fail(call, f"{len(raw_sets):,} sets; an exact cover problem takes at most {MAX_COVER:,}")
-    sets: Dict[str, List[Any]] = {}
+    sets: dict[str, list[Any]] = {}
     for name, elements in raw_sets.items():
         if not isinstance(elements, list):
             raise fail(call, f"set {name!r} must be a list of elements, got {_describe(elements)}")
@@ -244,7 +250,8 @@ def _cover(call: Call, problem: Dict[Any, Any]) -> Tuple[List[Any], Dict[str, Li
         charge(len(members) + 1, call.source)
         sets[str(name)] = members
     named = list(dict.fromkeys(e for members in sets.values() for e in members))
-    universe = named if problem.get("universe") is None else list(dict.fromkeys(_element(call, e) for e in problem["universe"]))
+    universe = (named if problem.get("universe") is None
+                else list(dict.fromkeys(_element(call, e) for e in problem["universe"])))
     if len(universe) > MAX_COVER:
         raise fail(call, f"{len(universe):,} elements; an exact cover problem takes at most {MAX_COVER:,}")
     allowed = set(universe)
@@ -261,20 +268,21 @@ def _element(call: Call, value: Any) -> Any:
     return value
 
 
-def _cover_check(call: Call, universe: List[Any], sets: Dict[str, List[Any]], chosen: Any) -> Dict[str, Any]:
+def _cover_check(call: Call, universe: list[Any], sets: dict[str, list[Any]], chosen: Any) -> dict[str, Any]:
     if not isinstance(chosen, list):
         raise fail(call, f"chosen must be a list of set names, got {_describe(chosen)}")
     unknown = [name for name in chosen if name not in sets]
     if unknown:
         raise fail(call, f"chosen names sets that do not exist: {', '.join(map(str, unknown[:5]))}")
-    covered: Dict[Any, int] = {}
+    covered: dict[Any, int] = {}
     for name in chosen:
         for element in sets[name]:
             covered[element] = covered.get(element, 0) + 1
     twice = [e for e, times in covered.items() if times > 1]
     missing = [e for e in universe if e not in covered]
     return {"valid": not twice and len(set(chosen)) == len(chosen), "complete": not missing,
-            "solved": not twice and not missing and len(set(chosen)) == len(chosen), "overlaps": twice, "missing": missing}
+            "solved": not twice and not missing and len(set(chosen)) == len(chosen), "overlaps": twice,
+            "missing": missing}
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +302,11 @@ def _kind(call: Call) -> str:
 
 
 @function("puzzle(kind, options?)",
-          "A new puzzle with exactly one solution, drawn from the run's seed. sudoku: options {box: 2 or 3 (default), "
-          "clues: the fewest clues to keep (default 0: remove all it can)} → {puzzle, solution, clues, box}; blanks are 0.",
+          "A new puzzle with exactly one solution, drawn from the run's seed. sudoku: options "
+          "{box: 2 or 3 (default), clues: the fewest clues to keep (default 0: remove all it can)} → "
+          "{puzzle, solution, clues, box}; blanks are 0.",
           min_args=1, max_args=2)
-def _puzzle(call: Call) -> Dict[str, Any]:
+def _puzzle(call: Call) -> dict[str, Any]:
     kind = _kind(call)
     if kind != "sudoku":
         raise fail(call, f"{kind} puzzles are not generated; describe one and check it with $solve({kind}, ...)")
@@ -306,12 +315,12 @@ def _puzzle(call: Call) -> Dict[str, Any]:
 
 
 @function("solve(kind, problem, mode?)",
-          "Solve or check a puzzle. mode count (default): {solutions: 0, 1 or 2 (two or more), unique, solution}. mode check "
-          "(an attempt): sudoku → {valid, complete, solved, conflicts: [[row, col]]}; exact_cover (problem.chosen: set "
-          "names) → {valid, complete, solved, overlaps, missing}. sudoku problem: rows with 0 or null for blanks; "
-          "exact_cover problem: {sets: {name: [elements]}, universe?, chosen?}.",
+          "Solve or check a puzzle. mode count (default): {solutions: 0, 1 or 2 (two or more), unique, solution}. "
+          "mode check (an attempt): sudoku → {valid, complete, solved, conflicts: [[row, col]]}; exact_cover "
+          "(problem.chosen: set names) → {valid, complete, solved, overlaps, missing}. sudoku problem: rows with 0 "
+          "or null for blanks; exact_cover problem: {sets: {name: [elements]}, universe?, chosen?}.",
           min_args=2, max_args=3)
-def _solve(call: Call) -> Dict[str, Any]:
+def _solve(call: Call) -> dict[str, Any]:
     kind = _kind(call)
     mode = text_arg(call, 2, "a mode") if len(call) > 2 and call.arg(2) is not None else "count"
     if mode not in MODES:

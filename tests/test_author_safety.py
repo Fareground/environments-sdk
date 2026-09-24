@@ -3,9 +3,9 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from test_author import BROKEN, EMPTY, WORKING, FakeOpenAI, call, tool_replies, write
 
 import fg_env
-from test_author import BROKEN, EMPTY, WORKING, FakeOpenAI, call, tool_replies, write
 
 
 def game(name, **parts):
@@ -154,7 +154,8 @@ def test_anthropic_cache_reads_are_counted_apart():
     result = fg_env.author("A game.", "anthropic:m", client=SimpleNamespace(messages=SimpleNamespace(create=create)),
                            budget={"calls": 1})
 
-    assert (result.usage["input_tokens"], result.usage["cached_tokens"], result.usage["cache_write_tokens"]) == (5, 800, 50)
+    usage = result.usage
+    assert (usage["input_tokens"], usage["cached_tokens"], usage["cache_write_tokens"]) == (5, 800, 50)
 
 
 def test_an_empty_reply_is_retried_and_one_that_persists_stops_the_session(monkeypatch):

@@ -20,7 +20,8 @@ def _example(name):
 
 
 def _rules(config, name="board"):
-    return compile_rules(name, BoardConfig.model_validate({k: v for k, v in config.items() if k not in ("kind", "mode")}))
+    return compile_rules(name,
+                         BoardConfig.model_validate({k: v for k, v in config.items() if k not in ("kind", "mode")}))
 
 
 def _position(rules, setup, turn=0):
@@ -114,11 +115,12 @@ def test_movement_on_hex_ring_and_graph_boards():
     hexagon = _rules({"shape": "hex", "size": 2, "sides": ["a"], "pieces": {"q": {"moves": [{"slide": "all"}]}},
                       "setup": {"a": {"q": ["c3"]}}})
     assert len(legal(hexagon, _position(hexagon, {"a": {"q": ["c3"]}}), 0)) == 12
-    track = _rules({"shape": "ring", "size": 6, "sides": ["a"], "pieces": {"r": {"moves": [{"step": "f", "distance": 2}]}}})
+    track = _rules({"shape": "ring", "size": 6, "sides": ["a"],
+                    "pieces": {"r": {"moves": [{"step": "f", "distance": 2}]}}})
     assert _texts(track, _position(track, {"a": {"r": ["5"]}})) == ["5-1"]
     places = _rules({"shape": "graph", "nodes": ["a", "b", "c", "d"], "edges": [["a", "b"], ["b", "c"], ["c", "d"]],
-                     "sides": ["x", "y"], "pieces": {"s": {"moves": [{"step": "adjacent"}]}}, "lines": [["a", "b", "c"]],
-                     "line": 3})
+                     "sides": ["x", "y"], "pieces": {"s": {"moves": [{"step": "adjacent"}]}},
+                     "lines": [["a", "b", "c"]], "line": 3})
     pos = _position(places, {"x": {"s": ["b"]}, "y": {"s": ["c"]}})
     assert _texts(places, pos) == ["b-a", "bxc"]
     assert not has_line(places, pos, 0, 3)
@@ -274,7 +276,8 @@ def test_connect_four_drops_by_gravity_and_wins_with_four_in_a_row():
     seen = {}
 
     def first(wake):
-        seen["moves"] = next(t for t in wake.tools if t.name == "connect4_move").input_schema["properties"]["move"]["enum"]
+        move = next(t for t in wake.tools if t.name == "connect4_move")
+        seen["moves"] = move.input_schema["properties"]["move"]["enum"]
         wake.end()
 
     env.run(first, rounds=1)
@@ -304,14 +307,15 @@ def test_checkers_mandatory_multi_jump_with_crowning():
 
 def test_custodial_captures_and_drops_from_a_hand():
     tablut = {"name": "Sandwich", "clock": {"rounds": 4}, "mechanisms": {"b": {
-        "kind": "game", "mode": "board", "size": 5, "sides": [{"id": "black", "mark": "B"}, {"id": "white", "mark": "W"}],
+        "kind": "game", "mode": "board", "size": 5,
+        "sides": [{"id": "black", "mark": "B"}, {"id": "white", "mark": "W"}],
         "pieces": {"soldier": {"moves": [{"slide": "orthogonal", "only": "move"}]}},
         "setup": "5/B4/2W2/2B2/5", "captures": [{"rule": "custodial"}]}}}
     env, _ = _replay(tablut, "b", ["a4-c4"])
     assert "c3" not in _pieces(env) and env.props["b_report"] == "Black played a4-c4, capturing 1."
     drops = {"name": "Drops", "clock": {"rounds": 4}, "mechanisms": {"b": {
-        "kind": "game", "mode": "board", "size": 3, "sides": ["x", "o"], "pieces": {"stone": {}}, "place": {"from": "hand"},
-        "hand": {"x": {"stone": 1}, "o": {"stone": 1}}, "line": 3, "no_moves": "draw"}}}
+        "kind": "game", "mode": "board", "size": 3, "sides": ["x", "o"], "pieces": {"stone": {}},
+        "place": {"from": "hand"}, "hand": {"x": {"stone": 1}, "o": {"stone": 1}}, "line": 3, "no_moves": "draw"}}}
     env, _ = _replay(drops, "b", ["b2", "a1"])
     assert env.props["b_hand"] == {"x": {"stone": 0}, "o": {"stone": 0}}
     assert env.ended_by == "no_moves" and env.props["b_result"]["winner"] is None
@@ -348,7 +352,8 @@ def test_an_old_board_kind_names_the_game_family_and_a_typo_names_the_field():
     typo = copy.deepcopy(CHESS)
     typo["mechanisms"]["chess"]["players"] = "player"
     issue = _board_issues(typo)[0]
-    assert issue.message == "`players` is not a field of `game` mode `board`" and issue.path == "mechanisms.chess.players"
+    assert (issue.message == "`players` is not a field of `game` mode `board`" and issue.path
+            == "mechanisms.chess.players")
 
 
 def test_board_actions_check_their_own_keys():
@@ -356,9 +361,11 @@ def test_board_actions_check_their_own_keys():
         return [(i.path, i.message, i.fix) for i in _board_issues({**CHESS, "events": [{"do": list(effects)}]})]
 
     assert any(m == "`game.setup` needs `position`" for _, m, _ in op({"game": "chess", "action": "setup"}))
-    assert any(m == "'text' is not part of `game.pass`" for _, m, _ in op({"game": "chess", "action": "pass", "text": "e4"}))
+    assert any(m == "'text' is not part of `game.pass`"
+               for _, m, _ in op({"game": "chess", "action": "pass", "text": "e4"}))
     path, message, fix = op({"game": "chess", "action": "mvoe", "text": "e2-e4"})[0]
-    assert path.endswith(".action") and message == "'mvoe' is not an action of chess (game board)" and fix == "did you mean 'move'?"
+    assert (path.endswith(".action") and message == "'mvoe' is not an action of chess (game board)" and fix
+            == "did you mean 'move'?")
     _, _, fix = op({"pass": "chess"})[0]
     assert fix.startswith('`pass` is an action of the `game` or `flow` op: {"game": "<mechanism>", "action": "pass"')
 
@@ -396,7 +403,8 @@ def test_an_authors_game_section_or_a_second_scoring_mechanism_leaves_the_game_s
     authored = fg_env.parse({**CHESS, "game": {"returns": "$actor.id == 'white'"}}).game
     assert authored.returns == "$actor.id == 'white'" and authored.utility == "general_sum" and authored.players is None
     two = copy.deepcopy(CHESS)
-    two["mechanisms"]["other"] = {"kind": "game", "mode": "board", "size": 3, "sides": ["red", "blue"], "piece_type": "stone",
+    two["mechanisms"]["other"] = {"kind": "game", "mode": "board", "size": 3, "sides": ["red", "blue"],
+                                  "piece_type": "stone",
                                   "pieces": {"mark": {}}, "place": {}, "line": 3, "stage": "chess"}
     assert fg_env.parse(two).game is None
 

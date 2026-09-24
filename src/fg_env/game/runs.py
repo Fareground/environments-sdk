@@ -10,11 +10,12 @@ carry) goes on as a piloted run rebuilt from its decisions, and the game's later
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Protocol, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any, Protocol
 
 from ..copying.branch import Branch
-from ..host.hosts import hosts_for
 from ..copying.pilot import Pause
+from ..host.hosts import hosts_for
 from ..runtime.session import ToolResult
 
 if TYPE_CHECKING:
@@ -26,20 +27,20 @@ __all__ = ["Run", "ThreadedRun", "can_step", "replayed"]
 class Run(Protocol):
     """What a game state needs of its run."""
 
-    prefetch: Optional[Callable[[Any], Any]]
+    prefetch: Callable[[Any], Any] | None
 
     @property
-    def pause(self) -> Optional[Pause]: ...
+    def pause(self) -> Pause | None: ...
 
     def read(self, fn: Callable[[Any], Any]) -> Any: ...
 
     def read_prefetched(self) -> Any: ...
 
-    def call(self, name: str, args: Any) -> Optional[ToolResult]: ...
+    def call(self, name: str, args: Any) -> ToolResult | None: ...
 
-    def choose(self, index: int) -> Optional[ToolResult]: ...
+    def choose(self, index: int) -> ToolResult | None: ...
 
-    def clone(self) -> "Run": ...
+    def clone(self) -> Run: ...
 
     def result(self) -> Any: ...
 
@@ -51,13 +52,13 @@ class Run(Protocol):
 class ThreadedRun:
     """A game state's run piloted on its own thread."""
 
-    def __init__(self, branch: Branch, prefetch: Optional[Callable[[Any], Any]]):
+    def __init__(self, branch: Branch, prefetch: Callable[[Any], Any] | None):
         self._branch = branch
         self._pilot = branch._pilot
         self.prefetch = prefetch
 
     @property
-    def pause(self) -> Optional[Pause]:
+    def pause(self) -> Pause | None:
         return self._pilot.pause
 
     def read(self, fn: Callable[[Any], Any]) -> Any:
@@ -67,13 +68,13 @@ class ThreadedRun:
     def read_prefetched(self) -> Any:
         return self.read(self.prefetch) if self.prefetch is not None else None
 
-    def call(self, name: str, args: Any) -> Optional[ToolResult]:
+    def call(self, name: str, args: Any) -> ToolResult | None:
         return self._pilot.call(name, args)
 
-    def choose(self, index: int) -> Optional[ToolResult]:
+    def choose(self, index: int) -> ToolResult | None:
         return self._pilot.choose(index)
 
-    def clone(self) -> "ThreadedRun":
+    def clone(self) -> ThreadedRun:
         return ThreadedRun(self._branch.clone(), self.prefetch)
 
     def result(self) -> Any:
@@ -86,7 +87,7 @@ class ThreadedRun:
         self._branch.close()
 
 
-def can_step(game: "Game") -> bool:
+def can_step(game: Game) -> bool:
     """Whether the game's states can be stepped (see the module docs)."""
     root, contract, others = game._root, game.contract, game._others
     named = others is None or isinstance(others, str) or (
@@ -97,7 +98,7 @@ def can_step(game: "Game") -> bool:
             and contract.physics is None and contract.space is None and not root.driver.turn_tool_specs())
 
 
-def replayed(game: "Game", history: Sequence[Mapping[str, Any]]) -> ThreadedRun:
+def replayed(game: Game, history: Sequence[Mapping[str, Any]]) -> ThreadedRun:
     """A piloted run that has taken the decisions of ``history`` from the initial state (the game's later states
     start piloted too)."""
     game._stepped = False

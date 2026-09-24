@@ -56,8 +56,10 @@ def test_the_model_estimated_from_six_weeks_recovers_the_truth(history):
     true_uplifts = [uplift for day, (_, uplift) in generator.OUTAGES.items() if day < generator.TRAIN_END]
     assert shipped["outage_uplift_estimate"]["default"] == pytest.approx(statistics.fmean(true_uplifts), rel=0.25)
     for index in (0, 3, 12, 23):  # the fitted forecast of a Monday's half-hours against the true expected calls
-        fitted_calls = fg_env.analysis.decompose(CONTRACT, "calls", rounds=[index + 1], inputs={"parameter_uncertainty": 0}).rows[0]
-        true_calls = fg_env.analysis.decompose(fg_env.api.apply_arm(fg_env.parse(CONTRACT), "truth"), "calls", rounds=[index + 1],
+        fitted_calls = fg_env.analysis.decompose(CONTRACT, "calls", rounds=[index + 1],
+                                                 inputs={"parameter_uncertainty": 0}).rows[0]
+        true_calls = fg_env.analysis.decompose(fg_env.api.apply_arm(fg_env.parse(CONTRACT), "truth"), "calls",
+                                               rounds=[index + 1],
                                       data_dir=FOLDER.parent).rows[0]
         assert fitted_calls["total"] == pytest.approx(true_calls["total"], rel=0.12), index
 

@@ -154,7 +154,8 @@ def test_memory_config_and_actions_say_what_to_fix():
         return _errors({**NOTEBOOK, "events": [{"do": list(effects)}]})
 
     assert any("`mind.recall` needs `query`" in e for e in op({"mind": "memory", "action": "recall"}))
-    assert any("'query' is not part of `mind.note`" in e for e in op({"mind": "memory", "action": "note", "text": "a", "query": "b"}))
+    assert any("'query' is not part of `mind.note`" in e
+               for e in op({"mind": "memory", "action": "note", "text": "a", "query": "b"}))
     assert any("'remember' is not an action of memory (mind memory)" in e and "actions: note, recall" in e
                for e in op({"mind": "memory", "action": "remember"}))
     assert any('`note` is an action of the `mind` op: {"mind": "<mechanism>", "action": "note"' in e

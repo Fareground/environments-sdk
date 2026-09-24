@@ -58,7 +58,8 @@ def _giving(count):
     return {"name": "givers", "clock": {"rounds": 1},
             "types": {"p": {"agent": True, "policy": "give", "props": {"coins": 5}}},
             "population": [{"type": "p", "count": count}],
-            "actions": {"give": {"by": "p", "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
+            "actions": {"give": {"by": "p",
+                                 "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
                                  "do": ["$actor.coins -= 1", "$params.to.coins += 1"]}},
             "policies": {"give": {"rules": [{"do": "give", "with": {"to": "$choice(p)"}}]}}}
 

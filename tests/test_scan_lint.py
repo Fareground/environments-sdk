@@ -9,7 +9,8 @@ import pytest
 import fg_env
 
 CONTRACTS = Path(__file__).parents[1] / "examples" / "contracts"
-EXAMPLES = sorted([*CONTRACTS.glob("*.json"), *(CONTRACTS / "games").glob("*.json"), *(CONTRACTS / "host").glob("*.json")])
+EXAMPLES = sorted([*CONTRACTS.glob("*.json"), *(CONTRACTS / "games").glob("*.json"),
+                   *(CONTRACTS / "host").glob("*.json")])
 
 #: The study's contact-centre trap: every arrival counts and picks waiting calls by scanning every call ever made.
 QUEUE = {
@@ -21,7 +22,8 @@ QUEUE = {
     "blocks": {
         "arrive": {"do": [
             {"create": "call", "props": {"arrived": "$clock.time"}, "as": "made"},
-            {"if": "$world.busy < $world.capacity and $waiting == 1", "then": ["$made.status = served", "$world.busy += 1"]},
+            {"if": "$world.busy < $world.capacity and $waiting == 1",
+             "then": ["$made.status = served", "$world.busy += 1"]},
             {"after": "$exponential(0.1)", "do": [{"block": "arrive"}]}]},
         "pull": {"do": [
             {"if": "$world.busy < $world.capacity", "then": [
@@ -39,7 +41,8 @@ SHOP = {
     "population": [{"type": "sku", "from": "$inputs.skus", "id": "{$row.sku}",
                     "props": {"base": "$avg($filter($inputs.sales, $it.sku == $row.sku), $it.units)"}}],
     "events": [{"name": "share", "each": "sku", "do": ["$it.share = $it.base / $sum(sku, $it.base)",
-                                                        "$it.recent = $sum($filter($inputs.sales, $it.sku == $outer.id), $it.units)"]},
+                                                        "$it.recent = $sum($filter($inputs.sales, $it.sku == "
+                                                        "$outer.id), $it.units)"]},
                {"name": "total", "do": ["$total = $sum($inputs.sales, $it.units) + $sum(sku, $it.base)"]}],
     "outputs": {"total": "$sum(sku, $it.base)"},
 }
@@ -54,7 +57,8 @@ def test_a_block_that_reschedules_itself_and_scans_every_call_is_reported_with_a
     assert set(found) == {"blocks.arrive.do[1].if", "blocks.pull.do[0].then[0]"}
     through_def = found["blocks.arrive.do[1].if"]
     assert through_def.severity == "warning"
-    assert "$waiting (defs.waiting uses $count(call, …)) visits every call for each run of block arrive" in through_def.message
+    assert ("$waiting (defs.waiting uses $count(call, …)) visits every call for each run of block "
+            "arrive") in through_def.message
     assert "$world.queue += $made.id" in through_def.fix
     assert "$sort(call, …) visits every call for each run of block pull" in found["blocks.pull.do[0].then[0]"].message
 

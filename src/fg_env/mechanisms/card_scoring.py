@@ -7,13 +7,14 @@ numbers 2–14 (jack 11, queen 12, king 13, ace 14); suits are ``spades hearts d
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from itertools import combinations
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
+from typing import Any
 
 from ..expr import Call, ExprError, function
 
-__all__ = ["RANK_LABELS", "SUITS", "SUIT_SYMBOLS", "parse_card", "poker_rank", "poker_hand", "blackjack", "sets", "runs",
-           "trick_winner", "follow_suit"]
+__all__ = ["RANK_LABELS", "SUITS", "SUIT_SYMBOLS", "parse_card", "poker_rank", "poker_hand", "blackjack", "sets",
+           "runs", "trick_winner", "follow_suit"]
 
 SUITS = ("spades", "hearts", "diamonds", "clubs")
 SUIT_SYMBOLS = {"spades": "♠", "hearts": "♥", "diamonds": "♦", "clubs": "♣"}
@@ -31,7 +32,7 @@ CATEGORIES = ("high card", "pair", "two pair", "three of a kind", "straight", "f
 #: Base of the positional score: bigger than any rank, so a score compares like its tuple.
 _BASE = 15
 
-Card = Tuple[Any, str, Any]  # (rank, suit, the original value)
+Card = tuple[Any, str, Any]  # (rank, suit, the original value)
 
 
 def parse_card(value: Any) -> Card:
@@ -50,7 +51,7 @@ def parse_card(value: Any) -> Card:
     raise ValueError(f"cannot read {value!r} as a card (a card entity, {{rank, suit}} or text like 'AS', '10h')")
 
 
-def _cards(values: Any) -> List[Card]:
+def _cards(values: Any) -> list[Card]:
     if values is None:
         return []
     if not isinstance(values, (list, tuple)):
@@ -70,7 +71,7 @@ def _rank(card: Card) -> int:
 # ---------------------------------------------------------------------------
 
 
-def _five(cards: Sequence[Card]) -> Tuple[int, Tuple[int, ...]]:
+def _five(cards: Sequence[Card]) -> tuple[int, tuple[int, ...]]:
     """``(category, tiebreak ranks)`` of up to five cards."""
     ranks = sorted((_rank(c) for c in cards), reverse=True)
     counts = Counter(ranks)
@@ -102,7 +103,7 @@ def _five(cards: Sequence[Card]) -> Tuple[int, Tuple[int, ...]]:
     return 0, tuple(ranks)
 
 
-def _hand_name(category: int, order: Tuple[int, ...]) -> str:
+def _hand_name(category: int, order: tuple[int, ...]) -> str:
     word, name = _RANK_WORDS, _RANK_NAMES
     high = lambda r: f"{name.get(r, str(r))} high"  # noqa: E731
     if category == 8:
@@ -124,7 +125,7 @@ def _hand_name(category: int, order: Tuple[int, ...]) -> str:
     return f"high card, {name.get(order[0], str(order[0]))}" if order else "no cards"
 
 
-def poker_rank(values: Any) -> Dict[str, Any]:
+def poker_rank(values: Any) -> dict[str, Any]:
     """The best five-card poker hand in ``values`` (any number of cards; fewer than five are ranked as they are).
 
     Returns ``score`` (a whole number: a higher score is a better hand, equal scores tie),
@@ -143,10 +144,10 @@ def poker_rank(values: Any) -> Dict[str, Any]:
             "ranks": list(order), "best": [c[2] for c in best_cards]}
 
 
-def _best(cards: Sequence[Card]) -> Tuple[Tuple[int, Tuple[int, ...]], Sequence[Card]]:
+def _best(cards: Sequence[Card]) -> tuple[tuple[int, tuple[int, ...]], Sequence[Card]]:
     """``((category, tiebreak ranks), the five cards)`` of the best hand in ``cards`` (not empty)."""
     groups = combinations(cards, 5) if len(cards) > 5 else [tuple(cards)]
-    best_key: Optional[Tuple[int, Tuple[int, ...]]] = None
+    best_key: tuple[int, tuple[int, ...]] | None = None
     best_cards: Sequence[Card] = ()
     for group in groups:
         key = _five(group)
@@ -186,7 +187,7 @@ def poker_hand(hole: Any, board: Any) -> str:
 # ---------------------------------------------------------------------------
 
 
-def blackjack(values: Any) -> Dict[str, Any]:
+def blackjack(values: Any) -> dict[str, Any]:
     """``{total, soft, bust, blackjack}``: aces count 11 unless that busts; faces count 10."""
     cards = _cards(values)
     total, aces = 0, 0
@@ -208,24 +209,24 @@ def blackjack(values: Any) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def sets(values: Any, size: int = 3) -> List[List[Any]]:
+def sets(values: Any, size: int = 3) -> list[list[Any]]:
     """Groups of at least ``size`` cards of the same rank, highest rank first."""
-    by_rank: Dict[Any, List[Any]] = {}
+    by_rank: dict[Any, list[Any]] = {}
     for rank, _suit, original in _cards(values):
         by_rank.setdefault(rank, []).append(original)
     groups = [cards for cards in by_rank.values() if len(cards) >= size]
     return sorted(groups, key=lambda g: (len(g), _sortable(parse_card(g[0])[0])), reverse=True)
 
 
-def runs(values: Any, size: int = 3) -> List[List[Any]]:
+def runs(values: Any, size: int = 3) -> list[list[Any]]:
     """Longest runs of at least ``size`` consecutive ranks in one suit (an ace is high or low), longest first."""
-    by_suit: Dict[str, Dict[int, Any]] = {}
+    by_suit: dict[str, dict[int, Any]] = {}
     for card in _cards(values):
         rank = _rank(card)
         by_suit.setdefault(card[1], {}).setdefault(rank, card[2])
         if rank == 14:
             by_suit[card[1]].setdefault(1, card[2])
-    found: List[Tuple[int, int, List[Any]]] = []
+    found: list[tuple[int, int, list[Any]]] = []
     for ranked in by_suit.values():
         present = sorted(ranked)
         start = 0
@@ -239,7 +240,7 @@ def runs(values: Any, size: int = 3) -> List[List[Any]]:
     return [cards for _, _, cards in found]
 
 
-def _sortable(value: Any) -> Tuple[int, Any]:
+def _sortable(value: Any) -> tuple[int, Any]:
     return (0, value) if isinstance(value, (int, float)) and not isinstance(value, bool) else (1, str(value))
 
 
@@ -248,7 +249,7 @@ def _sortable(value: Any) -> Tuple[int, Any]:
 # ---------------------------------------------------------------------------
 
 
-def trick_winner(values: Any, lead_suit: Optional[str] = None, trump: Optional[str] = None) -> Any:
+def trick_winner(values: Any, lead_suit: str | None = None, trump: str | None = None) -> Any:
     """The card that wins a trick: the highest trump played, else the highest card of the suit led
     (the first card's suit unless ``lead_suit`` is given). None for an empty trick."""
     cards = _cards(values)
@@ -262,7 +263,7 @@ def trick_winner(values: Any, lead_suit: Optional[str] = None, trump: Optional[s
     return max(candidates, key=lambda c: _sortable(c[0]))[2]
 
 
-def follow_suit(hand: Any, lead_suit: Optional[str]) -> List[Any]:
+def follow_suit(hand: Any, lead_suit: str | None) -> list[Any]:
     """The cards of ``hand`` that may legally be played: those of the suit led when there are any, else all."""
     cards = _cards(hand)
     if not lead_suit:
@@ -294,7 +295,7 @@ def _size(call: Call, index: int) -> int:
           "The best 5-card poker hand among the cards (e.g. 2 hole cards + 5 on the board): {score, category, "
           "level, name, ranks, best}. A higher score is a better hand; equal scores split.",
           min_args=1, max_args=1)
-def _poker_rank_function(call: Call) -> Dict[str, Any]:
+def _poker_rank_function(call: Call) -> dict[str, Any]:
     return _guard(call, lambda: poker_rank(call.arg(0)))
 
 
@@ -318,17 +319,19 @@ def _blackjack_soft_function(call: Call) -> bool:
     return bool(_guard(call, lambda: blackjack(call.arg(0)))["soft"])
 
 
-@function("sets(cards, size?)", "Groups (lists) of at least `size` (default 3) cards of one rank, for rummy-like games.",
+@function("sets(cards, size?)",
+          "Groups (lists) of at least `size` (default 3) cards of one rank, for rummy-like games.",
           min_args=1, max_args=2)
-def _sets_function(call: Call) -> List[List[Any]]:
+def _sets_function(call: Call) -> list[list[Any]]:
     size = _size(call, 1)
     return _guard(call, lambda: sets(call.arg(0), size))
 
 
 @function("runs(cards, size?)",
-          "Runs (lists) of at least `size` (default 3) consecutive ranks in one suit, longest first; an ace is high or low.",
+          "Runs (lists) of at least `size` (default 3) consecutive ranks in one suit, longest first; an ace is high or "
+          "low.",
           min_args=1, max_args=2)
-def _runs_function(call: Call) -> List[List[Any]]:
+def _runs_function(call: Call) -> list[list[Any]]:
     size = _size(call, 1)
     return _guard(call, lambda: runs(call.arg(0), size))
 
@@ -344,5 +347,5 @@ def _trick_winner_function(call: Call) -> Any:
 @function("follow_suit(hand, lead_suit)",
           "The cards of `hand` that follow the suit led, or the whole hand when it has none of that suit "
           "(or nothing was led).", min_args=2, max_args=2)
-def _follow_suit_function(call: Call) -> List[Any]:
+def _follow_suit_function(call: Call) -> list[Any]:
     return _guard(call, lambda: follow_suit(call.arg(0), call.arg(1) or None))

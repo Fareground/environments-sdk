@@ -11,8 +11,9 @@ end. Hidden information kept in world properties is not declared hidden, so it i
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from typing import Any
 
 from ..errors import RunError
 from .observe import visible_key
@@ -27,13 +28,13 @@ class Leak:
     """Two playouts that one seat must not be able to tell apart, and what differs for it."""
 
     message: str
-    steps: List[Step]
-    other_steps: List[Step]
+    steps: list[Step]
+    other_steps: list[Step]
 
 
-def leak_issues(game: Any, steps: Sequence[Step], rng: random.Random, branches: int) -> List[Leak]:
+def leak_issues(game: Any, steps: Sequence[Step], rng: random.Random, branches: int) -> list[Leak]:
     """Leaks found by changing ``branches`` randomly chosen steps of the playout ``steps``."""
-    found: List[Leak] = []
+    found: list[Leak] = []
     hidden = [index for index, step in enumerate(steps) if "seat" not in step]
     public = [index for index, step in enumerate(steps) if "seat" in step]
     rng.shuffle(hidden)
@@ -43,7 +44,7 @@ def leak_issues(game: Any, steps: Sequence[Step], rng: random.Random, branches: 
     return found
 
 
-def _branch(game: Any, steps: List[Step], index: int, rng: random.Random) -> List[Leak]:
+def _branch(game: Any, steps: list[Step], index: int, rng: random.Random) -> list[Leak]:
     here = replay_steps(game, steps[:index])
     try:
         alternatives = _alternatives(here, steps[index])
@@ -58,7 +59,7 @@ def _branch(game: Any, steps: List[Step], index: int, rng: random.Random) -> Lis
                 return []
             apply_step(here, steps[index])
             mine, theirs = steps[:index + 1], steps[:index] + [other_step]
-            found: List[Leak] = []
+            found: list[Leak] = []
             position = index + 1
             while True:
                 found.extend(_compare(here, other, mine, theirs))
@@ -81,11 +82,11 @@ def _kind(state: GameState) -> Any:
     return "chance" if state.is_chance_node() else ("joint" if state.is_simultaneous_node() else state.current_player())
 
 
-def _alternatives(state: GameState, step: Mapping[str, Any]) -> List[Step]:
+def _alternatives(state: GameState, step: Mapping[str, Any]) -> list[Step]:
     if "chance" in step:
         return [{"chance": outcome} for outcome, _ in state.chance_outcomes() if outcome != step["chance"]]
     if "joint" in step:
-        out: List[Step] = []
+        out: list[Step] = []
         for seat, call in step["joint"].items():
             for action in state.legal_tool_calls(int(seat)):
                 if action.tool != call["tool"] or dict(action.args) != dict(call["args"]):
@@ -96,20 +97,20 @@ def _alternatives(state: GameState, step: Mapping[str, Any]) -> List[Step]:
             if action.tool != step["tool"] or dict(action.args) != dict(step["args"])]
 
 
-def _compare(a: GameState, b: GameState, steps: List[Step], other_steps: List[Step]) -> List[Leak]:
+def _compare(a: GameState, b: GameState, steps: list[Step], other_steps: list[Step]) -> list[Leak]:
     if a.is_terminal() or b.is_terminal():
         return []
-    found: List[Leak] = []
+    found: list[Leak] = []
     for seat, entity_id in enumerate(a.game.players):
         if _visible(a, seat) != _visible(b, seat):
             continue
         difference = _difference(a, b, seat)
         if difference is not None:
             changed = next((index for index, (s, t) in enumerate(zip(steps, other_steps)) if s != t), len(steps))
-            found.append(Leak(f"seat {seat} ({entity_id}) can tell apart two states that differ only in what it "
-                              f"cannot see (the playouts differ at step {changed + 1}): {difference} → show hidden information "
-                              "through an event or message when the rules reveal it, never by reading another "
-                              "entity's private property or a sealed choice in a view", steps, other_steps))
+            found.append(Leak(f"seat {seat} ({entity_id}) can tell apart two states that differ only in what it cannot "
+                              f"see (the playouts differ at step {changed + 1}): {difference} → show hidden "
+                              "information through an event or message when the rules reveal it, never by reading "
+                              "another entity's private property or a sealed choice in a view", steps, other_steps))
     return found
 
 
@@ -119,7 +120,7 @@ def _visible(state: GameState, seat: int) -> str:
                                                        _own_pending(state._pending(env), actor_id))))
 
 
-def _own_pending(pending: Dict[str, Any], actor_id: str) -> Dict[str, Any]:
+def _own_pending(pending: dict[str, Any], actor_id: str) -> dict[str, Any]:
     """The pending decision as ``actor_id`` may know it: another seat's turn shows only whose it is and where."""
     sealed = {key: value for key, value in (pending.get("sealed") or {}).items() if key == actor_id}
     if "actor" in pending and pending["actor"] != actor_id:
@@ -127,7 +128,7 @@ def _own_pending(pending: Dict[str, Any], actor_id: str) -> Dict[str, Any]:
     return {**pending, "sealed": sealed} if "sealed" in pending else pending
 
 
-def _difference(a: GameState, b: GameState, seat: int) -> Optional[str]:
+def _difference(a: GameState, b: GameState, seat: int) -> str | None:
     text_a, text_b = a.observation_string(seat), b.observation_string(seat)
     if text_a != text_b:
         return f"its observation text differs ({_first_difference(text_a, text_b)})"

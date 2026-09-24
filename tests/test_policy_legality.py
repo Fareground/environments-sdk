@@ -28,10 +28,11 @@ def test_coded_policies_never_build_tool_schemas(monkeypatch):
 
 def test_a_policy_can_pass_a_list_of_entities_to_a_list_param():
     contract = {"name": "Voters", "clock": {"rounds": 1},
-                "types": {"voter": {"agent": True, "policy": "rank", "props": {"ballot": {"type": "list", "default": []}}},
+                "types": {"voter": {"agent": True, "policy": "rank",
+                                    "props": {"ballot": {"type": "list", "default": []}}},
                           "option": {"props": {"appeal": 0}}},
-                "entities": {"x": {"type": "option", "props": {"appeal": 1}}, "y": {"type": "option", "props": {"appeal": 2}},
-                             "v": {"type": "voter"}},
+                "entities": {"x": {"type": "option", "props": {"appeal": 1}},
+                             "y": {"type": "option", "props": {"appeal": 2}}, "v": {"type": "voter"}},
                 "policies": {"rank": {"rules": [{"do": "rank", "with": {"ranking": "$top(option, $it.appeal)"}}]}},
                 "actions": {"rank": {"by": "voter", "params": {"ranking": {"type": "list", "of": "option"}},
                                      "do": ["$actor.ballot = $map($params.ranking, $it.id)"], "terminal": True}},
@@ -50,9 +51,11 @@ def test_a_rule_whose_action_is_not_legal_is_skipped_before_its_arguments_are_wo
                     # only computable while something is held, which is exactly when `release` is legal
                     {"do": "release", "with": {"exhibit": "$top($filter(exhibit, $it.held), $it.weight, 1)[0]"}},
                     {"do": "hold"}]}},
-                "actions": {"release": {"by": "clerk", "when": {"expr": "$any(exhibit, $it.held)", "why": "Nothing held."},
+                "actions": {"release": {"by": "clerk",
+                                        "when": {"expr": "$any(exhibit, $it.held)", "why": "Nothing held."},
                                         "params": {"exhibit": {"type": "entity", "of": "exhibit"}},
-                                        "do": ["$params.exhibit.held = false", "$actor.released += 1"], "terminal": True},
+                                        "do": ["$params.exhibit.held = false", "$actor.released += 1"],
+                                        "terminal": True},
                             "hold": {"by": "clerk", "do": ["$entity(e).held = true"], "terminal": True}}}
     env = fg_env.load(contract, seed=1)
     result = env.run()

@@ -3,18 +3,19 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Mapping
 from difflib import get_close_matches
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any
 
 from .. import contract as C
 from ..effects.chance import check_chance
-from .params import check_entity_literals
-from .roots import merge_types
-from .state import check_delivery, check_link_fields
 from ..effects.runner import POST_KEYS, REPEAT_CEILING, all_ops, registered_op, select_ops
 from ..effects.statements import RESERVED_ROOTS, statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
+from .params import check_entity_literals
+from .roots import merge_types
+from .state import check_delivery, check_link_fields
 
 if TYPE_CHECKING:
     from . import _Checker
@@ -29,8 +30,8 @@ _KIND_WORDS = {"number": "a number", "int": "a whole number", "bool": "true or f
 class EffectChecks:
     """Effect lists and the operations in them (mixed into the contract checker)."""
 
-    def effects(self: "_Checker", effects: Any, path: str, roots: Set[str], types: Types,  # type: ignore[misc]
-                params: Optional[Mapping[str, C.ParamSpec]] = None) -> Set[str]:
+    def effects(self: _Checker, effects: Any, path: str, roots: set[str], types: Types,  # type: ignore[misc]
+                params: Mapping[str, C.ParamSpec] | None = None) -> set[str]:
         """Check an effect list; returns the roots available after it (locals included)."""
         roots = set(roots)
         if isinstance(effects, (str, dict)):
@@ -48,8 +49,8 @@ class EffectChecks:
                 self.error(where, "an effect is an assignment text or an operation object")
         return roots
 
-    def _statement(self: "_Checker", source: str, path: str, roots: Set[str], types: Types,  # type: ignore[misc]
-                   params: Optional[Mapping[str, C.ParamSpec]]) -> None:
+    def _statement(self: _Checker, source: str, path: str, roots: set[str], types: Types,  # type: ignore[misc]
+                   params: Mapping[str, C.ParamSpec] | None) -> None:
         try:
             base, steps, local, op, right = statement_parts(source)
         except ExprError as exc:
@@ -57,9 +58,10 @@ class EffectChecks:
             return
         self.expr(right, path, roots, types, params)
         if re.search(r"'[^']*\{\$[^']*'|\"[^\"]*\{\$[^\"]*\"", right):
-            self.warn(path, "stores `{$...}` literally: placeholders fill in only in templates (outcome, say, show, text)",
-                      "build the text as an expression, e.g. `$text($params.n) + ': ' + $hint`, or store the values and "
-                      "format them in a view's show")
+            self.warn(path,
+                      "stores `{$...}` literally: placeholders fill in only in templates (outcome, say, show, text)",
+                      "build the text as an expression, e.g. `$text($params.n) + ': ' + $hint`, or store the values "
+                      "and format them in a view's show")
         for kind, step in steps:
             if kind == "index":
                 self.expr(step, path, roots, types, params)
@@ -84,14 +86,15 @@ class EffectChecks:
             self.expr(base, path, roots, types, params)
             return
         root = simple.group(1)
-        leading: List[str] = []  # the property path up to the first element index
+        leading: list[str] = []  # the property path up to the first element index
         for kind, step in steps:
             if kind != "field":
                 break
             leading.append(step)
         fields = tuple(leading)
         if root not in roots:
-            self.error(path, f"${root} is not available here", f"available: {', '.join('$' + r for r in sorted(roots))}")
+            self.error(path, f"${root} is not available here",
+                       f"available: {', '.join('$' + r for r in sorted(roots))}")
             return
         if root in ("inputs", "metrics", "series", "clock", "round", "stage", "arm"):
             self.error(path, f"${root} is read-only", "assign to an entity's property, $world.x or $physics.x")
@@ -100,7 +103,7 @@ class EffectChecks:
         if len(fields) == len(steps):  # the property itself, not an element of it
             self._assigned_kind((root, *fields), op, right, path, types, params or {}, source)
 
-    def _reaction_actions(self: "_Checker", effect: Dict[str, Any], path: str) -> None:  # type: ignore[misc]
+    def _reaction_actions(self: _Checker, effect: dict[str, Any], path: str) -> None:  # type: ignore[misc]
         """A reaction (`wake` with `now`) names the actions it offers; without them it gets every action of the
         stage it happens in — the very action that woke it included — so it could act out of turn."""
         actions = effect.get("actions")
@@ -121,7 +124,7 @@ class EffectChecks:
                 self.error(f"{path}.actions", f"'{name}' is not a declared action",
                            self._suggest(name, self.c.actions) or f"actions: {', '.join(self.c.actions) or 'none'}")
 
-    def _assigned_kind(self: "_Checker", target: Tuple[str, ...], op: str, right: str, path: str,  # type: ignore[misc]
+    def _assigned_kind(self: _Checker, target: tuple[str, ...], op: str, right: str, path: str,  # type: ignore[misc]
                        types: Types, params: Mapping[str, C.ParamSpec], source: str) -> None:
         """A value whose kind the text makes plain (a literal, or a property or argument read on its own) assigned to
         a property declared as another kind: it would fail every time the rule runs."""
@@ -140,8 +143,8 @@ class EffectChecks:
             self.error(path, f"{field} is declared as {kind}, but this assigns {_KIND_WORDS[got]}",
                        f"assign {_KIND_WORDS[kind]}, or declare the property with the type it holds — in `{source}`")
 
-    def _value_kind(self: "_Checker", right: str, types: Types,  # type: ignore[misc]
-                    params: Mapping[str, C.ParamSpec]) -> Optional[Tuple[str, Optional[str]]]:
+    def _value_kind(self: _Checker, right: str, types: Types,  # type: ignore[misc]
+                    params: Mapping[str, C.ParamSpec]) -> tuple[str, str | None] | None:
         """``(kind, literal text)`` of a value that is a literal or one property or argument read on its own; None
         when the text does not make its kind plain."""
         text = right.strip()
@@ -158,7 +161,7 @@ class EffectChecks:
             return None
         return ("number" if known[1] == "int" else known[1]), None
 
-    def _shadowed_it(self: "_Checker", type_name: str, path: str, types: Types) -> None:  # type: ignore[misc]
+    def _shadowed_it(self: _Checker, type_name: str, path: str, types: Types) -> None:  # type: ignore[misc]
         """`$it` in a `create`'s props, where an enclosing loop also binds it: there it means the new entity, which is
         rarely what the author meant."""
         outer = "/".join(sorted(types.get("it") or ())) or "enclosing"
@@ -166,8 +169,8 @@ class EffectChecks:
                    'to read the loop\'s item, name it: `"as": "src"` on the `each`, then `$src.id` here (in `create` '
                    f"props `$it` always means the new {type_name}, so its earlier props read as `$it.<prop>`)")
 
-    def _keyed(self: "_Checker", effect: Dict[str, Any], path: str, roots: Set[str], types: Types,  # type: ignore[misc]
-               params: Optional[Mapping[str, C.ParamSpec]]) -> None:
+    def _keyed(self: _Checker, effect: dict[str, Any], path: str, roots: set[str], types: Types,  # type: ignore[misc]
+               params: Mapping[str, C.ParamSpec] | None) -> None:
         known = all_ops()
         ops = select_ops(effect)
         if len(ops) > 1:
@@ -177,8 +180,10 @@ class EffectChecks:
         if not ops:
             key = next(iter(effect), "")
             hint = family_action_hint(effect) or self._suggest(key, known) or \
-                'write an assignment as text ("$actor.price = 3", "$actor.cash -= 5"); guide("effects") lists the operations'
-            self.error(path, f"`{key or '{}'}` is not an effect operation (got keys {', '.join(effect) or 'none'})", hint)
+                ('write an assignment as text ("$actor.price = 3", "$actor.cash -= 5"); guide("effects") lists the '
+                 'operations')
+            self.error(path, f"`{key or '{}'}` is not an effect operation (got keys {', '.join(effect) or 'none'})",
+                       hint)
             return
         op = ops[0]
         allowed = set(known[op])
@@ -358,7 +363,8 @@ class EffectChecks:
                 continuous = self.c.clock.mode == "continuous"
                 if continuous:
                     try:
-                        valid = not isinstance(delay, bool) and isinstance(delay, (int, float)) and math.isfinite(delay) and delay > 0
+                        valid = (not isinstance(delay, bool) and isinstance(delay, (int, float))
+                                 and math.isfinite(delay) and delay > 0)
                     except OverflowError:
                         valid = False
                 else:
@@ -388,8 +394,10 @@ class EffectChecks:
             v("repeat")
             limit = effect.get("repeat")
             if isinstance(limit, int) and not isinstance(limit, bool) and not 0 <= limit <= REPEAT_CEILING:
-                fix = "use 0 to run nothing" if limit < 0 else "use a smaller limit; a loop that needs more never settles"
-                self.error(f"{path}.repeat", f"is {limit:,}; a repeat limit runs from 0 (run nothing) to {REPEAT_CEILING:,}", fix)
+                fix = ("use 0 to run nothing" if limit < 0
+                       else "use a smaller limit; a loop that needs more never settles")
+                self.error(f"{path}.repeat",
+                           f"is {limit:,}; a repeat limit runs from 0 (run nothing) to {REPEAT_CEILING:,}", fix)
             self.condition(effect.get("while"), f"{path}.while", roots, types, params)
             body_types = dict(types)
             roots |= self.effects(effect.get("do", []), f"{path}.do", roots, body_types, params)
