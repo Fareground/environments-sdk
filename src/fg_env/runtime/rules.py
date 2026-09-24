@@ -58,6 +58,8 @@ class Rules:
                  information: Information, state: RunState, facts: Facts, gate: Gate):
         self.contract = contract
         self.world = world
+        #: How the rules' expressions read the world: scopes, defs and their caches (see world/evaluation.py).
+        self.evaluation = world.evaluation
         self.effects = effects
         self.actions = actions
         #: Renders the rules' texts for their readers (the one gate, see information/gate.py).
@@ -168,11 +170,11 @@ class Rules:
         if not self.contract.invariants:
             return
         world, held = self.world, self.state.invariant_held
-        scope = world.evaluation.scope()
+        scope = self.evaluation.scope()
         for index, invariant in enumerate(self.contract.invariants):
             if moment not in _INVARIANT_MOMENTS[invariant.check]:
                 continue
-            state = world.evaluation.state_version()
+            state = self.evaluation.state_version()
             if moment == "action" and held.get(index) == state:
                 continue
             observed = world.luck.observe()
@@ -189,7 +191,7 @@ class Rules:
                                               path=f"invariants[{index}].why") if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
                                          f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
-            held[index] = state if observed.pure(state, world.evaluation.state_version()) else None
+            held[index] = state if observed.pure(state, self.evaluation.state_version()) else None
         if moment in _INVARIANT_MOMENTS["action"]:  # every action invariant was due, and holds
             world.touched = {}
 
@@ -207,7 +209,7 @@ class Rules:
             for entity_id in touched:
                 entity = world.entities.get(entity_id)
                 if entity is not None and entity.alive and entity.entity_type in kinds \
-                        and not truthy(condition(world.evaluation.scope(it=entity))):
+                        and not truthy(condition(self.evaluation.scope(it=entity))):
                     return False
         return True
 
@@ -222,7 +224,7 @@ class Rules:
             if moment == "action" and end.check != "action":
                 continue
             path = f"end[{index}]"
-            scope = scope or world.evaluation.scope()
+            scope = scope or self.evaluation.scope()
             try:
                 if not truthy(compile_expr(end.when)(scope)):
                     continue
@@ -271,7 +273,7 @@ class Rules:
         """Why ``actor``'s turn as played breaks ``stage``'s `valid` rules, or None when it meets them."""
         path = f"stages.{stage.name}.valid"
         vars = {"actor": actor}
-        scope = self.world.evaluation.scope(**vars)
+        scope = self.evaluation.scope(**vars)
         with shared_budget(ACTION_BUDGET, path):
             for index, condition in enumerate(stage.valid):
                 try:

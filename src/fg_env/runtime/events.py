@@ -100,7 +100,7 @@ class Events:
 
     def _holds(self, condition: str, vars: dict[str, Any], path: str) -> bool:
         try:
-            return truthy(compile_expr(condition)(self.rules.world.evaluation.scope(**vars)))
+            return truthy(compile_expr(condition)(self.rules.evaluation.scope(**vars)))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
@@ -114,7 +114,7 @@ class Events:
             listed = loop["each"]
             with world.luck.at(do):  # what the loop goes over is drawn as its `do` would draw it
                 items = world.entities_of(listed) if isinstance(listed, str) and listed in rules.contract.types else \
-                    each_items(resolve(listed, world.evaluation.scope()), world, f"{path}.do[0].each")
+                    each_items(resolve(listed, self.rules.evaluation.scope()), world, f"{path}.do[0].each")
             if loop.get("sync"):
                 self._synced(loop, items, name, body, when, do)
                 return
@@ -127,7 +127,7 @@ class Events:
                     inner = {name: item, "i": position}
                     if where is not None:
                         with world.luck.at(f"{when}.where", item):
-                            if not truthy(compile_expr(where)(world.evaluation.scope(**inner))):
+                            if not truthy(compile_expr(where)(self.rules.evaluation.scope(**inner))):
                                 continue
                     if watch is not None:
                         watch.item, watch.position = item, position
@@ -149,7 +149,7 @@ class Events:
             inner = {name: item, "i": position}
             if where is not None:
                 with world.luck.at(f"{when}.where", item):
-                    if not truthy(compile_expr(where)(world.evaluation.scope(**inner))):
+                    if not truthy(compile_expr(where)(self.rules.evaluation.scope(**inner))):
                         return False
             with shared_budget(ACTION_BUDGET, body), world.luck.at(do, item):
                 rules.effects.run(loop.get("do") or [], dict(inner), body)
