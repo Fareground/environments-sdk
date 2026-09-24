@@ -1,0 +1,125 @@
+"""What the kernel property tests run over, and the canonical form of a run's state they compare.
+
+The corpus is every example contract that loads (made small by ``_leaks.SMALL``) and the random valid contracts of
+``_fuzz.py`` that check clean. The default run takes a few of each; ``@pytest.mark.slow`` variants take all of them
+over more seeds. Nothing here is cached across tests: every test builds the runs it needs and drops them.
+
+:func:`undoable_state` is the one definition of "the world is as it was" the tests hold the engine to: every piece
+of run state an undo must bring back, and nothing that is spent for good (luck: the main stream and ``firings``) or
+only a cache or a diagnostic count. The kernel rebuild's ``RunState.encode`` replaces it (step 1).
+"""
+import hashlib
+import json
+from pathlib import Path
+from typing import Any
+
+import _fuzz
+import pytest
+from _leaks import EXAMPLES, SMALL
+
+import fg_env
+from fg_env.contract.base import TAPE
+from fg_env.copying.snapshot import encode
+from fg_env.participants import RandomAgent
+
+#: Seeds the default run plays each property with, and the slow variants.
+SEEDS_FAST = (1,)
+SEEDS_SLOW = tuple(range(1, 21))
+#: Fuzz seeds: the first few for the default run (skipped when a seed does not check clean), many more when slow.
+FUZZ_FAST = range(5)
+FUZZ_SLOW = range(5, 105)
+#: A spread of examples for the default run: sealed and sequential stages, atomic stages, hidden information,
+#: explicit turn order, crowds, spaces and physics.
+FAST_EXAMPLES = [path for path in EXAMPLES if path.stem in {
+    "auction_house", "blackjack", "boltzmann_wealth", "climate_club", "coffee_market", "hopscotch_race", "kuhn_poker",
+    "lemonade_stand", "prediction_market", "werewolf"}]
+
+
+def clean_fuzz(seed: int) -> dict[str, Any] | None:
+    """The fuzz contract of ``seed``, or None when it does not check clean."""
+    contract = _fuzz.contract(seed)
+    if any(issue.severity == "error" for issue in fg_env.check(contract, rounds=0)):
+        return None
+    return contract
+
+
+def clean_seed(seed: int) -> int:
+    """``seed``, when its fuzz contract checks clean; otherwise the test is skipped."""
+    if clean_fuzz(seed) is None:
+        pytest.skip("the generated contract does not check clean")
+    return seed
+
+
+def source(subject: Any) -> Any:
+    """A contract to load: an example path as it is, a fuzz seed as its generated contract."""
+    return subject if isinstance(subject, Path) else _fuzz.contract(subject)
+
+
+def load(subject: Any, seed: int, **options: Any) -> fg_env.Env:
+    """``subject`` (an example path or a fuzz seed) loaded small under ``seed``."""
+    inputs = SMALL.get(subject.stem) if isinstance(subject, Path) else None
+    return fg_env.load(source(subject), seed=seed, inputs=inputs, **options)
+
+
+def agent_ids(env: fg_env.Env) -> list[str]:
+    return [e.id for e in env.world.entities.values() if env.contract.is_agent(e.entity_type)]
+
+
+def events_sha256(result: fg_env.RunResult) -> str:
+    return hashlib.sha256(json.dumps(result.events, sort_keys=True, default=str).encode()).hexdigest()
+
+
+def undoable_state(env: fg_env.Env) -> dict[str, Any]:
+    """Everything an undo must restore, as plain data: the world's store, its indexes, and the run's undoable
+    bookkeeping (fired and armed events, per-round action counts). The journal's version is left out: versions are
+    unique across runs, so only the undo tests compare it (with the same run's)."""
+    w = env.world
+    return {
+        "round": w.round, "stage": w.stage,
+        "entities": [[e.id, e.entity_type, e.name, e.alive, e.location_id, encode(dict(e.properties))]
+                     for e in w.entities.values()],
+        "alive": {kind: [e.id for e in w.alive_of(kind)] for kind in env.contract.types},
+        "props": encode(dict(w.props)),
+        "links": {kind: sorted([list(pair), value] for pair, value in edges.items())
+                  for kind, edges in w.links.items()},
+        "link_fields": {kind: sorted([list(pair), encode(fields)] for pair, fields in edges.items())
+                        for kind, edges in w.link_fields.items()},
+        "adjacent": {kind: {a: dict(linked) for a, linked in pairs.items() if linked}  # no edges is no entry
+                     for kind, pairs in w.adjacent.items()},
+        "records": {name: [encode(dict(row)) for row in rows] for name, rows in w.records_store.items()},
+        "entry_seqs": sorted(w.entry_by_seq),
+        "record_seq": w._record_seq,
+        "log": [event.to_dict() for event in w.log], "seq": w._seq,
+        "scheduled": [[due, order, encode(item)] for due, order, item in w.scheduled],
+        "schedule_seq": w._schedule_seq,
+        "wake_requests": encode(w.wake_requests),
+        "reactions": encode(w.reactions),
+        "counters": {kind: count for kind, count in w.counters.items() if count},  # a count of 0 is no count
+        "end_request": encode(w.end_request),
+        "layers": w.space.state() if w.space is not None else None,
+        "physics": w.physics.to_dict() if w.physics is not None else None,
+        "fired_once": sorted(env._fired_once),
+        "armed": sorted(env._armed.items()),
+        "used_round": {actor: {name: n for name, n in used.items() if n}  # a use undone to 0 is no use
+                       for actor, used in sorted(env._used_round.items()) if any(used.values())},
+    }
+
+
+#: Undoable state an undo (or a rolled-back trial) leaves changed today: see the strict xfail
+#: ``test_undoing_a_scheduled_effect_restores_the_schedule_count``. Kernel step 2 empties it.
+NOT_RESTORED = ("schedule_seq",)
+
+
+def restored_state(env: fg_env.Env) -> dict[str, Any]:
+    """:func:`undoable_state` as an undo must bring it back: without what it is known not to restore yet, and without
+    the host answers the run recorded (``host_tape``), which like luck are kept once asked for (see host/tape.py)."""
+    state = {key: value for key, value in undoable_state(env).items() if key not in NOT_RESTORED}
+    state["props"] = {key: value for key, value in state["props"].items() if key != TAPE}
+    return state
+
+
+class ConcurrentRandom(RandomAgent):
+    """A random agent the engine may play on worker threads: sealed turns of a simultaneous stage run concurrently
+    (up to the run's ``parallel``), which must play exactly as inline."""
+
+    concurrent = True
