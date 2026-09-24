@@ -5,6 +5,7 @@ page would run them. Pages that use ``inventory.json`` find the contract the qui
 stand-ins that end each turn. A sample that cannot run here (it installs a package, needs an API key or names a
 placeholder) is marked on the line before it with ``<!-- not run: why -->``.
 """
+import inspect
 import re
 import runpy
 import shlex
@@ -15,6 +16,7 @@ from types import SimpleNamespace as NS
 
 import pytest
 
+import fg_env
 from fg_env.__main__ import main
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,3 +95,10 @@ def test_every_sample_on_the_page_runs(page, tmp_path, monkeypatch, capsys):
             raise AssertionError(f"{page.name} sample {number} ({lang}) failed:\n{code}") from exc
         took = time.process_time() - started
         assert took < SLOW, f"{page.name} sample {number} took {took:.1f} CPU seconds:\n{code}"
+
+
+def test_a_model_docstring_reads_unindented_in_the_guide_on_every_python():
+    # Python 3.13 strips docstring indentation itself; 3.11 and 3.12 keep it, which Markdown shows as code.
+    from fg_env.contract import AssetSpec
+
+    assert inspect.cleandoc(AssetSpec.__doc__) in fg_env.guide("assets")
