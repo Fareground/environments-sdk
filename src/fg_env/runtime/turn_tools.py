@@ -7,7 +7,7 @@ them (``Env.run`` passes each participant through :func:`offer`): a :class:`Host
 lists them as ``look`` tools and applies them at once — in simultaneous stages too — counting
 only a tool call. Their effects touch only the caller's own properties and the tape, and never
 write to the shared log, so concurrent turns stay deterministic. The host call itself runs
-before the run's lock is taken, so slow hosts do not block other agents' turns. A turn that runs out of time
+before the run's gate is taken, so slow hosts do not block other agents' turns. A turn that runs out of time
 while its host answers refuses the call and takes that answer off the tape: the tape holds only answers the run
 used, so replays stay exact.
 """
@@ -96,14 +96,14 @@ class HostWake(Wake):
         result = self._host_call(name, args)
         turn = self._turn
         if turn.exposure is not None:
-            with turn.env._lock:
+            with turn.gate:
                 turn.exposure.called(name, args, result)
         return result
 
     def _host_call(self, name: str, args: dict[str, Any] | None) -> ToolResult:
         turn, env = self._turn, self._turn.env
         step = ("call", name, dict(args) if isinstance(args, Mapping) else args)
-        with env._lock:
+        with env.gate:
             refused = turn.refusal()
             if refused is not None:
                 return refused
@@ -121,7 +121,7 @@ class HostWake(Wake):
                 return turn._after(ToolResult(False, text, data=dict(_INVALID)))
         tool = self._extras[name]
         added = tool.prefetch(env, tool.mechanism, turn.actor, params) if tool.prefetch is not None else None
-        with env._lock:
+        with env.gate:
             refused = turn.refusal()  # the turn may have run out of time while the host answered
             if refused is not None:
                 if added is not None:
@@ -131,7 +131,7 @@ class HostWake(Wake):
             return turn._after(self._apply(name, params))
 
     def _spend(self, step: tuple[Any, ...]) -> None:
-        """The call takes effect: record it on the tape and count it (under the run's lock)."""
+        """The call takes effect: record it on the tape and count it (under the run's gate)."""
         turn = self._turn
         turn.record(*step)
         turn._tools = None
@@ -147,12 +147,12 @@ class HostWake(Wake):
         allowed = [spec.by] if isinstance(spec.by, str) else spec.by
         if not any(env.contract.is_a(turn.actor.entity_type, kind) for kind in allowed):
             return f"{name} is not a tool for a {turn.actor.entity_type}"
-        with env._lock:
+        with env.gate:
             return env.actions.blocked(turn.actor, name, turn.host_uses, {})
 
     def _spec(self, name: str) -> ToolSpec:
         env = self._turn.env
-        with env._lock:
+        with env.gate:
             spec = env.information.tool(self._turn.actor, name, staged=False)
         return ToolSpec(spec.name, spec.description, spec.input_schema, "look", False)
 

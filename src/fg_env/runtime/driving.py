@@ -6,7 +6,7 @@ thread-free path coded crowds take — unless the turn has a time limit or runs 
 in a simultaneous stage; then they run in a daemon thread. Awaitables run on an event loop: the
 caller's own loop under :meth:`Env.arun`, otherwise one shared background loop.
 
-The engine waits on a condition bound to the run's lock. Waiting releases the lock, so a turn's
+The engine waits on the run's gate (runtime/gate.py). Waiting lets go of it, so a turn's
 calls go through even when the wait happens inside another agent's call (reactions). A turn past
 its deadline is closed at once: its later calls are refused and the engine moves on. A thread
 cannot be killed, so a hung plain function keeps its (daemon) thread until it returns; an async
@@ -146,6 +146,8 @@ class Driver:
 
     def __init__(self, env: Env):
         self.env = env
+        #: The run's gate: the driver waits on it for turns to land, and holds it to change the run.
+        self.gate = env.gate
         self.spec: dict[str, Any] = {}
         self._resolved: dict[str, Participant] = {}
         #: The loop async participants run on: the caller's under ``arun``, else the shared background loop.
@@ -288,8 +290,7 @@ class Driver:
 
     def finish(self, turn: Turn) -> None:
         """Close a played turn: no more calls, its statistics added to the run's (see :meth:`Stats.finish`)."""
-        env = self.env
-        with env._lock:
+        with self.gate:
             turn.done = True
             turn.note(Finished(chose=bool(turn.ledger.intents),
                                had_to=turn.stage.must_act or turn.ledger.calls_left <= 0, timed_out=turn.timed_out,
@@ -314,11 +315,12 @@ class Driver:
 
     def _fly(self, queue: deque[tuple[Turn, Participant, bool]], flights: list[_Flight]) -> None:
         """Launch queued turns (at most ``parallel`` at once; a turn that must run alone waits for the others)
-        and wait until every flight has landed or been closed, enforcing deadlines. Waiting releases the run's lock."""
+        and wait until every flight has landed or been closed, enforcing deadlines. Waiting lets go of the run's
+        gate."""
         env = self.env
-        signal = env._signal
+        gate = self.gate
         failures: list[_Flight] = []
-        with signal:
+        with gate:
             try:
                 while queue or flights:
                     while queue and len(flights) < env.parallel and not failures:
@@ -343,7 +345,7 @@ class Driver:
                             left = max(0.0, turn.deadline - now)
                             wait = left if wait is None else min(wait, left)
                     if flights:
-                        signal.wait(wait)
+                        gate.wait(wait)
             except BaseException:
                 for flight in flights:
                     self._close(flight)
@@ -414,7 +416,7 @@ class Driver:
             _discard(answer)
             self._land(flight, exc)
             return
-        with self.env._lock:
+        with self.gate:
             flight.future = future
             if flight.cancelled:
                 future.cancel()
@@ -429,11 +431,11 @@ class Driver:
         self._land(flight, error)
 
     def _land(self, flight: _Flight, error: BaseException | None) -> None:
-        with self.env._signal:
+        with self.gate:
             if error is not None and not flight.cancelled and not flight.turn.timed_out:
                 flight.error = error
             flight.landed = True
-            self.env._signal.notify_all()
+            self.gate.notify()
 
     def _close(self, flight: _Flight) -> None:
         """Stop waiting for a flight: its turn takes no more calls; an async participant is cancelled."""

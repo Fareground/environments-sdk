@@ -157,7 +157,7 @@ class _Corrected:
 
 def discard(world: Any, key: str) -> None:
     """Take an answer off the tape: the turn that asked for it ran out of time while the host answered, so the run
-    never used it (call under the run's lock)."""
+    never used it (call under the run's gate)."""
     tape = world.props.get(TAPE)
     if isinstance(tape, dict) and tape.pop(key, None) is not None:
         world.touch()

@@ -57,7 +57,7 @@ def _file_params(turn: Turn, name: Any) -> dict[str, ParamSpec]:
 
 
 def intake(turn: Turn, name: Any, args: Any) -> Any:
-    """``args`` with every submitted file stored and replaced by its id (call under the run's lock)."""
+    """``args`` with every submitted file stored and replaced by its id (call under the run's gate)."""
     if not isinstance(args, Mapping):
         return args
     params = _file_params(turn, name)
@@ -130,7 +130,7 @@ def upload(turn: Turn, source: bytes | bytearray | str | os.PathLike[str], name:
         data, name = path.read_bytes(), name if name is not None else path.name
     else:
         raise TypeError(f"upload takes bytes or a file path, got {type(source).__name__}")
-    with turn.env._lock:
+    with turn.gate:
         if turn.done:
             raise RuntimeError("this turn is over; upload files during the turn")
         asset, problem = turn.env.world.assets.submit(data, name, turn.actor.id)

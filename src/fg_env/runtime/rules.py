@@ -16,7 +16,6 @@ members created or changed since it last held, so an action costs the same howev
 """
 from __future__ import annotations
 
-import threading
 from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, TypeVar
@@ -37,6 +36,7 @@ if TYPE_CHECKING:
     from ..information.core import Information
     from ..world.store import World
     from .facts import Facts
+    from .gate import Gate
     from .state import RunState
 
 __all__ = ["Rules"]
@@ -52,10 +52,10 @@ def _no_reactions(stage: StageSpec | None) -> None:
 
 
 class Rules:
-    """The rules of one run over its world. ``lock`` is the run's lock: every change is made holding it."""
+    """The rules of one run over its world. ``gate`` is the run's: every change is made holding it."""
 
     def __init__(self, contract: Contract, world: World, effects: EffectRunner, actions: ActionBook,
-                 information: Information, state: RunState, facts: Facts, lock: threading.RLock):
+                 information: Information, state: RunState, facts: Facts, gate: Gate):
         self.contract = contract
         self.world = world
         self.effects = effects
@@ -64,7 +64,7 @@ class Rules:
         self.information = information
         self.state = state
         self.facts = facts
-        self.lock = lock
+        self.gate = gate
         #: Plays the reactions a commit asked for, once nothing can undo it (the schedule's; wired by the run).
         self.react: Callable[[StageSpec | None], None] = _no_reactions
         self.end_on_action = any(end.check == "action" for end in contract.end)
@@ -93,7 +93,7 @@ class Rules:
         if not effects:
             return
         world = self.world
-        with self.lock, world.luck.at(luck or path, vars.get("actor") if owner is None else owner):
+        with self.gate, world.luck.at(luck or path, vars.get("actor") if owner is None else owner):
             mark = world.mark()
             try:
                 with shared_budget(ACTION_BUDGET, path):

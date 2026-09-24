@@ -83,7 +83,7 @@ class Prober:
         """The answer to ``call`` while ``owner``'s (None: the world's) hidden ``key`` holds ``value``, which is then
         put back; None once the turn is over."""
         env = wake._turn.env
-        with env._lock:  # no other turn meets the value put in for the probe
+        with env.gate:  # no other turn meets the value put in for the probe
             if wake.done:
                 return None
             store = env.world.props if owner is None else owner.properties

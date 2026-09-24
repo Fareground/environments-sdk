@@ -112,7 +112,7 @@ def count_host_tokens(env: Env) -> None:
     if taken and any(taken):
         from ..runtime.facts import Usage
 
-        with env._lock:
+        with env.gate:
             env.facts.emit(Usage(dict(zip(_TOKENS, taken))))
 
 

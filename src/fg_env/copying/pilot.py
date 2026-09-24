@@ -247,7 +247,7 @@ class Pilot:
         inside = self.stack[:-1] or (turn is not None and not self._in_round(turn))
         if inside or not (self.explicit or (self.controlled and self.reactive)):
             return  # already inside a decision (a reaction's call is part of the call it reacts to), or no need
-        with env._lock:
+        with env.gate:
             self._before = _Before(env.copy(waiting=turn), turn, len(turn.steps) if turn is not None else 0)
         self._woken, self._picks = [], []
 

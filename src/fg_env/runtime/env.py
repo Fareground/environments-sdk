@@ -1,4 +1,4 @@
-"""A loaded environment: the run's public face, which owns its state and its lock and wires its parts together.
+"""A loaded environment: the run's public face, which owns its state and its gate and wires its parts together.
 
 What the run changes as it plays is one value, :class:`~fg_env.runtime.state.RunState`. The parts are services over
 it: :class:`~fg_env.runtime.rules.Rules` evaluates and commits world logic, :class:`~fg_env.runtime.schedule.Schedule`
@@ -36,6 +36,7 @@ from .driving import Driver, run_on_worker
 from .end_state import end_state
 from .facts import Facts
 from .forgetting import reads_log
+from .gate import Gate
 from .measure import RunResult
 from .returns import measured
 from .rules import Rules
@@ -74,8 +75,7 @@ class Env:
     driver: Driver
     previews: Previews
     schedule: Schedule
-    _lock: threading.RLock
-    _signal: threading.Condition
+    gate: Gate
     _running: threading.Lock
 
     def __init__(self, contract: Contract, inputs: dict[str, Any], seed: int, arm: str | None = None,
@@ -95,9 +95,9 @@ class Env:
         #: Everything the run changes as it plays (see runtime/state.py). Results carry the event log unless
         #: ``events`` is false; then the run forgets what nothing can read (see forgetting.py).
         self.state = RunState(world, keep_events=events)
+        self.state.forgets = not events and not reads_log(contract)
         #: Wall-clock seconds each agent has for a turn (None: no limit).
         self.time_limit: float | None = None
-        self._reads_log = reads_log(contract) if not events else True
         self.origin = Origin(contract)
         self._assemble(None)
         self.rules.check_invariants("build", "build")
@@ -107,19 +107,18 @@ class Env:
         sharing what ``like``, the run it copies, read from the contract."""
         contract, world, state = self.contract, self.state.world, self.state
         self.world = world
-        self._lock = threading.RLock()
-        #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
-        self._signal = threading.Condition(self._lock)
+        #: The one lock every change to the run is made holding (see runtime/gate.py).
+        self.gate = Gate()
         self._running = threading.Lock()
         self.effects = EffectRunner(world)
         world.joined = self._joined
         self.actions = ActionBook(contract, world, self.effects)
-        self.information = Information(contract, world, self.actions, state, self._lock,
+        self.information = Information(contract, world, self.actions, state, self.gate,
                                        like.information if like is not None else None)
         #: Where everything that happens is told: the statistics and the diagnosis in the state are its folds.
         self.facts = world.facts = Facts(state)
         self.rules = Rules(contract, world, self.effects, self.actions, self.information, state, self.facts,
-                           self._lock)
+                           self.gate)
         self.driver = self._new_driver()
         self.previews = Previews(self)
         self.schedule = Schedule(self)
@@ -140,7 +139,7 @@ class Env:
         env = object.__new__(made)
         env.contract, env.inputs, env.seed, env.arm = self.contract, self.inputs, self.seed, self.arm
         env.parallel, env.seeds, env.time_limit = self.parallel, self.seeds, self.time_limit
-        env._reads_log, env.origin = self._reads_log, Origin(self.origin.unarmed, self.origin.start)
+        env.origin = Origin(self.origin.unarmed, self.origin.start)
         env.state = self.state.copy()
         env._assemble(self)
         env.state.adopt(env)

@@ -97,14 +97,14 @@ def apply_step(wake: Wake, entry: Entry) -> None:
         wake.record_usage(**entry[1])
     elif kind == "upload":
         turn = wake._turn
-        with turn.env._lock:
+        with turn.gate:
             turn.env.world.assets.adopt(entry[1])
             turn.record("upload", entry[1])
     elif kind == "reseed":
         reseed(wake._turn, entry[1])
     elif kind == "timeout":
         turn = wake._turn
-        with turn.env._lock:
+        with turn.gate:
             turn.timed_out = True
             turn.note(TIMED_OUT)
             turn.close()

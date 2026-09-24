@@ -239,7 +239,7 @@ class _Reading:
     def __call__(self, wake: Wake) -> None:
         self.seen.read(len(wake.brief) + len(wake.update))
         turn = wake._turn  # read straight from the turn, as its look and inspect tools do, but without their allowance
-        with turn.env._lock:
+        with turn.gate:
             if turn.round != self.round:
                 self.round, self.read = turn.round, set()
             for kind, name, args in _reads(turn):

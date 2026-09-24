@@ -94,7 +94,7 @@ class Schedule:
                 if stop is not None and stop(env):
                     env.status = "stopped"
                     return
-                if not env.state.keep_events:
+                if env.state.forgets:
                     forget(env)
                 self._round = self.steps()
             elif env.status == "stopped":
@@ -155,7 +155,7 @@ class Schedule:
         if rules.ended():
             self.finish()
             return False
-        with rules.lock:
+        with rules.gate:
             step_physics(world)
             world.commit()
         rules.check_invariants("physics")
@@ -454,7 +454,7 @@ class Schedule:
         if stop_when_ended and rules.ended():
             return
         if not (timed_out or acted) and actor.alive and turn.did_not_act:
-            with rules.lock:
+            with rules.gate:
                 rules.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, data={"stage": stage.name})
                 rules.world.commit()
         if actor.alive and not rules.ended():
@@ -466,7 +466,7 @@ class Schedule:
         if not turn.timed_out:
             return False
         actor, world = turn.actor, self.rules.world
-        with self.rules.lock:
+        with self.rules.gate:
             world.emit("timeout", f"{actor.name} ran out of time.", actor=actor.id,
                        data={"stage": turn.stage.name, "limit": turn.time_limit})
             world.commit()

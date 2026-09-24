@@ -86,9 +86,9 @@ class Wake:
     @property
     def me(self) -> dict[str, Any]:
         """A copy of this agent's own properties plus ``id``, ``name``, ``type`` and ``at``: changing it changes nothing
-        in the world. Read under the run's lock, so it never catches another agent's sealed choices being tried."""
+        in the world. Read under the run's gate, so it never catches another agent's sealed choices being tried."""
         actor = self._turn.actor
-        with self._turn.env._lock:
+        with self._turn.gate:
             return {**_copy(dict(actor.properties)), "id": actor.id, "name": actor.name, "type": actor.entity_type,
                     "at": actor.location_id}
 
@@ -127,7 +127,7 @@ class Wake:
     def _offer(self, tools: list[ToolSpec]) -> list[ToolSpec]:
         exposure = self._turn.exposure
         if exposure is not None and tools:
-            with self._turn.env._lock:
+            with self._turn.gate:
                 exposure.offered(tools)
         return tools
 
@@ -149,7 +149,7 @@ class Wake:
         problem = unbounded(args)
         if problem is not None:  # refused before anything copies or walks them: the call is invalid, saying why
             args = {REFUSED_ARGS: problem}
-        with turn.env._lock:  # a call made after the deadline is refused, so it is no step on the tape
+        with turn.gate:  # a call made after the deadline is refused, so it is no step on the tape
             if turn.refusal() is None:
                 args = intake(turn, name, args)  # submitted files are stored first: the tape holds their ids
                 turn.record("call", name, _copy(args))
@@ -170,7 +170,7 @@ class Wake:
         ``call("end_turn")`` still follows the tool protocol, including recording.
         """
         turn = self._turn
-        with turn.env._lock:
+        with turn.gate:
             if turn.done and not turn.closed and not turn.expired():
                 return ToolResult(True, "Turn already ended.", True)
             return self.call(END_TURN, {})
@@ -217,7 +217,7 @@ class Wake:
         turn = self._turn
         reported = {name: value for name, value in counts if value}
         shown = {name: value for name, value in reported.items() if name in _SHOWN_USAGE}
-        with turn.env._lock:
+        with turn.gate:
             turn.note(Usage(reported))  # a turn over and counted adds it to the run's totals (it still cannot act)
             if turn.tallied:
                 if turn.exposure is not None:

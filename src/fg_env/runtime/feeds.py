@@ -45,7 +45,7 @@ def run_feeds(rules: Rules) -> None:
             return
         if not _due(world, name, spec):
             continue
-        with rules.lock:
+        with rules.gate:
             mark = world.mark()
             try:
                 _pull(world, name, spec)

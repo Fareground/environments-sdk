@@ -242,7 +242,7 @@ def sample_call(env: Env, turn: Turn, rng: random.Random, *, limit: int = COMBIN
     if not dry_run:
         return candidates[order[0]] if order else None
     book, actor = env.actions, turn.actor
-    with env._lock, as_turn(env, turn), turn.after_choices():
+    with env.gate, as_turn(env, turn), turn.after_choices():
         for index in order:
             tool, args = candidates[index]
             if tool == END_TURN:
@@ -262,7 +262,7 @@ def legal_calls(env: Env, turn: Turn, *, limit: int = COMBINATION_LIMIT,
         return [], {}
     calls: list[tuple[str, dict[str, Any]]] = []
     unlisted: dict[str, str] = {}
-    with env._lock, as_turn(env, turn), turn.after_choices():
+    with env.gate, as_turn(env, turn), turn.after_choices():
         names = turn._legal()
         acted = turn.ledger.acted
         if not (turn.stage.must_act and not acted and names):

@@ -30,10 +30,8 @@ def reads_log(contract: Contract) -> bool:
 
 
 def forget(env: Env) -> None:
-    """At a round's start: drop the events no living agent's news can reach any more. Nothing is ever forgotten from a
-    run whose rules read the log."""
-    if env._reads_log:
-        return
+    """At a round's start: drop the events no living agent's news can reach any more (in a run that
+    :attr:`~fg_env.runtime.state.RunState.forgets`)."""
     world = env.world
     memories = env.state.memories
     horizon = min((memories[agent.id].cursor if agent.id in memories else 0

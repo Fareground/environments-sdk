@@ -51,7 +51,7 @@ def _settle(rules: Rules, turn: Turn, mark: int, applied: int) -> bool:
             rules.commit(f"stages.{stage.name}")
         return why
 
-    with rules.lock:
+    with rules.gate:
         why, fault = rules.guarded(commit, mark)
         if fault is not None:
             why = fault
@@ -70,7 +70,7 @@ def _commit_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], de
     """Apply one sealed choice; 1 when it applied. ``deferred`` (atomic stages) leaves the commit to the
     whole turn's settling. A rule that fails or an invariant it breaks refuses the choice alone."""
     actor, world = turn.actor, rules.world
-    with rules.lock:
+    with rules.gate:
         applied, fault = rules.guarded(lambda: _apply_intent(rules, turn, name, args, deferred), action=name)
         if applied is None:
             assert fault is not None

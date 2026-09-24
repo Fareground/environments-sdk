@@ -132,12 +132,12 @@ class Budget:
 
     def tokens_spent(self, env: Env, turn: Turn) -> bool:
         """Whether the token limit is reached counting the turns still in play (``turn``, and in a simultaneous stage
-        all of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
+        all of its turns), whose usage joins the run's totals only when they finish (call under the run's gate)."""
         return self.tokens_left(env, turn) <= 0
 
     def tokens_left(self, env: Env, turn: Turn) -> float:
         """The tokens left before the limit, counting the turns still in play (``turn``, and in a simultaneous stage all
-        of its turns), whose usage joins the run's totals only when they finish (call under the run's lock)."""
+        of its turns), whose usage joins the run's totals only when they finish (call under the run's gate)."""
         limit = self.limits.get("tokens")
         if limit is None:
             return math.inf
@@ -151,8 +151,8 @@ class Budget:
         waits only for others, so a limit is overshot by about one call."""
         if "tokens" not in self.limits:
             return 0
-        signal = env._signal
-        with signal:
+        gate = env.gate
+        with gate:
             while not turn.done:
                 left = self.tokens_left(env, turn)
                 if left <= 0:
@@ -163,15 +163,15 @@ class Budget:
                 time_left = turn.time_left()
                 if time_left is not None and time_left <= 0:
                     return None
-                signal.wait(time_left)
+                gate.wait(time_left)
             return None
 
     def release(self, env: Env, held: float) -> None:
         """Give back what :meth:`reserve` held for a call that has finished."""
         if held:
-            with env._signal:
+            with env.gate:
                 self._reserved -= held
-                env._signal.notify_all()
+                env.gate.notify()
 
     def check(self, env: Env) -> str | None:
         """The limit that has run out (recorded the first time one does), or None. Called at safe points: the
@@ -193,7 +193,7 @@ class Budget:
         if self.exhausted is not None or self.check(env) is None:
             return False
         if self.on_exhaust == "idle":
-            with env._lock:
+            with env.gate:
                 env.world.emit("budget", self.message(env), data=self.to_dict(env))
                 env.world.commit()
             env.schedule.flush()

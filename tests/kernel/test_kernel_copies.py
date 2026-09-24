@@ -325,9 +325,9 @@ def _part(env, path):
 
 
 def _wired(value, env):
-    """Whether ``value`` is one of the things a part is wired to: another part, the world, the state, the run, its lock
+    """Whether ``value`` is one of the things a part is wired to: another part, the world, the state, the run, its gate
     — each the run's own."""
-    parts = [env, env.world, env.state, env._lock, *(_part(env, path) for path in _PARTS)]
+    parts = [env, env.world, env.state, env.gate, *(_part(env, path) for path in _PARTS)]
     if getattr(value, "__self__", None) is not None:  # a bound method of one of them
         value = value.__self__
     return any(value is part for part in parts)

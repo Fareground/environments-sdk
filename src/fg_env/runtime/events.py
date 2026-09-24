@@ -64,7 +64,7 @@ class Events:
     def _deliver(self, item: Mapping[str, Any]) -> None:
         """Deliver one scheduled message as its own atomic change."""
         rules, world = self.rules, self.rules.world
-        with rules.lock:
+        with rules.gate:
             mark = world.mark()
             try:
                 deliver(world, item["delivery"], item["path"])
@@ -155,7 +155,7 @@ class Events:
                 rules.effects.run(loop.get("do") or [], dict(inner), body)
             return True
 
-        with rules.lock:
+        with rules.gate:
             mark = world.mark()
             try:
                 ran = run_synced(world, items, run_item, body)

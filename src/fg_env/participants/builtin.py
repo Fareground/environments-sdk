@@ -101,7 +101,7 @@ def _fill_dependent(wake: Wake, tool: str, args: dict[str, Any], rng: random.Ran
     actions = turn.env.actions
     if tool not in turn.env.contract.actions:
         return args
-    with turn.env._lock:
+    with turn.gate:
         try:
             return actions.fill_dependent(turn.actor, tool, args, rng.choice)
         except RunError:
@@ -207,7 +207,7 @@ class PolicyAgent:
         if each in turn.env.contract.types:
             return list(world.entities_of(each))
         try:
-            with turn.env._lock, turn.after_choices():
+            with turn.gate, turn.after_choices():
                 items = compile_expr(each)(scope)
                 return each_items(items, world, f"{path}.each")
         except ExprError as exc:
@@ -217,7 +217,7 @@ class PolicyAgent:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""
         turn, rule, path = wake._turn, spec.rules[index], f"{base}.rules[{index}]"
         # Read the world as the agent's next choice meets it: in a sealed stage, after the choices it already made.
-        with turn.env._lock, turn.after_choices():
+        with turn.gate, turn.after_choices():
             choice = self._choose(wake, spec, base, index, scope, rng)
         if choice is None:
             return "skipped"
@@ -272,7 +272,7 @@ class PolicyAgent:
         `chance` and `with` if it holds — for the first of its `each` items. Nothing acts, and draws come from a stream
         of their own."""
         scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=turn.actor)
-        with turn.env._lock:
+        with turn.gate:
             legal = set(turn._legal()) | {"pass"}
         with turn.env.world.luck.using(random.Random(0)):
             for later in range(index + 1, len(spec.rules)):

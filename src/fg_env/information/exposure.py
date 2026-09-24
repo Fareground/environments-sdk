@@ -96,7 +96,7 @@ class Shown:
 
 
 class Exposure:
-    """One wake's record, filled in while the turn runs (always under the run's lock)."""
+    """One wake's record, filled in while the turn runs (always under the run's gate)."""
 
     def __init__(self, log: ExposureLog, turn: Turn, kind: str):
         self.log = log

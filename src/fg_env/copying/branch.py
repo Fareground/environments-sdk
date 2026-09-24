@@ -214,7 +214,7 @@ def driven_copy(source: Env, kind: type[_Driven], participants: Any = None, wait
     """A copy of ``source`` as it is now (``waiting`` in that turn), as a run of ``kind`` that search code or a
     controller drives: its turns one at a time, its agents played by ``participants`` — by default the run's named
     participants (its callables are the caller's own, never called by a copy)."""
-    with source._lock:
+    with source.gate:
         env = source.copy(kind, waiting=waiting)
     env.parallel = 1
     env.driver.spec = {key: value for key, value in source.driver.spec.items() if isinstance(value, str)}

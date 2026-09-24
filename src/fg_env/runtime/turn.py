@@ -73,6 +73,8 @@ class Turn:
     def __init__(self, env: Env, actor: Entity, stage: StageSpec, reason: str, staged: bool, peek: bool = False,
                  kind: str = "turn"):
         self.env = env
+        #: The run's gate: the turn reads and changes the run holding it (see runtime/gate.py).
+        self.gate = env.gate
         self.actor = actor
         self.stage = stage
         self.reason = reason
@@ -145,7 +147,8 @@ class Turn:
         return max(0.0, self.deadline - time.monotonic())
 
     def expired(self, now: float | None = None) -> bool:
-        """True once the deadline has passed; the first time, the turn is closed as timed out (call under the lock)."""
+        """True once the deadline has passed; the first time, the turn is closed as timed out (call holding the run's
+        gate)."""
         if (not self.timed_out and self.deadline is not None and (time.monotonic() if now is None else now)
             >= self.deadline):
             self.record("timeout")
@@ -175,7 +178,8 @@ class Turn:
         turn = Turn.__new__(Turn)
         turn.__dict__.update(self.__dict__)
         turn.__dict__.update(
-            env=env, actor=world.entities[self.actor.id], ledger=self.ledger.copy(world), stats=self.stats.copy(),
+            env=env, gate=env.gate, actor=world.entities[self.actor.id], ledger=self.ledger.copy(world),
+            stats=self.stats.copy(),
             _tools=None, _delivered=list(self._delivered), _reads=list(self._reads), steps=list(self.steps),
             host_uses=dict(self.host_uses), rng=None if self.rng is None else copy_stream(self.rng),
             exposure=None if self.exposure is None else self.exposure.copy(world.exposures, world))
@@ -185,7 +189,7 @@ class Turn:
 
     @property
     def brief(self) -> str:
-        with self.env._lock:
+        with self.gate:
             if self._brief is None:
                 if self.closed:
                     return _CLOSED_TEXT
@@ -198,7 +202,7 @@ class Turn:
 
     @property
     def update(self) -> str:
-        with self.env._lock:
+        with self.gate:
             if self._update is None:
                 if self.closed:
                     return _CLOSED_TEXT
@@ -255,7 +259,7 @@ class Turn:
         if self._tools is not None:  # nothing changed since the last look (reset by every call)
             return self._tools
         env = self.env
-        with env._lock:  # never while another agent's sealed choices are tried on the world
+        with self.gate:  # never while another agent's sealed choices are tried on the world
             tools = env.information.tools(self.actor, self._legal(), staged=self.staged, atomic=self.ledger.atomic,
                                           allowance=self.ledger.max_calls,
                                           must_act=self.stage.must_act and not self.ledger.acted)
@@ -268,22 +272,22 @@ class Turn:
     # -- calls -------------------------------------------------------------------
 
     def call(self, name: Any, args: Any) -> ToolResult:
-        env = self.env
-        with env._lock:
+        gate = self.gate
+        with gate:
             self._tools = None
             self.busy += 1
             try:
                 result = self._call(name, args)
             finally:
                 self.busy -= 1
-                env._signal.notify_all()
+                gate.notify()
             if self.exposure is not None:
                 self.exposure.called(name, args, result)
             self.note(Answered(name, args, result))
             return result
 
     def refusal(self) -> ToolResult | None:
-        """Why a call cannot be made now (the turn is over or out of time), or None (call under the lock)."""
+        """Why a call cannot be made now (the turn is over or out of time), or None (call holding the run's gate)."""
         if self.expired():
             return ToolResult(False, "Your time for this turn ran out; nothing was done.", True, dict(_TIMEOUT))
         if self.done:
@@ -449,7 +453,7 @@ class Turn:
     def settle(self) -> str | None:
         """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every action of the
         turn and say why — also when a rule fails or an invariant breaks as it commits. A turn that took no action
-        has nothing to check. Call under the lock."""
+        has nothing to check. Call holding the run's gate."""
         ledger = self.ledger
         if not ledger.part_open:
             return None
@@ -475,7 +479,7 @@ class Turn:
         """Settle an atomic turn the participant left open (it returned, timed out or ran out of calls). An
         undone turn is reported to the agent as news."""
         env = self.env
-        with env._lock:
+        with self.gate:
             if not self.ledger.part_open:
                 return
             with env.world.luck.turn_context(None, self.ledger.pending):

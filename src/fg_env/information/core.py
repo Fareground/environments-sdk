@@ -8,7 +8,6 @@ actions are legal is the rules' to decide: it receives them.
 """
 from __future__ import annotations
 
-import threading
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +26,7 @@ from .reads import find_target, handle_filter, inspect_rule, inspect_text, inspe
 from .schemas import END_TURN, ToolSchemas, ToolSpec
 
 if TYPE_CHECKING:
+    from ..runtime.gate import Gate
     from ..runtime.state import RunState
 
 __all__ = ["Information"]
@@ -42,11 +42,11 @@ class Information:
     spectator: list[str]
 
     def __init__(self, contract: Contract, world: World, actions: ActionBook, state: RunState,
-                 lock: threading.RLock, like: Information | None = None):
+                 gate: Gate, like: Information | None = None):
         self.contract = contract
         self.world = world
         self.state = state
-        self.lock = lock
+        self.gate = gate
         self.perception: Perception = Perception(contract, world, like.perception if like is not None else None)
         self.schemas = ToolSchemas(actions)
         if like is not None:
@@ -184,7 +184,7 @@ class Information:
         use a stream of their own."""
         world, frames = self.world, self.state.frames
         shown: dict[str, str] = {}
-        with self.lock, world.luck.turn_context(world.luck.seeds.rng("spectator", world.round, len(frames)), None):
+        with self.gate, world.luck.turn_context(world.luck.seeds.rng("spectator", world.round, len(frames)), None):
             for name in self.spectator:
                 with shared_budget(ACTION_BUDGET, f"views.{name}"):
                     text = self.perception.render_view(name, self.contract.views[name], None)

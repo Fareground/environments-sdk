@@ -348,7 +348,7 @@ LATE = frozenset({Committed, CommitRefused, Undone, Usage})
 
 class Facts:
     """The run's one sink of facts, folding each into the statistics and the diagnosis of ``state`` (see the module
-    docstring). Emit under the run's lock."""
+    docstring). Emit under the run's gate."""
 
     def __init__(self, state: RunState):
         self.state = state

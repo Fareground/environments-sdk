@@ -62,7 +62,7 @@ def describe_assets(env: Env) -> None:
     pending = [asset for asset in store.assets.values() if asset.describe]
     if not pending or env.world.round:
         return
-    with env._lock:
+    with env.gate:
         for asset in pending:
             described(env.world, asset)
         env.world.commit()

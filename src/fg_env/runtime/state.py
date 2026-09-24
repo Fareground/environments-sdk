@@ -117,6 +117,9 @@ class RunState:
     def __init__(self, world: World, keep_events: bool = True):
         self.world = world
         self.keep_events = keep_events
+        #: Whether the run forgets the events no agent's news can reach any more: it keeps no event log and its rules
+        #: read none older than an agent's news (see runtime/forgetting.py).
+        self.forgets = False
         #: Turns numbered so far (numbers are assigned in a fixed order, before any turn runs concurrently).
         self.turn_count = 0
         self.memories: dict[str, Memory] = {}
@@ -158,7 +161,7 @@ class RunState:
         world = copy_world(self.world)
         state = RunState.__new__(RunState)
         state.__dict__.update(
-            world=world, keep_events=self.keep_events, turn_count=self.turn_count,
+            world=world, keep_events=self.keep_events, forgets=self.forgets, turn_count=self.turn_count,
             memories={key: memory.copy() for key, memory in self.memories.items()}, briefs=dict(self.briefs),
             brief_assets={key: list(ids) for key, ids in self.brief_assets.items()},
             status=self.status, ended_by=self.ended_by, error=self.error,

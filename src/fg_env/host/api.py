@@ -49,7 +49,7 @@ def build(env: Env) -> None:
     names = [name for name, raw in env.contract.mechanisms.items() if use_key(raw) == KEY]
     if not names or env.world.round:
         return
-    with env._lock:
+    with env.gate:
         for name in names:
             generate(env.world, name, f"mechanisms.{name}")
         env.rules.check_invariants("personas")
