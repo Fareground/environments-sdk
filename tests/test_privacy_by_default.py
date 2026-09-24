@@ -107,10 +107,9 @@ def test_a_view_shows_the_readers_own_private_prop():
     assert "My secret: 1." in update and "- b coins=5" in update
 
 
-def test_inspect_shows_only_the_readers_own_entity_by_default():
+def test_inspect_is_not_offered_by_default_as_its_only_choice_would_be_the_reader_itself():
     env = fg_env.load(contract(), seed=1)
-    inspect = next(t for t in env.preview("a")["tools"] if t["name"] == "inspect")
-    assert inspect["input_schema"]["properties"]["id"]["enum"] == ["a"]
+    assert "inspect" not in [t["name"] for t in env.preview("a")["tools"]]
 
 
 def test_a_type_opts_in_to_inspection_and_private_props_stay_hidden():

@@ -137,7 +137,7 @@ class ActionSchemas:
         description = spec.description or name.replace("_", " ").capitalize() + "."
         if staged:
             description += " (Committed when everyone has chosen.)"
-        if spec.terminal is True and "turn" not in description.lower():
+        if spec.terminal is True and "ends your turn" not in description.lower():  # never said twice
             description += " Ends your turn."
         elif isinstance(spec.terminal, str):
             description += " May end your turn."

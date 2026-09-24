@@ -72,8 +72,8 @@ def test_a_turn_shows_what_the_agent_read_the_tools_it_had_and_every_call_with_i
     [wake] = recording.turn(0).data
     assert wake["entity"] == "shopper_1" and wake["round"] == 1 and wake["stage"] == "shop"
     assert wake["brief"].startswith("# Corner shop") and "You have $30.00." in wake["update"]
-    assert wake["tools"] == ["buy", "inspect", "end_turn"]
-    assert [tool["name"] for tool in wake["tool_sets"][0]] == ["buy", "inspect", "end_turn"]
+    assert wake["tools"] == ["buy", "end_turn"]
+    assert [tool["name"] for tool in wake["tool_sets"][0]] == ["buy", "end_turn"]
     wrong, right, done = wake["calls"]
     assert wrong["error"] == "invalid" and "qty must be at most 5" in wrong["result"]
     assert right == {"tool": "buy", "args": {"offer": "latte", "qty": 1}, "ok": True, "ended": False,

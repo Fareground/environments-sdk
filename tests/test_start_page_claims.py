@@ -60,12 +60,12 @@ def test_a_local_lasts_through_its_nested_effects_but_not_into_the_next_action()
     assert issues and "$t is not available here" in issues[0].message
 
 
-def test_inspect_offers_only_the_agent_itself_unless_its_type_opens_it():
+def test_inspect_is_offered_only_when_a_type_opens_it():
     def offered(contract):
         tools = {tool["name"]: tool for tool in fg_env.load(contract).preview("a")["tools"]}
-        return tools["inspect"]["input_schema"]["properties"]["id"]["enum"]
+        return tools["inspect"]["input_schema"]["properties"]["id"]["enum"] if "inspect" in tools else None
 
-    assert offered(STANDS) == ["a"]
+    assert offered(STANDS) is None  # its only choice would be the agent itself
     opened = copy.deepcopy(STANDS)
     opened["types"]["stand"]["inspect"] = True
     assert offered(opened) == ["a", "b"]

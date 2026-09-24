@@ -87,8 +87,8 @@ holds, an `end` effect runs, or the rounds run out.
   agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or after `max_calls` calls.
 * An action is atomic: if an effect `fail`s or a `transfer` lacks funds, all of it is undone and the agent is told why.
-* Besides action tools, an agent gets `inspect` (one entity's non-`private` props): only itself, unless the type
-  sets `"inspect": true` or an expression over `$viewer` and `$it`.
+* Besides action tools, an agent gets `inspect` (one entity's non-`private` props) when a type sets
+  `"inspect": true` or an expression over `$viewer` and `$it`; an agent's own state belongs in a view.
 
 ## Sections
 

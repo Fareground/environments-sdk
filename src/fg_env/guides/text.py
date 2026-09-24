@@ -308,7 +308,7 @@ RECIPES = """\
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
-  `private: true` actions (no announcement). `inspect` shows an agent only itself unless a type sets `inspect`.
+  `private: true` actions (no announcement). Agents get `inspect` only for types that set `inspect`.
   An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
   (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call, metrics worked out
   from private props) is an error at run time, however it is spelled; so is a stage `order` that reads one, since
@@ -391,8 +391,9 @@ RECIPES = """\
   was created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
-* Inspection: each agent may inspect itself; `types.X.inspect: true` (or an expression over `$viewer` and `$it`)
-  lets agents inspect those entities too, showing every prop that is not `private`.
+* Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
+  those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
+  the agent itself: show an agent's own state in a view).
 * Boards and tables in views: `"bullet": false` prints lines without "- ". View titles are templates.
 * Participants keyed by a parent type (`{"tier": ...}`) and `policy` on a parent type reach every subtype.
 * Calendars: `clock.start` with unit day, week, month, year, hour or minute adds the date to the time label, and may
