@@ -365,8 +365,9 @@ _SWEEP_BASE = {"retail": {"days": 60, "sample_size": 80, "launch_day": 5}, "exch
                "dispute": {"evidence_rounds": 1}}  # one exhibit a side: a close case, where every jury rule can bite
 #: Rounds a sweep stops at where an extreme would run for minutes; outputs are read where it stops.
 _SWEEP_ROUNDS = {("retail", "sample_size"): 1, ("exchange", "bars"): 24, ("exchange", "participants"): 4}
-#: The retail engine's launch inputs act in its chain_launch arm, which runs the baseline's rules too.
-_SWEEP_ARM = {"retail": "chain_launch"}
+#: The retail engine's launch inputs act in its chain_launch arm, which runs the baseline's rules too; the contact
+#: centre's outage and callback inputs act in the arm that has both.
+_SWEEP_ARM = {"retail": "chain_launch", "contact_centre": "outage_with_callbacks"}
 #: Declared inputs no output shows when moved alone from one bound to the other, and why.
 _INERT = {
     ("exchange", "circuit_breaker_pct"): "0 turns the breaker off and a 50% move within one bar does not happen in "

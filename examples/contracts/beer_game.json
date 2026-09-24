@@ -33,11 +33,11 @@
     "shock_week": {"description": "Index (0-based) of the first week whose demand differs from week 1, or 0.", "expr": "$get($filter($range($len($series.customer_demand)), $series.customer_demand[$it] != $series.customer_demand[0]), 0, 0)"}
   },
   "types": {
-    "tier": {"agent": true, "description": "One tier of the supply chain.", "inspect": "$viewer.id == $it.id"},
-    "retailer": {"extends": "tier", "description": "Sells to customers.", "policy": "anchor"},
-    "wholesaler": {"extends": "tier", "description": "Supplies the retailer.", "policy": "anchor"},
-    "distributor": {"extends": "tier", "description": "Supplies the wholesaler.", "policy": "anchor"},
-    "factory": {"extends": "tier", "description": "Brews beer and supplies the distributor.", "policy": "anchor"}
+    "tier": {"agent": true, "description": "One tier of the supply chain.", "inspect": "$viewer.id == $it.id", "policy": "anchor"},
+    "retailer": {"extends": "tier", "description": "Sells to customers."},
+    "wholesaler": {"extends": "tier", "description": "Supplies the retailer."},
+    "distributor": {"extends": "tier", "description": "Supplies the wholesaler."},
+    "factory": {"extends": "tier", "description": "Brews beer and supplies the distributor."}
   },
   "entities": {
     "retailer": {"type": "retailer", "name": "Retailer"},

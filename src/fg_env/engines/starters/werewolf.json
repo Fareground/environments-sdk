@@ -26,7 +26,7 @@
         {"id": "p9", "name": "Iris"}
       ]
     },
-    "werewolves": {"type": "int", "default": 2, "min": 1, "max": 10, "description": "Werewolves dealt among the players; one seer and one doctor are dealt too, and everyone else is a villager."}
+    "werewolves": {"type": "int", "default": 2, "min": 1, "max": 3, "description": "Werewolves dealt among the players; one seer and one doctor are dealt too, and everyone else is a villager (at least one)."}
   },
   "clock": {"rounds": 8, "unit": "round"},
   "world": {
@@ -40,6 +40,7 @@
   "types": {
     "player": {
       "agent": true,
+      "policy": "honest",
       "description": "A villager of unknown allegiance.",
       "props": {
         "nomination": {"type": "text", "default": "", "private": true},
@@ -241,6 +242,7 @@
     "living": "$count(player, $it.living)",
     "living_wolves": "$team_alive(wolves)"
   },
+  "invariants": [{"expr": "$count(player) >= $inputs.werewolves + 3", "why": "The village needs a seer, a doctor and at least one villager besides the werewolves: give inputs.players more rows, or lower inputs.werewolves."}],
   "outputs": {
     "winning_side": {"expr": "$world.winner", "type": "text", "description": "village, werewolves, or none if the round budget ran out."},
     "rounds": {"expr": "$world.rounds_played", "type": "int", "description": "Rounds (night + day) played."},

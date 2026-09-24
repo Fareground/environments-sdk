@@ -910,8 +910,9 @@
       "description": "USD per driver."
     },
     "driver_earnings_sd": {
-      "expr": "$round($stdev(driver, $it.earnings), 2)",
-      "type": "number"
+      "expr": "$round($stdev(driver, $it.earnings), 2) if $count(driver) > 1 else null",
+      "type": "number",
+      "description": "USD; null with a single driver."
     },
     "driver_earnings_p10": {
       "expr": "$round($quantile(driver, $it.earnings, 0.1), 2)",
