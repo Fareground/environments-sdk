@@ -98,6 +98,12 @@ Complete, runnable scenarios with coded participants, to copy and edit rather th
 - `network` — an idea spreads over trust ties from its first adopters
 - `matching` — applicants and selectors rank each other; a stable match within capacity
 - `strategy` — repeated cooperate-or-compete choices among players under a payoff matrix
+- `supply_chain` — tiers of a supply chain order upstream and ship downstream with delays (the beer game)
+- `auction` — collectors with private values bid for identical lots under each auction format
+- `contact_centre` — a call-by-call day at a contact centre: arrivals, handling, abandonment and staffing
+- `ride_hailing` — drivers serve ride requests on a city grid while the platform can price zones by surge
+- `epidemic` — an outbreak on a contact network, with lockdowns, vaccination and hospital capacity
+- `hidden_roles` — social deduction: hidden werewolves kill at night while the village talks and votes by day
 
 ## Every other part
 

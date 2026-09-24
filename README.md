@@ -29,13 +29,14 @@ transitions, stopping conditions, and measurements. The runtime builds the world
 agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
-scenario repeatedly. Twelve reusable behavioral engines—Retail, Council, Dispute, Exchange,
-Legislature, Contest, Deliberation, Negotiation, Population, Network, Matching and Strategy—can be
-cloned as a starting point, then customized: topic, participants, rules, information and outcomes.
+scenario repeatedly. Eighteen reusable engines—Retail, Council, Dispute, Exchange, Legislature,
+Contest, Deliberation, Negotiation, Population, Network, Matching, Strategy, Supply chain, Auction,
+Contact centre, Ride hailing, Epidemic and Hidden roles—can be cloned as a starting point, then
+customized: topic, participants, rules, information and outcomes.
 
 Do not treat an engine as a finished scenario. Engines provide interaction mechanics; your
-environment supplies the real-world question and assumptions. Named Arena games and physical,
-spatial, logistics, or disease models are not part of the behavioral engine catalog.
+environment supplies the real-world question and assumptions. Named Arena games are not part of the
+engine catalog.
 
 You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
 and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
@@ -181,7 +182,7 @@ print(result.table())
 ```
 
 The catalog contains reusable behavioral engines only—not finished environments,
-scenario presets, or Arena games. All twelve engines are native, available, and cloneable.
+scenario presets, or Arena games. All eighteen engines are native, available, and cloneable.
 
 Persona generation is shared infrastructure rather than an environment:
 
