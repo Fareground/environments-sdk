@@ -31,8 +31,9 @@ def test_catalog_ships_every_engine_as_native():
 
 #: Warnings the checker gives a starter that are not problems in it. The discussion stages end when everyone is
 #: ready (the werewolves' night when the pack agrees on a victim), which a coded or model panel reaches but the smoke
-#: play's random agents (who keep talking, and pick victims at random) rarely do in one play; the negotiation's offer table values each offer for its reader through a def called with the reader
-#: itself, which the checker cannot tell from reading someone else's private weights.
+#: play's random agents (who keep talking, and pick victims at random) rarely do in one play; the negotiation's offer
+#: table values each offer for its reader through a def called with the reader itself, which the checker cannot tell
+#: from reading someone else's private weights.
 CHECKER_FALSE_POSITIVES = {
     ("council", "stages.discussion.until"), ("dispute", "stages.deliberation.until"),
     ("deliberation", "stages.forum.until"), ("legislature", "stages.chamber.until"),
