@@ -32,24 +32,24 @@ ROOTS: list[tuple[str, str, str]] = [
     ("actions", "when", "$actor ($params too: such a requirement is checked when the action is called)"),
     ("actions", "params.*.where", "$actor $it $i $params (earlier params)"),
     ("actions", "params.*.min/max/values/default", "$actor $params (earlier params)"),
-    ("actions", "chance/do/otherwise/outcome/announce/terminal", "$actor $params + locals"),
-    ("stages", "who/order/first_wake", "$it $i"),
-    ("stages", "brief/time_limit/interval/on_wake/on_idle/on_turn_end/on_timeout", "$actor"),
+    ("actions", "do/outcome/announce/terminal", "$actor $params + locals"),
+    ("stages", "who/order", "$it $i"),
+    ("stages", "brief", "$actor"),
     ("stages", "valid (expr and why)", "$actor $pending"),
-    ("stages", "when/until/on_enter/on_exit", "—"),
+    ("stages", "when/until", "—"),
     ("views", "when/of", "$actor"),
     ("views", "where/sort/show", "$actor $it $i"),
     ("views", "with for: spectator", "no $actor ($it $i in lists)"),
     ("records", "visible", "$viewer $it (entry)"),
     ("records", "show", "$it (entry: its fields directly, $it.text, plus author, round, seq, stage, to)"),
-    ("events", "where/do (with each)", "$it $i (or the `as` name)"),
-    ("triggers", "when/do/say", "—"),
+    ("events", "on: round.* / stage.<s>.start / stage.<s>.end / change", "—"),
+    ("events", "on: stage.<s>.turn", "$actor $acted $timed_out"),
+    ("events", "on: create.<t> / remove.<t>", "$it (the entity)"),
     ("population", "where/weight", "$row"),
     ("population", "props/id/name", "$row $i ($i counts from 1)"),
     ("population", "brief", "$actor $row $i"),
     ("entities", "brief", "$actor"),
     ("types", "inspect", "$viewer $it"),
-    ("types", "on_create/on_remove", "$it (the entity) + locals"),
     ("relations", "props.*.default", "$from $to"),
     ("links", "props", "$from $to (+ $row with `rows`)"),
     ("physics", "per.*.read/where", "$it"),
@@ -91,11 +91,11 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "The steps of every round: who acts, how (sequential or sealed simultaneous), which actions."),
     ("views", [C.ViewSpec], "{view: ViewSpec}", "What agents read each turn: single lines or ranked, filtered lists."),
     ("events", [C.EventSpec], "[EventSpec]",
-     "What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a "
-     "condition holds, or by chance."),
-    ("triggers", [C.TriggerSpec], "[TriggerSpec]",
-     "What the world does the moment a condition becomes true (checked after every action and effect block), unlike an "
-     "event, which runs at a set point of the round."),
+     "What the world does outside agents' turns. `on` is when an event is considered — round.start (the default), "
+     "round.end, stage.<s>.start, stage.<s>.end, stage.<s>.turn (after each agent's turn: $actor, $acted, "
+     "$timed_out), create.<type>, remove.<type> ($it), or change (the moment `when` becomes true) — and `when` "
+     "whether it fires: on given rounds (\"$round == 5\", \"$round % 7 == 1\"), in an arm (\"$arm == 't'\"), by "
+     "chance. Events on one anchor fire in the order written, before those mechanisms generate."),
     ("end", [C.EndSpec], "[EndSpec]",
      "Conditions that end the run early, with an optional winner ($result.winner in outputs)."),
     ("metrics", [C.MetricSpec], "{metric: expr | MetricSpec}",
@@ -329,7 +329,7 @@ def _public(family: FamilySpec, mode: str) -> list[str]:
 # -- model fields ---------------------------------------------------------------
 
 def _type_name(annotation: Any, field: str) -> str:
-    if field in ("do", "otherwise", "on_enter", "on_exit", "on_create", "on_remove"):
+    if field == "do":
         return "effects"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)

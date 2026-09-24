@@ -13,7 +13,6 @@ from .base import (
     MAX_SUBSTEPS,
     PROP_TYPES,
     SPELLINGS,
-    Effects,
     TypeName,
     _ceiling,
     _Model,
@@ -109,16 +108,6 @@ class Clock(_Model):
                               description="ISO date of round 1 (adds a calendar date), or an expression over $inputs "
                                           "giving one (`\"$inputs.start\"`).")
     step: int = Field(1, description="Units per round (e.g. 7 with unit 'day' = weekly rounds).")
-    mode: str = Field("rounds",
-                      description="rounds (every round is one step) | continuous (time is a number: actions take "
-                                  "`duration`, `scheduled` stages wake agents when their time comes).")
-    tick: float = Field(1.0, gt=0, description="Continuous: how far time moves when nothing is due sooner.")
-    jump: bool = Field(True,
-                       description="Continuous: jump straight to the next moment something is due (an agent's turn or "
-                                   "an `after` effect) instead of moving by `tick`.")
-    horizon: float | str | None = Field(None,
-                                        description="Continuous: the run completes when time would pass this (number "
-                                                    "or expression over $inputs).")
 
     @field_validator("rounds")
     @classmethod
@@ -254,18 +243,6 @@ class TypeSpec(_Model):
                                 description="Whether agents may inspect these entities (each agent may always inspect "
                                             "itself): false (default), true, or an expression over $viewer and $it. "
                                             "Inspect shows every property that is not private.")
-    on_create: Effects = Field(default_factory=list,
-                               description="Effects run for every entity of this type (subtypes too) the moment it is "
-                                           "created ($it), atomically with whatever created it; an ancestor's hooks "
-                                           "run first.")
-    on_remove: Effects = Field(default_factory=list,
-                               description="Effects run for every entity of this type (subtypes too) the moment it is "
-                                           "removed ($it, already no longer alive), atomically with the removal.")
-    on_create_at_build: bool = Field(True,
-                                     description="Also run on_create for entities made when the world is built (once "
-                                                 "the whole world exists, in creation order); false runs it only for "
-                                                 "entities created during the run. The nearest declaration in the "
-                                                 "type's lineage wins.")
 
 
 class EntitySpec(_Model):

@@ -39,8 +39,6 @@ class Stats:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     llm_retries: int = 0
-    #: Turns played without waking the agent (stage `auto`).
-    auto_turns: int = 0
     #: Out-of-turn reaction turns (`wake` with `now`).
     reactions: int = 0
     #: Turns an LLM participant lost because its provider still failed after every retry.
@@ -95,8 +93,6 @@ class RunResult:
     series: dict[str, list[Any]]
     winner: Any = None
     error: str | None = None
-    #: The clock time reached (continuous clock), else None.
-    time: float | None = None
     #: Each seat's return (the contract's `game.returns`), in seat order; empty when none is declared.
     returns: dict[str, float] = field(default_factory=dict)
     output_issues: list[dict[str, Any]] = field(default_factory=list)
@@ -165,8 +161,8 @@ class RunResult:
 
     @property
     def unit(self) -> str:
-        """What one round is called: ``week``, ``half-hour`` (a clock of 30 minutes), or ``round`` for a continuous
-        clock (see :mod:`fg_env.runtime.clock_words`)."""
+        """What one round is called: ``week``, ``half-hour`` (a clock of 30 minutes), ``round`` (see
+        :mod:`fg_env.runtime.clock_words`)."""
         from .clock_words import unit_word
 
         return unit_word(self.clock)

@@ -63,14 +63,12 @@ class LogEvent:
     to: tuple[str, ...] | None = None
     data: dict[str, Any] = field(default_factory=dict)
     stage: str | None = None
-    #: Clock time when it happened (continuous clock only).
-    time: float | None = None
 
     def visible_to(self, entity_id: str) -> bool:
         return self.to is None or entity_id in self.to
 
     def expr_attr(self, name: str, source: str | None) -> Any:
-        if name in ("seq", "round", "kind", "text", "actor", "stage", "time"):
+        if name in ("seq", "round", "kind", "text", "actor", "stage"):
             return getattr(self, name)
         if name in self.data:
             return self.data[name]
@@ -86,8 +84,6 @@ class LogEvent:
             out["to"] = list(self.to)
         if self.data:
             out["data"] = self.data
-        if self.time is not None:
-            out["time"] = self.time
         return out
 
 
@@ -128,12 +124,7 @@ class ClockView:
             return w.start
         if name == "label":
             return w.clock_label()
-        if name == "time":
-            return w.now()
-        if name == "horizon":
-            return w.horizon
-        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label, time, horizon)",
-                        source)
+        raise ExprError(f"clock has no field '{name}' (round, rounds, left, unit, date, start, label)", source)
 
 
 class Journal:
@@ -167,7 +158,7 @@ class Journal:
     @contextmanager
     def held(self) -> Iterator[None]:
         """Keep every change made inside the block undoable until it ends: commits inside it (an agent's action and
-        the triggers it sets off) clear the journal only once the block finishes without an error, so a failure
+        the events it sets off) clear the journal only once the block finishes without an error, so a failure
         anywhere in it can still undo all of it."""
         self.holding += 1
         try:

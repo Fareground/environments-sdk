@@ -1,5 +1,5 @@
 # fg-env playthrough: Rock paper scissors
-Game: rock_paper_scissors@0f2c6b01:4642e142
+Game: rock_paper_scissors@2f1243b2:4642e142
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: zero_sum

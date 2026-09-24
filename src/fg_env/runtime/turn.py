@@ -1,8 +1,8 @@
 """One agent's turn: what it reads, which tools it has, and how each call is applied.
 
 A turn may have a wall-clock deadline: past it the turn is closed and every later call is
-refused. In an atomic stage the turn's actions stay open until it ends: triggers, reactions
-and invariants wait, and a turn that breaks the stage's `valid` rules is undone as a whole.
+refused. In a stage with `valid` rules the turn's actions stay open until it ends: events, reactions
+and invariants wait, and a turn that breaks the rules is undone as a whole.
 """
 from __future__ import annotations
 
@@ -26,7 +26,6 @@ from ..actions.reads import (
     may_inspect,
     reads_refused,
 )
-from ..actions.schemas import _choice_names
 from ..actions.tool_text import cut_text, offer_text
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
@@ -49,11 +48,10 @@ __all__ = ["Memory", "Turn", "entity_dict"]
 class Memory:
     """What the engine remembers per agent between turns."""
 
-    __slots__ = ("cursor", "views", "turns")
+    __slots__ = ("cursor", "turns")
 
     def __init__(self) -> None:
         self.cursor = 0
-        self.views: dict[str, str] = {}
         self.turns = 0
 
 
@@ -86,7 +84,6 @@ class Turn:
         memory = env._memories.get(actor.id) if peek else env._memory(actor.id)
         memory = memory or Memory()
         self._since = memory.cursor
-        self._views = dict(memory.views) if peek else memory.views
         self._brief: str | None = None
         self._update: str | None = None
         #: The assets delivered with the brief and with the update.
@@ -110,12 +107,10 @@ class Turn:
         #: What this agent already did (sequential) or submitted (simultaneous) this turn, as $pending.
         self.pending: list[dict[str, Any]] = []
         self.stats = Stats(wakes=1)
-        #: Clock time taken by this turn's actions (continuous clock).
-        self.elapsed = 0.0
         self._offered = False
         self._tools: list[ToolSpec] | None = None
         #: Wall-clock seconds this turn may take (None: no limit); the deadline is set when it starts.
-        self.time_limit = env._time_limit(stage, actor)
+        self.time_limit = env.time_limit
         self.deadline: float | None = None
         self.timed_out = False
         #: Closed from outside (deadline, a failing run): its participant is no longer waited for.
@@ -126,9 +121,9 @@ class Turn:
         self.tallied = False
         #: Atomic turns: the journal position the turn's changes are undone to, until it settles, and the turn's
         #: counts there (``_part``). An action that draws randomness settles the turn so far, and a new part begins.
-        self.atomic = (stage.atomic or bool(stage.valid)) and not staged and not peek
+        self.atomic = bool(stage.valid) and not staged and not peek
         self._mark: int | None = None
-        self._part: tuple[int, dict[str, int], int, float, int] = (self.actions_left, {}, 0, 0.0, 0)
+        self._part: tuple[int, dict[str, int], int, int] = (self.actions_left, {}, 0, 0)
         self._counted: list[str] = []
         #: Atomic turns: the outcome texts (and files) of the part's actions, shown once the part commits — an undone
         #: part must not leave its agent knowing what it showed (a peek whose cost was refunded) — and those committed,
@@ -204,7 +199,7 @@ class Turn:
                 with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self.env, self.actor)), \
                         self._views_luck("update"):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
-                                                              self._views, self.time_limit, shown, attached,
+                                                              self.time_limit, shown, attached,
                                                               self.calls_left if self.call_limit else None,
                                                               self.call_limit and self._offers_reads())
                 self.stats.update_chars = len(self._update)
@@ -217,7 +212,7 @@ class Turn:
     def _offers_reads(self) -> bool:
         """Whether the turn offers a read (a look view, or someone to inspect)."""
         env = self.env
-        return bool(env.perception.look_views(self.actor, self.stage)) or \
+        return bool(env.perception.look_views(self.actor)) or \
             inspect_tool(env, self.actor, self.max_calls) is not None
 
     def _views_luck(self, *site: str) -> Any:
@@ -269,7 +264,7 @@ class Turn:
         env = self.env
         with env._lock:  # never while another agent's sealed choices are tried on the world
             tools = env.actions.tools(self.actor, self._legal(), self.staged)
-            looks = env.perception.look_views(self.actor, self.stage)
+            looks = env.perception.look_views(self.actor)
             if looks:
                 tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.max_calls))
             inspect = inspect_tool(env, self.actor, self.max_calls)
@@ -366,11 +361,6 @@ class Turn:
                 return self._after(self._undone(why))
             return self._after(ToolResult(True, "Turn ended.", True))
         available = stage_actions(env.contract, self.stage, self.actor.entity_type)
-        if name not in env.contract.actions and name in env.actions.groups:  # a shared tool: its `action` picks one
-            name, args, problem = env.actions.route(name, args, self._legal())
-            if problem is not None:
-                self.stats.invalid_calls += 1
-                return self._after(ToolResult(False, problem, data=_INVALID))
         spec = env.contract.actions.get(name)
         if spec is None or name not in available:
             self.stats.invalid_calls += 1
@@ -471,7 +461,6 @@ class Turn:
             return self._refused(name, outcome.text, before, _REJECTED), False, drew
         self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
         try:
-            elapsed = env.actions.duration(self.actor, name, params) if env.world.continuous else 0.0
             self.committed(f"actions.{name}")
             ended = env.actions.ends_turn(self.actor, name, params)
         except BaseException:
@@ -479,14 +468,13 @@ class Turn:
             raise
         files = self.attachments(outcome.assets)
         self._count(name)
-        self.elapsed += elapsed
         self.stats.actions += 1
         text, closes = _with_references(outcome.text, files), ended or self.actions_left <= 0
         settles = drew or closes or env.world.end_request is not None  # the part commits in this call
         if self._mark is not None and not settles and (spec.outcome or files):
             self._held.append((text, files))
-            text, files = f"{env.actions.default_outcome(name, params, True)} {_HELD}", []
-        return ToolResult(True, text + cut, closes, {"success": outcome.success}, files), True, drew
+            text, files = f"{env.actions.default_outcome(name, params)} {_HELD}", []
+        return ToolResult(True, text + cut, closes, attachments=files), True, drew
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
@@ -494,16 +482,8 @@ class Turn:
                 and bool(self._legal()))
 
     def _offer(self) -> str:
-        """What the agent can call now, in the form its tools take: actions sharing a tool under that tool."""
-        plain: list[str] = []
-        shared: dict[str, list[str]] = {}
-        for name in self._legal():
-            tool = self.env.contract.actions[name].tool
-            if tool is None:
-                plain.append(name)
-            else:
-                shared.setdefault(tool, []).append(_choice_names(tool, self.env.actions.groups[tool])[name])
-        return offer_text(plain, list(shared.items()))
+        """What the agent can call now."""
+        return offer_text(self._legal())
 
     def _count(self, name: str) -> None:
         self.used[name] = self.used.get(name, 0) + 1
@@ -543,7 +523,7 @@ class Turn:
     def _begin_part(self) -> None:
         """Atomic turns: start the part of the turn that the next settle checks and an undo returns to."""
         self._mark = self.env.world.journal.mark()
-        self._part = (self.actions_left, dict(self.used), len(self.pending), self.elapsed, self.stats.actions)
+        self._part = (self.actions_left, dict(self.used), len(self.pending), self.stats.actions)
         self._counted.clear()
 
     def _commit_turn(self) -> str | None:
@@ -585,7 +565,7 @@ class Turn:
     def _undo(self) -> None:
         """Undo the turn's part (see :meth:`_begin_part`); what the turn drew stays spent."""
         env = self.env
-        actions_left, used, pending, elapsed, actions = self._part
+        actions_left, used, pending, actions = self._part
         assert self._mark is not None
         env.world.journal.rollback(self._mark)
         per_round = env._used_round.get(self.actor.id, {})
@@ -597,7 +577,6 @@ class Turn:
         self.used.update(used)
         del self.pending[pending:]  # the same list $pending reads
         self.actions_left = actions_left
-        self.elapsed = elapsed
         undone = self.stats.actions - actions
         self.stats.actions -= undone
         self.stats.rejected_actions += undone
@@ -661,7 +640,7 @@ class Turn:
     def _look(self, args: Mapping[str, Any] | None) -> ToolResult:
         env = self.env
         name = (args or {}).get("view")
-        looks = env.perception.look_views(self.actor, self.stage)
+        looks = env.perception.look_views(self.actor)
         if not isinstance(name, str) or name not in looks:
             self.stats.invalid_calls += 1
             return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)

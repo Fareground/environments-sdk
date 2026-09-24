@@ -238,6 +238,7 @@ def fresh_copy(source: Env, base: Mapping[str, Any] | None, participants: Any, k
     else:
         env = restore_state(kind, source.contract, base, parallel=1)
     env.origin.base, env.origin.unarmed = dict(base) if base is not None else None, source.origin.unarmed
+    env.time_limit = source.time_limit  # told to its agents and recorded with its timeouts; its driver never times
     _share_hosts(source, env)
     named = {key: value for key, value in source.driver.spec.items() if isinstance(value, str)}
     env.driver.bind(participants if participants is not None else (named or None))

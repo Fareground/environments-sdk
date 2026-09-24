@@ -28,8 +28,8 @@ the first few entities of each type with every prop (`result.state`), so you can
   and was refused every time (`action_never_succeeded`, degrading: what it does, and any mechanism it feeds, never ran
   — a policy's arguments the tool does not accept count as refused calls; random agents' blind calls do not count).
 
-`fg-env check` plays 12 rounds (fewer when the run is shorter; more to reach the last round a one-off event, `at` or
-a market's resolution, is scheduled for) with random agents and again with each policy on every agent type, and reports
+`fg-env check` plays 12 rounds (fewer when the run is shorter; more to reach the last round an event's `when` names,
+`$round == 30` or a market's resolution) with random agents and again with each policy on every agent type, and reports
 what those plays reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's
 always-refused rules) as warnings. Every check plays the same rounds; a time guard stops only a contract too slow to
 play, and says so. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule

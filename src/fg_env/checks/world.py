@@ -90,16 +90,6 @@ class WorldChecks:
                 self.error("clock.start", f"'{clock.start}' is not an ISO date", "e.g. 2026-01-31")
         if clock.step < 1:
             self.error("clock.step", "must be at least 1")
-        if clock.mode not in ("rounds", "continuous"):
-            self.error("clock.mode", f"unknown mode '{clock.mode}'", "rounds or continuous")
-        elif clock.mode == "continuous":
-            if clock.horizon is None and "rounds" not in clock.model_fields_set:
-                self.error("clock", "a continuous clock needs a `horizon` (or an explicit `rounds` budget)",
-                           "e.g. \"horizon\": 480 with unit minute")
-            if isinstance(clock.horizon, str):
-                self.expr(clock.horizon, "clock.horizon", {"inputs"})
-        elif clock.horizon is not None or "tick" in clock.model_fields_set or "jump" in clock.model_fields_set:
-            self.warn("clock", "horizon, tick and jump only apply with \"mode\": \"continuous\"")
         if clock.start and clock.unit.lower().rstrip("s") not in ("day", "week", "month", "year", "hour", "minute"):
             self.warn("clock.start", f"a calendar date is not shown for unit '{clock.unit}'",
                       "use day, week, month, year, hour or minute")

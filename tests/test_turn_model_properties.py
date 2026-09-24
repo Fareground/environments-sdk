@@ -1,5 +1,5 @@
-"""The turn model, checked on many random runs: agents join, leave and reorder mid-round across sequential,
-simultaneous and scheduled stages, and every agent seated when a stage starts gets exactly its turn — unless it
+"""The turn model, checked on many random runs: agents join, leave and reorder mid-round across sequential and
+simultaneous stages, and every agent seated when a stage starts gets exactly its turn — unless it
 was removed before its turn came."""
 import random
 import threading
@@ -9,15 +9,13 @@ import pytest
 
 import fg_env
 
-TURNS = ("sequential", "simultaneous", "scheduled")
+TURNS = ("sequential", "simultaneous")
 ORDERS = (None, "random", "$it.rank")
 
 
 def _contract(rng):
-    """A random table: 2–5 players, 2–5 rounds, 1–2 stages (a scheduled stage needs the continuous clock alone)."""
-    turns = rng.choice(TURNS)
-    stages = 1 if turns == "scheduled" else rng.randint(1, 2)
-    kinds = [turns] + [rng.choice(TURNS[:2]) for _ in range(stages - 1)]
+    """A random table: 2–5 players, 2–5 rounds, 1–2 stages."""
+    kinds = [rng.choice(TURNS) for _ in range(rng.randint(1, 2))]
     contract = {
         "name": "Turn model",
         "types": {"player": {"agent": True, "props": {"rank": 0, "seated": 0}}},
@@ -32,12 +30,11 @@ def _contract(rng):
                       "params": {"k": {"type": "int", "min": 0}, "rank": {"type": "int", "min": 0, "max": 3}},
                       "do": {"create": "player", "id": "n{$params.k}", "props": {"rank": "$params.rank"}}},
         },
-        "stages": [{"name": f"{kind}{k}", "turns": kind, "order": rng.choice(ORDERS),
-                    "on_enter": [{"each": "player", "do": ["$it.seated += 1"]}]} for k, kind in enumerate(kinds)],
+        "stages": [{"name": f"{kind}{k}", "turns": kind, "order": rng.choice(ORDERS)} for k, kind in enumerate(kinds)],
+        "events": [{"on": f"stage.{kind}{k}.start", "do": [{"each": "player", "do": ["$it.seated += 1"]}]}
+                   for k, kind in enumerate(kinds)],
         "end": [{"when": f"$round >= {rng.randint(2, 5)}"}],
     }
-    if turns == "scheduled":
-        contract["clock"] = {"mode": "continuous", "horizon": 100}
     for stage in contract["stages"]:
         if stage["order"] is None:
             del stage["order"]
@@ -92,8 +89,7 @@ def test_every_seated_agent_gets_exactly_its_turns(seed):
         assert turns == agent["props"]["seated"] - table.lost[agent["id"]], (agent["id"], contract["stages"])
 
 
-@pytest.mark.parametrize("turns", ["sequential", "scheduled"])
-def test_a_removed_agent_does_not_cost_the_agents_after_it_their_turns(turns):
+def test_a_removed_agent_does_not_cost_the_agents_after_it_their_turns():
     contract = {
         "name": "Removal",
         "types": {"player": {"agent": True}},
@@ -101,8 +97,8 @@ def test_a_removed_agent_does_not_cost_the_agents_after_it_their_turns(turns):
         "actions": {"kill": {"by": "player", "params": {"t": {"type": "entity", "of": "player"}},
                              "do": {"remove": "$params.t"}},
                     "tick": {"by": "player", "do": []}},
-        "stages": [{"name": "play", "turns": turns}],
-        "clock": {"mode": "continuous" if turns == "scheduled" else "rounds", "rounds": 1},
+        "stages": [{"name": "play"}],
+        "clock": {"rounds": 1},
     }
     took = []
 

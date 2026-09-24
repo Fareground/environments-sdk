@@ -25,7 +25,7 @@ each. The core sections and functions are enough for most environments; the star
 | `actions` | What agents can do: each is one typed tool with requirements and atomic effects. |
 | `stages` | The steps of every round: who acts, how (sequential or sealed simultaneous), which actions. |
 | `views` | What agents read each turn: single lines or ranked, filtered lists. |
-| `events` | What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a condition holds, or by chance. |
+| `events` | What the world does outside agents' turns. |
 | `end` | Conditions that end the run early, with an optional winner ($result.winner in outputs). |
 | `metrics` | Values sampled every round ($metrics.x latest, $series.x every round). |
 | `outputs` | The typed results of a run. |
@@ -40,7 +40,6 @@ Reach for one of these when the core cannot say it.
 | section | what it declares |
 |---|---|
 | `assets` | Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see guide('assets'). |
-| `triggers` | What the world does the moment a condition becomes true (checked after every action and effect block), unlike an event, which runs at a set point of the round. |
 | `mechanisms` | Native building blocks by family (markets, voting, cards, roles …): see guide('mechanisms'). |
 | `game` | Seats and what each scores, for tournaments, game search and gyms. |
 | `space` | Positions: a grid, a graph of places or a plane, with values on cells. |
@@ -117,7 +116,7 @@ cloned, to copy and make your own (topic, roles, people, inputs, rules) rather t
 - `functions` — every function by group; `functions.<group>` for one group (e.g. `functions.stats`)
 - `mechanisms` — what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)
 - `patterns` — seasons, trends, responses, random processes, draws and noise, and fitting them from data
-- `recipes` — data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds
+- `recipes` — data files, queues, markets, hidden roles, spaces, networks, physics, feeds
 - `macros` — repeat structure from data with `for`/`make`
 - `assets` — files beside the contract (images, PDFs, text) delivered to agents
 - `inspect` — debugging a run: summary, diagnostics, events, traces, replay

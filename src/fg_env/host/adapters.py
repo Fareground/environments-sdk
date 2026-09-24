@@ -270,9 +270,9 @@ class AnthropicWebSearch(_Provider):
 
 class HistoricalFeed:
     """A ``Feed`` that replays history: each request gets the latest row at or before the run's moment
-    (its ``date``, ``round`` or ``time``), so a run over a past period sees exactly what was known then."""
+    (its ``date`` or ``round``), so a run over a past period sees exactly what was known then."""
 
-    MOMENTS = ("date", "round", "time")
+    MOMENTS = ("date", "round")
 
     def __init__(self, rows: Sequence[Mapping[str, Any]], *, at: str = "date", value: str | None = None):
         if at not in self.MOMENTS:
@@ -288,8 +288,7 @@ class HistoricalFeed:
     def fetch(self, request: Mapping[str, Any]) -> Any:
         moment = request.get(self.at)
         if moment is None:
-            raise HostError(f"the run has no {self.at} to look up (a date needs clock.start; a time, a continuous "
-                            "clock)")
+            raise HostError(f"the run has no {self.at} to look up (a date needs clock.start)")
         chosen: dict[str, Any] | None = None
         for row in self.rows:
             if row[self.at] > moment:

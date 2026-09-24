@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, compile_expr, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, fmt, tools_field
+from ._common import entity_of, fmt
 from .econ_base import money_prop
 from .ledger import EPS, Account, balance, clean, move
 
@@ -162,7 +162,6 @@ class PredictionMarketConfig(BaseModel):
                                           "the market.")
     max_actions: int = Field(2, ge=1, description="Trades per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare the invariant that the vault covers every share.")
-    tools: ToolsSetting = tools_field()
 
 
 def market_config(world: Any, name: Any) -> PredictionMarketConfig:

@@ -45,27 +45,29 @@ total catch. Report `catch_by_fisher` (fisher id → total catch) and `fish_left
   "world": {"fish": "$inputs.capacity"},
   "types": {"fisher": {"agent": true, "props": {"caught": 0, "asked": 0}}},
   "population": [{"type": "fisher", "count": "$inputs.fishers"}],
-  "stages": [{"name": "fish", "turns": "simultaneous", "on_exit": [
-    "$share = $min(1, $world.fish / $max(1, $sum(fisher, $it.asked)))",
-    {"each": "fisher", "do": ["$got = $floor($it.asked * $share)", "$world.fish -= $got", "$it.caught += $got",
-                              "$it.asked = 0"]}
-  ]}],
+  "stages": [{"name": "fish", "turns": "simultaneous"}],
   "actions": {"catch": {
     "by": "fisher", "description": "Ask for fish from the lake this season.",
     "params": {"amount": {"type": "int", "min": 0, "max": "$inputs.max_catch"}},
-    "do": "$actor.asked = $params.amount", "private": true,
+    "do": "$actor.asked = $params.amount", "announce": false,
     "outcome": "You asked for {$params.amount} fish."
   }},
-  "events": [{"phase": "end", "do": "$world.fish = $min($inputs.capacity, $floor($world.fish * (1 + $inputs.regrowth)))"}],
+  "events": [
+    {"on": "stage.fish.end", "do": [
+      "$share = $min(1, $world.fish / $max(1, $sum(fisher, $it.asked)))",
+      {"each": "fisher", "do": ["$got = $floor($it.asked * $share)", "$world.fish -= $got", "$it.caught += $got",
+                                "$it.asked = 0"]}
+    ]},
+    {"on": "round.end", "do": "$world.fish = $min($inputs.capacity, $floor($world.fish * (1 + $inputs.regrowth)))"}
+  ],
   "views": {"lake": {"show": "The lake holds {$world.fish} fish. You have caught {caught} in all."}},
   "outputs": {"catch_by_fisher": "$dict(fisher, $it.id, $it.caught)", "fish_left": "$world.fish"},
   "invariants": [{"expr": "$world.fish >= 0 and $world.fish <= $inputs.capacity", "why": "The lake holds 0 to capacity fish."}]
 }
 ```
 
-Each number in the brief is an input defaulting to it; "secretly" is a simultaneous stage whose `on_exit` shares the
-fish out once everyone has chosen, so identical choices get identical catches; regrowth after the catch is an end
-event; outputs carry the brief's names. Save it as `lake.json`; test a case worked out from the brief:
+Each number in the brief is an input defaulting to it; "secretly" is a simultaneous stage, and an event at its end
+shares the fish out, so identical choices get identical catches; regrowth is a `round.end` event. Save it as `lake.json`; test a case worked out from the brief:
 
 ```python
 import fg_env
@@ -85,14 +87,14 @@ assert result.outputs["catch_by_fisher"] == {"fisher_1": 44, "fisher_2": 44, "fi
 
 ## How a round runs
 
-Start events → each stage in order → end events → metrics → `end` conditions. A run ends on an `end` condition
+`round.start` events → each stage in order → `round.end` events → metrics → `end` conditions. A run ends on an `end` condition
 or effect, or when rounds run out.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once.
   `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
-  agent at a time (in `order`, else random), so resolve them jointly in `on_exit`.
+  agent at a time (in `order`, else random), so resolve them in an event on `stage.<s>.end`.
 * A turn ends after `max_actions` actions (default 1), on `end_turn`, or at `max_calls` calls.
 * An action is atomic: a `fail` or a short `transfer` undoes it and tells the agent why (spent only if it drew
-  luck or read a hidden value); in events and hooks it fails the run.
+  luck or read a hidden value); in an event it fails the run.
 * An agent also gets `inspect` (one entity's non-`private` props) when a type sets `"inspect": true` or an
   expression over `$viewer` and `$it`; own state belongs in a view.
 
@@ -110,10 +112,10 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `entities` | `{id: {type, name, props}}` |
 | `population` | `[{type, count, from, name: "Buyer {$i}", props}]` — `from` makes one entity per input row (`$row`) |
 | `records` | `{log: {fields, show, visible}}` — logs (chat, bids) written by `post` |
-| `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce, private}}` |
-| `stages` | `[{name, actions, turns, who, order, max_actions, until, on_enter, on_exit}]` |
+| `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce}}` |
+| `stages` | `[{name, when, actions, turns, who, order, max_actions, until, valid}]` |
 | `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor`; a list includes the viewer unless `where: "$it.id != $actor.id"` |
-| `events` | `[{phase: start or end, at, every, when, each, do, say}]` |
+| `events` | `[{on, when, do, say}]` — `on`: round.start (default), round.end, stage.<s>.end … |
 | `end` | `[{when, winner, say, check: stage or action}]` |
 | `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
 | `invariants` | `[expr or {expr, why}]` — must always hold |
@@ -121,7 +123,7 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `mechanisms` | `{name: {kind, mode, ...}}` — markets, auctions, ballots, hidden roles, queues …; `guide('mechanisms')` |
 | `policies` | `{name: {rules: [{when, do, with}]}}` — coded participants for baselines (`policy:<name>`) |
 
-Also: `assets`, `game`, `triggers`, `space`, `relations`, `links`, `physics`, `feeds`, `arms`, `calibration`,
+Also: `assets`, `game`, `space`, `relations`, `links`, `physics`, `feeds`, `arms`, `calibration`,
 `defs`, `blocks`, `imports`. Property types: number int bool text enum list map any. Without `type` the default
 decides: a number → `number` (fractions too; `"type": "int"` for whole numbers), true/false → `bool`, text → `text`
 (`enum` with `values`), a list or object → `list`/`map`, an expression → `any`. Inputs also take `table` (rows with

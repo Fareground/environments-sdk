@@ -7,7 +7,6 @@ Commitments between agents over time: negotiated deals, jobs, subscriptions and 
 Named the same in every mode:
 - `who`: agent type(s) making the commitments
 - `currency`: the property (or ledger currency) holding money
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "agreements", "mode": ...`; read one with `guide('agreements.<mode>')`):
 - `bookings`: Capacity-limited places: with `format: slots` guests book a future round (paying on booking) and join a waitlist when it is full, promoted first-fit when a place frees; with `format: queue` they wait in line and are served (paying on service) as capacity allows each round.

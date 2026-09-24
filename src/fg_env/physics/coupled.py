@@ -29,7 +29,6 @@ def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
     model = world.physics
     assert model is not None
     start = model.time
-    clock_time = world.time
     spec = world.contract.physics
     assert spec is not None
     original_params = dict(model.params)
@@ -83,8 +82,6 @@ def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
             for index, name in enumerate(step.vars):
                 entity.properties[name] = values[offset + index]
         model.time = time
-        if world.continuous and spec.dt > 0:
-            world.time = clock_time - (start + dt - time) / spec.dt
         world.touch()
 
     entity_spaces: dict[Any, dict[str, Any]] = {}
@@ -185,7 +182,6 @@ def integrate_coupled(world: SdkWorld, dt: float) -> list[dict[str, Any]]:
     finally:
         publish(before, start)
         last_values = None
-        world.time = clock_time
         world.touch()
         model.params.clear()
         model.params.update(original_params)

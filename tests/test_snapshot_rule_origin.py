@@ -11,7 +11,7 @@ from fg_env.copying.snapshot import contract_hash
 
 
 def rules(rate):
-    return [{'phase': 'end', 'do': [f'$world.total += {rate} * $inputs.demand']}]
+    return [{'on': 'round.end', 'do': [f'$world.total += {rate} * $inputs.demand']}]
 
 
 def contract():

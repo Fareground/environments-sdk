@@ -21,7 +21,6 @@ Generated from the installed source models, expression registry and authoring gu
 - [stages](reference-stages.md)
 - [views](reference-views.md)
 - [events](reference-events.md)
-- [triggers](reference-triggers.md)
 - [end](reference-end.md)
 - [metrics](reference-metrics.md)
 - [outputs](reference-outputs.md)

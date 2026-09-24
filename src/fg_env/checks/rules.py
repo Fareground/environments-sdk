@@ -1,4 +1,4 @@
-"""Checking events, triggers, policies, measures, defs and blocks, arms, and calibration."""
+"""Checking events, policies, measures, defs and blocks, arms, and calibration."""
 from __future__ import annotations
 
 import re
@@ -11,7 +11,6 @@ from ..expr import FUNCTIONS, ExprError, compile_expr
 from ..expr.template import FORMATS, compile_template
 from ..sampling.probability import check_literal_probability
 from .roots import BASE
-from .space import check_event_order
 
 if TYPE_CHECKING:
     from . import _Checker
@@ -19,68 +18,71 @@ if TYPE_CHECKING:
 
 __all__ = ["RuleChecks"]
 
+#: The rounds a `when` fires on: one (`$round == 5`, `$round == $inputs.day`) or listed (`$round in [2, 4]`).
+_ON_ROUNDS = re.compile(r"\$round\s*(?:==\s*(\d+|\$inputs\.[A-Za-z_]\w*)|\s+in\s+(\[[\d,\s]*\]))")
+
+
+def scheduled_rounds(when: str | None) -> list[str]:
+    """The rounds (as expressions) a `when` fires on alone, when it names them; empty when it may fire on others."""
+    if when is None or " or " in when:
+        return []
+    return [one or listed for one, listed in _ON_ROUNDS.findall(when)]
+
 
 class RuleChecks:
-    """The event, trigger, policy, measure, def, arm and calibration sections of a contract (mixed into the
-    contract checker)."""
+    """The event, policy, measure, def, arm and calibration sections of a contract (mixed into the contract
+    checker)."""
 
     def _events(self: _Checker) -> None:  # type: ignore[misc]
         for index, event in enumerate(self.c.events):
             path = f"events[{index}]"
-            if event.phase not in ("start", "end"):
-                self.error(f"{path}.phase", f"unknown phase '{event.phase}'",
-                           self._suggest(event.phase, ("start", "end")) or "start or end")
-            for arm in event.arms or []:
-                if arm not in self.c.arms:
-                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
-            self.value(event.at, f"{path}.at", BASE)
-            self._after_the_clock(event.at, event.name, path)
-            self.condition(event.when, f"{path}.when", BASE)
-            self._count(event.every, f"{path}.every")
-            types: Types = {}
-            roots = set(BASE)
-            if event.each is not None:
-                item = event.as_ or "it"
-                roots |= {item, "i"}
-                if event.each in self.c.types:
-                    types[item] = {event.each}
-                else:
-                    self.expr(event.each, f"{path}.each", BASE)
-            self.condition(event.where, f"{path}.where", roots, types)
-            self.effects(event.do, f"{path}.do", roots, types)
-            check_event_order(self, event, path, frozenset(roots), types)
-            if event.each is not None and event.say is not None and _reads_root(event.say, event.as_ or "it"):
-                item = event.as_ or "it"
+            roots, types = self._anchor(event.on, f"{path}.on")
+            if event.once and event.on.startswith(("create.", "remove.")):
+                self.error(f"{path}.once", f"an event on '{event.on}' fires for every entity, so `once` does not "
+                                           "apply", "keep a world flag, and check it in `when`")
+            self.condition(event.when, f"{path}.when", roots, types)
+            self._after_the_clock(event.when, event.name, f"{path}.when")
+            self.effects(event.do, f"{path}.do", set(roots), types)
+            loop = event.do[0] if len(event.do) == 1 and isinstance(event.do[0], dict) else {}
+            item = loop.get("as") or "it"
+            if "each" in loop and event.say is not None and _reads_root(event.say, item):
                 self.error(f"{path}.say", f"reads ${item}, but `say` is one headline for the whole event, told once "
                                           "after every item's `do`",
                            f'to tell news per item, emit it in `do`: {{"emit": "news", "say": "…{{${item}.name}}…"}}')
             else:
-                self.template(event.say, f"{path}.say", None, BASE)
+                self.template(event.say, f"{path}.say", None, roots, types)
             self._shared_text(event.say, f"{path}.say", {})
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 
-    def _after_the_clock(self: _Checker, at: Any, name: str | None, path: str) -> None:  # type: ignore[misc]
-        """An event whose every round is past the clock's last never fires in a run of the clock's length."""
-        rounds, planned = self.c.clock.rounds, at if isinstance(at, list) else [at]
-        if not isinstance(rounds, int) or not planned or not all(isinstance(r, int) and r > rounds for r in planned):
+    def _anchor(self: _Checker, anchor: str, path: str) -> tuple[frozenset[str], Types]:  # type: ignore[misc]
+        """The roots and item types an event on ``anchor`` reads, after checking the stage or type it names."""
+        kind, _, rest = anchor.partition(".")
+        if kind == "stage":
+            stage, _, point = rest.rpartition(".")
+            names = [s.name for s in self.c.stage_list()]
+            if stage not in names:
+                self.error(path, f"there is no stage '{stage}'", self._hint(stage, names, "stages"))
+            if point == "turn":
+                return BASE | {"actor", "acted", "timed_out"}, {"actor": set(self.agents)}
+        elif kind in ("create", "remove"):
+            if self._type(rest, path):
+                return BASE | {"it"}, {"it": set(self.c.subtypes(rest))}
+            return BASE | {"it"}, {}
+        return BASE, {}
+
+    def _after_the_clock(self: _Checker, when: str | None, name: str | None, path: str) -> None:  # type: ignore[misc]
+        """An event whose `when` holds only on rounds past the clock's last never fires in a run of the clock's
+        length."""
+        rounds = self.c.clock.rounds
+        if not isinstance(rounds, int):
+            return
+        planned = [int(r) for text in scheduled_rounds(when) for r in re.findall(r"^\d+$|(?<=[\[,\s])\d+", text)]
+        if not planned or min(planned) <= rounds:
             return
         what = f"event '{name}'" if name else "this event"
-        self.warn(f"{path}.at", f"{what} fires at round {min(planned)}, after the clock's last round {rounds}, so it "
-                                "never fires", f"use a round up to {rounds}, or lengthen clock.rounds")
-
-    def _triggers(self: _Checker) -> None:  # type: ignore[misc]
-        for index, trigger in enumerate(self.c.triggers):
-            path = f"triggers[{index}]"
-            for arm in trigger.arms or []:
-                if arm not in self.c.arms:
-                    self.error(f"{path}.arms", f"'{arm}' is not a declared arm", self._hint(arm, self.c.arms, "arms"))
-            self.condition(trigger.when, f"{path}.when", BASE)
-            self.effects(trigger.do, f"{path}.do", set(BASE), {})
-            self.template(trigger.say, f"{path}.say", None, BASE)
-            self._shared_text(trigger.say, f"{path}.say", {})
-            if not trigger.do and not trigger.say:
-                self.warn(path, "does nothing", "add `do` or `say`")
+        self.warn(path, f"{what} fires at round {min(planned)}, after the clock's last round {rounds}, so it never "
+                        "fires", f"use a round up to {rounds}, or lengthen clock.rounds")
 
     def _policies(self: _Checker) -> None:  # type: ignore[misc]
         for name, policy in self.c.policies.items():

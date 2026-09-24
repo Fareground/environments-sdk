@@ -46,17 +46,17 @@ def build_physics(world: SdkWorld) -> None:
     _refresh_reads(world)
 
 
-def step_physics(world: SdkWorld, elapsed: float | None = None) -> list[dict[str, Any]]:
-    """Advance a complete physical interval atomically, including all writebacks."""
+def step_physics(world: SdkWorld) -> list[dict[str, Any]]:
+    """Advance one round's physical interval atomically, including all writebacks."""
     spec, model = world.contract.physics, world.physics
     if spec is None or model is None:
         return []
-    dt = spec.dt if elapsed is None else spec.dt * elapsed
+    dt = spec.dt
     if dt <= 0:
         return []
     mark = world.journal.mark()
     before, params, start = dict(model.values), dict(model.params), model.time
-    clock_time, rng_state = world.time, world.rng.getstate()
+    rng_state = world.rng.getstate()
     try:
         changes = advance_equations(world, dt)
         world.touch()
@@ -67,7 +67,7 @@ def step_physics(world: SdkWorld, elapsed: float | None = None) -> list[dict[str
             model.variables[name].value = value
         model.params.clear()
         model.params.update(params)
-        model.time, world.time = start, clock_time
+        model.time = start
         world.rng.setstate(rng_state)
         world.touch()
         if isinstance(exc, (ArithmeticError, ValueError)):

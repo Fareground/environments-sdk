@@ -13,7 +13,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import assets, balance, move_items, move_money
 from .econ_base import (
     INVENTORY,
@@ -145,7 +145,6 @@ class NegotiationConfig(BaseModel):
     actions: list[Literal["propose", "counter", "accept", "reject", "withdraw", "fulfill"]] = Field(
         ["propose", "counter", "accept", "reject", "withdraw", "fulfill"],
         description="Tools generated for the parties.")
-    tools: ToolsSetting = tools_field()
 
     @field_validator("breach", mode="before")
     @classmethod

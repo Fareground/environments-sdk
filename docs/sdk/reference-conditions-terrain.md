@@ -17,7 +17,7 @@ Nested config:
 - `modifiers`: object — {prop: add | {add, mul}} for occupants, read with $effective.
 - `enter`: [Condition] — Requirements to enter ($it): text or {expr, why}.
 - `tick`: [any] — Effects on each occupant at the start of every round ($it).
-- `on_enter`: effects — Effects when an entity enters with the enter action ($it).
+- `on_enter`: [any] — Effects when an entity enters with the enter action ($it).
 **ModifierSpec** — How a status or a place changes a property: ``(base + add) * mul`` (per stack for statuses).
 - `add`: number | text = 0.0 — Added to the property (number or expression over $it).
 - `mul`: number | text = 1.0 — Multiplies the property (number or expression over $it).

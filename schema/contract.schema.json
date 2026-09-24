@@ -40,22 +40,6 @@
           "title": "When",
           "type": "array"
         },
-        "chance": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Probability of success; `do` on success, `otherwise` on failure.",
-          "title": "Chance"
-        },
         "do": {
           "anyOf": [
             {
@@ -72,22 +56,6 @@
           "description": "Effects applied atomically.",
           "title": "Do"
         },
-        "otherwise": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects when the chance roll fails.",
-          "title": "Otherwise"
-        },
         "outcome": {
           "anyOf": [
             {
@@ -98,7 +66,7 @@
             }
           ],
           "default": null,
-          "description": "What the actor is told (template over $actor, $params); with `chance`, when the roll succeeds (a failed roll is told that the action did not succeed).",
+          "description": "What the actor is told (template over $actor, $params).",
           "title": "Outcome"
         },
         "announce": {
@@ -107,18 +75,16 @@
               "type": "string"
             },
             {
+              "const": false,
+              "type": "boolean"
+            },
+            {
               "type": "null"
             }
           ],
           "default": null,
-          "description": "What everyone else is told (template).",
+          "description": "What everyone else is told: omitted, a default line (a simultaneous stage's leaves out the arguments); a template; or false: nobody else learns this action happened.",
           "title": "Announce"
-        },
-        "private": {
-          "default": false,
-          "description": "Nobody else learns this action happened.",
-          "title": "Private",
-          "type": "boolean"
         },
         "terminal": {
           "anyOf": [
@@ -158,35 +124,6 @@
           "default": null,
           "description": "Max uses per round.",
           "title": "Per Round"
-        },
-        "duration": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Continuous clock: how long it takes (number or expression over $actor, $params); the actor's next scheduled turn comes that much later.",
-          "title": "Duration"
-        },
-        "tool": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Offer this action inside one tool of this name, shared by every action naming it: the agent picks the action with the tool's `action` argument, which lists the ones legal now.",
-          "title": "Tool"
         },
         "attach": {
           "anyOf": [
@@ -531,41 +468,6 @@
           "description": "Units per round (e.g. 7 with unit 'day' = weekly rounds).",
           "title": "Step",
           "type": "integer"
-        },
-        "mode": {
-          "default": "rounds",
-          "description": "rounds (every round is one step) | continuous (time is a number: actions take `duration`, `scheduled` stages wake agents when their time comes).",
-          "title": "Mode",
-          "type": "string"
-        },
-        "tick": {
-          "default": 1.0,
-          "description": "Continuous: how far time moves when nothing is due sooner.",
-          "exclusiveMinimum": 0,
-          "title": "Tick",
-          "type": "number"
-        },
-        "jump": {
-          "default": true,
-          "description": "Continuous: jump straight to the next moment something is due (an agent's turn or an `after` effect) instead of moving by `tick`.",
-          "title": "Jump",
-          "type": "boolean"
-        },
-        "horizon": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Continuous: the run completes when time would pass this (number or expression over $inputs).",
-          "title": "Horizon"
         }
       },
       "title": "Clock",
@@ -808,7 +710,7 @@
     },
     "EventSpec": {
       "additionalProperties": false,
-      "description": "World logic outside agent turns: scheduled, periodic, conditional or random.",
+      "description": "World logic outside agent turns: `on` says when it is considered, `when` whether it fires.",
       "properties": {
         "name": {
           "anyOf": [
@@ -822,43 +724,11 @@
           "default": null,
           "title": "Name"
         },
-        "at": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "items": {
-                "type": "integer"
-              },
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Round(s) it fires.",
-          "title": "At"
-        },
-        "every": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Fires every N rounds, from round 1: a number or an expression over $inputs.",
-          "title": "Every"
+        "on": {
+          "default": "round.start",
+          "description": "round.start (before the stages) | round.end (after them, before outputs are sampled) | stage.<s>.start (when stage s starts) | stage.<s>.end (after it; a simultaneous stage's choices have committed) | stage.<s>.turn (after each agent's turn in it: $actor, $acted, $timed_out) | create.<t> / remove.<t> (inside the change that creates or removes an entity of type t or a subtype: $it) | change (after every change, the moment `when` becomes true; it re-arms once it is false again).",
+          "title": "On",
+          "type": "string"
         },
         "when": {
           "anyOf": [
@@ -870,71 +740,8 @@
             }
           ],
           "default": null,
-          "description": "Fires when true; `$chance(0.1)` fires it at random.",
+          "description": "Fires only when true: \"$round == 5\", \"$round % 7 == 1\", \"$chance(0.1)\", \"$arm == 'treatment'\".",
           "title": "When"
-        },
-        "phase": {
-          "default": "start",
-          "description": "start (before stages) | end (after stages).",
-          "title": "Phase",
-          "type": "string"
-        },
-        "each": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Run `do` once per item ($it): a type or expression.",
-          "title": "Each"
-        },
-        "as": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Name for the item instead of $it.",
-          "title": "As"
-        },
-        "order": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "With `each`: random (shuffled from the run's seed) or an expression over the item (lowest first); default the order `each` gives.",
-          "title": "Order"
-        },
-        "sync": {
-          "default": false,
-          "description": "With `each`: every item's rules read the world as it was before the event and all their writes land together (cellular automata, simultaneous updates). Only property and layer-cell assignments are allowed; two items writing different values to one property is an error.",
-          "title": "Sync",
-          "type": "boolean"
-        },
-        "where": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Where"
         },
         "do": {
           "anyOf": [
@@ -949,6 +756,7 @@
               "type": "object"
             }
           ],
+          "description": "Effects, applied atomically. A `do` that is one `each` loop runs item by item, each item with luck of its own.",
           "title": "Do"
         },
         "say": {
@@ -966,24 +774,9 @@
         },
         "once": {
           "default": false,
+          "description": "Fire at most once per run.",
           "title": "Once",
           "type": "boolean"
-        },
-        "arms": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Only in these experiment arms.",
-          "title": "Arms"
         }
       },
       "title": "EventSpec",
@@ -1568,7 +1361,7 @@
         },
         "check": {
           "default": "action",
-          "description": "When it is checked: action (after the build, every action and effect block — an `each` event once its last item ran, or before a trigger or reaction an item sets off — and every round; `$all(<type>, <condition>)` over each member's own properties re-checks only the members that changed) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
+          "description": "When it is checked: action (after the build, every action and effect block — a round event's `each` once its last item ran, or before a `change` event or reaction an item sets off — and every round; `$all(<type>, <condition>)` over each member's own properties re-checks only the members that changed) | round (after the build and at the end of every round: much cheaper for sums over big crowds) | end (once, when the run finishes).",
           "title": "Check",
           "type": "string"
         }
@@ -3012,7 +2805,7 @@
     },
     "StageSpec": {
       "additionalProperties": false,
-      "description": "One step of every round. Stages run in order; each wakes agents to take turns.",
+      "description": "One step of every round. Stages run in order; each wakes agents to take turns. What happens around a stage (a\nresolution when it ends, a default move for an agent that did not act) is an event on the stage's anchors.",
       "properties": {
         "name": {
           "title": "Name",
@@ -3028,7 +2821,7 @@
             }
           ],
           "default": null,
-          "description": "Run this stage only when true (e.g. $round == 1).",
+          "description": "Run this stage only when true (e.g. $round == 1, $round % 7 == 0).",
           "title": "When"
         },
         "actions": {
@@ -3058,41 +2851,9 @@
         },
         "turns": {
           "default": "sequential",
-          "description": "sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in on_exit) | scheduled (continuous clock: each agent whose wake time has come, earliest first).",
+          "description": "sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in an event on `stage.<name>.end`).",
           "title": "Turns",
           "type": "string"
-        },
-        "interval": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Scheduled turns: time until an agent that took no timed action is woken again (number or expression over $actor; default clock.tick).",
-          "title": "Interval"
-        },
-        "first_wake": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Scheduled turns: each agent's first wake time (number or expression over $it, $i; default 0).",
-          "title": "First Wake"
         },
         "order": {
           "anyOf": [
@@ -3193,219 +2954,19 @@
           "title": "Must Act",
           "type": "boolean"
         },
-        "on_idle": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects for each agent that ends its turn without acting ($actor): a forfeit, a default move.",
-          "title": "On Idle"
-        },
-        "on_wake": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects for each agent just before its turn ($actor), so what it reads reflects them: an upkeep, a draw, marking news as seen.",
-          "title": "On Wake"
-        },
-        "on_turn_end": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects for each agent after its turn ($actor), whether or not it acted (simultaneous: after choices are committed).",
-          "title": "On Turn End"
-        },
-        "auto": {
-          "default": false,
-          "description": "Play trivial turns without waking the agent: take the only legal action when it has no arguments, skip the turn when nothing is legal.",
-          "title": "Auto",
-          "type": "boolean"
-        },
-        "time_limit": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Wall-clock seconds each agent has for its turn (number, or expression over $actor; null uses the run's `time_limit`). Past it the turn ends, later calls are refused and `on_timeout` runs.",
-          "title": "Time Limit"
-        },
-        "on_timeout": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects for each agent whose turn ran out of time ($actor), instead of `on_idle`.",
-          "title": "On Timeout"
-        },
-        "atomic": {
-          "default": false,
-          "description": "The turn's actions apply together or not at all: triggers, reactions and invariants wait until the turn ends, and a turn that breaks `valid` is undone. An action's own `outcome` text (and attached files) is shown once the turn commits, so an undone turn shows nothing it was not charged for.",
-          "title": "Atomic",
-          "type": "boolean"
-        },
         "valid": {
-          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck. Makes the stage atomic.",
+          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. The turn's actions apply together or not at all: events, reactions and invariants wait until it ends, and an action's `outcome` (and attached files) is shown once the turn commits. `\"true\"` makes the turn atomic with no condition. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck.",
           "items": {
             "$ref": "#/$defs/Condition"
           },
           "title": "Valid",
           "type": "array"
-        },
-        "on_enter": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "title": "On Enter"
-        },
-        "on_exit": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "title": "On Exit"
         }
       },
       "required": [
         "name"
       ],
       "title": "StageSpec",
-      "type": "object"
-    },
-    "TriggerSpec": {
-      "additionalProperties": false,
-      "description": "World logic that reacts the moment a condition becomes true — after any action, effect,\nphysics step or round end — instead of waiting for the next event phase.",
-      "properties": {
-        "name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Name"
-        },
-        "when": {
-          "description": "Fires when this becomes true (it re-arms once it is false again).",
-          "title": "When",
-          "type": "string"
-        },
-        "do": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "title": "Do"
-        },
-        "say": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Headline agents receive as news.",
-          "title": "Say"
-        },
-        "once": {
-          "default": false,
-          "description": "Fire at most once per run.",
-          "title": "Once",
-          "type": "boolean"
-        },
-        "arms": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Only in these experiment arms.",
-          "title": "Arms"
-        }
-      },
-      "required": [
-        "when"
-      ],
-      "title": "TriggerSpec",
       "type": "object"
     },
     "TypeSpec": {
@@ -3467,44 +3028,6 @@
           "default": false,
           "description": "Whether agents may inspect these entities (each agent may always inspect itself): false (default), true, or an expression over $viewer and $it. Inspect shows every property that is not private.",
           "title": "Inspect"
-        },
-        "on_create": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects run for every entity of this type (subtypes too) the moment it is created ($it), atomically with whatever created it; an ancestor's hooks run first.",
-          "title": "On Create"
-        },
-        "on_remove": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "description": "Effects run for every entity of this type (subtypes too) the moment it is removed ($it, already no longer alive), atomically with the removal.",
-          "title": "On Remove"
-        },
-        "on_create_at_build": {
-          "default": true,
-          "description": "Also run on_create for entities made when the world is built (once the whole world exists, in creation order); false runs it only for entities created during the run. The nearest declaration in the type's lineage wins.",
-          "title": "On Create At Build",
-          "type": "boolean"
         }
       },
       "title": "TypeSpec",
@@ -3529,21 +3052,6 @@
           "default": "all",
           "description": "Agent type(s) that see it, or \"spectator\": an omniscient view for UIs and reports, rendered into `result.frames` each round and by `env.spectate()`, never shown to an agent.",
           "title": "For"
-        },
-        "stages": {
-          "anyOf": [
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Stages"
         },
         "title": {
           "default": "",
@@ -3634,6 +3142,7 @@
             }
           ],
           "default": null,
+          "description": "Show it only when true ($actor, $stage): e.g. \"$stage in ['trade']\".",
           "title": "When"
         },
         "look": {
@@ -3646,12 +3155,6 @@
           "default": true,
           "description": "Prefix each item with '- ' (false for boards and tables).",
           "title": "Bullet",
-          "type": "boolean"
-        },
-        "only_changes": {
-          "default": false,
-          "description": "Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.",
-          "title": "Only Changes",
           "type": "boolean"
         },
         "attach": {
@@ -11983,15 +11486,7 @@
       },
       "title": "Events",
       "type": "array",
-      "description": "Core section. What the world does at a set point of a round: at the start or end, on given rounds, every N rounds, when a condition holds, or by chance."
-    },
-    "triggers": {
-      "description": "Extended section. Reactions that fire the moment a condition becomes true.",
-      "items": {
-        "$ref": "#/$defs/TriggerSpec"
-      },
-      "title": "Triggers",
-      "type": "array"
+      "description": "Core section. What the world does outside agents' turns."
     },
     "policies": {
       "additionalProperties": {

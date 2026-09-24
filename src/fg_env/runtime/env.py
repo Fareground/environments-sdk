@@ -93,13 +93,15 @@ class Env(RunChecks, RunRounds, RunStages):
         #: The assets each agent's brief attaches (fixed with the brief text).
         self._brief_assets: dict[str, list[str]] = {}
         self._used_round: dict[str, dict[str, int]] = {}
-        self._fired_once: set = set()
+        #: Events with `once` that fired, by index; and the last truth value of each `change` event's `when`.
+        self._fired_once: set[int] = set()
+        self._armed: dict[int, bool] = {}
         self._lock = threading.RLock()
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()
         self.driver = Driver(self)
-        #: Wall-clock seconds per turn for stages that set no `time_limit` (None: no limit).
+        #: Wall-clock seconds each agent has for a turn (None: no limit).
         self.time_limit: float | None = None
         self.budget: Budget | None = None
         #: Recorded when asked, or when the contract's rules ask `$seen`.
@@ -118,9 +120,6 @@ class Env(RunChecks, RunRounds, RunStages):
         #: The round in progress while a run is stopped inside it, and where in it the run is.
         self._cursor: _Steps | None = None
         self._where = _Where()
-        #: Last truth value of each trigger's condition, and triggers that fired once.
-        self._trigger_armed: dict[int, bool] = {}
-        self._triggers_fired: set = set()
         self._in_round = False
         self.origin = Origin(contract)  # what copies of this run replay from (see copying/replay.py)
         #: Whether some type lets agents inspect entities besides themselves (whose [id] handles then show).
@@ -269,20 +268,19 @@ class Env(RunChecks, RunRounds, RunStages):
             error=self.error, output_issues=issues, stats=self.stats.to_dict(),
             agent_stats={key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
             events=self._event_rows() if self._keep_events else [],
-            time=self.world.time if self.world.continuous else None, exposures=recording(self),
+            exposures=recording(self),
             frames=[dict(frame) for frame in self.previews.frames], returns=returns,
             host_tape=tape_of(self) if self.world.exposures is not None else {}, budget=Budget.report(self),
             formats={name: spec.format for name, spec in self.contract.outputs.items() if spec.format},
             diagnostics=diagnose(self, outputs, issues),
-            clock={"mode": self.contract.clock.mode, "unit": self.contract.clock.unit, "step": self.contract.clock.step,
-                   "start": self.world.start},
+            clock={"unit": self.contract.clock.unit, "step": self.contract.clock.step, "start": self.world.start},
             assets=self.world.assets.to_dict() if len(self.world.assets) else {},
             state=end_state(self.contract, self.world),
         )
 
     @property
     def frames(self) -> list[dict[str, Any]]:
-        """Spectator frames so far: ``[{round, views: {name: text}, time?, final?}]``."""
+        """Spectator frames so far: ``[{round, views: {name: text}, final?}]``."""
         return self.previews.frames
 
     def spectate(self) -> dict[str, str]:

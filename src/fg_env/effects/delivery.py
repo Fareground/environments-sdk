@@ -1,7 +1,7 @@
-"""Delivery latency and lossy channels for messages: ``delay`` and ``drop`` on ``post``, ``emit`` and ``wake``.
+"""Delivery latency and lossy channels for messages: ``delay`` and ``drop`` on ``post`` and ``emit``.
 
 A delayed post or emit is evaluated when it is sent — its fields, text, author and recipients are
-fixed then — and arrives ``delay`` rounds (or clock time) later as a scheduled delivery. The
+fixed then — and arrives ``delay`` rounds later as a scheduled delivery. The
 payload is stored as data, never as effects, so nothing a participant wrote is ever evaluated,
 and snapshots carry pending deliveries with their provenance. A ``drop`` chance is rolled when the
 message is sent, from the run's seeded streams, so a run and its replay lose the same messages.
@@ -13,7 +13,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
-from ..world.clock_math import advance_time
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -30,18 +29,13 @@ def dropped(world: SdkWorld, chance: Any, where: str) -> bool:
 
 
 def send(world: SdkWorld, delay: Any, payload: dict[str, Any], where: str) -> None:
-    """Deliver ``payload`` now (no delay) or schedule it ``delay`` rounds or clock time later."""
+    """Deliver ``payload`` now (no delay) or schedule it ``delay`` rounds later."""
     if delay is None:
         deliver(world, payload, where)
         return
-    if world.continuous:
-        if isinstance(delay, bool) or not isinstance(delay, (int, float)) or not delay >= 0:
-            raise RunError(f"`delay` must be a time ≥ 0 on a continuous clock, got {delay!r}", where)
-        due: float = advance_time(world.time, delay, where)
-    else:
-        if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0:
-            raise RunError(f"`delay` must be a whole number of rounds ≥ 0, got {delay!r}", where)
-        due = world.round + delay
+    if isinstance(delay, bool) or not isinstance(delay, int) or delay < 0:
+        raise RunError(f"`delay` must be a whole number of rounds ≥ 0, got {delay!r}", where)
+    due = world.round + delay
     if delay == 0:
         deliver(world, payload, where)
         return

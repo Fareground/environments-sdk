@@ -4,7 +4,7 @@ Agent types carry public bounded numbers, enums and lists, and private values pl
 anywhere (a number far from every other value, a text nobody could guess), so finding one in what another agent reads
 is a leak, never a coincidence. Actions take typed parameters (number, int, bool, text, enum, an entity filtered by
 `where`), have requirements and chances, and change bounded props and lists, transfer, schedule effects, create and
-remove entities (the actor too). Stages are sequential, simultaneous or scheduled, some repeating or checking the whole
+remove entities (the actor too). Stages are sequential or simultaneous, some repeating or checking the whole
 turn; events run per entity with `$chance`.
 """
 import random
@@ -94,7 +94,7 @@ def _effects(rng: random.Random, params: dict[str, dict[str, Any]]) -> list[Any]
     return [rng.choice(options)() for _ in range(rng.randint(1, 3))]
 
 
-def _action(rng: random.Random, agents: list[str], scheduled: bool) -> dict[str, Any]:
+def _action(rng: random.Random, agents: list[str]) -> dict[str, Any]:
     params = {f"p{k}": _param(rng, agents) for k in range(rng.randint(0, 2))}
     action: dict[str, Any] = {"by": rng.choice(agents), "description": "A move.", "params": params,
                               "do": _effects(rng, params)}
@@ -117,14 +117,11 @@ def _action(rng: random.Random, agents: list[str], scheduled: bool) -> dict[str,
         action["private"] = True
     elif rng.random() < 0.4:
         action["announce"] = "{$actor.name} moved."
-    if scheduled:
-        action["duration"] = rng.choice([1, 2, "$randint(1, 3)"])
     return action
 
 
-def _stages(rng: random.Random, agents: list[str], scheduled: bool) -> list[dict[str, Any]]:
-    kinds = ["scheduled"] if scheduled else [rng.choice(["sequential", "simultaneous"])
-                                             for _ in range(rng.randint(1, 2))]
+def _stages(rng: random.Random, agents: list[str]) -> list[dict[str, Any]]:
+    kinds = [rng.choice(["sequential", "simultaneous"]) for _ in range(rng.randint(1, 2))]
     stages = []
     for k, turns in enumerate(kinds):
         stage: dict[str, Any] = {"name": f"s{k}", "turns": turns, "max_actions": rng.randint(1, 3),
@@ -151,7 +148,6 @@ def _stages(rng: random.Random, agents: list[str], scheduled: bool) -> list[dict
 def contract(seed: int) -> dict[str, Any]:
     rng = random.Random(seed)
     agents = [f"a{k}" for k in range(rng.randint(1, 2))]
-    scheduled = rng.random() < 0.2
     types: dict[str, Any] = {name: _agent_type(rng, name) for name in agents}
     types["token"] = {"props": {"value": 0}}
     entities: dict[str, Any] = {}
@@ -165,8 +161,8 @@ def contract(seed: int) -> dict[str, Any]:
         "types": types,
         "entities": entities,
         "records": {"log": {"fields": {"text": "text"}}},
-        "actions": {f"act{k}": _action(rng, agents, scheduled) for k in range(rng.randint(1, 4))},
-        "stages": _stages(rng, agents, scheduled),
+        "actions": {f"act{k}": _action(rng, agents) for k in range(rng.randint(1, 4))},
+        "stages": _stages(rng, agents),
         "events": [{"phase": "end", "each": rng.choice(agents),
                     "do": [{"if": "$chance(0.3)", "then": ["$it.score += 1"]}], "say": "Round {$round} is over."},
                    {"phase": "start", "when": "$chance(0.3)", "do": [{"create": "token", "props": {"value": 2}}]},
@@ -179,8 +175,5 @@ def contract(seed: int) -> dict[str, Any]:
                     "cash": {"expr": f"$sum({agents[0]}, $it.cash)", "type": "number"}},
         "invariants": [{"expr": "$world.pot >= 0", "why": "The pot only grows."}],
     }
-    if scheduled:
-        c["clock"] = {"mode": "continuous", "horizon": rng.randint(3, 8)}
-    else:
-        c["clock"] = {"rounds": rng.randint(2, 5)}
+    c["clock"] = {"rounds": rng.randint(2, 5)}
     return c

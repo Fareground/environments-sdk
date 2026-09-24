@@ -1,5 +1,5 @@
 # fg-env playthrough: Liar's dice
-Game: liar_s_dice@56788254:7a5c786a
+Game: liar_s_dice@2395c652:7a5c786a
 Seed: 1
 Seats: 0 p0, 1 p1
 Dynamics: sequential; chance: explicit; information: imperfect; utility: zero_sum

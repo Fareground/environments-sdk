@@ -113,8 +113,7 @@ def _entities(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
             [name, ", ".join(f"{k}: {v}" for k, v in spec.fields.items()), spec.visible, spec.keep or "all"]
             for name, spec in contract.records.items()])
     clock = contract.clock
-    scale = [f"Time: {clock.mode} clock; one step is {clock.step} {clock.unit}(s)"]
-    scale.append(f"at most {clock.rounds} rounds" if clock.mode == "rounds" else f"horizon {clock.horizon}")
+    scale = [f"Time: one round is {clock.step} {clock.unit}(s)", f"at most {clock.rounds} rounds"]
     if clock.start:
         scale.append(f"starting {clock.start}")
     lines += ["### Scales", "", "; ".join(str(s) for s in scale) + "."]
@@ -135,29 +134,23 @@ def _entities(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
 
 def _process(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
     lines = ["## 3. Process overview and scheduling", "",
-             "Each round: scheduled effects, external data feeds, start-phase events, a physics step (world variables, "
-             "then per-entity dynamics), every stage in order, end-phase events, metric sampling, then invariant and "
-             "end checks. Triggers fire the moment their condition becomes true, and lifecycle hooks the moment an "
+             "Each round: scheduled effects, external data feeds, `round.start` events, a physics step (world "
+             "variables, then per-entity dynamics), every stage in order (with the events on its start, each turn and "
+             "its end), `round.end` events, metric sampling, then invariant and end checks. Events on `change` fire "
+             "the moment their condition becomes true, and events on `create.<type>` / `remove.<type>` the moment an "
              "entity is created or removed.", ""]
     lines += _table(["#", "stage", "turns", "who acts", "order", "runs when", "repeats until", "atomic",
-                     "time limit (s)", "actions offered"], [
+                     "actions offered"], [
         [i + 1, s.name, s.turns, s.who or "every agent", _stage_order(s), s.when or "every round", s.until or "",
-         "yes" if s.atomic or s.valid else "", "" if s.time_limit is None else s.time_limit,
-         s.actions if isinstance(s.actions, str) else json.dumps(s.actions)]
+         "yes" if s.valid else "", s.actions if isinstance(s.actions, str) else json.dumps(s.actions)]
         for i, s in enumerate(contract.stage_list())])
     if contract.events:
-        lines += ["Events:", ""] + _table(["event", "phase", "fires", "for each", "headline"], [
-            [e.name or f"event {i + 1}", e.phase, _fires(e), _each(e), e.say or ""]
+        lines += ["Events:", ""] + _table(["event", "on", "fires", "for each", "headline"], [
+            [e.name or f"event {i + 1}", e.on, f"when `{e.when}`" if e.when else "always", _each(e), e.say or ""]
             for i, e in enumerate(contract.events)])
-    if contract.triggers:
-        lines += ["Triggers:", ""] + _table(["trigger", "when", "once"], [
-            [t.name or f"trigger {i + 1}", f"`{t.when}`", "yes" if t.once else "no"]
-            for i, t in enumerate(contract.triggers)])
     ends = [f"`{e.name or f'end {i + 1}'}` when `{e.when}`" + (f", winner `{e.winner}`" if e.winner else "")
             for i, e in enumerate(contract.end)]
-    lines += ["The run ends:", ""] + _bullets(ends + [f"after {contract.clock.rounds} rounds at the latest"
-                                                      if contract.clock.mode == "rounds" else "at the time horizon"],
-                                              "")
+    lines += ["The run ends:", ""] + _bullets(ends + [f"after {contract.clock.rounds} rounds at the latest"], "")
     return lines
 
 
@@ -165,19 +158,6 @@ def _stage_order(stage: C.StageSpec) -> str:
     if stage.order is not None:
         return stage.order
     return "seat; choices commit in random order" if stage.turns == "simultaneous" else "seat"
-
-
-def _fires(event: C.EventSpec) -> str:
-    parts = []
-    if event.at is not None:
-        parts.append(f"at round {event.at}")
-    if event.every:
-        parts.append(f"every {event.every} rounds")
-    if event.when:
-        parts.append(f"when `{event.when}`")
-    if event.arms:
-        parts.append(f"in arms {', '.join(event.arms)}")
-    return ", ".join(parts) or "every round"
 
 
 def _concepts(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
@@ -274,22 +254,15 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
         conditions = [f"`{c.expr}`" + (f" — {c.why}" if c.why else "") for c in spec.when]
         if conditions:
             lines += ["Allowed when:", ""] + _bullets(conditions, "")
-        if spec.chance is not None:
-            lines += [f"Succeeds with chance `{spec.chance}`; otherwise:", ""] + _code(spec.otherwise)
         lines += ["Effects:", ""] + _code(spec.do) if spec.do else []
     for index, event in enumerate(contract.events):
         if event.do:
             lines += [f"### Event `{event.name or f'event {index + 1}'}`", ""] + _code(event.do)
     for stage in contract.stage_list():
-        if stage.valid or stage.on_timeout:
+        if stage.valid:
             lines += [f"### Turn rules of stage `{stage.name}`", ""]
             lines += ["A turn stands only when:", ""] + _bullets(
-                [f"`{c.expr}`" + (f" — {c.why}" if c.why else "") for c in stage.valid], "") if stage.valid else []
-            lines += ["When a turn runs out of time:", ""] + _code(stage.on_timeout) if stage.on_timeout else []
-    for kind, type_spec in contract.types.items():
-        for hook in ("on_create", "on_remove"):
-            if getattr(type_spec, hook):
-                lines += [f"### Lifecycle hook `{kind}.{hook}`", ""] + _code(getattr(type_spec, hook))
+                [f"`{c.expr}`" + (f" — {c.why}" if c.why else "") for c in stage.valid], "")
     lines += _dynamics(contract)
     lines += _patterns(contract)
     for name, formula in contract.defs.items():
@@ -312,13 +285,11 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
 
 
 def _each(event: C.EventSpec) -> str:
-    """What an event runs over, and how: in which order, and whether every item reads the state before the event."""
-    if event.each is None:
+    """What an event whose `do` is one loop runs over, and whether every item reads the state before the event."""
+    loop = event.do[0] if len(event.do) == 1 and isinstance(event.do[0], dict) else {}
+    if "each" not in loop:
         return ""
-    how = [f"order {event.order}"] if event.order else []
-    if event.sync:
-        how.append("synchronous: all read the state before the event")
-    return event.each + (f" ({'; '.join(how)})" if how else "")
+    return str(loop["each"]) + (" (synchronous: all read the state before the event)" if loop.get("sync") else "")
 
 
 def _dynamics(contract: C.Contract) -> list[str]:

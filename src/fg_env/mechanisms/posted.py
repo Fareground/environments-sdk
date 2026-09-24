@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, fmt, tools_field
+from ._common import entity_of, fmt
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -82,7 +82,6 @@ class PostedMarketConfig(BaseModel):
                                           "the market.")
     max_actions: int = Field(3, ge=1, description="Actions per turn in the generated stage.")
     conserve: bool = Field(True, description="Declare the invariant that no listing's stock goes negative.")
-    tools: ToolsSetting = tools_field()
 
 
 def posted_config(world: Any, name: Any) -> PostedMarketConfig:

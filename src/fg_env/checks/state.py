@@ -18,27 +18,19 @@ from ..world.props import prop_type
 if TYPE_CHECKING:
     from . import Types, _Checker
 
-__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_hooks", "check_feeds",
+__all__ = ["check_physics_state", "check_relation_fields", "check_link_fields", "check_feeds",
            "check_delivery"]
 
 _FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 
 
 def check_delivery(checker: _Checker, op: str, effect: dict[str, Any], path: str) -> None:
-    """Literal `delay` and `drop` values on a post, emit or wake effect."""
+    """Literal `delay` and `drop` values on a post or emit effect."""
     drop, delay = effect.get("drop"), effect.get("delay")
     if _literal_number(drop) and not 0 <= drop <= 1:
         checker.error(f"{path}.drop", f"is {drop}; a drop chance runs from 0 to 1")
-    if "delay" not in effect:
-        return
-    if op == "wake":
-        checker.error(f"{path}.delay", "`wake` takes `in` (continuous clock) instead of `delay`",
-                      "on a rounds clock, put the wake inside an `after` effect")
-        return
-    continuous = checker.c.clock.mode == "continuous"
-    if _literal_number(delay) and (delay < 0 or (not continuous and not isinstance(delay, int))):
-        checker.error(f"{path}.delay",
-                      f"is {delay}; a delay is " + ("a time ≥ 0" if continuous else "a whole number of rounds ≥ 0"))
+    if _literal_number(delay) and (delay < 0 or not isinstance(delay, int)):
+        checker.error(f"{path}.delay", f"is {delay}; a delay is a whole number of rounds ≥ 0")
 
 
 def _literal_number(value: Any) -> TypeGuard[float]:
@@ -83,17 +75,6 @@ def _literal_fallback(checker: _Checker, spec: FeedSpec, target: str, prop: Prop
     problem = check_value(kind, raw, InputSpec(type=kind, values=prop.values))
     if problem:
         checker.error(f"{path}.fallback", f"world.{target} {problem}")
-
-
-def check_hooks(checker: _Checker, base: frozenset[str]) -> None:
-    """Lifecycle hooks: effects over $it (every kind of the type)."""
-    for name, spec in checker.c.types.items():
-        types = {"it": set(checker.c.subtypes(name))}
-        for hook in ("on_create", "on_remove"):
-            checker.effects(getattr(spec, hook), f"types.{name}.{hook}", set(base) | {"it"}, types)
-        if "on_create_at_build" in spec.model_fields_set and not checker.c.hooks_of(name, "on_create"):
-            checker.warn(f"types.{name}.on_create_at_build", "does nothing: this type has no on_create",
-                         "add on_create, or remove on_create_at_build")
 
 
 def check_relation_fields(checker: _Checker, base: frozenset[str]) -> None:

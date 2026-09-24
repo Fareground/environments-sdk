@@ -20,6 +20,7 @@ from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _s
 from ..runtime.diagnostics import MIN_CALLS
 from ..runtime.measure import RunResult
 from .probing import Prober, hides_numbers
+from .rules import scheduled_rounds
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -114,17 +115,18 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
 
 
 def _default_rounds(env: Env) -> int:
-    """The rounds a default check plays: :data:`SMOKE_ROUNDS`, or up to the last round a one-off event is scheduled
-    for (``at``, which a mechanism's scheduled resolution is too), within the run's own rounds."""
+    """The rounds a default check plays: :data:`SMOKE_ROUNDS`, or up to the last round an event names in its `when`
+    (``$round == 30``, which a mechanism's scheduled resolution is too), within the run's own rounds."""
     last = SMOKE_ROUNDS
     for event in env.contract.events:
-        try:
-            at = compile_expr(event.at)(env.world.scope()) if isinstance(event.at, str) else event.at
-        except ExprError:
-            continue  # a bad `at` is the static check's to report
-        for moment in at if isinstance(at, list) else [at]:
-            if isinstance(moment, int) and not isinstance(moment, bool):
-                last = max(last, moment)
+        for text in scheduled_rounds(event.when):
+            try:
+                at = compile_expr(text)(env.world.scope())
+            except ExprError:
+                continue  # a bad `when` is the static check's to report
+            for moment in at if isinstance(at, list) else [at]:
+                if isinstance(moment, int) and not isinstance(moment, bool):
+                    last = max(last, moment)
     return min(last, env.world.rounds)
 
 

@@ -30,17 +30,18 @@ def test_an_unfunded_transfer_in_an_event_fails_the_run_at_its_path():
     assert "bank has only 0 cash" in result.error and "guard it with an `if`" in result.error
 
 
-def test_a_fail_in_a_stage_hook_fails_the_run_and_check_reports_it():
-    contract = _with(stages=[{"name": "s", "on_exit": ["$world.cleared += 1",
-                                                       {"if": "$round == 2", "then": [{"fail": "Too late."}]}]}])
-    with pytest.raises(fg_env.RunError, match=r"stages\.s\.on_exit: Too late\."):
+def test_a_fail_in_a_stage_event_fails_the_run_and_check_reports_it():
+    contract = _with(stages=[{"name": "s"}],
+                     events=[{"on": "stage.s.end", "do": ["$world.cleared += 1",
+                                                          {"if": "$round == 2", "then": [{"fail": "Too late."}]}]}])
+    with pytest.raises(fg_env.RunError, match=r"events\[0\]\.do: Too late\."):
         fg_env.run(contract, "idle", seed=1)
     errors = [i for i in fg_env.check(contract) if i.severity == "error"]
-    assert any(i.path == "stages.s.on_exit" and "Too late." in i.message for i in errors)
+    assert any(i.path == "events[0].do" and "Too late." in i.message for i in errors)
 
 
-def test_a_trigger_an_action_sets_off_that_is_refused_refuses_that_action_instead():
-    contract = _with(triggers=[{"when": "$entity(ann).cash > 3", "do": [{"fail": "No."}]}],
+def test_a_change_event_an_action_sets_off_that_is_refused_refuses_that_action_instead():
+    contract = _with(events=[{"on": "change", "when": "$entity(ann).cash > 3", "do": [{"fail": "No."}]}],
                      actions={"earn": {"by": "p", "do": ["$actor.cash += 1"]}})
     told = []
 
@@ -52,7 +53,7 @@ def test_a_trigger_an_action_sets_off_that_is_refused_refuses_that_action_instea
     result = env.run({"ann": earn, "bank": "idle"}, rounds=1)
     assert result.status == "running" and not told[0].ok
     assert env.entity("ann")["props"]["cash"] == 3
-    assert any(d["code"] == "action_rule_failed" and d["path"] == "triggers[0].do" for d in result.diagnostics)
+    assert any(d["code"] == "action_rule_failed" and d["path"] == "events[0].do" for d in result.diagnostics)
 
 
 def test_a_guarded_block_runs_normally():

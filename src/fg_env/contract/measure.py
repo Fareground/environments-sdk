@@ -92,12 +92,12 @@ class InvariantSpec(_ExprShorthand):
                      description="What the agent whose action broke it is told: a template, which may read no agent's "
                                  "private property.")
     check: str = Field("action",
-                       description="When it is checked: action (after the build, every action and effect block — an "
-                                   "`each` event once its last item ran, or before a trigger or reaction an item sets "
-                                   "off — and every round; `$all(<type>, <condition>)` over each member's own "
-                                   "properties re-checks only the members that changed) | round (after the build and "
-                                   "at the end of every round: much cheaper for sums over big crowds) | end (once, "
-                                   "when the run finishes).")
+                       description="When it is checked: action (after the build, every action and effect block — a "
+                                   "round event's `each` once its last item ran, or before a `change` event or "
+                                   "reaction an item sets off — and every round; `$all(<type>, <condition>)` over "
+                                   "each member's own properties re-checks only the members that changed) | round "
+                                   "(after the build and at the end of every round: much cheaper for sums over big "
+                                   "crowds) | end (once, when the run finishes).")
 
 
 class CalibrationSpec(_Model):

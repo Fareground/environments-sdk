@@ -116,19 +116,7 @@ def test_the_floor_refusal_says_what_to_do_before_and_after_raising_a_hand():
         "Ask the chair for the floor, then end your turn: you are woken when you hold the floor.")
 
 
-def test_a_refused_tool_name_points_to_the_shared_tool_form_and_to_end_turn_when_nothing_is_open():
-    contract = _example("town_hall.json")
-    contract["mechanisms"]["hall"]["tools"] = "one"
-    texts = []
-
-    def resident(wake):
-        if wake.stage == "hall" and not texts:
-            texts.append(wake.call("speak", {"text": "Parks are good."}).text)
-        if not wake.done:
-            wake.end()
-
-    fg_env.run(contract, {"r1": resident}, seed=1, inputs={"residents": 3}, rounds=1)
-    assert texts[0].startswith("'speak' is not a tool. Use hall with action: ") and "hall_" not in texts[0]
+def test_a_refused_tool_name_points_to_end_turn_when_nothing_is_open():
     closed = {"name": "Closed", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"score": 0}}},
               "entities": {"ann": {"type": "p"}}, "stages": [{"name": "play"}],
               "actions": {"move": {"by": "p", "when": ["$actor.score > 5"], "do": ["$actor.score += 1"]}}}
@@ -198,24 +186,6 @@ def test_sellers_see_their_cash_and_sponsoring_is_bounded_by_what_they_can_pay()
     assert "market_sponsor" not in broke["tools"] and "market_promote" in broke["tools"]
     funded = _first_tools(_farm(2.5), "ana", inputs={"rounds": 1, "shoppers": 1}, others={"shopper": "idle"})
     assert funded["tools"]["market_sponsor"].input_schema["properties"]["rounds"]["maximum"] == 2
-
-
-def test_one_shared_tool_keeps_each_actions_constraints_and_description():
-    contract = _farm(2.5)
-    contract["mechanisms"]["market"]["tools"] = "one"
-    tools = _first_tools(contract, "ana", inputs={"rounds": 1, "shoppers": 1}, others={"shopper": "idle"})["tools"]
-    tool = tools["market"]
-    assert "Only these actions are available now:\n- set_price: Change a listing's asking price." in tool.description
-    rounds = tool.input_schema["properties"]["rounds"]
-    assert "anyOf" not in rounds and rounds["type"] == "integer" and rounds["maximum"] == 20
-    assert rounds["description"] == ("Only for promote, sponsor. For promote: Rounds the discount runs. "
-                                     "For sponsor: Rounds the listing stays first. From 1 to 2.")
-    social = _example("social_network.json")
-    social["mechanisms"]["net"]["tools"] = "one"
-    net = _first_tools(social, "u1", inputs={"accounts": 30}, rounds=3)["tools"]["net"]
-    who = net.input_schema["properties"]["who"]
-    assert ("anyOf" not in who and len(who["enum"]) == 30
-            and "For unfollow: An account you follow. One of:" in who["description"])
 
 
 def test_an_account_may_reply_to_a_trending_post_it_does_not_follow():

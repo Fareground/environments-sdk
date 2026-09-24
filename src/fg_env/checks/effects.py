@@ -1,7 +1,6 @@
 """Checking effect lists: assignment statements and operation objects."""
 from __future__ import annotations
 
-import math
 import re
 from collections.abc import Mapping
 from difflib import get_close_matches
@@ -15,6 +14,7 @@ from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
 from .params import check_entity_literals
 from .roots import merge_types
+from .space import check_sync
 from .state import check_delivery, check_link_fields
 
 if TYPE_CHECKING:
@@ -24,6 +24,10 @@ if TYPE_CHECKING:
 __all__ = ["EffectChecks"]
 
 #: The kinds of value an assignment's text can make plain, as its messages name them.
+#: Keys an effect no longer takes, and what to write instead.
+_REMOVED = {("wake", "in"): "a wake that comes later is a `wake` inside an `after` effect",
+            ("wake", "delay"): "a wake that comes later is a `wake` inside an `after` effect",
+            ("wake", "drop"): "a wake always arrives; to wake by chance, put it inside {\"if\": \"$chance(p)\"}"}
 _KIND_WORDS = {"number": "a number", "int": "a whole number", "bool": "true or false", "text": "text"}
 
 
@@ -235,7 +239,8 @@ class EffectChecks:
             for key in effect:
                 if key not in allowed:
                     self.error(f"{path}.{key}", f"'{key}' is not part of `{op}`",
-                               self._suggest(key, allowed) or f"`{op}` takes: {', '.join(sorted(allowed))}")
+                               _REMOVED.get((op, key)) or self._suggest(key, allowed)
+                               or f"`{op}` takes: {', '.join(sorted(allowed))}")
         check_entity_literals(self, op, effect, path)
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
@@ -259,6 +264,8 @@ class EffectChecks:
                     inner_types[name] = {source}
             self.condition(effect.get("where"), f"{path}.where", inner, inner_types, params)
             self.effects(effect.get("do", []), f"{path}.do", inner, inner_types, params)
+            if effect.get("sync"):
+                check_sync(self, effect.get("do", []), f"{path}.do")
             for binding in (name, "i"):
                 inner_types.pop(binding, None)
                 if binding in types:
@@ -293,15 +300,8 @@ class EffectChecks:
                 v("to")
             if op == "wake":
                 self.template(effect.get("why"), f"{path}.why", None, roots, types, params)
-                v("in")
                 v("now")
-                if "in" in effect and "now" in effect:
-                    self.error(path, "`wake` takes `now` or `in`, not both")
                 self._reaction_actions(effect, path)
-                if "in" in effect and self.c.clock.mode != "continuous":
-                    self.error(f"{path}.in", "`in` needs a continuous clock", "set clock.mode to continuous")
-                v("drop")
-                check_delivery(self, op, effect, path)
         elif op == "transfer":
             prop = effect["transfer"]
             if not any(prop in props for props in self.type_props.values()):
@@ -361,20 +361,9 @@ class EffectChecks:
         elif op == "after":
             v("after")
             delay = effect["after"]
-            if not is_expr(delay):
-                continuous = self.c.clock.mode == "continuous"
-                if continuous:
-                    try:
-                        valid = (not isinstance(delay, bool) and isinstance(delay, (int, float))
-                                 and math.isfinite(delay) and delay > 0)
-                    except OverflowError:
-                        valid = False
-                else:
-                    valid = not isinstance(delay, bool) and isinstance(delay, int) and delay >= 1
-                if not valid:
-                    required = "a finite positive time" if continuous else "a whole number of rounds ≥ 1"
-                    self.error(f"{path}.after", f"`after` needs {required}, got {delay!r}",
-                               "use a positive delay; for immediate effects, put the `do` effects here without `after`")
+            if not is_expr(delay) and (isinstance(delay, bool) or not isinstance(delay, int) or delay < 1):
+                self.error(f"{path}.after", f"`after` needs a whole number of rounds ≥ 1, got {delay!r}",
+                           "use a positive delay; for immediate effects, put the `do` effects here without `after`")
             self.effects(effect.get("do", []), f"{path}.do", roots, dict(types), params)
         elif op == "block":
             block = self.c.blocks.get(effect["block"])

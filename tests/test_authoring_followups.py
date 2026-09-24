@@ -160,7 +160,7 @@ def test_event_round_diagnostic_points_to_executable_schedule():
                     'world': {'count': 0}, 'outputs': {'count': '$world.count'},
                     'events': [{misspelling: 2, 'do': '$world.count += 1'}]}
         issue = next(i for i in fg_env.check(contract, rounds=0) if i.path == f'events[0].{misspelling}')
-        assert 'at' in issue.fix and 'every' in issue.fix
-        contract['events'][0]['at'] = contract['events'][0].pop(misspelling)
+        assert '"$round == 2"' in issue.fix
+        contract['events'][0]['when'] = f"$round == {contract['events'][0].pop(misspelling)}"
         result = fg_env.run(contract, lambda wake: wake.end())
         assert result.ok and result.outputs['count'] == 1

@@ -104,7 +104,7 @@ class Perception:
     # -- update ---------------------------------------------------------------------
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
-               memory: dict[str, str], time_limit: float | None = None, shown: Shown | None = None,
+               time_limit: float | None = None, shown: Shown | None = None,
                attached: list[str] | None = None, calls: int | None = None, reads: bool = False) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
         calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect."""
@@ -125,19 +125,13 @@ class Perception:
                 lines.append(f"- ({hidden} more items not shown)")
             lines += [f"- {line}" for line in news]
         for name, view in self.contract.views.items():
-            if view.look or not self._applies(view, actor, stage):
+            if view.look or not self._applies(view, actor):
                 continue
             listed: Shown | None = type(shown)() if shown is not None else None
             files: list[str] = []
             block = self.render_view(name, view, actor, listed, files)
             if block is None:
                 continue
-            if view.only_changes:
-                if (memory.get(name)
-                    == block):  # said, so an agent that does not remember its last turn knows it is there
-                    lines += ["", f"{_label(name, view)}: unchanged since your last turn."]
-                    continue
-                memory[name] = block
             if attached is not None:
                 attached.extend(key for key in files if key not in attached)
             if shown is not None and listed is not None:
@@ -147,15 +141,11 @@ class Perception:
             lines += ["", block]
         return "\n".join(lines)
 
-    def _applies(self, view: ViewSpec, actor: Entity, stage: StageSpec) -> bool:
-        if not _for_type(self.contract, view.for_, actor.entity_type):
-            return False
-        if view.stages is not None and stage.name not in view.stages:
-            return False
-        return True
+    def _applies(self, view: ViewSpec, actor: Entity) -> bool:
+        return _for_type(self.contract, view.for_, actor.entity_type)
 
-    def look_views(self, actor: Entity, stage: StageSpec) -> list[str]:
-        return [n for n, v in self.contract.views.items() if v.look and self._applies(v, actor, stage)]
+    def look_views(self, actor: Entity) -> list[str]:
+        return [n for n, v in self.contract.views.items() if v.look and self._applies(v, actor)]
 
     def render_view(self, name: str, view: ViewSpec, actor: Entity | None, shown: Shown | None = None,
                     attached: list[str] | None = None) -> str | None:
@@ -366,11 +356,6 @@ class Perception:
         except ExprError as exc:
             raise RunError(str(exc), f"records.{name}.show") from None
         return body
-
-
-def _label(name: str, view: ViewSpec) -> str:
-    """A view's name as its reader knows it: its title (when it reads no state), else its key in words."""
-    return view.title if view.title and "{" not in view.title else name.replace("_", " ").capitalize()
 
 
 def _default_show(fields: dict[str, str]) -> str:

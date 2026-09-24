@@ -226,26 +226,6 @@ def test_economy_actions_check_their_own_keys():
     assert fix.startswith('`pay` is an action of the `economy` op: {"economy": "<mechanism>", "action": "pay"')
 
 
-def test_tools_one_offers_an_inventory_as_a_single_tool():
-    contract = copy.deepcopy(GOODS)
-    contract["mechanisms"]["goods"]["tools"] = "one"
-    env = fg_env.load(contract, seed=1)
-    offered = []
-
-    def play(wake):
-        tools = {t.name: t for t in wake.tools}
-        offered.append((wake.entity_id, tools))
-        if wake.entity_id == "ana":
-            assert wake.call("goods", {"action": "give", "to": "ben", "item": "bread", "qty": 1}).ok
-        wake.end()
-
-    env.run(play, rounds=1)
-    entity_id, tools = offered[0]
-    assert entity_id == "ana" and "goods_give" not in tools
-    assert {"give", "consume", "drop"} <= set(tools["goods"].input_schema["properties"]["action"]["enum"])
-    assert env.entity("ben")["props"]["goods"] == {"apple": 3, "bread": 1}
-
-
 # ---------------------------------------------------------------------------
 # ledger
 # ---------------------------------------------------------------------------
@@ -630,24 +610,6 @@ def test_an_old_agreements_kind_or_a_mistyped_field_says_what_it_is_now():
     issue = next(i for i in errors(typo) if i.path == "mechanisms.dining.formt")
     assert issue.message == "`formt` is not a field of `agreements` mode `bookings`"
     assert issue.fix.startswith("did you mean 'format'?")
-
-
-def test_tools_one_offers_bookings_as_a_single_tool():
-    contract = copy.deepcopy(DINING)
-    contract["mechanisms"]["dining"]["tools"] = "one"
-    env = fg_env.load(contract, seed=1)
-    offered = {}
-
-    def play(wake):
-        offered[wake.entity_id] = {t.name: t for t in wake.tools}
-        if wake.entity_id == "g1":
-            assert wake.call("dining", {"action": "book", "resource": "tables", "ahead": 1, "party": 2}).ok
-        wake.end()
-
-    env.run(play, rounds=1)
-    assert ("dining_book" not in offered["g1"]
-            and "book" in offered["g1"]["dining"].input_schema["properties"]["action"]["enum"])
-    assert [b["props"]["status"] for b in env.entities("dining_booking")] == ["booked"]
 
 
 # ---------------------------------------------------------------------------

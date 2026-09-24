@@ -49,6 +49,7 @@ from .measure import (
     OutputSpec,
 )
 from .rules import (
+    ANCHORS,
     ActionSpec,
     Condition,
     EventSpec,
@@ -57,7 +58,6 @@ from .rules import (
     PolicySpec,
     RecordSpec,
     StageSpec,
-    TriggerSpec,
     ViewSpec,
 )
 from .world import (
@@ -118,7 +118,7 @@ __all__ = [
     "StageSpec",
     "ViewSpec",
     "EventSpec",
-    "TriggerSpec",
+    "ANCHORS",
     "PolicyRule",
     "PolicySpec",
     "MetricSpec",
@@ -191,8 +191,6 @@ class Contract(_Model):
     stages: list[StageSpec] = Field(default_factory=list)
     views: dict[str, ViewSpec] = Field(default_factory=dict)
     events: list[EventSpec] = Field(default_factory=list)
-    triggers: list[TriggerSpec] = Field(default_factory=list,
-                                        description="Reactions that fire the moment a condition becomes true.")
     policies: dict[str, PolicySpec] = Field(default_factory=dict)
     metrics: dict[str, MetricSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec] = Field(default_factory=dict)
@@ -215,6 +213,8 @@ class Contract(_Model):
     _source: dict[str, Any] | None = PrivateAttr(default=None)
     #: The folder input data files are read from (the contract file's folder, or ``data_dir=``); ``None`` when unknown.
     _folder: str | None = PrivateAttr(default=None)
+    #: Events by anchor (see :meth:`events_on`), built on first use.
+    _anchored: dict[str, list[tuple[int, EventSpec]]] | None = PrivateAttr(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -265,17 +265,14 @@ class Contract(_Model):
                     update={key: getattr(spec, key) for key in spec.model_fields_set})
         return props
 
-    def hooks_of(self, type_name: str, hook: str) -> list[Any]:
-        """``(type, effects)`` for every type in the lineage (root first) that declares lifecycle ``hook``."""
-        return [(name, getattr(self.types[name], hook)) for name in self.lineage(type_name)
-                if getattr(self.types[name], hook)]
-
-    def hooks_at_build(self, type_name: str) -> bool:
-        """Whether on_create runs for this type's entities made at build (the nearest declaration wins)."""
-        for name in reversed(self.lineage(type_name)):
-            if "on_create_at_build" in self.types[name].model_fields_set:
-                return self.types[name].on_create_at_build
-        return True
+    def events_on(self, anchor: str) -> list[tuple[int, EventSpec]]:
+        """``(index, event)`` for every event on ``anchor``, in declaration order."""
+        by_anchor = self._anchored
+        if by_anchor is None:
+            by_anchor = self._anchored = {}
+            for index, event in enumerate(self.events):
+                by_anchor.setdefault(event.on, []).append((index, event))
+        return by_anchor.get(anchor, [])
 
     def is_agent(self, type_name: str) -> bool:
         return any(self.types[name].agent for name in self.lineage(type_name))

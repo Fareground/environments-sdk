@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import move_money
 from .econ_base import (
     BOOKINGS,
@@ -75,7 +75,6 @@ class BookingsConfig(BaseModel):
     refund: float = Field(1, ge=0, le=1, description="Share of the price returned when a booking is cancelled.")
     actions: list[Literal["book", "cancel"]] = Field(["book", "cancel"],
                                                      description="Tools generated for agent guests.")
-    tools: ToolsSetting = tools_field()
 
 
 register_config(BOOKINGS, BookingsConfig)

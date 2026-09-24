@@ -28,7 +28,6 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function, is_expr
 from ..expr.objects import Entity
 from ..registry import config_data, family_action
-from ._common import ToolsSetting, tools_field
 from .card_scoring import RANK_LABELS, SUIT_LETTERS, SUIT_SYMBOLS, SUITS
 from .contract_cache import parse_kind, per_contract
 
@@ -133,7 +132,6 @@ class CardsConfig(_Strict):
                                                  description="Generate `<name>_give` (give a card to another player, "
                                                              "privately).")
     views: bool = Field(True, description="Generate the hand and table views.")
-    tools: ToolsSetting = tools_field()
 
 
 @dataclass(frozen=True)

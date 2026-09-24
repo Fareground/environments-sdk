@@ -24,7 +24,6 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 from .econ_base import lineage
@@ -73,7 +72,6 @@ class PotConfig(BaseModel):
     max_calls: int = Field(6, ge=1, description="Tool calls per betting turn.")
     conserve: bool = Field(True, description="Add the invariant that chips are never created or destroyed.")
     views: bool = Field(True, description="Generate the table view.")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------

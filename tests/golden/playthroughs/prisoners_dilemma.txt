@@ -1,5 +1,5 @@
 # fg-env playthrough: Prisoner's dilemma
-Game: prisoner_s_dilemma@676306e0:4642e142
+Game: prisoner_s_dilemma@f248fec5:4642e142
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: general_sum

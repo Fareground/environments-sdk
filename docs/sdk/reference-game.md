@@ -9,7 +9,6 @@ Named the same in every mode:
 - `stage`: a declared stage the mechanism runs in (default: a stage it generates)
 - `views`: generate the mechanism's views
 - `qty`: a number of units (items, shares, cards, batches); money is `amount`
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "game", "mode": ...`; read one with `guide('game.<mode>')`):
 - `board`: Abstract board games as data: a board (grid, hex, ring, graph), seated players, piece kinds with movement

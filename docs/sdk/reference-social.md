@@ -7,7 +7,6 @@ Talking and spreading: channels (rooms, direct messages), a social feed, diffusi
 Named the same in every mode:
 - `who`: agent type that communicates
 - `max_chars`: the longest text accepted or kept
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "social", "mode": ...`; read one with `guide('social.<mode>')`):
 - `channels`: Rooms, private groups, direct messages and broadcasts: tools `<name>_say` (channel enum of the rooms and groups you are in), `<name>_dm`, `<name>_reply`, `<name>_read`, `<name>_broadcast`, and group tools.

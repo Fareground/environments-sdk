@@ -77,15 +77,15 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
 
 
 def _build_hooks(world: SdkWorld) -> None:
-    """on_create for every entity made at build — once the whole world exists, in creation order —
-    unless its type sets on_create_at_build false. Entities the hooks create run their own hooks."""
+    """The events on ``create.<type>`` for every entity made at build — once the whole world exists, in creation order.
+    Entities they create fire their own."""
     contract = world.contract
-    if not any(spec.on_create for spec in contract.types.values()):
+    if not any(event.on.startswith("create.") for event in contract.events):
         return
     runner = EffectRunner(world)
     for entity in list(world.entities.values()):
-        if entity.alive and contract.hooks_at_build(entity.entity_type):
-            runner.lifecycle("on_create", entity, f"entities.{entity.id}")
+        if entity.alive:
+            runner.lifecycle("create", entity, f"entities.{entity.id}")
 
 
 def _value(world: SdkWorld, raw: Any, vars: dict[str, Any]) -> Any:
@@ -95,15 +95,6 @@ def _value(world: SdkWorld, raw: Any, vars: dict[str, Any]) -> Any:
 
 def _rounds(world: SdkWorld) -> int:
     clock = world.contract.clock
-    if clock.mode == "continuous":
-        horizon = _value(world, clock.horizon, {}) if clock.horizon is not None else None
-        if horizon is not None and (isinstance(horizon, bool) or not isinstance(horizon, (int, float)) or horizon < 0):
-            raise RunError(f"must be a time ≥ 0, got {horizon!r}", "clock.horizon")
-        world.horizon = float(horizon) if horizon is not None else None
-        if "rounds" not in clock.model_fields_set:
-            if world.horizon is None:
-                raise RunError("a continuous clock needs a `horizon` (or an explicit `rounds` budget)", "clock")
-            return MAX_ROUNDS
     rounds = _value(world, clock.rounds, {})
     if isinstance(rounds, float) and rounds.is_integer():
         rounds = int(rounds)
@@ -158,8 +149,6 @@ def _count_settings(world: SdkWorld) -> None:
         whole_setting(world, stage.passes, f"stages.{stage.name}.passes", MAX_STAGE_PASSES)
         whole_setting(world, stage.max_actions, f"stages.{stage.name}.max_actions", MAX_TURN_ACTIONS)
         whole_setting(world, stage.max_calls, f"stages.{stage.name}.max_calls", MAX_TURN_CALLS)
-    for index, event in enumerate(world.contract.events):
-        whole_setting(world, event.every, f"events[{index}].every")
 
 
 def _capped(count: int, path: str) -> int:

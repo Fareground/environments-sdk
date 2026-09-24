@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import balance, move_money
 from .econ_base import (
     INVENTORY,
@@ -113,7 +113,6 @@ class LedgerConfig(BaseModel):
     actions: list[Literal["pay"]] = Field([],
                                           description="Tools generated for agent holders: pay (pay any holder). Loans "
                                                       "generate their own.")
-    tools: ToolsSetting = tools_field()
 
 
 register_config(LEDGER, LedgerConfig)

@@ -8,15 +8,14 @@ Config:
 - `start` (default null): The first phase (default: the first listed).
 - `views` (default true): Show every agent the current phase.
 - `stack` (default null): A response stack: items pushed by `<name>_<kind>` tools or the `push` action, answered in the window stage `<name>_stack` (push an answer or `<name>_pass`) and resolved last in, first out.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **PhaseDef** — One phase.
 - `title`: text — Name shown to agents.
 - `brief`: text — Stage brief for this phase's stages that give none (template).
 - `stages`: [object] — Stages (ordinary stage fields) that run during the phase.
-- `on_enter`: effects — Effects when the phase begins.
-- `on_exit`: effects — Effects when the phase ends.
+- `on_enter`: [any] — Effects when the phase begins.
+- `on_exit`: [any] — Effects when the phase ends.
 - `say`: text — News when the phase begins (template).
 - `next`: text | [Transition] — A phase name, or transitions tried in order.
 - `terminal`: bool = false — The run ends at the end of the phase's first round (at once if it has no stages).

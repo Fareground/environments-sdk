@@ -161,7 +161,7 @@ def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any])
 
 
 def _now(world: Any) -> float:
-    return float(world.time) if world.continuous else float(world.round)
+    return float(world.round)
 
 
 def _recency(entry: Memory, now: float, half_life: float) -> float:

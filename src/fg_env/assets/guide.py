@@ -41,7 +41,7 @@ The text the agent reads carries a compact reference — `[image weld_1.png: "Cr
 participant gets the files: `wake.attachments` (brief and update) and `result.attachments` (a tool result), each
 with `type name media_type caption alt size hash`, `read()` for the bytes and `text()` for text files. Keep an
 exhibit sealed with a private property or a `where` flag, and reveal it by posting a record entry or setting
-the flag in a stage's `on_enter`; `fg-env check` warns when a view attaches another entity's private asset.
+the flag in an event on a stage's start; `fg-env check` warns when a view attaches another entity's private asset.
 
 **Models.** `participants.anthropic(..., media=...)` and `participants.openai(..., media=...)` send real
 content — Anthropic image and document blocks, OpenAI `image_url` data URLs, `file` and `input_audio` parts —

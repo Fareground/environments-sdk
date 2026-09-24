@@ -147,15 +147,13 @@ class _Scans:
     def run(self) -> None:
         c = self.c
         for index, event in enumerate(c.events):
-            work = _Work(f"each {event.each}") if isinstance(event.each, str) and event.each in c.types else None
+            kind, _, type_name = event.on.partition(".")
+            work = _Work(f"each {type_name} {kind}d") if kind in ("create", "remove") else None
             if work is not None:
-                self.report(event.where, f"events[{index}].where", work)
+                self.report(event.when, f"events[{index}].when", work)
             self.effects(event.do, f"events[{index}].do", work, set())
         for name, action in c.actions.items():
             self.effects(action.do, f"actions.{name}.do", None, set())
-        for name, spec in c.types.items():
-            for hook in ("on_create", "on_remove"):
-                self.effects(getattr(spec, hook), f"types.{name}.{hook}", _Work(f"each {name} {hook[3:]}d"), set())
         for name in self.recurring_blocks():
             self.effects(c.blocks[name].do, f"blocks.{name}.do",
                          _Work(f"each run of block {name} (it schedules itself again)", types=True), {name})

@@ -37,7 +37,6 @@ Config:
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the book.
 - `max_actions` (default 4): Actions per turn in the generated stage.
 - `conserve` (default true): Declare the invariant that reserves match the book and balances stay within limits: true or action (checked after every action), round (after every round: much cheaper for big crowds), end (once, when the run finishes), or false.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **CrowdSpec** — A group of coded traders generated for the book.

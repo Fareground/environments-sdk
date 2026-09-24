@@ -32,7 +32,7 @@ class PrivacyChecks:
         choices are what its actor is shown or offered, where a value hidden from it is refused (another agent's
         private property whenever the actor chooses another agent). A requirement that reads one decides by what the
         actor cannot know."""
-        if not spec.private:
+        if isinstance(spec.announce, str):
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
         texts = {"outcome": spec.outcome}
         for pname, param in spec.params.items():
@@ -79,25 +79,25 @@ class PrivacyChecks:
         if read:
             self.error(path, f"reads private {', '.join(sorted(read))}, and every agent learns who acts in "
                              f"{stage.name} (its actions are announced): the engine refuses it at run time",
-                       "wake by what is not private, or make the stage's actions `private` so nobody learns who "
-                       "acted")
+                       "wake by what is not private, or give the stage's actions `announce: false` so nobody learns "
+                       "who acted")
 
     def _sealed_announced(self: _Checker, stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
         """A simultaneous stage announces each sealed choice to everyone by its action's name as it commits (unless
-        the action is private or says what to announce): with more than one to choose from, each agent's choice —
-        a secret ballot's vote — is public."""
+        the action has `announce: false` or says what to announce): with more than one to choose from, each agent's
+        choice — a secret ballot's vote — is public."""
         if stage.turns != "simultaneous":
             return
         for kind in self.c.agent_types():
             named = [name for name in stage_actions(self.c, stage, kind)
-                     if not self.c.actions[name].private and self.c.actions[name].announce is None]
+                     if self.c.actions[name].announce is None]
             if len(named) > 1:
                 self.warn(path, f"announces each sealed choice to everyone by name as it commits (\"Ann: "
                                 f"{named[0].replace('_', ' ')}.\"), so which of {', '.join(named)} each agent chose "
                                 "is public",
-                          "if the choice is secret (a ballot), give those actions `private: true` and announce only "
-                          "the outcome (an `emit` in the stage's on_exit); if it is meant to be public, give them an "
-                          "`announce`")
+                          "if the choice is secret (a ballot), give those actions `announce: false` and announce only "
+                          f"the outcome (an `emit` in an event on 'stage.{stage.name}.end'); if it is meant to be "
+                          "public, give them an `announce` text")
                 return
 
     def _secret_subtypes(self: _Checker) -> None:  # type: ignore[misc]
@@ -106,14 +106,14 @@ class PrivacyChecks:
         warned: set[str] = set()
         for name, spec in self.c.actions.items():
             for kind in [spec.by] if isinstance(spec.by, str) else spec.by:
-                if not spec.private or kind in warned or kind not in self.c.types or not self.c.is_agent(kind):
+                if not spec.silent or kind in warned or kind not in self.c.types or not self.c.is_agent(kind):
                     continue
                 root = self.c.lineage(kind)[0]
                 if root == kind or inspect_rule(self.c, kind) is False:
                     continue
                 warned.add(kind)
                 self.warn(f"types.{kind}", f"inspect names each agent's type, so everyone can tell who is a {kind}, "
-                                           f"though its action {name} is private",
+                                           f"though nobody else learns of its action {name}",
                           f"if being a {kind} is a secret, keep it in a private property of {root} instead of a "
                           "subtype (the roles mechanism deals out hidden roles)")
 

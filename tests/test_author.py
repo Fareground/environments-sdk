@@ -79,7 +79,7 @@ LATE_CRASH = {"name": "Late crash", "clock": {"rounds": 20},
               "world": {"table": {"type": "map", "default": {"a": 1}}, "x": 0},
               "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
               "actions": {"wait": {"by": "p", "do": ["$world.x += 1"]}}, "stages": [{"name": "s"}],
-              "events": [{"when": "$round == 15", "do": ["$world.x = $world.table[$text($round)]"]}],
+              "events": [{"when": "$round - 15 == 0", "do": ["$world.x = $world.table[$text($round)]"]}],
               "outputs": {"x": "$world.x"}}
 #: A contract that works while agents act, and fails when none does.
 IDLE_CRASH = {"name": "Idle crash", "clock": {"rounds": 3},

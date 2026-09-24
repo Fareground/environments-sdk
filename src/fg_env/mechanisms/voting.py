@@ -12,7 +12,6 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from . import _common
-from ._common import ToolsSetting, tools_field
 
 __all__ = ["tally", "METHODS"]
 
@@ -349,7 +348,6 @@ class BallotConfig(BaseModel):
     announce: str = Field("",
                           description="Result text (template over $result); default names the winner or says it "
                                       "failed.")
-    tools: ToolsSetting = tools_field()
 
 
 def _options(runner: Any, config: BallotConfig, vars: dict[str, Any]) -> list[Any]:

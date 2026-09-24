@@ -6,7 +6,6 @@ Money, goods and making things: ledgers (currencies, taxes, loans), inventories,
 
 Named the same in every mode:
 - `who`: agent type(s) holding money or goods
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "economy", "mode": ...`; read one with `guide('economy.<mode>')`):
 - `inventory`: Goods held by entities: stackable items in a map property listing each one (`$actor.goods.bread`, 0 when none are held) and unique items as entities with an owner.

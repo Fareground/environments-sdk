@@ -1,7 +1,7 @@
 """``fg-env bench``: how fast the engine runs contracts — build time, milliseconds per round, rounds per
-second, and where each round's time goes (events, stages, physics, triggers, invariants, metrics).
+second, and where each round's time goes (events, stages, physics, invariants, metrics).
 
-Phase times are exclusive: a trigger checked inside an event counts as trigger time, not event time.
+Phase times are exclusive: invariants checked inside an event count as invariant time, not event time.
 With no contracts, the reference models in the source tree's ``examples/contracts`` are measured.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ __all__ = ["REFERENCE_MODELS", "PHASES", "BenchResult", "bench", "bench_table"]
 #: Reference models measured when no contract is given (files in examples/contracts).
 REFERENCE_MODELS = ("boltzmann_wealth", "schelling", "game_of_life", "forest_fire", "wolf_sheep", "sugarscape_lite",
                     "corner_shop_town")
-PHASES = ("events", "stages", "physics", "triggers", "invariants", "metrics", "other")
+PHASES = ("events", "stages", "physics", "invariants", "metrics", "other")
 
 _EXAMPLES = Path(__file__).resolve().parents[3] / "examples" / "contracts"
 
@@ -128,9 +128,9 @@ def _measure(contract: Any, rounds: int | None, seed: int, inputs: dict[str, Any
     env = load(contract, seed=seed, inputs={key: value for key, value in inputs.items() if key in declared})
     build_ms = (time.perf_counter() - started) * 1000
     watch = _Stopwatch()
-    env.happenings.run_events = watch.wrap("events", env.happenings.run_events)  # type: ignore[method-assign]
+    env.happenings.fire = watch.wrap("events", env.happenings.fire)  # type: ignore[method-assign]
     env.happenings.run_scheduled = watch.wrap("events", env.happenings.run_scheduled)  # type: ignore[method-assign]
-    env.happenings.check_triggers = watch.wrap("triggers", env.happenings.check_triggers)  # type: ignore[method-assign]
+    env.happenings.check_changes = watch.wrap("events", env.happenings.check_changes)  # type: ignore[method-assign]
     env._check_invariants = watch.wrap("invariants", env._check_invariants)  # type: ignore[method-assign]
     env._run_stage = watch.wrap_steps("stages", env._run_stage)  # type: ignore[method-assign, assignment]
     env.world.step_physics = watch.wrap("physics", env.world.step_physics)  # type: ignore[method-assign]

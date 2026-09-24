@@ -72,15 +72,6 @@ def test_entities_created_mid_run_join_and_removed_ones_stop():
     assert math.isclose(result.outputs["late"], 10 * math.exp(-0.2), rel_tol=1e-9)  # stepped in rounds 2 and 3
 
 
-def test_a_continuous_clock_integrates_the_elapsed_time():
-    contract = copy.deepcopy(DECAY)
-    contract["clock"] = {"mode": "continuous", "horizon": 2.5}
-    contract["events"] = [{"at": 1, "do": [{"after": 2.5, "do": []}]}]
-    env = _load(contract)
-    env.run()
-    assert math.isclose(env.entity("slow")["props"]["load"], 10 * math.exp(-0.25), rel_tol=1e-9)
-
-
 BROWNIAN = {
     "name": "Brownian particles",
     "clock": {"rounds": 4},

@@ -255,7 +255,7 @@ def test_check_reports_space_mistakes_with_fixes():
     assert "space.layers.scent.default" in errors
     messages = " ".join(i.message for i in fg_env.check(contract))
     assert "'sent' is not a declared layer" in messages and "$empty(walkr)" in messages
-    assert "`sync` needs `each`" in errors["events[1].sync"].message
+    assert "is not a field here" in errors["events[1].sync"].message
 
 
 def test_check_reports_plane_capacity_and_layers():

@@ -74,7 +74,7 @@ def _pull(world: SdkWorld, name: str, spec: FeedSpec) -> None:
     except ExprError as exc:
         raise RunError(str(exc), f"{path}.query") from None
     request = {"feed": name, "query": query, "into": spec.into, "expects": _expects(world, owner, target),
-               "round": world.round, "time": world.time if world.continuous else None, "date": world.date()}
+               "round": world.round, "date": world.date()}
     identity = {"query": query}
     fallback = partial(_fallback, world, name, spec) if "fallback" in spec.model_fields_set else None
     answer = consult(world, service=spec.host, method="fetch", site=path, identity=identity,

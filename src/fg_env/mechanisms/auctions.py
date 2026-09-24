@@ -43,7 +43,7 @@ from ..expr import compile_expr, truthy
 from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, fmt, number_of, tools_field
+from ._common import entity_of, fmt, number_of
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
 
@@ -112,7 +112,6 @@ class AuctionConfig(BaseModel):
     conserve: bool = Field(True,
                            description="Declare the invariant that escrow matches open bids and every item is held "
                                        "once.")
-    tools: ToolsSetting = tools_field()
 
 
 def auction_config(world: Any, name: Any) -> AuctionConfig:

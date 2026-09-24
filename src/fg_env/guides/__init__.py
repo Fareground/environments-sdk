@@ -113,7 +113,7 @@ _PARTS_MAP = [
     ("functions", "every function by group; `functions.<group>` for one group (e.g. `functions.stats`)"),
     ("mechanisms", "what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)"),
     ("patterns", "seasons, trends, responses, random processes, draws and noise, and fitting them from data"),
-    ("recipes", "data files, continuous time, markets, hidden roles, spaces, networks, physics, feeds"),
+    ("recipes", "data files, queues, markets, hidden roles, spaces, networks, physics, feeds"),
     ("macros", "repeat structure from data with `for`/`make`"),
     ("assets", "files beside the contract (images, PDFs, text) delivered to agents"),
     ("inspect", "debugging a run: summary, diagnostics, events, traces, replay"),

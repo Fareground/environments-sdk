@@ -1,7 +1,8 @@
-"""Contract sections of the rules: records, actions and their parameters, stages, views, events, triggers and
-policies."""
+"""Contract sections of the rules: records, actions and their parameters, stages, views, events and policies."""
 from __future__ import annotations
 
+import re
+from difflib import get_close_matches
 from typing import Annotated, Any, Literal
 
 from pydantic import BeforeValidator, Field, StrictFloat, field_validator, model_validator
@@ -20,7 +21,7 @@ from .base import (
     one_or_many,
 )
 
-__all__ = ["RecordSpec", "ParamSpec", "Condition", "ActionSpec", "StageSpec", "ViewSpec", "EventSpec", "TriggerSpec",
+__all__ = ["RecordSpec", "ParamSpec", "Condition", "ActionSpec", "StageSpec", "ViewSpec", "EventSpec", "ANCHORS",
            "PolicyRule", "PolicySpec"]
 # ---------------------------------------------------------------------------
 # Records, actions, stages, views, events, policies
@@ -112,29 +113,17 @@ class ActionSpec(_Model):
                     "read $params refuse a call that breaks them, with their `why`. They may not draw at random (nor "
                     "may parameters' bounds, defaults, values or `where`): a refused call costs nothing, so an agent "
                     "could call again until luck let it through — draw in `do` or `chance`.")
-    chance: StrictFloat | str | None = Field(None,
-                                             description="Probability of success; `do` on success, `otherwise` on "
-                                                         "failure.")
     do: Effects = Field(default_factory=list, description="Effects applied atomically.")
-    otherwise: Effects = Field(default_factory=list, description="Effects when the chance roll fails.")
-    outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params); with "
-                                                  "`chance`, when the roll succeeds (a failed roll is told that the "
-                                                  "action did not succeed).")
-    announce: str | None = Field(None, description="What everyone else is told (template).")
-    private: bool = Field(False, description="Nobody else learns this action happened.")
+    outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params).")
+    announce: str | Literal[False] | None = Field(
+        None,
+        description="What everyone else is told: omitted, a default line (a simultaneous stage's leaves out the "
+                    "arguments); a template; or false: nobody else learns this action happened.")
     terminal: bool | str = Field(False,
                                  description="Taking it ends the agent's turn: true, or an expression checked after it "
                                              "applies ($actor, $params).")
     per_turn: int | None = Field(None, description="Max uses per turn.")
     per_round: int | None = Field(None, description="Max uses per round.")
-    duration: float | str | None = Field(None,
-                                         description="Continuous clock: how long it takes (number or expression over "
-                                                     "$actor, $params); the actor's next scheduled turn comes that "
-                                                     "much later.")
-    tool: str | None = Field(None,
-                             description="Offer this action inside one tool of this name, shared by every action "
-                                         "naming it: the agent picks the action with the tool's `action` argument, "
-                                         "which lists the ones legal now.")
     attach: str | None = Field(None,
                                description="Assets the actor receives with the result (an expression over $actor, "
                                            "$params giving an asset id, a list or null); a sealed choice's arrive "
@@ -147,25 +136,24 @@ class ActionSpec(_Model):
             data = {**data, "when": [data["when"]]}
         return data
 
+    @property
+    def silent(self) -> bool:
+        """Whether nobody but the actor learns this action happened (``announce: false``)."""
+        return self.announce is False
+
 
 class StageSpec(_Model):
-    """One step of every round. Stages run in order; each wakes agents to take turns."""
+    """One step of every round. Stages run in order; each wakes agents to take turns. What happens around a stage (a
+    resolution when it ends, a default move for an agent that did not act) is an event on the stage's anchors."""
 
     name: str
-    when: str | None = Field(None, description="Run this stage only when true (e.g. $round == 1).")
+    when: str | None = Field(None, description="Run this stage only when true (e.g. $round == 1, $round % 7 == 0).")
     actions: str | list[str] | dict[str, list[str]] = Field("all", description="'all', a list, or {type: [actions]}.")
     turns: str = Field("sequential",
                        description="sequential (one after another, effects immediate) | simultaneous (everyone "
                                    "chooses from the same picture; the sealed choices then commit one agent after "
-                                   "another, in `order` or else a random order — resolve them jointly in on_exit) | "
-                                   "scheduled (continuous clock: each agent whose wake time has come, earliest first).")
-    interval: float | str | None = Field(None,
-                                         description="Scheduled turns: time until an agent that took no timed action "
-                                                     "is woken again (number or expression over $actor; default "
-                                                     "clock.tick).")
-    first_wake: float | str | None = Field(None,
-                                           description="Scheduled turns: each agent's first wake time (number or "
-                                                       "expression over $it, $i; default 0).")
+                                   "another, in `order` or else a random order — resolve them jointly in an event "
+                                   "on `stage.<name>.end`).")
     order: str | None = Field(None,
                               description="seat | random | expression over $it (lowest first): the order agents take "
                                           "turns in, and a simultaneous stage's choices commit in. Every agent sees "
@@ -186,39 +174,14 @@ class StageSpec(_Model):
                                              "$inputs.")
     brief: str = Field("", description="Instruction shown during this stage (template).")
     must_act: bool = Field(False, description="While an action is available, the agent cannot just end its turn.")
-    on_idle: Effects = Field(default_factory=list,
-                             description="Effects for each agent that ends its turn without acting ($actor): a "
-                                         "forfeit, a default move.")
-    on_wake: Effects = Field(default_factory=list,
-                             description="Effects for each agent just before its turn ($actor), so what it reads "
-                                         "reflects them: an upkeep, a draw, marking news as seen.")
-    on_turn_end: Effects = Field(default_factory=list,
-                                 description="Effects for each agent after its turn ($actor), whether or not it acted "
-                                             "(simultaneous: after choices are committed).")
-    auto: bool = Field(False,
-                       description="Play trivial turns without waking the agent: take the only legal action when it "
-                                   "has no arguments, skip the turn when nothing is legal.")
-    time_limit: float | str | None = Field(None,
-                                           description="Wall-clock seconds each agent has for its turn (number, or "
-                                                       "expression over $actor; null uses the run's `time_limit`). "
-                                                       "Past it the turn ends, later calls are refused and "
-                                                       "`on_timeout` runs.")
-    on_timeout: Effects = Field(default_factory=list,
-                                description="Effects for each agent whose turn ran out of time ($actor), instead of "
-                                            "`on_idle`.")
-    atomic: bool = Field(False,
-                         description="The turn's actions apply together or not at all: triggers, reactions and "
-                                     "invariants wait until the turn ends, and a turn that breaks `valid` is undone. "
-                                     "An action's own `outcome` text (and attached files) is shown once the turn "
-                                     "commits, so an undone turn shows nothing it was not charged for.")
     valid: Annotated[list[Condition], BeforeValidator(one_or_many)] = Field(
         default_factory=list,
         description="Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action "
-                    "of the turn is undone and the agent is told `why` and plays the turn again. An action that draws "
-                    "randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no "
-                    "later action can undo its luck. Makes the stage atomic.")
-    on_enter: Effects = Field(default_factory=list)
-    on_exit: Effects = Field(default_factory=list)
+                    "of the turn is undone and the agent is told `why` and plays the turn again. The turn's actions "
+                    "apply together or not at all: events, reactions and invariants wait until it ends, and an "
+                    "action's `outcome` (and attached files) is shown once the turn commits. `\"true\"` makes the "
+                    "turn atomic with no condition. An action that draws randomness settles the turn so far at once "
+                    "(a failure then undoes the turn and ends it), so no later action can undo its luck.")
 
     @model_validator(mode="before")
     @classmethod
@@ -250,7 +213,6 @@ class ViewSpec(_Model):
                                   description="Agent type(s) that see it, or \"spectator\": an omniscient view for "
                                               "UIs and reports, rendered into `result.frames` each round and by "
                                               "`env.spectate()`, never shown to an agent.")
-    stages: list[str] | None = None
     title: str = ""
     of: str | None = Field(None, description="Entity type or expression giving items; omit for a single line.")
     where: str | None = Field(None, description="Filter ($it, $actor).")
@@ -259,71 +221,57 @@ class ViewSpec(_Model):
     limit: int | None = None
     show: str = Field(..., description="Template for one item (or the single line).")
     empty: str | None = Field(None, description="Text when no items match (omit to hide the view).")
-    when: str | None = None
+    when: str | None = Field(None, description="Show it only when true ($actor, $stage): e.g. "
+                                               "\"$stage in ['trade']\".")
     look: bool = Field(False,
                        description="Offer it on demand as look(view) instead of always including it. Randomness a view "
                                    "draws is fixed for the turn: looking again shows the same text.")
     bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
-    only_changes: bool = Field(False,
-                               description="Show it in full only when it changed since the agent's last turn; "
-                                           "otherwise one line says it is unchanged. For agents that remember their "
-                                           "earlier turns: the built-in LLM participants start every turn afresh.")
     attach: str | None = Field(None,
                                description="Assets delivered with the view: an expression giving an asset id, a list "
                                            "or null — per listed item ($it) with `of`, else once ($actor).")
 
 
+#: Where in a run an event is considered (its `on`), with ``<s>`` a stage and ``<t>`` a type.
+ANCHORS = ("round.start", "round.end", "stage.<s>.start", "stage.<s>.end", "stage.<s>.turn", "create.<t>",
+           "remove.<t>", "change")
+_ANCHOR = re.compile(r"(round\.(start|end)|change|stage\.[^\s]+\.(start|end|turn)|(create|remove)\.[^\s.]+)$")
+
+
 class EventSpec(_Model):
-    """World logic outside agent turns: scheduled, periodic, conditional or random."""
+    """World logic outside agent turns: `on` says when it is considered, `when` whether it fires."""
 
     name: str | None = None
-    at: int | list[int] | str | None = Field(None, description="Round(s) it fires.")
-    every: int | str | None = Field(None,
-                                    description="Fires every N rounds, from round 1: a number or an expression over "
-                                                "$inputs.")
-    when: str | None = Field(None, description="Fires when true; `$chance(0.1)` fires it at random.")
-    phase: str = Field("start", description="start (before stages) | end (after stages).")
-    each: str | None = Field(None, description="Run `do` once per item ($it): a type or expression.")
-    as_: str | None = Field(None, alias="as", description="Name for the item instead of $it.")
-    order: str | None = Field(None,
-                              description="With `each`: random (shuffled from the run's seed) or an expression over "
-                                          "the item (lowest first); default the order `each` gives.")
-    sync: bool = Field(False,
-                       description="With `each`: every item's rules read the world as it was before the event and all "
-                                   "their writes land together (cellular automata, simultaneous updates). Only "
-                                   "property and layer-cell assignments are allowed; two items writing different "
-                                   "values to one property is an error.")
-    where: str | None = None
-    do: Effects = Field(default_factory=list)
-    say: str | None = Field(None, description="Headline agents receive as news.")
-    once: bool = False
-    arms: list[str] | None = Field(None, description="Only in these experiment arms.")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _arms_list(cls, data: Any) -> Any:
-        if isinstance(data, dict) and isinstance(data.get("arms"), str):
-            data = {**data, "arms": [data["arms"]]}
-        return data
-
-
-class TriggerSpec(_Model):
-    """World logic that reacts the moment a condition becomes true — after any action, effect,
-    physics step or round end — instead of waiting for the next event phase."""
-
-    name: str | None = None
-    when: str = Field(..., description="Fires when this becomes true (it re-arms once it is false again).")
-    do: Effects = Field(default_factory=list)
+    on: str = Field("round.start",
+                    description="round.start (before the stages) | round.end (after them, before outputs are "
+                                "sampled) | stage.<s>.start (when stage s starts) | stage.<s>.end (after it; a "
+                                "simultaneous stage's choices have committed) | stage.<s>.turn (after each agent's "
+                                "turn in it: $actor, $acted, $timed_out) | create.<t> / remove.<t> (inside the change "
+                                "that creates or removes an entity of type t or a subtype: $it) | change (after every "
+                                "change, the moment `when` becomes true; it re-arms once it is false again).")
+    when: str | None = Field(None,
+                             description="Fires only when true: \"$round == 5\", \"$round % 7 == 1\", "
+                                         "\"$chance(0.1)\", \"$arm == 'treatment'\".")
+    do: Effects = Field(default_factory=list,
+                        description="Effects, applied atomically. A `do` that is one `each` loop runs item by item, "
+                                    "each item with luck of its own.")
     say: str | None = Field(None, description="Headline agents receive as news.")
     once: bool = Field(False, description="Fire at most once per run.")
-    arms: list[str] | None = Field(None, description="Only in these experiment arms.")
 
-    @model_validator(mode="before")
+    @field_validator("on")
     @classmethod
-    def _arms_list(cls, data: Any) -> Any:
-        if isinstance(data, dict) and isinstance(data.get("arms"), str):
-            data = {**data, "arms": [data["arms"]]}
-        return data
+    def _anchor(cls, value: str) -> str:
+        if not _ANCHOR.match(value):
+            close = get_close_matches(value, ("round.start", "round.end", "change"), n=1)
+            hint = f" — did you mean '{close[0]}'?" if close else ""
+            raise ValueError(f"'{value}' is not an anchor{hint}; events go on: {', '.join(ANCHORS)}")
+        return value
+
+    @model_validator(mode="after")
+    def _change_needs_when(self) -> EventSpec:
+        if self.on == "change" and self.when is None:
+            raise ValueError("an event `on: change` fires when its `when` becomes true, so it needs a `when`")
+        return self
 
 
 class PolicyRule(_Model):

@@ -86,7 +86,7 @@ def test_a_sync_event_that_changes_the_world_directly_is_reported():
     assert issues and "cannot run `create`" in issues[0].message
     unchecked = Env(parse_contract(contract), {}, 1)  # the engine refuses it even when nothing checked it
     result = unchecked.run()
-    assert result.status == "failed" and "a sync event can only assign properties" in result.error
+    assert result.status == "failed" and "a sync loop can only assign properties" in result.error
     assert unchecked.entities("box") == fg_env.load(_row({}), seed=1).entities("box")
 
 
@@ -104,4 +104,4 @@ def test_random_order_is_seeded_and_an_order_expression_sorts_lowest_first():
 
 def test_order_and_sync_need_each():
     contract = {**ROW, "events": [{"order": "random", "do": ["$world.total = 1"]}]}
-    assert any(i.path == "events[0].order" for i in fg_env.check(contract))
+    assert any(i.path == "events[0].order" and "is not a field here" in i.message for i in fg_env.check(contract))

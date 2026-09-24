@@ -98,19 +98,13 @@ def _fill_dependent(wake: Wake, tool: str, args: dict[str, Any], rng: random.Ran
 
     turn = wake._turn
     actions = turn.env.actions
-    name, own = tool, args
-    if tool in actions.groups:  # a shared tool: its `action` argument names the action
-        name, own, problem = actions.route(tool, args, ())
-        if problem:
-            return args
-    if name not in turn.env.contract.actions:
+    if tool not in turn.env.contract.actions:
         return args
     with turn.env._lock:
         try:
-            filled = actions.fill_dependent(turn.actor, name, own, rng.choice)
+            return actions.fill_dependent(turn.actor, tool, args, rng.choice)
         except RunError:
             return args  # the call reports the broken rule at its path
-    return {**filled, "action": args["action"]} if name != tool else filled
 
 
 def _sample_list(prop: Mapping[str, Any], rng: random.Random) -> list[Any] | None:

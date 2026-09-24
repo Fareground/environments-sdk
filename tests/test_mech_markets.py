@@ -868,25 +868,6 @@ def test_market_actions_act_for_who_they_name():
     assert not order_book.audit(env.world, "acme")
 
 
-def test_tools_one_offers_a_book_as_a_single_tool():
-    env = fg_env.load(book(tools="one"), seed=1)
-    offered = {}
-
-    def trade(wake):
-        tools = {t.name: t for t in wake.tools}
-        offered[wake.entity_id] = tools
-        if wake.entity_id == "a":
-            assert wake.call("acme", {"action": "sell", "qty": 10, "price": 50}).ok
-        if wake.entity_id == "b":
-            assert wake.call("acme", {"action": "buy", "qty": 4}).ok
-        wake.end()
-
-    env.run(trade, rounds=1)
-    assert ("acme_buy" not in offered["a"] and offered["a"]["acme"].input_schema["properties"]["action"]["enum"]
-            == ["buy", "sell"])
-    assert props(env, "b")["acme_shares"] == 104 and [o["qty"] for o in env.props["acme_asks"]] == [6]
-
-
 def test_guide_documents_the_market_family():
     page = fg_env.guide("market.auction")
     assert (page.startswith("### `market.auction`") and "`house`" in page and "- `bid`" in page

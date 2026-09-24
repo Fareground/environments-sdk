@@ -588,18 +588,6 @@ def test_a_moved_card_must_belong_to_the_deck_the_action_names():
     assert any("is not a card of chips" in d["message"] for d in result.diagnostics)
 
 
-def test_tools_one_offers_every_betting_move_as_one_tool():
-    offered = []
-
-    def fold(wake):
-        offered.append(sorted(t.name for t in wake.tools if t.kind == "act"))
-        assert wake.call("table", {"action": "fold"}).ok
-
-    result = fg_env.load(_table([100, 100], blinds=[5, 10], tools="one"), seed=1).run(fold, rounds=1)
-    assert result.status == "completed", result.error
-    assert offered == [["table"]] and sorted(result.outputs["stacks"]) == [95, 105]
-
-
 def test_guide_documents_the_card_mechanisms_ops_and_functions():
     mechanisms = fg_env.guide("mechanisms")
     assert ("| `game` | board, cards, pot, slots |" in mechanisms

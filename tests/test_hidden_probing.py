@@ -162,9 +162,9 @@ BALLOT = {
 
 
 def test_check_warns_that_a_sealed_stage_announces_which_choice_each_agent_made():
-    warned = [i for i in fg_env.check(BALLOT) if i.path == "stages[0]" and "private" in i.fix]
+    warned = [i for i in fg_env.check(BALLOT) if i.path == "stages[0]" and "announce: false" in i.fix]
     assert warned and "vote_yes" in warned[0].message
     secret = copy.deepcopy(BALLOT)
     for spec in secret["actions"].values():
-        spec["private"] = True
+        spec["announce"] = False
     assert not [i for i in fg_env.check(secret) if i.path == "stages[0]"]

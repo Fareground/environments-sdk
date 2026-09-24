@@ -9,7 +9,7 @@ import fg_env
 def contract(nested=False, second_delay=False):
     body = (['$shock = $batch[0]'] if nested else []) + [
         '$world.cash += $shock.amount',
-        '$world.observed = [$shock.kind, $shock.text, $shock.round, $shock.actor, $shock.stage, $shock.time, '
+        '$world.observed = [$shock.kind, $shock.text, $shock.round, $shock.actor, $shock.stage, '
         '$shock.details]']
     if second_delay:
         body = [{'after': 1, 'do': body}]
@@ -36,7 +36,7 @@ def test_delayed_event_survives_json_restore_and_independent_fork(nested, second
     result = env.run()
     assert result.ok, result.error
     assert result.outputs == {'cash': 120, 'observed': [
-        'demand_shock', 'Demand changed', 1, None, None, None, {'region': 'north', 'units': [2, 3]}]}
+        'demand_shock', 'Demand changed', 1, None, None, {'region': 'north', 'units': [2, 3]}]}
     assert restored.run().to_dict() == result.to_dict()
     branch_result = branch.run()
     assert branch_result.ok, branch_result.error
@@ -95,7 +95,7 @@ def test_event_metadata_and_nested_marker_payload_roundtrip(recipients):
 
     data = {'$event': {'kind': 'literal'}, 'meta': {'$entry': {'author': 'literal'}},
             'round': 999, 'text': 'not the event text'}
-    original = LogEvent(7, 2, 'order', '', 'a', recipients, data, 'checkout', 0.0)
+    original = LogEvent(7, 2, 'order', '', 'a', recipients, data, 'checkout')
     encoded = json.loads(json.dumps(freeze(original)))
     decoded = thaw(encoded, None, version=CAPTURE_VERSION)
     assert isinstance(decoded, LogEvent)

@@ -42,24 +42,24 @@ $metrics $series $arm):
 | actions.when | $actor ($params too: such a requirement is checked when the action is called) |
 | actions.params.*.where | $actor $it $i $params (earlier params) |
 | actions.params.*.min/max/values/default | $actor $params (earlier params) |
-| actions.chance/do/otherwise/outcome/announce/terminal | $actor $params + locals |
-| stages.who/order/first_wake | $it $i |
-| stages.brief/time_limit/interval/on_wake/on_idle/on_turn_end/on_timeout | $actor |
+| actions.do/outcome/announce/terminal | $actor $params + locals |
+| stages.who/order | $it $i |
+| stages.brief | $actor |
 | stages.valid (expr and why) | $actor $pending |
-| stages.when/until/on_enter/on_exit | — |
+| stages.when/until | — |
 | views.when/of | $actor |
 | views.where/sort/show | $actor $it $i |
 | views.with for: spectator | no $actor ($it $i in lists) |
 | records.visible | $viewer $it (entry) |
 | records.show | $it (entry: its fields directly, $it.text, plus author, round, seq, stage, to) |
-| events.where/do (with each) | $it $i (or the `as` name) |
-| triggers.when/do/say | — |
+| events.on: round.* / stage.<s>.start / stage.<s>.end / change | — |
+| events.on: stage.<s>.turn | $actor $acted $timed_out |
+| events.on: create.<t> / remove.<t> | $it (the entity) |
 | population.where/weight | $row |
 | population.props/id/name | $row $i ($i counts from 1) |
 | population.brief | $actor $row $i |
 | entities.brief | $actor |
 | types.inspect | $viewer $it |
-| types.on_create/on_remove | $it (the entity) + locals |
 | relations.props.*.default | $from $to |
 | links.props | $from $to (+ $row with `rows`) |
 | physics.per.*.read/where | $it |

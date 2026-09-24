@@ -12,7 +12,7 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import assets, destroy_items, held, make_items
 from .econ_base import (
     INVENTORY,
@@ -84,7 +84,6 @@ class LaborConfig(BaseModel):
     actions: list[Literal["post", "close", "hire", "reject", "fire", "apply", "withdraw", "quit", "set_price"]] = Field(
         ["post", "close", "hire", "reject", "fire", "apply", "withdraw", "quit", "set_price"],
         description="Tools generated for agents.")
-    tools: ToolsSetting = tools_field()
 
 
 register_config(LABOR, LaborConfig)

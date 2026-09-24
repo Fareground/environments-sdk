@@ -35,11 +35,12 @@ from typing import Any
 from pydantic import Field, ValidationError, model_validator
 
 from ..contract import StageSpec
+from ..contract.normalize import normalize
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
-from ._common import Config, Effects, ToolsSetting, tools_field
+from ._common import Config, Effects
 from .procedure_stack import StackConfig, check_push, check_stack_rules, expand_stack, read_stack, run_step
 
 __all__ = ["Transition", "PhaseDef", "ProcedureConfig"]
@@ -106,7 +107,6 @@ class ProcedureConfig(Config):
         None, description="A response stack: items pushed by `<name>_<kind>` tools or the `push` action, answered in "
                           "the window stage `<name>_stack` (push an answer or `<name>_pass`) and resolved last in, "
                           "first out.")
-    tools: ToolsSetting = tools_field()
 
 
 @mode("flow", "procedure", ProcedureConfig,
@@ -197,8 +197,8 @@ def _stages(name: str, phase: str, spec: PhaseDef, taken: set) -> list[dict[str,
         stage["when"] = f"{gate} and ({stage['when']})" if stage.get("when") else gate
         if spec.brief and not stage.get("brief"):
             stage["brief"] = spec.brief
-        try:
-            StageSpec.model_validate(stage)
+        try:  # as the contract reads it: a stage's hooks in an earlier form become events
+            StageSpec.model_validate(normalize({"stages": [stage]})[0]["stages"][0])
         except ValidationError as exc:
             error = exc.errors()[0]
             where = ".".join(str(p) for p in error["loc"])

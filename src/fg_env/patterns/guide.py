@@ -26,8 +26,8 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
   change the pattern with it. Run-time values (a price, a stock level) are arguments or a memory `input`.
 * Keys: `keys` (an entity type — keys are its ids —, a list, or an expression over `$inputs`) and/or `table` +
   `column` (one row of parameters per key: per-SKU bases, per-category profiles).
-* Time: `t` counts clock units from round 1 (round 1 is t = 0; with unit day and step 7 round 2 is t = 7), the clock
-  time when continuous. With `clock.start`, yearly, weekly and daily positions follow the real calendar and times
+* Time: `t` counts clock units from round 1 (round 1 is t = 0; with unit day and step 7 round 2 is t = 7). With
+  `clock.start`, yearly, weekly and daily positions follow the real calendar and times
   may be ISO dates. Random paths step once per round (or every `every` clock units).
 * Randomness comes from the pattern's own stream (run seed, name, key): adding a pattern never shifts another draw,
   every arm sees the same paths, and a snapshot, clone or fork reads the same values. Observations use one uniform

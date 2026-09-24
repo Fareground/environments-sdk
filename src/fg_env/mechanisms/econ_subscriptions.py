@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, entity_of, tools_field
+from ._common import entity_of
 from .econ_assets import move_money
 from .econ_base import (
     SUBSCRIPTIONS,
@@ -62,7 +62,6 @@ class SubscriptionsConfig(BaseModel):
     price_max: float | None = Field(None, ge=0, description="Highest price a provider may set.")
     actions: list[Literal["subscribe", "cancel", "resume", "set_price"]] = Field(
         ["subscribe", "cancel", "resume", "set_price"], description="Tools generated for agents.")
-    tools: ToolsSetting = tools_field()
 
 
 register_config(SUBSCRIPTIONS, SubscriptionsConfig)

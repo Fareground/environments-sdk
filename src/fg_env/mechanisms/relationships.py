@@ -32,7 +32,6 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
 from ._social import NAME, check_expr, eid, entity, named_use, require_type, seat_order
 
 __all__ = ["RelationshipsConfig", "FactionsConfig"]
@@ -248,7 +247,6 @@ class FactionsConfig(BaseModel):
     found: bool = Field(False, description="Members may found new factions.")
     alliances: bool = Field(True, description="Offer tools to propose and break alliances between factions.")
     joining: bool = Field(True, description="Offer join, leave and invite tools.")
-    tools: ToolsSetting = tools_field()
 
 
 def _factions(world: Any, name: str) -> dict[str, dict[str, Any]]:

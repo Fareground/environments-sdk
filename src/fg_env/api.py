@@ -93,7 +93,7 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: t
         fragment = _json(_file_text(target), _shown(str(target)))
         if not isinstance(fragment, dict):
             raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
-        fragment = _resolve_imports(expand_macros(fragment), target.parent, root, (*stack, target), count,
+        fragment = _resolve_imports(normalize(expand_macros(fragment))[0], target.parent, root, (*stack, target), count,
                                     f"{path}.imports")
         for key in ("fg_env", "name", "description"):
             fragment.pop(key, None)
@@ -188,7 +188,7 @@ def expand(source: ContractLike, *, mechanisms: bool = False) -> dict[str, Any]:
     expanded, issues = expand_mechanisms(data)
     if issues:
         raise ContractError(issues, title="mechanisms cannot be expanded")
-    return expanded
+    return normalize(expanded)[0]
 
 
 def _without_unknown_fields(data: Any, issues: list[Issue]) -> Any:

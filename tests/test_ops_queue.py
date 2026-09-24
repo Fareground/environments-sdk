@@ -153,21 +153,6 @@ def test_customers_who_gave_up_come_back_as_retries():
     assert result.outputs["q_offered"] > sum(no_retry.outputs["q_offered_by_interval"])
 
 
-def test_a_continuous_clock_plays_the_same_intervals_as_a_round_clock():
-    rounds = run(centre(rounds=4,
-                        channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
-                        servers={"agents": {"staff": "$inputs.staffing[$interval]"}}),
-                 inputs={"staffing": [6, 8, 10, 12]})
-    continuous = centre(rounds=4,
-                        channels={"calls": {"arrivals": 80, "service": {"mean": 200}, "patience": {"mean": 100}}},
-                        servers={"agents": {"staff": "$inputs.staffing[$interval]"}},
-                        clock={"mode": "continuous", "unit": "minute", "horizon": 120}, interval=1800)
-    timed = run(continuous, inputs={"staffing": [6, 8, 10, 12]})
-    for name in ("q_offered_by_interval", "q_service_level_by_interval", "q_staff_by_interval", "q_abandoned"):
-        assert timed.outputs[name] == rounds.outputs[name], name
-    assert timed.time == 120
-
-
 def test_a_run_split_by_a_snapshot_a_clone_or_a_fork_continues_exactly():
     contract = centre(rounds=6, channels={"calls": {"arrivals": 110, "service": {"mean": 180}, "patience": {"mean": 90},
                                                     "callback": {"when": 30, "accept": 0.5},

@@ -32,7 +32,6 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
 from ._social import cache, edges, eid, entity, named_use, props, require_type, seat_order
 
 __all__ = ["FeedConfig", "feed"]
@@ -106,7 +105,6 @@ class FeedConfig(BaseModel):
     turns: Literal["sequential", "simultaneous"] = Field("simultaneous", description="Turns of the generated stage.")
     stage: str | None = Field(None,
                               description="Offer the tools during this declared stage instead of a generated one.")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------

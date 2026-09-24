@@ -11,7 +11,6 @@ Config:
 - `found` (default false): Members may found new factions.
 - `alliances` (default true): Offer tools to propose and break alliances between factions.
 - `joining` (default true): Offer join, leave and invite tools.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **FactionSpec** — 

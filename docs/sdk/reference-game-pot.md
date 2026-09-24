@@ -19,7 +19,6 @@ Config:
 - `max_calls` (default 6): Tool calls per betting turn.
 - `conserve` (default true): Add the invariant that chips are never created or destroyed.
 - `views` (default true): Generate the table view.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `game` op:
 - `fold` — takes `who`: {"game": "table", "action": "fold"}  (give up the hand; for $actor or `who`; an illegal move fails the action)

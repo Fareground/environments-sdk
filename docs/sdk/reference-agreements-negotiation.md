@@ -18,7 +18,6 @@ Config:
 - `on_sign` (default []): Effects when a deal is signed, after its transfers and duties ($deal, $proposer, $acceptor, $parties, $terms); a `fail` refuses the signing.
 - `breach` (default null): What a breach costs: {penalty, currency, terminate, on_breach}; nothing by default.
 - `actions` (default ["propose", "counter", "accept", "reject", "withdraw", "fulfill"]): Tools generated for the parties.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **IssueSpec** — One dimension of a deal.

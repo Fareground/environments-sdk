@@ -55,7 +55,7 @@ def observation_struct(env: Env, actor: Entity, turn: Turn | None, actions: list
     stage = peek.stage
     with as_turn(env, peek):
         views = {name: env.perception.render_view(name, view, actor) for name, view in env.contract.views.items()
-                 if not view.look and env.perception._applies(view, actor, stage)}
+                 if not view.look and env.perception._applies(view, actor)}
         others = []
         for entity in env.world.entities.values():
             if entity is actor or not entity.alive or not peek._may_inspect(entity):
@@ -86,9 +86,8 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
             if line:
                 lines.append(f"- round {event.round}: {line}")
         lines += ["", "Now:"]
-        stage = peek.stage
         for name, view in env.contract.views.items():
-            if view.look or not env.perception._applies(view, actor, stage):
+            if view.look or not env.perception._applies(view, actor):
                 continue
             block = env.perception.render_view(name, view, actor)
             if block:
@@ -149,15 +148,15 @@ def _world_data(env: Env, entities: list[Any], pending: dict[str, Any]) -> dict[
     world = env.world
     return {
         "entities": entities,
-        "props": encode(world.props), "round": world.round, "stage": world.stage, "time": world.time,
+        "props": encode(world.props), "round": world.round, "stage": world.stage,
         "links": {kind: sorted([a, b, v, encode(world.link_fields.get(kind, {}).get((a, b)))]
                                for (a, b), v in edges.items()) for kind, edges in world.links.items()},
         "records": {name: [encode({k: v for k, v in row.items() if k not in ("seq", "round", "stage")}) for row in rows]
                     for name, rows in world.records_store.items()},
         "scheduled": [[due, encode(item)] for due, _, item in world.scheduled],
-        "wake": encode(world.wake_requests), "wake_at": world.wake_at, "counters": world.counters,
+        "wake": encode(world.wake_requests), "counters": world.counters,
         "end": encode(world.end_request), "fired": sorted(env._fired_once),
-        "triggers": [sorted(env._trigger_armed.items()), sorted(env._triggers_fired)],
+        "armed": sorted(env._armed.items()),
         "used": encode(env._used_round), "pending": pending,
     }
 

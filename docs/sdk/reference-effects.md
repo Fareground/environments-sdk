@@ -1,6 +1,6 @@
 # effects
 
-## Effects (actions.do/otherwise, events.do, stages.on_enter/on_exit)
+## Effects (actions.do, events.do)
 
 Assignment text:
 * `"$actor.cash -= $params.qty * $params.offer.price"` — also `=`, `+=`, `*=`, `/=`; targets are
@@ -12,25 +12,25 @@ Assignment text:
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
   (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
 * A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not
-  fit: an action is rolled back and its actor told why; world logic (an event, a stage hook) that does it fails
+  fit: an action is rolled back and its actor told why; world logic (an event) that does it fails
   the run at its path. To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced: null too, which only a prop declared with `"default": null` (or no default) may hold.
 
 Operation objects (exactly one operation key each):
 - `if`: {"if": "$cost > $actor.cash", "then": [...], "else": [...]}
-- `each`: {"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it)
+- `each`: {"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o instead of $it; "sync": true — every item reads the world as it was before the loop and all their writes land together, for cellular automata and simultaneous updates: only property and layer-cell assignments, and two items writing different values to one property is an error)
 - `create`: {"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, "at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: "double": "$it.base * 2"; inside a loop, name the loop's item with `as` to read it there)
 - `remove`: {"remove": "$params.target"}
 - `transfer`: {"transfer": "cash", "from": "$actor", "to": "$params.seller", "amount": 10}  (fails the action if short; in world logic, the run)
 - `link`: {"link": "trusts", "from": "$actor", "to": "$params.who", "value": 0.8, "props": {"since": "$round"}}  (creates or updates: without `value` an existing link keeps its value and a new one gets the relation's `default`; `props` sets link fields, a new link starting from their defaults)
 - `unlink`: {"unlink": "follows", "from": "$actor", "to": "$params.who"}
 - `move`: {"move": "$actor", "to": "$params.place"}
-- `post`: {"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` chance)
+- `post`: {"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields as keys; to = private recipients; optional `delay` in rounds and `drop` chance)
 - `emit`: {"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": {}, "delay": 1}  (optional `delay` and `drop`, as for post)
 - `fail`: {"fail": "You cannot afford that."}  (roll back the action; text goes to the actor; in world logic it fails the run)
 - `end`: {"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}
-- `after`: {"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time units later)
-- `wake`: {"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues, offered the actions named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; "drop": 0.2 — the wake may be lost)
+- `after`: {"after": 3, "do": [...]}  (runs 3 rounds later with the same locals)
+- `wake`: {"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — they react as soon as this action has taken effect, before this turn continues, offered the actions named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction cannot stop or change the action that woke them: to let others answer first, use a procedure stack; reactions set off more than 4 deep wait for a normal turn); a wake on a later round goes inside `after`)
 - `repeat`: {"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)
 - `block`: {"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from `blocks`)
 - `chance`: {"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": [...]}], "as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": "card", "do": [...]}  (picks one outcome from the listed distribution, logged as a `chance` event; `fg_env.rl.game` can enumerate and choose outcomes instead of sampling them)

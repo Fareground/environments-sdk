@@ -37,7 +37,6 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
 from ._social import check_expr, entity, named_use, props, require_type
 from .voting import tally
 
@@ -88,7 +87,6 @@ class DeliberationConfig(BaseModel):
                                                                       "run once a main motion is decided | adoption: "
                                                                       "once one passes.")
     when: str | None = Field(None, description="Hold the discussion only when true (e.g. \"$round <= 5\").")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------

@@ -97,12 +97,10 @@ class Exposure:
     def __init__(self, log: ExposureLog, turn: Turn, kind: str):
         self.log = log
         self.staged = turn.staged
-        world = self._world = turn.env.world
+        self._world = turn.env.world
         record: dict[str, Any] = {"entity": turn.actor.id, "type": turn.actor.entity_type, "round": turn.round,
                                   "stage": turn.stage.name, "turn": turn.number, "kind": kind,
                                   "reason": str.__str__(turn.reason)}
-        if world.continuous:
-            record["time"] = world.time
         if turn.time_limit is not None:
             record["time_limit"] = turn.time_limit
         record.update(brief=None, update=None, views=[], news=[], entries=[], view_events=[], tools=[],

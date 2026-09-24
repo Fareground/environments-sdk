@@ -19,7 +19,6 @@ Config:
 - `inventory` (default null): Inventory of a firm's goods (needed with `firm`).
 - `firm` (default null): Employers are firms: {output, per_worker, inputs, price, price_min, price_max}.
 - `actions` (default ["post", "close", "hire", "reject", "fire", "apply", "withdraw", "quit", "set_price"]): Tools generated for agents.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **FirmSpec** — Employers as firms: workers make output, sold at a posted price.

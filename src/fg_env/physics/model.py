@@ -14,11 +14,9 @@ drifts.
 
 Design goals:
 
-* **dt-aware.** The same model integrates by a real time delta. In discrete
-  mode that delta is one round (dt=1, ticked once per round before agents act);
-  in continuous mode it is the gap between successive environment ticks. Either
-  way the *clock*, not a round counter, drives evolution — and agent turns
-  interleave freely between ticks without advancing physics themselves.
+* **dt-aware.** The model integrates by a time delta: ``dt`` per round, ticked
+  once per round before agents act. Agent turns interleave between ticks without
+  advancing physics themselves.
 * **Accurate & stable.** Classic 4th-order Runge–Kutta with configurable
   sub-stepping, so a large dt doesn't blow up a stiff system.
 * **Turn-based compatible.** Agents still act in discrete turns; physics simply

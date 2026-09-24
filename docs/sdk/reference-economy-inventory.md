@@ -10,7 +10,6 @@ Config:
 - `capacity` (default null): Space each holder has (number or expression); unlimited when omitted.
 - `start` (default {}): Goods every holder starts with {item: qty or expression} (entity props override).
 - `actions` (default ["give", "consume"]): Tools generated for agent holders: give, consume (consumable items), drop and pickup (needs a space).
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 - `give_to` (default "$it.id != $actor.id"): Which holders an agent may give goods to ($actor, $it).
 - `needs` (default {}): Goods used up every `every` rounds per type: {type: {item: qty or expression over $it}}.
 - `on_short` (default []): Effects when a need is not met ($it, $item, $short).

@@ -25,6 +25,7 @@ from typing import Any
 from pydantic import Field, ValidationError
 
 from ..contract import StageSpec
+from ..contract.normalize import normalize
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
 from ..expr.objects import Entity
@@ -120,8 +121,8 @@ def _agent(contract: Mapping[str, Any], type_name: str) -> bool:
 
 
 def _validated(stage: dict[str, Any], field: str) -> dict[str, Any]:
-    try:
-        StageSpec.model_validate(stage)
+    try:  # as the contract reads it: a stage's hooks in an earlier form become events
+        StageSpec.model_validate(normalize({"stages": [stage]})[0]["stages"][0])
     except ValidationError as exc:
         error = exc.errors()[0]
         where = ".".join(str(p) for p in error["loc"])

@@ -449,7 +449,7 @@ def test_hooks_extend_an_action_whose_effects_are_written_as_one_effect():
     otherwise["actions"]["bash"].update(chance=0.5, otherwise="$actor.hp -= 1")
     otherwise["mechanisms"]["abilities"] = {"kind": "conditions", "mode": "cooldowns",
                                             "actions": {"bash": {"cooldown": 1}}}
-    assert fg_env.parse(otherwise).actions["bash"].otherwise[0] == "$actor.hp -= 1"
+    assert fg_env.parse(otherwise).actions["bash"].do[0]["else"] == ["$actor.hp -= 1"]
 
 
 # ---------------------------------------------------------------------------
@@ -726,7 +726,7 @@ def test_epidemic_shocks_draws_its_uncertain_quantities_per_run_and_reports_them
 
 def test_check_warns_about_a_victory_decided_after_the_clock_ends():
     late = _race([{"most": "$it.score", "at": 12}])
-    warning = next(i for i in fg_env.check(late) if i.path.endswith(".at"))
+    warning = next(i for i in fg_env.check(late) if i.path.endswith(".when"))
     assert (warning.severity == "warning"
             and "event 'win_most' fires at round 12, after the clock's last round 10" in warning.message)
-    assert not [i for i in fg_env.check(_race([{"most": "$it.score", "at": 10}])) if i.path.endswith(".at")]
+    assert not [i for i in fg_env.check(_race([{"most": "$it.score", "at": 10}])) if i.path.endswith(".when")]

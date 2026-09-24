@@ -88,14 +88,18 @@ Use Python 3.11 or later. Save the following contract as `inventory.json`:
   },
   "events": [
     {
-      "phase": "end",
-      "each": "retailer",
+      "on": "round.end",
       "do": [
-        "$units = $min($it.stock, $inputs.weekly_demand)",
-        "$it.stock -= $units",
-        "$it.sold += $units",
-        "$it.lost += $inputs.weekly_demand - $units",
-        "$it.cash += $units * $inputs.unit_price"
+        {
+          "each": "retailer",
+          "do": [
+            "$units = $min($it.stock, $inputs.weekly_demand)",
+            "$it.stock -= $units",
+            "$it.sold += $units",
+            "$it.lost += $inputs.weekly_demand - $units",
+            "$it.cash += $units * $inputs.unit_price"
+          ]
+        }
       ]
     }
   ],

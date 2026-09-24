@@ -9,7 +9,6 @@ Named the same in every mode:
 - `currency`: the property (or ledger currency) holding money
 - `qty`: units traded (shares, items); money is `amount`
 - `stage`: a declared stage the mechanism runs in (default: a stage it generates)
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "market", "mode": ...`; read one with `guide('market.<mode>')`):
 - `order_book`: One instrument on a continuous limit order book with price-time priority, partial fills, tick and lot sizes, maker/taker fees, market-order collars, optional short selling, order expiry, OHLCV bars of `bar_rounds` rounds and a circuit breaker (measured from the round's open, the bar's open or a rolling window; checked on every trade or at each round's end; halting for some rounds or to the end of the bar).

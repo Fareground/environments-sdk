@@ -92,8 +92,7 @@ def can_step(game: Game) -> bool:
     root, contract, others = game._root, game.contract, game._others
     named = others is None or isinstance(others, str) or (
         isinstance(others, Mapping) and all(isinstance(value, str) for value in others.values()))
-    stages_step = all(stage.turns != "scheduled" and not stage.atomic and not stage.valid and stage.time_limit is None
-                      for stage in contract.stage_list())
+    stages_step = not any(stage.valid for stage in contract.stage_list())
     return (named and stages_step and hosts_for(root.world) is None and root.budget is None and root.time_limit is None
             and contract.physics is None and contract.space is None and not root.driver.turn_tool_specs())
 

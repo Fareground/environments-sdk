@@ -19,8 +19,7 @@ _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
 #: Sections that build the world before round 1.
 _SETUP = frozenset({"world", "types", "entities", "population", "links", "relations", "space"})
 #: Sections whose expressions change or steer the world during play.
-_RULES = frozenset({"actions", "events", "triggers", "stages", "end", "defs", "blocks", "physics", "invariants",
-                    "feeds"})
+_RULES = frozenset({"actions", "events", "stages", "end", "defs", "blocks", "physics", "invariants", "feeds"})
 #: Fields whose text an agent reads: briefs, descriptions, news, outcomes, entries, titles, refusal reasons.
 _TEXT_FIELDS = frozenset({"brief", "description", "outcome", "announce", "say", "show", "why", "title", "empty",
                           "invalid"})
@@ -30,10 +29,7 @@ _TOOL_FIELDS = frozenset({"values", "where", "min", "max"})
 #: arm patches apply only when that arm runs, policies are participants, metrics and outputs measure.
 _ASIDE = frozenset({"mechanisms", "arms", "policies", "inputs", "metrics", "outputs"})
 #: Fields holding effect lists.
-_EFFECT_LISTS = frozenset({"do", "otherwise", "then", "else", "on_enter", "on_exit", "on_idle", "on_wake",
-                           "on_turn_end", "on_timeout", "on_create", "on_remove"})
-#: Type fields whose effects run whenever an entity is created or removed, during play too.
-_HOOKS = frozenset({"on_create", "on_remove"})
+_EFFECT_LISTS = frozenset({"do", "then", "else"})
 
 
 def dumped(contract: Contract) -> dict[str, Any]:
@@ -86,8 +82,6 @@ def roles(path: str) -> frozenset[str]:
         found.add("shown")
     if parts[0] in _SETUP and last not in _TEXT_FIELDS:
         found.add("setup")
-        if _HOOKS.intersection(parts):
-            found.add("rules")
     if parts[0] in _RULES and last not in _TEXT_FIELDS:
         found.add("rules")
     return frozenset(found)

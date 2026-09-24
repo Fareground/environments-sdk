@@ -30,7 +30,6 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort
-from ._common import ToolsSetting, tools_field
 from ._social import NAME, cache, eid, entity, ids, named_use, props, require_type
 
 __all__ = ["ChannelsConfig", "MAX_MENTIONS"]
@@ -82,7 +81,6 @@ class ChannelsConfig(BaseModel):
     passes: int = Field(1, ge=1, le=50,
                         description="Passes of the generated stage (agents with nothing new are skipped after the "
                                     "first).")
-    tools: ToolsSetting = tools_field()
 
 
 # ---------------------------------------------------------------------------

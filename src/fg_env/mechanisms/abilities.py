@@ -92,8 +92,6 @@ def _expand_cooldowns(name: str, cfg: CooldownConfig, contract: Mapping[str, Any
         why = spec.why or f"{action.replace('_', ' ')} is not ready yet"
         start = {"conditions": name, "action": "start", "ability": action}
         hook: dict[str, list[Any]] = {"when": [{"expr": f"$ready($actor, '{action}')", "why": why}], "do": [start]}
-        if raw.get("chance") is not None:
-            hook["otherwise"] = [start]
         hooks[action] = hook
     types = common.types_in(contract, agents, "actions")
     fragment: dict[str, Any] = {"action_hooks": hooks,

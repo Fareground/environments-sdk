@@ -292,24 +292,3 @@ def test_procedure_actions_check_their_own_keys():
     assert path.endswith(".action") and fix == "did you mean 'push'?"
     _, _, fix = issues({"push": "spells", "item": "bolt"})[0]
     assert fix.startswith('`push` is an action of the `flow` op: {"flow": "<mechanism>", "action": "push"')
-
-
-def test_tools_one_offers_the_stack_as_one_tool():
-    contract = json.loads(json.dumps(DUEL))
-    contract["mechanisms"]["spells"]["tools"] = "one"
-    env = fg_env.load(contract, seed=1)
-    offered = {}
-
-    def play(wake):
-        tools = {tool.name: tool for tool in wake.tools}
-        offered.setdefault((wake.entity_id, wake.stage), tools)
-        if wake.entity_id == "ann" and wake.stage == "main":
-            assert wake.call("spells", {"action": "bolt", "target": "bob"}).ok
-        if not wake.done:
-            wake.end()
-
-    env.run(play, rounds=1)
-    main = offered[("ann", "main")]
-    assert "spells" in main and "spells_bolt" not in main
-    assert "bolt" in main["spells"].input_schema["properties"]["action"]["enum"]
-    assert _props(env, "bob")["hp"] == 17  # Bob's silence passed, so the bolt resolved

@@ -8,7 +8,6 @@ Named the same in every mode:
 - `who`: agent type whose turns or victory it governs
 - `views`: generate the mechanism's views
 - `ties`: how a tie is decided: random (from the run's seed) | first (declared order) | none (nobody wins) | share
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "flow", "mode": ...`; read one with `guide('flow.<mode>')`):
 - `procedure`: Rules of order.

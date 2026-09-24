@@ -9,7 +9,7 @@
 the entry is. A mechanism expands into ordinary contract sections — actions, stages, world props, events, views, defs —
 backed by native functions and effect ops. Everything the engine does (checking, preview, atomic actions, snapshots,
 determinism) therefore applies to it unchanged. Anything the author declares under a generated name wins (a named event,
-trigger or end entry too), so generated parts can be overridden (world properties excepted: they are the mechanism's
+or end entry too), so generated parts can be overridden (world properties excepted: they are the mechanism's
 state), while two mechanisms generating different entries under one name is an error naming both; types the author
 declares gain the mechanism's properties without losing their own. A mechanism may extend declared actions
 (``action_hooks``) and stages (``stage_hooks``), and generate other mechanisms. A declared stage that offers only
@@ -43,17 +43,19 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "policies", "metrics",
           "outputs", "defs", "blocks", "arms", "patterns")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
-_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "auto", "brief")
-#: Stage effect lists a mechanism may append to.
-_HOOK_EFFECTS = ("on_enter", "on_exit", "on_idle", "on_wake", "on_turn_end")
+_HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "brief")
+#: Effects a mechanism may run around a declared stage: each becomes an event on the stage's anchor (a point of it, and
+#: the condition it runs under).
+_HOOK_EFFECTS = {"on_enter": ("start", None), "on_exit": ("end", None), "on_idle": ("turn", "not $acted"),
+                 "on_turn_end": ("turn", None)}
 #: ``max_actions`` in a hook is the mechanism's share of the stage's turn (see :func:`_share_turns`).
 _HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_EFFECTS, *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
-_LISTED = ("population", "links", "events", "triggers", "end", "invariants")
+_LISTED = ("population", "links", "events", "end", "invariants")
 #: Listed sections whose items may have a `name`: a declared item of that name replaces the generated one.
-_NAMED_ITEMS = ("events", "triggers", "end")
+_NAMED_ITEMS = ("events", "end")
 #: What an action hook may add to a declared action.
-_ACTION_HOOK_KEYS = ("when", "do", "otherwise")
+_ACTION_HOOK_KEYS = ("when", "do")
 #: Words authors use for the agent type a mechanism involves; every family calls it `who`.
 _ACTOR_WORDS = frozenset({"by", "of", "among", "voter", "voters", "bidder", "bidders", "player", "players",
                           "member", "members", "trader", "traders", "holder", "holders", "guest", "guests",
@@ -168,7 +170,7 @@ def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mappi
 #: Sections whose entries have names (``stages`` by each stage's name).
 _NAMED = ("actions", "stages", "views", "records", "world", "metrics", "outputs", "defs", "blocks", "types", "entities")
 #: Sections of unnamed items, reported by how many were added.
-_COUNTED = ("events", "triggers", "end", "invariants", "population", "links")
+_COUNTED = ("events", "end", "invariants", "population", "links")
 
 
 def _names(data: Mapping[str, Any]) -> dict[str, list[str]]:
@@ -341,7 +343,7 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
     except ValidationError as exc:
         return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
     try:
-        fragment = _group_tools(name, config, spec.expand(name, config, out))
+        fragment = spec.expand(name, config, out)
         clash = _claim(out, name, fragment, owners)
         if clash is not None:
             return [clash]
@@ -472,33 +474,6 @@ def _model_in(annotation: Any) -> Any:
     return None
 
 
-def _group_tools(name: str, config: Any, fragment: dict[str, Any]) -> dict[str, Any]:
-    """Apply a mode's ``tools`` setting: ``one`` offers every generated action inside one tool named after
-    the mechanism; ``auto`` does so only when all of them take the same arguments; ``each`` changes nothing."""
-    setting = getattr(config, "tools", None)
-    actions = fragment.get("actions")
-    if setting not in ("one", "auto") or not isinstance(actions, Mapping):
-        return fragment
-    grouped = [key for key, action in actions.items() if isinstance(action, Mapping)]
-    if len(grouped) < 2:
-        return fragment
-    if setting == "auto" and len({_shape(actions[key]) for key in grouped}) > 1:
-        return fragment
-    return {**fragment, "actions": {key: ({**action, "tool": name} if key in grouped else action)
-                                    for key, action in actions.items()}}
-
-
-def _shape(action: Mapping[str, Any]) -> tuple[tuple[str, str, str], ...]:
-    """The arguments an action takes: (name, type, entity type) for each parameter."""
-    shape = []
-    for pname, param in (action.get("params") or {}).items():
-        if isinstance(param, str):
-            shape.append((str(pname), param, ""))
-        elif isinstance(param, Mapping):
-            shape.append((str(pname), str(param.get("type", "")), str(param.get("of") or "")))
-    return tuple(sorted(shape))
-
-
 def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
     """Merge contract sections into ``data`` (a mechanism's output, or an imported file); ``data``'s own entries win."""
     for section, value in fragment.items():
@@ -588,7 +563,8 @@ def _fill(declared: dict[str, Any], generated: Mapping[str, Any]) -> None:
 
 
 def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
-    """Add actions and effects to stages the author declared (identical effects are added once)."""
+    """Add actions to stages the author declared, and effects around them as events on their anchors (an identical
+    event is added once)."""
     stages: dict[Any, dict[str, Any]] = {s.get("name"): s for s in data.get("stages", []) if isinstance(s, dict)}
     for stage_name, hook in hooks.items():
         stage = stages.get(stage_name)
@@ -609,15 +585,17 @@ def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
         for key in _HOOK_SETTINGS:  # turn settings the author left unset
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
-        for key in _HOOK_EFFECTS:
-            written = stage.get(key, [])
-            effects = stage[key] = [written] if isinstance(written, (str, Mapping)) else written
-            seen = {_canonical(e) for e in effects}
-            effects.extend(copy.deepcopy(e) for e in hook.get(key) or [] if _canonical(e) not in seen)
+        events = data.setdefault("events", [])
+        for key, (point, when) in _HOOK_EFFECTS.items():
+            if hook.get(key):
+                event = {"on": f"stage.{stage_name}.{point}", **({"when": when} if when else {}),
+                         "do": copy.deepcopy(list(hook[key]))}
+                if _canonical(event) not in {_canonical(e) for e in events}:
+                    events.append(event)
 
 
 def _hook_actions(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:
-    """Append ``when`` conditions and ``do``/``otherwise`` effects to actions the author declared.
+    """Append ``when`` conditions and ``do`` effects to actions the author declared.
 
     The action stays the author's: nothing it declares is replaced, and an identical item is added once."""
     actions = data.get("actions") or {}

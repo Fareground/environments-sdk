@@ -145,7 +145,7 @@ def _checked(path: str, rounds: int | None) -> str:
         policies = " and with each policy" if contract.policies else ""
         played = f" and played {length} with random agents, with idle agents{policies}"
     clock = contract.clock
-    note = "" if clock.mode == "continuous" or "rounds" in clock.model_fields_set else \
+    note = "" if "rounds" in clock.model_fields_set else \
         f"; clock.rounds is not set, so a run lasts {clock.rounds} rounds"
     return f"contract OK: checked every section{played}{note}"
 

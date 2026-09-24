@@ -19,7 +19,6 @@ Config:
 - `when` (default null): Hold the vote only when true (e.g. "$round == 3").
 - `question` (default ""): What is being decided, shown with the ballot.
 - `announce` (default ""): Result text (template over $result); default names the winner or says it failed.
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Actions of the `decision` op:
 - `tally`: {"decision": "election", "action": "tally"}  (count the ballot now: sets $world.election_result, announces it, opens a fresh ballot)

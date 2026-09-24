@@ -21,7 +21,6 @@ Config:
 - `keep` (default null): Keep only the latest N messages.
 - `stage` (default null): Offer the tools during this declared stage; default: a sequential stage named after the mechanism.
 - `passes` (default 1): Passes of the generated stage (agents with nothing new are skipped after the first).
-- `tools` (default "each"): How the generated tools are offered: each (one tool per action) | one (one tool named after the mechanism, whose `action` argument lists the actions legal now) | auto (one tool only when every action takes the same arguments).
 
 Nested config:
 **GroupSpec** — A private group declared up front.

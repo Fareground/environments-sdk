@@ -1,7 +1,7 @@
 """Time as patterns read it: clock units since round 1, calendar moments, and positions within a period.
 
 ``t`` counts clock units from the start of round 1 (round 1 is ``t = 0``; with ``clock.step`` 7 and unit ``day``,
-round 2 is ``t = 7``). On a continuous clock ``t`` is the clock time. With ``clock.start`` every ``t`` is also a
+round 2 is ``t = 7``). With ``clock.start`` every ``t`` is also a
 calendar moment, so yearly, weekly and daily positions follow the real calendar; without one a named period is
 converted from the clock unit and starts at round 1.
 """
@@ -25,20 +25,18 @@ PERIODS = {"year": 365.25, "quarter": 365.25 / 4, "month": 365.25 / 12, "week": 
 
 @dataclass(frozen=True)
 class Calendar:
-    """The clock as patterns read it: the resolved start date (``clock.start`` may be read from ``$inputs``), the unit,
-    the units per round and whether time is continuous."""
+    """The clock as patterns read it: the resolved start date (``clock.start`` may be read from ``$inputs``), the unit
+    and the units per round."""
 
     start: str | None
     unit: str
     step: int
-    mode: str
-    tick: float
 
 
 def calendar_of(world: Any) -> Calendar:
     """The calendar of a built world."""
     clock = world.contract.clock
-    return Calendar(world.start, clock.unit, clock.step, clock.mode, clock.tick)
+    return Calendar(world.start, clock.unit, clock.step)
 
 
 def _unit(clock: Any) -> str:
@@ -51,15 +49,13 @@ def unit_days(clock: Any) -> float | None:
 
 
 def now(world: Any) -> float:
-    """``t`` for the world as it is: clock time when continuous, else units since round 1 (0 before it)."""
-    if world.continuous:
-        return float(world.time)
+    """``t`` for the world as it is: clock units since round 1 (0 before it)."""
     return float(world.contract.clock.step * max(0, world.round - 1))
 
 
 def step_length(clock: Any) -> float:
-    """Clock units in one step of a random process: one round (``clock.step``), or ``clock.tick`` when continuous."""
-    return float(clock.tick) if clock.mode == "continuous" else float(clock.step)
+    """Clock units in one step of a random process: one round (``clock.step``)."""
+    return float(clock.step)
 
 
 def parse_date(text: str) -> _dt.datetime:
@@ -165,7 +161,7 @@ def days_covered(clock: Any, t: float) -> list[_dt.date]:
     if first is None:
         return []
     days = unit_days(clock) or 1.0
-    span = clock.step if clock.mode != "continuous" else 1
+    span = clock.step
     if _unit(clock) in ("month", "year"):
         following = moment(clock, t + span)
         assert following is not None

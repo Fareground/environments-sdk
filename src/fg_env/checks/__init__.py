@@ -21,6 +21,7 @@ from .. import contract as C
 from ..assets.checks import check_assets
 from ..contract import Contract
 from ..contract.base import TYPE_SYNONYMS
+from ..contract.normalize import normalize
 from ..contract.parse_errors import validation_issues
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
@@ -39,7 +40,7 @@ from .privacy import PrivacyChecks
 from .roots import BASE, ENTITY_FIELDS, Types
 from .rules import RuleChecks
 from .scans import check_scans
-from .state import check_feeds, check_hooks, check_physics_state, check_relation_fields
+from .state import check_feeds, check_physics_state, check_relation_fields
 from .world import WorldChecks
 
 __all__ = ["parse_contract", "check_contract"]
@@ -76,6 +77,7 @@ def parse_contract(data: Any) -> Contract:
     expanded, pattern_issues = expand_patterns(expanded)
     if pattern_issues:
         raise ContractError(_dedupe(pattern_issues))
+    expanded = normalize(expanded)[0]  # what mechanisms and imports generated in an earlier form
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source
@@ -340,9 +342,9 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
             if first not in self.c.metrics:
                 self.error(path, f"$series.{first}: no such metric", self._suggest(first, self.c.metrics))
         elif root == "clock":
-            if first not in ("round", "rounds", "left", "unit", "date", "start", "label", "time", "horizon"):
-                self.error(path, f"$clock.{first}: no such field",
-                           "clock fields: round, rounds, left, unit, date, start, label, time, horizon")
+            if first not in ("round", "rounds", "left", "unit", "date", "start", "label"):
+                self.error(path, f"$clock.{first}: no such field", "clock fields: round, rounds, left, unit, date, "
+                                                                   "start, label")
 
     def _spec_for(self, chain: tuple[str, ...], types: Types,
                   params: Mapping[str, C.ParamSpec]) -> tuple[Any, str] | None:
@@ -430,7 +432,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self._brief()
         self._clock_space()
         self._types_and_world()
-        check_hooks(self, BASE)
         self._keyword_names()
         self._entities()
         check_inventory(self)
@@ -446,7 +447,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self._views()
         self._secret_subtypes()
         self._events()
-        self._triggers()
         self._policies()
         self._measure()
         self._arms()

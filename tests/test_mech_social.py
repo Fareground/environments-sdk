@@ -249,19 +249,6 @@ def test_social_actions_check_their_own_keys():
     assert _event(LINE, {"social": "rumor", "action": "step"}) == []
 
 
-def test_tools_one_offers_the_channels_as_one_tool():
-    env = fg_env.load({**CHAT, "mechanisms": {"chat": {**CHAT["mechanisms"]["chat"], "tools": "one"}}}, seed=1)
-    script = Script(env, {"ana": [("chat", {"action": "say", "channel": "cabal", "text": "hello @ben"}),
-                                  ("chat", {"action": "dm", "to": "ben", "text": "psst"})]})
-    env.run(script, rounds=1)
-    assert [(r[2], r[3]) for r in script.results] == [("chat", True), ("chat", True)], script.results
-    assert [e["text"] for e in env.world.records("chat")] == ["hello @ben", "psst"]
-    tools = json.loads(script.seen["ana"][1])
-    assert [t["name"] for t in tools if t["kind"] == "act"] == ["chat"]
-    page = fg_env.guide("social.feed")
-    assert page.startswith("### `social.feed`") and "- `follow`" in page and "`max_chars`" in page
-
-
 # ---------------------------------------------------------------------------
 # deliberation
 # ---------------------------------------------------------------------------
@@ -404,18 +391,6 @@ def test_deliberation_actions_check_their_own_keys():
     assert any("`decision.speak` needs `text`" in e for e in op(action="speak"))
     assert any("'text' is not part of `decision.vote`" in e for e in op(action="vote", choice="yes", text="hi"))
     assert any("did you mean 'raise_hand'" in e for e in op(action="raise_hnd"))
-
-
-def test_tools_one_offers_the_whole_body_as_one_tool():
-    env = fg_env.load(_hall(floor=False, tools="one"), seed=1)
-    script = Script(env, {"r1": [("hall", {"action": "propose", "text": "Adopt the plan"})],
-                          "r2": [("hall", {"action": "second"}, _top_status("proposed"))]})
-    env.run(script, rounds=1)
-    assert [(r[2], r[3]) for r in script.results] == [("hall", True), ("hall", True)], script.results
-    assert ([d["text"] for d in env.props["hall"]["decisions"]]
-            == ["Adopt the plan"])  # seconded, debated, put and counted
-    tools = json.loads(script.seen["r1"][1])
-    assert [t["name"] for t in tools if t["kind"] == "act"] == ["hall"]
 
 
 def _top_status(status):
@@ -749,16 +724,6 @@ def test_relationships_and_factions_written_as_kinds_name_their_groups_family():
     assert any("'factions' is a mode of kind 'groups'" in e for e in found)
     renamed = errors({**BONDS, "mechanisms": {"blocs": {"kind": "groups", "mode": "factions", "members": "nation"}}})
     assert any("`members` is not a field of `groups` mode `factions`" in e for e in renamed)
-
-
-def test_tools_one_offers_every_faction_tool_as_one():
-    contract = {**BONDS, "mechanisms": {"blocs": {**BONDS["mechanisms"]["blocs"], "tools": "one"}}}
-    env = fg_env.load(contract, seed=1)
-    script = Script(env, {"uk": [("blocs", {"action": "join", "faction": "central"})]})
-    env.run(script, rounds=1)
-    assert [(r[2], r[3]) for r in script.results] == [("blocs", True)], script.results
-    assert ev(env, "$faction_of(uk)") == ["central"]
-    assert [t["name"] for t in json.loads(script.seen["uk"][1]) if t["kind"] == "act"] == ["blocs"]
 
 
 # ---------------------------------------------------------------------------

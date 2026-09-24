@@ -193,7 +193,7 @@ def _clock(contract: Any) -> dict[str, Any]:
     if contract is None:
         return {}
     clock = contract.clock
-    return {"mode": clock.mode, "unit": clock.unit, "step": clock.step}
+    return {"unit": clock.unit, "step": clock.step}
 
 
 def _rule(goal: Goal | None, requirements: list[Requirement], queues: list[QueueView], objective: Any,

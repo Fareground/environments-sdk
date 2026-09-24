@@ -7,10 +7,24 @@ __all__ = ["MODEL", "EXPRESSIONS", "MACROS", "TEMPLATES", "EFFECTS", "EFFECT_EXA
 MODEL = """\
 ## How a run works
 
-On a rounds clock: scheduled effects → feeds → events (phase start) → physics step → each stage in order →
-events (phase end) → metrics sampled → invariants and end conditions checked. A run ends when
+Every round: scheduled effects → feeds → `round.start` events → physics step → each stage in order →
+`round.end` events → metrics sampled → invariants and end conditions checked. A run ends when
 an `end` condition holds, an effect `end`s it, or `clock.rounds` is used up.
-On a continuous clock, elapsed physics advances before scheduled effects, feeds and start events at the new boundary.
+
+Events are the world's logic outside turns, one list: `on` is when an event is considered, `when` whether it
+fires, `do` what it does (atomically), `say` the headline agents get as news, `once` at most once per run.
+* `round.start` (the default) and `round.end`: every round. A schedule is a condition: `"$round == 5"`, `"$round in
+  [1, 3]"`, `"$round % 7 == 1"` (every 7 rounds from round 1), `"$chance(0.1)"`, `"$arm == 'treatment'"`.
+* `stage.<s>.start` when stage s starts (only if its `when` holds), `stage.<s>.end` after it (a simultaneous stage's
+  choices have committed: resolve them here), `stage.<s>.turn` after each agent's turn in it, with `$actor`, `$acted`
+  and `$timed_out` (a forfeit or default move: `"when": "not $acted"`).
+* `create.<type>` / `remove.<type>`: inside the change that creates or removes an entity of the type (or a subtype;
+  an ancestor's events first), with `$it` (in `remove`, already no longer alive), so a `fail` refuses that change.
+  Entities made at build fire `create` once the whole world exists, in creation order (`$round` is 0 then).
+* `change`: after every commit (an action, a sealed choice, an effect block, physics, the round's end), the moment
+  `when` becomes true; it fires again only after it was false.
+Events on one anchor fire in the order written, the author's before those mechanisms generate. A round event whose
+`do` is one `each` loop runs item by item: each item has luck of its own, and invariants are checked once all ran.
 
 A stage wakes agents (`who`, in `order`). An agent's turn is a short session: it reads its
 brief + update, calls tools (legal actions, `look`, `inspect`, `end_turn`) until it ends the
@@ -23,62 +37,55 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   take the last item, either may get it. A choice is tried at submit after the agent's own earlier
   choices in the stage (two buys cannot spend the same coins).
 * Choices that decide together (highest bid wins, pro-rata fills, rock–paper–scissors): the action only
-  records the choice (`"private": true, "do": ["$actor.bid = $params.amount"]`) and the stage's `on_exit`
-  resolves them all at once: `"$top = $max(bidder, $it.bid)"`, `"$winner = $choice($filter(bidder, $it.bid
-  == $top))"` (ties at random); pro rata: `"$fill = $min(1, $world.stock / $max($sum(buyer, $it.want), 1))"`,
-  `{"each": "buyer", "do": ["$it.got = $it.want * $fill"]}`. Clear the recorded choices in `on_enter`.
+  records the choice (`"announce": false, "do": ["$actor.bid = $params.amount"]`) and an event on
+  `stage.<s>.end` resolves them all at once: `"$top = $max(bidder, $it.bid)"`, `"$winner = $choice($filter(bidder,
+  $it.bid == $top))"` (ties at random); pro rata: `"$fill = $min(1, $world.stock / $max($sum(buyer, $it.want),
+  1))"`, `{"each": "buyer", "do": ["$it.got = $it.want * $fill"]}`. Clear the recorded choices on
+  `stage.<s>.start`.
 * `until` repeats passes within the round (deliberation until everyone is ready).
 * `quiet: skip` skips agents with nothing new since their last turn (from the second pass on;
   the first pass always wakes everyone).
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
-* A stage with `actions: []` wakes nobody: use it as a pure resolution step (`on_enter`/`on_exit`).
+* A stage with `actions: []` wakes nobody: use it as a pure resolution step (events on its `start`/`end`).
 * A stage without `actions` offers every action. When other stages list their own, list this stage's too
   (check warns otherwise: agents could take another phase's actions here), or write `"actions": "all"`.
-* `must_act: true` removes `end_turn` while an action is available; `on_idle` effects run for each agent
-  that ends a turn without acting (`$actor`) — a forfeit or a default move. An agent that could act and did not — in
+* `must_act: true` removes `end_turn` while an action is available. An agent that could act and did not — in
   a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").
 * `terminal` may be an expression checked after the action applies (`"$world.jump_finished"`), so a
   move can end the turn only sometimes (multi-jumps).
-* `time_limit` gives each agent wall-clock seconds for its turn (a number, or an expression over `$actor`;
-  `env.run(..., time_limit=30)` covers stages that set none). Past it the turn ends, later calls are
-  refused, a `timeout` event is logged and `on_timeout` runs instead of `on_idle`. The agent's update says
+* `env.run(..., time_limit=30)` gives each agent wall-clock seconds for its turn. Past it the turn ends, later calls
+  are refused, a `timeout` event is logged and the stage's `turn` events see `$timed_out`. The agent's update says
   how long it has. A participant that finishes in time plays exactly as it would without a limit.
-* `atomic: true` makes a turn's actions apply together: each applies at once (the agent sees its move),
-  but triggers, reactions and invariants wait until the turn ends, and an action's own `outcome` text (and
-  attached files) is shown once the turn commits — an undone turn shows nothing it was not charged for. `valid` conditions (`$actor`, `$pending`)
-  are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
-  told `why` and plays the turn again (castling through check, a full backgammon move). `valid` makes a
-  stage atomic. An action that draws randomness settles the turn so far at once, so later actions cannot
-  undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
+* `valid` makes a turn's actions apply together: each applies at once (the agent sees its move), but events,
+  reactions and invariants wait until the turn ends, and an action's own `outcome` text (and attached files) is
+  shown once the turn commits — an undone turn shows nothing it was not charged for. Its conditions (`$actor`,
+  `$pending`) are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
+  told `why` and plays the turn again (castling through check, a full backgammon move); `"valid": "true"` makes
+  turns atomic with no condition. An action that draws randomness settles the turn so far at once, so later actions
+  cannot undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
   choices commit or are undone together.
 * Luck never decides whether a call is allowed: `when` requirements and parameters' bounds, defaults, values and
   `where` may not draw at random (a check error), since a refused call costs nothing and calling again would roll
-  fresh luck. Draw in `do` or `chance`: a call that drew has been played, even when a rule then fails. A view's
+  fresh luck. Draw in `do`: a call that drew has been played, even when a rule then fails. A view's
   randomness is fixed for the turn, so looking again shows the same noisy signal (and a preview shows the turn's).
 * Views with `"for": "spectator"` are an omniscient picture for UIs and reports: rendered at the end of
   every round into `result.frames` (the last marked `final`) and on demand by `env.spectate()`, never
   shown to an agent. They have no `$actor`; randomness they draw never changes the run.
 * Physics precedes agent stages. Coupled world and entity equations share intermediate integration states.
-  Continuous time starts at zero without a fictitious initial physics interval. Failed intervals restore
-  equation state and property writebacks.
-* Lifecycle hooks: `types.X.on_create` / `on_remove` run for every entity of X (and its subtypes; an
-  ancestor's hooks first) the moment it is created or removed — by an effect, a mechanism or a hook —
-  inside that change, so a `fail` in a hook refuses it. Entities made at build run on_create once the
-  whole world exists, in creation order (`on_create_at_build: false` skips them). `$it` is the entity;
-  in on_remove it is already no longer alive. Hooks setting off hooks stop at 16 levels.
-* Invariants are checked after every action and effect block (an `each` event once its last item ran, or before a
-  trigger or reaction an item sets off) and after physics: write them for states that must hold at all times, not
+  Failed intervals restore equation state and property writebacks.
+* Invariants are checked after every action and effect block (a round event's `each` once its last item ran, or
+  before a `change` event or reaction an item sets off) and after physics: write them for states that must hold at all times, not
   ones that only settle at the end of a stage. `$all(<type>, <condition>)` whose condition reads only each member's
   own properties and `$inputs` re-checks only the members a change touched, so it stays cheap in any crowd. An
-  agent's action that breaks one — itself or through the triggers and hooks its commit sets off — is refused and
+  agent's action that breaks one — itself or through the events its commit sets off — is refused and
   undone, and the agent is told the invariant's `why` (give one: without it the agent only hears that a rule would
   break; it is a template, which may read no agent's private prop); the run goes on and its diagnostics count it. A break by anything else (events, physics, the build) fails
   the run. `"check": "round"` checks one only at the end of every round (a conservation sum over a big crowd then
   costs one pass a round, not one per change) — a break found then fails the run, whatever caused it;
   `"check": "end"` once, when the run finishes.
 * An agent's action is one undoable unit: the checks of its call (requirements, arguments), its effects, and the
-  hooks and triggers its commit sets off. A rule that fails anywhere in it (a division by zero, a number too large) refuses and undoes that action
+  events its commit sets off. A rule that fails anywhere in it (a division by zero, a number too large) refuses and undoes that action
   alone — in a sealed stage when the choices commit, in an atomic turn the whole turn — and the agent is told the cause
   without the rule or any hidden value. The run goes on; `result.diagnostics` names the failing rule with a fix and
   `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
@@ -86,9 +93,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   do a host that fails and a crash in a mechanism's own code, wherever they happen.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round, so
   `$round == <clock.rounds>` ends the run before the last round plays (check warns): the run ends after its last
-  round by itself; to name a winner then, use an `end` effect in an end-phase event.
-  `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event or
-  hook's effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
+  round by itself; to name a winner then, use an `end` effect in a `round.end` event.
+  `"check": "action"` also checks one the moment anything commits — an action, a sealed choice, an event's
+  effects — so a winning move ends the run before the next agent moves (in any kind of stage; sealed
   choices commit one after another, so later ones are not applied). The `end` effect inside an action does the same.
 
 What an agent reads:
@@ -102,14 +109,14 @@ What an agent reads:
   they depend only on the actor), plus look/inspect/end_turn. Invalid calls return what to fix. An action's name is
   its tool's name, so it must be one providers accept (letters, digits, _ and -, at most 64) and not a built-in's.
 
-Unless an action is `private` or sets `announce`, others read a default line
+Unless an action sets `announce` (a template, or `false`: nobody else learns it happened), others read a default line
 "Name: action (args)." — in a simultaneous stage only "Name: action." (sealed choices stay sealed
 unless `announce` reveals them), and without the arguments the action writes into a private property;
 an action that posts to a record announces nothing extra (the entry is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. World logic (events, stage hooks, triggers) has no one to refuse: the same
+is rolled back and the agent is told why. World logic (events) has no one to refuse: the same
 failure there fails the run at its path, so guard such a block with an `if`. A refusal that rolled luck or whose rules
 read a value hidden from the actor (a `when`, a `fail`, an error, a transfer) spends the action (a wrong guess at a
 hidden code is a guess); any other refusal — a taken cell, bad arguments — costs nothing. Contract errors (bad expression at run time) stop
@@ -205,7 +212,7 @@ TEMPLATES = """\
 """
 
 EFFECTS = """\
-## Effects (actions.do/otherwise, events.do, stages.on_enter/on_exit)
+## Effects (actions.do, events.do)
 
 Assignment text:
 * `"$actor.cash -= $params.qty * $params.offer.price"` — also `=`, `+=`, `*=`, `/=`; targets are
@@ -217,7 +224,7 @@ Assignment text:
 * Links: `"$link($actor, $params.who, trusts).value += 0.1"`, `"$link($actor, $params.who, trusts).since = $round"`
   (the link must exist; its value keeps to the relation's min/max and fields are typed, like props).
 * A write past a numeric prop's, link value's or layer cell's min/max is refused, like a transfer that does not
-  fit: an action is rolled back and its actor told why; world logic (an event, a stage hook) that does it fails
+  fit: an action is rolled back and its actor told why; world logic (an event) that does it fails
   the run at its path. To saturate, say so: `$clamp(x, low, high)`.
   Types are enforced: null too, which only a prop declared with `"default": null` (or no default) may hold.
 
@@ -245,7 +252,9 @@ random (seeded); add a unique last key when the rule needs a fixed order, or use
 EFFECT_EXAMPLES = {
     "if": '{"if": "$cost > $actor.cash", "then": [...], "else": [...]}',
     "each": '{"each": "offer", "where": "$it.stock == 0", "do": ["$it.listed = false"]}  (with "as": "o", write $o '
-            'instead of $it)',
+            'instead of $it; "sync": true — every item reads the world as it was before the loop and all their '
+            'writes land together, for cellular automata and simultaneous updates: only property and layer-cell '
+            'assignments, and two items writing different values to one property is an error)',
     "create": '{"create": "review", "count": 1, "name": "Review {$i}", "props": {"stars": "$params.stars"}, '
               '"at": null, "as": "made"}  (in `props`, `$it` is the new entity, so a prop can read an earlier one: '
               '"double": "$it.base * 2"; inside a loop, name the loop\'s item with `as` to read it there)',
@@ -258,21 +267,20 @@ EFFECT_EXAMPLES = {
     "unlink": '{"unlink": "follows", "from": "$actor", "to": "$params.who"}',
     "move": '{"move": "$actor", "to": "$params.place"}',
     "post": '{"post": "chat", "text": "$params.text", "to": "$params.who", "delay": 2, "drop": 0.1}  (record fields '
-            'as keys; to = private recipients; optional `delay` — rounds, or time on a continuous clock — and `drop` '
+            'as keys; to = private recipients; optional `delay` in rounds and `drop` '
             'chance)',
     "emit": '{"emit": "shock", "say": "Prices jump {$world.inflation|pct}.", "to": "$filter(buyer, $it.vip)", "data": '
             '{}, "delay": 1}  (optional `delay` and `drop`, as for post)',
     "fail": '{"fail": "You cannot afford that."}  (roll back the action; text goes to the actor; in world logic it '
             'fails the run)',
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
-    "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; on a continuous clock, 3 time '
-             'units later)',
+    "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals)',
     "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — '
             'they react as soon as this action has taken effect, before this turn continues, offered the actions '
             'named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction '
             'cannot stop or change the action that woke them: to let others answer first, use a procedure stack; '
-            'reactions set off more than 4 deep wait for a normal turn); "in": 5 — continuous clock, that much later; '
-            '"drop": 0.2 — the wake may be lost)',
+            'reactions set off more than 4 deep wait for a normal turn); a wake on a later round goes inside '
+            '`after`)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; '
               'derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
     "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from '
@@ -300,15 +308,12 @@ RECIPES = """\
   Read a big table by key, not by scanning it per row: `$lookup($inputs.sales, sku, $row.sku)` (rows, indexed once
   per run; fields and keys may be lists) and `$lookup_one($inputs.models, model, $row.model)`. A queue served once per
   arrival is a world list of ids (`$world.queue += $made.id`), not a `$count(call, …)`; `check` warns about both scans.
-* Continuous time (clinics, queues, trading days, emergencies): `"clock": {"mode": "continuous",
-  "unit": "minute", "horizon": 480}`, a stage with `"turns": "scheduled"`, and `"duration"` on actions.
-  Each agent acts when its time comes (earliest first) and next acts `duration` later (or the stage
-  `interval` if it did nothing timed); `$clock.time` is the time; `after` and `wake` with `in` schedule
-  by time; physics rates are per time unit. The run jumps from one due moment to the next.
-
+* Clinics, queues, trading days: a round is a stretch of time (`"clock": {"unit": "minute", "step": 30}` for
+  half-hours); the `operations.queue` mechanism plays each interval's arrivals natively, and a stage `when`
+  (`"$round % 7 == 1"`) runs a step only on some rounds.
 * Money & trade: number props + `transfer` (atomic, never negative). Invariants like
   `"$all(trader, $it.cash >= 0)"` guard the books.
-* Markets / order books: orders as entities (`create` with side, price, qty, owner); an end-phase
+* Markets / order books: orders as entities (`create` with side, price, qty, owner); a `round.end`
   event matches with `repeat` while best bid ≥ best ask using `$top`/`$sort`; trades update
   holdings and `remove` filled orders.
 * Voting: the `decision` family — `{"kind": "decision", "mode": "ballot", "who": "voter", "options": [...]}` adds
@@ -332,7 +337,7 @@ RECIPES = """\
   eliminates and reveals players (guide('groups.roles')). An entity's built-in `alive` turns false only when it is
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
-  `private: true` actions (no announcement). Agents get `inspect` only for types that set `inspect`.
+  `announce: false` on actions (nobody else learns they happened). Agents get `inspect` only for types that set `inspect`.
   A `private` prop is hidden from every agent but its owner: an agent owns its own; the world's and any other
   entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
   prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
@@ -341,7 +346,7 @@ RECIPES = """\
   however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
   stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
-  several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
+  several agents — an `announce`, an event's `say`, an emit's `say` without a lone `to` — may read no
   private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
   A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
   wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
@@ -351,7 +356,7 @@ RECIPES = """\
   `private`. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
   is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
   shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
-  `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
+  `when`/`do`, events, stages, `end`, metrics, outputs, invariants — reads every record entry and event,
   so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
   explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))`.
 * Spaces (agent-based models): `"space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size",
@@ -366,10 +371,11 @@ RECIPES = """\
   a whole layer with `{"layer": "sugar", "set": "$min($value + 1, 4)"}` (every cell reads the old values),
   `{"layer": "scent", "diffuse": 0.1}` and `{"layer": "scent", "decay": 0.05}`. A set past the layer's min/max is
   refused like a prop's (saturate with `$min`/`$clamp`); diffuse and decay stay within it. Layers are kept in snapshots.
-* Cellular automata and simultaneous updates: an `each` event with `"sync": true` — every item's rules read the
-  world as it was before the event and all writes land together (Game of Life is one event:
-  `"$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"`). `"order": "random"` (or an
-  expression, lowest first) orders the items of any `each` event.
+* Cellular automata and simultaneous updates: an `each` loop with `"sync": true` — every item's rules read the
+  world as it was before the loop and all writes land together (Game of Life is one event: `{"on": "round.end",
+  "do": [{"each": "cell", "sync": true, "do": ["$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on
+  and $n == 2)"]}]}`). Items in random order: `"each": "$shuffle(ant)"`; by a key, lowest first:
+  `"each": "$sort(order, $it.price)"`.
 * Board and card games: `space.grid` + piece entities with `at`, or cell entities; legal moves
   via entity params with `where`; decks as card entities with an `order` prop and `$shuffle`;
   win checks in `end`.
@@ -396,8 +402,8 @@ RECIPES = """\
   Every person integrates its own number props; rates read its number props, the type's `params` and
   `read`s (per entity, over `$it`) and world physics names. `where` limits who integrates this step.
   Entities couple through `read`; intermediate states are shared rather than held fixed for the round.
-* Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds (or clock units)
-  later with its content as it was when sent; `"drop": 0.1` loses it (also on `wake`), rolled from the
+* Latency and lossy channels: `"delay": 2` on `post`/`emit` delivers the message 2 rounds
+  later with its content as it was when sent; `"drop": 0.1` loses it, rolled from the
   run's seed when sent. A refused action sends nothing. Entries carry the round they arrive.
 * External data (prices, news, weather): `"feeds": {"oil": {"host": "market", "into": "world.oil_price",
   "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil_price * $uniform(0.98, 1.02)"}}`,
@@ -406,7 +412,7 @@ RECIPES = """\
   at="date", value="close")` replays a price history for backtests. Answers are recorded on the host tape:
   snapshots, restores and replays never ask again, and host text reaches agents «quoted».
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
-  patches), `events` with `at`/`every`/`arms` (and `when: "$chance(p)"`) for shocks; `fg_env.experiment` runs arms
+  patches), events with a `when` for shocks (`"$round == 10 and $arm == 'shock'"`, `"$chance(p)"`); `fg_env.experiment` runs arms
   with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
 * Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
   "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`
@@ -414,10 +420,10 @@ RECIPES = """\
   enumerate them; `must_act` stages so a seat cannot stall; `step` on number params so bids have ids.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
   `$count(trader)`, `by: trader`, views `for: trader` and `brief.roles.trader` cover every kind.
-* Bookkeeping on birth and death: `"types": {"firm": {"on_create": ["$world.firms_founded += 1",
-  {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}], "on_remove":
-  [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}}` — every firm, however it
-  was created, is counted and connected; closing one lays off its jobs.
+* Bookkeeping on birth and death: `"events": [{"on": "create.firm", "do": ["$world.firms_founded += 1",
+  {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}]}, {"on": "remove.firm", "do":
+  [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}]` — every firm, however it was
+  created, is counted and connected; closing one lays off its jobs.
 * Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
   `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
 * Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
@@ -628,8 +634,8 @@ the first few entities of each type with every prop (`result.state`), so you can
   and was refused every time (`action_never_succeeded`, degrading: what it does, and any mechanism it feeds, never ran
   — a policy's arguments the tool does not accept count as refused calls; random agents' blind calls do not count).
 
-`fg-env check` plays 12 rounds (fewer when the run is shorter; more to reach the last round a one-off event, `at` or
-a market's resolution, is scheduled for) with random agents and again with each policy on every agent type, and reports
+`fg-env check` plays 12 rounds (fewer when the run is shorter; more to reach the last round an event's `when` names,
+`$round == 30` or a market's resolution) with random agents and again with each policy on every agent type, and reports
 what those plays reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's
 always-refused rules) as warnings. Every check plays the same rounds; a time guard stops only a contract too slow to
 play, and says so. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule

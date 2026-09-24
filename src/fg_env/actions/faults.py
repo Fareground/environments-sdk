@@ -1,9 +1,10 @@
-"""An agent's action is one undoable unit: its requirements, arguments, effects, the lifecycle hooks and triggers its
-commit sets off, and the invariants checked after it. A rule that fails anywhere in it, or an invariant it breaks, is
-the contract's bug, not the agent's — but it is found through one agent's choice, so that action alone is refused and
+"""An agent's action is one undoable unit: its requirements, arguments, effects, the create, remove and change
+events its commit sets off, and the invariants checked after it. A rule that fails anywhere in it, or an invariant it
+breaks, is the contract's bug, not the agent's — but it is found through one agent's choice, so that action alone is
+refused and
 undone, the agent is told why in words that reveal nothing hidden, the run's diagnostics tell the author where and
-how to fix it, and the run goes on. The same failure outside an agent's action (events, triggers nothing an agent did
-set off, physics, the build) still fails the run — a `fail` or a transfer that does not fit too: world logic has no one
+how to fix it, and the run goes on. The same failure outside an agent's action (events nothing an agent did set off,
+physics, the build) still fails the run — a `fail` or a transfer that does not fit too: world logic has no one
 to refuse it to (:func:`world_logic_refused`).
 """
 from __future__ import annotations
@@ -30,7 +31,7 @@ def guarded(env: Env, work: Callable[[], T], mark: int | None = None,
     agent."""
     world = env.world
     mark = world.journal.mark() if mark is None else mark
-    armed, fired = dict(env._trigger_armed), set(env._triggers_fired)
+    armed, fired = dict(env._armed), set(env._fired_once)
     try:
         with world.journal.held():
             return work(), None
@@ -38,10 +39,10 @@ def guarded(env: Env, work: Callable[[], T], mark: int | None = None,
         raise
     except (RunError, ExprError) as exc:
         world.journal.rollback(mark)
-        env._trigger_armed.clear()
-        env._trigger_armed.update(armed)
-        env._triggers_fired.clear()
-        env._triggers_fired.update(fired)
+        env._armed.clear()
+        env._armed.update(armed)
+        env._fired_once.clear()
+        env._fired_once.update(fired)
         error = exc if isinstance(exc, RunError) else RunError(str(exc))
         if isinstance(error, InvariantViolation):
             # Already broken before the action (by something no invariant check followed): not the action's doing.
@@ -58,7 +59,7 @@ def refused_text(name: str, reason: str) -> str:
 
 
 def world_logic_refused(reason: str) -> str:
-    """Why world logic (an event, a stage hook, a trigger) that was refused — a `fail`, a transfer that does not fit —
+    """Why world logic (an event) that was refused — a `fail`, a transfer that does not fit —
     fails the run: undoing it quietly would leave a run that looks complete without what its rules said happen."""
     return (f"{reason.rstrip()} World logic cannot be refused: guard it with an `if` so it runs only when it can "
             "succeed (a `fail` or a transfer that does not fit only refuses an agent's action)")

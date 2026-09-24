@@ -117,7 +117,7 @@ def test_a_refused_resolution_fails_the_run_and_commits_nothing():
     c["mechanisms"]["review"]["stack"]["kinds"]["purchase"]["resolve"] += [{"fail": "blocked"}]
     env = fg_env.load(c)
     result = env.run(participant())
-    assert result.status == "failed" and "on_exit: blocked World logic cannot be refused" in result.error
+    assert result.status == "failed" and "events[0].do: blocked World logic cannot be refused" in result.error
     assert env.props["spent"] == 0
     assert len(env.props["review_stack"]["items"]) == 1
     assert not resolutions(env)

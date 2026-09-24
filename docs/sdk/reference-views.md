@@ -13,7 +13,6 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 
 **ViewSpec** — A declared, ranked slice of the world rendered as plain lines for agents.
 - `for`: text | [text] = "all" — Agent type(s) that see it, or "spectator": an omniscient view for UIs and reports, rendered into `result.frames` each round and by `env.spectate()`, never shown to an agent.
-- `stages`: [text]
 - `title`: text
 - `of`: text — Entity type or expression giving items; omit for a single line.
 - `where`: text — Filter ($it, $actor).
@@ -22,8 +21,7 @@ Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $s
 - `limit`: int
 - `show`: text (required) — Template for one item (or the single line).
 - `empty`: text — Text when no items match (omit to hide the view).
-- `when`: text
+- `when`: text — Show it only when true ($actor, $stage): e.g. "$stage in ['trade']".
 - `look`: bool = false — Offer it on demand as look(view) instead of always including it. Randomness a view draws is fixed for the turn: looking again shows the same text.
 - `bullet`: bool = true — Prefix each item with '- ' (false for boards and tables).
-- `only_changes`: bool = false — Show it in full only when it changed since the agent's last turn; otherwise one line says it is unchanged. For agents that remember their earlier turns: the built-in LLM participants start every turn afresh.
 - `attach`: text — Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).

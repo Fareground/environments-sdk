@@ -329,25 +329,6 @@ def test_family_ops_are_checked_against_the_action_they_name():
     assert fix.startswith('`tally` is an action of the `decision` op: {"decision": "<mechanism>", "action": "tally"')
 
 
-def test_tools_one_offers_a_ballot_as_a_single_tool_and_auto_keeps_different_shapes_apart():
-    offered = []
-
-    def vote(wake):
-        tools = {t.name: t for t in wake.tools}
-        offered.append(tools)
-        if "budget" in tools:
-            assert wake.call("budget", {"action": "vote", "choice": "approve"}).ok
-        wake.end()
-
-    env = fg_env.load(_budget(**COUNCIL["mechanisms"]["budget"], tools="one"), seed=1)
-    env.run(vote, rounds=1)
-    assert "budget_vote" not in offered[0]
-    assert offered[0]["budget"].input_schema["properties"]["action"]["enum"] == ["vote", "abstain"]
-    assert env.props["budget_result"]["winner"] == "approve"
-    auto = fg_env.parse(_budget(**COUNCIL["mechanisms"]["budget"], tools="auto"))
-    assert auto.actions["budget_vote"].tool is None and auto.actions["budget_abstain"].tool is None
-
-
 def test_guide_documents_mechanisms_and_native_ops():
     text = fg_env.guide("mechanisms")
     assert "| `decision` | ballot, deliberation |" in text

@@ -370,20 +370,6 @@ def test_board_actions_check_their_own_keys():
     assert fix.startswith('`pass` is an action of the `game` or `flow` op: {"game": "<mechanism>", "action": "pass"')
 
 
-def test_tools_one_offers_moving_and_passing_as_one_tool():
-    contract = _with_setup(GO, "go", "9/9/9/9/4X4/9/9/9/9", turn="white", tools="one")
-    env = fg_env.load(contract, seed=1)
-    offered = []
-
-    def passer(wake):
-        tools = {t.name: t for t in wake.tools if t.kind == "act"}
-        offered.append(sorted(tools))
-        assert wake.call("go", {"action": "pass"}).ok
-
-    env.run(passer, rounds=3)
-    assert offered[0] == ["go"] and env.ended_by == "passes"
-
-
 def test_a_board_fills_the_game_section_so_the_winner_scores_against_the_loser():
     game = fg_env.parse(CHESS).game
     assert (game.players, game.utility) == ("player", "zero_sum")

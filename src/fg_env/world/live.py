@@ -36,7 +36,7 @@ from .space import Spatial, position_of
 from .type_index import TypeIndex
 
 if TYPE_CHECKING:
-    from ..runtime.sync_events import WriteBuffer
+    from ..effects.sync import WriteBuffer
 
 __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "LuckAhead", "prop_type"]
 
@@ -76,7 +76,7 @@ class LuckAhead(BaseException):
 
 class OutOfBounds(Abort):
     """A number past a declared min or max (a property's, a link value's or a layer cell's). An agent's action is
-    refused like any :class:`Abort`; world logic (an event, a stage hook, a trigger no action set off) that does it
+    refused like any :class:`Abort`; world logic (an event no action set off) that does it
     fails the run, because that is a contract bug no agent can fix."""
 
 
@@ -122,18 +122,14 @@ class SdkWorld(World):
         #: the
         #: actions offered (None: the stage's).
         self.reactions: list[tuple[str, str, list[str] | None]] = []
-        #: Continuous clock: the current time, when the run completes, and each agent's next wake time.
-        self.time = 0.0
-        self.horizon: float | None = None
         #: The calendar date of round 1: ``clock.start`` as written or read from ``$inputs`` at build (None without
         #: one).
         self.start: str | None = None
-        self.wake_at: dict[str, float] = {}
         #: Tie-break for scheduled effects due in the same round: the order they were scheduled.
         self._schedule_seq = 0
         #: The declared space, resolved at build (sizes may read $inputs); None without one.
         self.space: Spatial | None = None
-        #: While a sync event runs, where property and layer writes wait to land together.
+        #: While a sync loop runs, where property and layer writes wait to land together.
         self.buffer: WriteBuffer | None = None
         self.end_request: dict[str, Any] | None = None
         #: Chooses the outcome of a `chance` effect instead of the random stream (explicit chance; see
@@ -141,7 +137,8 @@ class SdkWorld(World):
         self.chance_picker: Callable[[Any], int] | None = None
         self.counters: dict[str, int] = {}
         self.journal = Journal()
-        #: Called as ``lifecycle(hook, entity, where)`` after every creation and removal (set by the effect runner).
+        #: Called as ``lifecycle(kind, entity, where)`` (create / remove) after every creation and removal (set by the
+        #: effect runner).
         self.lifecycle: Callable[[str, Entity, str], None] | None = None
         #: Called with every entity created once the run has begun (set by the run: an agent that joins then hears the
         #: news from its arrival on, not the backlog of everything before it).
@@ -430,7 +427,7 @@ class SdkWorld(World):
         key = self._def_key(name, args, viewer)
         if key is not None:
             pending = getattr(local, "pending", None)
-            state = (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
+            state = (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
             if state != self._def_cache_state:
                 self._def_cache, self._def_cache_state = {}, state
             elif key in self._def_cache:
@@ -482,7 +479,7 @@ class SdkWorld(World):
     def state_version(self) -> Any:
         """Equal values mean nothing a read could see has changed (for caches of derived values)."""
         pending = getattr(self._here(), "pending", None)
-        return (self.journal.version, self.round, self.stage, self.time, id(pending), len(pending or ()))
+        return (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
 
     def _def_key(self, name: str, args: list[Any], viewer: Any) -> tuple[Any, ...] | None:
         """A cache key for a def call, or None when the call cannot be cached."""
@@ -541,39 +538,14 @@ class SdkWorld(World):
 
     # -- clock ---------------------------------------------------------------
 
-    @property
-    def continuous(self) -> bool:
-        return self.contract.clock.mode == "continuous"
-
-    def now(self) -> float:
-        """The current time: the clock time when continuous, otherwise the round number."""
-        return self.time if self.continuous else self.round
-
-    def set_wake_at(self, entity_id: str, when: float) -> None:
-        missing = entity_id not in self.wake_at
-        old = self.wake_at.get(entity_id)
-        self.wake_at[entity_id] = float(when)
-
-        def undo() -> None:
-            if missing:
-                self.wake_at.pop(entity_id, None)
-            else:
-                self.wake_at[entity_id] = old  # type: ignore[assignment]
-
-        self.journal.push(undo)
-
     def date(self) -> str | None:
         clock = self.contract.clock
-        elapsed = self.time if self.continuous else max(0, max(1, self.round) - 1)
-        return calendar_date(self.start, clock.unit, clock.step, elapsed)
+        return calendar_date(self.start, clock.unit, clock.step, max(0, max(1, self.round) - 1))
 
     def clock_label(self) -> str:
         unit = self.contract.clock.unit
         name = f"{unit[:1].upper()}{unit[1:]}"
-        if self.continuous:
-            label = f"{name} {_short(self.time)}" + (f" of {_short(self.horizon)}" if self.horizon is not None else "")
-        else:
-            label = f"{name} {max(1, self.round)} of {self.rounds}"
+        label = f"{name} {max(1, self.round)} of {self.rounds}"
         date = self.date()
         return f"{label} ({date})" if date else label
 
@@ -753,7 +725,7 @@ class SdkWorld(World):
 
         self.journal.push(undo_create)
         if self.lifecycle is not None:
-            self.lifecycle("on_create", entity, where)
+            self.lifecycle("create", entity, where)
         if self.joined is not None and self.round:
             self.joined(entity)
         return entity
@@ -788,7 +760,7 @@ class SdkWorld(World):
 
         self.journal.push(undo_remove)
         if self.lifecycle is not None:
-            self.lifecycle("on_remove", entity, where)
+            self.lifecycle("remove", entity, where)
 
     def move(self, entity: Entity, at: Any, where: str) -> None:
         location = self._check_location(at, where)
@@ -885,8 +857,7 @@ class SdkWorld(World):
              to: Iterable[str] | None = None, data: dict[str, Any] | None = None) -> LogEvent:
         self._seq += 1
         event = LogEvent(self._seq, self.round, kind, text, actor,
-                         tuple(to) if to is not None else None, dict(data or {}), self.stage,
-                         self.time if self.continuous else None)
+                         tuple(to) if to is not None else None, dict(data or {}), self.stage)
         self.log.append(event)
         record_key = self.record_events.add(event, self.entry_by_seq) if kind == "record" else None
 
@@ -902,9 +873,9 @@ class SdkWorld(World):
         self.journal.push(undo)
         return event
 
-    def schedule(self, due_round: float, effects: list[Any], vars: dict[str, Any], path: str,
+    def schedule(self, due_round: int, effects: list[Any], vars: dict[str, Any], path: str,
                  delivery: dict[str, Any] | None = None) -> None:
-        """Run ``effects`` when the round (or, on a continuous clock, the time) reaches ``due_round``;
+        """Run ``effects`` when the round reaches ``due_round``;
         or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
         item: dict[str, Any] = {"effects": effects, "vars": {k: freeze(v) for k, v in vars.items()},
                                 "capture_version": CAPTURE_VERSION, "path": path}
@@ -959,11 +930,11 @@ class SdkWorld(World):
     def build_physics(self) -> None:
         world_physics.build_physics(self)
 
-    def step_physics(self, elapsed: float | None = None) -> list[dict[str, Any]]:
-        """Advance physics one round, or by ``elapsed`` clock time on a continuous clock. Integrated variables stay
-        inside their bounds; a formula written to a property past its bounds has nothing to refuse, so it fails."""
+    def step_physics(self) -> list[dict[str, Any]]:
+        """Advance physics one round. Integrated variables stay inside their bounds; a formula written to a property
+        past its bounds has nothing to refuse, so it fails."""
         try:
-            return world_physics.step_physics(self, elapsed)
+            return world_physics.step_physics(self)
         except Abort as refusal:
             raise RunError(f"{refusal.reason} Keep the formula in range, e.g. with clamp(x, low, high)",
                            "physics") from None
@@ -996,12 +967,6 @@ def within_bounds(spec: Any, value: float, subject: str) -> None:
     if getattr(spec, "private", False):
         raise OutOfBounds(f"{subject} {limit}.")
     raise OutOfBounds(f"{subject} {limit}: it would be {format_value(value)}.")
-
-
-def _short(value: float | None) -> str:
-    if value is None:
-        return ""
-    return f"{value:.10g}" if isinstance(value, float) else str(value)
 
 
 def _copy(value: Any) -> Any:

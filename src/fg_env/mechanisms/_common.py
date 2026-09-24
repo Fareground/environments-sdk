@@ -14,7 +14,7 @@ import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from difflib import get_close_matches
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -43,17 +43,6 @@ class Config(BaseModel):
     """Base for mechanism configs: unknown fields are errors."""
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-
-#: How a mode that generates several agent tools offers them (the spine applies it after expansion).
-ToolsSetting = Literal["each", "one", "auto"]
-
-
-def tools_field() -> Any:
-    """The ``tools`` field every mode that generates several agent tools declares, with one meaning."""
-    return Field("each", description="How the generated tools are offered: each (one tool per action) | one (one tool "
-                                     "named after the mechanism, whose `action` argument lists the actions legal now) "
-                                     "| auto (one tool only when every action takes the same arguments).")
 
 
 class ModifierSpec(Config):

@@ -1,5 +1,5 @@
 # fg-env playthrough: Chicken
-Game: chicken@24a99b14:4642e142
+Game: chicken@59cf939e:4642e142
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: general_sum

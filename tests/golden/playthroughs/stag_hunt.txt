@@ -1,5 +1,5 @@
 # fg-env playthrough: Stag hunt
-Game: stag_hunt@d1364db7:4642e142
+Game: stag_hunt@699cfd8e:4642e142
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: simultaneous; chance: deterministic; information: imperfect; utility: general_sum

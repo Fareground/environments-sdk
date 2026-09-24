@@ -74,7 +74,7 @@ def test_a_property_declared_empty_may_be_emptied_again():
 @pytest.mark.parametrize('patch,path', [
     (lambda c: c.update(end=[{'when': 'deal'}]), 'end[0].when'),
     (lambda c: c['actions'].__setitem__('go', {'by': 'p', 'when': 'ready'}), 'actions.go.when[0]'),
-    (lambda c: c.update(triggers=[{'when': "'yes'", 'do': ['$world.w = 1']}]), 'triggers[0].when'),
+    (lambda c: c.update(events=[{'on': 'change', 'when': "'yes'", 'do': ['$world.w = 1']}]), 'events[0].when'),
     (lambda c: c.update(invariants=['positive']), 'invariants[0]'),
     (lambda c: c['records'].__setitem__('chat', {'visible': 'private'}), 'records.chat.visible'),
     (lambda c: c['records'].__setitem__('chat', {'visible': 'none'}), 'records.chat.visible'),

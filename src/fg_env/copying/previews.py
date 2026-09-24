@@ -51,8 +51,6 @@ class Previews:
         if self.frames and self.frames[-1]["round"] == world.round:
             self.frames.pop()  # the run ended at the start of a round: the frame it closed on is final
         frame: dict[str, Any] = {"round": world.round, "views": self.spectate()}
-        if world.continuous:
-            frame["time"] = world.time
         if final:
             frame["final"] = True
         self.frames.append(frame)
@@ -73,9 +71,7 @@ class Previews:
         probe = self.probe(snapshot, participants)
         for point in probe._round():
             if point.stage is not None and entity_id in point.reasons and stage in (None, point.stage.name):
-                reason = point.reasons[entity_id]
-                if not probe.previews.plays_itself(entity_id, point.stage, reason):
-                    return probe.previews.turn(entity_id, point.stage, reason)
+                return probe.previews.turn(entity_id, point.stage, point.reasons[entity_id])
         start = self.probe(snapshot, participants)  # not woken this round: show the round as it opens
         start._begin_round()
         return start.previews.now(entity_id, stage)
@@ -113,18 +109,7 @@ class Previews:
             reason = f"(Preview only: stage {spec.name} does not run now.)"
         elif actor not in env._eligible(spec, ordered=False):
             reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
-        elif self.plays_itself(entity_id, spec, reason):
-            reason = (f"(Preview only: {actor.name} would not be woken in {spec.name} now: the stage is `auto` and "
-                      "the turn has no real choice, so it plays itself.)")
         return self.turn(entity_id, spec, reason)
-
-    def plays_itself(self, entity_id: str, spec: StageSpec, reason: str) -> bool:
-        """Whether the run would play this turn without waking the agent (an `auto` stage with no real choice)."""
-        if not spec.auto:
-            return False
-        env = self.env
-        turn = Turn(env, env.world.entities[entity_id], spec, reason, spec.turns == "simultaneous", peek=True)
-        return env.driver.trivial(turn)
 
     def turn(self, entity_id: str, spec: StageSpec, reason: str) -> dict[str, Any]:
         env = self.env

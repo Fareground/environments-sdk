@@ -6,9 +6,9 @@ kept — entities, properties, links, records, the log, the clock — and the ne
 
 What the state cannot follow is refused, each with its fix: a type, property, relation or record
 that is gone while the state still holds some of it; values the new declarations refuse; physics
-variables that are gone; a different clock mode; a round budget the run is already past. What
+variables that are gone; a round budget the run is already past. What
 the new contract adds starts from its declaration (new properties get their defaults, new metrics
-start sampling). A `once` event or trigger that already fired keeps that memory only while it is
+start sampling). A `once` event that already fired keeps that memory only while it is
 declared unchanged; an edited one counts as new.
 """
 from __future__ import annotations
@@ -159,10 +159,6 @@ def _inputs(unarmed: Contract, base: Contract, snapshot: Mapping[str, Any], old_
 def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> list[Issue]:
     """Everything in ``snapshot``'s state that ``new`` cannot hold, each with its fix."""
     issues: list[Issue] = []
-    if old.clock.mode != new.clock.mode:
-        issues.append(Issue("clock.mode",
-                            f"cannot change from {old.clock.mode} to {new.clock.mode} part-way through a run",
-                            "keep the clock mode the run started with"))
     probe = SdkWorld(new, decode(snapshot["inputs"]), SeedTree(0))
     missing_types: dict[str, list[str]] = {}
     for row in snapshot["entities"]:
@@ -303,11 +299,8 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
     data = dict(snapshot)
     data["inputs"], data["arm"] = encode(inputs), arm
     data["fired_once"] = _remap(old.events, new.events, snapshot["fired_once"])
-    triggers = snapshot["triggers"]
-    data["triggers"] = {
-        "armed": {str(j): triggers["armed"][str(i)] for i, j in _pairs(old.triggers, new.triggers,
-                                                                        [int(k) for k in triggers["armed"]])},
-        "fired": _remap(old.triggers, new.triggers, triggers["fired"])}
+    armed = snapshot["armed"]
+    data["armed"] = {str(j): armed[str(i)] for i, j in _pairs(old.events, new.events, [int(k) for k in armed])}
     series = decode(snapshot["series"])
     length = max((len(values) for values in series.values()), default=0)
     data["series"] = encode({name: series.get(name, [None] * length) for name in new.metrics})
@@ -318,7 +311,7 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
     world.rounds = _rounds(world)
     _fill(env, new)
     _physics_params(env, old, new)
-    if env.status == "completed" and env.ended_by in ("rounds", "horizon") and _has_time_left(world):
+    if env.status == "completed" and env.ended_by == "rounds" and world.round < world.rounds:
         env.status, env.ended_by = "running", None
         if world.log and world.log[-1].kind == "end":  # the run is not over after all
             world.log.pop()
@@ -326,12 +319,6 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
     world.journal.clear()
     world.touch()
     return env
-
-
-def _has_time_left(world: SdkWorld) -> bool:
-    if world.continuous and world.horizon is not None:
-        return world.time < world.horizon
-    return world.round < world.rounds
 
 
 def _fill(env: Env, new: Contract) -> None:

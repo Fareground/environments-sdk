@@ -32,7 +32,6 @@ mechanism made to end the run does (victory, a board's game over, a terminal pha
 
 Every family names these the same way:
 - `who`: the agent type(s) taking part (a type name or a list; subtypes included)
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 - `stage`: a declared stage the mechanism runs in (default: a stage it generates)
 - `when`: only while this expression is true
 - `views`: generate the mechanism's views
