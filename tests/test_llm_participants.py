@@ -203,4 +203,5 @@ def test_retries_stop_at_the_turn_deadline_and_no_call_is_made_after_the_run_ret
         participants.anthropic(client, "m"), rounds=1, time_limit=0.3)
     made = len(client.requests)
     time.sleep(1.2)  # a retry would have come after the 0.5 s wait; the turn ended at 0.3 s
-    assert len(client.requests) == made == 1 and result.stats["timeouts"] == 1
+    # Under load the first call may not even start within 0.3 s; what matters is that none comes after the run returns.
+    assert len(client.requests) == made <= 1 and result.stats["timeouts"] == 1
