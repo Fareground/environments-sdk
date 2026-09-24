@@ -20,7 +20,7 @@ from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, 
 from ..errors import RunError
 from ..information.schemas import ToolSpec
 from ..runtime.budget import tokens_of
-from ..runtime.measure import Stats
+from ..runtime.facts import Stats
 from ..runtime.session import END_TURN, ToolResult, Wake
 
 if TYPE_CHECKING:

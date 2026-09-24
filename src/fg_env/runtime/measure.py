@@ -13,69 +13,7 @@ from ..expr import ExprError, compile_expr
 from ..expr.template import apply_format
 from ..world.live import SdkWorld, _plain
 
-__all__ = ["Stats", "RunResult", "sample_metrics", "compute_outputs", "ending"]
-
-
-@dataclass
-class Stats:
-    """How the run went for its agents — the numbers that keep an environment LLM-native."""
-
-    wakes: int = 0
-    calls: int = 0
-    actions: int = 0
-    invalid_calls: int = 0
-    rejected_actions: int = 0
-    idle_turns: int = 0
-    brief_chars: int = 0
-    update_chars: int = 0
-    tools_offered: int = 0
-    #: Turns whose brief / update was actually read (coded participants often read neither).
-    brief_reads: int = 0
-    update_reads: int = 0
-    #: Reported by LLM participants (see :meth:`Wake.record_usage`): real provider numbers, not estimates.
-    llm_calls: int = 0
-    input_tokens: int = 0
-    output_tokens: int = 0
-    cache_read_tokens: int = 0
-    cache_write_tokens: int = 0
-    llm_retries: int = 0
-    #: Out-of-turn reaction turns (`wake` with `now`).
-    reactions: int = 0
-    #: Turns an LLM participant lost because its provider still failed after every retry.
-    forfeits: int = 0
-    #: Model replies cut off at their output limit (reported by LLM participants).
-    truncated: int = 0
-    #: Model replies the provider refused to give (reported by LLM participants).
-    refusals: int = 0
-    #: Turns an LLM participant ended because it used all its ``max_steps`` model calls.
-    out_of_steps: int = 0
-    #: Turns an LLM participant ended because the model still answered without a tool call after it was reminded.
-    no_tool_replies: int = 0
-    #: Turns that ran past their time limit.
-    timeouts: int = 0
-    #: Atomic turns undone because the whole turn was not `valid`.
-    undone_turns: int = 0
-    #: Actions refused and undone because a rule failed or an invariant broke while they applied (also counted in
-    #: ``rejected_actions``): a contract bug, explained in the run's diagnostics.
-    faulted_actions: int = 0
-    #: Turns that ended with an action available and none taken after the agent's attempts went wrong: invalid or
-    #: refused calls, a model refusal, a reply cut off or with no tool call, its model calls used up — or it ran out of
-    #: time; and turns in which the provider refused or cut off a model reply, whatever else the turn did.
-    failed_turns: int = 0
-
-    def add(self, other: Stats) -> None:
-        for name, value in vars(other).items():  # every field is a count: most of a turn's are zero
-            if value:
-                setattr(self, name, getattr(self, name) + value)
-
-    def to_dict(self) -> dict[str, Any]:
-        out: dict[str, Any] = dict(vars(self))
-        wakes = max(1, self.wakes)
-        out["avg_update_tokens"] = round(self.update_chars / max(1, self.update_reads) / 4)
-        out["avg_brief_tokens"] = round(self.brief_chars / max(1, self.brief_reads) / 4)
-        out["avg_tools"] = round(self.tools_offered / wakes, 1)
-        out["invalid_rate"] = round(self.invalid_calls / max(1, self.calls), 3)
-        return out
+__all__ = ["RunResult", "sample_metrics", "compute_outputs", "ending"]
 
 
 @dataclass

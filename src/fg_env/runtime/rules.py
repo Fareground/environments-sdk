@@ -30,11 +30,12 @@ from ..expr import EVERYONE, ExprError, compile_expr, item_conditions, shared_bu
 from ..expr.objects import Entity
 from ..world.live import Abort, OutOfBounds, _plain
 from .events import Events
+from .facts import Faulted
 
 if TYPE_CHECKING:
     from ..information.core import Information
     from ..world.live import SdkWorld
-    from .diagnosis import Diagnosis
+    from .facts import Facts
     from .state import RunState
 
 __all__ = ["Rules"]
@@ -53,7 +54,7 @@ class Rules:
     """The rules of one run over its world. ``lock`` is the run's lock: every change is made holding it."""
 
     def __init__(self, contract: Contract, world: SdkWorld, effects: EffectRunner, actions: ActionBook,
-                 information: Information, state: RunState, diagnosis: Diagnosis, lock: threading.RLock):
+                 information: Information, state: RunState, facts: Facts, lock: threading.RLock):
         self.contract = contract
         self.world = world
         self.effects = effects
@@ -61,7 +62,7 @@ class Rules:
         #: Renders the rules' texts for their readers (the one gate, see information/gate.py).
         self.information = information
         self.state = state
-        self.diagnosis = diagnosis
+        self.facts = facts
         self.lock = lock
         #: Plays the reactions a commit asked for, once nothing can undo it (the schedule's; wired by the run).
         self.react: Callable[[StageSpec | None], None] = _no_reactions
@@ -140,7 +141,7 @@ class Rules:
                 # Already broken before the action (by something no invariant check followed): not the action's doing.
                 self.check_invariants("changes made before an agent's action")
             path = error.path or "actions"
-            self.diagnosis.faulted(path, str(error).removeprefix(f"{path}: "), action)
+            self.facts.emit(Faulted(path, str(error).removeprefix(f"{path}: "), action))
             return None, fault_reason(error)
 
     # -- events --------------------------------------------------------------------------------------------------

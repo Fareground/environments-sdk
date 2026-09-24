@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..effects.runner import each_items
 from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError, compile_expr, resolve, truthy
+from ..runtime.facts import PolicyRule
 from ..runtime.session import Wake
 from ..sampling.probability import is_probability
 from ..sampling.seeds import LazyStream
@@ -225,13 +226,13 @@ class PolicyAgent:
             return choice
         args, problem = choice
         if problem is not None:  # arguments the action does not accept: the call is never made, but it was refused
-            turn.env.diagnosis.policy_rule(path, rule.do, problem, sent=False)
+            turn.env.facts.emit(PolicyRule(path, rule.do, problem, sent=False))
             return "skipped"
         result = wake.call(rule.do, args)
         if result.ok:
-            turn.env.diagnosis.policy_rule(path, rule.do)
+            turn.env.facts.emit(PolicyRule(path, rule.do))
             return "acted"
-        turn.env.diagnosis.policy_rule(path, rule.do, result.text)
+        turn.env.facts.emit(PolicyRule(path, rule.do, result.text))
         return "skipped"  # this rule does not fit right now; try the next one
 
     def _choose(self, wake: Wake, spec: PolicySpec, base: str, index: int, scope: Any,

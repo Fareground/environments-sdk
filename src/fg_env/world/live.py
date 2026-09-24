@@ -129,8 +129,8 @@ class SdkWorld(World):
         self.touched: dict[str, None] | None = None
         #: While sealed choices commit or an `each` loop runs, notes `=` assignments (see runtime/diagnosis.py).
         self.watched_writes: Any = None
-        #: The run's diagnosis counts (a run_diagnosis.Diagnosis), set by the run.
-        self.diagnosis: Any = None
+        #: The run's sink of facts (a :class:`~fg_env.runtime.facts.Facts`), set by the run.
+        self.facts: Any = None
         #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
         self.assets = AssetStore()
         self._seq = 0

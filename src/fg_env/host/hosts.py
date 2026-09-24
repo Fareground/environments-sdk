@@ -120,10 +120,10 @@ def count_host_tokens(env: Env) -> None:
     with _PENDING_LOCK:
         taken = _PENDING.pop(env.world, None)
     if taken and any(taken):
-        from ..runtime.measure import Stats
+        from ..runtime.facts import Usage
 
         with env._lock:
-            env.state.stats.add(Stats(**dict(zip(_TOKENS, taken))))
+            env.facts.emit(Usage(dict(zip(_TOKENS, taken))))
 
 
 @contextmanager

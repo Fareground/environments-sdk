@@ -30,10 +30,10 @@ from ..sampling.seeds import SeedTree
 from ..world.build import build_world
 from ..world.live import _plain
 from .budget import Budget, is_seconds
-from .diagnosis import Diagnosis
 from .diagnostics import diagnose
 from .driving import Driver, run_on_worker
 from .end_state import end_state
+from .facts import Facts
 from .forgetting import reads_log
 from .measure import RunResult
 from .returns import measured
@@ -73,9 +73,10 @@ class Env:
         self.error: str | None = None
         self._lock = threading.RLock()
         self.information = Information(contract, self.world, self.actions, self.state, self._lock, exposures)
-        self.diagnosis = self.world.diagnosis = Diagnosis(self.world.written)
+        #: Where everything that happens is told: the statistics and the diagnosis in the state are its folds.
+        self.facts = self.world.facts = Facts(self.state)
         self.rules = Rules(contract, self.world, self.effects, self.actions, self.information, self.state,
-                           self.diagnosis, self._lock)
+                           self.facts, self._lock)
         #: Signalled when a participant's turn lands or a call returns; waiting on it releases the lock.
         self._signal = threading.Condition(self._lock)
         self._running = threading.Lock()

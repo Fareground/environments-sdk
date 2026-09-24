@@ -51,7 +51,7 @@ CACHED_WEIGHT = 0.1
 
 
 def tokens_of(stats: Any) -> int:
-    """The tokens ``stats`` (a :class:`~fg_env.runtime.measure.Stats`) spend toward a token budget: fresh input, output
+    """The tokens ``stats`` (a :class:`~fg_env.runtime.facts.Stats`) spend toward a token budget: fresh input, output
     and cache writes in full, cache reads at :data:`CACHED_WEIGHT`."""
     return math.ceil(stats.input_tokens + stats.output_tokens + stats.cache_write_tokens
                      + stats.cache_read_tokens * CACHED_WEIGHT)

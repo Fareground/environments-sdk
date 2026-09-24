@@ -21,7 +21,8 @@ from ..errors import RunError, SnapshotError
 from ..expr.objects import Entity
 from ..information.exposure import ExposureLog
 from ..world.live import Abort, Entry, LogEvent
-from .measure import Stats
+from .diagnosis import Diagnosis
+from .facts import Stats
 
 if TYPE_CHECKING:
     from ..world.live import SdkWorld
@@ -83,9 +84,13 @@ class RunState:
         self.emitted = 0
         #: Spectator views rendered at the end of every round, the last one marked final (see information/core.py).
         self.frames: list[dict[str, Any]] = []
+        #: The run's statistics and what it notices about its own rules: folds over its facts (see runtime/facts.py).
         self.stats = Stats()
         #: The same numbers per agent entity id (a tournament bills each entrant for its own turns).
         self.agent_stats: dict[str, Stats] = {}
+        #: Saved in snapshots beside the canonical form (see copying/snapshot.py), so a resumed run diagnoses exactly
+        #: what a straight run does.
+        self.diagnosis = Diagnosis(world.written)
         #: A cache, not state: the world state each invariant was last found to hold in (see runtime/rules.py).
         self.invariant_held: dict[int, Any] = {}
         #: A cache, not state: the log as plain data, converted once per event (see :meth:`event_rows`).
@@ -98,11 +103,6 @@ class RunState:
         if memory is None:
             memory = self.memories[entity_id] = Memory()
         return memory
-
-    def tally(self, actor_id: str, stats: Stats) -> None:
-        """Add numbers to the run's totals and to the agent's own (callers hold the run's lock)."""
-        self.stats.add(stats)
-        self.agent_stats.setdefault(actor_id, Stats()).add(stats)
 
     def event_rows(self) -> list[dict[str, Any]]:
         """The log as plain data, each event converted once, so a result costs the same late in a run as early.

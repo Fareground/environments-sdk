@@ -5,7 +5,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ..analysis.stats import estimate
-from ..runtime.measure import Stats
+from ..runtime.facts import Stats
 from .evaluation import alpha_rank, margins, nash_average, schulze
 from .ratings import EloRating, Glicko, Pairing, elo_mle, glicko2_period, pairwise
 

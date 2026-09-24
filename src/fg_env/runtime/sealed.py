@@ -2,15 +2,15 @@
 
 The schedule decides the order the agents' choices commit in (:mod:`.schedule`); here each agent's choices commit one
 at a time, in the order the agent made them, each checked again against the world as it now is — an earlier agent may
-have taken what a choice counted on. A choice refused then is told to its agent as an outcome and counted in the run's
-statistics; a rule that fails or an invariant it breaks refuses that choice alone. In a stage with `valid` rules an
+have taken what a choice counted on. A choice refused then is told to its agent as an outcome (and to the run's
+facts); a rule that fails or an invariant it breaks refuses that choice alone. In a stage with `valid` rules an
 agent's choices commit or are undone as a whole.
 """
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from .measure import Stats
+from .facts import CommitRefused, Committed, Undone
 
 if TYPE_CHECKING:
     from .diagnosis import SealedWrites
@@ -62,9 +62,7 @@ def _settle(rules: Rules, turn: Turn, mark: int, applied: int) -> bool:
         world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
                    data={"ok": False, "undone": True})
         world.journal.clear()
-        rules.state.tally(turn.actor.id, Stats(actions=-applied, rejected_actions=applied, undone_turns=1,
-                                               faulted_actions=int(fault is not None)))
-        turn.stats.undone_turns = 1
+        rules.facts.emit(Undone(applied, fault is not None), turn)
     return False
 
 
@@ -78,10 +76,9 @@ def _commit_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], de
             assert fault is not None
             world.emit("outcome", f"Your {name.replace('_', ' ')} did not happen: {fault}.",
                        actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
-            rules.diagnosis.refused_at_commit(name, fault)
+            rules.facts.emit(CommitRefused(name, fault, faulted=True), turn)
             if not deferred:
                 world.journal.clear()
-            rules.state.tally(actor.id, Stats(rejected_actions=1, faulted_actions=1))
             return 0
         if applied and not deferred:
             rules.react(turn.stage)
@@ -96,23 +93,20 @@ def _apply_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], def
     if problem:
         world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
                    actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
-        rules.diagnosis.refused_at_commit(name, str(problem))
+        rules.facts.emit(CommitRefused(name, str(problem)), turn)
         if not deferred:
             world.journal.clear()
-        rules.state.tally(actor.id, Stats(rejected_actions=1))
         return 0
     outcome = rules.apply(actor, name, params)
     text = outcome.text if outcome.ok else f"Your {verb} failed: {outcome.text}"
     data = {"action": name, "ok": outcome.ok, **({"assets": outcome.assets} if outcome.assets else {})}
     world.emit("outcome", text, actor=actor.id, to=(actor.id,), data=data)
     if not outcome.ok:
-        rules.diagnosis.refused_at_commit(name, outcome.text)
-        rules.state.tally(actor.id, Stats(rejected_actions=1))
+        rules.facts.emit(CommitRefused(name, outcome.text), turn)
         if not deferred:
             world.journal.clear()
         return 0
     if not deferred:
         rules.commit(f"actions.{name}")
-    rules.diagnosis.committed(name)
-    rules.state.tally(actor.id, Stats(actions=1))
+    rules.facts.emit(Committed(name), turn)
     return 1

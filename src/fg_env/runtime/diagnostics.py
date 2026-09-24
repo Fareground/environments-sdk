@@ -4,8 +4,9 @@ A contract can pass every check and still not do what its author meant: a rule t
 make, a tool offered when none of its choices can work, sealed choices that overwrite each other, an agent type that
 never has anything to do, a stage that can never run, a measure that stays empty because nothing ever sets what it
 reads, a coded policy rule whose call is refused every time it is tried, a host's answers that were the contract's
-fallback stand-ins because no host was bound. These are read from what the run counted (:mod:`fg_env.runtime.diagnosis`)
-and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is
+fallback stand-ins because no host was bound. What the run counted is read from the folds of its facts — its
+statistics and its diagnosis (:mod:`fg_env.runtime.facts`, :mod:`fg_env.runtime.diagnosis`) — and the findings are
+reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is
 reported only on evidence that random play cannot explain away, so a clean contract raises none. Turns an LLM
 participant forfeited to a failing model provider, agents that never acted or too many of whose turns failed (for a
 model participant, a small share), and a run its budget cut short are reported too: such a run does not show how its
@@ -120,16 +121,14 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
     `action_always_faulted` reports those; an agent type that never had an action, `agents_never_able_to_act`.)"""
     if not env.finished:
         return []
-    never_able = {kind for kind, entry in sorted(env.diagnosis.agents.items()) if not entry["able"]}
+    never_able = {kind for kind, entry in sorted(env.state.diagnosis.agents.items()) if not entry["able"]}
     nobody_acted = not env.state.stats.actions
     never, failing, some = [], [], []
     for agent, stats in sorted(env.state.agent_stats.items()):
         entity = env.world.entities.get(agent)
         if not stats.wakes or (entity is not None and entity.entity_type in never_able):
             continue
-        refused = stats.rejected_actions - stats.faulted_actions
-        went_wrong = (stats.invalid_calls or refused or stats.refusals or stats.truncated or stats.out_of_steps
-                      or stats.no_tool_replies)
+        went_wrong = stats.went_wrong(faults=False)  # a refusal a failing rule caused is the contract's
         watched = stats.llm_calls or stats.timeouts  # a model's misses, and turns out of time, are never blind choices
         share = MODEL_FAILED_SHARE if stats.llm_calls else FAILED_SHARE
         if not stats.actions and went_wrong and (stats.llm_calls or nobody_acted):
@@ -230,7 +229,7 @@ def _most_common(reasons: dict[str, list[Any]]) -> str:
 
 def _faults(env: Env) -> list[dict[str, str]]:
     out = []
-    for path, (count, error) in sorted(env.diagnosis.faults.items()):
+    for path, (count, error) in sorted(env.state.diagnosis.faults.items()):
         if path.startswith("invariants["):
             out.append(_finding("action_broke_invariant", path,
                                 f"agents' actions broke it {count} time(s); each was refused and undone: {error}",
@@ -249,7 +248,7 @@ def _faults(env: Env) -> list[dict[str, str]]:
 
 def _actions(env: Env) -> list[dict[str, str]]:
     out = []
-    for name, entry in sorted(env.diagnosis.actions.items()):
+    for name, entry in sorted(env.state.diagnosis.actions.items()):
         if entry["faulted"] >= ALWAYS_FAULTED and not entry["applied"]:
             out.append(_finding("action_always_faulted", f"actions.{name}",
                                 f"never happened: all {entry['faulted']} attempt(s) were refused because a rule failed "
@@ -290,7 +289,7 @@ def _policy_at(env: Env, path: str) -> Any:
 
 def _policy_rules(env: Env) -> list[dict[str, str]]:
     out = []
-    for path, (acted, refused, refusal) in sorted(env.diagnosis.policy_rules.items()):
+    for path, (acted, refused, refusal) in sorted(env.state.diagnosis.policy_rules.items()):
         if not acted:
             out.append(_finding("policy_rule_never_acted", path,
                                 f"was tried {refused} time(s) and refused every time: {refusal}",
@@ -311,16 +310,16 @@ def _overwrites(env: Env) -> list[dict[str, str]]:
                      f"sealed choices overwrote each other {count} time(s): {example}",
                      "give each agent its own value (a prop on $actor, or a map keyed by $actor.id) and combine them "
                      "in the stage's on_exit, or make the stage sequential")
-            for stage, (count, example) in sorted(env.diagnosis.overwrites.items())] + [
+            for stage, (count, example) in sorted(env.state.diagnosis.overwrites.items())] + [
         _finding("loop_overwrites", path, f"an `each` loop overwrote one value {count} time(s): {example}",
                  "collect the values instead (a list with +=, or a map keyed by $it.id) and choose one after the loop "
                  "($mode, $best)")
-        for path, (count, example) in sorted(env.diagnosis.loop_overwrites.items())]
+        for path, (count, example) in sorted(env.state.diagnosis.loop_overwrites.items())]
 
 
 def _idle_agents(env: Env) -> list[dict[str, str]]:
     out = []
-    for kind, entry in sorted(env.diagnosis.agents.items()):
+    for kind, entry in sorted(env.state.diagnosis.agents.items()):
         if entry["wakes"] and not entry["able"] and entry["rounds"] >= MIN_ROUNDS:
             out.append(_finding("agents_never_able_to_act", f"types.{kind}",
                                 f"no {kind} had an action it could take in any of its {entry['wakes']} turn(s) over "
@@ -333,7 +332,7 @@ def _idle_agents(env: Env) -> list[dict[str, str]]:
 def _stages(env: Env, rules: _Rules) -> list[dict[str, str]]:
     out = []
     for stage in env.contract.stage_list():
-        reached, ran, woke, capped = env.diagnosis.stages.get(stage.name, [0, 0, 0, 0])
+        reached, ran, woke, capped = env.state.diagnosis.stages.get(stage.name, [0, 0, 0, 0])
         if capped and stage.until:
             times = f"all {ran} time(s)" if capped == ran else f"{capped} of the {ran} time(s)"
             out.append(_finding("stage_until_capped", f"stages.{stage.name}.until",
@@ -404,7 +403,7 @@ class _Rules:
         change, or it reads nothing these can tell."""
         if "$pattern" in expr:  # a pattern follows time, chance or a memory input on its own
             return None
-        env, world, written = self.env, self.env.world, self.env.diagnosis.written
+        env, world, written = self.env, self.env.world, self.env.state.diagnosis.written
         names, winner = self._scan()
         frozen: list[str] = []
         for record in _RECORD_READ.findall(expr):

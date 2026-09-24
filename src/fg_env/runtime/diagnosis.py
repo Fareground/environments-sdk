@@ -1,4 +1,5 @@
-"""What a run notices about its own rules while it plays, read by :mod:`fg_env.runtime.diagnostics`.
+"""What a run notices about its own rules while it plays, read by :mod:`fg_env.runtime.diagnostics`: a fold over the
+run's facts (:mod:`fg_env.runtime.facts`).
 
 Only counts: how often each action was refused and why, rules that failed while an agent's action applied, whether a
 refused tool had any choice that could have worked, which stages were reached, ran and woke agents, whether each agent
@@ -11,13 +12,15 @@ from __future__ import annotations
 import itertools
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import stage_actions
 from ..expr.objects import Entity
+from .facts import Answered, CommitRefused, Committed, Fact, Faulted, Offered, Overwrote, PolicyRule, StageVisit
 
 if TYPE_CHECKING:
+    from .facts import Facts
     from .session import ToolResult
     from .turn import Turn
 
@@ -44,7 +47,7 @@ def _tally(reasons: dict[str, list[Any]], text: str) -> None:
 
 
 class Diagnosis:
-    """The counts one run keeps for its diagnostics."""
+    """The counts one run keeps for its diagnostics: a fold over its facts (:meth:`fold`)."""
 
     def __init__(self, written: set[str]):
         #: action → {calls, refused, reasons}, plus {unusable, stuck}: refusals when no choice the tool offered could
@@ -69,11 +72,22 @@ class Diagnosis:
         #: The turn number and actions already probed in it (not saved: snapshots fall between turns).
         self._probed: tuple[int, set[str]] = (0, set())
 
+    def fold(self, fact: Fact, turn: Turn | None = None) -> None:
+        """Count ``fact`` (in ``turn``, when it is about one); a fact the diagnosis does not count changes nothing."""
+        notice = _NOTICES.get(type(fact))
+        if notice is not None:
+            notice(self, fact, turn)
+
     # -- actions ---------------------------------------------------------------------
 
-    def called(self, turn: Turn, name: str, args: Any, result: ToolResult) -> None:
-        """A tool call finished: count it against its action; when it was refused, check whether any choice the
-        tool offered could have worked."""
+    def _answered(self, fact: Answered, turn: Turn | None) -> None:
+        """A tool call returned: count it against its action (not a preview's, nor a name that is not text)."""
+        if turn is not None and not turn.peek and isinstance(fact.name, str):
+            self._called(turn, fact.name, fact.args, fact.result)
+
+    def _called(self, turn: Turn, name: str, args: Any, result: ToolResult) -> None:
+        """Count a finished tool call against its action; when it was refused, check whether any choice the tool
+        offered could have worked."""
         env = turn.env
         if (result.data or {}).get("error") in _NOT_ABOUT_RULES:
             return
@@ -97,41 +111,39 @@ class Diagnosis:
             entry["unusable"] += 1
             _tally(entry["stuck"], result.text)
 
-    def committed(self, name: str) -> None:
+    def _committed(self, fact: Committed, turn: Turn | None) -> None:
         """A sealed choice took effect when the choices committed."""
-        self._action(name)["applied"] += 1
+        self._action(fact.action)["applied"] += 1
 
-    def refused_at_commit(self, name: str, text: str) -> None:
+    def _commit_refused(self, fact: CommitRefused, turn: Turn | None) -> None:
         """A sealed choice accepted when submitted did not happen when the choices committed."""
-        entry = self._action(name)
+        entry = self._action(fact.action)
         entry["refused"] += 1
-        _tally(entry["reasons"], text)
+        _tally(entry["reasons"], fact.text)
 
-    def faulted(self, path: str, error: str, action: str | None = None) -> None:
-        """A rule at ``path`` failed, or the invariant at ``path`` broke, while an agent's action applied (which was
-        refused and undone) — the contract action ``action``, when known."""
-        entry = self.faults.setdefault(path, [0, error])
+    def _faulted(self, fact: Faulted, turn: Turn | None) -> None:
+        """A rule failed, or an invariant broke, while an agent's action applied (which was refused and undone)."""
+        entry = self.faults.setdefault(fact.path, [0, fact.error])
         entry[0] += 1
-        if action is not None:
-            self._action(action)["faulted"] += 1
+        if fact.action is not None:
+            self._action(fact.action)["faulted"] += 1
 
-    def policy_rule(self, path: str, action: str, refusal: str | None = None, sent: bool = True) -> None:
-        """The coded policy rule at ``path`` acted, or (given ``refusal``) its call of the contract ``action`` was
-        refused: a refused choice of that action — and, when it was never ``sent`` (arguments the action does not
-        accept), a refused call of it too."""
-        entry = self.policy_rules.setdefault(path, [0, 0, ""])
-        if refusal is None:
+    def _policy_rule(self, fact: PolicyRule, turn: Turn | None) -> None:
+        """A coded policy rule acted, or its call was refused: a refused choice of that action — and, when it was never
+        sent (arguments the action does not accept), a refused call of it too."""
+        entry = self.policy_rules.setdefault(fact.path, [0, 0, ""])
+        if fact.refusal is None:
             entry[0] += 1
             return
         entry[1] += 1
-        entry[2] = refusal
-        counts = self._action(action)
+        entry[2] = fact.refusal
+        counts = self._action(fact.action)
         counts["chosen"] += 1
         counts["chosen_refused"] += 1
-        if not sent:
+        if not fact.sent:
             counts["calls"] += 1
             counts["refused"] += 1
-            _tally(counts["reasons"], refusal)
+            _tally(counts["reasons"], fact.refusal)
 
     def _action(self, name: str) -> dict[str, Any]:
         return self.actions.setdefault(name, {"calls": 0, "refused": 0, "reasons": {}, "unusable": 0, "stuck": {},
@@ -147,16 +159,17 @@ class Diagnosis:
 
     # -- stages and agents -----------------------------------------------------------
 
-    def stage(self, name: str, reached: int = 0, ran: int = 0, woke: int = 0, capped: int = 0) -> None:
-        counts = self.stages.setdefault(name, [0, 0, 0, 0])
-        counts[0] += reached
-        counts[1] += ran
-        counts[2] += woke
-        counts[3] += capped
+    def _stage(self, fact: StageVisit, turn: Turn | None) -> None:
+        counts = self.stages.setdefault(fact.stage, [0, 0, 0, 0])
+        counts[0] += fact.reached
+        counts[1] += fact.ran
+        counts[2] += fact.woke
+        counts[3] += fact.capped
 
-    def offered(self, turn: Turn, has_action: bool) -> None:
-        """A fresh turn's tools were read: note whether the agent had any action it could take, and if not why."""
-        if turn.ledger.acted:
+    def _offered(self, fact: Offered, turn: Turn | None) -> None:
+        """A fresh turn's tools were read: note whether the agent had any action it could take, and if not why (not in
+        a preview)."""
+        if turn is None or turn.peek or turn.ledger.acted:
             return
         entry = self.agents.setdefault(turn.actor.entity_type,
                                        {"wakes": 0, "able": 0, "rounds": 0, "last_round": 0, "reasons": {}})
@@ -164,7 +177,7 @@ class Diagnosis:
         if entry["last_round"] != turn.round:
             entry["rounds"] += 1
             entry["last_round"] = turn.round
-        if has_action:
+        if fact.has_action:
             entry["able"] += 1
             return
         env, actor = turn.env, turn.actor
@@ -176,8 +189,8 @@ class Diagnosis:
                 return
         _tally(entry["reasons"], f"none of the actions of stage {turn.stage.name} was offered")
 
-    def overwrote(self, stage: str, example: str, loop: bool = False) -> None:
-        entry = (self.loop_overwrites if loop else self.overwrites).setdefault(stage, [0, example])
+    def _overwrote(self, fact: Overwrote, turn: Turn | None) -> None:
+        entry = (self.loop_overwrites if fact.loop else self.overwrites).setdefault(fact.where, [0, fact.example])
         entry[0] += 1
 
     # -- saving ----------------------------------------------------------------------
@@ -203,6 +216,13 @@ class Diagnosis:
         self.policy_rules = _copy(data.get("policy_rules", {}))
         self.written.clear()
         self.written.update(data.get("written", []))
+
+
+#: What each fact the diagnosis counts adds to it.
+_NOTICES: dict[type, Callable[[Diagnosis, Any, Any], None]] = {
+    Answered: Diagnosis._answered, Offered: Diagnosis._offered, StageVisit: Diagnosis._stage,
+    Faulted: Diagnosis._faulted, Committed: Diagnosis._committed, CommitRefused: Diagnosis._commit_refused,
+    PolicyRule: Diagnosis._policy_rule, Overwrote: Diagnosis._overwrote}
 
 
 def _copy(value: Any) -> Any:
@@ -276,9 +296,9 @@ class SealedWrites:
     """While a simultaneous stage commits its choices: who last assigned each property with `=`, so a choice that
     replaces another agent's different value — without reading it — is noticed."""
 
-    def __init__(self, stage: str, diagnosis: Diagnosis):
+    def __init__(self, stage: str, facts: Facts):
         self.stage = stage
-        self.diagnosis = diagnosis
+        self.facts = facts
         self.writer = ""
         self.action = ""
         self._last: dict[Any, Any] = {}
@@ -293,8 +313,8 @@ class SealedWrites:
         if before is None or before[0] == self.writer or _same(before[1], value) or builds_on_before:
             return  # the first write, the same agent again, the same value, or a change built on the value before
         shown = f"{owner.name or owner.id}.{prop}" if isinstance(owner, Entity) else f"$world.{prop}"
-        self.diagnosis.overwrote(self.stage, f"`{source}` in actions.{self.action} set {shown}, replacing the value "
-                                             f"{before[0]}'s choice had set")
+        self.facts.emit(Overwrote(self.stage, f"`{source}` in actions.{self.action} set {shown}, replacing the value "
+                                              f"{before[0]}'s choice had set"))
 
 
 class LoopWrites:
@@ -310,7 +330,7 @@ class LoopWrites:
     @classmethod
     def start(cls, world: Any, effect: dict[str, Any], path: str) -> LoopWrites | None:
         """Watch a loop's writes, unless the run keeps no diagnosis or writes are already watched."""
-        if world.diagnosis is None or world.watched_writes is not None:
+        if world.facts is None or world.watched_writes is not None:
             return None
         watch = world.watched_writes = cls(world, path, json.dumps(effect, default=str))
         return watch
@@ -326,8 +346,8 @@ class LoopWrites:
         self._last[key] = (self.position, value)
         if before is None or before[0] == self.position or _same(before[1], value):
             return
-        self.world.diagnosis.overwrote(self.path, f"`{source}` ran for several items with different values, so only "
-                                                  "the last item's value is kept", loop=True)
+        self.world.facts.emit(Overwrote(self.path, f"`{source}` ran for several items with different values, so only "
+                                                   "the last item's value is kept", loop=True))
 
 
 def _whole(target: str) -> str:

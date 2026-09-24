@@ -175,7 +175,7 @@ def _never_succeeded(contract: Contract, played: list[Env]) -> list[Issue]:
     Actions that take free text are left out: smoke agents write placeholder text, so its refusal says nothing."""
     totals: dict[str, list[Any]] = {}  # action → [calls, applied, {cause: [count, wording]}]
     for env in played:
-        for name, entry in env.diagnosis.actions.items():
+        for name, entry in env.state.diagnosis.actions.items():
             total = totals.setdefault(name, [0, 0, {}])
             total[0] += entry["calls"]
             total[1] += entry["applied"] + entry["faulted"]  # a rule that failed is reported on its own

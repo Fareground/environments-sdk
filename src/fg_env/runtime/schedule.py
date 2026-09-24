@@ -28,6 +28,7 @@ from ..expr.objects import Entity
 from ..world.build import whole_setting
 from .diagnosis import SealedWrites
 from .driving import WAITING
+from .facts import StageVisit
 from .feeds import run_feeds
 from .forgetting import forget
 from .measure import sample_metrics
@@ -235,7 +236,7 @@ class Schedule:
         path = f"stages.{stage.name}"
         if not resumed:
             runs = self.stage_runs(stage)
-            env.diagnosis.stage(stage.name, reached=1, ran=int(runs))
+            env.facts.emit(StageVisit(stage.name, reached=1, ran=int(runs)))
             if not runs:
                 return
             world.stage = stage.name
@@ -252,7 +253,7 @@ class Schedule:
                     yield SafePoint(stage)
                 agents = self.eligible(stage, pass_index=pass_index)
                 cursor.pass_index, cursor.agents = pass_index, agents
-                env.diagnosis.stage(stage.name, woke=len(agents))
+                env.facts.emit(StageVisit(stage.name, woke=len(agents)))
             if stage.turns == "simultaneous":
                 yield from self._simultaneous(stage, agents, pass_index, resumed)
             else:
@@ -268,7 +269,7 @@ class Schedule:
                     raise RunError(str(exc), f"{path}.until") from None
         else:
             if stage.until is not None:
-                env.diagnosis.stage(stage.name, capped=1)  # every pass ran and `until` still did not hold
+                env.facts.emit(StageVisit(stage.name, capped=1))  # every pass ran and `until` still did not hold
         rules.fire(f"stage.{stage.name}.end")
 
     def stage_runs(self, stage: StageSpec) -> bool:
@@ -420,7 +421,7 @@ class Schedule:
             turns = list(turns)
             self._shuffle(stage, turns)
         world = self.env.world
-        writes = world.watched_writes = SealedWrites(stage.name, self.env.diagnosis)
+        writes = world.watched_writes = SealedWrites(stage.name, self.env.facts)
         try:
             for turn in turns:
                 acted = commit_sealed(self.rules, turn, writes, atomic=bool(stage.valid))
@@ -488,7 +489,6 @@ class Schedule:
             self._reaction_depth += 1
             try:
                 turn = Turn(env, actor, spec, why, staged=False, kind="reaction")
-                turn.stats.reactions = 1
                 env.driver.drive([turn])
                 self._timed_out(turn)
             finally:

@@ -26,7 +26,7 @@ from ..host.hosts import hosts_for
 from ..information.exposure import Exposure, ExposureLog
 from ..runtime.diagnosis import Diagnosis
 from ..runtime.diagnosis import _copy as _copy_counts
-from ..runtime.measure import Stats
+from ..runtime.facts import Facts, Stats
 from ..runtime.state import Cursor, Memory, RunState
 from ..runtime.turn import Turn
 from ..world.journal import Journal
@@ -46,10 +46,10 @@ class NotCopyable(Exception):
 _ENV_FIELDS = frozenset({
     "contract", "inputs", "seed", "arm", "parallel", "seeds", "world", "effects", "actions", "information", "state",
     "status", "ended_by", "error", "_lock", "_signal", "_running", "driver", "time_limit", "budget", "schedule",
-    "previews", "origin", "pilot", "build_seed", "stepper", "diagnosis", "rules", "_reads_log"})
+    "previews", "origin", "pilot", "build_seed", "stepper", "facts", "rules", "_reads_log"})
 _STATE_FIELDS = frozenset({
     "world", "keep_events", "turn_count", "memories", "briefs", "brief_assets", "in_round", "cursor", "emitted",
-    "frames", "stats", "agent_stats", "invariant_held", "rows", "rows_last"})
+    "frames", "stats", "agent_stats", "diagnosis", "invariant_held", "rows", "rows_last"})
 _WORLD_FIELDS = frozenset({
     "contract", "inputs", "arm", "luck", "entities", "props", "links", "link_fields", "adjacent",
     "records_store", "entry_by_seq", "record_authors", "record_events", "entity_briefs", "log", "physics",
@@ -58,7 +58,7 @@ _WORLD_FIELDS = frozenset({
     "_schedule_seq", "space", "buffer", "end_request", "chance_picker", "counters", "fired_once", "armed",
     "used_round", "journal", "lifecycle",
     "joined",
-    "exposures", "written", "touched", "watched_writes", "diagnosis", "_seq", "_record_seq", "_props_view",
+    "exposures", "written", "touched", "watched_writes", "facts", "_seq", "_record_seq", "_props_view",
     "_physics_view", "_clock_view",
     "_type_props", "hidden", "private_names", "private_metrics", "_def_cache",
     "_def_cache_state", "_def_cache_on", "_remembered", "_remembered_state",
@@ -102,9 +102,9 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     env.information = _rebound(source.information, world=world, state=env.state, lock=env._lock,
                                perception=_rebound(source.information.perception, world=world),
                                schemas=_rebound(source.information.schemas, actions=env.actions))
-    env.diagnosis = world.diagnosis = _copy_diagnosis(source.diagnosis, world.written)
+    env.facts = world.facts = Facts(env.state)
     env.rules = _rebound(source.rules, world=world, effects=env.effects, actions=env.actions,
-                         information=env.information, state=env.state, diagnosis=env.diagnosis, lock=env._lock)
+                         information=env.information, state=env.state, facts=env.facts, lock=env._lock)
     env.rules.events = _rebound(source.rules.events, rules=env.rules)
     env.previews = _rebound(source.previews, env=env)
     env.schedule = _rebound(source.schedule, env=env, rules=env.rules, _round=None, on_event=None)
@@ -155,6 +155,7 @@ def _copy_state(source: RunState, world: SdkWorld) -> RunState:
         brief_assets={key: list(ids) for key, ids in source.brief_assets.items()},
         frames=list(source.frames), stats=_copy_stats(source.stats),
         agent_stats={key: _copy_stats(s) for key, s in source.agent_stats.items()},
+        diagnosis=_copy_diagnosis(source.diagnosis, world.written),
         memories={key: _copy_memory(memory) for key, memory in source.memories.items()},
         rows=list(source.rows), rows_last=source.rows_last)
     return state
@@ -212,7 +213,7 @@ def _copy_world(source: SdkWorld) -> SdkWorld:
         fired_once=set(source.fired_once), armed=dict(source.armed),
         used_round={actor: dict(used) for actor, used in source.used_round.items()},
         journal=journal, lifecycle=None, exposures=_copy_exposures(source.exposures),
-        written=set(source.written), touched=None, watched_writes=None, diagnosis=None, _seq=source._seq,
+        written=set(source.written), touched=None, watched_writes=None, facts=None, _seq=source._seq,
         _record_seq=source._record_seq, _type_props=source._type_props, hidden=source.hidden,
         private_names=source.private_names, private_metrics=source.private_metrics, _def_cache={},
         _def_cache_state=None, _remembered={}, _remembered_state=None,

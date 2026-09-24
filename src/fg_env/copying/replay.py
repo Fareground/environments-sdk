@@ -13,6 +13,7 @@ import threading
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
+from ..runtime.facts import TIMED_OUT
 from ..sampling.seeds import SeedTree
 
 if TYPE_CHECKING:
@@ -158,7 +159,7 @@ def apply_step(wake: Wake, entry: Entry) -> None:
         turn = wake._turn
         with turn.env._lock:
             turn.timed_out = True
-            turn.stats.timeouts = 1
+            turn.note(TIMED_OUT)
             turn.close()
     else:
         raise RunError(f"unknown step {kind!r} on the tape", "replay")

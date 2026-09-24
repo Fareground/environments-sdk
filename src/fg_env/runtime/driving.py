@@ -30,6 +30,7 @@ from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError
 from ..expr.objects import Entity
 from ..participants import Idle, Participant, resolve_participant
+from .facts import Finished
 from .session import Wake
 
 if TYPE_CHECKING:
@@ -283,24 +284,14 @@ class Driver:
                     env.origin.staged = []
 
     def finish(self, turn: Turn) -> None:
-        """Close a played turn: no more calls, its statistics added to the run's."""
+        """Close a played turn: no more calls, its statistics added to the run's (see :meth:`Stats.finish`)."""
         env = self.env
         with env._lock:
             turn.done = True
             env.origin.tape.closed(turn.number)
-            stats = turn.stats
-            if stats.actions == 0 and not turn.ledger.intents:
-                stats.idle_turns += 1
-                went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
-                                  or stats.out_of_steps or stats.no_tool_replies)
-                had_to = turn.stage.must_act or turn.ledger.calls_left <= 0
-                if (went_wrong or had_to or turn.timed_out) and turn.actor.alive and turn._legal():
-                    stats.failed_turns += went_wrong or turn.timed_out  # an action was there to take
-                    turn.did_not_act = had_to and not turn.timed_out  # a timeout is reported as one
-            elif stats.refusals or stats.truncated:
-                stats.failed_turns += 1  # the provider refused or cut off a reply: the model's play was not its own
-            env.state.tally(turn.actor.id, turn.stats)
-            turn.tallied = True
+            turn.note(Finished(chose=bool(turn.ledger.intents),
+                               had_to=turn.stage.must_act or turn.ledger.calls_left <= 0, timed_out=turn.timed_out,
+                               able=lambda: turn.actor.alive and bool(turn._legal())))
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit
                 turn.exposure.close(turn)
 

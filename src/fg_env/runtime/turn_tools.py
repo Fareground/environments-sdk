@@ -27,6 +27,7 @@ from ..participants import resolve_participant
 from ..registry import config_data, use_key
 from ..world.live import Abort
 from .driving import runs_concurrently
+from .facts import CALLED, FAULTED, INVALID, REJECTED
 from .session import ToolResult, Wake
 
 if TYPE_CHECKING:
@@ -115,7 +116,7 @@ class HostWake(Wake):
             params, problem = ({}, None) if why else env.actions.validate(turn.actor, name, args)
             if why or problem:
                 self._spend(step)
-                turn.stats.invalid_calls += 1
+                turn.note(INVALID)
                 text = f"You cannot {name.replace('_', ' ')} now: {why}." if why else \
                     f"{name} was not done: {problem}. Correct the arguments and call again."
                 return turn._after(ToolResult(False, text, data=dict(_INVALID)))
@@ -136,7 +137,7 @@ class HostWake(Wake):
         turn.record(*step)
         turn._tools = None
         turn.ledger.spend_call()
-        turn.stats.calls += 1
+        turn.note(CALLED)
 
     def _available(self, name: str) -> str | None:
         turn, env = self._turn, self._turn.env
@@ -163,8 +164,7 @@ class HostWake(Wake):
         result, fault = turn.env.rules.guarded(lambda: self._commit(name, params))
         if result is None:
             assert fault is not None
-            turn.stats.rejected_actions += 1
-            turn.stats.faulted_actions += 1
+            turn.note(FAULTED)
             return ToolResult(False, refused_text(name, fault), data={"error": "rejected"})
         return result
 
@@ -179,7 +179,7 @@ class HostWake(Wake):
                 text = env.information.render(spec.outcome, vars, viewer=turn.actor) if spec.outcome else "Done."
         except Abort as abort:
             world.journal.rollback(mark)
-            turn.stats.rejected_actions += 1
+            turn.note(REJECTED)
             return ToolResult(False, abort.reason, data={"error": "rejected"})
         except ExprError as exc:
             world.journal.rollback(mark)

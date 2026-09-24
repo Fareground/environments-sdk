@@ -27,7 +27,7 @@ from ..actions.params import REFUSED_ARGS, unbounded
 from ..assets.delivery import Attachment
 from ..assets.intake import intake
 from ..information.schemas import END_TURN, ToolSpec
-from .measure import Stats
+from .facts import Usage
 
 if TYPE_CHECKING:
     from ..copying.branch import Branch
@@ -206,7 +206,6 @@ class Wake:
         ``refusals`` replies the provider refused to give, ``out_of_steps`` turns the participant's own call limit
         ended, ``no_tool_replies`` turns the model ended answering in text without a tool call. Each of the last four
         counts a turn with an action open and none taken as failed."""
-        stats = self._turn.stats
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
                   ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
                   ("llm_retries", llm_retries), ("forfeits", forfeits), ("truncated", truncated),
@@ -218,14 +217,12 @@ class Wake:
         reported = {name: value for name, value in counts if value}
         shown = {name: value for name, value in reported.items() if name in _SHOWN_USAGE}
         with turn.env._lock:
-            if turn.tallied:  # the turn is over and counted: add to the run's totals; the participant still cannot act
-                turn.env.state.tally(turn.actor.id, Stats(**reported))
+            turn.note(Usage(reported))  # a turn over and counted adds it to the run's totals (it still cannot act)
+            if turn.tallied:
                 if turn.exposure is not None:
                     turn.exposure.used(shown, late=True)
                 return
             turn.record("usage", reported)
-            for name, value in reported.items():
-                setattr(stats, name, getattr(stats, name) + value)
             if turn.exposure is not None:
                 turn.exposure.used(shown)
             budget = turn.env.budget

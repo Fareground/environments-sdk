@@ -25,8 +25,22 @@ from ..information.schemas import ToolSpec
 from ..information.tool_text import cut_text, offer_text
 from ..world.build import whole_setting
 from ..world.live import _plain
+from .facts import (
+    APPLIED,
+    CALLED,
+    FAULTED,
+    INVALID,
+    REJECTED,
+    TIMED_OUT,
+    Answered,
+    Fact,
+    Offered,
+    Read,
+    Stats,
+    Undone,
+    Woke,
+)
 from .ledger import AttemptLedger
-from .measure import Stats
 from .session import END_TURN, ToolResult
 from .state import Memory
 
@@ -86,7 +100,8 @@ class Turn:
         #: (set when the turn is finished).
         self.did_not_act = False
         self.done = False
-        self.stats = Stats(wakes=1)
+        #: The turn's own numbers: a fold over its facts (see :meth:`note`).
+        self.stats = Stats()
         self._offered = False
         self._tools: list[ToolSpec] | None = None
         #: Wall-clock seconds this turn may take (None: no limit); the deadline is set when it starts.
@@ -99,6 +114,7 @@ class Turn:
         self.busy = 0
         #: Its statistics are in the run's totals (the engine is done with it); usage reported later goes there.
         self.tallied = False
+        self.note(Woke(reaction=kind == "reaction"))
         if peek:
             self.number = env.state.turn_count + 1
         else:
@@ -125,12 +141,16 @@ class Turn:
             >= self.deadline):
             self.record("timeout")
             self.timed_out = True
-            self.stats.timeouts = 1
+            self.note(TIMED_OUT)
             self.close()
         return self.timed_out
 
     def close(self) -> None:
         self.done = self.closed = True
+
+    def note(self, fact: Fact) -> None:
+        """Tell the run's facts that ``fact`` happened in this turn (the turn's numbers are their fold)."""
+        self.env.facts.emit(fact, self)
 
     def record(self, *entry: Any) -> None:
         """Note on the run's tape something the participant did (so a copy can replay it); previews and
@@ -147,8 +167,7 @@ class Turn:
                 if self.closed:
                     return _CLOSED_TEXT
                 self._brief, assets = self.env.information.brief(self.actor)
-                self.stats.brief_chars = len(self._brief)
-                self.stats.brief_reads = 1
+                self.note(Read("brief", len(self._brief)))
                 self._deliver(assets, "brief")
                 if self.exposure is not None:
                     self.exposure.read_brief(self._brief)
@@ -167,8 +186,7 @@ class Turn:
                                            self.time_limit, shown, attached,
                                            self.ledger.calls_left if self.call_limit else None,
                                            self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls))
-                self.stats.update_chars = len(self._update)
-                self.stats.update_reads = 1
+                self.note(Read("update", len(self._update)))
                 self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
                     self.exposure.read_update(self._update, shown)
@@ -219,10 +237,8 @@ class Turn:
                                           allowance=self.ledger.max_calls,
                                           must_act=self.stage.must_act and not self.ledger.acted)
         if not self._offered:
-            self.stats.tools_offered += len(tools)
             self._offered = True
-            if not self.peek:
-                env.diagnosis.offered(self, any(tool.kind == "act" for tool in tools))
+            self.note(Offered(len(tools), any(tool.kind == "act" for tool in tools)))
         self._tools = tools
         return tools
 
@@ -240,8 +256,7 @@ class Turn:
                 env._signal.notify_all()
             if self.exposure is not None:
                 self.exposure.called(name, args, result)
-            if isinstance(name, str) and not self.peek:
-                env.diagnosis.called(self, name, args, result)
+            self.note(Answered(name, args, result))
             return result
 
     def refusal(self) -> ToolResult | None:
@@ -272,22 +287,22 @@ class Turn:
         if not self.ledger.spend_call():
             self.done = True
             return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
-        self.stats.calls += 1
+        self.note(CALLED)
         env = self.env
         if not isinstance(name, str):
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return self._after(ToolResult(False, f"A tool name is text, got {type(name).__name__}. {self._offer()}",
                                           data=_INVALID))
         if args is not None and not isinstance(args, Mapping):
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return self._after(ToolResult(False, f"{name} was not done: {_not_an_object(args)}", data=_INVALID))
         if args is not None and REFUSED_ARGS in args:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return self._after(ToolResult(False, f"{name} was not done: {args[REFUSED_ARGS]}. Send plain arguments.",
                                           data=_INVALID))
         if name == END_TURN:
             if self._must_act():
-                self.stats.invalid_calls += 1
+                self.note(INVALID)
                 return self._after(ToolResult(False, f"You must act during {self.stage.name}. {self._offer()}",
                                               data=_INVALID))
             why = self.settle()
@@ -297,18 +312,17 @@ class Turn:
         available = stage_actions(env.contract, self.stage, self.actor.entity_type)
         spec = env.contract.actions.get(name)
         if spec is None or name not in available:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             why = "is not a tool" if spec is None else f"is not available during {self.stage.name}"
             return self._after(ToolResult(False, f"'{name}' {why}. {self._offer()}", data=_INVALID))
         if self.ledger.actions_left <= 0:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
         observed = env.world.luck.observe()
         acted, fault = env.rules.guarded(lambda: self._act(name, spec, args, observed), action=name)
         if acted is None:
             assert fault is not None
-            self.stats.rejected_actions += 1
-            self.stats.faulted_actions += 1
+            self.note(FAULTED)
             drew = observed.drew
             result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED), False
         else:
@@ -352,19 +366,19 @@ class Turn:
         env, rules = self.env, self.env.rules
         blocked = rules.blocked(self.actor, name, self.ledger.used)
         if blocked:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", observed, _INVALID),
                     False, False)
         args, cut = _cut(spec.params, args)
         params, problem = rules.validate(self.actor, name, args)
         if problem:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return (self._refused(name, f"{name} was not done: {problem}. Correct the arguments and call again.",
                                   observed, _INVALID), False, False)
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = rules.trial(self.actor, name, params)
             if refusal is not None:
-                self.stats.rejected_actions += 1
+                self.note(REJECTED)
                 return self._refused(name, refusal, observed, _REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.ledger.submitted(name, dict(args or {}), {"action": name, **_plain(params)})
@@ -373,7 +387,7 @@ class Turn:
         outcome = rules.apply(self.actor, name, params)
         drew = observed.drew  # checking the call drew nothing (it may not): what applying it drew
         if not outcome.ok:
-            self.stats.rejected_actions += 1
+            self.note(REJECTED)
             return self._refused(name, outcome.text, observed, _REJECTED), False, drew
         pending = self.ledger.pending
         pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
@@ -385,7 +399,7 @@ class Turn:
             raise
         files = self.attachments(outcome.assets)
         self.ledger.took(name)
-        self.stats.actions += 1
+        self.note(APPLIED)
         text, closes = _with_references(outcome.text, files), ended or self.ledger.actions_left <= 0
         settles = drew or closes or env.world.end_request is not None  # the part commits in this call
         if self.ledger.part_open and not settles and (spec.outcome or files):
@@ -419,9 +433,8 @@ class Turn:
         why, fault = self.env.rules.guarded(self._commit_turn, ledger.mark)
         if fault is not None:
             why = fault
-            self.stats.faulted_actions += 1
-        if why is not None:
-            self._undo()
+        if why is not None:  # the open part is undone; what the turn drew stays spent (see AttemptLedger.undo_part)
+            self.note(Undone(ledger.undo_part(), faulted=fault is not None))
             return why
         ledger.commit_part()
         self.env.rules.react(self.stage)
@@ -448,13 +461,6 @@ class Turn:
                 env.world.emit("outcome", f"Your turn was undone: {why}.", actor=self.actor.id, to=(self.actor.id,),
                                data={"ok": False, "undone": True})
                 env.world.journal.clear()
-
-    def _undo(self) -> None:
-        """Undo the turn's open part (see :meth:`AttemptLedger.undo_part`); what the turn drew stays spent."""
-        undone = self.ledger.undo_part()
-        self.stats.actions -= undone
-        self.stats.rejected_actions += undone
-        self.stats.undone_turns += 1
 
     def _undone(self, why: str, luck: str | None = None) -> ToolResult:
         if luck is None:
@@ -485,16 +491,16 @@ class Turn:
         """A look or an inspect: free within the turn's allowance, refused past it without spending a call."""
         allowance = self.ledger.max_calls
         self.ledger.reads_left -= 1
-        self.stats.calls += 1
+        self.note(CALLED)
         if self.ledger.reads_left < 0:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             stopped = self.ledger.reads_left < -allowance  # the backstop for a participant that only reads
             if stopped:
                 self.ledger.calls_left = 0
                 self.done = True
             return ToolResult(False, reads_refused(allowance, self._must_act(), stopped), stopped, dict(_INVALID))
         if args is not None and not isinstance(args, Mapping):
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return ToolResult(False, f"{name} was not done: arguments must be a JSON object of named values, "
                                      f"got {type(args).__name__}.", data=_INVALID)
         result = self._look(args) if name == "look" else self._inspect(args)
@@ -513,7 +519,7 @@ class Turn:
         name = (args or {}).get("view")
         looks = info.look_views(self.actor)
         if not isinstance(name, str) or name not in looks:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)
         shown = Shown() if self.exposure is not None else None
         attached: list[str] = []
@@ -526,7 +532,7 @@ class Turn:
     def _inspect(self, args: Mapping[str, Any] | None) -> ToolResult:
         found, text, files = self.env.information.inspect(self.actor, (args or {}).get("id"))
         if not found:
-            self.stats.invalid_calls += 1
+            self.note(INVALID)
             return ToolResult(False, text, data=_INVALID)
         return ToolResult(True, text, attachments=self.attachments(files))
 

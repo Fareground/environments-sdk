@@ -17,7 +17,7 @@ __all__ = ["Seen", "ROUND_TOKENS", "flat_measures", "aimless"]
 #: Prompt tokens (every agent turn's brief and update) one round may send models before a test warns: past it, a run
 #: with model agents costs a lot per round — usually each agent reading a list of every other one.
 ROUND_TOKENS = 100_000
-#: Characters per token, as :class:`~fg_env.runtime.measure.Stats` estimates them.
+#: Characters per token, as :class:`~fg_env.runtime.facts.Stats` estimates them.
 _CHARS_PER_TOKEN = 4
 #: Words that say what an agent is after: a goal, a win, something to make as large or small as it can.
 _GOAL = re.compile(r"\b(goals?|aims?|objectives?|purpose|wins?|winn(er|ing)|maximi[sz]e|minimi[sz]e|tr(y|ies|ying)|"
