@@ -67,6 +67,7 @@ def test_nonlinear_refinement_tracks_the_same_analytical_brownian_path(seed):
     assert abs(actual[0]-expected)/(1+abs(expected)) < 0.01
 
 
+@pytest.mark.slow
 def test_public_coupled_stochastic_dynamics_preserve_damped_difference_variance():
     # dX=-10(X-Y)dt+dW1; dY=10(X-Y)dt+dW2.
     # D=X-Y: dD=-20Ddt+sqrt(2)dW; Var(D(1))=(1-exp(-40))/20.

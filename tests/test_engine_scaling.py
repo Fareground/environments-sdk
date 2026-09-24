@@ -8,7 +8,11 @@ import gc
 import statistics
 import time
 
+import pytest
+
 import fg_env
+
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
 
 
 def _seconds(contract, participants, rounds=None):

@@ -2,10 +2,15 @@ PYTHON ?= python
 SCHEMA := schema/contract.schema.json
 RUN := PYTHONPATH=src $(PYTHON)
 
-.PHONY: test lint schema check-schema docs check-docs
+.PHONY: test test-fast lint schema check-schema docs check-docs
 
+# The whole suite: run it before every push.
 test:
 	$(RUN) -m pytest tests -q -n auto
+
+# Everything but the tests marked slow (statistical and engine-behaviour checks): the loop while iterating.
+test-fast:
+	$(RUN) -m pytest tests -q -n auto -m "not slow"
 
 lint:
 	ruff check src tests scripts

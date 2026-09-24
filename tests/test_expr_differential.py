@@ -31,6 +31,8 @@ from fg_env.expr import ExprError, Scope, Untrusted, compile_expr
 from fg_env.game.steps import apply_step, random_step
 from fg_env.template import compile_template, render
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 CONTRACTS = Path(__file__).parents[1] / "examples" / "contracts"
 EXAMPLES = sorted(CONTRACTS.glob("*.json"))
 GAMES = sorted((CONTRACTS / "games").glob("*.json"))

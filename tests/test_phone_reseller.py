@@ -12,6 +12,8 @@ import pytest
 
 import fg_env
 
+pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fast` leaves it out
+
 EXAMPLES = Path(__file__).parents[1] / "examples"
 CONTRACT = EXAMPLES / "contracts" / "phone_reseller.json"
 FOLDER = CONTRACT.parent / "phone_reseller"

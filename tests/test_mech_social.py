@@ -758,6 +758,7 @@ def test_town_hall_debates_amends_and_ends_on_the_vote():
     assert restored.run().to_dict() == amended.to_dict()
 
 
+@pytest.mark.slow
 def test_social_network_reports_reach_and_insularity_and_downranking_cuts_reach():
     path = EXAMPLES / "social_network.json"
     assert errors(path) == []

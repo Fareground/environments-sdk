@@ -24,6 +24,10 @@ PYTHONPATH=src python -m pytest tests -q -n auto   # straight from a checkout (s
 
 `-n auto` spreads the tests over every CPU core with pytest-xdist (part of the `dev` extra); the suite is
 several times faster that way. Leave it off (or use `-n 0`) to debug one test with `pdb` or `print` output.
+
+While iterating, `make test-fast` runs everything except the tests marked `slow` (statistical and engine-behaviour
+checks that take many seconds each) in a minute or two. Run the whole suite, `make test`, before every push. Mark a
+new test `@pytest.mark.slow` when it takes more than a few seconds on its own.
 `testpaths` is set to `tests` in `pyproject.toml`, so a bare `pytest` from the
 repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <expr>`.
 
@@ -108,8 +112,8 @@ Optional features may add dev-only dependencies under `[project.optional-depende
   `feat:`, `fix:`, `refactor:`, `docs:`, `test:`, `chore:`, `perf:`, `ci:`.
 - One logical change per PR; include tests for new behavior.
 - Update `CHANGELOG.md` under `## [Unreleased]`.
-- There is no CI test run: run `pytest -n auto`, `ruff check src tests scripts`, `mypy`, `make check-schema` and
-  `make check-docs` locally before pushing.
+- There is no CI test run: run the whole suite (`make test`), `ruff check src tests scripts`, `mypy`,
+  `make check-schema` and `make check-docs` locally before pushing.
 - **Commits must not include AI or assistant co-author attribution** — no
   `Co-authored-by` trailers or generated-by notices for any AI tool.
 

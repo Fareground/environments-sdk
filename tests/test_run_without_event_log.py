@@ -69,6 +69,7 @@ def _retained(rounds, events):
     return len(gc.get_objects()) - before
 
 
+@pytest.mark.slow
 def test_memory_stays_flat_however_long_the_run():
     short, long = _retained(10, events=False), _retained(40, events=False)
     assert long < short + 5_000, f"40 rounds kept {long:,} more objects, 10 rounds {short:,}"
