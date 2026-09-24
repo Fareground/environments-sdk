@@ -22,7 +22,7 @@ REFERENCE_MODELS = ("boltzmann_wealth", "schelling", "game_of_life", "forest_fir
                     "corner_shop_town")
 PHASES = ("events", "stages", "physics", "triggers", "invariants", "metrics", "other")
 
-_EXAMPLES = Path(__file__).resolve().parents[2] / "examples" / "contracts"
+_EXAMPLES = Path(__file__).resolve().parents[3] / "examples" / "contracts"
 
 
 @dataclass
