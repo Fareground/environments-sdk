@@ -22,7 +22,7 @@
       "id": "dispute",
       "title": "Dispute",
       "summary": "a civil trial: evidence, objections and cross-examination before a judge, then a jury verdict",
-      "description": "Simulates two sides offering (coded counsel lead with their strongest exhibits and now and then risk a flawed one), objecting to and cross-examining evidence before a judge; the parties, case, jury and exhibits are inputs; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
+      "description": "Simulates two sides offering (coded counsel lead with their strongest exhibits and now and then risk a flawed one), objecting to and cross-examining evidence before a judge; the parties, case, jury and exhibits are inputs; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury; a jury-room remark pulls toward what a bound judge host ('judge') reads in its words, and without one toward the speaker's own leaning, so an unjudged remark's words move nobody.",
       "status": "native",
       "path": "starters/civil_trial.json"
     },
@@ -43,7 +43,7 @@
       "id": "legislature",
       "title": "Legislature",
       "summary": "members move, second, amend, debate and vote on a measure",
-      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each member's view blends their starting stance with the floor speeches so far, their own party's counting more, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each member's view blends their starting stance with the floor speeches so far, their own party's counting more, and the outcome is passed, rejected, or the status quo when nothing comes to a vote; a speech counts for what a bound judge host ('judge') reads in its words, and without one for the speaker's own stance, so an unjudged speech's words move nobody.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
     },
@@ -59,7 +59,7 @@
       "id": "deliberation",
       "title": "Deliberation",
       "summary": "people exchange reasons, propose a conclusion and vote on it",
-      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each member's view blends their starting stance with the speeches so far, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each member's view blends their starting stance with the speeches so far, and the outcome is passed, rejected, or the status quo when nothing comes to a vote; a speech counts for what a bound judge host ('judge') reads in its words, and without one for the speaker's own stance, so an unjudged speech's words move nobody.",
       "status": "native",
       "path": "starters/open_deliberation.json"
     },

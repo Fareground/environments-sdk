@@ -33,6 +33,26 @@ def test_contest_without_a_judge_is_decided_by_skill_and_luck_and_says_so():
     assert run("contest", inputs={"participants": even, "luck": 0}).outputs["winner"] is None  # a true tie stays one
 
 
+def _judged(engine_id, direction, output, seeds=SEEDS):
+    """The mean of ``output`` when a bound judge hears every speech as arguing ``direction`` (-1 against, 1 for)."""
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get(engine_id).path)))
+    judge = StubEvaluator(lambda request: {"direction": direction, "strength": 1})
+    return statistics.fmean(float(fg_env.host.load(path, hosts={"judge": judge}, seed=s).run().outputs[output])
+                            for s in seeds)
+
+
+@pytest.mark.parametrize("engine_id, output", [("deliberation", "yes"), ("legislature", "yes"),
+                                               ("dispute", "jury_award")])
+def test_with_a_judge_bound_what_a_speech_says_moves_the_listeners(engine_id, output):
+    assert _judged(engine_id, 1, output) > _judged(engine_id, -1, output)
+
+
+def test_without_a_judge_coded_listeners_react_to_the_speakers_stance_and_the_run_stays_clean():
+    for engine_id in ("deliberation", "legislature", "dispute"):
+        result = run(engine_id)
+        assert result.status in ("completed", "ended") and "host_fallback" not in result.degraded, engine_id
+
+
 def test_contest_knows_it_was_judged_from_the_verdicts_not_the_host_tape():
     assert "host_tape" not in json.dumps(fg_env.engines.get("contest").source())
     path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("contest").path)))

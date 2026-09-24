@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Civil Trial Engine",
-  "description": "A civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room where each juror's speech pulls the others' leanings toward the speaker's, secret ballots and a judgment. The parties, the case, the jury and each side's exhibits are inputs; coded counsel lead with their strongest exhibits, sometimes risk a flawed one, and object to any the other side offers whose foundation shows a defect.",
+  "description": "A civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room where each juror's speech pulls the others' leanings toward where it points (what a bound judge host ('judge') reads in its words; without one, the speaker's own leaning, not what is said), secret ballots and a judgment. The parties, the case, the jury and each side's exhibits are inputs; coded counsel lead with their strongest exhibits, sometimes risk a flawed one, and object to any the other side offers whose foundation shows a defect.",
   "inputs": {
     "plaintiff": {
       "type": "text",
@@ -805,11 +805,21 @@
         },
         "$actor.spoke = true",
         {
+          "if": "$host_bound('judge')",
+          "then": {
+            "host": "remark_judge",
+            "action": "judge",
+            "text": "$'Case: ' + $inputs.case + ' Remark: ' + $params.text",
+            "subject": "$actor"
+          }
+        },
+        "$pull = $remark_lean($actor)",
+        {
           "each": "juror",
           "where": "$it.id != $actor.id",
           "do": [
             "$it.ready = false",
-            "$it.lean += $uniform(0, 2 * $inputs.persuasion) * ($actor.lean - $it.lean)"
+            "$it.lean += $uniform(0, 2 * $inputs.persuasion) * ($pull - $it.lean)"
           ]
         }
       ],
@@ -1003,7 +1013,7 @@
       "where": "$it.side == $actor.side",
       "sort": "$it.strength",
       "desc": true,
-      "show": "[{id}] {name} · {status} · true strength {strength|pct}{' · claimed ' + $text($round($it.claim * 100)) + '%' if $it.status != held else ''} · {summary} Foundation: {foundation}"
+      "show": "[{id}] {name} \u00b7 {status} \u00b7 true strength {strength|pct}{' \u00b7 claimed ' + $text($round($it.claim * 100)) + '%' if $it.status != held else ''} \u00b7 {summary} Foundation: {foundation}"
     },
     "opposing_exhibits": {
       "for": "attorney",
@@ -1011,7 +1021,7 @@
       "of": "exhibit",
       "where": "$it.side != $actor.side and $it.status != held",
       "sort": "$it.day",
-      "show": "[{id}] {name} · {status} · claimed {claim|pct} · pitch: {pitch} · {summary} Foundation: {foundation}",
+      "show": "[{id}] {name} \u00b7 {status} \u00b7 claimed {claim|pct} \u00b7 pitch: {pitch} \u00b7 {summary} Foundation: {foundation}",
       "empty": "Nothing offered yet."
     },
     "bench_exhibits": {
@@ -1020,7 +1030,7 @@
       "of": "exhibit",
       "where": "$it.status != held",
       "sort": "$it.day",
-      "show": "[{id}] {name} ({side}) · {status} · claimed {claim|pct} · {summary} Foundation: {foundation}{' · OBJECTION (' + $it.grounds + '): ' + $it.argument if $it.status == objected else ''}",
+      "show": "[{id}] {name} ({side}) \u00b7 {status} \u00b7 claimed {claim|pct} \u00b7 {summary} Foundation: {foundation}{' \u00b7 OBJECTION (' + $it.grounds + '): ' + $it.argument if $it.status == objected else ''}",
       "empty": "No exhibits offered yet."
     },
     "verdict_status": {
@@ -1034,7 +1044,7 @@
       "title": "Admitted evidence and how it struck you",
       "of": "impression",
       "where": "$it.juror == $actor.id",
-      "show": "{title} ({side}) — {summary} Counsel claimed credibility {claim|pct}; pitch: {pitch}. To you it seemed {feel}.",
+      "show": "{title} ({side}) \u2014 {summary} Counsel claimed credibility {claim|pct}; pitch: {pitch}. To you it seemed {feel}.",
       "empty": "No evidence was admitted."
     },
     "court_record": {
@@ -1248,9 +1258,40 @@
       ],
       "expr": "$top(exhibit, $it.strength - (0 if $it.defect == clean else 0.3) + $normal_for([$it.id, $world.trial_round], 0, 0.1), 1, $it.side == $counsel.side and $it.status == held)[0]",
       "description": "The exhibit coded counsel offer next: their strongest by their own read of it that day, a flawed one marked down for the risk of exclusion, so they lead with clean exhibits and now and then risk a strong flawed one."
+    },
+    "remark_lean": {
+      "args": [
+        "speaker"
+      ],
+      "expr": "$last($records(remark_judge)).scores.direction * $last($records(remark_judge)).scores.strength if $host_bound('judge') else $speaker.lean",
+      "description": "Where a jury-room remark pulls the other jurors: the bound judge's reading of its words, else the speaker's own leaning."
     }
   },
   "mechanisms": {
+    "remark_judge": {
+      "kind": "host",
+      "mode": "judge",
+      "host": "judge",
+      "visible": "false",
+      "notify": false,
+      "instructions": "Read one juror's remark in the jury room of the civil case given with it. Score which side it argues for and how persuasive it is to a thoughtful fellow juror, on its words alone.",
+      "criteria": {
+        "direction": {
+          "description": "Which side the remark argues for: -1 firmly the defense, 0 neutral or mixed, 1 firmly the plaintiff.",
+          "scale": [
+            -1,
+            1
+          ]
+        },
+        "strength": {
+          "description": "How persuasive the remark is: 0 not at all, 1 compelling.",
+          "scale": [
+            0,
+            1
+          ]
+        }
+      }
+    },
     "trial": {
       "kind": "flow",
       "mode": "procedure",
