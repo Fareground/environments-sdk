@@ -329,7 +329,6 @@ class ActionBook(ActionSchemas, ActionValidation):
             if trial:
                 if announce is not None and not spec.private:
                     self._render(announce, {**vars, "viewer": EVERYONE}, f"{path}.announce")
-                world.touch()  # the announcement would have changed the state version
             elif not spec.private:
                 public = {} if self._sealed() else \
                     self._public_params(params, self._posted_since(record_mark), self._kept_secret(name))

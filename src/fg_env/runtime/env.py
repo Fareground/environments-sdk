@@ -13,7 +13,7 @@ from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..actions.book import ActionBook
-from ..actions.reads import InspectCache, inspect_rule
+from ..actions.reads import inspect_rule
 from ..assets.store import AssetStore
 from ..contract import MAX_ROUNDS, Contract
 from ..copying.previews import Previews
@@ -89,7 +89,6 @@ class Env(RunChecks, RunRounds, RunStages):
         self.error: str | None = None
         self._memories: dict[str, Memory] = {}
         self._briefs: dict[str, str] = {}
-        self._inspect_cache: InspectCache | None = None
         #: The assets each agent's brief attaches (fixed with the brief text).
         self._brief_assets: dict[str, list[str]] = {}
         self._used_round: dict[str, dict[str, int]] = {}
