@@ -7,9 +7,9 @@ reads, a coded policy rule whose call is refused every time it is tried, a host'
 fallback stand-ins because no host was bound. These are read from what the run counted (:mod:`fg_env.runtime.diagnosis`)
 and reported on ``RunResult.diagnostics``, in ``result.summary()`` and as warnings from ``fg_env.check``. Each is
 reported only on evidence that random play cannot explain away, so a clean contract raises none. Turns an LLM
-participant forfeited to a failing model provider, agents that never acted or most of whose turns failed, and a run its
-budget cut short are reported too: such a run does not show how its agents play (any failed turns of a model
-participant, or turns out of time, are reported with their rate).
+participant forfeited to a failing model provider, agents that never acted or too many of whose turns failed (for a
+model participant, a small share), and a run its budget cut short are reported too: such a run does not show how its
+agents play (any failed turns of a model participant, or turns out of time, are reported with their rate).
 """
 from __future__ import annotations
 
@@ -22,7 +22,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .env import Env
 
-__all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", "ALWAYS_FAULTED", "FAILED_SHARE"]
+__all__ = ["diagnose", "DEGRADING", "MIN_CALLS", "REFUSED_SHARE", "MIN_ROUNDS", "ALWAYS_FAULTED", "FAILED_SHARE",
+           "MODEL_FAILED_SHARE"]
 
 #: In a run with model participants (which report their usage), an action called this often and mostly refused is
 #: reported; random and coded agents choose blindly, so their refusals say nothing about the tools.
@@ -34,13 +35,17 @@ MIN_ROUNDS = 2
 #: some.
 ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, agents that
-#: never acted or whose turns mostly failed, agents that never had an action to take, turns lost to a failing provider,
-#: an output that raised an error, a run its budget cut short, host answers that were the contract's stand-ins.
+#: never acted or too many of whose turns failed, agents that never had an action to take, turns lost to a failing
+#: provider, an output that raised an error, a run its budget cut short, host answers that were the contract's
+#: stand-ins.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
-DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "agents_mostly_failed",
+DEGRADING = frozenset({"action_always_faulted", "agents_never_acted", "agents_often_failed",
                        "agents_never_able_to_act", "turns_forfeited", "output_failed", "budget_cut", "host_fallback"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
+#: The same for a model participant, held to a much lower share: every failed turn of a model is a move it never made
+#: (a coded or random agent's misses may be blind choices, so it is held to :data:`FAILED_SHARE`).
+MODEL_FAILED_SHARE = 0.1
 #: Agents named in one finding; the rest are counted.
 _LISTED = 5
 
@@ -104,12 +109,12 @@ def _out_of_steps(env: Env) -> list[dict[str, str]]:
 
 
 def _never_acted(env: Env) -> list[dict[str, str]]:
-    """Agents that tried — called a model, or tools that were invalid or refused — and none of it ever became an
-    action, and model-driven agents (or ones whose turns ran out of time) most or some of whose turns failed that way.
-    A coded agent's misses are its author's code
-    and may be blind (random play): it is reported only when no agent acted at all. (Refusals from a rule that failed
-    are the contract's: `action_always_faulted` reports those; an agent type that never had an action,
-    `agents_never_able_to_act`.)"""
+    """Agents whose attempts all went wrong — tools that were invalid or refused, model replies refused, cut off, with
+    no tool call or out of steps — so none ever became an action, and model-driven agents (or ones whose turns ran out
+    of time) too many or some of whose turns failed that way. A model that passes (`end_turn`) where passing is allowed
+    made a move: it is not reported. A coded agent's misses are its author's code and may be blind (random play): it
+    is reported only when no agent acted at all. (Refusals from a rule that failed are the contract's:
+    `action_always_faulted` reports those; an agent type that never had an action, `agents_never_able_to_act`.)"""
     if not env.finished:
         return []
     never_able = {kind for kind, entry in sorted(env.diagnosis.agents.items()) if not entry["able"]}
@@ -120,11 +125,13 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
         if not stats.wakes or (entity is not None and entity.entity_type in never_able):
             continue
         refused = stats.rejected_actions - stats.faulted_actions
-        tried = stats.llm_calls or stats.invalid_calls or refused or stats.refusals
+        went_wrong = (stats.invalid_calls or refused or stats.refusals or stats.truncated or stats.out_of_steps
+                      or stats.no_tool_replies)
         watched = stats.llm_calls or stats.timeouts  # a model's misses, and turns out of time, are never blind choices
-        if not stats.actions and tried and (stats.llm_calls or nobody_acted):
+        share = MODEL_FAILED_SHARE if stats.llm_calls else FAILED_SHARE
+        if not stats.actions and went_wrong and (stats.llm_calls or nobody_acted):
             never.append((agent, stats))
-        elif watched and stats.failed_turns > FAILED_SHARE * stats.wakes:
+        elif watched and stats.failed_turns > share * stats.wakes:
             failing.append((agent, stats))
         elif watched and stats.failed_turns:
             some.append((agent, stats))
@@ -138,11 +145,11 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
                             "always refused needs clearer tools and brief"))
     if failing:
         listed = ", ".join(f"{agent} {s.failed_turns} of {s.wakes}" for agent, s in failing[:_LISTED])
-        out.append(_finding("agents_mostly_failed", "participants",
-                            f"most turns of {_named(failing)} ended with no action though one was available, after "
-                            "invalid or refused calls, a model refusal, a reply cut off or with no tool call, or the "
-                            f"model calls used up ({listed}); {_attempts(failing)}; this run does not show how they "
-                            "play",
+        out.append(_finding("agents_often_failed", "participants",
+                            f"too many turns of {_named(failing)} failed: they ended with no action though one was "
+                            "available, after invalid or refused calls, a model refusal, a reply cut off or with no "
+                            f"tool call, or the model calls used up, or a model reply was refused or cut off ({listed}"
+                            f"); {_attempts(failing)}; this run does not show how they play",
                             "read what those agents were shown and did (load with exposures=True, then "
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
                             "calls used up, more `max_steps` or clearer tools; for replies with no tool call, a brief "
@@ -150,8 +157,7 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
     if some:
         failed, wakes = sum(s.failed_turns for _, s in some), sum(s.wakes for _, s in some)
         out.append(_finding("some_turns_failed", "participants",
-                            f"{failed} of {wakes} turns ({failed / wakes:.0%}) of {_named(some)} ended with no action "
-                            f"though one was available "
+                            f"{failed} of {wakes} turns ({failed / wakes:.0%}) of {_named(some)} failed "
                             f"({', '.join(f'{agent} {s.failed_turns} of {s.wakes}' for agent, s in some[:_LISTED])}): "
                             f"{_attempts(some)}{_timeouts(some)}",
                             "read those turns (load with exposures=True, then result.exposures); turns out of time "

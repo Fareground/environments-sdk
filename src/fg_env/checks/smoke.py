@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..contract import MAX_ENTITIES, Contract
 from ..errors import Issue
+from ..expr import ExprError, compile_expr
 from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _seed_for, sample_args
 from ..runtime.diagnostics import MIN_CALLS
 from ..runtime.measure import RunResult
@@ -23,10 +24,12 @@ if TYPE_CHECKING:
 
 __all__ = ["SMOKE_ROUNDS", "EdgeAgent", "smoke_issues", "run_issue"]
 
-#: Rounds each play lasts when the caller names none (fewer when the run ends sooner).
+#: Rounds each play lasts when the caller names none (fewer when the run ends sooner; more to reach the last round a
+#: one-off event is scheduled for).
 SMOKE_ROUNDS = 12
-#: Wall-clock seconds the plays of a default check share; every play still plays its first round.
-_SMOKE_SECONDS = 2.0
+#: Wall-clock seconds the plays of a default check share at most: a guard against a contract too slow to play, not a
+#: budget — within it every check plays the same rounds, and a play it cuts short is reported.
+_GUARD_SECONDS = 30.0
 #: Entities gained per round late in the random play against early, above which the population is taken to compound
 #: (agents creating agents) rather than grow by a steady amount (which is assumed when unsure: it projects less).
 _COMPOUNDING = 1.5
@@ -42,17 +45,20 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     everything they are shown, then with agents that choose boundary values, then with every agent idle (as when a
     model times out or refuses), then with each policy playing every agent type (its rules for actions a type cannot
     take are skipped for that type).
-    ``rounds`` None plays up to :data:`SMOKE_ROUNDS` rounds within a few seconds in all; a number plays exactly that
-    many rounds. An action that was called in these plays and never once succeeded is reported too."""
+    ``rounds`` None plays :data:`SMOKE_ROUNDS` rounds, or up to the last round a one-off event (`at`, a market's
+    resolution) is scheduled for, so each such event is played; a wall-clock guard stops a play too slow to finish, and
+    says so. A number plays exactly that many rounds. An action that was called in these plays and never once succeeded
+    is reported too."""
     agents = contract.agent_types()
     policies = [(name, agents) for name in contract.policies] if agents else []
-    seconds = _SMOKE_SECONDS / (3 + len(policies)) if rounds is None else None
+    seconds = _GUARD_SECONDS / (3 + len(policies)) if rounds is None else None
     errors: list[Issue] = []
     warnings: list[Issue] = []
     played: list[Env] = []
 
     census = _Census()
     random_env = _kept(build(), played)
+    rounds = _default_rounds(random_env) if rounds is None else rounds
     random_play = _play(random_env, {"*": _reading(RandomAgent(seed))}, rounds, seconds, census)
     census.take(random_env)
     _failure(random_play, "random agents", errors)
@@ -70,7 +76,8 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
                           found["fix"], "warning")
                     for found in edge_play.diagnostics if found["code"] in _EDGE_FINDINGS
                     and found["path"] not in reported)
-    idle_play = _play(build(), {"*": "idle"}, rounds, seconds)
+    idle_env = build()
+    idle_play = _play(idle_env, {"*": "idle"}, rounds, seconds)
     _failure(idle_play, "agents that never act", errors,
              "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
              "the rules allow, or guard the rule for it")
@@ -84,7 +91,29 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
                         if found["code"] == "policy_rule_never_acted" and found["path"].startswith(f"policies.{name}."))
     reported = {issue.path for issue in errors + warnings}
     warnings.extend(issue for issue in _never_succeeded(contract, played) if issue.path not in reported)
+    cut = [env for env in played + [idle_env] if env.status == "stopped"]
+    if cut:
+        warnings.append(Issue("(check)", f"a smoke play was cut short by the time guard ({seconds:.0f} s a play) in "
+                                         f"round {min(env.round for env in cut)} of {rounds}, so later rounds went "
+                                         "unchecked: the contract plays slowly",
+                              "check a smaller population or fewer rounds (`rounds=`), or profile the rules each "
+                              "round runs", "warning"))
     return errors, warnings
+
+
+def _default_rounds(env: Env) -> int:
+    """The rounds a default check plays: :data:`SMOKE_ROUNDS`, or up to the last round a one-off event is scheduled
+    for (``at``, which a mechanism's scheduled resolution is too), within the run's own rounds."""
+    last = SMOKE_ROUNDS
+    for event in env.contract.events:
+        try:
+            at = compile_expr(event.at)(env.world.scope()) if isinstance(event.at, str) else event.at
+        except ExprError:
+            continue  # a bad `at` is the static check's to report
+        for moment in at if isinstance(at, list) else [at]:
+            if isinstance(moment, int) and not isinstance(moment, bool):
+                last = max(last, moment)
+    return min(last, env.world.rounds)
 
 
 def _kept(env: Env, played: list[Env]) -> Env:
@@ -160,11 +189,10 @@ def run_issue(message: str) -> Issue:
     return Issue(path or "(run)", message, "fix the rule at this path (found by a smoke run)")
 
 
-def _play(env: Env, participants: Any, rounds: int | None, seconds: float | None,
+def _play(env: Env, participants: Any, rounds: int, seconds: float | None,
           census: _Census | None = None) -> RunResult:
-    """Play ``rounds`` rounds; or, when ``seconds`` is set, up to :data:`SMOKE_ROUNDS` rounds while time is left —
-    the first round always, then stopping in the round that is under way when time runs out. ``census`` counts the
-    living entities as the play goes."""
+    """Play ``rounds`` rounds — when ``seconds`` guards the play, stopping (status "stopped") in the round under way
+    when they run out, after the first. ``census`` counts the living entities as the play goes."""
     deadline = time.monotonic() + seconds if seconds is not None else None
 
     def stop(e: Env) -> bool:
@@ -172,7 +200,7 @@ def _play(env: Env, participants: Any, rounds: int | None, seconds: float | None
             census.take(e)
         return deadline is not None and e.round > 1 and time.monotonic() > deadline
 
-    return env.run(participants, rounds=SMOKE_ROUNDS if seconds is not None else rounds, stop=stop)
+    return env.run(participants, rounds=rounds, stop=stop)
 
 
 class _Census:

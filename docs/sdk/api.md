@@ -52,13 +52,14 @@ A contract without errors is also built and played, so problems that only appear
 rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
 everything they are shown, once with agents that choose boundary values (a parameter's least value, zero, its
 greatest), once with every agent idle (a turn that passes without an action, as when a model times out or refuses,
-must not break the rules), then once per declared policy, played by the agent types whose default it is (or else
-those that can take every action it takes). An action called in these plays that never once succeeded is reported
-too. By default each play lasts up to 12 rounds (fewer when the run ends sooner) and all of them share a few
-seconds; ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a ``source`` are
-read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract asks of a host
-during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied inputs are
-validated even with ``rounds=0``, and the plays exercise them.
+must not break the rules), then once per declared policy, played by every agent type (a rule whose action a type
+cannot take is skipped for it). An action called in these plays that never once succeeded is reported too. By
+default each play lasts 12 rounds (fewer when the run ends sooner; more to reach the last round a one-off event is
+scheduled for), the same on every machine: a time guard stops only a contract too slow to play, and is reported
+when it does. ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a
+``source`` are read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract
+asks of a host during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied
+inputs are validated even with ``rounds=0``, and the plays exercise them.
 
 ## `parse`
 

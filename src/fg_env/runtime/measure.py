@@ -62,7 +62,7 @@ class Stats:
     faulted_actions: int = 0
     #: Turns that ended with an action available and none taken after the agent's attempts went wrong: invalid or
     #: refused calls, a model refusal, a reply cut off or with no tool call, its model calls used up — or it ran out of
-    #: time.
+    #: time; and turns in which the provider refused or cut off a model reply, whatever else the turn did.
     failed_turns: int = 0
 
     def add(self, other: Stats) -> None:

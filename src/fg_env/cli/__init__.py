@@ -141,7 +141,7 @@ def _checked(path: str, rounds: int | None) -> str:
     if rounds is not None and rounds <= 0:
         played = " (static checks only)"
     else:
-        length = f"up to {SMOKE_ROUNDS} rounds" if rounds is None else f"{rounds} round(s)"
+        length = f"{SMOKE_ROUNDS} rounds (or to the last scheduled event)" if rounds is None else f"{rounds} round(s)"
         policies = " and with each policy" if contract.policies else ""
         played = f" and played {length} with random agents, with idle agents{policies}"
     clock = contract.clock
