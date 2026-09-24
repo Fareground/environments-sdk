@@ -156,7 +156,7 @@ class Diagnosis:
 
     def offered(self, turn: Turn, has_action: bool) -> None:
         """A fresh turn's tools were read: note whether the agent had any action it could take, and if not why."""
-        if turn.actions_left < turn.max_actions or turn.intents:
+        if turn.ledger.acted:
             return
         entry = self.agents.setdefault(turn.actor.entity_type,
                                        {"wakes": 0, "able": 0, "rounds": 0, "last_round": 0, "reasons": {}})
@@ -170,7 +170,7 @@ class Diagnosis:
         env, actor = turn.env, turn.actor
         used_round = env.world.used_round.get(actor.id, {})
         for name in stage_actions(env.contract, turn.stage, actor.entity_type):
-            why = env.actions.blocked(actor, name, turn.used, used_round, offered=True)
+            why = env.actions.blocked(actor, name, turn.ledger.used, used_round, offered=True)
             if why:
                 _tally(entry["reasons"], f"{name}: {why}")
                 return
@@ -219,9 +219,9 @@ def usable(turn: Turn, name: str) -> bool | None:
     when that cannot be told (the action is not offered, a parameter is free text or unbounded, or there are too
     many combinations)."""
     env, actor = turn.env, turn.actor
-    if turn.actions_left <= 0 or name not in stage_actions(env.contract, turn.stage, actor.entity_type):
+    if turn.ledger.actions_left <= 0 or name not in stage_actions(env.contract, turn.stage, actor.entity_type):
         return None
-    if env.actions.blocked(actor, name, turn.used, env.world.used_round.get(actor.id, {})) is not None:
+    if env.actions.blocked(actor, name, turn.ledger.used, env.world.used_round.get(actor.id, {})) is not None:
         return None
     found = _axes(env.actions.tool(actor, name, turn.staged).input_schema)
     if found is None:

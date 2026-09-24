@@ -289,11 +289,11 @@ class Driver:
             turn.done = True
             env.origin.tape.closed(turn.number)
             stats = turn.stats
-            if stats.actions == 0 and not turn.intents:
+            if stats.actions == 0 and not turn.ledger.intents:
                 stats.idle_turns += 1
                 went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
                                   or stats.out_of_steps or stats.no_tool_replies)
-                had_to = turn.stage.must_act or turn.calls_left <= 0
+                had_to = turn.stage.must_act or turn.ledger.calls_left <= 0
                 if (went_wrong or had_to or turn.timed_out) and turn.actor.alive and turn._legal():
                     stats.failed_turns += went_wrong or turn.timed_out  # an action was there to take
                     turn.did_not_act = had_to and not turn.timed_out  # a timeout is reported as one
@@ -308,7 +308,7 @@ class Driver:
         return self.env.world.luck.turn_stream(turn.round, turn.number)
 
     def _inline(self, turn: Turn, participant: Participant, rng: Any) -> Any:
-        with self.env.world.luck.turn_context(rng, turn.pending):
+        with self.env.world.luck.turn_context(rng, turn.ledger.pending):
             try:
                 return _answer(turn, participant(Wake(turn)))
             except (RunError, ExprError):
@@ -367,7 +367,7 @@ class Driver:
         rng = self._rng(turn)
         if is_async(participant):
             try:
-                with self.env.world.luck.turn_context(rng, turn.pending, turn.deadline):
+                with self.env.world.luck.turn_context(rng, turn.ledger.pending, turn.deadline):
                     answer = participant(Wake(turn))  # an async def runs nothing until awaited
             except BaseException as exc:
                 self._land(flight, exc)
@@ -381,7 +381,7 @@ class Driver:
     def _thread(self, flight: _Flight, participant: Participant, rng: Any) -> None:
         turn = flight.turn
         try:
-            with self.env.world.luck.turn_context(rng, turn.pending, turn.deadline):
+            with self.env.world.luck.turn_context(rng, turn.ledger.pending, turn.deadline):
                 answer = _answer(turn, participant(Wake(turn)))
         except BaseException as exc:  # handed to the engine's thread, which reports it
             self._land(flight, exc)
@@ -407,7 +407,7 @@ class Driver:
             return
 
         async def play() -> None:
-            with world.luck.turn_context(rng, turn.pending, turn.deadline):
+            with world.luck.turn_context(rng, turn.ledger.pending, turn.deadline):
                 _answer(turn, await answer)
 
         coroutine = play()

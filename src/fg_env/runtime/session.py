@@ -251,11 +251,11 @@ class Wake:
 
     @property
     def calls_left(self) -> int:
-        return self._turn.calls_left
+        return self._turn.ledger.calls_left
 
     @property
     def actions_left(self) -> int:
-        return self._turn.actions_left
+        return self._turn.ledger.actions_left
 
     def __repr__(self) -> str:
         return f"<Wake {self.entity_id} round {self.round} stage {self.stage!r}{' done' if self.done else ''}>"

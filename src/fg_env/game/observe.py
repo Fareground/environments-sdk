@@ -93,9 +93,9 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
             if block:
                 lines.append(block)
     sealed = [item for staged in env.origin.staged if staged.actor is actor and not staged.done
-              for item in staged.pending]
+              for item in staged.ledger.pending.items]
     if turn is not None and turn.actor is actor and turn.staged and not sealed:
-        sealed = list(turn.pending)
+        sealed = list(turn.ledger.pending.items)
     if sealed:
         lines.append("Sealed this turn: " + "; ".join(json.dumps(encode(item), sort_keys=True, default=str)
                                                       for item in sealed))

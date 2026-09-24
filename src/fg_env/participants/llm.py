@@ -316,7 +316,7 @@ class _LLMParticipant:
             return None
         if asked or (truncated and not self.retry_truncated):
             turn = wake._turn
-            if asked and not truncated and not turn.stats.actions and not turn.intents:
+            if asked and not truncated and not turn.stats.actions and not turn.ledger.intents:
                 self._record(wake, no_tool_replies=1)
             return None
         return _TRUNCATED if truncated else _nudge(wake)

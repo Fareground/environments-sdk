@@ -70,7 +70,7 @@ def _whole(text: str, name: str) -> int:
 
 def _turn_seed(seed: int, wake: Wake) -> int:
     turn = wake._turn
-    raw = repr((seed, turn.actor.id, turn.round, turn.number, turn.calls_left)).encode()
+    raw = repr((seed, turn.actor.id, turn.round, turn.number, turn.ledger.calls_left)).encode()
     return int.from_bytes(hashlib.sha256(raw).digest()[:8], "big")
 
 

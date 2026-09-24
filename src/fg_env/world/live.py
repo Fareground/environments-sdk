@@ -367,8 +367,8 @@ class SdkWorld(World):
 
     def _version(self, here: Context) -> Any:
         """:meth:`state_version` as the running context ``here`` sees it."""
-        pending = here.pending
-        return (self.journal.version, self.round, self.stage, id(pending), len(pending or ()))
+        pending = here.pending  # a turn's (runtime/ledger.py Pending), or None
+        return (self.journal.version, self.round, self.stage, pending.version if pending is not None else 0)
 
     def _def_key(self, name: str, args: list[Any], viewer: Any) -> tuple[Any, ...] | None:
         """A cache key for a def call, or None when the call cannot be cached."""
@@ -420,7 +420,7 @@ class SdkWorld(World):
             "outputs": self.metrics,
             "series": self.series,
             "arm": self.arm,
-            "pending": here.pending or [],
+            "pending": here.pending.items if here.pending is not None else [],
         }
         base.update(values)
         return Scope(base, self)

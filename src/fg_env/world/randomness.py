@@ -154,7 +154,7 @@ class Randomness:
     @contextmanager
     def turn_context(self, rng: Any, pending: Any, deadline: float | None = None) -> Iterator[None]:
         """Inside the block — in this thread or asyncio task only — draws come from ``rng``, ``$pending`` reads
-        ``pending`` (the turn's list of what it did or submitted, or None) and the turn ends at ``deadline``
+        ``pending`` (a :class:`~fg_env.runtime.ledger.Pending`, or None) and the turn ends at ``deadline``
         (``time.monotonic()``; None: no limit), which host calls made in it respect. Blocks nest (a reaction inside a
         turn) and restore on exit."""
         token = _CURRENT.set((self, Context(rng, pending, deadline)))

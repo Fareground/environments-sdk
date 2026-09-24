@@ -85,7 +85,7 @@ class HostWake(Wake):
     def tools(self) -> list[ToolSpec]:
         turn = self._turn
         base = [tool for tool in turn.tools() if tool.name not in self._extras]
-        if turn.done or turn.calls_left <= 0:
+        if turn.done or turn.ledger.calls_left <= 0:
             return self._offer(base)
         extra = [self._spec(name) for name in self._extras if self._available(name) is None]
         return self._offer([t for t in base if t.kind != "end"] + extra + [t for t in base if t.kind == "end"])
@@ -107,7 +107,7 @@ class HostWake(Wake):
             refused = turn.refusal()
             if refused is not None:
                 return refused
-            if turn.calls_left <= 0:
+            if turn.ledger.calls_left <= 0:
                 turn.record(*step)
                 turn.done = True
                 return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
@@ -135,7 +135,7 @@ class HostWake(Wake):
         turn = self._turn
         turn.record(*step)
         turn._tools = None
-        turn.calls_left -= 1
+        turn.ledger.spend_call()
         turn.stats.calls += 1
 
     def _available(self, name: str) -> str | None:

@@ -67,12 +67,9 @@ _WORLD_FIELDS = frozenset({
 #: Mechanisms keep plain data of their own on the world under these prefixes.
 _WORLD_STORES = ("_channel_visible:",)
 _TURN_FIELDS = frozenset({
-    "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_brief", "_update",
-    "max_actions", "max_calls", "calls_left",
-    "reads_left", "_reads", "did_not_act", "actions_left", "done", "used", "intents", "pending", "stats",
-    "_offered", "_tools", "time_limit",
-    "deadline", "timed_out", "closed", "busy", "tallied", "atomic", "_mark", "_part", "_counted", "_held", "_committed",
-    "number", "exposure", "_delivered"})
+    "env", "actor", "stage", "reason", "staged", "peek", "round", "_since", "_brief", "_update", "ledger",
+    "_reads", "did_not_act", "done", "stats", "_offered", "_tools", "time_limit", "deadline", "timed_out", "closed",
+    "busy", "tallied", "number", "exposure", "_delivered"})
 _WAKE_FIELDS = frozenset({"_turn", "_extras", "_used"})
 _RECORD_LISTS = ("views", "news", "entries", "view_events", "tools", "tool_sets", "calls")
 
@@ -88,7 +85,7 @@ def copy_run(source: SteppedEnv, waiting: Waiting | None) -> tuple[SteppedEnv, W
     def turn_of(turn: Turn) -> Turn:
         copied = turns.get(id(turn))
         if copied is None:
-            copied = turns[id(turn)] = _copy_turn(turn, env, world.entities, exposures)
+            copied = turns[id(turn)] = _copy_turn(turn, env, world, exposures)
         return copied
 
     env.__dict__.update(
@@ -271,17 +268,16 @@ def _rebound(source: Any, **changes: Any) -> Any:
     return part
 
 
-def _copy_turn(source: Turn, env: SteppedEnv, entities: dict[str, Entity], log: ExposureLog | None) -> Turn:
+def _copy_turn(source: Turn, env: SteppedEnv, world: SdkWorld, log: ExposureLog | None) -> Turn:
     unknown = set(vars(source)) - _TURN_FIELDS
-    if unknown or source._mark is not None or source.busy or source.deadline is not None or source.peek:
+    if unknown or source.ledger.part_open or source.busy or source.deadline is not None or source.peek:
         raise NotCopyable(f"a turn in progress cannot be copied directly ({sorted(unknown) or 'uncommitted or timed'})")
     turn = Turn.__new__(Turn)
     turn.__dict__.update(source.__dict__)
-    actor = entities[source.actor.id]
+    actor = world.entities[source.actor.id]
     turn.__dict__.update(
-        env=env, actor=actor, used=dict(source.used), intents=list(source.intents), pending=list(source.pending),
-        stats=_copy_stats(source.stats), _tools=None, _counted=list(source._counted), _held=list(source._held),
-        _committed=list(source._committed), _delivered=list(source._delivered),
+        env=env, actor=actor, ledger=source.ledger.copy(world), stats=_copy_stats(source.stats), _tools=None,
+        _delivered=list(source._delivered),
         exposure=_copy_exposure(source.exposure, log) if source.exposure is not None else None)
     return turn
 

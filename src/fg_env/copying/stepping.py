@@ -200,7 +200,7 @@ class Stepper:
         waiting = self._waiting
         if waiting is None:
             return fn(env)
-        with env.world.luck.turn_context(waiting.rng, waiting.wake._turn.pending):
+        with env.world.luck.turn_context(waiting.rng, waiting.wake._turn.ledger.pending):
             return fn(env)
 
     def read_prefetched(self) -> Any:
@@ -297,7 +297,7 @@ class Stepper:
     def _call_now(self, name: str, args: Any) -> ToolResult:
         env, waiting = self._run(), self._waiting
         assert waiting is not None
-        with env.world.luck.turn_context(waiting.rng, waiting.wake._turn.pending):
+        with env.world.luck.turn_context(waiting.rng, waiting.wake._turn.ledger.pending):
             try:
                 result = waiting.wake.call(name, args)
             except (RunError, ExprError) as exc:  # the rules failed: the run fails, as it would for a participant

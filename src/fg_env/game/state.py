@@ -457,9 +457,10 @@ class GameState:
                     "outcomes": [[o.label, o.p] for o in pause.node.outcomes]}
         turn = self._turn()
         assert turn is not None
-        sealed = {t.actor.id: encode(t.pending) for t in env.origin.staged}
-        return {"actor": turn.actor.id, "stage": turn.stage.name, "calls_left": turn.calls_left,
-                "actions_left": turn.actions_left, "pending": encode(turn.pending), "used": dict(turn.used),
+        sealed = {t.actor.id: encode(t.ledger.pending.items) for t in env.origin.staged}
+        ledger = turn.ledger
+        return {"actor": turn.actor.id, "stage": turn.stage.name, "calls_left": ledger.calls_left,
+                "actions_left": ledger.actions_left, "pending": encode(ledger.pending.items), "used": dict(ledger.used),
                 "sealed": sealed}
 
 

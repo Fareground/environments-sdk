@@ -255,7 +255,7 @@ def _reads(turn: Turn) -> list[tuple[str, str, dict[str, Any]]]:
     type it may inspect (a different one each round)."""
     env, actor = turn.env, turn.actor
     reads = [("look", view, {"view": view}) for view in env.perception.look_views(actor)]
-    if inspect_tool(env, actor, turn.max_calls) is not None:
+    if inspect_tool(env, actor, turn.ledger.max_calls) is not None:
         members: dict[str, list[str]] = {}
         for entity in inspectable(env, actor):
             members.setdefault(entity.entity_type, []).append(entity.id)

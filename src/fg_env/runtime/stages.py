@@ -250,12 +250,12 @@ class RunStages:
                 mark = self.world.journal.mark() if atomic else None
                 applied = 0
                 writes.writer = turn.actor.name or turn.actor.id
-                for name, args in turn.intents:
+                for name, args in turn.ledger.intents:
                     if self._ended() and mark is None:
                         return
                     writes.action = name
                     applied += self._commit_intent(turn, name, args, deferred=mark is not None)
-                acted = bool(turn.intents)
+                acted = bool(turn.ledger.intents)
                 if mark is not None:
                     acted = self._settle_choices(turn, mark, applied)
                     if self._ended():
@@ -272,7 +272,7 @@ class RunStages:
         world, stage = self.world, turn.stage
 
         def commit() -> str | None:
-            with world.luck.turn_context(None, turn.pending):
+            with world.luck.turn_context(None, turn.ledger.pending):
                 why = turn.invalid() if applied else None
             if why is None:
                 self._after_commit(f"stages.{stage.name}")
@@ -284,7 +284,7 @@ class RunStages:
                 why = fault
             if why is None:
                 self.happenings.react(stage)
-                return bool(turn.intents)
+                return bool(turn.ledger.intents)
             world.journal.rollback(mark)
             world.emit("outcome", f"Your choices were undone: {why}.", actor=turn.actor.id, to=(turn.actor.id,),
                        data={"ok": False, "undone": True})

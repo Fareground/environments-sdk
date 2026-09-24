@@ -263,7 +263,7 @@ def legal_calls(env: Env, turn: Turn, *, limit: int = COMBINATION_LIMIT,
     unlisted: dict[str, str] = {}
     with env._lock, as_turn(env, turn), turn.after_choices():
         names = turn._legal()
-        acted = turn.actions_left < turn.max_actions or bool(turn.intents)
+        acted = turn.ledger.acted
         if not (turn.stage.must_act and not acted and names):
             calls.append((END_TURN, {}))
         for name in names:
@@ -341,5 +341,5 @@ def as_turn(env: Env, turn: Turn) -> Iterator[None]:
     """Read the world as ``turn`` would (its sealed choices as $pending) with a throwaway random stream,
     so looking never draws from the run's streams; the context's own settings come back afterwards."""
     world = env.world
-    with world.luck.turn_context(env.seeds.rng("look", world.round, turn.number), turn.pending):
+    with world.luck.turn_context(env.seeds.rng("look", world.round, turn.number), turn.ledger.pending):
         yield

@@ -35,6 +35,7 @@ from ..expr.objects import Entity
 from ..expr.template import compile_template, entity_handles, format_value
 from ..world.build import whole_setting
 from ..world.live import _plain
+from .ledger import AttemptLedger
 from .measure import Stats
 from .session import END_TURN, ToolResult
 from .state import Memory
@@ -81,23 +82,20 @@ class Turn:
         #: The assets delivered with the brief and with the update.
         self._delivered: list[str] = []
         path = f"stages.{stage.name}"
-        #: The stage's `max_actions` and `max_calls` (either may be an expression over $inputs).
-        self.max_actions = whole_setting(env.world, stage.max_actions, f"{path}.max_actions", MAX_TURN_ACTIONS)
-        self.max_calls = whole_setting(env.world, stage.max_calls, f"{path}.max_calls", MAX_TURN_CALLS)
-        self.calls_left = self.max_calls
-        #: Looks and inspects that do not spend a call (see :mod:`fg_env.actions.reads`); below zero, the refused ones.
-        self.reads_left = self.max_calls
+        #: What the turn may still do and has used, under the stage's `max_actions` and `max_calls` (either may be an
+        #: expression over $inputs). A stage with `valid` rules plays an agent's own turn atomically, in parts, each
+        #: undone as a whole when the turn as played is not allowed; an action that draws randomness settles the turn
+        #: so far, and a new part begins.
+        self.ledger = AttemptLedger(
+            env.world, actor.id, whole_setting(env.world, stage.max_actions, f"{path}.max_actions", MAX_TURN_ACTIONS),
+            whole_setting(env.world, stage.max_calls, f"{path}.max_calls", MAX_TURN_CALLS),
+            atomic=bool(stage.valid) and not staged and not peek)
         #: What this turn's reads returned, to answer a repeated read that it is unchanged.
         self._reads: list[str] = []
         #: An action was available and the agent took none, in a stage that required one or with its calls used up
         #: (set when the turn is finished).
         self.did_not_act = False
-        self.actions_left = self.max_actions
         self.done = False
-        self.used: dict[str, int] = {}
-        self.intents: list[tuple[str, dict[str, Any]]] = []
-        #: What this agent already did (sequential) or submitted (simultaneous) this turn, as $pending.
-        self.pending: list[dict[str, Any]] = []
         self.stats = Stats(wakes=1)
         self._offered = False
         self._tools: list[ToolSpec] | None = None
@@ -111,19 +109,6 @@ class Turn:
         self.busy = 0
         #: Its statistics are in the run's totals (the engine is done with it); usage reported later goes there.
         self.tallied = False
-        #: Atomic turns: the journal position the turn's changes are undone to, until it settles, and the turn's
-        #: counts there (``_part``). An action that draws randomness settles the turn so far, and a new part begins.
-        self.atomic = bool(stage.valid) and not staged and not peek
-        self._mark: int | None = None
-        self._part: tuple[int, dict[str, int], int, int] = (self.actions_left, {}, 0, 0)
-        self._counted: list[str] = []
-        #: Atomic turns: the outcome texts (and files) of the part's actions, shown once the part commits — an undone
-        #: part must not leave its agent knowing what it showed (a peek whose cost was refunded) — and those committed,
-        #: shown with the next result.
-        self._held: list[tuple[str, list[Attachment]]] = []
-        self._committed: list[tuple[str, list[Attachment]]] = []
-        if self.atomic:
-            self._begin_part()
         if peek:
             self.number = env.state.turn_count + 1
         else:
@@ -192,7 +177,7 @@ class Turn:
                         self._views_luck("update"):
                     self._update = self.env.perception.update(self.actor, self.stage, self.reason, self._since,
                                                               self.time_limit, shown, attached,
-                                                              self.calls_left if self.call_limit else None,
+                                                              self.ledger.calls_left if self.call_limit else None,
                                                               self.call_limit and self._offers_reads())
                 self.stats.update_chars = len(self._update)
                 self.stats.update_reads = 1
@@ -205,7 +190,7 @@ class Turn:
         """Whether the turn offers a read (a look view, or someone to inspect)."""
         env = self.env
         return bool(env.perception.look_views(self.actor)) or \
-            inspect_tool(env, self.actor, self.max_calls) is not None
+            inspect_tool(env, self.actor, self.ledger.max_calls) is not None
 
     def _views_luck(self, *site: str) -> Any:
         """A block that renders what the agent reads, drawing from a stream of this turn's own: looking again shows the
@@ -222,7 +207,7 @@ class Turn:
     def call_limit(self) -> bool:
         """Whether the stage allows fewer calls than stages usually do: then the update states the budget (a larger
         `max_calls` is a backstop the agent never needs to plan around)."""
-        return self.max_calls < type(self.stage).model_fields["max_calls"].default
+        return self.ledger.max_calls < type(self.stage).model_fields["max_calls"].default
 
     def attachments(self, ids: list[str] | None = None) -> list[Attachment]:
         """The files delivered with the brief and update (or the assets ``ids``), as participants receive them."""
@@ -232,21 +217,22 @@ class Turn:
     # -- tools ------------------------------------------------------------------
 
     def _legal(self) -> list[str]:
-        if self.actions_left <= 0:
+        if self.ledger.actions_left <= 0:
             return []
         env = self.env
         names = stage_actions(env.contract, self.stage, self.actor.entity_type)
         used_round = env.world.used_round.get(self.actor.id, {})
-        return [n for n in names if env.actions.blocked(self.actor, n, self.used, used_round, offered=True) is None]
+        used = self.ledger.used
+        return [n for n in names if env.actions.blocked(self.actor, n, used, used_round, offered=True) is None]
 
     def _allows(self, name: str) -> bool:
         """Whether action ``name`` is offered now: :meth:`_legal` for one action."""
-        if self.actions_left <= 0:
+        if self.ledger.actions_left <= 0:
             return False
         env = self.env
         used_round = env.world.used_round.get(self.actor.id, {})
         return name in stage_actions(env.contract, self.stage, self.actor.entity_type) and \
-            env.actions.blocked(self.actor, name, self.used, used_round, offered=True) is None
+            env.actions.blocked(self.actor, name, self.ledger.used, used_round, offered=True) is None
 
     def tools(self) -> list[ToolSpec]:
         if self.done:
@@ -256,16 +242,16 @@ class Turn:
         env = self.env
         with env._lock:  # never while another agent's sealed choices are tried on the world
             tools = env.actions.tools(self.actor, self._legal(), self.staged)
-            looks = env.perception.look_views(self.actor)
+            looks, allowance = env.perception.look_views(self.actor), self.ledger.max_calls
             if looks:
-                tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], self.max_calls))
-            inspect = inspect_tool(env, self.actor, self.max_calls)
+                tools.append(look_tool([(name, env.contract.views[name].title) for name in looks], allowance))
+            inspect = inspect_tool(env, self.actor, allowance)
         if inspect is not None:
             tools.append(inspect)
         if not self._must_act_now(tools):
             if self.staged:
                 end_text = "Finish your turn (your choices are submitted)."
-            elif self.atomic and self.stage.valid:
+            elif self.ledger.atomic:
                 end_text = "Finish your turn (your actions are checked together; a turn that is not allowed is undone)."
             else:
                 end_text = "Finish your turn."
@@ -280,8 +266,7 @@ class Turn:
         return tools
 
     def _must_act_now(self, tools: list[ToolSpec]) -> bool:
-        acted = self.actions_left < self.max_actions or bool(self.intents)
-        return self.stage.must_act and not acted and any(t.kind == "act" for t in tools)
+        return self.stage.must_act and not self.ledger.acted and any(t.kind == "act" for t in tools)
 
     # -- calls -------------------------------------------------------------------
 
@@ -307,12 +292,12 @@ class Turn:
             return ToolResult(False, "Your time for this turn ran out; nothing was done.", True, dict(_TIMEOUT))
         if self.done:
             limit = ""
-            if self.actions_left <= 0:
-                count = self.max_actions
+            if self.ledger.actions_left <= 0:
+                count = self.ledger.max_actions
                 limit = (f" The '{self.stage.name}' stage allows {count} action{'s' if count != 1 else ''} per turn; "
                          "none remain.")
-            elif self.calls_left <= 0:
-                count = self.max_calls
+            elif self.ledger.calls_left <= 0:
+                count = self.ledger.max_calls
                 limit = (f" The '{self.stage.name}' stage allows {count} tool call{'s' if count != 1 else ''} per "
                          "turn; none remain.")
             text = (f"Your turn is already over.{limit} Nothing was done." if limit
@@ -326,10 +311,9 @@ class Turn:
             return refused
         if name in READS:
             return self._read(name, args)
-        if self.calls_left <= 0:
+        if not self.ledger.spend_call():
             self.done = True
             return ToolResult(False, "No tool calls left this turn; your turn is over.", True)
-        self.calls_left -= 1
         self.stats.calls += 1
         env = self.env
         if not isinstance(name, str):
@@ -358,7 +342,7 @@ class Turn:
             self.stats.invalid_calls += 1
             why = "is not a tool" if spec is None else f"is not available during {self.stage.name}"
             return self._after(ToolResult(False, f"'{name}' {why}. {self._offer()}", data=_INVALID))
-        if self.actions_left <= 0:
+        if self.ledger.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
         observed = env.world.luck.observe()
@@ -371,13 +355,13 @@ class Turn:
             result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED), False
         else:
             result, applied, drew = acted
-        if drew and self._mark is not None:  # luck settles an atomic turn at once: nothing after it can undo it
+        if drew and self.ledger.part_open:  # luck settles an atomic turn at once: nothing after it can undo it
             why = self.settle()
             if why is not None:
                 return self._after(self._undone(why, luck=name))
-            self._begin_part()
+            self.ledger.begin_part()
         if applied:
-            if self._mark is None:  # reactions wait for the commit (atomic turns: for the whole turn)
+            if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
                 env.happenings.react(self.stage)
             if result.ended or env.world.end_request is not None:
                 result.ended = True
@@ -397,28 +381,25 @@ class Turn:
     def after_choices(self) -> Iterator[None]:
         """The world as this turn's next sealed choice will meet it when it commits: after the choices the turn
         already submitted, undone on the way out (two buys cannot spend the same coins). Blocks do not nest."""
-        if not self.intents:
+        if not self.ledger.intents:
             yield
             return
         with self.env.actions.trying():
-            self.env.actions.replay(self.actor, self.intents)
+            self.env.actions.replay(self.actor, self.ledger.intents)
             yield
 
     def _refused(self, name: str, text: str, observed: Observation, free: dict[str, Any]) -> ToolResult:
-        """The result of a refused call to ``name``, the one place that decides what a refusal costs. Did working it
-        out (``observed`` from the call's start) draw luck or read a value hidden from the actor (see expr/hidden.py)?
-        Then the action is spent, for good — a free retry would let an agent reroll its luck, or probe the hidden value
-        again and again, and so would undoing its atomic turn's part. Otherwise it is free (its ``free`` data: an
-        invalid call or a rejected one)."""
-        if not (observed.drew or observed.read_hidden):
+        """The result of a refused call to ``name``, ``observed`` from the call's start: spent for good when working it
+        out drew luck or read a value hidden from the actor (:func:`~fg_env.runtime.ledger.attempt_cost`), else free
+        (its ``free`` data: an invalid call or a rejected one)."""
+        if not self.ledger.refused(name, observed):
             return ToolResult(False, text, data=free)
-        self._count(name, spent=True)
-        return ToolResult(False, text, self.actions_left <= 0, dict(_SPENT))
+        return ToolResult(False, text, self.ledger.actions_left <= 0, dict(_SPENT))
 
     def _checked_act(self, name: str, spec: ActionSpec, args: Any,
                      observed: Observation) -> tuple[ToolResult, bool, bool]:
         env = self.env
-        blocked = env.actions.blocked(self.actor, name, self.used, env.world.used_round.get(self.actor.id, {}))
+        blocked = env.actions.blocked(self.actor, name, self.ledger.used, env.world.used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
             return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", observed, _INVALID),
@@ -435,92 +416,69 @@ class Turn:
                 self.stats.rejected_actions += 1
                 return self._refused(name, refusal, observed, _REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
-            self.intents.append((name, dict(args or {})))
-            self.pending.append({"action": name, **_plain(params)})
-            self._count(name)
+            self.ledger.submitted(name, dict(args or {}), {"action": name, **_plain(params)})
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
-            return ToolResult(True, text, ended or self.actions_left <= 0), False, False
+            return ToolResult(True, text, ended or self.ledger.actions_left <= 0), False, False
         outcome = env.actions.apply(self.actor, name, params)
         drew = observed.drew  # checking the call drew nothing (it may not): what applying it drew
         if not outcome.ok:
             self.stats.rejected_actions += 1
             return self._refused(name, outcome.text, observed, _REJECTED), False, drew
-        self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
+        pending = self.ledger.pending
+        pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
         try:
             self.committed(f"actions.{name}")
             ended = env.actions.ends_turn(self.actor, name, params)
         except BaseException:
-            self.pending.pop()
+            pending.truncate(len(pending) - 1)
             raise
         files = self.attachments(outcome.assets)
-        self._count(name)
+        self.ledger.took(name)
         self.stats.actions += 1
-        text, closes = _with_references(outcome.text, files), ended or self.actions_left <= 0
+        text, closes = _with_references(outcome.text, files), ended or self.ledger.actions_left <= 0
         settles = drew or closes or env.world.end_request is not None  # the part commits in this call
-        if self._mark is not None and not settles and (spec.outcome or files):
-            self._held.append((text, files))
+        if self.ledger.part_open and not settles and (spec.outcome or files):
+            self.ledger.hold(text, files)
             text, files = f"{env.actions.default_outcome(name, params)} {_HELD}", []
         return ToolResult(True, text + cut, closes, attachments=files), True, drew
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
-        return (self.stage.must_act and self.actions_left == self.max_actions and not self.intents
-                and bool(self._legal()))
+        return self.stage.must_act and not self.ledger.acted and bool(self._legal())
 
     def _offer(self) -> str:
         """What the agent can call now."""
         return offer_text(self._legal())
-
-    def _count(self, name: str, spent: bool = False) -> None:
-        """Count one use of ``name``: this turn's and, in the world, this round's. An atomic turn's uses are undone with
-        the part of the turn they were made in, but for a ``spent`` one (a refusal that drew luck or read a hidden
-        value: :meth:`_refused`), which the part's checkpoint takes in, so undoing the part keeps it. Elsewhere a use
-        stands once counted (its change has committed, or it is a sealed choice)."""
-        self.used[name] = self.used.get(name, 0) + 1
-        self.env.world.count_use(self.actor.id, name, undoable=self.atomic and not spent)
-        self.actions_left -= 1
-        if spent and self._mark is not None:
-            actions_left, used, pending, actions = self._part
-            self._part = (actions_left - 1, {**used, name: used.get(name, 0) + 1}, pending, actions)
-        if self.atomic:
-            self._counted.append(name)
 
     # -- atomic turns ------------------------------------------------------------------
 
     def committed(self, path: str) -> None:
         """A change inside the turn has applied: settle it now, or — atomic turns — when the turn ends. Reactions it
         asks for are the caller's to run, once nothing can undo the change any more."""
-        if self._mark is None:
+        if not self.ledger.part_open:
             self.env._after_commit(path)
 
     def settle(self) -> str | None:
         """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every action of the
         turn and say why — also when a rule fails or an invariant breaks as it commits. A turn that took no action
         has nothing to check. Call under the lock."""
-        if self._mark is None:
+        ledger = self.ledger
+        if not ledger.part_open:
             return None
-        why, fault = guarded(self.env, self._commit_turn, self._mark)
+        why, fault = guarded(self.env, self._commit_turn, ledger.mark)
         if fault is not None:
             why = fault
             self.stats.faulted_actions += 1
         if why is not None:
             self._undo()
             return why
-        self._mark = None
-        self._committed += self._held
-        self._held.clear()
+        ledger.commit_part()
         self.env.happenings.react(self.stage)
         return None
 
-    def _begin_part(self) -> None:
-        """Atomic turns: start the part of the turn that the next settle checks and an undo returns to."""
-        self._mark = self.env.world.journal.mark()
-        self._part = (self.actions_left, dict(self.used), len(self.pending), self.stats.actions)
-        self._counted.clear()
-
     def _commit_turn(self) -> str | None:
         """Why the turn as played is not allowed, or None once it has committed."""
-        why = self.invalid() if self._counted else None
+        why = self.invalid() if self.ledger.counted_in_part else None
         if why is None:
             self.env._after_commit(f"stages.{self.stage.name}")
         return why
@@ -530,9 +488,9 @@ class Turn:
         undone turn is reported to the agent as news."""
         env = self.env
         with env._lock:
-            if self._mark is None:
+            if not self.ledger.part_open:
                 return
-            with env.world.luck.turn_context(None, self.pending):
+            with env.world.luck.turn_context(None, self.ledger.pending):
                 why = self.settle()
             if why is not None:
                 env.world.emit("outcome", f"Your turn was undone: {why}.", actor=self.actor.id, to=(self.actor.id,),
@@ -555,18 +513,8 @@ class Turn:
         return None
 
     def _undo(self) -> None:
-        """Undo the turn's part (see :meth:`_begin_part`) — the world, with the part's uses of actions this round — and
-        the turn's own counts; what the turn drew stays spent."""
-        actions_left, used, pending, actions = self._part
-        assert self._mark is not None
-        self.env.world.journal.rollback(self._mark)
-        self._counted.clear()
-        self._held.clear()
-        self.used.clear()
-        self.used.update(used)
-        del self.pending[pending:]  # the same list $pending reads
-        self.actions_left = actions_left
-        undone = self.stats.actions - actions
+        """Undo the turn's open part (see :meth:`AttemptLedger.undo_part`); what the turn drew stays spent."""
+        undone = self.ledger.undo_part()
         self.stats.actions -= undone
         self.stats.rejected_actions += undone
         self.stats.undone_turns += 1
@@ -581,19 +529,19 @@ class Turn:
                                  "this turn, and your turn is over.", True, dict(_UNDONE))
 
     def _after(self, result: ToolResult) -> ToolResult:
-        if self._committed:  # what the actions of a part that has now committed showed, before the result itself
-            result.text = " ".join([*(text for text, _ in self._committed), result.text])
-            result.attachments = [*(file for _, files in self._committed for file in files), *result.attachments]
-            self._committed.clear()
+        released = self.ledger.released()
+        if released:  # what the actions of a part that has now committed showed, before the result itself
+            result.text = " ".join([*(text for text, _ in released), result.text])
+            result.attachments = [*(file for _, files in released for file in files), *result.attachments]
         if result.ended:
             self.done = True
-        elif self.calls_left <= 0:
+        elif self.ledger.calls_left <= 0:
             self.done = True
             result.ended = True
             result.text += " (No tool calls left; your turn is over.)"
-        elif (self.calls_left <= self.actions_left
+        elif (self.ledger.calls_left <= self.ledger.actions_left
               + 1):  # the calls left barely cover the actions still allowed and ending
-            result.text += f" (Calls left: {self.calls_left}.)"
+            result.text += f" (Calls left: {self.ledger.calls_left}.)"
         return result
 
     def _may_inspect(self, target: Entity) -> bool:
@@ -601,14 +549,14 @@ class Turn:
 
     def _read(self, name: str, args: Any) -> ToolResult:
         """A look or an inspect: free within the turn's allowance, refused past it without spending a call."""
-        allowance = self.max_calls
-        self.reads_left -= 1
+        allowance = self.ledger.max_calls
+        self.ledger.reads_left -= 1
         self.stats.calls += 1
-        if self.reads_left < 0:
+        if self.ledger.reads_left < 0:
             self.stats.invalid_calls += 1
-            stopped = self.reads_left < -allowance  # the backstop for a participant that only reads
+            stopped = self.ledger.reads_left < -allowance  # the backstop for a participant that only reads
             if stopped:
-                self.calls_left = 0
+                self.ledger.calls_left = 0
                 self.done = True
             return ToolResult(False, reads_refused(allowance, self._must_act(), stopped), stopped, dict(_INVALID))
         if args is not None and not isinstance(args, Mapping):
@@ -622,7 +570,7 @@ class Turn:
                 result = ToolResult(True, UNCHANGED)
             else:
                 self._reads.append(seen)
-            if self.reads_left == 0:
+            if self.ledger.reads_left == 0:
                 result.text += " (That was your last free read this turn.)"
         return result
 
