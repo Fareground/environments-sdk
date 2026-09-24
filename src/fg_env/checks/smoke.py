@@ -29,6 +29,9 @@ __all__ = ["SMOKE_ROUNDS", "EdgeAgent", "smoke_issues", "run_issue"]
 #: Rounds each play lasts when the caller names none (fewer when the run ends sooner; more to reach the last round a
 #: one-off event is scheduled for).
 SMOKE_ROUNDS = 12
+#: Rounds the boundary-value and idle plays last by default: they look for a rule that fails at an edge value or on a
+#: missed turn, which the first rounds show; the random play covers the later rounds and every scheduled event.
+_SHORT_ROUNDS = 4
 #: Wall-clock seconds the plays of a default check share at most: a guard against a contract too slow to play, not a
 #: budget — within it every check plays the same rounds, and a play it cuts short is reported.
 _GUARD_SECONDS = 30.0
@@ -48,7 +51,8 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     model times out or refuses), then with each policy playing every agent type (its rules for actions a type cannot
     take are skipped for that type).
     ``rounds`` None plays :data:`SMOKE_ROUNDS` rounds, or up to the last round a one-off event (`at`, a market's
-    resolution) is scheduled for, so each such event is played; a wall-clock guard stops a play too slow to finish, and
+    resolution) is scheduled for, so each such event is played (the boundary-value and idle plays last only the first
+    few rounds); a wall-clock guard stops a play too slow to finish, and
     says so. A number plays exactly that many rounds. An action that was called in these plays and never once succeeded
     is reported too."""
     agents = contract.agent_types()
@@ -60,7 +64,8 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
 
     census = _Census()
     random_env = _kept(build(), played)
-    rounds = _default_rounds(random_env) if rounds is None else rounds
+    default = rounds is None
+    rounds = _default_rounds(random_env) if default else rounds
     random_play = _play(random_env, {"*": _reading(RandomAgent(seed))}, rounds, seconds, census)
     census.take(random_env)
     _failure(random_play, "random agents", errors)
@@ -69,7 +74,8 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
         warnings.append(runaway)
     _outputs(random_play, errors, warnings)
     _random_findings(random_play, errors, warnings)
-    edge_play = _play(_kept(build(), played), {"*": EdgeAgent(seed)}, rounds, seconds)
+    short = min(rounds, _SHORT_ROUNDS) if default else rounds
+    edge_play = _play(_kept(build(), played), {"*": EdgeAgent(seed)}, short, seconds)
     _failure(edge_play, _EDGES, errors,
              "an agent may choose any value its tool allows: bound the parameter (min, max, where) to the values the "
              "rule can handle, or guard the rule for the edge (e.g. `10 / $it.rate if $it.rate > 0 else 0`)")
@@ -79,7 +85,7 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
                     for found in edge_play.diagnostics if found["code"] in _EDGE_FINDINGS
                     and found["path"] not in reported)
     idle_env = build()
-    idle_play = _play(idle_env, {"*": "idle"}, rounds, seconds)
+    idle_play = _play(idle_env, {"*": "idle"}, short, seconds)
     _failure(idle_play, "agents that never act", errors,
              "a turn can pass without an action (a timeout, a refusal, a forfeit): give what the action sets a default "
              "the rules allow, or guard the rule for it")
