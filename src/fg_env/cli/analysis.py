@@ -13,9 +13,9 @@ import sys
 from collections.abc import Callable
 from typing import Any
 
-from ..cli import participants_arg
 from ..errors import ContractError, InputError, RunError
 from ..expr import ExprError
+from . import participants_arg
 
 __all__ = ["add_analysis_commands"]
 
@@ -134,7 +134,7 @@ def _guarded(command: Callable[[argparse.Namespace], int]) -> Callable[[argparse
 
 
 def cmd_sweep(args: argparse.Namespace) -> int:
-    from .sweep import sweep
+    from ..analysis.sweep import sweep
 
     result = sweep(args.file, _sweep_params(args.param), runs=args.runs, outputs=args.output or None,
                    arms=args.arm or None, inputs=_inputs(args), design=args.design, samples=args.samples,
@@ -145,7 +145,7 @@ def cmd_sweep(args: argparse.Namespace) -> int:
 
 
 def cmd_sensitivity(args: argparse.Namespace) -> int:
-    from .sensitivity import sensitivity
+    from ..analysis.sensitivity import sensitivity
 
     result = sensitivity(args.file, _named_ranges(args.vary, "--vary"), args.output, method=args.method,
                          runs=args.runs, baseline=_inputs(args), delta=args.delta, trajectories=args.trajectories,
@@ -168,7 +168,7 @@ def _held_out_cases(text: str | None) -> Any:
 
 
 def cmd_calibrate(args: argparse.Namespace) -> int:
-    from .calibrate import calibrate
+    from ..analysis.calibrate import calibrate
 
     targets: dict[str, Any] = {}
     if args.targets_file:
@@ -225,7 +225,7 @@ def _decisions(items: list[str] | None, path: str | None) -> dict[str, Any]:
 
 
 def cmd_optimise(args: argparse.Namespace) -> int:
-    from .optimise import optimise
+    from ..analysis.optimise import optimise
 
     uncertainty = _json_file(args.uncertainty_file, "--uncertainty-file") if args.uncertainty_file else None
     objective = args.objective[0] if len(args.objective) == 1 else args.objective
@@ -239,7 +239,7 @@ def cmd_optimise(args: argparse.Namespace) -> int:
 
 
 def cmd_backtest(args: argparse.Namespace) -> int:
-    from .backtest import backtest
+    from ..analysis.backtest import backtest
 
     cases = _json_file(args.cases, "--cases")
     if not isinstance(cases, list):
@@ -252,7 +252,7 @@ def cmd_backtest(args: argparse.Namespace) -> int:
 
 
 def cmd_playtest(args: argparse.Namespace) -> int:
-    from .checks import behavior_checks
+    from ..analysis.checks import behavior_checks
 
     report = behavior_checks(args.file, runs=args.runs, rounds=args.rounds, seed=args.seed,
                              participants=participants_arg(args.agent) or "random", inputs=_inputs(args),
@@ -263,8 +263,8 @@ def cmd_playtest(args: argparse.Namespace) -> int:
 
 
 def cmd_highlights(args: argparse.Namespace) -> int:
+    from ..analysis.highlights import highlights, narrative
     from ..api import load
-    from .highlights import highlights, narrative
 
     env = load(args.file, inputs=_inputs(args), seed=args.seed, arm=args.arm, data_dir=args.data_dir)
     result = env.run(participants_arg(args.agent), rounds=args.rounds)
@@ -305,7 +305,7 @@ def _holdout_options(parser: argparse.ArgumentParser) -> None:
 
 
 def _optimise_options(p: argparse.ArgumentParser) -> None:
-    from .search import METHODS
+    from ..analysis.search import METHODS
 
     _run_options(p)
     p.add_argument("--decision", action="append", metavar="NAME=LOW:HIGH[:STEP]|NAME=V1,V2|NAME={json}",
@@ -344,7 +344,7 @@ def add_analysis_commands(sub: Any) -> None:
     p.add_argument("--output", required=True, help="output or metric to explain")
     p.add_argument("--vary", action="append", metavar="NAME[=LOW:HIGH]", help="input to rank")
     p.add_argument("--method", choices=("oat", "morris", "sobol"), default="oat")
-    p.add_argument("--runs", type=int, default=5)
+    p.add_argument("--runs", type=int, default=5, help="seeded runs per evaluated point")
     p.add_argument("--arm")
     p.add_argument("--delta", type=float, default=0.1, help="oat: perturbation as a share of the baseline")
     p.add_argument("--trajectories", type=int, default=6, help="morris: number of trajectories")
@@ -352,7 +352,7 @@ def add_analysis_commands(sub: Any) -> None:
     p.add_argument("--samples", type=int, default=20, help="sobol: Latin hypercube points")
     p.set_defaults(func=_guarded(cmd_sensitivity))
 
-    from .facts import describe_statistics
+    from ..analysis.facts import describe_statistics
 
     p = sub.add_parser("calibrate", help="fit inputs so outputs or metrics match targets",
                        formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -379,7 +379,7 @@ def add_analysis_commands(sub: Any) -> None:
     _run_options(p)
     p.add_argument("--cases", required=True, help="JSON list of {inputs, outcome, name?}")
     p.add_argument("--output", required=True, help="output that forecasts the outcome")
-    p.add_argument("--runs", type=int, default=10)
+    p.add_argument("--runs", type=int, default=10, help="seeded runs per case")
     p.add_argument("--threshold", type=float, help="forecast the event 'output > threshold'")
     p.add_argument("--arm")
     _holdout_options(p)
@@ -388,7 +388,7 @@ def add_analysis_commands(sub: Any) -> None:
     p = sub.add_parser("playtest", help="play the contract many times with random agents and report what looks broken: "
                                         "dead actions, unused inputs, runs that fail (exit status 1 when runs fail)")
     _run_options(p)
-    p.add_argument("--runs", type=int, default=4)
+    p.add_argument("--runs", type=int, default=4, help="runs to play, each on its own seed")
     p.add_argument("--boundaries", action="store_true",
                    help="also sample declared input boundaries, including nested fields")
     p.add_argument("--max-boundary-cases", type=int, default=24, help="maximum boundary configurations to sample")

@@ -334,7 +334,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--input", action="append", metavar="NAME=VALUE",
                    help="check a configured input (JSON value or text)")
     p.add_argument("--inputs-file", help="JSON file of inputs to check")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print the issues as JSON")
     p.set_defaults(func=_guarded(cmd_check))
 
     p = sub.add_parser("run",
@@ -364,12 +364,12 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int, default=0, help="play this many rounds first, then preview")
     p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
                    help="participants for the rounds played first and the turns before the agent's")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print what the agent reads and its tools as JSON")
     p.set_defaults(func=_guarded(cmd_preview))
 
     p = sub.add_parser("experiment", help="run arms × N seeded runs and compare outputs")
     p.add_argument("file", help="contract JSON file")
-    p.add_argument("--runs", type=int, default=10)
+    p.add_argument("--runs", type=int, default=10, help="seeded runs per arm")
     p.add_argument("--arms", help="comma-separated arm names (default: all declared)")
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--input", action="append", metavar="NAME=VALUE")
@@ -378,7 +378,7 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--rounds", type=int)
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print the full result as JSON")
     _batch_flags(p, "run")
     p.set_defaults(func=_guarded(cmd_experiment))
 

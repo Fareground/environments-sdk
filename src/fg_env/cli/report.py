@@ -38,8 +38,8 @@ def cmd_report(args: argparse.Namespace) -> int:
     from ..analysis.validate import validate
     from ..errors import ContractError
     from ..experiments.experiment import experiment
+    from ..report import report
     from ..runtime.measure import RunResult
-    from . import report
 
     try:
         data = _json(args.file, "file")

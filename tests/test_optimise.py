@@ -6,8 +6,8 @@ import json
 import pytest
 
 import fg_env
-from fg_env.analysis.cli import add_analysis_commands
 from fg_env.analysis.goals import dominates
+from fg_env.cli.analysis import add_analysis_commands
 
 #: profit peaks at x = 3, y = 7.3; run i draws the same noise for every decision (common random numbers).
 HILL = {
