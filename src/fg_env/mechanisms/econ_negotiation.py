@@ -590,7 +590,7 @@ def _sign(runner: Any, name: str, config: NegotiationConfig, offer: Any, where: 
     if not count:
         world.set_prop(deal, "status", "completed")
     if config.on_sign:
-        runner.run([{"block": f"{name}_on_sign", "with": {role: f"${role}" for role in SIGN_ROLES}}], dict(roles),
+        runner.run([{"call": f"{name}_on_sign", "with": {role: f"${role}" for role in SIGN_ROLES}}], dict(roles),
                    f"mechanisms.{name}.on_sign")
     _stat(world, name, "deals", 1)
     if config.once:

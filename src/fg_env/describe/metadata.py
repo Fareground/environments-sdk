@@ -20,7 +20,7 @@ __all__ = ["game_metadata", "MAX_EVIDENCE"]
 #: Most evidence lines kept per property (the rest are counted).
 MAX_EVIDENCE = 12
 _INPUT_REF = re.compile(r"\s*\$inputs\.([A-Za-z_][A-Za-z0-9_]*)\s*")
-_MEASURE_REF = re.compile(r"\$(?:metrics|series)\.([A-Za-z_][A-Za-z0-9_]*)")
+_MEASURE_REF = re.compile(r"\$(?:outputs|series)\.([A-Za-z_][A-Za-z0-9_]*)")
 _RANDOM_GRAPHS = frozenset({"random", "small_world", "scale_free", "blocks"})
 _MARKETS = frozenset({"market"})
 _TALK = frozenset({"social", "decision.deliberation"})
@@ -58,9 +58,11 @@ class _Scan:
             self.texts.append((path, text, frozenset(where)))
         shown = [text for _, text, where in self.texts if "shown" in where]
         rules = [text for _, text, where in self.texts if "rules" in where]
-        measured = {name for text in shown for name in _MEASURE_REF.findall(text) if name in contract.metrics}
-        called = {name for text in shown for name in walk.calls(text) if name in contract.defs}
-        shown += [contract.metrics[name].expr for name in measured] + [contract.defs[name].expr for name in called]
+        sampled = contract.series_outputs()
+        measured = {name for text in shown for name in _MEASURE_REF.findall(text) if name in sampled}
+        exprs = contract.expr_defs()
+        called = {name for text in shown for name in walk.calls(text) if name in exprs}
+        shown += [sampled[name].sampled or "" for name in measured] + [exprs[name].expr or "" for name in called]
         self.shown_world: set[str] = set().union(*(walk.world_reads(text) for text in shown))
         self.rule_world: set[str] = set().union(*(walk.world_reads(text) for text in rules))
         self.shows_physics = any("$physics." in text for text in shown)
@@ -151,14 +153,12 @@ def _chance(contract: Contract, scan: _Scan) -> tuple[str, list[str], list[str]]
         play += [f"mechanisms.physics.per.{kind}.vars.{name}.noise is a random term"
                  for kind, dynamics in contract.physics.per.items()
                  for name, var in dynamics.vars.items() if var.noise]
-    for i, link in enumerate(contract.links):
+    for _, path, link in contract.starting_links():
         if link.graph in _RANDOM_GRAPHS or (link.graph is not None and link.p is not None):
-            setup.append(f"links[{i}] draws a {link.graph} network")
-    for i, group in enumerate(contract.population):
+            setup.append(f"{path} draws a {link.graph} network")
+    for key, group in contract.entities.items():
         if group.weight or (group.from_ is not None and group.count is not None):
-            setup.append(f"population[{i}] samples rows")
-        if group.mix and not group.quota:
-            setup.append(f"population[{i}] draws each member's archetype")
+            setup.append(f"entities.{key} samples rows")
     during = [label for label, found in (("setup", setup), ("play", play)) if found]
     if during:
         return "sampled", during, setup + play + nodes
@@ -183,10 +183,8 @@ def _information(contract: Contract, scan: _Scan) -> tuple[str, list[str]]:
     hiding += [f"{path} reaches only `{node['to']}`" for path, node in scan.effects
                if ("post" in node or "emit" in node) and node.get("to") not in (None, "", [])]
     hiding += [f"{path} can lose messages on the way (drop)" for path, node in scan.effects if _lossy(node)]
-    hiding += [f"entities.{eid}.brief is private to that entity" for eid, e in contract.entities.items() if e.brief]
-    for i, group in enumerate(contract.population):
-        if group.brief or any(m.brief for m in group.mix) or any(m.brief for m in group.members):
-            hiding.append(f"population[{i}] gives members private briefs")
+    hiding += [f"entities.{eid}.brief is private to " + ("each entity it generates" if e.generates else "that entity")
+               for eid, e in contract.entities.items() if e.brief]
     hiding += [f"stage {s.name}: agents choose without seeing each other's choices" for s in _acting(contract)
                if s.turns == "simultaneous"]
     if hiding:
@@ -214,15 +212,12 @@ def _players(contract: Contract, scan: _Scan, probe: Any) -> tuple[int | None, i
             if probe.contract.is_agent(entity.entity_type):
                 by_type[entity.entity_type] = by_type.get(entity.entity_type, 0) + 1
         count = sum(by_type.values())
-    fixed = sum(1 for e in contract.entities.values() if contract.is_agent(e.type))
+    fixed = sum(1 for e in contract.named_entities().values() if contract.is_agent(e.type))
     low: int | None = fixed
     high: int | None = fixed
-    for i, group in enumerate(contract.population):
-        path = f"population[{i}]"
-        if any(contract.is_agent(m.type) for m in group.members):
-            low = high = None
-            evidence.append(f"{path}.members generates agents inside each entity")
-        if not contract.is_agent(group.type):
+    for key, group in contract.entities.items():
+        path = f"entities.{key}"
+        if not group.generates or not contract.is_agent(group.type):
             continue
         ref = _INPUT_REF.fullmatch(group.count) if isinstance(group.count, str) else None
         spec = contract.inputs.get(ref.group(1)) if ref else None
@@ -371,7 +366,7 @@ def _concepts(contract: Contract, scan: _Scan) -> list[str]:
         or any("post" in node and path.startswith("actions.") for path, node in scan.effects),
         "markets": bool(kinds & _MARKETS),
         "networks": bool(contract.relations),
-        "population": bool(contract.population),
+        "population": any(spec.generates for spec in contract.entities.values()),
         "physics": contract.physics is not None,
         "entity_dynamics": contract.physics is not None and bool(contract.physics.per),
         "atomic_turns": any(stage.valid for stage in contract.stage_list()),

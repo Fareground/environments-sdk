@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import copy
 import random
-import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -24,23 +23,18 @@ from .steps import apply_step, random_step
 
 __all__ = ["repeated", "misere", "zerosum", "zero_sum_check", "UtilityCheck"]
 
-_ACTOR = re.compile(r"\$actor\b")
-
-
 def _contract(source: ContractLike) -> dict[str, Any]:
     data = copy.deepcopy(expand(source, mechanisms=True))
-    spec = data.get("game")
-    if not isinstance(spec, dict) or not spec.get("returns"):
-        raise ValueError("the contract declares no game.returns, so there is nothing to transform: declare what "
+    if not _scores(data):
+        raise ValueError("no type of the contract has a `score`, so there is nothing to transform: declare what "
                          "each seat scores")
     return data
 
 
-def _seat_types(data: Mapping[str, Any]) -> list[str]:
-    listed = data["game"].get("players")
-    if listed:
-        return [listed] if isinstance(listed, str) else list(listed)
-    return [name for name, spec in (data.get("types") or {}).items() if isinstance(spec, dict) and spec.get("agent")]
+def _scores(data: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
+    """Each scoring type's `score`, by type."""
+    return {name: spec["score"] for name, spec in (data.get("types") or {}).items()
+            if isinstance(spec, dict) and isinstance(spec.get("score"), dict)}
 
 
 def _add_rule(data: dict[str, Any], text: str) -> None:
@@ -56,9 +50,18 @@ def _ends_early(node: Any) -> bool:
     return False
 
 
+def _bounds(score: dict[str, Any], low: Any, high: Any) -> None:
+    """Set a score's `min` and `max` (a bound that is None is dropped)."""
+    for key, bound in (("min", low), ("max", high)):
+        if bound is None:
+            score.pop(key, None)
+        else:
+            score[key] = bound
+
+
 def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_total") -> dict[str, Any]:
-    """The one-round game played ``rounds`` times in a row. After every round each seat's return for that round is
-    added to its ``total_prop``, which is the new return; what happened in earlier rounds stays in every seat's
+    """The one-round game played ``rounds`` times in a row. After every round each seat's score for that round is
+    added to its ``total_prop``, which is the new score; what happened in earlier rounds stays in every seat's
     history. Events with ``at`` still fire only in the rounds they name."""
     if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 1:
         raise ValueError(f"rounds must be a whole number ≥ 1, got {rounds!r}")
@@ -67,26 +70,18 @@ def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_t
     if length != 1:
         raise ValueError(f"repeated() repeats one-round games, and this contract lasts {length} rounds")
     if (data.get("end") or _ends_early(data.get("actions")) or _ends_early(data.get("events"))
-        or _ends_early(data.get("blocks"))):
+        or _ends_early(data.get("defs"))):
         raise ValueError("the contract can end a run early (`end`), which would stop the repetition; repeat games "
                          "whose rounds always run to the end")
-    spec = data["game"]
-    per_round = spec["returns"]
-    types = _seat_types(data)
-    for name in types:
+    for name, score in _scores(data).items():
         props = data["types"][name].setdefault("props", {})
         if total_prop in props:
             raise ValueError(f"type '{name}' already has a property '{total_prop}'; pass another total_prop")
         props[total_prop] = {"type": "number", "default": 0}
         data.setdefault("events", []).append({"name": f"{total_prop}_{name}", "phase": "end", "each": name,
-                                              "do": [f"$it.{total_prop} += {_ACTOR.sub('$it', per_round)}"]})
-    spec["returns"] = f"$actor.{total_prop}"
-    spec.pop("rewards", None)
-    for key in ("min_return", "max_return", "total"):
-        if spec.get(key) is not None:
-            spec[key] = spec[key] * rounds
-    if "max_rounds" in spec:
-        spec["max_rounds"] = rounds
+                                              "do": [f"$it.{total_prop} += {score['value']}"]})
+        score["value"] = f"$it.{total_prop}"
+        _bounds(score, *(score[key] * rounds if score.get(key) is not None else None for key in ("min", "max")))
     data.setdefault("clock", {})["rounds"] = rounds
     data["name"] = f"{data['name']} (repeated {rounds} times)"
     _add_rule(data, f"The game is played {rounds} times in a row: your score is your total over all of them, and you "
@@ -95,43 +90,30 @@ def repeated(source: ContractLike, rounds: int, *, total_prop: str = "repeated_t
 
 
 def misere(source: ContractLike) -> dict[str, Any]:
-    """The same game with every return (and declared reward) negated."""
+    """The same game with every score negated."""
     data = _contract(source)
-    spec = data["game"]
-    spec["returns"] = f"-({spec['returns']})"
-    if spec.get("rewards"):
-        spec["rewards"] = f"-({spec['rewards']})"
-    low, high = spec.get("min_return"), spec.get("max_return")
-    spec["min_return"] = -high if high is not None else None
-    spec["max_return"] = -low if low is not None else None
-    for key in ("min_return", "max_return"):
-        if spec[key] is None:
-            del spec[key]
-    if spec.get("total") is not None:
-        spec["total"] = -spec["total"]
+    for score in _scores(data).values():
+        score["value"] = f"-({score['value']})"
+        low, high = score.get("min"), score.get("max")
+        _bounds(score, -high if high is not None else None, -low if low is not None else None)
     data["name"] = f"Misère {data['name']}"
     _add_rule(data, "Misère: every score is negated, so the usual winner loses.")
     return data
 
 
 def zerosum(source: ContractLike) -> dict[str, Any]:
-    """The same game with each seat's return minus the mean return of all seats (seats of one type)."""
+    """The same game with each seat's score minus the mean score of all seats (seats of one type)."""
     data = _contract(source)
-    types = _seat_types(data)
-    if len(types) != 1:
-        raise ValueError(f"zerosum() needs seats of one type, and this game's seats have types {types}")
-    spec = data["game"]
-    returns = spec["returns"]
-    spec["returns"] = f"({returns}) - $avg({types[0]}, {_ACTOR.sub('$it', returns)})"
-    spec.pop("rewards", None)
-    spec["utility"] = "zero_sum"
-    low, high = spec.get("min_return"), spec.get("max_return")
-    spec.pop("total", None)
-    if low is not None and high is not None:
-        spec["min_return"], spec["max_return"] = low - high, high - low
-    else:
-        spec.pop("min_return", None)
-        spec.pop("max_return", None)
+    scores = _scores(data)
+    if len(scores) != 1:
+        raise ValueError(f"zerosum() needs seats of one type, and this game's seats have types {list(scores)}")
+    (kind, score), = scores.items()
+    value = score["value"]
+    score["value"] = f"({value}) - $avg({kind}, {value})"
+    score["utility"] = "zero_sum"
+    low, high = score.get("min"), score.get("max")
+    _bounds(score, low - high if low is not None and high is not None else None,
+            high - low if low is not None and high is not None else None)
     data["name"] = f"{data['name']} (zero-sum)"
     _add_rule(data, "Your score is your result minus the average result of all players.")
     return data

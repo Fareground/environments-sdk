@@ -12,10 +12,13 @@ from pathlib import Path
 from typing import Any
 
 from ..api import check, load
+from ..contract.normalize import normalize
 from ..engines import get as engine_spec
 from ..engines import list_engines
+from ..errors import ContractError
 from ..guides import guide
 from ..host.hosts import Hosts
+from ..participants.builtin import policy_names
 from .sandbox import Sandbox, TooSlow
 from .testing import TEST_SEEDS, StubHosts, Tested, tested
 
@@ -101,9 +104,8 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
 
 
 #: The contract sections made of parts: together, what an environment is.
-_SECTIONS = ("inputs", "assets", "world", "types", "entities", "population", "relations", "links",
-             "records", "actions", "stages", "views", "events", "policies", "metrics", "outputs", "end",
-             "arms", "invariants", "defs", "blocks", "mechanisms")
+_SECTIONS = ("inputs", "world", "types", "entities", "relations", "records", "actions", "stages", "views", "events",
+             "outputs", "end", "arms", "invariants", "defs", "mechanisms")
 #: The sections whose parts are rules with effects (`do`).
 _RULES = ("actions", "events")
 #: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1.
@@ -112,7 +114,11 @@ _IDENTITY = re.compile(r"\s*\$[\w.\[\]'\"]+\s*(?:[-+]=\s*0|[*/]=\s*1)(?:\.0*)?\s
 
 def _parts(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """The parts of each of :data:`_SECTIONS` by name (a list's item by its name, else its position), and each
-    action's params."""
+    action's params, read in the current form (a revision may be written in an earlier one)."""
+    try:
+        contract = normalize(contract)[0]
+    except ContractError:
+        pass  # an earlier form that cannot be rewritten: its parts as written (check reports why)
     parts: dict[str, dict[str, Any]] = {}
     for key in _SECTIONS:
         value = contract.get(key) or {}
@@ -150,7 +156,7 @@ def _check_tool(path: str, hosts: Hosts) -> str:
 def _run_tool(path: str, hosts: Hosts, seconds: float, seed: int = 1,
               participants: dict[str, str] | None = None) -> str:
     env = load(path, seed=seed, hosts=hosts)
-    wrong = _unplayable(participants, list(env.contract.policies))
+    wrong = _unplayable(participants, policy_names(env.contract))
     if wrong:
         return f"Bad tool call: run: {wrong}. Nothing was run."
     result = env.run(participants, budget={"seconds": seconds})

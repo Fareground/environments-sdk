@@ -18,13 +18,12 @@ TOWN = {
             "since": {"type": "int", "default": "$round"},
             "channel": {"type": "enum", "values": ["family", "work", "online"], "default": "online"},
             "gap": {"type": "number", "default": "$from.age - $to.age"},
-            "note": {"type": "text", "default": ""}}},
-        "knows": {"symmetric": True, "props": {"met": {"type": "text", "default": "school"}}},
+            "note": {"type": "text", "default": ""}},
+            "links": [{"rows": "$inputs.edges"}]},
+        "knows": {"symmetric": True, "props": {"met": {"type": "text", "default": "school"}},
+                  "links": [{"among": "person", "graph": "complete", "props": {"met": "{$from.name} & {$to.name}"}}]},
         "plain": {},
     },
-    "links": [{"relation": "trusts", "rows": "$inputs.edges"},
-              {"relation": "knows", "among": "person", "graph": "complete",
-               "props": {"met": "{$from.name} & {$to.name}"}}],
     "actions": {
         "befriend": {"by": "person", "params": {"who": {"type": "entity", "of": "person"}, "note": "text"},
                      "do": [{"link": "trusts", "from": "$actor", "to": "$params.who",
@@ -156,8 +155,9 @@ def test_a_run_split_by_a_snapshot_keeps_every_link_field_and_its_provenance():
 
 def test_generated_graphs_fill_fields_per_pair():
     contract = copy.deepcopy(TOWN)
-    contract["links"] = [{"relation": "trusts", "among": "person", "graph": "random", "p": 1,
-                          "props": {"gap": "$from.age - $to.age", "channel": "family"}}]
+    contract["relations"]["trusts"]["links"] = [{"among": "person", "graph": "random", "p": 1,
+                                                 "props": {"gap": "$from.age - $to.age", "channel": "family"}}]
+    contract["relations"]["knows"]["links"] = []
     env = fg_env.load(contract, seed=1)
     assert _link(env, "ana", "ben", "trusts")["gap"] == 10 and _link(env, "ben", "ana", "trusts")["gap"] == -10
     assert {_link(env, "cy", "ben", "trusts")["channel"]} == {"family"}
@@ -167,7 +167,7 @@ def test_the_checker_validates_link_field_names_types_and_uses():
     contract = copy.deepcopy(TOWN)
     contract["relations"]["trusts"]["props"]["value"] = 1
     contract["relations"]["trusts"]["props"]["mood"] = {"type": "enum", "default": "x"}
-    contract["links"][1]["props"]["colour"] = "red"
+    contract["relations"]["knows"]["links"][0]["props"]["colour"] = "red"
     contract["actions"]["befriend"]["do"][0]["props"]["nope"] = 1
     contract["actions"]["plain"] = {"by": "person",
                                     "do": [{"link": "plain", "from": "ana", "to": "ben", "props": {"x": 1}}]}
@@ -175,7 +175,7 @@ def test_the_checker_validates_link_field_names_types_and_uses():
     for issue in [
         ("relations.trusts.props.value", "'value' is built into every link"),
         ("relations.trusts.props.mood", "an enum property needs `values`"),
-        ("links[1].props.colour", "a knows link has no field 'colour'"),
+        ("relations.knows.links[0].props.colour", "a knows link has no field 'colour'"),
         ("actions.befriend.do[0].props.nope", "a trusts link has no field 'nope'"),
         ("actions.plain.do[0].props", "relation 'plain' declares no link fields"),
     ]:

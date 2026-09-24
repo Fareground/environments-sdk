@@ -42,11 +42,12 @@ class Game:
         self.contract = root.contract
         seats = list(players) if players is not None else seat_ids(self.contract, root.world)
         problems = [Issue("players", f"'{seat}' is not an agent of this game",
-                          "name agent entities (see game.players or the contract's `game.players`)")
+                          "name agent entities (by default the seats are the agents of the types with a `score`)")
                     for seat in seats if seat not in root.world.entities
                     or not self.contract.is_agent(root.world.entities[seat].entity_type)]
         if not seats:
-            problems.append(Issue("game.players", "there are no seats", "declare agent entities, or `game.players`"))
+            problems.append(Issue("players", "there are no seats",
+                                  "declare agent entities, or give the player type a `score`"))
         if problems:
             raise ContractError(problems, title="the game has no valid seats")
         self.players: list[str] = seats
@@ -72,9 +73,8 @@ class Game:
         #: How a state reads every seat's return; also read ahead at chance nodes when no randomness is drawn.
         self._returns_of: Callable[[Any], dict[str, float]] = \
             lambda env: seat_returns(self.contract, env.world, players_now)
-        spec = self.contract.game
-        returns = spec.returns if spec is not None else None
-        self._prefetch = self._returns_of if returns is not None and not draws(self.contract, [returns]) else None
+        values = self._score_texts()
+        self._prefetch = self._returns_of if values and not draws(self.contract, values) else None
         #: Whether states are stepped on the caller's thread (see :mod:`.runs`), and the stepped run they copy.
         self._stepped = can_step(self)
         self._template: Stepper | None = None
@@ -106,9 +106,14 @@ class Game:
             self._info = game_metadata(self.contract)
         return self._info
 
+    def _score_texts(self) -> list[str]:
+        """The seats' score values (and seat order), as the contract writes them."""
+        return [text for kind in self.contract.types.values() if kind.score is not None
+                for text in (kind.score.value, kind.score.seat) if text]
+
     @property
     def utility(self) -> str:
-        spec = self.contract.game
+        spec = self.contract.scoring()
         return spec.utility if spec is not None else "general_sum"
 
     def seat(self, entity_id: str) -> int:
@@ -146,8 +151,7 @@ class Game:
         if self._template is None:
             root, contract = self._root, self.contract
             env = fresh_copy(root, root.origin.base, self._others, SteppedEnv)
-            seats = [text for text in (contract.game.returns, contract.game.seat) if text] if contract.game else []
-            measured = [spec.expr for spec in contract.outputs.values()] + seats  # what taking a result evaluates
+            measured = [spec.expr for spec in contract.outputs.values()] + self._score_texts()  # what a result reads
             self._template = Stepper(env, self.players, self.chance == "explicit", self._prefetch,
                                      settles=draws(contract, measured))
             self._template.frozen = True
@@ -218,7 +222,8 @@ def game(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
          hosts: Any = None, data_dir: str | os.PathLike[str] | None = None) -> Game:
     """A contract as a game for search, solving and learning code.
 
-    * ``players`` — the seats (entity ids); default: the contract's ``game.players`` (else every agent), in seat order.
+    * ``players`` — the seats (entity ids); default: the agents of the types with a `score` (else every agent), in
+      seat order.
     * ``others`` — participants for agents that are not seats (as in ``Env.run``).
     * ``chance`` — ``"explicit"``: every `chance` effect is a chance node whose outcomes search code chooses;
       ``"sampled"``: outcomes are drawn from the seed. Other randomness is always fixed by ``seed``.

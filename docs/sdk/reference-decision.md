@@ -11,7 +11,6 @@ Named the same in every mode:
 - `stage`: a declared stage the mechanism runs in (default: a stage it generates)
 - `when`: only while this expression is true
 - `views`: generate the mechanism's views
-- `tools`: how generated tools are offered: each (one tool per action, the default) | one (one tool named after the mechanism, with an `action` argument listing the actions legal now) | auto (one tool only when every action takes the same arguments)
 
 Modes (`"kind": "decision", "mode": ...`; read one with `guide('decision.<mode>')`):
 - `ballot`: A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or supermajority with an optional quorum when the vote's stage ends — after that stage's own on_exit effects, so read the result in a later stage, event or on_enter, not in the vote stage's on_exit.

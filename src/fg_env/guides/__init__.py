@@ -16,7 +16,6 @@ from .. import contract as C
 from ..analysis.optimise_guide import OPTIMISE
 from ..assets.guide import ASSETS
 from ..authoring.scaffold import TEMPLATES as STARTING_TEMPLATES
-from ..contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from ..engines import list_engines
 from ..expr.template import FORMATS
 from ..patterns.guide import patterns_page
@@ -36,7 +35,7 @@ from .pages import (
     mode_page,
     section_page,
 )
-from .text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
+from .text import CHECKLIST, INSPECT, MODEL, RECIPES, RUNNING, TEMPLATES
 
 __all__ = ["guide", "schema", "guide_parts"]
 
@@ -111,8 +110,7 @@ _PARTS_MAP = [
     ("mechanisms", "what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)"),
     ("patterns", "seasons, trends, responses, random processes, draws and noise, and fitting them from data"),
     ("recipes", "data files, queues, markets, hidden roles, spaces, networks, physics, feeds"),
-    ("macros", "repeat structure from data with `for`/`make`"),
-    ("assets", "files beside the contract (images, PDFs, text) delivered to agents"),
+    ("assets", "files beside the contract (images, PDFs, text) delivered to agents: `file` inputs"),
     ("inspect", "debugging a run: summary, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
     ("optimise", "the best decision under constraints: objectives, methods, fresh-seed checks, Pareto frontiers"),
@@ -140,11 +138,6 @@ def _core() -> str:
             .replace("ENGINES", engines).replace("PARTS", parts))
 
 
-def _game_page() -> str:
-    """`game` names both a contract section and a mechanism family; both are about games, so they share a page."""
-    return family_page("game") + "\n\n" + section_page("game")
-
-
 _TOPICS: dict[str, Callable[[], str]] = {
     "core": _core,
     "authoring": lambda: AUTHORING,
@@ -156,11 +149,10 @@ _TOPICS: dict[str, Callable[[], str]] = {
     "mechanisms": mechanisms_page,
     "patterns": patterns_page,
     "recipes": lambda: RECIPES,
-    "macros": lambda: MACROS.replace("MAX_ITEMS", f"{MAX_MACRO_ITEMS:,}").replace("MAX_DEPTH", str(MAX_MACRO_DEPTH)),
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
     "optimise": lambda: OPTIMISE,
-    "assets": lambda: section_page("assets") + "\n\n" + ASSETS,
+    "assets": lambda: ASSETS,
     "checklist": lambda: CHECKLIST,
 }
 
@@ -170,7 +162,7 @@ def guide_parts() -> list[str]:
     sections = [name for name, *_ in SECTIONS if name not in _TOPICS and name not in FAMILIES]
     names = ["core", "authoring", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
     names += [f"functions.{group}" for group in function_groups() if group not in FAMILIES]
-    names += ["patterns", "macros", "recipes", "mechanisms"]
+    names += ["patterns", "recipes", "mechanisms"]
     for name, family in FAMILIES.items():
         names += [name, *[spec.key for spec in family.modes.values()]]
     names += [f"functions.{group}" for group in function_groups() if group in FAMILIES]
@@ -180,8 +172,6 @@ def guide_parts() -> list[str]:
 def _render(part: str) -> str | None:
     if part in _TOPICS:
         return _TOPICS[part]()
-    if part == "game":
-        return _game_page()
     if part in FAMILIES:
         return family_page(part)
     if any(part == name for name, *_ in SECTIONS):

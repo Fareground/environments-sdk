@@ -10,9 +10,10 @@ An environment can carry real files — product photos, evidence, contracts, rec
 contract and delivered to agents under the same visibility rules as everything else.
 
 ```json
-"assets": {
-  "supply_agreement": {"file": "evidence/agreement.pdf", "caption": "The signed supply agreement", "tags": ["exhibit"]},
-  "weld_photos": {"folder": "evidence/welds", "type": "image", "caption": "Weld photo {name}", "describe": "vision"}
+"inputs": {
+  "supply_agreement": {"type": "file", "source": "evidence/agreement.pdf", "caption": "The signed supply agreement",
+                       "tags": ["exhibit"]},
+  "weld_photos": {"type": "file", "source": "evidence/welds", "caption": "Weld photo {name}", "describe": "vision"}
 },
 "types": {"exhibit": {"props": {"file": {"type": "asset"}, "revealed": false}}},
 "records": {"evidence": {"fields": {"text": "text", "file": "asset"}}},
@@ -21,8 +22,9 @@ contract and delivered to agents under the same visibility rules as everything e
                            "do": {"post": "evidence", "text": "New photo", "file": "$params.photo"}}}
 ```
 
-**Declaring.** Each asset is a `file` or a `folder` inside the contract's folder (or `data_dir=`): an id is the
-asset's name, a folder's files are `<name>/<file name>`. Types: image (png, jpg, webp, gif), pdf, text (txt, md),
+**Declaring.** Each file is an input of type `file` whose `source` is a file or a folder inside the contract's folder
+(or `data_dir=`; a path supplied as the input at load replaces it): its id is the input's name, and a folder's
+files are `<name>/<file name>`. Types: image (png, jpg, webp, gif), pdf, text (txt, md),
 audio (wav, mp3) and file (anything else; delivered by reference only). A file's content must match its
 extension, and sizes are capped (image 10 MB, pdf 32 MB, text 2 MB, audio 25 MB, file 32 MB; `max_bytes`
 changes it). Every file is hashed when the contract loads. A table input column of type `asset` names files by

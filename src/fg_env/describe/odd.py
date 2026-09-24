@@ -73,14 +73,16 @@ def _purpose(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
         if text:
             lines += [text.strip(), ""]
     outputs = [[name, spec.type, spec.description, f"`{spec.expr}`"] for name, spec in contract.outputs.items()]
-    metrics = [[name, spec.unit, spec.description, f"`{spec.expr}`"] for name, spec in contract.metrics.items()]
+    metrics = [[name, spec.unit, spec.description, f"`{spec.sampled}`"]
+               for name, spec in contract.series_outputs().items()]
     if outputs:
         lines += ["Patterns the model is evaluated by (outputs):", ""] + _table(
             ["output", "type", "meaning", "computed as"], outputs)
     else:
         lines += ["No outputs are declared.", ""]
     if metrics:
-        lines += ["Tracked every round (metrics):", ""] + _table(["metric", "unit", "meaning", "computed as"], metrics)
+        lines += ["Tracked every round (series outputs):", ""] + _table(["output", "unit", "meaning", "sampled as"],
+                                                                         metrics)
     return lines
 
 
@@ -168,7 +170,7 @@ def _concepts(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
     roles = [f"`{name}`: {text.strip()}" for name, text in contract.brief.roles.items()]
     lines += (["**Objectives.** What each agent type is told it wants:", ""]
               + _bullets(roles, "No role objectives are stated."))
-    policies = ", ".join(f"`{name}`" for name in contract.policies)
+    policies = ", ".join(f"`{name}` ({kind})" for kind, spec in contract.types.items() for name in spec.policies)
     lines += ["**Adaptation and learning.** Decisions come from the participants attached at run time. "
               + (f"The contract declares coded policies: {policies}." if policies else "The contract declares no coded "
                                                                                        "policies."), ""]
@@ -194,11 +196,9 @@ def _concepts(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
               + _bullets(interaction, "No action names another entity directly."))
     lines += ([f"**Stochasticity.** {metadata.get('chance_mode', 'unknown')}.", ""]
               + _bullets(evidence.get("chance_mode", []), ""))
-    mixes = [f"population of `{p.type}` mixes " + ", ".join(m.name for m in p.mix) for p in contract.population
-             if p.mix]
     networks = [f"relation `{name}`" for name in contract.relations]
-    if mixes or networks:
-        lines += ["**Collectives.**", ""] + _bullets(mixes + networks, "")
+    if networks:
+        lines += ["**Collectives.**", ""] + _bullets(networks, "")
     lines += ["**Observation.** Measured through the metrics and outputs listed in section 1.", ""]
     return lines
 
@@ -207,18 +207,20 @@ def _initialisation(contract: C.Contract, metadata: Mapping[str, Any]) -> list[s
     lines = ["## 5. Initialisation", "",
              "Every run has one seed; each random stream is derived from it, so a seed replays the run exactly.", ""]
     lines += _table(["entity", "type", "name", "starting values"], [
-        [eid, spec.type, spec.name or "", spec.props] for eid, spec in contract.entities.items()])
+        [eid, spec.type, spec.name or "", spec.props] for eid, spec in contract.named_entities().items()])
     groups = []
-    for p in contract.population:
+    for key, p in contract.entities.items():
+        if not p.generates:
+            continue
         how = f"from `{p.from_}`" if p.from_ else ""
         how += f" count {p.count}" if p.count is not None else ""
         how += f", where `{p.where}`" if p.where else ""
         how += f", weighted by `{p.weight}`" if p.weight else ""
-        groups.append([p.type, how.strip(", "), p.props, ", ".join(m.name for m in p.mix)])
-    lines += _table(["generated type", "how many", "values", "archetypes"], groups)
-    links = [[spec.relation, spec.graph or "explicit", spec.among or f"{spec.from_} → {spec.to}",
+        groups.append([key, p.type, how.strip(", "), p.props])
+    lines += _table(["generated", "type", "how many", "values"], groups)
+    links = [[relation, spec.graph or "explicit", spec.among or f"{spec.from_} → {spec.to}",
               spec.p or spec.degree or ""]
-             for spec in contract.links]
+             for relation, _, spec in contract.starting_links()]
     lines += _table(["relation", "network", "among", "parameter"], links)
     return lines
 
@@ -266,10 +268,11 @@ def _submodels(contract: C.Contract, metadata: Mapping[str, Any]) -> list[str]:
     lines += _dynamics(contract)
     lines += _patterns(contract)
     for name, formula in contract.defs.items():
+        if formula.do is not None:
+            lines += [f"### Effects `{name}({', '.join(formula.args)})`", ""] + _code(formula.do)
+            continue
         lines += [f"### Formula `${name}({', '.join(formula.args)})`", ""] \
             + ([formula.description, ""] if formula.description else []) + _code([formula.expr])
-    for name, block in contract.blocks.items():
-        lines += [f"### Effect block `{name}({', '.join(block.args)})`", ""] + _code(block.do)
     for name, config in contract.mechanisms.items():
         key = use_key(config) or ""
         family, _, mode = key.partition(".")

@@ -10,6 +10,7 @@ from ..actions.book import ACTION_BUDGET, stage_actions
 from ..contract import StageSpec
 from ..errors import ContractError, Issue
 from ..expr import shared_budget
+from ..participants.builtin import policy_names
 from ..runtime.perception import is_spectator
 from ..runtime.turn import Turn
 from ..runtime.turn_tools import HostWake
@@ -81,7 +82,7 @@ class Previews:
         ``participants`` — by default the run's built-in and named ones."""
         env = self.env
         probe = restore_env(type(env), env.contract, snapshot, parallel=1)
-        policies = env.contract.policies
+        policies = policy_names(env.contract)
         if participants is None:  # the run's own: only those that play for free
             probe.driver.spec = {k: v for k, v in env.driver.spec.items() if _plays_free(v, policies)}
         else:  # the caller's: its own callables play, but a named LLM or search algorithm never does
@@ -126,7 +127,7 @@ class Previews:
                            "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
 
 
-def _plays_free(participant: Any, policies: Mapping[str, Any]) -> bool:
+def _plays_free(participant: Any, policies: list[str]) -> bool:
     """Whether a participant plays the earlier turns of a preview: only the built-in ones that cost nothing and answer
     at once (random, idle, a contract policy). An LLM, a search algorithm or your own callable is replaced by the
     agent's default (its type's policy, else random): a preview never makes a paid or slow call."""

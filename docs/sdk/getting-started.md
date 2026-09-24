@@ -163,7 +163,7 @@ import fg_env
 
 result = fg_env.run("inventory.json", {"retailer": "policy:steady"}, seed=7)
 print(result.outputs)
-assert result.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0}
+assert result.outputs == {"units_sold": 24, "lost_sales": 0, "closing_cash": 244.0, "stock": 10, "cash": 244.0}
 ```
 
 The same run from the command line:

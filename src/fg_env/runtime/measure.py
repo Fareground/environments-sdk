@@ -1,4 +1,4 @@
-"""Metrics every round, typed outputs at the end, and the run result."""
+"""Series outputs every round, typed outputs at the end, and the run result."""
 from __future__ import annotations
 
 import json
@@ -89,11 +89,12 @@ class RunResult:
     arm: str | None
     inputs: dict[str, Any]
     outputs: dict[str, Any]
+    #: Each series output's latest sample, and every sample (``outputs.<x>.series``).
     metrics: dict[str, Any]
     series: dict[str, list[Any]]
     winner: Any = None
     error: str | None = None
-    #: Each seat's return (the contract's `game.returns`), in seat order; empty when none is declared.
+    #: Each seat's return (its type's `score` value), in seat order; empty when no type scores.
     returns: dict[str, float] = field(default_factory=dict)
     output_issues: list[dict[str, Any]] = field(default_factory=list)
     stats: dict[str, Any] = field(default_factory=dict)
@@ -232,14 +233,15 @@ READABLE_DECIMALS = 4
 
 
 def sample_metrics(contract: Contract, world: SdkWorld) -> None:
-    """Evaluate every metric against the current world and append it to its series."""
+    """Sample every series output against the current world and append it to its series (``$outputs.x`` in the
+    expressions reads the outputs sampled before it this round)."""
     scope = world.scope()
     values: dict[str, Any] = {}
-    for name, spec in contract.metrics.items():
+    for name, spec in contract.series_outputs().items():
         try:
-            value = _plain(compile_expr(spec.expr)(scope.child(metrics=values)))
+            value = _plain(compile_expr(spec.sampled)(scope.child(outputs=values)))
         except ExprError as exc:
-            raise RunError(str(exc), f"metrics.{name}") from None
+            raise RunError(str(exc), f"outputs.{name}" + (".series" if isinstance(spec.series, str) else "")) from None
         values[name] = value
         world.series.setdefault(name, []).append(value)
         world.touch()
@@ -252,22 +254,26 @@ def compute_outputs(contract: Contract, world: SdkWorld) -> tuple[dict[str, Any]
     from .returns import run_result
 
     scope = world.scope(result=run_result(world))
+    known = dict(world.metrics)  # what `$outputs` reads: series outputs' latest samples, and each output worked out
     outputs: dict[str, Any] = {}
     issues: list[Issue] = []
     for name, spec in contract.outputs.items():
-        try:
-            value = _plain(compile_expr(spec.expr)(scope.child(outputs=outputs)))
-        except ExprError as exc:
-            issues.append(Issue(f"outputs.{name}", exc.detail, "fix the expression or guard missing values"))
-            outputs[name] = None
-            continue
+        if spec.series is True:  # its result is its last sample
+            value = world.metrics.get(name)
+        else:
+            try:
+                value = _plain(compile_expr(spec.expr)(scope.child(outputs=known)))
+            except ExprError as exc:
+                issues.append(Issue(f"outputs.{name}", exc.detail, "fix the expression or guard missing values"))
+                outputs[name] = known[name] = None
+                continue
         if isinstance(value, float) and not math.isfinite(value):
             issues.append(Issue(f"outputs.{name}", "is not a finite number"))
             value = None
         problem = check_value(spec.type, value) if value is not None and spec.type != "any" else None
         if problem:
             issues.append(Issue(f"outputs.{name}", problem, f"declared type is {spec.type}"))
-        outputs[name] = value
+        outputs[name] = known[name] = value
     return outputs, issues
 
 

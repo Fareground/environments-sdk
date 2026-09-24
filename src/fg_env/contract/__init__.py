@@ -5,7 +5,7 @@ reference, field by field, is generated from these models (see ``fg_env.guide()`
 
 The section models live beside it — shared names and ceilings in :mod:`.base`, the world model in
 :mod:`.world`, records, actions, stages, views, events and policies in :mod:`.rules`, and
-measurement, ending, experiments, invariants and calibration in :mod:`.measure` — and this module
+measurement, ending, reuse, experiments and invariants in :mod:`.measure` — and this module
 exports every one of them.
 """
 from __future__ import annotations
@@ -15,7 +15,6 @@ from typing import Any
 from pydantic import Field, PrivateAttr, model_validator
 
 from ..registry import config_data, parsed
-from .assets import AssetSpec
 from .base import (
     CONTRACT_VERSION,
     INPUT_TYPES,
@@ -36,17 +35,14 @@ from .base import (
     one_or_many,
     tape_prop,
 )
-from .game import UTILITIES, GameSpec
+from .game import UTILITIES, ScoreSpec
 from .measure import (
     END_CHECKS,
     INVARIANT_CHECKS,
     ArmSpec,
-    BlockSpec,
-    CalibrationSpec,
     DefSpec,
     EndSpec,
     InvariantSpec,
-    MetricSpec,
     OutputSpec,
 )
 from .rules import (
@@ -74,14 +70,10 @@ from .world import (
     InputSpec,
     LayerSpec,
     LinkSpec,
-    MembersSpec,
-    MixSpec,
     PhysicsSpec,
     PhysicsVar,
     PlaneSpace,
-    PopulationSpec,
     PropSpec,
-    RakingSpec,
     RelationSpec,
     Space,
     TypeSpec,
@@ -101,10 +93,6 @@ __all__ = [
     "PropSpec",
     "TypeSpec",
     "EntitySpec",
-    "PopulationSpec",
-    "MixSpec",
-    "MembersSpec",
-    "RakingSpec",
     "RelationSpec",
     "LinkSpec",
     "PhysicsSpec",
@@ -122,16 +110,12 @@ __all__ = [
     "ANCHORS",
     "PolicyRule",
     "PolicySpec",
-    "MetricSpec",
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
-    "CalibrationSpec",
-    "AssetSpec",
-    "GameSpec",
+    "ScoreSpec",
     "UTILITIES",
     "DefSpec",
-    "BlockSpec",
     "InvariantSpec",
     "INPUT_TYPES",
     "INVARIANT_CHECKS",
@@ -167,36 +151,25 @@ class Contract(_Model):
                                            "its folder); this contract's own entries win. Imported files may import "
                                            "others.")
     brief: Brief = Field(default_factory=Brief)
-    assets: dict[str, AssetSpec] = Field(default_factory=dict,
-                                         description="Files beside the contract (images, PDFs, text, audio) by id; see "
-                                                     "guide('assets').")
     inputs: dict[str, InputSpec] = Field(default_factory=dict)
     clock: Clock = Field(default_factory=Clock)
     space: Space | None = None
     world: dict[str, PropSpec] = Field(default_factory=dict, description="Global properties ($world.x).")
     types: dict[str, TypeSpec]
     entities: dict[str, EntitySpec] = Field(default_factory=dict)
-    population: list[PopulationSpec] = Field(default_factory=list)
     relations: dict[str, RelationSpec] = Field(default_factory=dict)
-    links: list[LinkSpec] = Field(default_factory=list)
     records: dict[str, RecordSpec] = Field(default_factory=dict)
     actions: dict[str, ActionSpec] = Field(default_factory=dict)
     stages: list[StageSpec] = Field(default_factory=list)
     views: dict[str, ViewSpec] = Field(default_factory=dict)
     events: list[EventSpec] = Field(default_factory=list)
-    policies: dict[str, PolicySpec] = Field(default_factory=dict)
-    metrics: dict[str, MetricSpec] = Field(default_factory=dict)
     outputs: dict[str, OutputSpec] = Field(default_factory=dict)
     end: list[EndSpec] = Field(default_factory=list)
     arms: dict[str, ArmSpec] = Field(default_factory=dict)
-    calibration: CalibrationSpec | None = Field(None,
-                                                description="Inputs fitted by short pilot sessions whenever the "
-                                                            "contract loads.")
-    game: GameSpec | None = Field(None, description="Seats, returns and utility for game and learning interfaces.")
     invariants: list[InvariantSpec] = Field(default_factory=list)
-    defs: dict[str, DefSpec] = Field(default_factory=dict, description="Reusable expressions, called as $name(args).")
-    blocks: dict[str, BlockSpec] = Field(default_factory=dict,
-                                         description="Reusable effect lists, run with {\"block\": name}.")
+    defs: dict[str, DefSpec] = Field(default_factory=dict,
+                                     description="Reusable expressions, called as $name(args), and effect lists, run "
+                                                 "with {\"call\": name, \"with\": {...}}.")
     mechanisms: dict[str, dict[str, Any]] = Field(
         default_factory=dict,
         description="Native building blocks by name: {name: {\"kind\": ..., ...config}}; see the guide's mechanisms "
@@ -211,11 +184,11 @@ class Contract(_Model):
 
     @model_validator(mode="before")
     @classmethod
-    def _asset_tape(cls, data: Any) -> Any:
-        """Described assets record their answers on the host tape, so such a contract declares it."""
+    def _file_tape(cls, data: Any) -> Any:
+        """Described files record their answers on the host tape, so such a contract declares it."""
         world = data.get("world") if isinstance(data, dict) else None
-        assets = data.get("assets") if isinstance(data, dict) else None
-        described = isinstance(assets, dict) and any(isinstance(a, dict) and a.get("describe") for a in assets.values())
+        inputs = data.get("inputs") if isinstance(data, dict) else None
+        described = isinstance(inputs, dict) and any(isinstance(i, dict) and i.get("describe") for i in inputs.values())
         if isinstance(data, dict) and described and isinstance(world or {}, dict) and TAPE not in (world or {}):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
         return data
@@ -265,6 +238,38 @@ class Contract(_Model):
             for index, event in enumerate(self.events):
                 by_anchor.setdefault(event.on, []).append((index, event))
         return by_anchor.get(anchor, [])
+
+    def policies_of(self, type_name: str) -> dict[str, tuple[str, PolicySpec]]:
+        """``{policy: (declaring type, spec)}`` for the policies agents of ``type_name`` may play: its own and its
+        ancestors' (the nearest declaration of a name wins)."""
+        return {name: (kind, spec) for kind in self.lineage(type_name)
+                for name, spec in self.types[kind].policies.items()}
+
+    def starting_links(self) -> list[tuple[str, str, LinkSpec]]:
+        """``(relation, path, spec)`` for every starting link entry, in build order (relation by relation)."""
+        return [(kind, f"relations.{kind}.links[{index}]", link) for kind, spec in self.relations.items()
+                for index, link in enumerate(spec.links)]
+
+    def score_of(self, type_name: str) -> ScoreSpec | None:
+        """What an entity of ``type_name`` scores as a seat: the nearest score in its lineage, or None."""
+        return next((self.types[kind].score for kind in reversed(self.lineage(type_name))
+                     if self.types[kind].score is not None), None)
+
+    def scoring(self) -> ScoreSpec | None:
+        """The first declared score (its seat order and utility are the game's), or None when no type scores."""
+        return next((spec.score for spec in self.types.values() if spec.score is not None), None)
+
+    def expr_defs(self) -> dict[str, DefSpec]:
+        """The defs that are expressions (``expr``), called as ``$name(...)``."""
+        return {name: spec for name, spec in self.defs.items() if spec.expr is not None}
+
+    def named_entities(self) -> dict[str, EntitySpec]:
+        """The entities declared one by one (the key is the id), without the generator entries."""
+        return {key: spec for key, spec in self.entities.items() if not spec.generates}
+
+    def series_outputs(self) -> dict[str, OutputSpec]:
+        """The outputs sampled every round (``series``), in declaration order."""
+        return {name: spec for name, spec in self.outputs.items() if spec.series is not False}
 
     def is_agent(self, type_name: str) -> bool:
         return any(self.types[name].agent for name in self.lineage(type_name))

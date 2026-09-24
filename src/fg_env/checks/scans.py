@@ -68,11 +68,12 @@ class _Scans:
                  if name in self.scanners and symbol in self.c.types]
         found += [_Scan(table, f"every row of $inputs.{table}", f"${name}($inputs.{table}, …)")
                   for name, table in _TABLE_SCAN.findall(source) if name in self.scanners and table in self.tables]
-        for name in sorted((set(compiled.functions) | set(compiled.roots)) & set(self.c.defs)):
+        exprs = self.c.expr_defs()
+        for name in sorted((set(compiled.functions) | set(compiled.roots)) & set(exprs)):
             if name in busy:
                 continue
             if name not in self.def_scans:
-                self.def_scans[name] = self.scans(self.c.defs[name].expr, (*busy, name))
+                self.def_scans[name] = self.scans(exprs[name].expr or "", (*busy, name))
             found += [_Scan(inner.table, inner.visited, f"${name} (defs.{name} uses {inner.how})")
                       for inner in self.def_scans[name]]
         return found
@@ -121,13 +122,19 @@ class _Scans:
                 if around is not None:
                     for leaf_path, leaf in _leaves(raw, f"{where}.{key}"):
                         self.report(leaf, leaf_path, around)
-            block = effect.get("block")
-            if work is not None and isinstance(block, str) and block in self.c.blocks and block not in seen:
-                self.effects(self.c.blocks[block].do, f"blocks.{block}.do", work, seen | {block})
+            called = effect.get("call")
+            body = self._effect_def(called)
+            if work is not None and body is not None and isinstance(called, str) and called not in seen:
+                self.effects(body, f"defs.{called}.do", work, seen | {called})
+
+    def _effect_def(self, name: Any) -> Any:
+        """The effects of def ``name``, or None when it is not a def with `do`."""
+        spec = self.c.defs.get(name) if isinstance(name, str) else None
+        return spec.do if spec is not None else None
 
     def recurring_blocks(self) -> list[str]:
-        """Blocks that schedule themselves again through `after` (directly or through other blocks)."""
-        edges = {name: list(_calls(spec.do, False)) for name, spec in self.c.blocks.items()}
+        """Effect defs that schedule themselves again through `after` (directly or through other defs)."""
+        edges = {name: list(_calls(spec.do, False)) for name, spec in self.c.defs.items() if spec.do is not None}
 
         def returns(start: str) -> bool:
             stack = list(edges[start])
@@ -142,7 +149,7 @@ class _Scans:
                 stack += [(callee, timed or late) for callee, late in edges[node]]
             return False
 
-        return [name for name in self.c.blocks if returns(name)]
+        return [name for name in edges if returns(name)]
 
     def run(self) -> None:
         c = self.c
@@ -155,17 +162,16 @@ class _Scans:
         for name, action in c.actions.items():
             self.effects(action.do, f"actions.{name}.do", None, set())
         for name in self.recurring_blocks():
-            self.effects(c.blocks[name].do, f"blocks.{name}.do",
-                         _Work(f"each run of block {name} (it schedules itself again)", types=True), {name})
-        for index, group in enumerate(c.population):
-            path, work = f"population[{index}]", _Work(f"each row of population[{index}]")
-            for key in ("where", "weight"):
-                self.report(getattr(group, key), f"{path}.{key}", work)
+            self.effects(self._effect_def(name), f"defs.{name}.do",
+                         _Work(f"each run of def {name} (it schedules itself again)", types=True), {name})
+        for key, group in c.entities.items():
+            if not group.generates:
+                continue
+            path, work = f"entities.{key}", _Work(f"each entity entities.{key} generates")
+            for field in ("where", "weight"):
+                self.report(getattr(group, field), f"{path}.{field}", work)
             for leaf_path, leaf in _leaves(group.props, f"{path}.props"):
                 self.report(leaf, leaf_path, work)
-            for member_index, members in enumerate(group.members):
-                for leaf_path, leaf in _leaves(members.props, f"{path}.members[{member_index}].props"):
-                    self.report(leaf, leaf_path, _Work(f"each member of population[{index}]"))
 
 
 def _leaves(raw: Any, path: str) -> Iterable[tuple[str, Any]]:
@@ -180,13 +186,13 @@ def _leaves(raw: Any, path: str) -> Iterable[tuple[str, Any]]:
 
 
 def _calls(effects: Any, timed: bool) -> Iterable[tuple[str, bool]]:
-    """``(block, reached through after)`` for every block an effect list runs."""
+    """``(def, reached through after)`` for every effect def an effect list calls."""
     items = [effects] if isinstance(effects, dict) else effects if isinstance(effects, list) else []
     for effect in items:
         if not isinstance(effect, dict):
             continue
-        if isinstance(effect.get("block"), str):
-            yield effect["block"], timed
+        if isinstance(effect.get("call"), str):
+            yield effect["call"], timed
         for key in _NESTED:
             if key in effect:
                 yield from _calls(effect[key], timed or "after" in effect)

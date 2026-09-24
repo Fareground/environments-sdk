@@ -178,7 +178,7 @@ class Branch:
         return self._pilot.read(self._pilot.env.result)
 
     def returns(self) -> dict[str, float]:
-        """Each seat's return so far (the contract's ``game.returns``); ``{}`` when none is declared."""
+        """Each seat's return so far (its type's ``score.value``); ``{}`` when no type scores."""
         env = self._pilot.env
         return self._pilot.read(lambda: seat_returns(env.contract, env.world))
 
@@ -282,7 +282,7 @@ def clone_env(source: Env) -> Env:
         copy = restore_state(type(source), source.contract, snapshot, source.parallel)
         copy.origin.base, copy.origin.unarmed = snapshot, source.origin.unarmed
         copy.driver.spec = dict(source.driver.spec)
-        copy.time_limit, copy.calibration = source.time_limit, source.calibration
+        copy.time_limit = source.time_limit
         _keep_chance(source, copy)
         hosts = hosts_for(source.world)
         if hosts is not None:
@@ -299,7 +299,7 @@ def clone_env(source: Env) -> Env:
     env.pilot = None
     env.world.chance_picker = None
     _keep_chance(source, env)
-    env.parallel, env.time_limit, env.calibration = source.parallel, source.time_limit, source.calibration
+    env.parallel, env.time_limit = source.parallel, source.time_limit
     if env.status != "stopped" or env.origin.tape.points != source.origin.tape.points:
         raise RunError("the copy did not stop where the original stopped; the run's state was changed outside the "
                        "engine", "clone")

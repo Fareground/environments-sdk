@@ -29,24 +29,15 @@ def test_invalid_literal_quantity_has_exact_path_and_repair(value):
         assert "{'unit': $inputs.stock}" in errors[0].fix
 
 
-@pytest.mark.parametrize("place", ["default", "population", "mix", "member"])
+@pytest.mark.parametrize("place", ["default", "generated"])
 def test_initial_inventory_checks_defaults_and_generated_holders(place):
     contract = copy.deepcopy(BASE)
     if place == "default":
         contract["types"]["holder"]["props"] = {"stock": {"default": {"unit": -1}}}
         path = "types.holder.props.stock.default.unit"
     else:
-        group = {"type": "shop", "count": 1}
-        contract["population"] = [group]
-        if place == "population":
-            group["props"] = {"stock": {"unit": -1}}
-            path = "population[0].props.stock.unit"
-        elif place == "mix":
-            group["mix"] = [{"name": "bad", "props": {"stock": {"unit": -1}}}]
-            path = "population[0].mix[0].props.stock.unit"
-        else:
-            group["members"] = [{"type": "shop", "count": 1, "props": {"stock": {"unit": -1}}}]
-            path = "population[0].members[0].props.stock.unit"
+        contract["entities"]["shops"] = {"type": "shop", "count": 1, "props": {"stock": {"unit": -1}}}
+        path = "entities.shops.props.stock.unit"
     errors = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
     assert [i.path for i in errors] == [path]
 

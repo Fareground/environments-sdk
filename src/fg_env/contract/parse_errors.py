@@ -138,6 +138,9 @@ def validation_issues(exc: ValidationError) -> list[Issue]:
                 fix = f"did you mean '{hint[0]}'?" if hint else "remove it"
             if loc and (str(loc[0]), key) in _REMOVED:
                 fix = _REMOVED[(str(loc[0]), key)]
+            elif len(loc) == 1 and key == "links":
+                fix = ("starting links belong to their relation, and this one's relation is not declared: declare "
+                       "it under `relations` and write the links as relations.<relation>.links")
             elif len(loc) == 3 and loc[0] == "events" and key in {"round", "rounds"}:
                 fix = ('an event fires on given rounds through its when: "when": "$round == 2", "$round in [2, 4]", '
                        '"$round % 2 == 0"')

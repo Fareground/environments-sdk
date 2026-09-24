@@ -493,6 +493,13 @@ def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
                     types[type_name] = copy.deepcopy(spec)
                     continue
                 _fill(types[type_name], spec)
+        elif section == "relations":  # the author's entry may only add links to a generated relation
+            relations = data.setdefault("relations", {})
+            for kind, spec in value.items():
+                if kind in relations and isinstance(relations[kind], dict):
+                    _fill(relations[kind], spec)
+                else:
+                    relations.setdefault(kind, copy.deepcopy(spec))
         elif section == "entities":
             entities = data.setdefault("entities", {})
             for entity_id, spec in value.items():

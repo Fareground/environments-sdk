@@ -20,21 +20,23 @@ _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
 
 def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[str]:
-    """The metrics worked out from agents' private properties: those whose expression — or a def or metric it
-    reads — names one (``private``, the names agent types keep private). Read by name, so a metric that only might
-    read one counts too: showing it to agents is refused, and a metric that must be shown reads no private name."""
+    """The series outputs worked out from agents' private properties: those whose sampled expression — or a def or
+    output it reads — names one (``private``, the names agent types keep private). Read by name, so an output that
+    only might read one counts too: showing it to agents is refused, and an output that must be shown reads no
+    private name."""
     if not private:
         return frozenset()
-    texts = {name: spec.expr for name, spec in contract.metrics.items()}
-    texts.update({name: spec.expr for name, spec in contract.defs.items() if name not in texts})
+    sampled = {name: spec.sampled or "" for name, spec in contract.series_outputs().items()}
+    texts = dict(sampled)
+    texts.update({name: spec.expr or "" for name, spec in contract.expr_defs().items() if name not in texts})
     names = {name: set(_NAME.findall(text)) for name, text in texts.items()}
     hidden = {name for name, found in names.items() if found & private}
     grown = True
-    while grown:  # a metric or def reading one that is worked out from private properties is too
+    while grown:  # an output or def reading one that is worked out from private properties is too
         more = {name for name, found in names.items() if name not in hidden and found & hidden}
         hidden |= more
         grown = bool(more)
-    return frozenset(hidden & set(contract.metrics))
+    return frozenset(hidden & set(sampled))
 
 
 class Entry(dict):

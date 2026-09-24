@@ -53,7 +53,7 @@ def playthrough(source: ContractLike | Game, *, seed: int = 0, steps: Sequence[M
 
 def _header(subject: Game, seed: int) -> list[str]:
     info = subject.info
-    spec = subject.contract.game
+    spec = subject.contract.scoring()
     lines = [f"# fg-env playthrough: {subject.contract.name}",
              f"Game: {subject.id}",
              f"Seed: {seed}",
@@ -62,8 +62,8 @@ def _header(subject: Game, seed: int) -> list[str]:
              f"utility: {subject.utility}",
              f"Action space: {subject.num_distinct_actions()} ids"
              + (f" (parametric: {', '.join(sorted(subject.space.parametric))})" if subject.space.parametric else "")]
-    if spec is not None and (spec.min_return is not None or spec.max_return is not None):
-        lines.append(f"Returns between: {_number(spec.min_return)} and {_number(spec.max_return)}")
+    if spec is not None and (spec.min is not None or spec.max is not None):
+        lines.append(f"Returns between: {_number(spec.min)} and {_number(spec.max)}")
     state = subject.new_initial_state()
     try:
         for index, entity in enumerate(subject.players):
@@ -104,8 +104,7 @@ def _describe(state: GameState, number: int) -> list[str]:
 
 
 def _returns(state: GameState) -> list[str]:
-    spec = state.game.contract.game
-    if spec is None or spec.returns is None:
+    if state.game.contract.scoring() is None:
         return []
     return [f"Returns: [{', '.join(_number(value) for value in state.returns())}]"]
 

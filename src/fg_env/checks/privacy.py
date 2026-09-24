@@ -210,7 +210,8 @@ class PrivacyChecks:
         """Warn when ``expressions`` call defs (directly or through other defs) that read private properties from
         their arguments or the entities they loop over: whose they read shows only at run time."""
         private = {prop for kind in self.c.types for prop, spec in self.c.props_of(kind).items() if spec.private}
-        pending = [name for expr in expressions for name in (expr.functions | expr.roots) if name in self.c.defs]
+        defs = self.c.expr_defs()
+        pending = [name for expr in expressions for name in (expr.functions | expr.roots) if name in defs]
         seen: set[str] = set()
         read: set[str] = set()
         while pending:
@@ -218,14 +219,14 @@ class PrivacyChecks:
             if name in seen:
                 continue
             seen.add(name)
-            spec = self.c.defs[name]
+            spec = defs[name]
             try:
-                body = compile_expr(spec.expr)
+                body = compile_expr(spec.expr or "")
             except ExprError:
                 continue  # already reported by the def check
             read |= {f"{chain[1]} (in ${name})" for chain in body.paths
                      if len(chain) > 1 and chain[0] in {*spec.args, "it"} and chain[1] in private}
-            pending += [other for other in body.functions | body.roots if other in self.c.defs]
+            pending += [other for other in body.functions | body.roots if other in defs]
         if read:
             self._private_warning(path, ", ".join(sorted(read)))
 

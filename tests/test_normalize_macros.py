@@ -1,4 +1,5 @@
-"""Parse-time macros: repeated structure generated from data, expanded before mechanisms."""
+"""Macros of earlier releases (`for`/`make`): a contract that uses them still loads, expanded in place when it is read
+(each file on its own, before mechanisms), and `fg-env expand` shows the expanded form to write instead."""
 import json
 from pathlib import Path
 
@@ -6,7 +7,8 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env.contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
+from fg_env.contract.normalize import normalize
+from fg_env.contract.normalize_state import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from fg_env.errors import ContractError
 from fg_env.experiments.experiment import Job, run_jobs
 
@@ -31,6 +33,14 @@ def _issues(excinfo):
     return [(issue.path, issue.message) for issue in excinfo.value.issues]
 
 
+def test_macros_are_expanded_in_place_with_a_note_and_are_gone_from_the_guide():
+    expanded, notes = normalize(BETTING)
+    assert list(expanded["actions"]) == ["bet_flop", "bet_turn", "bet_river"] and any("macros" in n for n in notes)
+    assert normalize(expanded) == (expanded, [])
+    with pytest.raises(KeyError, match="unknown guide part 'macros'"):
+        fg_env.guide("macros")
+
+
 def test_list_items_and_named_entries_are_generated_with_placeholders_keeping_types():
     data = fg_env.expand(BETTING)
     assert [s["name"] for s in data["stages"]] == STREETS
@@ -45,13 +55,13 @@ def test_list_items_and_named_entries_are_generated_with_placeholders_keeping_ty
 
 def test_ranges_fields_offsets_nested_loops_and_a_macro_under_a_plain_key():
     data = fg_env.expand({"name": "x",
-                          "links": {"for": {"range": [1, 7, 3]}, "as": "n", "make": {"from": "p{n}", "to": "p{n+1}"}},
+                          "pairs": {"for": {"range": [1, 7, 3]}, "as": "n", "make": {"from": "p{n}", "to": "p{n+1}"}},
                           "cells": [{"for": [{"row": "a", "cols": [1, 2]}, {"row": "b", "cols": [3]}], "as": "r",
                                      "make": {"for": "{r.cols}", "as": "c", "make": "{r.row}{c}:{r.cols.0}"}}],
                           "grid": {"c_{x}_{y}": {"for": {"range": 2}, "as": "x",
                                     "make": {"for": {"range": 2}, "as": "y",
                                               "make": "{x}{y}"}}}})
-    assert data["links"] == [{"from": "p1", "to": "p2"}, {"from": "p4", "to": "p5"}]
+    assert data["pairs"] == [{"from": "p1", "to": "p2"}, {"from": "p4", "to": "p5"}]
     assert data["cells"] == ["a1:1", "a2:1", "b3:3"]
     assert data["grid"] == {"c_0_0": "00", "c_0_1": "01", "c_1_0": "10", "c_1_1": "11"}
 

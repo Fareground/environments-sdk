@@ -169,13 +169,22 @@ class Driver:
                                            f"did you mean '{hint[0]}'?" if hint else
                                            f"types: {', '.join(env.contract.types)}; '*' is everyone")],
                                     title="participants are invalid")
-            if not callable(value):
-                resolve_participant(value, env.contract, 0, path)  # an unknown name fails now, not mid-run
+            if not callable(value):  # an unknown name, or a policy the agents it plays lack, fails now, not mid-run
+                resolve_participant(value, env.contract, 0, path, self._kinds(key))
             elif _is_async_generator(value):
                 raise TypeError(f"participant for '{key}' is an async generator; a participant plays one turn per "
                                 "call — use a plain function or an async def")
         self.spec = dict(participants)
         self._resolved.clear()
+
+    def _kinds(self, key: str) -> tuple[str, ...]:
+        """The agent types a participant bound to ``key`` (a type, an entity id or '*') plays."""
+        contract, entity = self.env.contract, self.env.world.entities.get(key)
+        if entity is not None:
+            return (entity.entity_type,)
+        if key in contract.types:
+            return tuple(kind for kind in contract.subtypes(key) if contract.is_agent(kind))
+        return ()
 
     def participant(self, actor: Entity) -> Participant:
         budget = self.env.budget
@@ -192,7 +201,8 @@ class Driver:
         if value is None:
             value = next((env.contract.types[kind].policy for kind in lineage if env.contract.types[kind].policy),
                          None) or "random"
-        participant = resolve_participant(value, env.contract, env.seeds.derive("participant"))
+        participant = resolve_participant(value, env.contract, env.seeds.derive("participant"),
+                                          kinds=(actor.entity_type,))
         participant = self._with_turn_tools(participant)
         self._resolved[actor.id] = participant
         return participant

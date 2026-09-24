@@ -61,16 +61,16 @@ class Seen:
 
 
 def flat_measures(contract: Contract, runs: list[RunResult]) -> list[Issue]:
-    """Outputs and metrics that came out the same, or empty (null), in every one of ``runs`` (two at least): whatever
+    """Outputs and series that came out the same, or empty (null), in every one of ``runs`` (two at least): whatever
     the agents did and whatever luck drew, they measured nothing that changed — a winner no rule decides but a
     tie-break, a sum of what no rule adds to."""
     if len(runs) < 2:
         return []
     found: list[Issue] = []
-    for name in contract.outputs:
-        found += _flat(f"outputs.{name}", [run.outputs.get(name) for run in runs])
-    for name in contract.metrics:
-        found += _flat(f"metrics.{name}", [value for run in runs for value in run.series.get(name, [])])
+    for name, spec in contract.outputs.items():
+        sampled = spec.series is True  # its result is its last sample: every sample tells more
+        found += _flat(f"outputs.{name}", [value for run in runs for value in run.series.get(name, [])] if sampled
+                       else [run.outputs.get(name) for run in runs])
     return found
 
 

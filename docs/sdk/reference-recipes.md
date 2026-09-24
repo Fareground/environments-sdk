@@ -50,7 +50,7 @@
   entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
   prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
   value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
-  outcome text, briefs, policies, defs they call, metrics worked out from private props) is an error at run time,
+  outcome text, briefs, policies, defs they call, series outputs worked out from private props) is an error at run time,
   however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
   stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
@@ -124,8 +124,8 @@
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
   patches), events with a `when` for shocks (`"$round == 10 and $arm == 'shock'"`, `"$chance(p)"`); `fg_env.experiment` runs arms
   with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
-* Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
-  "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`
+* Games: a player type's `score` names the seats and what each scores (`"types": {"player": {..., "score":
+  {"seat": "$it.seat", "value": "$it.chips - 10", "utility": "zero_sum"}}}`); dealt cards and dice as `chance`
   effects (`{"chance": "deal", "outcomes": "$world.deck", "as": "card", "do": [...]}`) so solvers can
   enumerate them; `must_act` stages so a seat cannot stall; `step` on number params so bids have ids.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
@@ -134,8 +134,9 @@
   {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}]}, {"on": "remove.firm", "do":
   [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}]` — every firm, however it was
   created, is counted and connected; closing one lays off its jobs.
-* Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
-  `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
+* Reusable logic: `defs` — a formula (`"utility": {"args": ["side", "offer"], "expr": "..."}`, read as
+  `$utility(...)`) or an effect list (`"match": {"args": ["order"], "do": [...]}`, run with
+  `{"call": "match", "with": {"order": "$made"}}`).
 * Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
   those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
   the agent itself: show an agent's own state in a view).
@@ -147,6 +148,6 @@
   quarter, …) and `$is_holiday(d, $inputs.holidays)` do the arithmetic; narratives name rounds in the clock's unit.
 * Policy rules with `each` act once per item: `{"each": "$filter(army, $it.owner == $actor.id)",
   "do": "hold", "with": {"army": "$it"}}`.
-* Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
-  set `types.X.policy` to make them the default.
+* Coded participants: `types.X.policies` rules (first legal matching rule wins) for crowds and baselines;
+  set `types.X.policy` to make one the default.
 

@@ -1,7 +1,7 @@
 """The guide's hand-written prose parts (the generated ones are in :mod:`fg_env.guides.pages`)."""
 from __future__ import annotations
 
-__all__ = ["MODEL", "EXPRESSIONS", "MACROS", "TEMPLATES", "EFFECTS", "EFFECT_EXAMPLES", "RECIPES", "RUNNING",
+__all__ = ["MODEL", "EXPRESSIONS", "TEMPLATES", "EFFECTS", "EFFECT_EXAMPLES", "RECIPES", "RUNNING",
            "INSPECT", "CHECKLIST"]
 
 MODEL = """\
@@ -166,36 +166,6 @@ ROOTS_TABLE
 `$clock` fields: round rounds left unit date label. `$metrics.x` = latest value; `$series.x` = list per round.
 """
 
-MACROS = """\
-## Macros (repeat structure from data)
-
-An object with `for` and `make` is a macro (data with only a `make` field, like a car's make, is not): it repeats `make` once per value, replacing `{name}`
-placeholders (the `as` name) in strings and keys. Expanded when the contract is read, before
-mechanisms, in every file on its own (see the result with `fg_env.expand(contract)` or `fg-env expand file.json`).
-
-```json
-"stages": [{"for": ["flop", "turn", "river"], "as": "street",
-            "make": {"name": "{street}", "actions": ["bet_{street}"]}}],
-"actions": {"bet_{street}": {"for": ["flop", "turn", "river"], "as": "street",
-            "make": {"by": "player", "do": ["$actor.bets = $actor.bets + ['{street}']"]}}}
-```
-
-* In a list a macro becomes one item per value. As a map entry whose key holds one of its
-  placeholders (`"bet_{street}"`) it becomes one entry per value; under any other key
-  (`"stages": {"for": ...}`) it becomes the list of made values.
-* `for`: a list (of values or objects), `{"range": n}` (0..n-1), `{"range": [start, end]}` or
-  `{"range": [start, end, step]}` (the end excluded, like `$range`), or a placeholder giving a list
-  from an outer loop (`"for": "{street.cards}"`).
-* `{x}` alone in a string keeps the value's type (`"count": "{n}"` is a number); in longer text it is
-  written out (lists and maps as JSON). `{x.field}` reads a field, `{x.0}` a list item, `{n+1}` and
-  `{n-1}` offset a whole number. `"index": "i"` names the 0-based position.
-* Nest loops by making a macro whose `make` is a macro: `"move_{a}_{b}"` with `for` a, `make` {`for` b …}.
-* Only loop variables are replaced: template fields like `{name}` and `{{` stay as they are, so do
-  not name a loop variable after a property you read in a template.
-* Limits: MAX_ITEMS generated values per file, loops MAX_DEPTH deep. Two generated entries with one
-  name, a missing field or a wrong `for` are errors with the macro's path.
-"""  # noqa: E501 — guide text: each line is shown as written
-
 TEMPLATES = """\
 ## Templates (show, outcome, announce, say, brief, id, name)
 
@@ -283,8 +253,8 @@ EFFECT_EXAMPLES = {
             '`after`)',
     "repeat": '{"repeat": "$count(order)", "while": "$count(order) > 1", "do": [...]}  (limit may be an expression; '
               'derive it from the data, not an arbitrary constant; 0 runs nothing; error if still true at the limit)',
-    "block": '{"block": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a named effect list from '
-             '`blocks`)',
+    "call": '{"call": "settle", "with": {"buyer": "$actor", "qty": "$params.qty"}}  (runs a def\'s `do` effects with '
+            'those arguments)',
     "chance": '{"chance": [{"p": 0.5, "label": "heads", "do": [...]}, {"p": 0.5, "label": "tails", "do": '
               '[...]}], "as": "coin"} or {"chance": "deal", "outcomes": "$world.deck", "weight": "1", "as": '
               '"card", "do": [...]}  (picks one outcome from the listed distribution, logged as a `chance` event; '
@@ -342,7 +312,7 @@ RECIPES = """\
   entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
   prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
   value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
-  outcome text, briefs, policies, defs they call, metrics worked out from private props) is an error at run time,
+  outcome text, briefs, policies, defs they call, series outputs worked out from private props) is an error at run time,
   however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
   stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
@@ -416,8 +386,8 @@ RECIPES = """\
 * Scenarios & experiments: `inputs` for scenario knobs, `arms` for variants (input overrides or
   patches), events with a `when` for shocks (`"$round == 10 and $arm == 'shock'"`, `"$chance(p)"`); `fg_env.experiment` runs arms
   with shared seeds (`branch_at=N`: every arm continues from one shared history of N rounds).
-* Games: a `game` section names the seats and what each scores (`"game": {"players": "player", "seat":
-  "$it.seat", "returns": "$actor.chips - 10", "utility": "zero_sum"}`); dealt cards and dice as `chance`
+* Games: a player type's `score` names the seats and what each scores (`"types": {"player": {..., "score":
+  {"seat": "$it.seat", "value": "$it.chips - 10", "utility": "zero_sum"}}}`); dealt cards and dice as `chance`
   effects (`{"chance": "deal", "outcomes": "$world.deck", "as": "card", "do": [...]}`) so solvers can
   enumerate them; `must_act` stages so a seat cannot stall; `step` on number params so bids have ids.
 * Families of agents: `types.trader` with shared props, then `types.market_maker: {"extends": "trader"}`;
@@ -426,8 +396,9 @@ RECIPES = """\
   {"link": "supplies", "from": "$it", "to": "$top(supplier, $it.capacity, 1)[0]"}]}, {"on": "remove.firm", "do":
   [{"each": "$filter(job, $it.employer == $outer.id)", "do": [{"remove": "$it"}]}]}]` — every firm, however it was
   created, is counted and connected; closing one lays off its jobs.
-* Reusable logic: `defs` for formulas (`"utility": {"args": ["side", "offer"], "expr": "..."}`) and
-  `blocks` for effect lists (`{"block": "match", "with": {"order": "$made"}}`).
+* Reusable logic: `defs` — a formula (`"utility": {"args": ["side", "offer"], "expr": "..."}`, read as
+  `$utility(...)`) or an effect list (`"match": {"args": ["order"], "do": [...]}`, run with
+  `{"call": "match", "with": {"order": "$made"}}`).
 * Inspection: `types.X.inspect: true` (or an expression over `$viewer` and `$it`) gives agents an `inspect` tool for
   those entities, showing every prop that is not `private`. Without one it is not offered (its only choice would be
   the agent itself: show an agent's own state in a view).
@@ -439,8 +410,8 @@ RECIPES = """\
   quarter, …) and `$is_holiday(d, $inputs.holidays)` do the arithmetic; narratives name rounds in the clock's unit.
 * Policy rules with `each` act once per item: `{"each": "$filter(army, $it.owner == $actor.id)",
   "do": "hold", "with": {"army": "$it"}}`.
-* Coded participants: `policies` rules (first legal matching rule wins) for crowds and baselines;
-  set `types.X.policy` to make them the default.
+* Coded participants: `types.X.policies` rules (first legal matching rule wins) for crowds and baselines;
+  set `types.X.policy` to make one the default.
 """  # noqa: E501 — guide text: each line is shown as written
 
 RUNNING = """\

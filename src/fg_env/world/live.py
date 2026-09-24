@@ -408,17 +408,19 @@ class SdkWorld(World):
 
     def has_def(self, name: str) -> bool:
         spec = self.contract.defs.get(name)
-        return spec is not None and not spec.args
+        return spec is not None and spec.expr is not None and not spec.args
 
     def defines(self, name: str) -> bool:
-        return name in self.contract.defs
+        spec = self.contract.defs.get(name)
+        return spec is not None and spec.expr is not None
 
     def call_def(self, name: str, args: list[Any], source: str, viewer: Any = None) -> Any:
         """Call the def ``name``. It sees the caller's ``viewer`` (bound while rendering for, or offering choices to,
         one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
         spec = self.contract.defs.get(name)
-        if spec is None:
-            hint = suggest_function(name, callable_names(self.contract.mechanism_families()) + list(self.contract.defs))
+        if spec is None or spec.expr is None:
+            hint = suggest_function(name, callable_names(self.contract.mechanism_families())
+                                    + list(self.contract.expr_defs()))
             raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got "
@@ -528,7 +530,7 @@ class SdkWorld(World):
             "pattern": self.patterns.view,
             "round": self.round,
             "stage": self.stage,
-            "metrics": self.metrics,
+            "outputs": self.metrics,
             "series": self.series,
             "arm": self.arm,
             "pending": getattr(local, "pending", None) or [],

@@ -18,11 +18,11 @@ requirement while repairing check issues.
 1. Write the contract; the example below is a complete one.
 2. `fg-env check lake.json` (`fg_env.check`): static checks, then short plays with random agents and each policy.
    Fix every error; each names its path, a fix and the guide part to read.
-3. `fg-env preview lake.json fisher_1` (`env.preview(id)`; a population's ids are `fisher_1`, `fisher_2` …):
+3. `fg-env preview lake.json fisher_1` (`env.preview(id)`; generated entities' ids are `fisher_1`, `fisher_2` …):
    exactly what that agent reads. Each role should see what the brief says, nothing more.
 4. `fg-env run lake.json --seed 1` (`fg_env.run`): compare the outputs with what the brief implies, worked out by
    hand for a small case. A clean check proves it runs, not that it is right. To look at state, read the run's summary
-   (metric values and the entities as the run left them) or a preview; never swap outputs for probes.
+   (series outputs and the entities as the run left them) or a preview; never swap outputs for probes.
 
 ## Worked example
 
@@ -44,7 +44,7 @@ total catch. Report `catch_by_fisher` (fisher id → total catch) and `fish_left
   },
   "world": {"fish": "$inputs.capacity"},
   "types": {"fisher": {"agent": true, "props": {"caught": 0, "asked": 0}}},
-  "population": [{"type": "fisher", "count": "$inputs.fishers"}],
+  "entities": {"fisher": {"type": "fisher", "count": "$inputs.fishers"}},
   "stages": [{"name": "fish", "turns": "simultaneous"}],
   "actions": {"catch": {
     "by": "fisher", "description": "Ask for fish from the lake this season.",
@@ -87,7 +87,7 @@ assert result.outputs["catch_by_fisher"] == {"fisher_1": 44, "fisher_2": 44, "fi
 
 ## How a round runs
 
-`round.start` events → each stage in order → `round.end` events → metrics → `end` conditions. A run ends on an `end` condition
+`round.start` events → each stage in order → `round.end` events → series outputs sampled → `end` conditions. A run ends on an `end` condition
 or effect, or when rounds run out.
 * A stage wakes agents (`who`, in `order`). `turns: sequential` — one at a time, actions apply at once.
   `turns: simultaneous` — everyone chooses from the same picture (sealed bids, votes); choices then commit one
@@ -108,22 +108,20 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `clock` | `{rounds: 20, unit: "round"}` |
 | `inputs` | `{name: {type, default, min, max, values, fields}}` — set at load, read as `$inputs.name` |
 | `world` | `{prop: default}` — global props, `$world.prop`; a default may read `$inputs` |
-| `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends}}` |
-| `entities` | `{id: {type, name, props}}` |
-| `population` | `[{type, count, from, name: "Buyer {$i}", props}]` — `from` makes one entity per input row (`$row`) |
+| `types` | `{type: {agent, props: {prop: default or {type, default, min, max, values, private}}, extends, policies, score}}` — `policies`: coded participants (`policy:<name>`) |
+| `entities` | `{id: {type, name, props}}`; `count` or `from` (one per input row, `$row`) generates `<id>_1` … |
 | `records` | `{log: {fields, show, visible}}` — logs (chat, bids) written by `post` |
 | `actions` | `{act: {by, description, params: {p: {type, min, max, values, of, where}}, when, do, outcome, announce}}` |
 | `stages` | `[{name, when, actions, turns, who, order, max_actions, until, valid}]` |
 | `views` | `{v: {for, title, of, where, sort, desc, limit, show}}` — `of` omitted: one line about `$actor`; a list includes the viewer unless `where: "$it.id != $actor.id"` |
 | `events` | `[{on, when, do, say}]` — `on`: round.start (default), round.end, stage.<s>.end … |
 | `end` | `[{when, winner, say, check: stage or action}]` |
-| `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
+| `outputs` | `{name: expr}` or `{name: {expr, type, series}}`; `series: true` samples it every round (`$outputs.x`, `$series.x`); `format` shapes summaries |
 | `invariants` | `[expr or {expr, why}]` — must always hold |
 | `mechanisms` | `{name: {kind, mode, ...}}` — markets, ballots, hidden roles, queues, physics, patterns (`{kind: pattern, mode: trend, …}`, read `$pattern.name`) …; `guide('mechanisms')` |
-| `policies` | `{name: {rules: [{when, do, with}]}}` — coded participants for baselines (`policy:<name>`) |
 
-Also: `assets`, `game`, `space`, `relations`, `links`, `arms`, `calibration`,
-`defs`, `blocks`, `imports`. Property types: number int bool text enum list map any. Without `type` the default
+Also: `space`, `relations` (and their `links`), `arms`, `defs`, `imports`; files are inputs of `type: file`.
+Property types: number int bool text enum list map any. Without `type` the default
 decides: a number → `number` (fractions too; `"type": "int"` for whole numbers), true/false → `bool`, text → `text`
 (`enum` with `values`), a list or object → `list`/`map`, an expression → `any`. Inputs also take `table` (rows with
 `fields`). Parameter types: number int bool text enum entity list file; an
@@ -133,7 +131,7 @@ decides: a number → `number` (fractions too; `"type": "int"` for whole numbers
 
 A string with `$name` in it is an expression; other strings are text.
 * Roots: `$actor` (who acts), `$params` (its arguments), `$it` (the current item), `$world`, `$inputs`, `$round`,
-  `$metrics`; locals you assign (`$total`). Props: `$actor.coins`, `$params.target.name`, `$entity(shop).stock`.
+  `$outputs`; locals you assign (`$total`). Props: `$actor.coins`, `$params.target.name`, `$entity(shop).stock`.
   Entities also have `id name type alive`.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not`, `in`, `a if cond else b`, lists `[1, 2]`, maps
   `{price: 3}`, indexing `$list[0]`. Bare words are text: `$actor.role == wolf`. Compare with `==`, never `=`.

@@ -116,13 +116,14 @@ def test_a_stage_whose_condition_reads_only_what_no_rule_changes_is_reported():
 
 def test_measures_that_read_only_what_nothing_changes_are_reported_and_ones_rules_could_change_are_not():
     contract = _contract(types={"buyer": {"agent": True, "props": {"cash": 30, "loaves": 0}}},
-                         metrics={"sold": "$world.sold", "loaves": "$sum(buyer, $it.loaves)"},
-                         outputs={"champion": "$result.winner.name if $result.winner else null"})
+                         outputs={"champion": "$result.winner.name if $result.winner else null",
+                                  "sold": {"expr": "$world.sold", "series": True},
+                                  "loaves": {"expr": "$sum(buyer, $it.loaves)", "series": True}})
     found = fg_env.run(contract, "idle", seed=1).diagnostics
     assert [(d["code"], d["path"], d["message"]) for d in found] == [
         ("output_empty", "outputs.champion", "is empty (null) at the end of the run: it reads only `$result.winner`, "
                                              "which no `end` condition or effect gives"),
-        ("metric_never_changes", "metrics.sold", "stayed 0 for all 3 rounds: it reads only `$world.sold`, which no "
+        ("metric_never_changes", "outputs.sold", "stayed 0 for all 3 rounds: it reads only `$world.sold`, which no "
                                                  "rule changes")]
 
 
@@ -140,9 +141,9 @@ def test_a_policy_rule_refused_every_time_it_was_tried_is_reported_by_the_run_qu
     contract["types"]["buyer"]["policy"] = "greedy"
     found = [d for d in fg_env.run(contract, seed=1).diagnostics if d["code"] == "policy_rule_never_acted"]
     assert [(d["path"], d["message"]) for d in found] == [
-        ("policies.greedy.rules[0]", "was tried 6 time(s) and refused every time: You cannot afford that")]
+        ("types.buyer.policies.greedy.rules[0]", "was tried 6 time(s) and refused every time: You cannot afford that")]
     assert "`with`" in found[0]["fix"]
-    warned = [i for i in fg_env.check(contract) if i.path == "policies.greedy.rules[0]"]
+    warned = [i for i in fg_env.check(contract) if i.path == "types.buyer.policies.greedy.rules[0]"]
     assert len(warned) == 1 and warned[0].severity == "warning"
     assert warned[0].message.startswith("was tried 6 time(s) and refused every time: You cannot afford that (smoke run")
 

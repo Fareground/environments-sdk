@@ -7,7 +7,7 @@ kept — entities, properties, links, records, the log, the clock — and the ne
 What the state cannot follow is refused, each with its fix: a type, property, relation or record
 that is gone while the state still holds some of it; values the new declarations refuse; physics
 variables that are gone; a round budget the run is already past. What
-the new contract adds starts from its declaration (new properties get their defaults, new metrics
+the new contract adds starts from its declaration (new properties get their defaults, new series outputs
 start sampling). A `once` event that already fired keeps that memory only while it is
 declared unchanged; an edited one counts as new.
 """
@@ -306,9 +306,9 @@ def _restore(cls: Any, old: Contract, new: Contract, snapshot: Mapping[str, Any]
     data["armed"] = {str(j): armed[str(i)] for i, j in _pairs(old.events, new.events, [int(k) for k in armed])}
     series = decode(snapshot["series"])
     length = max((len(values) for values in series.values()), default=0)
-    data["series"] = encode({name: series.get(name, [None] * length) for name in new.metrics})
+    data["series"] = encode({name: series.get(name, [None] * length) for name in new.series_outputs()})
     metrics = decode(snapshot["metrics"])
-    data["metrics"] = encode({name: metrics.get(name) for name in new.metrics})
+    data["metrics"] = encode({name: metrics.get(name) for name in new.series_outputs()})
     env = restore_state(cls, new, data, parallel)
     world = env.world
     world.rounds = _rounds(world)

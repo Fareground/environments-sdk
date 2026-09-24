@@ -1,5 +1,5 @@
 # fg-env playthrough: Pig
-Game: pig@839a3d0d:5fef52b6
+Game: pig@93340ad3:5fef52b6
 Seed: 1
 Seats: 0 a, 1 b
 Dynamics: sequential; chance: explicit; information: unknown; utility: zero_sum

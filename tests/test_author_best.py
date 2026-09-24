@@ -125,7 +125,7 @@ def test_the_summary_names_the_stub_hosts_the_check_warnings_and_partial_testing
 
     assert game_master.ok and ("  hosts: game_master answered by the SDK's stand-in stubs in testing, not a model"
                                in game_master.summary())
-    assert warned.ok and "  warnings:\n    [warning] metrics.avg_price: stayed 1.0" in warned.summary()
+    assert warned.ok and "  warnings:\n    [warning] outputs.avg_price: stayed 1.0" in warned.summary()
     summary = partly.summary()
     assert partly.ok and summary.startswith("built, PARTLY TESTED: Lemonade stand")
     assert "\n  PARTLY TESTED: tested at least" in summary and "of 100,000 rounds" in summary

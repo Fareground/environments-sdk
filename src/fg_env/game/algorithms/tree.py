@@ -92,9 +92,9 @@ def extract_tree(source: Game | GameState, *, max_nodes: int = MAX_TREE_NODES) -
     """The whole tree below a state (or a game's initial state). Needs declared returns and listed calls."""
     state = source.new_initial_state() if isinstance(source, Game) else source.clone()
     game = state.game
-    if game.contract.game is None or game.contract.game.returns is None:
+    if game.contract.scoring() is None:
         state.close()
-        raise ValueError("the game declares no returns, so its tree has no values: declare game.returns")
+        raise ValueError("the game declares no returns, so its tree has no values: give the player type a `score`")
     counter = [0]
     root = _expand(state, counter, max_nodes)
     return GameTree(root, game.num_players(), game.id, counter[0])

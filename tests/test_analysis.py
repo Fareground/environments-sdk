@@ -286,7 +286,7 @@ def test_runner_fails_fast_on_shared_problems():
         runner.run_jobs(LEMONADE, [runner.Job({}, None, 1)], participants={"nobody": "random"})
     with pytest.raises(InputError):
         runner.run_jobs(NOISY, [runner.Job({"rate": 7}, None, 1)])
-    with pytest.raises(ValueError, match="neither an output nor a metric"):
+    with pytest.raises(ValueError, match="is not an output"):
         runner.resolve_measure(fg_env.parse(NOISY), "nope")
 
 
@@ -477,7 +477,7 @@ def test_behavior_checks_flag_a_broken_contract():
     report = behavior_checks(BROKEN, runs=3)
     found = set(report.codes())
     assert {("input_has_no_effect", "inputs.unused"), ("action_never_taken", "actions.steal"),
-            ("stage_never_acted", "stages.night"), ("metric_constant", "metrics.constant"),
+            ("stage_never_acted", "stages.night"), ("metric_constant", "outputs.constant"),
             ("output_never_varies", "outputs.label")} <= found
     assert ("input_has_no_effect", "inputs.price") not in found
     assert report.ok and "unused" in report.report()
@@ -578,7 +578,7 @@ def test_chain_propagates_first_stage_uncertainty():
     assert rate["low"] <= rate["point"] <= rate["high"]
     assert result.envelope["level"]["low"] <= result.scenarios["point"]["summary"]["level"]["mean"] <= \
         result.envelope["level"]["high"]
-    with pytest.raises(ValueError, match="neither an output nor a metric"):
+    with pytest.raises(ValueError, match="is not an output"):
         chain(NOISY, NOISY, {"rate": "nope"}, runs=2)
 
 
@@ -616,4 +616,4 @@ def test_cli_commands(tmp_path, capsys):
     assert _cli(["sweep", str(formula), "--param", "a"]) == 1
     assert "expects NAME=VALUE" in capsys.readouterr().err
     assert _cli(["calibrate", str(formula), "--target", "nope=1", "--param", "a"]) == 1
-    assert "neither an output nor a metric" in capsys.readouterr().err
+    assert "is not an output" in capsys.readouterr().err

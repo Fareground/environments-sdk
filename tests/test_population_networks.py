@@ -1,54 +1,76 @@
-"""Populations (dependent traits, archetype mixes, households, raking) and networks (generators, metrics, keyed draws).
-"""
+"""Generated entities (dependent traits, ids, row sampling, archetype labels, raking) and networks (generators,
+metrics, keyed draws)."""
 import json
 from collections import Counter
 
 import pytest
 
 import fg_env
-from fg_env.errors import RunError
-from fg_env.world.build import rake
+from fg_env import personas
 
 TOWN = {
     "name": "Town", "clock": {"rounds": 1},
     "types": {
         "household": {"props": {"size": 2, "income": 0}},
         "person": {"agent": True, "props": {"archetype": {"type": "text", "default": ""}, "income": 0,
-                                            "budget": "$it.income * 0.25", "home": {"type": "text", "default": ""},
-                                            "thrift": 0.5, "luck": 0}},
+                                            "budget": "$it.income * 0.25", "thrift": 0.5, "luck": 0}},
     },
-    "relations": {"lives_in": {}, "knows": {"symmetric": True}},
-    "population": [
-        {"type": "household", "count": 3, "props": {"size": "$i + 1"},
-         "members": [{"type": "person", "count": "$parent.size", "link": "lives_in", "parent_prop": "home",
-                      "props": {"income": "$parent.size * 1000"}, "name": "{$parent.name} resident {$i}"}]},
-        {"type": "person", "count": 20, "props": {"income": 4000, "luck": "$random_for($it.id)"},
-         "mix": [{"name": "saver", "weight": 3, "props": {"thrift": 0.9}, "brief": "You save."},
-                 {"name": "spender", "weight": 1, "props": {"thrift": 0.1}}]},
-    ],
+    "relations": {"knows": {"symmetric": True}},
+    "entities": {
+        "household": {"type": "household", "count": 3, "props": {"size": "$i + 1"}},
+        "person": {"type": "person", "count": 20, "props": {"income": 4000, "luck": "$random_for($it.id)"}},
+    },
     "links": [{"relation": "knows", "among": "person", "graph": "scale_free", "m": 2}],
     "stages": [{"name": "s", "turns": "sequential"}],
 }
 
 
-def test_dependent_traits_households_and_exact_archetype_quotas():
+def test_generated_entities_are_numbered_by_their_key_and_read_their_own_traits():
     env = fg_env.load(TOWN, seed=1)
-    residents = [p for p in env.entities("person") if p["props"]["home"]]
-    assert len(residents) == 2 + 3 + 4
+    assert [h["id"] for h in env.entities("household")] == ["household_1", "household_2", "household_3"]
+    assert [h["props"]["size"] for h in env.entities("household")] == [2, 3, 4]
     assert all(p["props"]["budget"] == p["props"]["income"] * 0.25 for p in env.entities("person"))
-    home = residents[0]["props"]["home"]
-    assert env.world.relation(residents[0]["id"], home, "lives_in") == 1
-    mixed = [p for p in env.entities("person") if p["props"]["archetype"]]
-    assert Counter(p["props"]["archetype"] for p in mixed) == {"saver": 15, "spender": 5}
-    assert all(p["props"]["thrift"] == (0.9 if p["props"]["archetype"] == "saver" else 0.1) for p in mixed)
-    saver = next(p for p in mixed if p["props"]["archetype"] == "saver")
+
+
+def test_a_generated_id_already_taken_is_an_error():
+    taken = {**TOWN, "entities": {"person_2": {"type": "person"}, **TOWN["entities"]}}
+    with pytest.raises(fg_env.ContractError, match="person_2"):
+        fg_env.run(taken, seed=1)
+
+
+def test_archetypes_are_labels_given_before_load():
+    rows = personas.assign_labels([{"id": f"r{i}"} for i in range(20)], [("saver", 3), ("spender", 1)],
+                                  field="archetype", seed=4)
+    labelled = {**TOWN, "inputs": {"people": {"type": "list", "default": rows}},
+                "entities": {"person": {"type": "person", "from": "$inputs.people",
+                                        "props": {"archetype": "$row.archetype",
+                                                  "thrift": "0.9 if $row.archetype == 'saver' else 0.1"},
+                                        "brief": "{'You save.' if $row.archetype == 'saver' else ''}"}}}
+    env = fg_env.load(labelled, seed=1)
+    people = env.entities("person")
+    assert Counter(p["props"]["archetype"] for p in people) == {"saver": 15, "spender": 5}
+    saver = next(p for p in people if p["props"]["archetype"] == "saver")
     assert "You save." in env.preview(saver["id"])["brief"]
+
+
+def test_the_population_extras_are_refused_with_how_to_say_them_now():
+    old = {**TOWN, "population": [{"type": "person", "count": 4, "mix": [{"name": "a"}]}]}
+    del old["entities"]
+    [issue] = [i for i in fg_env.check(old) if i.severity == "error"]
+    assert issue.path == "population[0].mix" and "assign_labels" in issue.fix
+
+
+def test_an_earlier_population_becomes_generators_after_the_named_entities():
+    old = {**TOWN, "entities": {"mayor": {"type": "person"}},
+           "population": [{"type": "household", "count": 2}, {"type": "person", "count": 2}]}
+    env = fg_env.load(old, seed=1)
+    assert [e["id"] for e in env.entities("person")] == ["mayor", "person_1", "person_2"]
 
 
 def test_keyed_draws_stay_aligned_when_other_draws_change():
     one = {p["id"]: p["props"]["luck"] for p in fg_env.load(TOWN, seed=5).entities("person")}
     extra = json.loads(json.dumps(TOWN))
-    extra["population"][1]["props"]["thrift"] = "$uniform(0, 1)"  # consumes more random draws
+    extra["entities"]["person"]["props"]["thrift"] = "$uniform(0, 1)"  # consumes more random draws
     two = {p["id"]: p["props"]["luck"] for p in fg_env.load(extra, seed=5).entities("person")}
     assert one == two and len(set(one.values())) > 10
 
@@ -84,20 +106,20 @@ def test_network_generators_and_metrics():
 
 def test_raking_matches_margins():
     rows = [{"sex": "f", "age": "young"}] * 10 + [{"sex": "m", "age": "young"}] * 70 + [{"sex": "m", "age": "old"}] * 20
-    weights = rake(rows, None, {"sex": {"f": 0.5, "m": 0.5}, "age": {"young": 0.6, "old": 0.4}}, 200, 1e-9, "t")
-    total = sum(weights)
-    share = lambda column, value: sum(w for r, w in zip(rows, weights) if r[column] == value) / total
+    raked = personas.rake(rows, {"sex": {"f": 0.5, "m": 0.5}, "age": {"young": 0.6, "old": 0.4}}, iterations=200,
+                          tolerance=1e-9)
+    total = sum(r["weight"] for r in raked)
+    share = lambda column, value: sum(r["weight"] for r in raked if r[column] == value) / total
     assert share("sex", "f") == pytest.approx(0.5, abs=1e-6) and share("age", "old") == pytest.approx(0.4, abs=1e-6)
-    with pytest.raises(RunError, match="sum to"):
-        rake(rows, None, {"sex": {"f": 0.7, "m": 0.5}}, 10, 1e-9, "t")
+    with pytest.raises(ValueError, match="sum to"):
+        personas.rake(rows, {"sex": {"f": 0.7, "m": 0.5}}, iterations=10)
 
 
-def test_population_contract_errors_are_reported():
+def test_generator_contract_errors_are_reported():
     bad = json.loads(json.dumps(TOWN))
-    bad["population"][1]["mix"][0]["props"]["nope"] = 1
-    bad["population"][0]["members"][0]["link"] = "cousins"
+    bad["entities"]["person"]["props"]["nope"] = 1
+    bad["entities"]["household"]["id"] = "h_{$nope}"
     bad["links"][0]["graph"] = "blocks"
     messages = [i.message for i in fg_env.check(bad) if i.severity == "error"]
     assert any("has no property 'nope'" in m for m in messages)
-    assert any("'cousins' is not a declared relation" in m for m in messages)
     assert any("needs `block`" in m for m in messages)

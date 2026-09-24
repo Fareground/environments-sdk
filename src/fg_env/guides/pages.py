@@ -46,23 +46,22 @@ ROOTS: list[tuple[str, str, str]] = [
     ("events", "on: round.* / stage.<s>.start / stage.<s>.end / change", "—"),
     ("events", "on: stage.<s>.turn", "$actor $acted $timed_out"),
     ("events", "on: create.<t> / remove.<t>", "$it (the entity)"),
-    ("population", "where/weight", "$row"),
-    ("population", "props/id/name", "$row $i ($i counts from 1)"),
-    ("population", "brief", "$actor $row $i"),
-    ("entities", "brief", "$actor"),
+    ("entities", "brief", "$actor (generated: $row $i too)"),
+    ("entities", "where/weight (generated)", "$row"),
+    ("entities", "props/id/name (generated)", "$row $i ($i counts from 1)"),
     ("types", "inspect", "$viewer $it"),
+    ("types", "policies.*.rules.*", "$actor ($it $i with `each`)"),
     ("relations", "props.*.default", "$from $to"),
-    ("links", "props", "$from $to (+ $row with `rows`)"),
+    ("relations", "links.*.props", "$from $to (+ $row with `rows`)"),
     ("mechanisms", "physics.per.*.read/where (dynamics)", "$it"),
     ("mechanisms", "<feed>.query/when/fallback (host.feed)", "—"),
     ("defs", "expr", "the def's args"),
-    ("blocks", "do", "the block's args + locals"),
-    ("policies", "rules.*", "$actor ($it $i with `each`)"),
-    ("metrics", "*", "—"),
-    ("outputs", "*", "$outputs (earlier outputs) $result (winner, ended_by)"),
+    ("defs", "do", "the def's args + locals"),
+    ("outputs", "*", "$outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result "
+                     "(winner, ended_by; not in a sampled one)"),
     ("end", "when/winner/say", "—"),
-    ("game", "seat", "$it $i"),
-    ("game", "returns/rewards", "$actor $result (winner, ended_by)"),
+    ("types", "score.seat", "$it $i"),
+    ("types", "score.value", "$it (the seat) $result (winner, ended_by)"),
     ("invariants", "*", "—"),
 ]
 
@@ -72,16 +71,16 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Static text every agent reads first: the situation, the rules, and per-type role text."),
     ("clock", [C.Clock], "Clock", "How long a run lasts (`rounds`, default 20) and what one round is called."),
     ("inputs", [C.InputSpec], "{name: InputSpec}",
-     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."),
+     "Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables, and the files the "
+     "environment carries (`type: file`; see guide('assets'))."),
     ("world", [C.PropSpec], "{prop: default | PropSpec}", "Global properties ($world.x)."),
-    ("assets", [C.AssetSpec], "{asset: AssetSpec}",
-     "Files beside the contract — images, PDFs, text, audio — delivered to agents under the visibility rules; see "
-     "guide('assets')."),
-    ("types", [C.TypeSpec, C.PropSpec], "{type: TypeSpec}",
-     "Kinds of entities and their properties; `agent: true` makes a type act."),
-    ("entities", [C.EntitySpec], "{id: EntitySpec}", "Named entities (the name defaults to the id)."),
-    ("population", [C.PopulationSpec], "[PopulationSpec]",
-     "Generated entities: a count, or one per data row, with sampled traits."),
+    ("types", [C.TypeSpec, C.PropSpec, C.PolicySpec, C.PolicyRule, C.ScoreSpec], "{type: TypeSpec}",
+     "Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded "
+     "participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its "
+     "agents scores as a seat, for tournaments, game search and gyms."),
+    ("entities", [C.EntitySpec], "{id: EntitySpec}",
+     "Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row "
+     "(`from`), with sampled traits; ids `<key>_<n>`."),
     ("records", [C.RecordSpec], "{record: RecordSpec}",
      "Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`."),
     ("actions", [C.ActionSpec, C.ParamSpec, C.Condition], "{action: ActionSpec}",
@@ -99,31 +98,24 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "chance. Events on one anchor fire in the order written, before those mechanisms generate."),
     ("end", [C.EndSpec], "[EndSpec]",
      "Conditions that end the run early, with an optional winner ($result.winner in outputs)."),
-    ("metrics", [C.MetricSpec], "{metric: expr | MetricSpec}",
-     "Values sampled every round ($metrics.x latest, $series.x every round)."),
-    ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}", "The typed results of a run."),
+    ("outputs", [C.OutputSpec], "{output: expr | OutputSpec}",
+     "The typed results of a run; with `series: true` also sampled every round ($outputs.x latest, $series.x every "
+     "round)."),
     ("invariants", [C.InvariantSpec], "[expr | InvariantSpec]",
      "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); "
      "a break by anything else fails the run."),
     ("mechanisms", [], "{name: {kind, mode, ...config}}",
      "Native building blocks by family (markets, voting, cards, roles, physics, patterns, feeds …): see "
      "guide('mechanisms')."),
-    ("game", [C.GameSpec], "GameSpec", "Seats and what each scores, for tournaments, game search and gyms."),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space",
      "Positions: a grid, a graph of places or a plane, with values on cells."),
-    ("relations", [C.RelationSpec], "{relation: RelationSpec}",
-     "Typed links between entities (trust, follows), with fields."),
-    ("links", [C.LinkSpec], "[LinkSpec]", "Links made at build: listed, from data rows, or generated networks."),
-    ("policies", [C.PolicySpec, C.PolicyRule], "{policy: PolicySpec}",
-     "Coded participants as rules, for crowds and baselines (`policy:<name>`)."),
+    ("relations", [C.RelationSpec, C.LinkSpec], "{relation: RelationSpec}",
+     "Typed links between entities (trust, follows), with fields, and the links made at build (`links`): listed, "
+     "from data rows, or generated networks."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
-    ("calibration", [C.CalibrationSpec], "CalibrationSpec",
-     "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a "
-     "load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
     ("defs", [C.DefSpec], "{name: expr | DefSpec}",
-     "Reusable expressions, called like built-ins: $utility($actor, 3)."),
-    ("blocks", [C.BlockSpec], "{name: BlockSpec}",
-     "Reusable effect lists, run with {\"block\": name, \"with\": {...}}."),
+     "Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with "
+     "{\"call\": name, \"with\": {...}}."),
     ("imports", [], "[path]",
      "Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and "
      "imported files may import others."),
@@ -131,8 +123,8 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
 
 #: The core language: the sections and functions the start page (``guide('authoring')``) teaches, enough for most
 #: environments. Every other section and function is extended: reach for one when the core cannot say it.
-CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "population", "records", "actions", "stages",
-                 "views", "events", "end", "metrics", "outputs", "invariants")
+CORE_SECTIONS = ("brief", "clock", "inputs", "world", "types", "entities", "records", "actions", "stages",
+                 "views", "events", "end", "outputs", "invariants")
 
 _SECTION_INDEX = {name: (models, shape, doc) for name, models, shape, doc in SECTIONS}
 

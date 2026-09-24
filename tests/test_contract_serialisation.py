@@ -55,14 +55,3 @@ def test_every_shipped_contract_serialises_without_pydantic_warnings(path):
         contract.model_dump(by_alias=True)
         contract.model_dump(by_alias=True, exclude_defaults=True)
     assert contract_source(parse(source)) == source  # a dump parses back to the same contract
-
-
-def test_a_population_mix_weight_round_trips_as_a_number():
-    contract = {"fg_env": "1", "name": "mix", "types": {"person": {"agent": True, "props": {"archetype": ""}}},
-                "population": [{"type": "person", "count": 4, "mix": [{"name": "a", "weight": 3}, {"name": "b"}]}]}
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        dumped = contract_source(fg_env.parse(contract))
-        full = fg_env.parse(contract).model_dump(by_alias=True)
-    assert dumped["population"][0]["mix"] == [{"name": "a", "weight": 3.0}, {"name": "b"}]
-    assert full["population"][0]["mix"][1]["weight"] == 1.0

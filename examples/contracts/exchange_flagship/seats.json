@@ -6,18 +6,12 @@
     "seat": {"extends": "trader", "policy": "seat_trend", "description": "A model trader's seat.",
              "props": {"persona": {"type": "text", "default": ""}}}
   },
-  "population": [
-    {"type": "seat", "count": "$inputs.seats", "id": "seat_{$i}", "name": "Seat {$i}",
-     "props": {"cash": "$inputs.seat_cash"},
-     "mix": [
-       {"name": "market_maker", "props": {"persona": "Market maker"}, "brief": "You make markets: quote both sides, earn the spread, keep inventory small."},
-       {"name": "momentum", "props": {"persona": "Momentum PM"}, "brief": "You ride trends that have started and cut them when they fade."},
-       {"name": "mean_reversion", "props": {"persona": "Mean-reversion trader"}, "brief": "You fade stretched moves and take profit when price returns to normal."},
-       {"name": "value", "props": {"persona": "Value investor"}, "brief": "You judge what the stock is worth from the news and trade the gap patiently."},
-       {"name": "retail", "props": {"persona": "Retail trader"}, "brief": "You trade on headlines and recent moves with small size."},
-       {"name": "passive", "props": {"persona": "Passive mandate"}, "brief": "You execute a steady allocation with little regard for short-term moves."}
-     ]}
-  ],
+  "entities": {
+    "seat": {"type": "seat", "count": "$inputs.seats", "id": "seat_{$i}", "name": "Seat {$i}",
+             "props": {"cash": "$inputs.seat_cash",
+                       "persona": "$get(['Market maker', 'Momentum PM', 'Mean-reversion trader', 'Value investor', 'Retail trader', 'Passive mandate'], ($i - 1) % 6)"},
+             "brief": "{$get(['You make markets: quote both sides, earn the spread, keep inventory small.', 'You ride trends that have started and cut them when they fade.', 'You fade stretched moves and take profit when price returns to normal.', 'You judge what the stock is worth from the news and trade the gap patiently.', 'You trade on headlines and recent moves with small size.', 'You execute a steady allocation with little regard for short-term moves.'], ($i - 1) % 6)}"}
+  },
   "records": {
     "rationale": {"fields": {"text": "text"}, "show": "{text}", "visible": "$viewer.id == $it.author", "notify": false,
                   "description": "Each seat's own one-line reasons, private to it."}

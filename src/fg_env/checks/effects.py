@@ -73,7 +73,8 @@ class EffectChecks:
             if local in RESERVED_ROOTS:
                 self.error(path, f"${local} is a reserved name, so a local cannot be called that",
                            f"rename the local (e.g. ${local}_value), or assign to one of its fields (${local}.x = …)")
-            elif op != "=" and local not in roots and not (local in self.c.defs and not self.c.defs[local].args):
+            elif op != "=" and local not in roots and not (local in self.c.expr_defs()
+                                                           and not self.c.defs[local].args):
                 self.error(path, f"${local} has no initial value for `{op}`",
                            f"initialize it with `${local} = …` before updating it, or use `=` to set its value")
             alias = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)", right.strip()) if op == "=" else None
@@ -100,7 +101,7 @@ class EffectChecks:
             self.error(path, f"${root} is not available here",
                        f"available: {', '.join('$' + r for r in sorted(roots))}")
             return
-        if root in ("inputs", "metrics", "series", "clock", "round", "stage", "arm"):
+        if root in ("inputs", "outputs", "series", "clock", "round", "stage", "arm"):
             self.error(path, f"${root} is read-only", "assign to an entity's property, $world.x or $physics.x")
             return
         self._chain((root, *fields), path, types, params or {}, source)
@@ -365,19 +366,25 @@ class EffectChecks:
                 self.error(f"{path}.after", f"`after` needs a whole number of rounds ≥ 1, got {delay!r}",
                            "use a positive delay; for immediate effects, put the `do` effects here without `after`")
             self.effects(effect.get("do", []), f"{path}.do", roots, dict(types), params)
-        elif op == "block":
-            block = self.c.blocks.get(effect["block"])
+        elif op == "call":
+            called = effect["call"]
+            block = self.c.defs.get(called) if isinstance(called, str) else None
             given = effect.get("with") or {}
-            if block is None:
-                self.error(f"{path}.block", f"'{effect['block']}' is not a declared block",
-                           self._suggest(effect["block"], self.c.blocks) or "declare it under `blocks`")
+            effect_defs = [name for name, spec in self.c.defs.items() if spec.do is not None]
+            if block is None:  # a family's `call` action (a poker call) written as the op is the likely slip
+                self.error(f"{path}.call", f"'{called}' is not a declared def",
+                           self._suggest(str(called), effect_defs) or family_action_hint(["call"])
+                           or "declare it under `defs` with `do`")
+            elif block.do is None:
+                self.error(f"{path}.call", f"def '{called}' is an expression: read it as ${called}(...)",
+                           "or give the def `do` effects to run it with `call`")
             elif not isinstance(given, dict):
                 self.error(f"{path}.with", "`with` is an object of arguments")
             else:
                 for name in sorted(set(block.args) - set(given)):
-                    self.error(f"{path}.with", f"missing argument '{name}' for block '{effect['block']}'")
+                    self.error(f"{path}.with", f"missing argument '{name}' for def '{called}'")
                 for name in sorted(set(given) - set(block.args)):
-                    self.error(f"{path}.with.{name}", f"block '{effect['block']}' has no argument '{name}'",
+                    self.error(f"{path}.with.{name}", f"def '{called}' has no argument '{name}'",
                                f"arguments: {', '.join(block.args) or 'none'}")
                 for name, raw in given.items():
                     self.value(raw, f"{path}.with.{name}", roots, types, params)

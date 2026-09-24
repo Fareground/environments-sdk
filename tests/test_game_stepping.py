@@ -52,8 +52,7 @@ def _signature(state):
            "observations": [state.observation_string(seat) for seat in seats],
            "structures": [state.observation(seat, "struct") for seat in seats],
            "information": [state.information_state_string(seat) for seat in seats]}
-    spec = state.game.contract.game
-    if spec is not None and spec.returns is not None:
+    if state.game.contract.scoring() is not None:
         out["returns"], out["rewards"] = state.returns(), state.rewards()
     if not terminal and not state.is_chance_node():
         out["legal"] = {seat: ([(a.id, a.text) for a in state.legal_tool_calls(seat)], state.unlisted_actions(seat))

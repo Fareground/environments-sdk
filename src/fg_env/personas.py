@@ -201,10 +201,52 @@ def assign_labels(records: Iterable[Mapping[str, Any]], labels: Sequence[tuple[s
     return people
 
 
+def rake(records: Iterable[Mapping[str, Any]], margins: Mapping[str, Mapping[str, float]], *,
+         weight_field: str = "weight", iterations: int = 50, tolerance: float = 1e-6) -> list[dict[str, Any]]:
+    """Copies of ``records`` whose ``weight_field`` is reweighted so weighted shares match every margin
+    (``{column: {value: share}}``, shares per column summing to 1; iterative proportional fitting, starting from the
+    records' own weights, else 1). Pass the result as a table input and sample it with an entity generator's
+    ``"weight": "$row.weight"``."""
+    rows = [copy.deepcopy(dict(record)) for record in records]
+    weights = [float(row.get(weight_field, 1.0)) for row in rows]
+    for column, targets in margins.items():
+        total = sum(targets.values())
+        if not math.isclose(total, 1.0, abs_tol=1e-6):
+            raise ValueError(f"target shares for {column!r} sum to {total:.6g}, not 1")
+        present = {str(row.get(column)) for row in rows}
+        missing = [value for value, share in targets.items() if share > 0 and value not in present]
+        if missing:
+            raise ValueError(f"no records have {column} = {', '.join(missing)}")
+    for _ in range(iterations):
+        worst = 0.0
+        for column, targets in margins.items():
+            totals: dict[str, float] = {}
+            for row, weight in zip(rows, weights):
+                totals[str(row.get(column))] = totals.get(str(row.get(column)), 0.0) + weight
+            grand = sum(totals.values())
+            if grand <= 0:
+                raise ValueError("all record weights are zero")
+            for position, row in enumerate(rows):
+                key = str(row.get(column))
+                target = targets.get(key)
+                if target is None or totals.get(key, 0) <= 0:
+                    weights[position] = 0.0 if target is None else weights[position]
+                    continue
+                factor = target * grand / totals[key]
+                worst = max(worst, abs(factor - 1))
+                weights[position] *= factor
+        if worst < tolerance:
+            break
+    for row, weight in zip(rows, weights):
+        row[weight_field] = weight
+    return rows
+
+
 __all__ = [
     "Constraint",
     "PersonaSample",
     "SamplingProvenance",
     "sample_records",
     "assign_labels",
+    "rake",
 ]

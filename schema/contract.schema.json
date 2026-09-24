@@ -169,143 +169,6 @@
       "title": "ArmSpec",
       "type": "object"
     },
-    "AssetSpec": {
-      "additionalProperties": false,
-      "description": "A file (or a folder of files) beside the contract. Its id is its name here; a folder's files are\n`<name>/<file name>`. Referenced from `asset` properties, record fields and expressions (`$asset(id)`).",
-      "properties": {
-        "file": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Path of the file, relative to the contract's folder (or `data_dir=`), inside it.",
-          "title": "File"
-        },
-        "folder": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Path of a folder inside the contract's folder: every file in it (not subfolders, not hidden files) becomes an asset `<name>/<file name>`.",
-          "title": "Folder"
-        },
-        "type": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "image | pdf | text | audio | file. Default: from the file extension; with `folder`, only files of this type are taken.",
-          "title": "Type"
-        },
-        "caption": {
-          "default": "",
-          "description": "What the file shows, as agents read it next to the file ({name} is the file name).",
-          "title": "Caption",
-          "type": "string"
-        },
-        "alt": {
-          "default": "",
-          "description": "A longer description for readers that cannot see the file (text-only models read it).",
-          "title": "Alt",
-          "type": "string"
-        },
-        "tags": {
-          "description": "Labels for expressions: `'exhibit' in $asset(id).tags`.",
-          "items": {
-            "type": "string"
-          },
-          "title": "Tags",
-          "type": "array"
-        },
-        "max_bytes": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Largest file accepted (default: by type — image 10 MB, pdf 32 MB, text 2 MB, audio 25 MB, file 32 MB).",
-          "title": "Max Bytes"
-        },
-        "describe": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "A host (a Describer) that writes a caption and extracted text for the file when the world is built, recorded on the host tape: `$asset(id).caption` and `.text` read it.",
-          "title": "Describe"
-        },
-        "description": {
-          "default": "",
-          "title": "Description",
-          "type": "string"
-        }
-      },
-      "title": "AssetSpec",
-      "type": "object"
-    },
-    "BlockSpec": {
-      "additionalProperties": false,
-      "description": "A named, reusable effect list: ``{\"block\": \"settle\", \"with\": {\"buyer\": \"$actor\"}}``.\nThe effects see only the arguments (plus $inputs, $world, $round …), never the caller's locals.",
-      "properties": {
-        "args": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Args",
-          "type": "array"
-        },
-        "do": {
-          "anyOf": [
-            {
-              "items": {},
-              "type": "array"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "object"
-            }
-          ],
-          "title": "Do"
-        },
-        "description": {
-          "default": "",
-          "title": "Description",
-          "type": "string"
-        }
-      },
-      "required": [
-        "do"
-      ],
-      "title": "BlockSpec",
-      "type": "object"
-    },
     "Brief": {
       "additionalProperties": false,
       "description": "Static text every agent receives once per wake, before anything dynamic (cacheable).",
@@ -345,86 +208,6 @@
         }
       },
       "title": "Brief",
-      "type": "object"
-    },
-    "CalibrationSpec": {
-      "additionalProperties": false,
-      "description": "A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the\ntargets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in\n``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus\n``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.\n\nA pilot fit is only as steady as its pilots: a noisy target (a volatility over a few dozen bars) fitted with one\nshort pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer\npilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable.",
-      "properties": {
-        "params": {
-          "additionalProperties": {
-            "additionalProperties": true,
-            "type": "object"
-          },
-          "description": "{input: {low?, high?, log?}}: number or int inputs to fit (the range defaults to the input's min and max).",
-          "minProperties": 1,
-          "title": "Params",
-          "type": "object"
-        },
-        "targets": {
-          "additionalProperties": true,
-          "description": "{output or metric: target} as fg_env.analysis.calibrate takes them; a number (or a stat target's `value`) may be an expression over $inputs and $world, read from the world this session builds.",
-          "minProperties": 1,
-          "title": "Targets",
-          "type": "object"
-        },
-        "inputs": {
-          "additionalProperties": true,
-          "description": "Inputs of the pilot sessions only, e.g. fewer bars; the session's own inputs apply underneath.",
-          "title": "Inputs",
-          "type": "object"
-        },
-        "runs": {
-          "default": 2,
-          "description": "Pilot sessions per evaluated point.",
-          "maximum": 20,
-          "minimum": 1,
-          "title": "Runs",
-          "type": "integer"
-        },
-        "budget": {
-          "default": 6,
-          "description": "Distinct points evaluated.",
-          "maximum": 50,
-          "minimum": 2,
-          "title": "Budget",
-          "type": "integer"
-        },
-        "holdout": {
-          "default": 1,
-          "description": "Pilot sessions on fresh seeds that validate the fit.",
-          "maximum": 20,
-          "minimum": 1,
-          "title": "Holdout",
-          "type": "integer"
-        },
-        "method": {
-          "default": "auto",
-          "description": "Search method (see fg_env.analysis.calibrate).",
-          "enum": [
-            "auto",
-            "bisection",
-            "golden",
-            "nelder_mead",
-            "cross_entropy"
-          ],
-          "title": "Method",
-          "type": "string"
-        },
-        "workers": {
-          "default": 1,
-          "description": "Pilot sessions run in this many processes at once.",
-          "maximum": 64,
-          "minimum": 1,
-          "title": "Workers",
-          "type": "integer"
-        }
-      },
-      "required": [
-        "params",
-        "targets"
-      ],
-      "title": "CalibrationSpec",
       "type": "object"
     },
     "Clock": {
@@ -495,7 +278,7 @@
     },
     "DefSpec": {
       "additionalProperties": false,
-      "description": "A named, reusable expression called like a built-in: ``$utility($actor, $params.offer)``.\nShorthand: the expression text (no arguments).",
+      "description": "A named, reusable piece of the rules. With ``expr`` it is an expression called like a built-in:\n``$utility($actor, $params.offer)`` (shorthand: the expression text, no arguments). With ``do`` it is an effect\nlist run by the ``call`` effect: ``{\"call\": \"settle\", \"with\": {\"buyer\": \"$actor\"}}``; its effects see only the\narguments (plus $inputs, $world, $round …), never the caller's locals.",
       "properties": {
         "args": {
           "description": "Argument names; the body reads them as roots ($side).",
@@ -506,8 +289,37 @@
           "type": "array"
         },
         "expr": {
-          "title": "Expr",
-          "type": "string"
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The expression it gives.",
+          "title": "Expr"
+        },
+        "do": {
+          "anyOf": [
+            {
+              "items": {},
+              "type": "array"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The effects it runs, when called with {\"call\": name}.",
+          "title": "Do"
         },
         "description": {
           "default": "",
@@ -515,9 +327,6 @@
           "type": "string"
         }
       },
-      "required": [
-        "expr"
-      ],
       "title": "DefSpec",
       "type": "object"
     },
@@ -581,7 +390,7 @@
     },
     "EntitySpec": {
       "additionalProperties": false,
-      "description": "A named starting entity.",
+      "description": "A starting entity, whose id is its key. With ``count`` or ``from`` it generates many instead (households from\na table, a crowd of traders): their ids are ``<key>_<n>`` (a row's own ``id``, or the ``id`` template, when given),\nand an id already taken is an error. Entities are built in the order they are declared.",
       "properties": {
         "type": {
           "title": "Type",
@@ -597,10 +406,12 @@
             }
           ],
           "default": null,
+          "description": "Its name (default: the id). Generated: a template over $row and $i (default: the type's title and the number).",
           "title": "Name"
         },
         "props": {
           "additionalProperties": true,
+          "description": "Values or expressions ($row, $i, $normal(...) when generated).",
           "title": "Props",
           "type": "object"
         },
@@ -618,8 +429,82 @@
             }
           ],
           "default": null,
-          "description": "Private text added to this entity's own brief (template).",
+          "description": "Private text added to this entity's own brief (template; over $row and $i when generated).",
           "title": "Brief"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Generate this many (number or expression). Omit with `from` = one per row.",
+          "title": "Count"
+        },
+        "from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Generate from rows: an expression giving them (e.g. $inputs.households).",
+          "title": "From"
+        },
+        "where": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Generated: row filter ($row).",
+          "title": "Where"
+        },
+        "weight": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Generated: row sampling weight ($row); sampled without replacement.",
+          "title": "Weight"
+        },
+        "replace": {
+          "default": false,
+          "description": "Generated: sample rows with replacement.",
+          "title": "Replace",
+          "type": "boolean"
+        },
+        "id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Generated: id template ({$i}, {$row.x}); default <key>_<n>.",
+          "title": "Id"
         }
       },
       "required": [
@@ -700,234 +585,6 @@
         }
       },
       "title": "EventSpec",
-      "type": "object"
-    },
-    "GameSpec": {
-      "additionalProperties": false,
-      "description": "Who the players are and what each one scores, for `RunResult.returns`, `fg_env.rl.game` and `fg_env.rl.gym`.",
-      "properties": {
-        "players": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "items": {
-                "type": "string"
-              },
-              "type": "array"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Agent type(s) whose entities are the seats (default: every agent).",
-          "title": "Players"
-        },
-        "seat": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Seat order: an expression over $it, lowest first (default: the order entities are created).",
-          "title": "Seat"
-        },
-        "returns": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "A seat's total return so far: an expression over $actor, read after every decision and at the end.",
-          "title": "Returns"
-        },
-        "rewards": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "A seat's reward for its latest step: an expression over $actor (default: the change in `returns` since that seat's previous step).",
-          "title": "Rewards"
-        },
-        "utility": {
-          "default": "general_sum",
-          "description": "One of: zero_sum, constant_sum, general_sum, identical — checked on every finished run.",
-          "title": "Utility",
-          "type": "string"
-        },
-        "total": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "constant_sum: what every finished run's returns add up to.",
-          "title": "Total"
-        },
-        "min_return": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "The lowest return any seat can finish with — checked on every finished run.",
-          "title": "Min Return"
-        },
-        "max_return": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "The highest return any seat can finish with — checked on every finished run.",
-          "title": "Max Return"
-        },
-        "dynamics": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check: sequential | simultaneous | scheduled | mixed.",
-          "title": "Dynamics"
-        },
-        "chance_mode": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check: deterministic | explicit (only `chance` effects, whose outcomes are listed) | sampled.",
-          "title": "Chance Mode"
-        },
-        "information": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check: perfect | imperfect.",
-          "title": "Information"
-        },
-        "num_players": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check: agents at the start.",
-          "title": "Num Players"
-        },
-        "min_players": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check.",
-          "title": "Min Players"
-        },
-        "max_players": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check.",
-          "title": "Max Players"
-        },
-        "max_rounds": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check: the longest a run lasts, in rounds.",
-          "title": "Max Rounds"
-        },
-        "action_space": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check: finite | parametric.",
-          "title": "Action Space"
-        },
-        "num_distinct_actions": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Claim, verified by check.",
-          "title": "Num Distinct Actions"
-        }
-      },
-      "title": "GameSpec",
       "type": "object"
     },
     "GraphSpace": {
@@ -1023,7 +680,7 @@
       "properties": {
         "type": {
           "default": "number",
-          "description": "One of: number, int, bool, text, enum, list, table, map, date, any (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)",
+          "description": "One of: number, int, bool, text, enum, list, table, map, date, file, any (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)",
           "title": "Type",
           "type": "string"
         },
@@ -1116,7 +773,7 @@
             }
           ],
           "default": null,
-          "description": "Load the value from a data file (.csv → table, .json, .jsonl) inside the data directory: the contract file's folder, or `data_dir=` at load. Undeclared CSV columns stay text.",
+          "description": "Load the value from a data file (.csv → table, .json, .jsonl) inside the data directory: the contract file's folder, or `data_dir=` at load. Undeclared CSV columns stay text. A `file` input carries the file (an image, PDF, text, audio) or every file of the folder named here.",
           "title": "Source"
         },
         "description": {
@@ -1203,6 +860,53 @@
           ],
           "default": null,
           "description": "Typed elements of a list input."
+        },
+        "caption": {
+          "default": "",
+          "description": "file: what the file shows, as agents read it next to the file ({name} is the file name).",
+          "title": "Caption",
+          "type": "string"
+        },
+        "alt": {
+          "default": "",
+          "description": "file: a longer description for readers that cannot see the file (text-only models read it).",
+          "title": "Alt",
+          "type": "string"
+        },
+        "tags": {
+          "description": "file: labels for expressions: `'exhibit' in $asset(id).tags`.",
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "max_bytes": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "file: the largest file accepted (default: by kind — image 10 MB, pdf 32 MB, text 2 MB, audio 25 MB, other 32 MB).",
+          "title": "Max Bytes"
+        },
+        "describe": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "file: a host (a Describer) that writes a caption and extracted text for the file when the world is built, recorded on the host tape: `$asset(id).caption` and `.text` read it.",
+          "title": "Describe"
         }
       },
       "title": "InputSpec",
@@ -1287,12 +991,8 @@
     },
     "LinkSpec": {
       "additionalProperties": false,
-      "description": "Starting links: one explicit link, or a generated network among a type.",
+      "description": "Starting links of a relation: one explicit link, links from data rows, or a generated network among a\ntype.",
       "properties": {
-        "relation": {
-          "title": "Relation",
-          "type": "string"
-        },
         "from": {
           "anyOf": [
             {
@@ -1482,173 +1182,12 @@
           "title": "Where"
         }
       },
-      "required": [
-        "relation"
-      ],
       "title": "LinkSpec",
-      "type": "object"
-    },
-    "MembersSpec": {
-      "additionalProperties": false,
-      "description": "Entities generated inside each generated entity (people in a household, staff in a firm).",
-      "properties": {
-        "type": {
-          "title": "Type",
-          "type": "string"
-        },
-        "count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "string"
-            }
-          ],
-          "description": "How many per parent (number or expression over $parent, $row).",
-          "title": "Count"
-        },
-        "props": {
-          "additionalProperties": true,
-          "description": "Values or expressions ($parent, $row, $i, $it).",
-          "title": "Props",
-          "type": "object"
-        },
-        "link": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Relation linking each member to its parent (member → parent).",
-          "title": "Link"
-        },
-        "parent_prop": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "A member property set to the parent's id.",
-          "title": "Parent Prop"
-        },
-        "name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Name template ({$parent.name}, {$i}).",
-          "title": "Name"
-        },
-        "brief": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Private brief template for each member.",
-          "title": "Brief"
-        }
-      },
-      "required": [
-        "type",
-        "count"
-      ],
-      "title": "MembersSpec",
-      "type": "object"
-    },
-    "MetricSpec": {
-      "additionalProperties": false,
-      "description": "A number tracked every round (a series). Shorthand: the expression. One that names a private property (directly\nor through a def or metric) is not shown to agents: `$metrics`/`$series` reads of it in what they are shown are\nrefused.",
-      "properties": {
-        "expr": {
-          "title": "Expr",
-          "type": "string"
-        },
-        "description": {
-          "default": "",
-          "title": "Description",
-          "type": "string"
-        },
-        "unit": {
-          "default": "",
-          "title": "Unit",
-          "type": "string"
-        }
-      },
-      "required": [
-        "expr"
-      ],
-      "title": "MetricSpec",
-      "type": "object"
-    },
-    "MixSpec": {
-      "additionalProperties": false,
-      "description": "One archetype (segment) of a population mix.",
-      "properties": {
-        "name": {
-          "title": "Name",
-          "type": "string"
-        },
-        "weight": {
-          "anyOf": [
-            {
-              "type": "number"
-            },
-            {
-              "type": "string"
-            }
-          ],
-          "default": 1.0,
-          "description": "Share of the population (relative; number or expression over $inputs).",
-          "title": "Weight"
-        },
-        "props": {
-          "additionalProperties": true,
-          "description": "Trait values or expressions for this archetype (over $row, $i, $it).",
-          "title": "Props",
-          "type": "object"
-        },
-        "brief": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Extra private brief text for members of this archetype.",
-          "title": "Brief"
-        }
-      },
-      "required": [
-        "name"
-      ],
-      "title": "MixSpec",
       "type": "object"
     },
     "OutputSpec": {
       "additionalProperties": false,
-      "description": "A typed field of the run result. ``$metrics.x`` is a metric's final value, ``$series.x`` its history.",
+      "description": "A typed field of the run result, worked out when the run ends. With ``series`` it is also sampled every round:\n``$outputs.x`` reads its latest sample, ``$series.x`` every sample so far (``result.metrics`` and\n``result.series``). One worked out from a private property (directly or through a def or another output) is not\nshown to agents: `$outputs`/`$series` reads of it in what they are shown are refused.",
       "properties": {
         "expr": {
           "title": "Expr",
@@ -1665,11 +1204,29 @@
           "title": "Description",
           "type": "string"
         },
+        "unit": {
+          "default": "",
+          "title": "Unit",
+          "type": "string"
+        },
         "format": {
           "default": "",
           "description": "How result.summary() and the CLI show it: a template format (money, pct, pct1, int, 0-4 decimals …); the stored value stays exact. Unset: numbers to 4 decimals.",
           "title": "Format",
           "type": "string"
+        },
+        "series": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "default": false,
+          "description": "Also sample it every round: true samples `expr` (the result is the last sample); an expression samples that instead, when the per-round figure differs from the final one (sales each round, total sales at the end).",
+          "title": "Series"
         }
       },
       "required": [
@@ -2046,165 +1603,6 @@
       "title": "PolicySpec",
       "type": "object"
     },
-    "PopulationSpec": {
-      "additionalProperties": false,
-      "description": "Entities generated at load: a count, one per table row, or a weighted sample of rows.",
-      "properties": {
-        "type": {
-          "title": "Type",
-          "type": "string"
-        },
-        "count": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "How many (number or expression). Omit with `from` = one per row.",
-          "title": "Count"
-        },
-        "from": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Expression giving rows (e.g. $inputs.households).",
-          "title": "From"
-        },
-        "where": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Row filter ($row).",
-          "title": "Where"
-        },
-        "weight": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Row sampling weight ($row); sampled without replacement.",
-          "title": "Weight"
-        },
-        "replace": {
-          "default": false,
-          "description": "Sample rows with replacement.",
-          "title": "Replace",
-          "type": "boolean"
-        },
-        "id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Id template ({$i}, {$row.x}); default <type>_<n>.",
-          "title": "Id"
-        },
-        "name": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Name template.",
-          "title": "Name"
-        },
-        "props": {
-          "additionalProperties": true,
-          "description": "Values or expressions ($row, $i, $normal(...)).",
-          "title": "Props",
-          "type": "object"
-        },
-        "at": {
-          "default": null,
-          "title": "At"
-        },
-        "brief": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Private text added to each generated entity's brief (template over $row, $i).",
-          "title": "Brief"
-        },
-        "mix": {
-          "description": "Archetypes: each entity belongs to one, with its own traits and brief; the type's `archetype` prop (if declared) records which.",
-          "items": {
-            "$ref": "#/$defs/MixSpec"
-          },
-          "title": "Mix",
-          "type": "array"
-        },
-        "quota": {
-          "default": true,
-          "description": "Mix counts are exact shares (largest remainder) instead of independent draws.",
-          "title": "Quota",
-          "type": "boolean"
-        },
-        "members": {
-          "description": "Entities generated inside each one (households → people).",
-          "items": {
-            "$ref": "#/$defs/MembersSpec"
-          },
-          "title": "Members",
-          "type": "array"
-        },
-        "raking": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/RakingSpec"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Reweight `from` rows to match margins before sampling (uses `weight` as the base weight)."
-        }
-      },
-      "required": [
-        "type"
-      ],
-      "title": "PopulationSpec",
-      "type": "object"
-    },
     "PropSpec": {
       "additionalProperties": false,
       "description": "One property. Shorthand: a bare value is the default (``\"cash\": 100``).\n\nIn a type that ``extends`` another, a property the parent declares is overridden field by\nfield: only the fields written here change (a bare value changes only the default), so the\nparent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.",
@@ -2284,41 +1682,6 @@
         }
       },
       "title": "PropSpec",
-      "type": "object"
-    },
-    "RakingSpec": {
-      "additionalProperties": false,
-      "description": "Reweight rows so weighted shares match known margins (iterative proportional fitting).",
-      "properties": {
-        "margins": {
-          "additionalProperties": {
-            "additionalProperties": {
-              "type": "number"
-            },
-            "type": "object"
-          },
-          "description": "{column: {value: target share}}; shares per column sum to 1.",
-          "title": "Margins",
-          "type": "object"
-        },
-        "iterations": {
-          "default": 50,
-          "maximum": 1000,
-          "minimum": 1,
-          "title": "Iterations",
-          "type": "integer"
-        },
-        "tolerance": {
-          "default": 1e-06,
-          "exclusiveMinimum": 0,
-          "title": "Tolerance",
-          "type": "number"
-        }
-      },
-      "required": [
-        "margins"
-      ],
-      "title": "RakingSpec",
       "type": "object"
     },
     "RecordSpec": {
@@ -2436,6 +1799,14 @@
           "title": "Props",
           "type": "object"
         },
+        "links": {
+          "description": "Links made when the world is built, after the entities.",
+          "items": {
+            "$ref": "#/$defs/LinkSpec"
+          },
+          "title": "Links",
+          "type": "array"
+        },
         "description": {
           "default": "",
           "title": "Description",
@@ -2443,6 +1814,67 @@
         }
       },
       "title": "RelationSpec",
+      "type": "object"
+    },
+    "ScoreSpec": {
+      "additionalProperties": false,
+      "description": "What each agent of this type (a seat) scores, for `RunResult.returns`, tournaments, `fg_env.rl.game` and\n`fg_env.rl.gym`. The seats are the entities of every type with a score, in creation order unless `seat` orders\nthem; a reward is the change in a seat's value since its previous step.",
+      "properties": {
+        "value": {
+          "description": "A seat's total score so far: an expression over $it (the seat) and $result, read after every decision and at the end.",
+          "title": "Value",
+          "type": "string"
+        },
+        "seat": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Seat order: an expression over $it, lowest first (default: the order entities are created). Every scoring type orders seats the same way.",
+          "title": "Seat"
+        },
+        "utility": {
+          "default": "general_sum",
+          "description": "One of: zero_sum, constant_sum, general_sum, identical — the same on every scoring type; zero_sum and identical are checked on every finished run.",
+          "title": "Utility",
+          "type": "string"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The lowest value a seat can finish with — checked on every finished run.",
+          "title": "Min"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The highest value a seat can finish with — checked on every finished run.",
+          "title": "Max"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "ScoreSpec",
       "type": "object"
     },
     "Space": {
@@ -2723,6 +2155,14 @@
           "title": "Props",
           "type": "object"
         },
+        "policies": {
+          "additionalProperties": {
+            "$ref": "#/$defs/PolicySpec"
+          },
+          "description": "Coded participants for agents of this type (and its subtypes), played as `policy:<name>`: crowds and baselines.",
+          "title": "Policies",
+          "type": "object"
+        },
         "policy": {
           "anyOf": [
             {
@@ -2733,8 +2173,20 @@
             }
           ],
           "default": null,
-          "description": "Default coded policy for agents of this type.",
+          "description": "The policy agents of this type play when a run names none.",
           "title": "Policy"
+        },
+        "score": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScoreSpec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "What each agent of this type scores as a seat, for returns, tournaments, game search and gyms."
         },
         "inspect": {
           "anyOf": [
@@ -2928,21 +2380,13 @@
       "$ref": "#/$defs/Brief",
       "description": "Core section. Static text every agent reads first: the situation, the rules, and per-type role text."
     },
-    "assets": {
-      "additionalProperties": {
-        "$ref": "#/$defs/AssetSpec"
-      },
-      "description": "Extended section. Files beside the contract (images, PDFs, text, audio) by id; see guide('assets').",
-      "title": "Assets",
-      "type": "object"
-    },
     "inputs": {
       "additionalProperties": {
         "$ref": "#/$defs/InputSpec"
       },
       "title": "Inputs",
       "type": "object",
-      "description": "Core section. Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables."
+      "description": "Core section. Typed values supplied when the contract is loaded ($inputs.x): knobs, data tables, and the files the environment carries (`type: file`; see guide('assets'))."
     },
     "clock": {
       "$ref": "#/$defs/Clock",
@@ -2974,7 +2418,7 @@
       },
       "title": "Types",
       "type": "object",
-      "description": "Core section. Kinds of entities and their properties; `agent: true` makes a type act."
+      "description": "Core section. Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its agents scores as a seat, for tournaments, game search and gyms."
     },
     "entities": {
       "additionalProperties": {
@@ -2982,15 +2426,7 @@
       },
       "title": "Entities",
       "type": "object",
-      "description": "Core section. Named entities (the name defaults to the id)."
-    },
-    "population": {
-      "items": {
-        "$ref": "#/$defs/PopulationSpec"
-      },
-      "title": "Population",
-      "type": "array",
-      "description": "Core section. Generated entities: a count, or one per data row, with sampled traits."
+      "description": "Core section. Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row (`from`), with sampled traits; ids `<key>_<n>`."
     },
     "relations": {
       "additionalProperties": {
@@ -2998,15 +2434,7 @@
       },
       "title": "Relations",
       "type": "object",
-      "description": "Extended section. Typed links between entities (trust, follows), with fields."
-    },
-    "links": {
-      "items": {
-        "$ref": "#/$defs/LinkSpec"
-      },
-      "title": "Links",
-      "type": "array",
-      "description": "Extended section. Links made at build: listed, from data rows, or generated networks."
+      "description": "Extended section. Typed links between entities (trust, follows), with fields, and the links made at build (`links`): listed, from data rows, or generated networks."
     },
     "records": {
       "additionalProperties": {
@@ -3048,29 +2476,13 @@
       "type": "array",
       "description": "Core section. What the world does outside agents' turns."
     },
-    "policies": {
-      "additionalProperties": {
-        "$ref": "#/$defs/PolicySpec"
-      },
-      "title": "Policies",
-      "type": "object",
-      "description": "Extended section. Coded participants as rules, for crowds and baselines (`policy:<name>`)."
-    },
-    "metrics": {
-      "additionalProperties": {
-        "$ref": "#/$defs/MetricSpec"
-      },
-      "title": "Metrics",
-      "type": "object",
-      "description": "Core section. Values sampled every round ($metrics.x latest, $series.x every round)."
-    },
     "outputs": {
       "additionalProperties": {
         "$ref": "#/$defs/OutputSpec"
       },
       "title": "Outputs",
       "type": "object",
-      "description": "Core section. The typed results of a run."
+      "description": "Core section. The typed results of a run; with `series: true` also sampled every round ($outputs.x latest, $series.x every round)."
     },
     "end": {
       "items": {
@@ -3088,30 +2500,6 @@
       "type": "object",
       "description": "Extended section. Experiment variants: input overrides or contract patches."
     },
-    "calibration": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/CalibrationSpec"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Extended section. Inputs fitted by short pilot sessions whenever the contract loads."
-    },
-    "game": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/GameSpec"
-        },
-        {
-          "type": "null"
-        }
-      ],
-      "default": null,
-      "description": "Extended section. Seats, returns and utility for game and learning interfaces."
-    },
     "invariants": {
       "items": {
         "$ref": "#/$defs/InvariantSpec"
@@ -3124,16 +2512,8 @@
       "additionalProperties": {
         "$ref": "#/$defs/DefSpec"
       },
-      "description": "Extended section. Reusable expressions, called as $name(args).",
+      "description": "Extended section. Reusable expressions, called as $name(args), and effect lists, run with {\"call\": name, \"with\": {...}}.",
       "title": "Defs",
-      "type": "object"
-    },
-    "blocks": {
-      "additionalProperties": {
-        "$ref": "#/$defs/BlockSpec"
-      },
-      "description": "Extended section. Reusable effect lists, run with {\"block\": name}.",
-      "title": "Blocks",
       "type": "object"
     },
     "mechanisms": {
