@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
 
 from .. import contract as C
-from ..effects import EFFECT_OPS
+from ..effects.runner import EFFECT_OPS
 from ..expr import FUNCTIONS, FunctionSpec
 from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 from ..registry import FAMILIES, OPS, FamilySpec, ModeSpec
@@ -138,7 +138,7 @@ _CORE_GROUPS = {
 _MODULE_GROUPS = {
     "stdlib.mathx": "math", "stdlib.linalg": "math", "stdlib.dists": "random", "stdlib.strings": "text",
     "stdlib.words": "game", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists", "stdlib.sets": "lists", "stdlib.stats": "stats",
-    "stdlib.scoring": "stats", "space_functions": "space", "networks": "space", "stdlib.puzzles": "game",
+    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "game",
     "mechanisms._common": "conditions", "mechanisms.card_scoring": "game", "mechanisms.cards": "game",
     "mechanisms.econ_assets": "economy", "mechanisms.econ_replenishment_rules": "economy", "mechanisms.market_stats": "market",
     "mechanisms.book_functions": "market",

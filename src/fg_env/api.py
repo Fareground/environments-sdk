@@ -12,13 +12,13 @@ from .checks import check_contract, parse_contract
 from .contract import Contract
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
-from .inputs import resolve_inputs
-from .load_calibration import calibrate_at_load
-from .macros import expand_macros
-from .measure import RunResult
-from .runtime import Env
-from .seeds import mint_seed
-from .smoke import run_issue, smoke_issues
+from .contract.inputs import resolve_inputs
+from .runtime.calibration import calibrate_at_load
+from .contract.macros import expand_macros
+from .runtime.measure import RunResult
+from .runtime.env import Env
+from .sampling.seeds import mint_seed
+from .checks.smoke import run_issue, smoke_issues
 
 __all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand"]
 
@@ -317,7 +317,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     judgment the contract asks of a host; build-time host work (personas) is done before round 1.
     ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
     contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
-    default: drawn from the seeded stream) or a callable given each :class:`~fg_env.chance.ChanceNode`
+    default: drawn from the seeded stream) or a callable given each :class:`~fg_env.effects.chance.ChanceNode`
     that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
     enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
     (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
@@ -355,7 +355,7 @@ def load(source: ContractLike, *, inputs: Optional[Mapping[str, Any]] = None, se
     env.calibration = report
     env.origin.unarmed = unarmed
     if chance is not None:
-        from .branch import use_chance
+        from .copying.branch import use_chance
 
         use_chance(env, chance)
     if hosts is not None:

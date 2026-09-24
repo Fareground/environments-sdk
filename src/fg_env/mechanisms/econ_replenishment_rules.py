@@ -10,12 +10,12 @@ import math
 from statistics import NormalDist
 from typing import Any, Dict, List, Optional, Tuple
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..patterns.runtime import key_text
 from ..registry import family_action
-from ..world import Abort
+from ..world.live import Abort
 from .econ_assets import balance, burn_money, credit_of
 from .econ_base import DEMAND, REPLENISHMENT, config_of, entity_of, props
 from .econ_demand import DemandConfig

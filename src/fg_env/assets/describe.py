@@ -17,7 +17,7 @@ from .multimodal import host_attachments
 from .store import Asset
 
 if TYPE_CHECKING:
-    from ..runtime import Env
+    from ..runtime.env import Env
 
 __all__ = ["described", "describe_assets", "MAX_CAPTION_CHARS"]
 
@@ -61,7 +61,7 @@ def describe_assets(env: "Env") -> None:
     pending = [asset for asset in store.assets.values() if asset.describe]
     if not pending or env.world.round:
         return
-    from ..snapshot import take_snapshot
+    from ..copying.snapshot import take_snapshot
 
     with env._lock:
         for asset in pending:

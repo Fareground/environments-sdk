@@ -6,13 +6,13 @@ import re
 from typing import TYPE_CHECKING, Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set, TypeGuard
 
 from ..contract import EntityDynamics, FeedSpec, InputSpec, ParamSpec, PropSpec
-from ..entity_physics import MATH_NAMES
+from ..physics.entities import MATH_NAMES
 from ..expr import EXPRESSION_WORDS, is_expr
-from ..feeds import feed_target
+from ..runtime.feeds import feed_target
 from ..host.tape import TAPE
-from ..inputs import check_value
-from ..links import LINK_ATTRS
-from ..props import prop_type
+from ..contract.inputs import check_value
+from ..world.links import LINK_ATTRS
+from ..world.props import prop_type
 
 if TYPE_CHECKING:
     from . import Types, _Checker

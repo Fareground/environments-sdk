@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 from typing import Any, Dict, List, Mapping, Sequence
 
-from ..measure import ending
+from ..runtime.measure import ending
 from ..tournament.result import _columns
 
 __all__ = ["overview", "turns", "timeline", "search", "invalid", "agent", "args_text", "one_line"]

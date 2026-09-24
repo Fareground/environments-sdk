@@ -4,8 +4,8 @@ from __future__ import annotations
 import math
 from typing import Any, Dict, List, Mapping, Optional
 
-from ..clock_words import unit_word
-from ..template import apply_format
+from ..runtime.clock_words import unit_word
+from ..expr.template import apply_format
 
 __all__ = ["Namer", "QUEUE_MEASURES", "number"]
 

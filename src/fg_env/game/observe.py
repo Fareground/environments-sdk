@@ -16,15 +16,15 @@ import hashlib
 import json
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..contract import StageSpec
-from ..snapshot import encode
-from ..template import format_value
-from ..turn import Turn, entity_dict
+from ..copying.snapshot import encode
+from ..expr.template import format_value
+from ..runtime.turn import Turn, entity_dict
 from .space import as_turn
 
 if TYPE_CHECKING:
-    from ..runtime import Env
+    from ..runtime.env import Env
 
 __all__ = ["observation_text", "observation_struct", "information_state", "state_key", "digest"]
 

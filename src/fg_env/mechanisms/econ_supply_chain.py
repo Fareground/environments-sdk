@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from .econ_assets import destroy_items, held, put_items, take_items
 from .econ_base import (INVENTORY, SUPPLY_CHAIN, bump, common_ancestor, compiles, config_of, declared_use, entity_of, maybe_entity,
                         props, register_config, whole)

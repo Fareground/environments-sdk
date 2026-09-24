@@ -18,7 +18,7 @@ from fg_env.expr.codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, _cha
 from fg_env.expr.compile import _ALLOWED, _MAX_NODES, _MAX_SOURCE, _preprocess, _restore_words
 from fg_env.expr.scope import Scope
 from fg_env.expr.values import _BINARY, _COMPARE, _describe, _number, attr, map_key
-from fg_env.syntax_hints import syntax_message
+from fg_env.expr.syntax_hints import syntax_message
 
 
 @dataclass(frozen=True)

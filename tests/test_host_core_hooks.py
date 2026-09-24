@@ -6,7 +6,7 @@ from pathlib import Path
 import fg_env
 from fg_env import host
 from fg_env.host.stubs import StubTools
-from fg_env.runtime import Env
+from fg_env.runtime.env import Env
 
 COUNCIL = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json").read_text())
 

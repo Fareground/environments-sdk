@@ -12,7 +12,7 @@ import pytest
 import fg_env
 from fg_env.__main__ import main
 from fg_env.analysis.runner import AnalysisError, run_seeds
-from fg_env.measure import RunResult
+from fg_env.runtime.measure import RunResult
 from fg_env.tournament import Glicko, alpha_rank, elo_mle, glicko2_period, nash_average, schulze, tournament
 from fg_env.tournament.scoring import SeatScorer
 from fg_env.tournament.seating import schedule, swiss_round

@@ -7,14 +7,14 @@ from typing import TYPE_CHECKING, Any, List, Mapping, Set
 
 from .. import contract as C
 from .params import check_param_bounds
-from ..probability import check_literal_probability
+from ..sampling.probability import check_literal_probability
 from .roots import BASE
 from .turns import check_spectator_view, check_stage_turns, spectator_audience_issues
 from ..contract import Contract
 from ..expr import is_expr
-from ..perception import SPECTATOR
-from ..reads import READS
-from ..session import END_TURN
+from ..runtime.perception import SPECTATOR
+from ..actions.reads import READS
+from ..runtime.session import END_TURN
 
 if TYPE_CHECKING:
     from . import _Checker

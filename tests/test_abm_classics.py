@@ -4,7 +4,7 @@ from pathlib import Path
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env.bench import PHASES, REFERENCE_MODELS, bench
+from fg_env.cli.bench import PHASES, REFERENCE_MODELS, bench
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 

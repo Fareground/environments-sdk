@@ -81,7 +81,7 @@ def test_it_is_a_gymnasium_env_when_gymnasium_is_installed(monkeypatch):
 
     fake.Env = FakeEnv
     monkeypatch.setitem(sys.modules, "gymnasium", fake)
-    module = importlib.import_module("fg_env.gym")
+    module = importlib.import_module("fg_env.game.gym")
     try:
         reloaded = importlib.reload(module)
         assert issubclass(reloaded.GymEnv, FakeEnv)

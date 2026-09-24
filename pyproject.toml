@@ -76,7 +76,7 @@ check_untyped_defs = true
 [[tool.mypy.overrides]]
 # These look up untyped event/entity data by a key that may be missing (`table.get(data.get("k"))`); making each
 # lookup explicit is left for a focused change.
-module = ["fg_env.host.stubs", "fg_env.mechanisms.cards", "fg_env.perception", "fg_env.world"]
+module = ["fg_env.host.stubs", "fg_env.mechanisms.cards", "fg_env.runtime.perception", "fg_env.world.live"]
 strict_optional = false
 
 [tool.pytest.ini_options]

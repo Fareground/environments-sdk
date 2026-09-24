@@ -2,7 +2,7 @@
 
 Every change of money or goods a market makes is a :func:`move`: the same amount leaves one
 account and arrives in another, through the world's journaled API. A move that would take an
-account below its floor refuses with :class:`~fg_env.world.Abort`, so the enclosing action
+account below its floor refuses with :class:`~fg_env.world.live.Abort`, so the enclosing action
 rolls back and the agent reads why. Nothing here creates or destroys value, so a market needs no
 conservation check of its own and composes with other markets and with the author's own wages, taxes and
 dividends on the same cash. An ``economy`` ledger that proves its currency is conserved counts the money
@@ -17,10 +17,10 @@ import math
 from dataclasses import dataclass
 from typing import Any, List, Mapping, Optional, Tuple
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..registry import use_key
-from ..template import format_value
-from ..world import Abort
+from ..expr.template import format_value
+from ..world.live import Abort
 
 __all__ = ["Account", "EPS", "move", "balance", "clean", "whole", "market_places"]
 

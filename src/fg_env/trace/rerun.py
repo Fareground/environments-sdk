@@ -2,7 +2,7 @@
 
 A run recorded with ``exposures=True`` holds everything needed to play it again for free: its seed, inputs, arm
 and budget; every wake's ``steps`` — the engine tape's record of what the participant did, in order (reads,
-calls, reported usage, timeouts; see :mod:`fg_env.replay`); and every host answer. The :class:`Replayer`
+calls, reported usage, timeouts; see :mod:`fg_env.copying.replay`); and every host answer. The :class:`Replayer`
 participant plays those steps back through the same wake; the host tape answers the hosts. As each step is played it
 compares what the agent was shown and got with the recording — the same agent woke at that moment, read the same
 brief and update, was offered the same tools, got the same result from every call and ran out of time the same
@@ -24,16 +24,16 @@ import threading
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from ..chance import ChanceNode, sample
+from ..effects.chance import ChanceNode, sample
 from ..errors import FatalRunError, RunError, SnapshotError
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from ..participants import Participant, resolve_participant
-from ..replay import apply_step
-from ..session import Wake
+from ..copying.replay import apply_step
+from ..runtime.session import Wake
 
 if TYPE_CHECKING:
-    from ..runtime import Env
-    from ..turn import Turn
+    from ..runtime.env import Env
+    from ..runtime.turn import Turn
     from .reader import Trace
 
 __all__ = ["Replayer", "ReplayResult", "ReplayDivergence", "replay_run"]
@@ -312,7 +312,7 @@ def replay_run(recording: "Trace", contract: Any, *, fallback: Any = None, hosts
     restored into ``contract``. The first divergence is reported: a turn, a text, the tools, a call or a chance pick;
     else the first differing event; else a recorded turn or pick never reached; else the ending."""
     from ..api import load
-    from ..branch import use_chance
+    from ..copying.branch import use_chance
     from ..host.hosts import Hosts
 
     recorded = recording.result
@@ -343,8 +343,8 @@ def _from_start(recording: "Trace", contract: Any, start: Mapping[str, Any], hos
     the recording's first entries."""
     from ..api import apply_arm, parse
     from ..host.hosts import bind
-    from ..runtime import Env
-    from ..snapshot import restore_state, contract_hash, _restore_rule_origin
+    from ..runtime.env import Env
+    from ..copying.snapshot import restore_state, contract_hash, _restore_rule_origin
 
     counts = start.get("exposures") or {"wakes": 0, "chance": 0}
     held = {"texts": dict(recording.texts), "wakes": recording.wakes[:counts["wakes"]],

@@ -5,7 +5,7 @@ import pytest
 
 import fg_env
 from fg_env.analysis.stats import estimate
-from fg_env.measure import RunResult
+from fg_env.runtime.measure import RunResult
 
 
 def run(seed, value, *, invalid=False, failed=False):

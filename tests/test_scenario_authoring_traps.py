@@ -4,7 +4,7 @@ import pytest
 
 import fg_env
 from fg_env.errors import ContractError, RunError
-from fg_env.tool_text import text_limit
+from fg_env.actions.tool_text import text_limit
 
 
 def _errors(contract):

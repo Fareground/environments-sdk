@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Union
 
 from ..api import ContractLike
-from ..measure import RunResult
-from ..seeds import SeedTree
+from ..runtime.measure import RunResult
+from ..sampling.seeds import SeedTree
 from . import runner
 from .draws import parameter_draws, with_draws
 from .stats import Estimate, estimate, fisher_interval, latin_hypercube, levels, mean, spearman

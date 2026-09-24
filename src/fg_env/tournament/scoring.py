@@ -6,7 +6,7 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..contract import Contract
 from ..expr import ExprError, Scope, compile_expr, is_expr
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 
 __all__ = ["ScoreSpec", "SeatScorer"]
 

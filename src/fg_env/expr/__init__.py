@@ -80,7 +80,7 @@ def resolve(value: Any, scope: Scope) -> Any:
     """Resolve a contract value: text with ``{$...}`` renders as a template, expression strings
     evaluate, containers resolve deeply."""
     if isinstance(value, str) and "{$" in value:
-        from ..template import compile_template
+        from .template import compile_template
 
         return compile_template(value, None).render(scope)
     if is_expr(value):
@@ -93,4 +93,4 @@ def resolve(value: Any, scope: Scope) -> Any:
 
 
 # Built-in functions register themselves on import.
-from .. import functions as _functions  # noqa: E402,F401
+from ..stdlib import core as _functions  # noqa: E402,F401

@@ -12,8 +12,8 @@ from ..registry import use_key
 from .hosts import HostsLike, bind
 
 if TYPE_CHECKING:
-    from ..measure import RunResult
-    from ..runtime import Env
+    from ..runtime.measure import RunResult
+    from ..runtime.env import Env
 
 __all__ = ["load", "attach", "build", "restore", "run", "wrap"]
 
@@ -48,7 +48,7 @@ def build(env: "Env") -> None:
     names = [name for name, raw in env.contract.mechanisms.items() if use_key(raw) == KEY]
     if not names or env.world.round:
         return
-    from ..snapshot import take_snapshot
+    from ..copying.snapshot import take_snapshot
 
     with env._lock:
         for name in names:
@@ -60,7 +60,7 @@ def build(env: "Env") -> None:
 
 def restore(contract: Any, snapshot: Mapping[str, Any], *, hosts: HostsLike = None, parallel: int = 8) -> "Env":
     """``Env.restore`` bound to ``hosts``. A restored run never asks again for recorded answers."""
-    from ..runtime import Env
+    from ..runtime.env import Env
 
     return Env.restore(contract, snapshot, parallel=parallel, hosts=hosts)
 

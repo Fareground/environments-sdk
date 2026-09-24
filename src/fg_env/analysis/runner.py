@@ -13,11 +13,11 @@ from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike, DataDir, located, parse
 from ..contract import Contract
-from ..experiments import Job, failed_run, run_job, worker_pool
-from ..experiments import run_jobs as _run_jobs
-from ..measure import RunResult, _usable_output
-from ..seeds import SeedTree
-from ..workers import Pool
+from ..experiments.experiment import Job, failed_run, run_job, worker_pool
+from ..experiments.experiment import run_jobs as _run_jobs
+from ..runtime.measure import RunResult, _usable_output
+from ..sampling.seeds import SeedTree
+from ..experiments.workers import Pool
 from .stats import numeric
 
 __all__ = ["Job", "AnalysisError", "run_seeds", "run_jobs", "resolve_measure", "value", "raw_value", "series",
@@ -55,7 +55,7 @@ def input_spec(contract: Contract, name: str) -> Any:
 def run_jobs(source: ContractLike, jobs: Sequence[Job], *, participants: Any = None, rounds: Optional[int] = None,
              workers: int = 1, events: bool = False, pool: Optional[Pool] = None,
              hosts: Any = None, require_success: bool = True) -> List[RunResult]:
-    """:func:`fg_env.experiments.run_jobs` for analyses: event logs dropped by default, and
+    """:func:`fg_env.experiments.experiment.run_jobs` for analyses: event logs dropped by default, and
     :class:`AnalysisError` when every run failed (the first error is quoted), unless
     ``require_success=False`` lets diagnostic callers inspect the original failures."""
     check_positive_int("workers", workers)

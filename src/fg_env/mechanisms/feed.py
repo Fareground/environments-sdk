@@ -26,11 +26,11 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Set, T
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import props, cache, config_of, edges, eid, entity, named_use, require_type, seat_order
 

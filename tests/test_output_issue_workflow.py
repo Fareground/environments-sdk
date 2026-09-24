@@ -5,7 +5,7 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env.experiments import ArmResult, ExperimentResult
+from fg_env.experiments.experiment import ArmResult, ExperimentResult
 
 
 def contract(kind='type'):

@@ -7,7 +7,7 @@ walk would reach; streaks by how unlikely a run of same-direction moves is under
 events and actions by how rarely they happen (in one round out of N). ``significance`` is the
 matching tail probability.
 
-Moments are named in the clock's own terms (``Week 7 (2026-10-12)``, ``09:30–10:00``; see :mod:`..clock_words`).
+Moments are named in the clock's own terms (``Week 7 (2026-10-12)``, ``09:30–10:00``; see :mod:`fg_env.runtime.clock_words`).
 One measure's moment is told once — a move later undone is a reversal, not also a peak — and a moment names what
 happened with it when the run shows it: other measures moving sharply in the same round, and the world's events
 (news, emitted happenings) in that round or the one before.
@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from statistics import median
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from ..clock_words import period_label, plural, span_label
-from ..measure import RunResult, shown
+from ..runtime.clock_words import period_label, plural, span_label
+from ..runtime.measure import RunResult, shown
 from .stats import normal_quantile, numeric, sd, two_sided_z
 
 __all__ = ["highlights", "narrative", "Highlight"]

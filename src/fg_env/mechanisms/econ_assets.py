@@ -18,10 +18,10 @@ from dataclasses import dataclass, field
 import math
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
-from ..world import Abort
+from ..world.live import Abort
 from .econ_base import EPS, INVENTORY, LEDGER, SUPPLY_CHAIN, amount, bump, cached, maybe_entity, money, props, uses_of
 from .ledger import market_places
 

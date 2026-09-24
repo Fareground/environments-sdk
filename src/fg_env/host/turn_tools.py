@@ -16,22 +16,22 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Tuple
 
-from ..action_faults import guarded, refused_text
-from ..actions import ACTION_BUDGET, ToolSpec
-from ..driving import runs_concurrently
+from ..actions.faults import guarded, refused_text
+from ..actions.book import ACTION_BUDGET, ToolSpec
+from ..runtime.driving import runs_concurrently
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..participants import resolve_participant
 from ..registry import config_data, use_key
-from ..session import ToolResult, Wake
-from ..template import compile_template
-from ..world import Abort
+from ..runtime.session import ToolResult, Wake
+from ..expr.template import compile_template
+from ..world.live import Abort
 from .tape import discard
 
 if TYPE_CHECKING:
-    from ..entity import Entity
-    from ..runtime import Env
-    from ..turn import Turn
+    from ..world.entity import Entity
+    from ..runtime.env import Env
+    from ..runtime.turn import Turn
 
 __all__ = ["TurnTool", "turn_tools", "HostWake", "offer", "wrap"]
 
@@ -156,7 +156,7 @@ class HostWake(Wake):
         return ToolSpec(spec.name, spec.description, spec.input_schema, "look", False)
 
     def _apply(self, name: str, params: Dict[str, Any]) -> ToolResult:
-        """Apply and commit the call; a rule that fails or an invariant it breaks refuses it (see :mod:`..action_faults`)."""
+        """Apply and commit the call; a rule that fails or an invariant it breaks refuses it (see :mod:`fg_env.actions.faults`)."""
         turn = self._turn
         result, fault = guarded(turn.env, lambda: self._commit(name, params))
         if result is None:

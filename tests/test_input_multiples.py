@@ -1,7 +1,7 @@
 """Numeric increments enforce data requirements independently of UI hints."""
 import pytest
 from fg_env.contract import InputSpec, Contract
-from fg_env.inputs import check_value, resolve_inputs
+from fg_env.contract.inputs import check_value, resolve_inputs
 from fg_env.errors import InputError
 
 

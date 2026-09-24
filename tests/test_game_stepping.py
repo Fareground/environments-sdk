@@ -14,8 +14,8 @@ import pytest
 import fg_env
 from fg_env.game import apply_step, game, random_step
 from fg_env.game.runs import ThreadedRun
-from fg_env.run_copy import _ENV_FIELDS, _TURN_FIELDS, _WORLD_FIELDS
-from fg_env.stepping import Stepper
+from fg_env.copying.direct import _ENV_FIELDS, _TURN_FIELDS, _WORLD_FIELDS
+from fg_env.copying.stepping import Stepper
 from game_contracts import GAMES, TIC_TAC_TOE, load_game
 
 EXAMPLES = sorted(GAMES.glob("*.json"))

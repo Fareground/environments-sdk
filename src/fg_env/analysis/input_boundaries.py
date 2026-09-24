@@ -6,7 +6,7 @@ import itertools
 import math
 from typing import Any, Iterator, Tuple
 
-from ..inputs import check_value, resolve_inputs
+from ..contract.inputs import check_value, resolve_inputs
 
 
 def _values(spec: Any, value: Any, path: tuple) -> Iterator[Tuple[tuple, Any]]:

@@ -19,7 +19,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Tuple, Union
 
 if TYPE_CHECKING:
-    from ..runtime import Env
+    from ..runtime.env import Env
 
 __all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens",
            "time_left"]
@@ -119,7 +119,7 @@ def count_host_tokens(env: "Env") -> None:
     with _PENDING_LOCK:
         taken = _PENDING.pop(env.world, None)
     if taken and any(taken):
-        from ..measure import Stats
+        from ..runtime.measure import Stats
 
         with env._lock:
             env.stats.add(Stats(**dict(zip(_TOKENS, taken))))

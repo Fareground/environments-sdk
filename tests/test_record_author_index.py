@@ -4,7 +4,7 @@ import json
 import pytest
 
 import fg_env
-from fg_env.record_index import author_only
+from fg_env.world.record_index import author_only
 
 
 def contract(rule="$viewer.id == $it.author", keep=None):
@@ -146,7 +146,7 @@ def test_fork_can_change_visibility_without_reusing_the_original_index_policy(be
 
 
 def test_fast_world_copy_rebuilds_index_with_independent_record_entries():
-    from fg_env.run_copy import _copy_world
+    from fg_env.copying.direct import _copy_world
 
     env = fg_env.load(contract(keep=3), seed=4)
     for i, who in enumerate(("a", "b", "a")):

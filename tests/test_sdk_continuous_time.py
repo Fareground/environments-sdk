@@ -146,7 +146,7 @@ def test_decimal_tick_does_not_grant_an_extra_turn(jump):
 def test_clock_arithmetic_preserves_distinct_nearby_events_and_rejects_no_progress():
     import math
 
-    from fg_env.clock_math import advance_time
+    from fg_env.runtime.clock_math import advance_time
     from fg_env.errors import RunError
 
     assert advance_time(0.1, 0.2, "test") == 0.3

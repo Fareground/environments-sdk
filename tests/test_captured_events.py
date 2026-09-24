@@ -89,8 +89,8 @@ def test_private_event_exposure_identity_survives_two_restorations():
 
 @pytest.mark.parametrize('recipients', [None, (), ('a', 'b')])
 def test_event_metadata_and_nested_marker_payload_roundtrip(recipients):
-    from fg_env.captures import CAPTURE_VERSION, freeze, thaw
-    from fg_env.world_parts import LogEvent
+    from fg_env.effects.captures import CAPTURE_VERSION, freeze, thaw
+    from fg_env.world.parts import LogEvent
 
     data = {'$event': {'kind': 'literal'}, 'meta': {'$entry': {'author': 'literal'}},
             'round': 999, 'text': 'not the event text'}

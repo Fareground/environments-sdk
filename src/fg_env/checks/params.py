@@ -11,7 +11,7 @@ from typing import Any, Dict, Optional
 
 from .. import contract as C
 from ..expr import is_expr
-from ..template import format_value
+from ..expr.template import format_value
 
 __all__ = ["check_param_bounds", "check_entity_literals"]
 

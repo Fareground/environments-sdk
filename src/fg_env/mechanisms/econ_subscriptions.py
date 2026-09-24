@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .econ_assets import move_money
 from .econ_base import (SUBSCRIPTIONS, amount, bump, config_of, emit_to, entity_of, maybe_entity, money, props, register_config,

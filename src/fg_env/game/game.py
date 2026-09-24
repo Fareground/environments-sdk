@@ -7,16 +7,16 @@ import re
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..api import ContractLike, load
-from ..branch import Branch, copy_pilot, fresh_copy
+from ..copying.branch import Branch, copy_pilot, fresh_copy
 from ..describe.walk import draws
-from ..driving import Unpausable
+from ..runtime.driving import Unpausable
 from ..errors import ContractError, Issue
-from ..replay import Tape
-from ..returns import seat_ids, seat_returns
-from ..run_copy import NotCopyable
-from ..runtime import Env
-from ..snapshot import contract_hash, decode, encode, run_identity
-from ..stepping import SteppedEnv, Stepper
+from ..copying.replay import Tape
+from ..runtime.returns import seat_ids, seat_returns
+from ..copying.direct import NotCopyable
+from ..runtime.env import Env
+from ..copying.snapshot import contract_hash, decode, encode, run_identity
+from ..copying.stepping import SteppedEnv, Stepper
 from .observe import digest
 from .runs import ThreadedRun, can_step
 from .space import COMBINATION_LIMIT, ActionSpace

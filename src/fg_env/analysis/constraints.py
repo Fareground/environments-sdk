@@ -30,7 +30,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from .goals import Measure, Stat, stat_prefix
 from .stats import normal_quantile, t_quantile, wilson
 

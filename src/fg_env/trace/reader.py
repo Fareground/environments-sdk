@@ -7,8 +7,8 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Union
 
-from ..measure import RunResult
-from ..result_file import load_result, result_from_dict
+from ..runtime.measure import RunResult
+from ..runtime.result_file import load_result, result_from_dict
 from . import render
 
 if TYPE_CHECKING:

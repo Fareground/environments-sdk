@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .econ_assets import balance, move_money
 from .econ_base import (INVENTORY, LEDGER, amount, checked_config, props, choice_param, config_of, declared_names, emit_to,

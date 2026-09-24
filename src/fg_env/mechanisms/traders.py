@@ -30,10 +30,10 @@ from __future__ import annotations
 import math
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
-from ..world import Abort
+from ..world.live import Abort
 from .common import lot_floor, number
 from .ledger import Account, balance
 from .market_stats import log_returns, stdev

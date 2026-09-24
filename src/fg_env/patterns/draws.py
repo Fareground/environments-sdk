@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Literal, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..stdlib.linalg import cholesky
-from ..poisson import sample_poisson
+from ..sampling.poisson import sample_poisson
 from .base import Number, PatternConfig, kind
 from .signals import when
 

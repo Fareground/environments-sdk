@@ -51,7 +51,7 @@ def test_choices_change_with_state_and_do_not_expose_inherited_private_details()
 
 
 def test_shared_listing_invalidates_on_changes_and_rollback_and_keeps_schemas_separate():
-    from fg_env.reads import inspect_tool
+    from fg_env.actions.reads import inspect_tool
 
     contract = {
         "name": "Shared listing invalidation",

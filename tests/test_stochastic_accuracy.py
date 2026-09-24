@@ -5,8 +5,8 @@ import statistics
 import pytest
 
 import fg_env
-from fg_env.physics import _CompiledExpr
-from fg_env.stochastic import affine, exact_transition
+from fg_env.physics.model import _CompiledExpr
+from fg_env.physics.stochastic import affine, exact_transition
 
 
 @pytest.mark.parametrize("rate", ["x*x", "sin(x)", "1/x", "x > 0", "sqrt(x)"])
@@ -57,7 +57,7 @@ def test_world_noise_uses_the_same_exact_law():
 def test_nonlinear_refinement_tracks_the_same_analytical_brownian_path(seed):
     # Roberts (2012), arXiv:1210.0933, example 2.1: X(t)=sinh(t+W(t)).
     import random
-    from fg_env.stochastic_integration import integrate_noise
+    from fg_env.physics.stochastic_integration import integrate_noise
 
     w = random.Random(seed).gauss(0, 1)
     expected = math.sinh(1+w)
@@ -87,7 +87,7 @@ def test_public_coupled_stochastic_dynamics_preserve_damped_difference_variance(
 def test_time_varying_noise_starting_at_zero_converges():
     # Integral_0^1 t dW has variance integral_0^1 t²dt=1/3.
     import random
-    from fg_env.stochastic_integration import integrate_noise
+    from fg_env.physics.stochastic_integration import integrate_noise
 
     values = [integrate_noise(lambda y, t: ([0.0], [t]), [0.0], 0, 1,
                               {0: random.Random(seed)}, [(None, None)])[0] for seed in range(200)]
@@ -97,7 +97,7 @@ def test_time_varying_noise_starting_at_zero_converges():
 
 def test_unattainable_stochastic_precision_fails_instead_of_silently_accepting():
     import random
-    from fg_env.stochastic_integration import integrate_noise
+    from fg_env.physics.stochastic_integration import integrate_noise
 
     with pytest.raises(ArithmeticError, match="convergence|work limit"):
         integrate_noise(lambda y, t: ([0.5*y[0]+math.sqrt(1+y[0]**2)], [math.sqrt(1+y[0]**2)]),
@@ -106,7 +106,7 @@ def test_unattainable_stochastic_precision_fails_instead_of_silently_accepting()
 
 def test_refinement_preserves_the_parent_brownian_increment():
     import random
-    from fg_env.stochastic_integration import integrate_noise
+    from fg_env.physics.stochastic_integration import integrate_noise
 
     expected = random.Random(19).gauss(0, 1)
     for tolerance in [0.1, 0.01, 0.0001]:

@@ -5,7 +5,7 @@ import math
 import pytest
 
 import fg_env
-from fg_env.experiments import ArmResult, ExperimentResult, _describe
+from fg_env.experiments.experiment import ArmResult, ExperimentResult, _describe
 
 
 def contract():

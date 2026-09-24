@@ -24,11 +24,11 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..api import ContractLike, load
-from ..chance import PROBABILITY_TOLERANCE
+from ..effects.chance import PROBABILITY_TOLERANCE
 from ..errors import ContractError, RunError, SnapshotError
 from ..expr import ExprError
-from ..returns import UTILITY_TOLERANCE, utility_issues
-from ..runtime import Env
+from ..runtime.returns import UTILITY_TOLERANCE, utility_issues
+from ..runtime.env import Env
 from .game import Game, game
 from .leaks import leak_issues
 from .state import GameState

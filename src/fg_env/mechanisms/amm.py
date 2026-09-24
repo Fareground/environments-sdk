@@ -24,11 +24,11 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Sequen
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .common import config_of, entity_of, fmt
 from .econ_base import money_prop

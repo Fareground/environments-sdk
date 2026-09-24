@@ -8,7 +8,7 @@ from typing import Any, Dict, Tuple
 from ..errors import RunError
 from ..expr import is_expr
 from ..registry import family_action
-from ..world import Abort
+from ..world.live import Abort
 from .econ_assets import (
     _item,
     _ledger,

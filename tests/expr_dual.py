@@ -23,7 +23,7 @@ from expr_oracle import compile_oracle
 from fg_env.expr import compile as expr_compile
 from fg_env.expr.base import _BUDGET, ExprError
 from fg_env.mechanisms import turn_order
-from fg_env.seeds import DrawSite
+from fg_env.sampling.seeds import DrawSite
 from fg_env.stdlib import tables
 
 #: Every difference found: ``(expression, what differed)``.

@@ -8,7 +8,7 @@ from statistics import NormalDist
 from typing import Any, List, Tuple
 
 from ..expr import MAX_RANGE, Call, _describe, charge, function
-from ..binomial import sample_large_binomial
+from ..sampling.binomial import sample_large_binomial
 from ._args import fail, int_arg, list_arg, number_arg, present_numbers, probability
 
 #: Preserve geometric-skipping sequences through this expected count; larger draws use BTRS.

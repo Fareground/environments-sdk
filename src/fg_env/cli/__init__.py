@@ -133,7 +133,7 @@ def _print_generated(path: str) -> None:
 def _checked(path: str, rounds: Optional[int]) -> str:
     """What a clean check covered, and a default the author may not know is at work."""
     from ..api import parse
-    from ..smoke import SMOKE_ROUNDS
+    from ..checks.smoke import SMOKE_ROUNDS
 
     contract = parse(path)
     if rounds is not None and rounds <= 0:
@@ -214,7 +214,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
 
 def cmd_experiment(args: argparse.Namespace) -> int:
     from .runs import budget_arg
-    from ..experiments import experiment
+    from ..experiments.experiment import experiment
 
     _check_exposures(args)
     arms = [a.strip() for a in args.arms.split(",")] if args.arms else None
@@ -268,7 +268,7 @@ def cmd_describe(args: argparse.Namespace) -> int:
 
 
 def cmd_bench(args: argparse.Namespace) -> int:
-    from ..bench import bench, bench_table
+    from .bench import bench, bench_table
 
     if args.game:
         from ..game.bench import bench_game

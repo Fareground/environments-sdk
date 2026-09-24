@@ -30,7 +30,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..contract.rules import StageSpec
 from ..errors import Issue
-from ..parse_errors import shape_issue
+from ..contract.parse_errors import shape_issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]

@@ -6,7 +6,7 @@ from typing import Any, Type, TypeVar
 
 from pydantic import BaseModel
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
 from . import _common

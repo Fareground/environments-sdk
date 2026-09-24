@@ -2,7 +2,7 @@
 import pytest
 
 import fg_env
-from fg_env.exposure import Shown
+from fg_env.runtime.exposure import Shown
 
 
 def contract(rule="$viewer.id == $it.author"):

@@ -8,8 +8,8 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env import workers
-from fg_env.experiments import Job, run_jobs
+from fg_env.experiments import workers
+from fg_env.experiments.experiment import Job, run_jobs
 from fg_env.host.stubs import StubFeed
 
 STORE = Path(__file__).parent / "fixtures" / "store" / "store.json"

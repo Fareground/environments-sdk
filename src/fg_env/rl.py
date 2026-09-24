@@ -16,7 +16,7 @@
 from .evaluate import EvaluationResult, evaluate
 from .game import (ConformanceReport, Game, GameState, conformance, game, pettingzoo_aec, pettingzoo_parallel,
                    playthrough)
-from .gym import GymEnv, gym
+from .game.gym import GymEnv, gym
 from .tournament import TournamentResult, tournament
 
 __all__ = ["game", "Game", "GameState", "conformance", "ConformanceReport", "playthrough", "gym", "GymEnv",

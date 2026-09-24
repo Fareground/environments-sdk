@@ -4,7 +4,7 @@ import math
 import pytest
 
 from fg_env.expr import ExprError, Scope, compile_expr
-from fg_env.template import compile_template
+from fg_env.expr.template import compile_template
 
 
 def test_an_escaped_quote_inside_a_template_expression_does_not_end_the_string():

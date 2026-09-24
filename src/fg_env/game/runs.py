@@ -1,7 +1,7 @@
 """The run behind a game state: stepped on the caller's own thread, or piloted on a thread of its own.
 
 Both drive the same engine through the same turns, calls and chance nodes, and a state reads and decides
-through either in the same way (:class:`Run`). Stepping (:mod:`fg_env.stepping`) is the fast path: no
+through either in the same way (:class:`Run`). Stepping (:mod:`fg_env.copying.stepping`) is the fast path: no
 thread hand-offs, and a clone copies the world directly instead of replaying the game. A game is stepped
 unless its contract needs what only a piloted run carries — hosts, a budget, time limits, atomic or scheduled
 stages, physics, a space, in-turn host tools, or callable participants for the other agents. A stepped state
@@ -12,10 +12,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Protocol, Sequence
 
-from ..branch import Branch
+from ..copying.branch import Branch
 from ..host.hosts import hosts_for
-from ..pilot import Pause
-from ..session import ToolResult
+from ..copying.pilot import Pause
+from ..runtime.session import ToolResult
 
 if TYPE_CHECKING:
     from .game import Game

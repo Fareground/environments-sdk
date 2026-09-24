@@ -21,9 +21,9 @@ from ..engines import list_engines
 from .text import CHECKLIST, INSPECT, MACROS, MODEL, RECIPES, RUNNING, TEMPLATES
 from ..patterns.guide import patterns_page
 from ..patterns.schema import patterns_definitions, patterns_field_schema
-from ..macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
+from ..contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from ..registry import FAMILIES
-from ..template import FORMATS
+from ..expr.template import FORMATS
 
 __all__ = ["guide", "schema", "guide_parts"]
 

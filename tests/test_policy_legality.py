@@ -1,6 +1,6 @@
 """Coded policies decide legality without building tool schemas."""
 import fg_env
-from fg_env import actions
+from fg_env.actions import book as actions
 
 
 def test_coded_policies_never_build_tool_schemas(monkeypatch):

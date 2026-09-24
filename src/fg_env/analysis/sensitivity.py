@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 from ..api import ContractLike
-from ..seeds import SeedTree
+from ..sampling.seeds import SeedTree
 from . import runner
 from .stats import correlation_ratio, estimate, latin_hypercube, mean, quantile, sd
 

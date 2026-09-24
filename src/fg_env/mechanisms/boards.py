@@ -11,11 +11,11 @@ import weakref
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, config_data, family_action, mode, use_key
-from ..world import Abort
+from ..world.live import Abort
 from ._game import game_section
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score
 from .board_rules import BoardConfig, Rules, compile_rules, parse_setup

@@ -18,9 +18,9 @@ from typing import Any, Callable, Dict, Iterable, List, Literal, Mapping, Option
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
-from ..captures import CAPTURE_VERSION, freeze, thaw
+from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, config_data, describe, use_key
 

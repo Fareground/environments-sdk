@@ -157,7 +157,7 @@ def test_a_model_that_never_gets_it_working_returns_the_latest_contract_and_its_
 
 def test_a_provider_error_that_persists_stops_and_keeps_what_works(monkeypatch):
     waits = []
-    monkeypatch.setattr("fg_env.authoring.time.sleep", waits.append)
+    monkeypatch.setattr("fg_env.authoring.author.time.sleep", waits.append)
     client = FakeOpenAI([write(WORKING)])
     replies = client.create
 
@@ -223,7 +223,7 @@ def test_cli_authors_from_a_brief_file(tmp_path, monkeypatch, capsys):
     brief = tmp_path / "shop.md"
     brief.write_text("A two-player game.")
     client = FakeOpenAI([write(WORKING)], [])
-    monkeypatch.setattr("fg_env.authoring.official_client", lambda provider, model: client)
+    monkeypatch.setattr("fg_env.authoring.author.official_client", lambda provider, model: client)
     monkeypatch.chdir(tmp_path)
 
     assert main(["author", str(brief), "--model", "openai:m"]) == 0
@@ -283,7 +283,7 @@ def test_a_dropped_last_revision_is_named_in_the_reply_and_the_summary():
 
 
 def test_a_write_cut_off_at_the_output_limit_is_named_and_does_not_use_a_revision(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.MAX_REVISIONS", 1)
+    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 1)
     client = FakeOpenAI(Cut([call("check"), write(WORKING)]), [], [write(WORKING)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -347,7 +347,7 @@ def test_the_summary_says_when_the_kept_revision_changed_what_the_environment_is
 
 def test_retryable_provider_errors_are_retried_and_others_stop(monkeypatch):
     waits = []
-    monkeypatch.setattr("fg_env.authoring.time.sleep", waits.append)
+    monkeypatch.setattr("fg_env.authoring.author.time.sleep", waits.append)
 
     busy = fg_env.author("A game.", "openai:m", client=FakeOpenAI(ProviderError(429), ProviderError(529),
                                                                   [write(WORKING)], []))
@@ -383,7 +383,7 @@ def test_cost_is_reported_only_when_the_provider_reports_it():
 
 
 def test_invalid_writes_do_not_use_up_the_revisions(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.MAX_REVISIONS", 2)
+    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 2)
     client = FakeOpenAI([write("{no")], [write("{no")], [write("{no")], [write(BROKEN)], [write(WORKING)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -392,7 +392,7 @@ def test_invalid_writes_do_not_use_up_the_revisions(monkeypatch):
 
 
 def test_running_out_of_revisions_without_a_working_contract_stops(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.MAX_REVISIONS", 2)
+    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 2)
     client = FakeOpenAI([write(BROKEN)], [write(BROKEN)], [call("check")])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -402,7 +402,7 @@ def test_running_out_of_revisions_without_a_working_contract_stops(monkeypatch):
 
 def test_cli_caps_model_calls(tmp_path, monkeypatch, capsys):
     client = FakeOpenAI([write(WORKING)], [call("check")], [call("check")])
-    monkeypatch.setattr("fg_env.authoring.official_client", lambda provider, model: client)
+    monkeypatch.setattr("fg_env.authoring.author.official_client", lambda provider, model: client)
 
     assert main(["author", "A game.", "--model", "openai:m", "--out", str(tmp_path / "g.json"), "--calls", "2"]) == 0
     assert "stopped: calls" in capsys.readouterr().out and len(client.sent) == 2

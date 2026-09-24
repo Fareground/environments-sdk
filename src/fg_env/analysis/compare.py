@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
-from ..measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, _usable_output
 from . import runner
 from .drivers import collect_runs
 from .stats import Estimate, estimate, mean, numeric, quantile, sd, t_quantile

@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from . import runner
 
 __all__ = ["behavior_checks", "CheckReport", "Finding"]

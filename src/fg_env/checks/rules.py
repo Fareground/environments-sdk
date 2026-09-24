@@ -5,13 +5,13 @@ import re
 from typing import TYPE_CHECKING, Any, Optional, Set
 
 from .. import contract as C
-from ..probability import check_literal_probability
+from ..sampling.probability import check_literal_probability
 from .roots import BASE
 from .space import check_event_order
 from ..contract import Contract
-from ..effects import RESERVED_ROOTS
+from ..effects.runner import RESERVED_ROOTS
 from ..expr import FUNCTIONS, ExprError, compile_expr
-from ..template import FORMATS, compile_template
+from ..expr.template import FORMATS, compile_template
 
 if TYPE_CHECKING:
     from . import _Checker

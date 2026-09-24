@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 
 import fg_env
-from fg_env import workers as pools
+from fg_env.experiments import workers as pools
 from fg_env.api import contract_source
 from fg_env.analysis.runner import run_seeds
-from fg_env.experiments import Job, _Batch, _run_chunk, run_job, run_jobs, worker_pool
+from fg_env.experiments.experiment import Job, _Batch, _run_chunk, run_job, run_jobs, worker_pool
 
 LEMONADE = Path(__file__).parents[1] / "examples" / "contracts" / "lemonade_stand.json"
 
@@ -165,7 +165,7 @@ def test_a_kept_worker_reads_a_relative_data_folder_where_each_batch_started(tmp
 
 _KILLED_PARENT = """
 import multiprocessing, os, signal
-from fg_env.workers import Workers
+from fg_env.experiments.workers import Workers
 Workers(2).executor().submit(os.getpid).result()
 print(" ".join(str(child.pid) for child in multiprocessing.active_children()), flush=True)
 os.kill(os.getpid(), signal.SIGKILL)

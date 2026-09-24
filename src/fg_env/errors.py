@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, List, Optional
 
 if TYPE_CHECKING:
-    from .measure import RunResult
+    from .runtime.measure import RunResult
 
 __all__ = ["Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "FatalRunError",
            "SnapshotError"]

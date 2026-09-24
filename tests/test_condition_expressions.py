@@ -79,7 +79,7 @@ def test_data_fields_keep_literal_text_semantics():
 
 @pytest.mark.parametrize('seed', [1, 17, 921])
 def test_existing_reference_conditions_keep_draw_order_and_complete_results(seed, monkeypatch):
-    from fg_env.effects import EffectRunner
+    from fg_env.effects.runner import EffectRunner
     c = contract([{'each': [1, 2, 3, 4], 'where': '$chance(0.8)', 'do': [
         {'if': '$chance(0.5)', 'then': ['$world.total += $it'], 'else': ['$world.total -= $it']}]}])
     corrected = fg_env.run(c, seed=seed).to_dict()

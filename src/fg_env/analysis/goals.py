@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..expr import ExprError, Scope, compile_expr, evaluate
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from . import runner
 from .output_scope import OutputScope, RejectedOutput, materialize
 from .stats import estimate, mean, numeric, quantile, sd

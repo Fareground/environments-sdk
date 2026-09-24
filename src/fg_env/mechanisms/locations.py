@@ -18,12 +18,12 @@ from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Tupl
 
 from pydantic import Field, model_validator
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..contract import Condition
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
 

@@ -5,7 +5,7 @@ import pytest
 
 import fg_env
 from fg_env.errors import ContractError
-from fg_env.experiments import Job, run_jobs
+from fg_env.experiments.experiment import Job, run_jobs
 
 
 def _write(path, data):

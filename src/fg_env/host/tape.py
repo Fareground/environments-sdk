@@ -172,7 +172,7 @@ def tape_of(source: Any) -> Dict[str, Dict[str, Any]]:
     if world is not None:
         raw = world.props.get(TAPE)
     elif isinstance(source, Mapping) and "props" in source:
-        from ..snapshot import decode
+        from ..copying.snapshot import decode
 
         raw = decode(source["props"]).get(TAPE)
     else:

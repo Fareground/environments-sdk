@@ -5,8 +5,8 @@ import pytest
 
 import fg_env
 from fg_env.errors import RunError
-from fg_env.record_index import equality_fields
-from fg_env.run_copy import _copy_world
+from fg_env.world.record_index import equality_fields
+from fg_env.copying.direct import _copy_world
 
 
 def contract(rule='$viewer.team == $it.team', keep=None):

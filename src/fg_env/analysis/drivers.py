@@ -14,8 +14,8 @@ from dataclasses import dataclass, field
 from statistics import median
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from ..measure import RunResult, _usable_output
-from ..seeds import SeedTree
+from ..runtime.measure import RunResult, _usable_output
+from ..sampling.seeds import SeedTree
 from .stats import is_number, numeric
 
 __all__ = ["drivers", "DriversResult", "Driver", "collect_runs"]

@@ -18,11 +18,11 @@ from typing import Any, Callable, cast, Dict, List, Mapping, Optional, Tuple, Un
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..registry import MechanismError, family_action, mode, use_key
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract

@@ -153,7 +153,7 @@ def test_snapshot_round_trip_keeps_provenance_and_continues_identically():
 
 
 def test_snapshot_encodes_maps_with_untrusted_or_non_text_keys():
-    from fg_env.snapshot import decode, encode
+    from fg_env.copying.snapshot import decode, encode
 
     value = {Untrusted("injected"): 1, 3: [Untrusted("x")], "$untrusted": "literal", "plain": {"a": 1}}
     back = decode(json.loads(json.dumps(encode(value))))

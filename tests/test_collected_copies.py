@@ -15,11 +15,11 @@ import weakref
 import pytest
 
 from fg_env.expr import base as expr_base
-from fg_env.actions import ActionBook
+from fg_env.actions.book import ActionBook
 from fg_env.errors import RunError
 from fg_env.game import apply_step, game, random_step
 from fg_env.game.runs import ThreadedRun
-from fg_env.stepping import Stepper
+from fg_env.copying.stepping import Stepper
 from game_contracts import GAMES, load_game
 
 SLOW = bool(os.environ.get("FG_ENV_SLOW"))

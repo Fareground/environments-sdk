@@ -4,7 +4,7 @@ import pytest
 import fg_env
 from fg_env.analysis import runner
 from fg_env.errors import InputError
-from fg_env.experiments import Job, run_jobs
+from fg_env.experiments.experiment import Job, run_jobs
 
 
 def contract(expr="$round == 0 or $inputs.capacity == 10"):

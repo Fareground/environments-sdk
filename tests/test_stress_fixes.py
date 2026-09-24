@@ -3,7 +3,7 @@ import json
 
 import fg_env
 from fg_env.expr import Scope, Untrusted, evaluate
-from fg_env.template import render
+from fg_env.expr.template import render
 
 COUNCIL = {
     "name": "Mini council",

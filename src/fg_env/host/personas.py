@@ -16,7 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
 from ..registry import MechanismError, family_action, mode
-from ..template import compile_template, format_value
+from ..expr.template import compile_template, format_value
 from .common import NAME, agents_of, clip, config_of, type_list
 from .protocols import HostError
 from .tape import consult, plain, tape_prop

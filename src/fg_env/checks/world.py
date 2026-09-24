@@ -8,14 +8,14 @@ import re
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Iterable, Optional, Set
 
-from ..physics import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
+from ..physics.model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from .. import contract as C
 from .roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
 from .space import check_space
-from ..effects import POST_KEYS
+from ..effects.runner import POST_KEYS
 from ..expr import EXPRESSION_WORDS, is_expr
-from ..inputs import DATA_SUFFIXES, check_value
-from ..world_defaults import default_order
+from ..contract.inputs import DATA_SUFFIXES, check_value
+from ..world.defaults import default_order
 
 if TYPE_CHECKING:
     from . import _Checker

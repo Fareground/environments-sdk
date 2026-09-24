@@ -28,8 +28,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
-from ..measure import RunResult
-from ..seeds import SeedTree
+from ..runtime.measure import RunResult
+from ..sampling.seeds import SeedTree
 from . import runner, unit_search
 from .holdout import Split, case_names, splits
 from .stats import estimate, mean, sd

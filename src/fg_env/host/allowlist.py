@@ -15,11 +15,11 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, Untrusted
-from ..template import format_value
-from ..world import prop_type
+from ..expr.template import format_value
+from ..world.live import prop_type
 
 __all__ = ["Rule", "Change", "Plan", "resolve_rules", "describe", "validate", "apply", "MAX_NARRATION"]
 

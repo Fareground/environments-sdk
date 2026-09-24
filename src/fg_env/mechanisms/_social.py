@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, Ty
 
 from pydantic import BaseModel
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key

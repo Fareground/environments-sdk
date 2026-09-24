@@ -24,11 +24,11 @@ from typing import Any, Dict, Iterable, List, Literal, Mapping, Optional, Tuple,
 
 from pydantic import Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..template import compile_template
+from ..expr.template import compile_template
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
 

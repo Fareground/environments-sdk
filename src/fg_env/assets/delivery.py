@@ -14,11 +14,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional, Sequence
 
 from ..errors import RunError
 from ..expr import ExprError, Untrusted, compile_expr
-from ..template import format_value
+from ..expr.template import format_value
 from .store import Asset, AssetStore
 
 if TYPE_CHECKING:
-    from ..world import SdkWorld
+    from ..world.live import SdkWorld
 
 __all__ = ["Attachment", "attached_ids", "entry_assets", "reference", "references"]
 

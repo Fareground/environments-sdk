@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any, Iterator
 if TYPE_CHECKING:
     from _collections_abc import dict_items, dict_values
 
-from ..measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, _usable_output
 
 
 class RejectedOutput(Exception):

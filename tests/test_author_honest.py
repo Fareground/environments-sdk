@@ -7,7 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 import fg_env
-from fg_env.author_sandbox import Sandbox, TooSlow
+from fg_env.authoring.sandbox import Sandbox, TooSlow
 from test_author import WORKING, FakeOpenAI, call, edit, tool_replies, write
 from test_author_safety import game
 
@@ -75,9 +75,9 @@ def test_a_contract_that_consults_a_host_is_tested_with_the_stand_in_stubs(examp
 
 def test_a_contract_too_slow_to_test_is_reported_and_never_hangs_the_session(monkeypatch):
     # Every one of a thousand sellers reads a view listing every seller: check alone takes many seconds.
-    monkeypatch.setattr("fg_env.authoring.TEST_SECONDS", 0.5)
-    monkeypatch.setattr("fg_env.authoring.RUN_SECONDS", 0.5)
-    monkeypatch.setattr("fg_env.author_sandbox.GRACE_SECONDS", 1)
+    monkeypatch.setattr("fg_env.authoring.author.TEST_SECONDS", 0.5)
+    monkeypatch.setattr("fg_env.authoring.author.RUN_SECONDS", 0.5)
+    monkeypatch.setattr("fg_env.authoring.sandbox.GRACE_SECONDS", 1)
     crowded = lemonade(entities={}, population=[{"type": "seller", "count": 1000}])
     client = FakeOpenAI([write(crowded)], [call("check")], [])
 
@@ -146,7 +146,7 @@ def test_a_refusal_after_a_working_revision_is_not_done():
 
 
 def test_the_revision_limit_names_the_revision_kept_and_ends_the_session(monkeypatch):
-    monkeypatch.setattr("fg_env.authoring.MAX_REVISIONS", 2)
+    monkeypatch.setattr("fg_env.authoring.author.MAX_REVISIONS", 2)
     client = FakeOpenAI([write(WORKING)], [write({**WORKING, "bogus": 1}), write(WORKING)], [call("check")])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -157,7 +157,7 @@ def test_the_revision_limit_names_the_revision_kept_and_ends_the_session(monkeyp
 
 
 def test_the_sandbox_bounds_time_and_survives_what_its_child_does(monkeypatch):
-    monkeypatch.setattr("fg_env.author_sandbox.GRACE_SECONDS", 0.5)
+    monkeypatch.setattr("fg_env.authoring.sandbox.GRACE_SECONDS", 0.5)
     with Sandbox() as box:
         assert box.call("json:dumps", {"obj": [1]}, 1) == "[1]"  # a new child's start is not counted
         assert box.call("json:dumps", {"obj": [1]}, 5) == "[1]"

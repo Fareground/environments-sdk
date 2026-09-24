@@ -14,8 +14,8 @@ import re
 from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from ..api import load
-from ..clock_words import period_label, plural, sub_day, unit_word
-from ..measure import RunResult
+from ..runtime.clock_words import period_label, plural, sub_day, unit_word
+from ..runtime.measure import RunResult
 from ..mechanisms._common import condition
 from ..mechanisms.econ_base import DEMAND, config_of, props
 from ..mechanisms.econ_demand_trade import number_of, plan, read_term

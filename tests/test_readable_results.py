@@ -1,6 +1,6 @@
 """Summaries show numbers readably, outputs and metrics may declare a format, and stored values stay exact."""
 import fg_env
-from fg_env.measure import shown
+from fg_env.runtime.measure import shown
 
 SHARES = {
     "name": "Shares",

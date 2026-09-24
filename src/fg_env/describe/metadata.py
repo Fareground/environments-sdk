@@ -10,8 +10,8 @@ import re
 from typing import Any, Dict, FrozenSet, Iterable, List, Mapping, Optional, Set, Tuple, Union
 
 from ..contract import Contract, ParamSpec
-from ..reads import inspect_rule
-from ..returns import utility_class
+from ..actions.reads import inspect_rule
+from ..runtime.returns import utility_class
 from . import walk
 
 __all__ = ["game_metadata", "MAX_EVIDENCE"]

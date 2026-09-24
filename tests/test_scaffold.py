@@ -4,7 +4,7 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env.scaffold import TEMPLATES, new
+from fg_env.authoring.scaffold import TEMPLATES, new
 
 
 @pytest.mark.parametrize("template", list(TEMPLATES))

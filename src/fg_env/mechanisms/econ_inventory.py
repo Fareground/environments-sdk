@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..registry import MechanismError, family_action, mode
 from ._common import ToolsSetting, raw_is_a, tools_field
 from .econ_assets import assets, destroy_items, is_holder

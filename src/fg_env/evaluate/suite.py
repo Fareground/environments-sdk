@@ -17,7 +17,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 from ..api import default_data_dir, load, parse
 from ..contract import Contract
 from ..errors import ContractError
-from ..runtime import Env
+from ..runtime.env import Env
 from ..tournament.scoring import SeatScorer
 
 __all__ = ["Scenario", "SCENARIO_FIELDS", "DEFAULT_MODES", "scenarios"]

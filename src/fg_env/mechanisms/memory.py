@@ -18,14 +18,14 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Sequence, Tuple,
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
 from ..host.common import NAME, agents_of, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
 from ..registry import MechanismError, family_action, mode, use_key
-from ..template import format_value
+from ..expr.template import format_value
 
 __all__ = ["MemoryConfig", "RecapConfig", "lexical_relevance"]
 
@@ -240,7 +240,7 @@ def _actor(vars: Dict[str, Any], action: str, where: str) -> Entity:
 @family_action("mind", ("memory",), "capture", internal=True,
                example='{"mind": "memory", "action": "capture"}  (remember what each agent did and read since the last capture)')
 def _capture(runner: Any, effect: Dict[str, Any], vars: Dict[str, Any], where: str) -> None:
-    from ..perception import Perception
+    from ..runtime.perception import Perception
 
     world = runner.world
     name = effect["mind"]

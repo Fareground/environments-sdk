@@ -12,9 +12,9 @@ import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from ..clock_words import plural, span_label, unit_word
-from ..measure import RunResult
-from ..measure import _usable_output
+from ..runtime.clock_words import plural, span_label, unit_word
+from ..runtime.measure import RunResult
+from ..runtime.measure import _usable_output
 from .evidence import Option, summary
 from .words import Namer
 

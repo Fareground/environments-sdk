@@ -4,7 +4,7 @@ import json
 import pytest
 
 import fg_env
-from fg_env.run_copy import _copy_world
+from fg_env.copying.direct import _copy_world
 
 
 def contract(rule="$viewer.id == $it.author", keep=None):

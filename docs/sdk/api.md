@@ -20,7 +20,7 @@ file's folder).
 judgment the contract asks of a host; build-time host work (personas) is done before round 1.
 ``exposures=True`` records what every agent was shown on every wake (``result.exposures``); a
 contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects: ``"sampled"`` (the
-default: drawn from the seeded stream) or a callable given each :class:`~fg_env.chance.ChanceNode`
+default: drawn from the seeded stream) or a callable given each :class:`~fg_env.effects.chance.ChanceNode`
 that returns the index of the outcome to take (a fixed deal, duplicate formats); :func:`fg_env.rl.game`
 enumerates chance for search. A contract with a ``calibration`` section fits its inputs with pilot sessions first
 (``env.calibration`` is the report); ``calibrate=False`` skips that, as ``fg_env.check``'s smoke play does.
@@ -100,7 +100,7 @@ builds fresh participants per run when they hold state.
 arm continues from that same state (a fork: the arm's patch and inputs apply from round N + 1, and
 an arm whose patch the state cannot follow raises before the experiment goes on).
 
-``budget`` caps each run on its own (:mod:`fg_env.budget`); with ``branch_at`` the shared rounds are part of
+``budget`` caps each run on its own (:mod:`fg_env.runtime.budget`); with ``branch_at`` the shared rounds are part of
 every arm's run, so they count toward each arm's budget. ``exposures=True`` records what agents saw in every run
 (``result.arms[label].runs[i].exposures``, events kept): each run is a trace to read or replay.
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts``
@@ -199,7 +199,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```pyi
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: Dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: Optional[fg_env.contract.world.Space] = None, world: Dict[str, fg_env.contract.world.PropSpec] = <factory>, types: Dict[str, fg_env.contract.world.TypeSpec], entities: Dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: List[fg_env.contract.world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: List[fg_env.contract.world.LinkSpec] = <factory>, physics: Optional[fg_env.contract.world.PhysicsSpec] = None, feeds: Dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: List[fg_env.contract.rules.StageSpec] = <factory>, views: Dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: List[fg_env.contract.rules.EventSpec] = <factory>, triggers: List[fg_env.contract.rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: List[fg_env.contract.measure.EndSpec] = <factory>, arms: Dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: Optional[fg_env.contract.measure.CalibrationSpec] = None, game: Optional[fg_env.game_spec.GameSpec] = None, invariants: List[fg_env.contract.measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
+Contract(*, fg_env: str = '1', name: str, description: str = '', imports: List[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, assets: Dict[str, fg_env.assets.spec.AssetSpec] = <factory>, inputs: Dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: Optional[fg_env.contract.world.Space] = None, world: Dict[str, fg_env.contract.world.PropSpec] = <factory>, types: Dict[str, fg_env.contract.world.TypeSpec], entities: Dict[str, fg_env.contract.world.EntitySpec] = <factory>, population: List[fg_env.contract.world.PopulationSpec] = <factory>, relations: Dict[str, fg_env.contract.world.RelationSpec] = <factory>, links: List[fg_env.contract.world.LinkSpec] = <factory>, physics: Optional[fg_env.contract.world.PhysicsSpec] = None, feeds: Dict[str, fg_env.contract.world.FeedSpec] = <factory>, patterns: Dict[str, Dict[str, Any]] = <factory>, records: Dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: Dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: List[fg_env.contract.rules.StageSpec] = <factory>, views: Dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: List[fg_env.contract.rules.EventSpec] = <factory>, triggers: List[fg_env.contract.rules.TriggerSpec] = <factory>, policies: Dict[str, fg_env.contract.rules.PolicySpec] = <factory>, metrics: Dict[str, fg_env.contract.measure.MetricSpec] = <factory>, outputs: Dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: List[fg_env.contract.measure.EndSpec] = <factory>, arms: Dict[str, fg_env.contract.measure.ArmSpec] = <factory>, calibration: Optional[fg_env.contract.measure.CalibrationSpec] = None, game: Optional[fg_env.contract.game.GameSpec] = None, invariants: List[fg_env.contract.measure.InvariantSpec] = <factory>, defs: Dict[str, fg_env.contract.measure.DefSpec] = <factory>, blocks: Dict[str, fg_env.contract.measure.BlockSpec] = <factory>, mechanisms: Dict[str, Dict[str, Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.
@@ -1101,7 +1101,7 @@ both are reported, with win/draw/loss, points and score means. ``evaluation`` ad
 α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
 entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
 undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
-``budget`` caps each game on its own (:mod:`fg_env.budget`); ``exposures=True`` records what agents saw in
+``budget`` caps each game on its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in
 every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
 
 ### `rl.TournamentResult`
@@ -1300,7 +1300,7 @@ Run to the end, or for ``rounds`` more rounds, or until ``stop(env)`` is true.
 ``"policy:<name>"``). Agents without one use their type's ``policy`` or ``"random"``. Every
 participant is offered the contract's in-turn host tools; ``hosts`` binds the run to host
 adapters first. ``time_limit`` sets :attr:`time_limit`, the wall-clock seconds per turn for
-stages that set none; ``budget`` caps the run (:mod:`fg_env.budget`). In an event loop, use :meth:`arun`.
+stages that set none; ``budget`` caps the run (:mod:`fg_env.runtime.budget`). In an event loop, use :meth:`arun`.
 
 ``stop`` is checked before every round, stage, pass and sequential turn. A stopped run
 continues exactly where it stopped on the next call; finishing a round that was
@@ -1350,7 +1350,7 @@ The contract's files are found again in its folder (or ``data_dir``) and checked
 ### `Env.clone`
 
 ```pyi
-clone(self: "'Env'") -> "'Env'"
+clone(self) -> "'Env'"
 ```
 
 An independent copy of this run now, continuing exactly as it would.
@@ -1361,7 +1361,7 @@ copied by replaying it, so the copy stops at the same point. Inside a turn, use 
 ### `Env.fork`
 
 ```pyi
-fork(self: "'Env'", **changes: 'Any') -> "'Env'"
+fork(self, **changes: 'Any') -> "'Env'"
 ```
 
 A new run continuing this one from now under changes, leaving this run untouched: another ``arm``

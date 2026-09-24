@@ -7,8 +7,8 @@ import pytest
 import fg_env
 from fg_env.__main__ import main
 from fg_env.errors import ContractError
-from fg_env.experiments import Job, run_jobs
-from fg_env.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
+from fg_env.experiments.experiment import Job, run_jobs
+from fg_env.contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 

@@ -12,8 +12,8 @@ from ..analysis.sweep import SweepResult
 from ..analysis.validate import ValidationResult
 from ..api import ContractLike, parse
 from ..contract import Contract
-from ..experiments import ExperimentResult
-from ..measure import RunResult, _usable_output
+from ..experiments.experiment import ExperimentResult
+from ..runtime.measure import RunResult, _usable_output
 
 __all__ = ["Option", "Summary", "Goal", "Requirement", "Evidence", "Choice", "gather", "choose", "summary",
            "parse_goal", "parse_requirements"]

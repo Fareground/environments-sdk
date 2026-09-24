@@ -36,9 +36,9 @@ def _requirements(items: Optional[List[str]]) -> Optional[Dict[str, str]]:
 
 def cmd_report(args: argparse.Namespace) -> int:
     from ..analysis.validate import validate
-    from ..experiments import experiment
+    from ..experiments.experiment import experiment
     from ..errors import ContractError
-    from ..measure import RunResult
+    from ..runtime.measure import RunResult
     from . import report
 
     try:

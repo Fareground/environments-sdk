@@ -7,7 +7,7 @@ import random
 import pytest
 
 import fg_env
-from fg_env.binomial import _log_ratio, sample_large_binomial
+from fg_env.sampling.binomial import _log_ratio, sample_large_binomial
 from fg_env.stdlib.dists import binomial
 
 

@@ -12,7 +12,7 @@ from typing import Any, cast, Dict, List, Literal, Mapping, Optional, Tuple, Uni
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..registry import MechanismError, family_action, mode

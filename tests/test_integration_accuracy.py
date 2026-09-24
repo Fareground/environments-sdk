@@ -3,7 +3,7 @@ import math
 
 import pytest
 
-from fg_env.integration import integrate
+from fg_env.physics.integration import integrate
 
 
 @pytest.mark.parametrize("rate", [0.01, 1, 20, 200])

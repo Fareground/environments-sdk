@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
-from ..seeds import SeedTree
+from ..sampling.seeds import SeedTree
 from .stats import is_number
 
 __all__ = ["Split", "case_names", "splits"]

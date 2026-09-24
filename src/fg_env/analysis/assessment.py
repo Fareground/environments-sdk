@@ -6,7 +6,7 @@ import random
 from dataclasses import dataclass
 from typing import Any, Dict, Sequence, Tuple
 
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from .constraints import Constraint, Standard, check
 from .goals import Objective
 

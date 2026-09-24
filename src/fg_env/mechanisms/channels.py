@@ -23,12 +23,12 @@ from typing import Any, Callable, Dict, List, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..template import format_value
-from ..world import Abort
+from ..expr.template import format_value
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import props, NAME, cache, config_of, eid, entity, ids, named_use, require_type
 

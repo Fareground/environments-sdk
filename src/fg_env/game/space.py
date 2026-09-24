@@ -21,17 +21,17 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Dict, Iterator, List, Mapping, Optional, Sequence, Tuple
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..contract import ParamSpec
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
-from ..session import END_TURN
-from ..template import format_value
-from ..world import _plain
+from ..runtime.session import END_TURN
+from ..expr.template import format_value
+from ..world.live import _plain
 
 if TYPE_CHECKING:
-    from ..runtime import Env
-    from ..turn import Turn
+    from ..runtime.env import Env
+    from ..runtime.turn import Turn
 
 __all__ = ["Action", "ActionSpace", "legal_calls", "sample_call", "COMBINATION_LIMIT"]
 

@@ -33,10 +33,10 @@ from typing import Annotated, Any, Dict, List, Literal, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
-from ..props import prop_type
-from ..world import Abort
+from ..world.props import prop_type
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .book_rules import Venue, venue
 from .common import config_of, entity_of, fmt, lot_floor

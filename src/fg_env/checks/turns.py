@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, AbstractSet
 
 from .. import contract as C
-from ..perception import SPECTATOR
+from ..runtime.perception import SPECTATOR
 
 if TYPE_CHECKING:
     from . import _Checker

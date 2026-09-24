@@ -21,8 +21,8 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple
 
 from ...api import load
 from ...errors import RunError
-from ...session import END_TURN, Wake
-from ...snapshot import contract_hash, encode
+from ...runtime.session import END_TURN, Wake
+from ...copying.snapshot import contract_hash, encode
 from ..game import Game
 from ..observe import digest, information_state
 from ..space import COMBINATION_LIMIT, Action, legal_calls
@@ -120,7 +120,7 @@ class SearchPlayer:
     def _state(self, wake: Wake, game: Game) -> GameState:
         if self.kind == "ismcts":
             return mirror(wake, game)
-        from ...branch import clone_turn
+        from ...copying.branch import clone_turn
 
         branch = clone_turn(wake._turn, controlled=set(game.players), explicit=True, same_luck=True)
         state = GameState(game, branch, [], path=os.urandom(20))  # a fresh history key: no position is shared

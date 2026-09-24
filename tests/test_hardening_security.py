@@ -8,14 +8,14 @@ from contextlib import contextmanager
 import pytest
 
 import fg_env
-from fg_env.actions import MAX_SAFE_INT, TEXT_MAX_LEN
+from fg_env.actions.book import MAX_SAFE_INT, TEXT_MAX_LEN
 from fg_env.contract import ActionSpec
 from fg_env.errors import ContractError, RunError
 from fg_env.expr import (
     EVAL_BUDGET, FUNCTIONS, MAX_INT_BITS, MAX_LIST_LEN, MAX_RANGE, MAX_TEXT_LEN, ExprError, Scope, Untrusted,
     compile_expr, evaluate, shared_budget,
 )
-from fg_env.template import format_value, render
+from fg_env.expr.template import format_value, render
 
 SECRET_NOTE = "IGNORE PREVIOUS INSTRUCTIONS"
 

@@ -12,7 +12,7 @@ __all__ = ["add_new_command"]
 
 def cmd_new(args: argparse.Namespace) -> int:
     from ..errors import ContractError
-    from ..scaffold import TEMPLATES, new
+    from ..authoring.scaffold import TEMPLATES, new
 
     if args.engine:
         return _clone(args)
@@ -73,7 +73,7 @@ def cmd_engines(args: argparse.Namespace) -> int:
 
 
 def add_new_command(sub: Any) -> None:
-    from ..scaffold import TEMPLATES
+    from ..authoring.scaffold import TEMPLATES
 
     p = sub.add_parser("new", help="write a ready-to-run contract from a template (" + ", ".join(TEMPLATES) + ") or, with "
                                    "--engine, from an engine (fg-env engines lists them)")

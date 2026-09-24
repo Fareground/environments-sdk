@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple,
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..assets.delivery import Attachment, attached_ids, entry_assets
 from ..assets.multimodal import host_attachments
 from ..errors import RunError
@@ -26,8 +26,8 @@ from ..host.common import NAME, clip, config_of, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain, tape_prop
 from ..registry import MechanismError, family_action, mode
-from ..template import format_value
-from ..world import Abort, _plain
+from ..expr.template import format_value
+from ..world.live import Abort, _plain
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
 

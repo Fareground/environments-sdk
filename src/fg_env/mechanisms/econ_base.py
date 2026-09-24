@@ -13,11 +13,11 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple, Type, Un
 
 from pydantic import BaseModel, ValidationError
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
 from ..registry import MechanismError, config_data, describe, use_key
-from ..world import Abort
+from ..world.live import Abort
 
 __all__ = [
     "EPS", "NAME", "valid_name", "CONFIG_MODELS", "register_config", "config_of", "uses_of", "cached", "type_list", "require_types",
@@ -275,7 +275,7 @@ def bump(world: Any, prop: str, key: str, delta: float, group: Optional[str] = N
 
 def money(value: Any) -> str:
     """An amount as compact text (at most 2 decimals). Callers name the currency: money is not always dollars."""
-    from ..template import format_value
+    from ..expr.template import format_value
 
     if isinstance(value, (int, float)) and not isinstance(value, bool):
         return format_value(round(float(value), 2))

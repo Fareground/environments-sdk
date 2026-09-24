@@ -27,7 +27,7 @@ from fg_env.analysis.stats import (
     t_quantile, wasserstein, wilson,
 )
 from fg_env.errors import InputError
-from fg_env.measure import RunResult
+from fg_env.runtime.measure import RunResult
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 EPIDEMIC = EXAMPLES / "town_epidemic.json"

@@ -34,11 +34,11 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
 
 from pydantic import Field, model_validator
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, truthy
-from ..template import compile_template, format_value
-from ..world import Abort
+from ..expr.template import compile_template, format_value
+from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects
 from ._social import check_expr, require_type

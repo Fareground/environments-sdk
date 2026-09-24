@@ -33,11 +33,11 @@ from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
 from ..expr.base import WrongKind
 from ..expr.calls import suggest_function
 from ..expr.codegen import _ITEM_ROOTS
-from ..parse_errors import validation_issues
+from ..contract.parse_errors import validation_issues
 from ..patterns.check import check_pattern_call, check_patterns
-from ..returns import check_game
-from ..template import compile_template, quoted_placeholders
-from ..world import prop_type
+from ..runtime.returns import check_game
+from ..expr.template import compile_template, quoted_placeholders
+from ..world.live import prop_type
 from ..assets.checks import check_assets
 
 __all__ = ["parse_contract", "check_contract"]

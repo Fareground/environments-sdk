@@ -18,14 +18,14 @@ import json
 import random
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
-from ..branch import Branch, outcome_index
-from ..driving import Unpausable
+from ..copying.branch import Branch, outcome_index
+from ..runtime.driving import Unpausable
 from ..errors import ContractError, Issue, RunError
-from ..returns import seat_rewards
-from ..run_copy import NotCopyable
-from ..session import END_TURN, ToolResult
-from ..snapshot import encode
-from ..turn import Turn
+from ..runtime.returns import seat_rewards
+from ..copying.direct import NotCopyable
+from ..runtime.session import END_TURN, ToolResult
+from ..copying.snapshot import encode
+from ..runtime.turn import Turn
 from .observe import digest, information_state, observation_struct, observation_text, state_key
 from .runs import Run, ThreadedRun, replayed
 from .space import Action, legal_calls, sample_call

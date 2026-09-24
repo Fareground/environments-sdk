@@ -8,10 +8,10 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Iterable, List, Mapping, Optional, Set
 
 from .. import contract as C
-from ..actions import stage_actions
+from ..actions.book import stage_actions
 from ..expr import Expr, ExprError, compile_expr
-from ..reads import inspect_rule
-from ..template import compile_template
+from ..actions.reads import inspect_rule
+from ..expr.template import compile_template
 
 if TYPE_CHECKING:
     from . import _Checker

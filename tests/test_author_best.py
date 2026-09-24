@@ -116,7 +116,7 @@ def test_a_game_mastered_contract_that_breaks_on_any_effect_is_not_working():
 def test_the_summary_names_the_stub_hosts_the_check_warnings_and_partial_testing(monkeypatch):
     game_master, _ = authored(TAVERN)
     warned, _ = authored(lemonade(actions={"set_price": {**LEMONADE["actions"]["set_price"], "do": []}}))
-    monkeypatch.setattr("fg_env.authoring.TEST_SECONDS", 1)
+    monkeypatch.setattr("fg_env.authoring.author.TEST_SECONDS", 1)
     long_run = lemonade(clock={"rounds": 100_000, "unit": "hour"})
     partly, _ = authored(long_run)
 
@@ -145,7 +145,7 @@ def test_a_seconds_budget_stops_the_session():
     result = fg_env.author("A game.", "openai:m", client=client, budget={"seconds": 1.5})
 
     assert result.stop == "seconds" and result.usage["calls"] == 2
-    assert fg_env.authoring.DEFAULT_BUDGET["seconds"] > 0
+    assert fg_env.authoring.author.DEFAULT_BUDGET["seconds"] > 0
 
 
 @pytest.mark.parametrize("budget, message", [({"seconds": 0}, "budget seconds must be a number of seconds above 0"),

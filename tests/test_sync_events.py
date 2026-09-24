@@ -5,7 +5,7 @@ import pytest
 
 import fg_env
 from fg_env.checks import parse_contract
-from fg_env.runtime import Env
+from fg_env.runtime.env import Env
 
 GLIDER = [[0, 1], [1, 2], [2, 0], [2, 1], [2, 2]]
 

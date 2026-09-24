@@ -36,17 +36,20 @@ repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <ex
 The package lives in `src/fg_env/`. `fg_env/__init__.py` is the public surface: every name in its `__all__`
 and the subpackages it exports (`analysis`, `rl`, `engines`, `personas`, `participants`). Below it:
 
-- **The core engine** is the modules at the top level of `fg_env/`: building the world, running rounds, stages and
-  turns, actions and effects, what each agent perceives, measurements. Related modules share a name prefix
-  (`run_*`, `action_*`, `*physics*`).
+- **The core engine** is a few subpackages, one per part of a run: `world/` (the live world: entities, links,
+  records, space, and building it from a contract), `runtime/` (rounds, stages, turns, what agents perceive, what a
+  run measures), `actions/` (legal actions as tools and their arguments), `effects/` (how rules change the world),
+  `physics/` (continuous dynamics), `copying/` (branches, forks, replays, snapshots, stepped copies) and
+  `sampling/` (seeded random streams and exact draws). `api.py` and `errors.py` sit beside them.
 - **Each larger part is a subpackage** (`contract/`, `checks/`, `expr/`, `stdlib/`, `mechanisms/`, `guides/`,
-  `cli/`, `analysis/`, `game/`, `host/` …) whose `__init__.py` docstring says what it holds.
+  `authoring/`, `experiments/`, `cli/`, `analysis/`, `game/`, `host/` …) whose `__init__.py` docstring says what it
+  holds.
 
 Every module opens with a docstring saying what it is for: read those rather than a map here, which would go stale.
 To find the code behind a behaviour, search for the error message or guide text it produces.
 
 No module is named after a top-level function: `fg_env.check`, `fg_env.guide`, `fg_env.experiment` and `fg_env.fork`
-are the functions; the code behind them is in `checks/`, `guides/`, `experiments.py` and `forks.py`.
+are the functions; the code behind them is in `checks/`, `guides/`, `experiments/` and `copying/forks.py`.
 
 ### Golden-run fingerprints
 

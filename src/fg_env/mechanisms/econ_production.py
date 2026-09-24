@@ -6,11 +6,11 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import condition
 from .econ_assets import balance, burn_money, credit_of, destroy_items, held, is_holder, make_items
 from .econ_base import (INVENTORY, LEDGER, PRODUCTION, checked_config, config_of, declared_names, declared_use, emit_to,

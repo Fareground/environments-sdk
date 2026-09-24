@@ -3,7 +3,7 @@ from pathlib import Path
 
 import fg_env
 from fg_env.analysis.runner import run_seeds
-from fg_env.experiments import Job, run_jobs
+from fg_env.experiments.experiment import Job, run_jobs
 
 EXAMPLE = Path(__file__).parents[1] / "examples" / "contracts" / "lemonade_stand.json"
 

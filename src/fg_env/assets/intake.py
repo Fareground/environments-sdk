@@ -23,8 +23,8 @@ from .store import SUBMITTED, Asset, accepts
 
 if TYPE_CHECKING:
     from ..contract import ParamSpec
-    from ..turn import Turn
-    from ..world import SdkWorld
+    from ..runtime.turn import Turn
+    from ..world.live import SdkWorld
 
 __all__ = ["intake", "upload", "file_schema", "file_value"]
 

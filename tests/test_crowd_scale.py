@@ -4,8 +4,9 @@ import json
 import pytest
 
 import fg_env
-from fg_env import actions, expr
-from fg_env.world import SdkWorld
+from fg_env.actions import book as actions
+from fg_env import expr
+from fg_env.world.live import SdkWorld
 
 HERD = {
     "name": "Herd",

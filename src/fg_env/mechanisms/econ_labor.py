@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .econ_assets import assets, destroy_items, held, make_items
 from .econ_base import (INVENTORY, LABOR, bump, compiles, config_of, declared_use, emit_to, entity_of, money, props, register_config,

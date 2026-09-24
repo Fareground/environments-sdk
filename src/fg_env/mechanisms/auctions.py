@@ -37,11 +37,11 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple,
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import compile_expr, truthy
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import check_expr
 from .common import config_of, entity_of, fmt, number

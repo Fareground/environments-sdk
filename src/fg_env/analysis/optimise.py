@@ -30,8 +30,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any, Dict, FrozenSet, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
-from ..measure import RunResult
-from ..seeds import SeedTree
+from ..runtime.measure import RunResult
+from ..sampling.seeds import SeedTree
 from . import runner, search
 from .assessment import Assessment, Key, assess, rank
 from .constraints import Constraint, Standard, parse_constraints

@@ -27,17 +27,17 @@ except _PackageNotFoundError:  # a source checkout on PYTHONPATH, not installed
     __version__ = "0+unknown"
 
 from .api import check, expand, load, parse, run
-from .authoring import author
-from .branch import Branch
+from .authoring.author import author
+from .copying.branch import Branch
 from .contract import Contract
 from .errors import ContractError, FatalRunError, InputError, InvariantViolation, Issue, RunError, SnapshotError
-from .experiments import ExperimentResult, experiment
-from .forks import fork
+from .experiments.experiment import ExperimentResult, experiment
+from .copying.forks import fork
 from .guides import guide, schema
-from .measure import RunResult
-from .runtime import Env
-from .scaffold import new
-from .session import ToolResult, Wake
+from .runtime.measure import RunResult
+from .runtime.env import Env
+from .authoring.scaffold import new
+from .runtime.session import ToolResult, Wake
 from .engines import clone as clone_engine, list_engines
 from . import analysis, engines, participants, personas, rl
 

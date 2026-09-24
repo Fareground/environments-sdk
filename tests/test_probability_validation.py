@@ -70,7 +70,7 @@ def test_fractional_literal_is_valid_and_reproducible(surface):
 
 @pytest.mark.parametrize('seed', [1, 3, 19, 73])
 def test_nested_random_probability_preserves_existing_draw_order(seed):
-    from fg_env.seeds import SeedTree
+    from fg_env.sampling.seeds import SeedTree
     rng = SeedTree(seed).rng('draws', 'events[0].do', 1, 0)  # the event's own stream in round 1
     roll, probability = rng.random(), rng.random()
     c = {'name': 'Nested draw', 'clock': {'rounds': 1}, 'types': {'item': {}}, 'world': {'outcome': False},

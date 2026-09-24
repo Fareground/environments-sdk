@@ -23,7 +23,7 @@ from typing import Any, Dict, List, Mapping, Optional, Tuple
 
 from pydantic import Field, ValidationError
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..contract import StageSpec
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, truthy

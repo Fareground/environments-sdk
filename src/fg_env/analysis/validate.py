@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from ..api import ContractLike
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from . import runner
 from .accuracy import (BASELINES, Pair, accuracy, baseline_points, bias_verdict, compare_baseline, coverage_verdict,
                        per_key, point_accuracy)

@@ -7,7 +7,7 @@ import pytest
 import fg_env
 from fg_env import SnapshotError
 from fg_env.api import contract_source
-from fg_env.snapshot import contract_hash
+from fg_env.copying.snapshot import contract_hash
 
 
 def rules(rate):

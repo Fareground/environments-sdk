@@ -11,13 +11,13 @@ import math
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import ExprError
 from ..patterns.base import KINDS
 from ..patterns.observe import count_quantile
 from ..registry import family_action
-from ..world import Abort
+from ..world.live import Abort
 from ._common import condition
 from .econ_assets import burn_money, mint_money
 from .econ_base import DEMAND, bump, cached, config_of, entity_of, props, whole

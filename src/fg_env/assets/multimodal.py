@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from typing import Any, Collection, Dict, List, Mapping, Optional, Sequence
 
-from ..template import format_value
+from ..expr.template import format_value
 from .delivery import Attachment
 
 __all__ = ["ANTHROPIC_MEDIA", "OPENAI_MEDIA", "anthropic_parts", "openai_parts", "media_set", "host_attachments",

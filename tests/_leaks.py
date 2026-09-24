@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Set
 
 import fg_env
 from fg_env.participants import RandomAgent
-from fg_env.template import format_value
+from fg_env.expr.template import format_value
 
 #: The shortest rendering that counts as distinctive: shorter numbers and words recur by chance.
 DISTINCT = 5

@@ -8,8 +8,8 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
-from ..clock_words import plural, unit_word
-from ..measure import _usable_output
+from ..runtime.clock_words import plural, unit_word
+from ..runtime.measure import _usable_output
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
 from .demand import demand_lines

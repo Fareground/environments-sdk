@@ -30,7 +30,7 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple,
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, tainted
 from ..registry import MechanismError, family_action, mode

@@ -65,7 +65,7 @@ def decompose(source: Union[ContractLike, Any], pattern: str, *, key: Any = None
     ``source`` is a contract (read over ``rounds``: a count from round 1, or a list of rounds; default every round of
     the clock) or a run (read now). ``key`` is required when the pattern has keys. ``estimates`` reads a contract's
     fitted parameters at their estimates, without the draws their standard errors (``uncertainty``) would make."""
-    from ..runtime import Env
+    from ..runtime.env import Env
 
     live = isinstance(source, Env)
     env: Any = source if live else load(source, inputs=dict(inputs or {}), seed=seed, data_dir=data_dir)

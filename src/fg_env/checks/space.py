@@ -4,9 +4,9 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, FrozenSet, List
 
 from ..contract import LAYER_TYPES, EventSpec, Space
-from ..effects import select_ops
+from ..effects.runner import select_ops
 from ..expr import is_expr
-from ..geometry import MAX_CELLS, NEIGHBORHOODS
+from ..world.geometry import MAX_CELLS, NEIGHBORHOODS
 
 if TYPE_CHECKING:
     from . import _Checker

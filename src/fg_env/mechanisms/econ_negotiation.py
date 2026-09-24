@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from .econ_assets import assets, balance, move_items, move_money
 from .econ_base import (INVENTORY, LEDGER, NEGOTIATION, bump, choice_param, compiles, config_of, declared_names, emit_to,

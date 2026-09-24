@@ -15,7 +15,7 @@ from .base import _BUDGET, EVAL_BUDGET, EXPRESSION_WORDS, ExprError, charge, nes
 from .calls import _NO_KEY, EqualityGuard, Evaluator
 from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
-from ..syntax_hints import syntax_message
+from .syntax_hints import syntax_message
 
 __all__ = ["Expr", "compile_expr", "item_conditions"]
 

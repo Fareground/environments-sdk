@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, FrozenSet, List, Mapping, Sequence, Tuple
 
 from ..analysis.stats import estimate
-from ..measure import Stats
+from ..runtime.measure import Stats
 from .evaluation import alpha_rank, margins, nash_average, schulze
 from .ratings import EloRating, Glicko, Pairing, elo_mle, glicko2_period, pairwise
 

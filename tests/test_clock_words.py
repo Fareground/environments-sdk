@@ -2,7 +2,7 @@
 happened around it."""
 from fg_env import RunResult
 from fg_env.analysis import highlights, narrative
-from fg_env.clock_words import period_label, span_label, unit_word
+from fg_env.runtime.clock_words import period_label, span_label, unit_word
 
 HALF_HOURS = {"mode": "rounds", "unit": "minute", "step": 30, "start": "2026-09-14T08:00"}
 

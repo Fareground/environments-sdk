@@ -279,7 +279,7 @@ def test_a_changed_file_is_never_passed_off_as_the_recorded_one(tmp_path):
 def test_a_direct_copy_of_a_stepped_game_keeps_its_own_asset_index(tmp_path, monkeypatch):
     from fg_env.game import apply_step, game
     from fg_env.game import state as game_state
-    from fg_env.stepping import Stepper
+    from fg_env.copying.stepping import Stepper
 
     (tmp_path / "photo.png").write_bytes(png())
     contract = {"name": "Photo duel", "clock": {"rounds": 3},

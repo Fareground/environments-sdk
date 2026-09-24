@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Mapping, Optional, Sequence
 
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 
 __all__ = ["TournamentResult"]
 

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from ..analysis.stats import estimate
-from ..measure import _usable_output
+from ..runtime.measure import _usable_output
 from .evidence import Option
 
 __all__ = ["Paired", "paired", "MEANINGFUL_SHARE"]

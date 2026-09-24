@@ -50,7 +50,7 @@ class EngineSpec:
         if self.path is None:
             return self.source()
         from ..api import expand, parse
-        from ..inputs import resolve_inputs
+        from ..contract.inputs import resolve_inputs
 
         resource = Path(str(files("fg_env.engines").joinpath(self.path)))
         contract = parse(resource)

@@ -29,7 +29,7 @@ import math
 from dataclasses import dataclass, replace
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
-from ..measure import RunResult
+from ..runtime.measure import RunResult
 from . import runner
 from .facts import statistic
 from .stats import is_number, mean, sd, wasserstein

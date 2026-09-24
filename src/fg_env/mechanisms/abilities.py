@@ -22,12 +22,12 @@ from typing import Any, Dict, List, Literal, Mapping, Optional, Tuple, Union
 
 from pydantic import Field, model_validator
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode, use_key
-from ..template import compile_template
-from ..world import Abort
+from ..expr.template import compile_template
+from ..world.live import Abort
 from . import _common as common
 from ._common import Config, Effects
 

@@ -7,7 +7,7 @@ from decimal import Decimal, localcontext
 import pytest
 
 import fg_env
-from fg_env.poisson import _log_mass, sample_poisson
+from fg_env.sampling.poisson import _log_mass, sample_poisson
 
 
 @pytest.mark.parametrize('mean,count', [(600, 0), (600, 10), (600, 599), (600, 650),

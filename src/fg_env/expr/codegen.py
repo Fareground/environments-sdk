@@ -93,7 +93,7 @@ def _plus(value: Any, source: str) -> Any:
 
 def _helpers() -> Dict[str, Any]:
     """Everything compiled code may name besides its own constants and functions."""
-    from ..world_parts import PropsView  # the world's parts import the language: bound on first compile
+    from ..world.parts import PropsView  # the world's parts import the language: bound on first compile
 
     return {
         "__builtins__": {}, "_type": type, "_len": len, "_int": int, "_str": str, "_float": float, "_list": list,
@@ -114,7 +114,7 @@ def _inlined() -> Dict[Any, str]:
     """The implementations whose per-item loop is compiled inline, by the loop they run."""
     global _INLINED
     if _INLINED is None:
-        from .. import functions  # functions import the language: looked up on first compile
+        from ..stdlib import core as functions  # functions import the language: looked up on first compile
 
         _INLINED = {functions._any: "any", functions._all: "all", functions._count: "count",
                     functions._filter: "filter", functions._pick: "pick",
@@ -608,7 +608,7 @@ class Codegen:
         Mapping keeps the filtered collection's indices. Numeric validation still
         follows evaluation of every mapped value, exactly as the public helpers do.
         """
-        from ..functions import _numbers
+        from ..stdlib.core import _numbers
 
         key, arguments, value, source = call
         runner, items, outer, mapped = (self._temp() for _ in range(4))

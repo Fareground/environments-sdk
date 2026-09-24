@@ -5,7 +5,7 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env.effects import EFFECT_OPS
+from fg_env.effects.runner import EFFECT_OPS
 from fg_env.expr import FUNCTIONS
 from fg_env.guides import guide, guide_parts, schema
 from fg_env.guides.pages import SECTIONS, function_groups

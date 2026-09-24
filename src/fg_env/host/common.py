@@ -8,7 +8,7 @@ from typing import Any, List, Mapping, Sequence, Tuple, Type, TypeVar, Union, ca
 
 from pydantic import BaseModel
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Untrusted
 from ..registry import MechanismError, config_data, describe, use_key

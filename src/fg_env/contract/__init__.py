@@ -82,7 +82,7 @@ from .world import (
     Space,
     TypeSpec,
 )
-from ..game_spec import UTILITIES, GameSpec
+from .game import UTILITIES, GameSpec
 from ..host.tape import TAPE, tape_prop
 
 __all__ = [

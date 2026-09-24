@@ -20,7 +20,7 @@ import random
 from dataclasses import replace
 from typing import Any, Dict, List, Mapping, Sequence
 
-from ..seeds import SeedTree
+from ..sampling.seeds import SeedTree
 from . import runner
 from .stats import is_number
 

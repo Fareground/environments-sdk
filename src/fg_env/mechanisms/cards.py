@@ -23,7 +23,7 @@ from typing import Any, Callable, cast, Dict, List, Literal, Mapping, Optional, 
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, function, is_expr
 from ..registry import config_data, family_action

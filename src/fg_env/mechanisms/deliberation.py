@@ -30,12 +30,12 @@ from typing import Any, Callable, Dict, List, Literal, Mapping, Optional, Tuple
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, function
 from ..registry import MechanismError, family_action, mode
-from ..template import format_value
-from ..world import Abort
+from ..expr.template import format_value
+from ..world.live import Abort
 from ._common import ToolsSetting, tools_field
 from ._social import props, check_expr, config_of, entity, named_use, require_type
 from .voting import tally

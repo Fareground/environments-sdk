@@ -9,11 +9,11 @@ from typing import Any, cast, Dict, List, Mapping, Optional, Tuple, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..entity import Entity
+from ..world.entity import Entity
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..registry import MechanismError, family_action, mode
-from ..world import Abort
+from ..world.live import Abort
 from .contract_cache import parse_kind, per_contract
 
 __all__ = ["SlotsConfig", "open_spaces"]

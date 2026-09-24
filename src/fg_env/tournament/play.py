@@ -7,9 +7,9 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 from ..analysis.runner import AnalysisError, check_positive_int, run_seeds
 from ..analysis.stats import estimate
 from ..api import ContractLike, default_data_dir, load, parse
-from ..budget import Budget
-from ..experiments import Job, run_jobs, worker_pool
-from ..measure import RunResult
+from ..runtime.budget import Budget
+from ..experiments.experiment import Job, run_jobs, worker_pool
+from ..runtime.measure import RunResult
 from .result import TournamentResult
 from .scoring import ScoreSpec, SeatScorer
 from .seating import PAIRINGS, Seating, rotations, schedule, swiss_round
@@ -45,7 +45,7 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Op
     α-Rank and a Schulze vote, which stay meaningful when skill is not transitive; ``returns`` gives every
     entrant's score in every seat, and each standing's ``cost`` its turns, calls, invalid calls, timeouts,
     undone turns and model tokens. A callable entrant is shared by all its games: with ``workers > 1`` those run in threads at once.
-    ``budget`` caps each game on its own (:mod:`fg_env.budget`); ``exposures=True`` records what agents saw in
+    ``budget`` caps each game on its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in
     every game (``result.runs[i].exposures``, events kept), each a trace to read or replay.
     """
     names = _entrant_names(entrants)

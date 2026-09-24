@@ -11,7 +11,7 @@ __all__ = ["add_author_command"]
 
 
 def cmd_author(args: argparse.Namespace) -> int:
-    from ..authoring import author
+    from ..authoring.author import author
 
     is_file = os.path.isfile(args.brief)  # False, not an error, for a brief too long to be a file name
     brief = Path(args.brief).read_text(encoding="utf-8") if is_file else args.brief
@@ -27,8 +27,8 @@ def cmd_author(args: argparse.Namespace) -> int:
 
 
 def add_author_command(sub: Any) -> None:
-    from ..authoring import CACHE_WRITE_WEIGHT, DEFAULT_BUDGET
-    from ..budget import CACHED_WEIGHT
+    from ..authoring.author import CACHE_WRITE_WEIGHT, DEFAULT_BUDGET
+    from ..runtime.budget import CACHED_WEIGHT
     from . import _guarded
 
     p = sub.add_parser("author", help="have an LLM write a working contract from a plain-language brief")

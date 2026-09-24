@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Any, Dict, Hashable, Iterable, List
 
 from ..expr import Untrusted, Call, _describe, charge, check_size, function, map_key
-from ..functions import _keyed
+from .core import _keyed
 from ._args import fail, key_of, map_arg, sequence_arg
 
 

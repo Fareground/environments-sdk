@@ -23,7 +23,7 @@ from .base import KINDS, MEMORY_STATE, KindSpec, PatternConfig
 from .timebase import calendar_of, moment, now, step_length
 
 if TYPE_CHECKING:
-    from ..world import SdkWorld
+    from ..world.live import SdkWorld
 
 __all__ = ["PatternRuntime", "Ctx", "PatternsView", "parsed_patterns", "key_text"]
 

@@ -8,7 +8,7 @@ from ..analysis.stats import estimate
 from ..tournament.result import _columns, _estimate
 
 if TYPE_CHECKING:
-    from ..measure import RunResult
+    from ..runtime.measure import RunResult
     from .suite import Scenario
 
 __all__ = ["COST_FIELDS", "EvaluationResult", "summarize"]
