@@ -9,7 +9,7 @@ property: that is the mechanism's state; two mechanisms generating one name is a
 `max_actions` gives each attached mechanism the actions per turn it has in its own stage. Combine
 them freely, several of one mode included: a function reading a mechanism takes its name as the last
 argument (`$decisions('committee')`), optional while the contract has only one of that mode. Only a
-mechanism made to end the run does (victory, a board's game over, a terminal phase, a deliberation with
+mechanism made to end the run does (a board's game over, a terminal phase, a deliberation with
 `end`): `fg-env check` lists what each one generated, and which can end the run, and
 `fg-env expand file.json --mechanisms` shows all of it. A family has one effect op:
 `{"<family>": "<mechanism name>", "action": "<action>", ...}`. Read a family with

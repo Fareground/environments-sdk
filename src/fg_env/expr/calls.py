@@ -26,7 +26,7 @@ _SAY_INSTEAD = {
     "realized_vol": "$market_stats(prices).sigma", "vol_clustering": "$market_stats(prices).acf_abs",
     "volume_vol_corr": "$market_stats(prices, volumes).vol_volume_corr", "lmsr_prices": "$softmax(q, b)",
     "lmsr_cost": "b * $logsumexp($map(q, $it / b))", "cpmm_prices": "$amm(name).prices", "total": "$sum",
-    "random": "$uniform(0, 1)", "exists": "$entity(id) != null", "ids": "$map(items, $it.id)",
+    "random": "$uniform(0, 1)", "exists": "$get($entity(id), 'alive', false)", "ids": "$map(items, $it.id)",
     "index_of": "$index(text, part)", "count_text": "$len($split(text, part)) - 1",
     "repeat_text": "$join($map($range(n), text), '')",
 }

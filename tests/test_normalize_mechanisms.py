@@ -30,6 +30,8 @@ def test_a_folded_family_is_renamed_with_the_ops_named_after_it():
                      "actions.object.do[0]: effect op `flow` → `decision`"]
     assert normalize(current) == (current, [])
     assert _errors(HEARING) == []
+    post = {"post": "log", "flow": "steady", "action": "push"}  # a record's fields named like an old op: kept
+    assert normalize({**HEARING, "events": [{"do": [post]}]})[0]["events"][0]["do"] == [post]
 
 
 @pytest.mark.parametrize("kind, mode, hint", [

@@ -196,6 +196,10 @@ def _added(before: Mapping[str, list[str]], after: Mapping[str, list[str]]) -> d
     return added
 
 
+#: Families whose mechanisms the engine reads in place ($physics, $pattern), usually generating nothing.
+_READ_IN_PLACE = ("dynamics", "pattern")
+
+
 def generated_summary(data: Mapping[str, Any]) -> list[str]:
     """One compact line per declared mechanism naming what it generated (and whether it can end the run), e.g.
     ``sale (market.auction): actions sale_bid · stages sale · outputs sale_sold, sale_revenue · 2 events``."""
@@ -207,6 +211,8 @@ def generated_summary(data: Mapping[str, Any]) -> list[str]:
     lines = []
     for name, parts in generated.items():
         use = (data.get("mechanisms") or {}).get(name)
+        if not parts and isinstance(use, Mapping) and use.get("kind") in _READ_IN_PLACE:
+            continue  # physics and patterns generate nothing: they are read where they are declared
         label = f"{use.get('kind')}.{use.get('mode')}" if isinstance(use, Mapping) and use.get("mode") else "generated"
         shown = [f"{section} {', '.join(names)}" if section in _NAMED else f"{len(names)} {section}"
                  for section, names in parts.items()]
@@ -543,7 +549,7 @@ def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
                     roles = brief.setdefault(key, {})
                     for role, role_text in text.items():
                         roles.setdefault(role, role_text)
-        elif section in ("clock", "game"):  # a mechanism (a board, a victory rule) may fill in what the author left out
+        elif section in ("clock", "game"):  # a mechanism (a board, a pot) may fill in what the author left out
             settings = data.setdefault(section, {})
             for key, item in value.items():
                 settings.setdefault(key, copy.deepcopy(item))

@@ -45,15 +45,22 @@ REMOVED_MODES = {
 @rule
 def moved_modes(data: dict[str, Any]) -> list[str]:
     """Mechanisms of a family that was folded into another (``flow.procedure`` → ``decision.procedure``), and the
-    effect ops named after the old family."""
+    effect ops that name one of them after the old family."""
     notes = []
+    moved: dict[str, str] = {}  # mechanism → the old family its ops are named after
     for name, use in _uses(data):
-        new = MOVED_MODES.get((use.get("kind"), use.get("mode")))  # type: ignore[arg-type]
+        key = (use.get("kind"), use.get("mode"))
+        new = MOVED_MODES.get(key)  # type: ignore[arg-type]
         if new is not None:
             notes.append(f"mechanisms.{name}: kind '{use['kind']}' → '{new}' (mode '{use['mode']}')")
             use["kind"] = new
+        old = next((old for (old, mode), family in MOVED_MODES.items()
+                    if (family, mode) == (use.get("kind"), use.get("mode"))), None)
+        if old is not None:
+            moved[name] = old
     for path, effect in _dicts(data, ""):
-        old = next((key for key in _OLD_OPS if isinstance(effect.get(key), str)), None)
+        old = next((key for key in _OLD_OPS if isinstance(effect.get(key), str) and moved.get(effect[key]) == key),
+                   None)
         if old is None or not isinstance(effect.get("action"), str) or _OLD_OPS[old] in effect:
             continue
         renamed = {(_OLD_OPS[old] if key == old else key): value for key, value in effect.items()}
@@ -179,9 +186,12 @@ _PATTERN_FIELDS = frozenset({"pattern", "noise", "rate", "factors", "of", "adjus
 
 
 def _rename_pattern(data: Any, old: str, new: str) -> None:
-    """Point every reference to the pattern ``old`` at ``new``: reads in expressions and templates, and the config
-    fields that name a pattern."""
-    reads = re.compile(r"(\$pattern\.)" + re.escape(old) + r"(?![A-Za-z0-9_])|(\$pattern_values\(\s*['\"])"
+    """Point every reference to the pattern ``old`` at ``new``: reads in expressions and templates (of the metric it
+    records too), and the config fields that name a pattern."""
+    spec = (data.get("patterns") or {}).get(old)
+    recorded = isinstance(spec, Mapping) and spec.get("record") and old not in (data.get("metrics") or {})
+    roots = r"\$pattern\.|\$series\.|\$metrics\." if recorded else r"\$pattern\."
+    reads = re.compile(rf"({roots})" + re.escape(old) + r"(?![A-Za-z0-9_])|(\$pattern_values\(\s*['\"])"
                        + re.escape(old) + r"(?=['\"])")
 
     def visit(value: Any, key: str | None) -> Any:

@@ -720,7 +720,7 @@ def cancel_all(world: Any, name: str, trader: Entity) -> str:
 
 def crowd_type(name: str) -> str:
     """The type every coded crowd trader of the book is: ``<name>_crowd``, beside ``who`` and never one of its subtypes,
-    so other mechanisms on ``who`` (a ballot, a victory) do not count the crowd."""
+    so other mechanisms on ``who`` (a ballot) do not count the crowd."""
     return f"{name}_crowd"
 
 
