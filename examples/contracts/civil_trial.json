@@ -1013,7 +1013,7 @@
       "where": "$it.side == $actor.side",
       "sort": "$it.strength",
       "desc": true,
-      "show": "[{id}] {name} \u00b7 {status} \u00b7 true strength {strength|pct}{' \u00b7 claimed ' + $text($round($it.claim * 100)) + '%' if $it.status != held else ''} \u00b7 {summary} Foundation: {foundation}"
+      "show": "[{id}] {name} · {status} · true strength {strength|pct}{' · claimed ' + $text($round($it.claim * 100)) + '%' if $it.status != held else ''} · {summary} Foundation: {foundation}"
     },
     "opposing_exhibits": {
       "for": "attorney",
@@ -1021,7 +1021,7 @@
       "of": "exhibit",
       "where": "$it.side != $actor.side and $it.status != held",
       "sort": "$it.day",
-      "show": "[{id}] {name} \u00b7 {status} \u00b7 claimed {claim|pct} \u00b7 pitch: {pitch} \u00b7 {summary} Foundation: {foundation}",
+      "show": "[{id}] {name} · {status} · claimed {claim|pct} · pitch: {pitch} · {summary} Foundation: {foundation}",
       "empty": "Nothing offered yet."
     },
     "bench_exhibits": {
@@ -1030,7 +1030,7 @@
       "of": "exhibit",
       "where": "$it.status != held",
       "sort": "$it.day",
-      "show": "[{id}] {name} ({side}) \u00b7 {status} \u00b7 claimed {claim|pct} \u00b7 {summary} Foundation: {foundation}{' \u00b7 OBJECTION (' + $it.grounds + '): ' + $it.argument if $it.status == objected else ''}",
+      "show": "[{id}] {name} ({side}) · {status} · claimed {claim|pct} · {summary} Foundation: {foundation}{' · OBJECTION (' + $it.grounds + '): ' + $it.argument if $it.status == objected else ''}",
       "empty": "No exhibits offered yet."
     },
     "verdict_status": {
@@ -1044,7 +1044,7 @@
       "title": "Admitted evidence and how it struck you",
       "of": "impression",
       "where": "$it.juror == $actor.id",
-      "show": "{title} ({side}) \u2014 {summary} Counsel claimed credibility {claim|pct}; pitch: {pitch}. To you it seemed {feel}.",
+      "show": "{title} ({side}) — {summary} Counsel claimed credibility {claim|pct}; pitch: {pitch}. To you it seemed {feel}.",
       "empty": "No evidence was admitted."
     },
     "court_record": {
