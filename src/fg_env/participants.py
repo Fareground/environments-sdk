@@ -148,7 +148,7 @@ class Idle:
     """Never acts."""
 
     def __call__(self, wake: Wake) -> None:
-        wake.end()
+        return None  # the turn ends as it returns: no `end_turn`, which a stage that must be acted in would refuse
 
     def __repr__(self) -> str:
         return "Idle()"

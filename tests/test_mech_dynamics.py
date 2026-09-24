@@ -591,8 +591,8 @@ def test_terrain_modifiers_entry_rules_and_ticks():
     env = fg_env.load(FIELD, seed=1)
     world = env.world
     from fg_env.expr import compile_expr
-    play = _script({("s", 1): [("go", {"row": 2, "col": 2}), ("go", {"row": 1, "col": 1})]})
-    env.run(play, rounds=1)
+    play = _script({("s", 1): [("go", {"row": 2, "col": 2})], ("s", 2): [("go", {"row": 1, "col": 1})]})
+    env.run(play, rounds=2)  # the refused step is spent: the next is the next turn's
     assert play.log[0][3] is False and "fire boots" in play.log[0][4]
     assert env.entity("s")["at"] == [1, 1]
     assert compile_expr("$effective($entity(s), 'stealth')")(world.scope()) == 3

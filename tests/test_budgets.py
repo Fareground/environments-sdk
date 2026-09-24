@@ -117,7 +117,7 @@ def test_budget_mistakes_say_what_to_fix(budget, message):
 def test_cli_run_takes_a_budget(tmp_path, capsys):
     path = tmp_path / "shop.json"
     path.write_text(json.dumps(SHOP))
-    assert main(["run", str(path), "--seed", "1", "--budget", "calls=3", "--json"]) == 0
+    assert main(["run", str(path), "--seed", "1", "--budget", "calls=3", "--json"]) == 3  # cut short: degraded
     out = capsys.readouterr().out
     assert json.loads(out[out.index("{"):])["ended_by"] == "budget"
 

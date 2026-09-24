@@ -340,6 +340,9 @@ class EffectChecks:
             for key, raw in effect.items():
                 if key != "post":
                     self.value(raw, f"{path}.{key}", roots, types, params)
+            if spec is not None and spec.visible == "all" and "to" not in effect:  # an entry every agent reads
+                for key in spec.fields:
+                    self._shared_text(effect.get(key), f"{path}.{key}", types, params)
             check_delivery(self, op, effect, path)
         elif op == "emit":
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)

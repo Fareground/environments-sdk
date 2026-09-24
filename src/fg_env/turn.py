@@ -51,7 +51,7 @@ _REJECTED = {"error": "rejected"}
 _ENDED = {"error": "ended"}
 _TIMEOUT = {"error": "timeout"}
 _UNDONE = {"error": "undone"}
-#: A call refused after it drew randomness: played all the same (its luck spent, its attempt counted).
+#: A call refused once its `do` began, or after it drew randomness: played all the same (its attempt counted).
 _SPENT = {"error": "rejected", "spent": True}
 #: What an atomic turn's action says in place of its outcome, until the turn commits.
 _HELD = "Its outcome is shown when your turn ends."
@@ -420,9 +420,10 @@ class Turn:
                               data=_INVALID), False, False
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = env.actions.dry_run(self.actor, name, params)
-            if refusal is not None:
+            if refusal is not None:  # refused by its `do`: spent, as a refusal of an action that applies (below)
                 self.stats.rejected_actions += 1
-                return ToolResult(False, refusal, data=_REJECTED), False, False
+                self._count(name)
+                return ToolResult(False, refusal, self.actions_left <= 0, dict(_SPENT)), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.intents.append((name, dict(args or {})))
             self.pending.append({"action": name, **_plain(params)})
@@ -433,11 +434,11 @@ class Turn:
         outcome = env.actions.apply(self.actor, name, params)
         drew = env.world.draws() != drawn
         if not outcome.ok:
+            # Refused once its `do` began: an outcome, not a free retry — a free one would let an agent guess a hidden
+            # value again and again. Only its arguments and `when` requirements are checked for free (above).
             self.stats.rejected_actions += 1
-            if not drew:  # refused before any luck was rolled: nothing was played
-                return ToolResult(False, outcome.text, data=_REJECTED), False, False
-            self._count(name)  # refused by its luck: an outcome, not a free retry
-            return ToolResult(False, outcome.text, self.actions_left <= 0, dict(_SPENT)), False, True
+            self._count(name)
+            return ToolResult(False, outcome.text, self.actions_left <= 0, dict(_SPENT)), False, drew
         self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
         try:
             elapsed = env.actions.duration(self.actor, name, params) if env.world.continuous else 0.0

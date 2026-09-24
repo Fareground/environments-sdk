@@ -18,9 +18,11 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
 * agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
-  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
+  `agents_mostly_failed`), any turns of a model participant (or any participant out of time) that ended so, with
+  their rate (`some_turns_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
-* host answers that were the contract's fallback stand-ins because no host was bound;
+* host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
+  budget cut short (`budget_cut`) — both degrade the run;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays

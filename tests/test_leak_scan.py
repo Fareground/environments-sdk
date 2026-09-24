@@ -40,7 +40,8 @@ def test_the_scanner_finds_a_private_value_the_rules_copy_into_a_shared_record()
         "types": {"p": {"agent": True, "props": {"pin": {"type": "text", "default": "", "private": True}}}},
         "entities": {"ann": {"type": "p", "props": {"pin": "zqkvtmwrh"}}, "bob": {"type": "p"}},
         "records": {"diary": {"fields": {"text": "text"}, "show": "{text}"}},
-        "actions": {"write": {"by": "p", "do": {"post": "diary", "text": "$actor.pin"}}},  # logic may copy; the page is public
+        # logic may copy (through a local, which the engine cannot follow into the post); the page is public
+        "actions": {"write": {"by": "p", "do": ["$copy = $actor.pin", {"post": "diary", "text": "$copy"}]}},
         "stages": [{"name": "s", "order": "$it.id"}],
     }
     assert scan(contract).leaks == ["bob (round 1, turn) was shown ann.pin = 'zqkvtmwrh'"]

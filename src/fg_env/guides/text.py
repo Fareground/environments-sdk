@@ -109,7 +109,8 @@ an action that posts to a record announces nothing extra (the entry is the news)
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. Contract errors (bad expression at run time) stop
+is rolled back and the agent is told why. Such a refusal from `do` spends the action (a guess that fails is a guess);
+bad arguments and failed `when` requirements cost nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
 """
 
@@ -488,8 +489,8 @@ Budgets: `env.run(..., budget={"tokens": 200000, "calls": 500, "host_calls": 50,
 "on_exhaust": "end"})` caps a run: reported input + output tokens, tool calls, host answers on the tape, wall-clock
 seconds. It is checked before every round, stage, pass and turn, and `tokens` after every model reply too (the
 turn that spends it ends there; other limits let a turn in progress finish): `end` ends the run
-(`ended_by: "budget"`), `idle` lets it finish with every agent idle. `result.budget` has the limits, use and the
-limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
+(`ended_by: "budget"`), `idle` lets it finish with every agent idle. Either way the run is cut short: it is
+degraded (`budget_cut`), not `ok`. `result.budget` has the limits, use and the limit that ran out; snapshots keep it. `experiment` (with `branch_at` the shared rounds count toward each arm),
 `tournament`, `evaluate` and `run_jobs` give every run the whole budget, as `--budget tokens=200000` does on
 `fg-env run`, `experiment`, `tournament` and `evaluate`. Usage reported after a turn ran out of time still counts.
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
@@ -586,9 +587,11 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
 * agents that never acted, or most of whose turns ended with no action after failed calls (`agents_never_acted`,
-  `agents_mostly_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
+  `agents_mostly_failed`), any turns of a model participant (or any participant out of time) that ended so, with
+  their rate (`some_turns_failed`), and turns an LLM participant ended out of `max_steps` (`out_of_steps`);
 * a stage that can never run, or a measure that reads only what no rule changes;
-* host answers that were the contract's fallback stand-ins because no host was bound;
+* host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
+  budget cut short (`budget_cut`) — both degrade the run;
 * with model participants, an action that was mostly refused.
 
 `fg-env check` plays up to 12 rounds with random agents and again with each policy, and reports what those plays
