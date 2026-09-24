@@ -76,6 +76,8 @@ def undoable_state(env: fg_env.Env) -> dict[str, Any]:
     the same run's)."""
     w, encoded = env.world, env.state.encode()
     state = {key: encoded[key] for key in sorted(UNDONE)}
+    # A relation's links compare as a set: an undone unlink puts its edge back last.
+    state["links"] = {kind: sorted(rows) for kind, rows in state["links"].items()}
     state["counters"] = {kind: count for kind, count in state["counters"].items() if count}  # a count of 0 is no count
     state["used_round"] = {actor: {name: n for name, n in used.items() if n}  # a use undone to 0 is no use
                            for actor, used in sorted(state["used_round"].items()) if any(used.values())}
