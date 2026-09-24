@@ -251,7 +251,25 @@ def quote(world: Any, name: str) -> dict[str, Any]:
         "bar": running_bar(world, name, v), "bar_rounds": v.bar_rounds,
         "tick": v.tick, "lot": v.lot, "maker_fee_bps": v.maker_fee_bps, "taker_fee_bps": v.taker_fee_bps,
         "short_limit": v.short_limit, "halt_pct": v.halt_pct, "band_low": low, "band_high": high,
+        "heat": heat(world, name),
     }
+
+
+#: Rounds of closes the market's heat compares (recent against usual), and the range it stays in.
+HEAT_ROUNDS, USUAL_ROUNDS, HEAT_RANGE = 8, 64, (0.5, 2.0)
+
+
+def heat(world: Any, name: str) -> float:
+    """How hot the market runs: the root-mean-square move of the last ``HEAT_ROUNDS`` closes against that of the last
+    ``USUAL_ROUNDS`` (1 = as usual), within ``HEAT_RANGE``. Coded traders act that much more often, so busy spells
+    follow big moves and volatility clusters, as in real markets; the usual level is left to the crowd."""
+    closes = (world.props.get(f"{name}_closes") or [])[-USUAL_ROUNDS - 1:]
+    moves = [math.log(b / a) for a, b in zip(closes, closes[1:]) if a > 0 and b > 0]
+    if len(moves) < 2 * HEAT_ROUNDS:
+        return 1.0
+    usual = math.sqrt(sum(m * m for m in moves) / len(moves))
+    recent = math.sqrt(sum(m * m for m in moves[-HEAT_ROUNDS:]) / HEAT_ROUNDS)
+    return max(HEAT_RANGE[0], min(HEAT_RANGE[1], recent / usual)) if usual > 0 else 1.0
 
 
 def top(world: Any, name: str) -> tuple[float, float | None, float | None, float]:

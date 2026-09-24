@@ -24,6 +24,9 @@ once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the pos
 * ``noise`` — random arrivals, mostly market orders, fat-tailed sizes, herding on the last move and the
   book's ``sentiment``.
 * ``passive`` — index-like flow: one random side per round, worked with market orders.
+
+Every strategy but the market maker acts ``activity`` × the book's heat of the time (recent volatility against the
+usual; see :func:`~.order_book.heat`), so trading picks up after big moves and volatility clusters.
 """
 from __future__ import annotations
 
@@ -39,7 +42,7 @@ from .book_rules import venue
 from .common import lot_floor, number
 from .ledger import Account, balance
 from .market_stats import log_returns, stdev
-from .order_book import OrderBookConfig, book_config, cancel_all, place, props_for, short_room, top
+from .order_book import OrderBookConfig, book_config, cancel_all, heat, place, props_for, short_room, top
 
 __all__ = ["DEFAULTS", "run_algo"]
 
@@ -158,7 +161,7 @@ def run_algo(world: Any, name: str, trader: Entity) -> str:
         receipt = "Trading is halted; your strategy waits."
     elif view is not None and _stopped_out(view, state["p"]):
         receipt = "Stop-loss liquidation: " + " ".join(view.orders)
-    elif rng.random() < state["p"]["activity"]:
+    elif rng.random() < state["p"]["activity"] * (1.0 if strategy == "market_maker" else heat(world, name)):
         view = view or _View(world, name, cfg, trader, state)
         decide(view, state["p"], rng)
         receipt = " ".join(view.orders) if view.orders else "Your strategy placed no orders."

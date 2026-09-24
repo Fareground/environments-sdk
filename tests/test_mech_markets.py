@@ -342,6 +342,17 @@ def test_crowd_run_resumes_identically_after_a_snapshot():
     assert restored.run().to_dict() == straight
 
 
+def test_realism_scores_each_stylized_fact_against_the_reference_not_a_fixed_pass_mark():
+    ref = {"sigma": 0.02, "kurtosis": 6.0, "acf1": 0.3, "acf_abs": 0.15, "avg_volume": 100, "vol_volume_corr": 0.6}
+    thin_tails = {**ref, "kurtosis": 0.8, "acf1": 0.0, "acf_abs": 0.6, "vol_volume_corr": 0.15}
+    scores = {c["key"]: c["score"] for c in realism_score(thin_tails, ref)["components"]}
+    assert scores["fat_tails"] == pytest.approx(0.8 / 6, abs=0.01)  # a pass mark of 0.3 used to give it 1.0
+    assert scores["no_return_memory"] < 0.5  # the reference's own memory is what the tape is held to
+    assert scores["volatility_clustering"] == pytest.approx(0.25, abs=0.01)  # overshooting misses too
+    assert scores["volume_volatility"] == pytest.approx(0.25, abs=0.01)
+    assert all(score == 1.0 for score in (c["score"] for c in realism_score(ref, ref)["components"]))
+
+
 def test_market_analytics():
     prices = [100, 101, 100, 102, 101, 103]
     returns = log_returns(prices)
