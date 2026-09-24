@@ -621,7 +621,7 @@ class _OpenAI(_LLMParticipant):
             for c in calls:
                 try:
                     args = json.loads(c.function.arguments or "{}")
-                except (json.JSONDecodeError, TypeError):
+                except (json.JSONDecodeError, TypeError, RecursionError):
                     args = c.function.arguments  # not JSON: the engine refuses it, saying so, and counts it invalid
                 result = self._dispatch(wake, c.function.name, args)
                 text = _NOT_RUN if result is None else result.text

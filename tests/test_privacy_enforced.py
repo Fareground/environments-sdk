@@ -60,11 +60,12 @@ def with_(**parts):
 
 def test_a_view_cannot_show_or_sort_by_anothers_private_property_whatever_its_where():
     for view in ({"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"},
-                 {"of": "player", "sort": "$it.cash", "show": "{$it.name}", "where": "true"},
-                 {"show": "top: {$best(player, $it.cash, 'random').name}"}):
+                 {"of": "player", "sort": "$it.cash", "show": "{$it.name}", "where": "true"}):
         result, seen = play(with_(views={"leak": view}))
         assert result.status == "failed" and "bob's cash is private" in result.error, view
         assert "update" not in seen
+    with pytest.raises(fg_env.ContractError, match="views.leak.show: reads private cash of every player"):
+        play(with_(views={"leak": {"show": "top: {$best(player, $it.cash, 'random').name}"}}))
 
 
 def test_an_agent_reads_its_own_private_properties_and_logic_reads_everyones():
@@ -161,7 +162,7 @@ def test_a_transfer_refusal_names_no_amount_of_anothers_private_property():
                                          "amount": "$params.amount"}]}})
     _, seen = play(c, [("steal", {"target": "bob", "amount": 5}), ("steal", {"target": "ann", "amount": 50})])
     theirs, own = seen["calls"]
-    assert theirs.startswith("bob cannot cover that.") and "3" not in theirs
+    assert theirs.startswith("That transfer cannot be made.") and "3" not in theirs and "bob" not in theirs
     assert "has only 10 cash" in own  # her own cash she may know
 
 
@@ -292,13 +293,13 @@ def test_a_bound_read_through_entity_of_another_agents_private_property_is_an_er
 
 @pytest.mark.parametrize("path, patch", [
     ("views.v", {"views": {"v": {"show": "{$get($entity(ann), secret)}"}}}),
-    ("views.v", {"views": {"v": {"show": "{$dict(p, $it.id, $it.secret)}"}}}),
+    ("views.v.show", {"views": {"v": {"show": "{$dict(p, $it.id, $it.secret)}"}}}),  # seen before a run
     ("types.p.inspect", {"types": {"p": {"agent": True, "inspect": "$entity(ann).secret > 10",
                                           "props": {"secret": {"type": "int", "default": 0, "private": True}}}}}),
 ])
 def test_another_agents_private_property_cannot_be_read_around_the_rule(path, patch):
     errors = [i for i in fg_env.check(_secrets(**patch)) if i.severity == "error"]
-    assert [i.path for i in errors] == [path] and "'s secret is private" in errors[0].message
+    assert [i.path for i in errors] == [path] and "secret" in errors[0].message and "private" in errors[0].message
 
 
 @pytest.mark.parametrize("show", ["Ann holds {$metrics.held}.", "Ann held {$last($series.held)}."])

@@ -222,10 +222,11 @@ class PropSpec(_Model):
                                           "with $clamp).")
     values: list[Any] | None = None
     private: bool = Field(False,
-                          description="Hidden from other agents' inspect tool. An agent's private property is shown "
-                                      "only to that agent: reading another agent's in what one agent is shown or "
-                                      "offered (views, tool choices and bounds, outcome text, policies), or any "
-                                      "agent's in text sent to several (announcements, news), is an error at run time.")
+                          description="Hidden from every agent but its owner: an agent owns its own; the world's and "
+                                      "any other entity's are hidden from all, except to the reader a view's or entity "
+                                      "choice's `where` picks them for (`$it.owner == $actor.id`). Reading one in what "
+                                      "an agent is shown or offered, or in text sent to several, is an error at run "
+                                      "time; a refusal whose rules read one spends the action.")
     description: str = ""
     unit: str = ""
 

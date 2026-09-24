@@ -109,9 +109,9 @@ an action that posts to a record announces nothing extra (the entry is the news)
 always renders «quoted» on one line, in news, views and outcomes.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
-is rolled back and the agent is told why. A refusal that rolled luck or read a private property of another entity
-spends the action (a wrong guess at a hidden code is a guess); any other refusal — a taken cell, bad arguments, an unmet
-`when` — costs nothing. Contract errors (bad expression at run time) stop
+is rolled back and the agent is told why. A refusal that rolled luck or whose rules read a value hidden from the actor
+(a `when`, a `fail`, an error, a transfer) spends the action (a wrong guess at a hidden code is a guess); any other
+refusal — a taken cell, bad arguments — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
 """  # noqa: E501 — guide text: each line is shown as written
 
@@ -328,19 +328,22 @@ RECIPES = """\
   removed; a player the mechanism eliminates stays in the world with its `living` prop false.
 * Hidden information: `private` props, per-type views, record `visible` rules, `to` on posts/emits,
   `private: true` actions (no announcement). Agents get `inspect` only for types that set `inspect`.
-  An agent's private prop is shown only to that agent: reading another agent's in anything worked out for one agent
-  (views, sort keys, tool choices and bounds, outcome text, briefs, policies, defs they call, metrics worked out
-  from private props) is an error at run time, however it is spelled; so is a stage `order` that reads one, since
-  every agent sees the turn order. Reveal what an agent may learn by working it out in game logic
+  A `private` prop is hidden from every agent but its owner: an agent owns its own; the world's and any other
+  entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
+  prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
+  value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
+  outcome text, briefs, policies, defs they call, metrics worked out from private props) is an error at run time,
+  however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
+  stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
   (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
   several agents — an `announce`, an event's or trigger's `say`, an emit's `say` without a lone `to` — may read no
-  agent's private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+  private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
   A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
   wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
-  The engine's own refusals (a transfer that does not fit, a bound) never show another agent's private value. A
-  `when` that reads another agent's private prop does not hide the tool: it stays listed and a call is refused when
-  the `when` fails. A private prop of an entity that is not an agent is hidden from inspect; the views say who sees
-  it. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
+  The engine's own refusals (a transfer that does not fit, a bound) never show a hidden value. A `when` that reads a
+  hidden value does not hide the tool: it stays listed and a call is refused (and spent) when the `when` fails. A
+  non-agent entity reaches agents only through what the contract shows, so a prop the views already gate needs no
+  `private`. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
   is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
   shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
   `when`/`do`, events, triggers, stages, `end`, metrics, outputs, invariants — reads every record entry and event,

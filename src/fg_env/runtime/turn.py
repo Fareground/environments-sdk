@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET, ToolSpec, stage_actions
 from ..actions.faults import guarded, refused_text
+from ..actions.params import REFUSED_ARGS
 from ..actions.reads import (
     READS,
     UNCHANGED,
@@ -351,6 +352,10 @@ class Turn:
         if args is not None and not isinstance(args, Mapping):
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, f"{name} was not done: {_not_an_object(args)}", data=_INVALID))
+        if args is not None and REFUSED_ARGS in args:
+            self.stats.invalid_calls += 1
+            return self._after(ToolResult(False, f"{name} was not done: {args[REFUSED_ARGS]}. Send plain arguments.",
+                                          data=_INVALID))
         if name == END_TURN:
             if self._must_act():
                 self.stats.invalid_calls += 1
@@ -374,18 +379,14 @@ class Turn:
         if self.actions_left <= 0:
             self.stats.invalid_calls += 1
             return self._after(ToolResult(False, "You have no actions left this turn; call end_turn.", data=_INVALID))
-        drawn = env.world.draws()
+        before = self._tally()
         acted, fault = guarded(env, lambda: self._act(name, spec, args), action=name)
         if acted is None:
             assert fault is not None
             self.stats.rejected_actions += 1
             self.stats.faulted_actions += 1
-            drew = env.world.draws() != drawn
-            if drew:  # a rule failed after the action drew: its luck is spent, as when a rule refuses it
-                self._count(name)
-            result = ToolResult(False, refused_text(name, fault), drew and self.actions_left <= 0,
-                                dict(_SPENT if drew else _REJECTED))
-            applied = False
+            drew = env.world.draws() != before[0]
+            result, applied = self._refused(name, refused_text(name, fault), before, _REJECTED), False
         else:
             result, applied, drew = acted
         if drew and self._mark is not None:  # luck settles an atomic turn at once: nothing after it can undo it
@@ -421,28 +422,41 @@ class Turn:
             self.env.actions.replay(self.actor, self.intents)
             yield
 
+    def _tally(self) -> tuple[int, int]:
+        """How many random draws and hidden reads this thread has made so far: what :meth:`_refused` compares with."""
+        world = self.env.world
+        return world.draws(), world.hidden_reads()
+
+    def _refused(self, name: str, text: str, before: tuple[int, int], free: dict[str, Any]) -> ToolResult:
+        """The result of a refused call to ``name``, the one place that decides what a refusal costs. Since ``before``
+        (:meth:`_tally`), did working it out draw luck or read a value hidden from the actor (see world/hidden.py)?
+        Then the action is spent — a free retry would let an agent reroll its luck, or probe the hidden value again
+        and again. Otherwise it is free (its ``free`` data: an invalid call or a rejected one)."""
+        draws, hidden = self._tally()
+        if (draws, hidden) == before:
+            return ToolResult(False, text, data=free)
+        self._count(name)
+        return ToolResult(False, text, self.actions_left <= 0, dict(_SPENT))
+
     def _checked_act(self, name: str, spec: ActionSpec, args: Any) -> tuple[ToolResult, bool, bool]:
         env = self.env
+        before = self._tally()
         blocked = env.actions.blocked(self.actor, name, self.used, env._used_round.get(self.actor.id, {}))
         if blocked:
             self.stats.invalid_calls += 1
-            return (ToolResult(False, f"You cannot {name.replace('_', ' ')} now: {blocked}.", data=_INVALID), False,
-                    False)
+            return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", before, _INVALID),
+                    False, False)
         args, cut = _cut(spec.params, args)
         params, problem = env.actions.validate(self.actor, name, args)
         if problem:
             self.stats.invalid_calls += 1
-            return ToolResult(False, f"{name} was not done: {problem}. Correct the arguments and call again.",
-                              data=_INVALID), False, False
-        hidden = env.world.hidden_reads
+            return (self._refused(name, f"{name} was not done: {problem}. Correct the arguments and call again.",
+                                  before, _INVALID), False, False)
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = env.actions.dry_run(self.actor, name, params)
             if refusal is not None:
                 self.stats.rejected_actions += 1
-                if env.world.hidden_reads == hidden:  # it could tell nothing hidden: a free retry
-                    return ToolResult(False, refusal, data=_REJECTED), False, False
-                self._count(name)  # it read what the agent may not see: spent, so it cannot be probed
-                return ToolResult(False, refusal, self.actions_left <= 0, dict(_SPENT)), False, False
+                return self._refused(name, refusal, before, _REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.intents.append((name, dict(args or {})))
             self.pending.append({"action": name, **_plain(params)})
@@ -454,12 +468,7 @@ class Turn:
         drew = env.world.draws() != drawn
         if not outcome.ok:
             self.stats.rejected_actions += 1
-            if not drew and env.world.hidden_reads == hidden:  # it could tell nothing hidden: a free retry
-                return ToolResult(False, outcome.text, data=_REJECTED), False, False
-            # It rolled luck or read what the agent may not see: an outcome, not a free retry — a free one would let
-            # an agent reroll its luck or guess a hidden value again and again.
-            self._count(name)
-            return ToolResult(False, outcome.text, self.actions_left <= 0, dict(_SPENT)), False, drew
+            return self._refused(name, outcome.text, before, _REJECTED), False, drew
         self.pending.append({"action": name, **_plain(params)})  # what the commit's rules read as $pending
         try:
             elapsed = env.actions.duration(self.actor, name, params) if env.world.continuous else 0.0

@@ -353,6 +353,8 @@ class EffectChecks:
             check_delivery(self, op, effect, path)
         elif op == "fail":
             self.template(effect["fail"], f"{path}.fail", None, roots, types, params)
+            if "actor" in roots:  # the acting agent is told it
+                self._actor_text(effect["fail"], f"{path}.fail", params or {})
         elif op == "end":
             v("winner")
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)

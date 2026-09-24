@@ -1,7 +1,9 @@
-"""Checking reads of private properties in what agents are shown (mixed into the contract checker).
+"""Checking reads of hidden values in what agents are shown (mixed into the contract checker).
 
-An agent's private property is shown only to that agent: the engine refuses reading another agent's in what one agent
-is shown or offered, and any agent's in text sent to several. These checks report such reads before a run hits them.
+A property declared `private` is hidden from every agent but its owner: an agent owns its own; the world's and any other
+entity's have no owner unless a `where` picks the items by the reader (see world/hidden.py).
+The engine refuses reading a hidden value in what an agent is shown or offered; these checks report such reads before
+a run hits them.
 """
 from __future__ import annotations
 
@@ -9,10 +11,11 @@ from collections.abc import Iterable, Mapping
 from typing import TYPE_CHECKING
 
 from .. import contract as C
-from ..actions.book import stage_actions
+from ..actions.book import announces, stage_actions
 from ..actions.reads import inspect_rule
 from ..expr import Expr, ExprError, compile_expr
 from ..expr.template import compile_template
+from ..world.hidden import reveals
 
 if TYPE_CHECKING:
     from . import _Checker
@@ -22,12 +25,13 @@ __all__ = ["PrivacyChecks"]
 
 
 class PrivacyChecks:
-    """Private properties in views, tools, outcomes, announcements and news (mixed into the contract checker)."""
+    """Hidden values in views, tools, outcomes, announcements, news and `who` (mixed into the contract checker)."""
 
     def _private_action(self: _Checker, spec: C.ActionSpec, types: Types, path: str) -> None:  # type: ignore[misc]
         """An action's announcement is sent to everyone; its outcome, `why`s and parameters' bounds, defaults and
-        choices are what its actor is shown or offered, where a chosen agent's private property is refused whenever
-        the actor chooses another agent; a requirement that reads one answers yes or no for free."""
+        choices are what its actor is shown or offered, where a value hidden from it is refused (another agent's
+        private property whenever the actor chooses another agent). A requirement that reads one decides by what the
+        actor cannot know."""
         if not spec.private:
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
         texts = {"outcome": spec.outcome}
@@ -38,21 +42,45 @@ class PrivacyChecks:
         for index, condition in enumerate(spec.when):
             texts[f"when[{index}].why"] = condition.why
         for key, text in texts.items():
-            read = self._agent_private_reads(_expressions(text), {}, spec.params, items=False)
-            if read:
-                self.error(f"{path}.{key}", f"reads private {', '.join(sorted(read))}: what the actor is shown or "
-                                            "offered may read only its own private properties, so this is refused "
-                                            "whenever it chooses another agent",
-                           "work out what the actor may learn in `do` (`\"$seen = $params.target.role\"`) and show "
-                           "`{$seen}`, or read only what it may know")
+            self._actor_text(text, f"{path}.{key}", spec.params)
         for index, condition in enumerate(spec.when):
             expressions = _expressions(condition.expr)
-            read = self._agent_private_reads(expressions, {}, spec.params) | self._fetched_private_reads(expressions)
+            read = self._hidden_reads(expressions, {}, spec.params) | self._fetched_reads(expressions)
             if read:
-                self.warn(f"{path}.when[{index}]", f"refuses by private {', '.join(sorted(read))}: a refusal costs "
-                                                   "the actor nothing, so calling again and again reads it out",
-                          "decide by what the actor may know, or test it in `do` instead (`{\"if\": ..., \"then\": "
-                          "[{\"fail\": ...}]}`): a refusal from `do` that read a private value spends the action")
+                self.warn(f"{path}.when[{index}]", f"decides by private {', '.join(sorted(read))}, which the actor "
+                                                   "cannot see: it cannot know when the action is allowed, and each "
+                                                   "refused call spends its action",
+                          "decide by what the actor may know; if the refusal is a deliberate guess at a hidden value, "
+                          "test it in `do` (`{\"if\": ..., \"then\": [{\"fail\": ...}]}`)")
+
+    def _actor_text(self: _Checker, text: object, path: str,  # type: ignore[misc]
+                    params: Mapping[str, C.ParamSpec]) -> None:
+        """What an action's actor is shown or offered (its outcome, a `fail`, a bound, a default, a `why`) is refused
+        a value hidden from it."""
+        expressions = _expressions(text)
+        read = self._hidden_reads(expressions, {}, params, items=False)
+        if read:
+            self.error(path, f"reads private {', '.join(sorted(read))}: what the actor is shown or offered is refused "
+                             "a value hidden from it",
+                       "work out what the actor may learn in `do` (`\"$seen = $params.target.role\"`) and show "
+                       "`{$seen}`, or read only what it may know")
+        elif fetched := self._fetched_reads(expressions):
+            self.warn(path, f"reads private {', '.join(sorted(fetched))}: what the actor is shown or offered is "
+                            "refused it at run time unless it is the actor's own",
+                      "read the actor's own through `$actor`, or work out what it may learn in game logic and show "
+                      "that")
+
+    def _private_who(self: _Checker, stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
+        """A `who` that reads a hidden value, in a stage whose actions are announced: everyone learns whom it woke."""
+        if stage.who is None or not announces(self.c, stage):
+            return
+        expressions = _expressions(stage.who)
+        read = self._hidden_reads(expressions, {"it": set(self.agents)}, {}) | self._fetched_reads(expressions)
+        if read:
+            self.error(path, f"reads private {', '.join(sorted(read))}, and every agent learns who acts in "
+                             f"{stage.name} (its actions are announced): the engine refuses it at run time",
+                       "wake by what is not private, or make the stage's actions `private` so nobody learns who "
+                       "acted")
 
     def _sealed_announced(self: _Checker, stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
         """A simultaneous stage announces each sealed choice to everyone by its action's name as it commits (unless
@@ -91,21 +119,22 @@ class PrivacyChecks:
 
     def _shared_text(self: _Checker, source: str | None, path: str, types: Types,  # type: ignore[misc]
                      params: Mapping[str, C.ParamSpec] | None = None) -> None:
-        """Text sent to several agents (an announcement, news, an entry every agent reads) may read no agent's private
+        """Text sent to several agents (an announcement, news, an entry every agent reads) may read no private
         property, not even the actor's own: the engine refuses it."""
-        read = self._agent_private_reads(_expressions(source), types, params or {})
+        read = self._hidden_reads(_expressions(source), types, params or {})
         if read:
-            self.error(path, f"reads private {', '.join(sorted(read))}, and this text is sent to others than its "
-                             "owner: the engine refuses it at run time",
+            self.error(path, f"reads private {', '.join(sorted(read))}, and this text is sent to more than one agent: "
+                             "the engine refuses it at run time",
                        "work out what they may learn in game logic and show that (in an action, `\"$shown = "
                        "$actor.cash\"` in `do`, then `{$shown}`; in an event, a property that is not private), or "
                        "send it `to` the owner alone")
 
-    def _agent_private_reads(self: _Checker, expressions: Iterable[Expr], types: Types,  # type: ignore[misc]
-                             params: Mapping[str, C.ParamSpec], items: bool = True) -> set[str]:
-        """The reads of an agent's private property in ``expressions``: from a typed root (``types``), a chosen
-        entity (``$params.<name>.<prop>``) or (``items``) the items of a type (``$sum(player, $it.cash)``), which
-        may be guarded to the reader's own."""
+    def _hidden_reads(self: _Checker, expressions: Iterable[Expr], types: Types,  # type: ignore[misc]
+                      params: Mapping[str, C.ParamSpec], items: bool = True) -> set[str]:
+        """The reads of a private property in ``expressions``: of the world, from a typed root (``types``), a chosen
+        entity (``$params.<name>.<prop>``) or (``items``) the items of a type (``$sum(player, $it.cash)``), which may
+        be guarded to the reader's own."""
+        world = {name for name, spec in self.c.world.items() if spec.private}
         read: set[str] = set()
         for expr in expressions:
             for chain in expr.paths:
@@ -116,42 +145,60 @@ class PrivacyChecks:
                     kinds, field = types.get(chain[0], set()), chain[1]
                 else:
                     continue
-                if self._agent_private(kinds, field):
+                if self._private(kinds, field) or (chain[0] == "world" and field in world):
                     read.add("$" + ".".join(chain))
             for function, kind, chain in expr.item_paths if items else ():
-                if kind is not None and len(chain) > 1 and self._agent_private({kind}, chain[1]):
+                if kind is not None and len(chain) > 1 and self._private({kind}, chain[1]):
                     read.add(f"{chain[1]} of every {kind} (in ${function})")
         return read
 
-    def _fetched_private_reads(self: _Checker, expressions: Iterable[Expr]) -> set[str]:  # type: ignore[misc]
-        """The reads of a private property of some agent type from an entity a function fetched
-        (``$entity(bo).cash``, ``$first(player).cash``): whose it is shows only at run time."""
-        agents = self.c.agent_types()
+    def _fetched_reads(self: _Checker, expressions: Iterable[Expr]) -> set[str]:  # type: ignore[misc]
+        """The reads of a property some type keeps private from an entity a function fetched (``$entity(bo).cash``,
+        ``$first(player).cash``): whose it is shows only at run time."""
         return {f"${chain[0]}(…).{chain[1]}" for expr in expressions for chain in expr.call_paths
-                if len(chain) > 1 and self._agent_private(agents, chain[1])}
+                if len(chain) > 1 and self._private(self.c.types, chain[1])}
 
-    def _agent_private(self: _Checker, kinds: Iterable[str], field: str) -> bool:  # type: ignore[misc]
-        return any(kind in self.c.types and self.c.is_agent(kind) and (prop := self.c.props_of(kind).get(field))
-                   is not None and prop.private for kind in kinds)
+    def _private(self: _Checker, kinds: Iterable[str], field: str) -> bool:  # type: ignore[misc]
+        return any(kind in self.c.types and (prop := self.c.props_of(kind).get(field)) is not None and prop.private
+                   for kind in kinds)
+
+    def _private_view(self: _Checker, view: C.ViewSpec, path: str) -> None:  # type: ignore[misc]
+        """A view is what its reader is shown: a private world property, or a private property of every entity of a
+        type (``$count(card, $it.face == ace)``), read anywhere in it is refused (its listed items' own are checked
+        by :meth:`_private_listing`)."""
+        texts = {"when": view.when, "title": view.title, "show": view.show, "sort": view.sort, "where": view.where,
+                 "attach": view.attach}
+        if view.of is not None and view.of not in self.c.types and view.of not in self.c.records:
+            texts["of"] = view.of
+        for key, text in texts.items():
+            implicit = "it" if key == "show" and view.of is not None else "actor" if key in ("show", "title") else None
+            read = self._hidden_reads(_expressions(text, implicit), {}, {})
+            if read:
+                self.error(f"{path}.{key}", f"reads private {', '.join(sorted(read))}, which its readers may not see: "
+                                            "the engine refuses it at run time",
+                           "work out what agents may learn in game logic (an action's do, an event) and show that")
 
     def _private_listing(self: _Checker, view: C.ViewSpec, path: str) -> None:  # type: ignore[misc]
-        """A view listing every entity of a type by a private property (shown or sorted by) shows each reader
-        everyone's; with a `where`, or through a def, it may: reading another agent's is an error at run time."""
+        """A view listing the entities of a type by a private property (shown, attached, sorted or filtered by) shows it
+        to each reader, unless its `where` picks the items the reader owns (see world/hidden.py). An agent's own private
+        property may be shown to it: a `where` may guard to that, so over agents this is a warning (reading another
+        agent's is an error at run time)."""
         of = str(view.of)
         try:
             expressions = list(compile_template(view.show, "it").expressions)
-            if view.sort is not None:
-                expressions.append(compile_expr(view.sort))
+            expressions += [compile_expr(text) for text in (view.sort, view.attach) if text is not None]
+            where = compile_expr(view.where) if view.where is not None else None
         except ExprError:
             return  # already reported by the template and expression checks
-        shown = self._private_fields(expressions, of)
-        if shown and view.where is None:
-            self.error(path, f"shows (or sorts by) private {', '.join(shown)} of every {of} to each reader",
-                       "add a `where` choosing whose to show (e.g. `$it.id == $actor.id`), or leave the private field "
-                       "out")
-        elif shown and self.c.is_agent(of):
+        read = [*expressions, *([where] if where is not None else [])]
+        shown = [] if where is not None and reveals(self.c, where, of) else self._private_fields(read, of)
+        if shown and (where is None or not self.c.is_agent(of)):
+            self.error(path, f"shows (or sorts or filters by) private {', '.join(shown)} of every {of} to each reader",
+                       "pick the items the reader owns in `where` (e.g. `$it.owner == $actor.id`, or `$it.id == "
+                       "$actor.id` for an agent's own), or leave the private field out")
+        elif shown:
             self._private_warning(path, ", ".join(shown))
-        self._private_via_defs(expressions, path)
+        self._private_via_defs(read, path)  # a def is called without the reveal: it reads as for anyone
 
     def _private_warning(self: _Checker, path: str, read: str) -> None:  # type: ignore[misc]
         self.warn(path, f"reads private {read}: what an agent is shown or offered may read only its own private "
@@ -160,10 +207,9 @@ class PrivacyChecks:
                   "(an action's do, an event) and show that")
 
     def _private_via_defs(self: _Checker, expressions: Iterable[Expr], path: str) -> None:  # type: ignore[misc]
-        """Warn when ``expressions`` call defs (directly or through other defs) that read agents' private properties
-        from their arguments or the entities they loop over: whose they read shows only at run time."""
-        private = {prop for kind in self.c.agent_types() for prop, spec in self.c.props_of(kind).items()
-                   if spec.private}
+        """Warn when ``expressions`` call defs (directly or through other defs) that read private properties from
+        their arguments or the entities they loop over: whose they read shows only at run time."""
+        private = {prop for kind in self.c.types for prop, spec in self.c.props_of(kind).items() if spec.private}
         pending = [name for expr in expressions for name in (expr.functions | expr.roots) if name in self.c.defs]
         seen: set[str] = set()
         read: set[str] = set()
@@ -184,20 +230,23 @@ class PrivacyChecks:
             self._private_warning(path, ", ".join(sorted(read)))
 
     def _private_filter(self: _Checker, where: str | None, of: str, path: str) -> None:  # type: ignore[misc]
-        """A choice filtered by another agent's private property reveals it: the tool lists only who passes."""
-        if where is None or not self.c.is_agent(of):
+        """A choice filtered by a private property reveals it — the tool lists only the entities that pass — unless
+        the `where` picks the items the actor owns (see world/hidden.py)."""
+        if where is None:
             return
         try:
-            shown = self._private_fields([compile_expr(where)], of)
+            compiled = compile_expr(where)
         except ExprError:
             return  # already reported by the expression check
+        shown = [] if reveals(self.c, compiled, of) else self._private_fields([compiled], of)
         if shown:
-            self.error(path, f"filters the choices by private {', '.join(shown)} of other {of} agents: the "
-                             "tool's list of choices would reveal it to the actor",
+            self.error(path, f"filters the choices by private {', '.join(shown)} of {of}: the tool's list of choices "
+                             "would reveal it to the actor",
                        "filter by what the actor may know (public properties, its own, a relation or a function such "
-                       "as $known_role), or accept any choice and decide in `do`")
-        else:
-            self._private_via_defs([compile_expr(where)], path)
+                       "as $known_role), pick the items the actor owns (`$it.owner == $actor.id`), or accept any "
+                       "choice and decide in `do`")
+        elif self.c.is_agent(of):  # a def may read another agent's; the run refuses any other hidden read loudly
+            self._private_via_defs([compiled], path)
 
     def _private_fields(self: _Checker, expressions: Iterable[Expr], of: str) -> list[str]:  # type: ignore[misc]
         """The private properties of ``of`` that ``expressions`` read from ``$it``."""
@@ -206,12 +255,12 @@ class PrivacyChecks:
                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
 
 
-def _expressions(text: object) -> list[Expr]:
-    """The expressions in a template or expression text; none when it has none, or does not compile (the template
-    and expression checks report that)."""
-    if not isinstance(text, str) or "$" not in text:
+def _expressions(text: object, implicit: str | None = None) -> list[Expr]:
+    """The expressions in a template or expression text (a template's bare names read ``implicit``); none when it has
+    none, or does not compile (the template and expression checks report that)."""
+    if not isinstance(text, str) or ("$" not in text and (implicit is None or "{" not in text)):
         return []
     try:
-        return list(compile_template(text, None).expressions) if "{" in text else [compile_expr(text)]
+        return list(compile_template(text, implicit).expressions) if "{" in text else [compile_expr(text)]
     except ExprError:
         return []

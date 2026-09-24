@@ -228,6 +228,7 @@ class ActionChecks:
                 self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
             self._sealed_announced(stage, path)
+            self._private_who(stage, f"{path}.who")
         self._open_stages()
 
     def _open_stages(self: _Checker) -> None:  # type: ignore[misc]
@@ -276,6 +277,7 @@ class ActionChecks:
                     self.error(f"{path}.stages", f"'{stage}' is not a stage",
                                self._hint(stage, self.stage_names, "stages"))
             self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
+            self._private_view(view, path)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue

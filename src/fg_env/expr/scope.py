@@ -17,13 +17,10 @@ class World:
     """
 
     rng: Any = None
-    #: Every property name some type declares private: reading any other name needs no visibility check or count.
+    #: Every property name declared private (by a type or the world): reading any other name needs no check or count.
     private_names: frozenset[str] = frozenset()
-    #: Metrics worked out from agents' private properties: what an agent is shown may not read them.
+    #: Metrics worked out from private properties: what an agent is shown may not read them.
     private_metrics: frozenset[str] = frozenset()
-    #: How many times game logic read a private property of an entity other than the one acting: a refused action
-    #: that read one could tell its agent something hidden, so it costs the action.
-    hidden_reads: int = 0
 
     def entities_of(self, type_name: str) -> list[Any]:
         raise ExprError(f"no entities of type '{type_name}' exist in this context")
@@ -35,13 +32,13 @@ class World:
     def entity(self, entity_id: str) -> Any:
         return None
 
-    def is_private(self, type_name: str, prop: str) -> bool:
-        """Whether entities of ``type_name`` keep ``prop`` private: only the entity itself may be shown it."""
+    def hides(self, owner: Any, prop: str, agent: Any) -> bool:
+        """Whether ``owner``'s (an entity's, or ``$world``'s) ``prop`` is hidden from ``agent`` — the one definition of
+        hidden (see world/hidden.py)."""
         return False
 
-    def is_hidden(self, type_name: str, prop: str) -> bool:
-        """Whether entities of ``type_name`` declare ``prop`` private (an agent type or any other)."""
-        return False
+    def read_hidden(self) -> None:
+        """Note that game logic read a value hidden from the acting agent: a refusal after it spends the action."""
 
     def records(self, name: str) -> list[Any]:
         raise ExprError(f"no record '{name}' exists in this context")
@@ -115,5 +112,5 @@ class Scope:
         except KeyError:
             if self.world.has_def(name):  # a def without arguments reads like a value: $negotiating
                 return _held(lambda: self.world.call_def(name, [], source, self.vars.get("viewer")))
-            available = ", ".join(f"${k}" for k in sorted(self.vars)) or "none"
+            available = ", ".join(f"${k}" for k in sorted(self.vars) if k.isidentifier()) or "none"
             raise ExprError(f"${name} is not available here (available: {available})", source) from None

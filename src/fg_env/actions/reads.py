@@ -14,7 +14,7 @@ so the handle to pass is always in view.
 """
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
 from difflib import get_close_matches
 from typing import TYPE_CHECKING, Any
@@ -90,29 +90,21 @@ def _candidates(env: Env, viewer: Entity, rules: dict[str, Any]) -> list[Entity]
 def _offered(env: Env, viewer: Entity) -> list[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
     rules = {kind: inspect_rule(env.contract, kind) for kind in env.contract.types}
-    # Type metadata is identical for every instance, but permissions and values
-    # are live state: cache only metadata, and only for this listing.
-    private: dict[str, set[str]] = {}
-    offered: list[Entity] = []
-    for entity in _candidates(env, viewer, rules):
-        kind = entity.entity_type
-        if kind not in private:
-            private[kind] = {key for key, spec in env.contract.props_of(kind).items() if spec.private}
-        if not _may_inspect_rule(env, viewer, entity, rules[kind]):
-            continue
-        own = entity.id == viewer.id
-        if entity.location_id is not None or any(
-                (own or key not in private[kind]) and not _empty(value) for key, value in entity.properties.items()):
-            offered.append(entity)
-    return offered
+    return [entity for entity in _candidates(env, viewer, rules)
+            if _may_inspect_rule(env, viewer, entity, rules[entity.entity_type])
+            and (entity.location_id is not None or any(True for _ in _shown(env, viewer, entity)))]
 
 
 def _details(env: Env, viewer: Entity, target: Entity) -> list[tuple[str, Any]]:
-    """The properties an inspect of ``target`` shows ``viewer``: its own private ones too, none without a value."""
-    specs = env.contract.props_of(target.entity_type)
-    own = target.id == viewer.id
-    return [(key, value) for key, value in target.properties.items()
-            if (own or not specs.get(key) or not specs[key].private) and not _empty(value)]
+    """The properties an inspect of ``target`` shows ``viewer``: none hidden from it (its own private ones are not;
+    see world/hidden.py), none without a value."""
+    return list(_shown(env, viewer, target))
+
+
+def _shown(env: Env, viewer: Entity, target: Entity) -> Iterator[tuple[str, Any]]:
+    hides = env.world.hides
+    return ((key, value) for key, value in target.properties.items()
+            if not _empty(value) and not hides(target, key, viewer))
 
 
 def _empty(value: Any) -> bool:

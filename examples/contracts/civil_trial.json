@@ -372,25 +372,21 @@
         },
         "sign": {
           "type": "int",
-          "default": 1,
-          "private": true
+          "default": 1
         },
         "summary": {
           "type": "text",
-          "default": "",
-          "private": true
+          "default": ""
         },
         "foundation": {
           "type": "text",
-          "default": "",
-          "private": true
+          "default": ""
         },
         "strength": {
           "type": "number",
           "default": 0.5,
           "min": 0,
           "max": 1,
-          "private": true,
           "description": "True probative strength; never shown to jurors or the judge."
         },
         "defect": {
@@ -402,8 +398,7 @@
             "relevance",
             "prejudice"
           ],
-          "default": "clean",
-          "private": true
+          "default": "clean"
         },
         "status": {
           "type": "enum",
@@ -420,13 +415,11 @@
           "type": "number",
           "default": 0,
           "min": 0,
-          "max": 1,
-          "private": true
+          "max": 1
         },
         "pitch": {
           "type": "text",
-          "default": "",
-          "private": true
+          "default": ""
         },
         "grounds": {
           "type": "enum",
@@ -437,32 +430,26 @@
             "relevance",
             "prejudice"
           ],
-          "default": "clean",
-          "private": true
+          "default": "clean"
         },
         "argument": {
           "type": "text",
-          "default": "",
-          "private": true
+          "default": ""
         },
         "ruling_reason": {
           "type": "text",
-          "default": "",
-          "private": true
+          "default": ""
         },
         "day": {
           "type": "int",
-          "default": 0,
-          "private": true
+          "default": 0
         },
         "presented": {
-          "default": false,
-          "private": true
+          "default": false
         },
         "crossed": {
           "type": "bool",
-          "default": false,
-          "private": true
+          "default": false
         }
       }
     },

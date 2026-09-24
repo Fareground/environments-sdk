@@ -108,10 +108,10 @@ def test_check_reports_undeclared_asset_ids_and_file_parameter_mistakes():
     assert ("actions.submit.params.n", "kinds and max_bytes apply to file parameters") in messages
 
 
-def test_check_warns_when_a_view_attaches_a_private_asset_to_everyone():
+def test_check_refuses_a_view_that_attaches_a_private_asset_to_everyone():
     contract = patched(views={"leaky": {"of": "exhibit", "show": "{title}", "attach": "$it.file"}})
-    warnings = [issue for issue in fg_env.check(contract, rounds=0) if issue.path == "views.leaky.attach"]
-    assert warnings and "private property 'file'" in warnings[0].message
+    errors = [issue for issue in fg_env.check(contract, rounds=0) if issue.path == "views.leaky.show"]
+    assert errors and errors[0].severity == "error" and "private file" in errors[0].message
 
 
 # -- delivery and visibility -------------------------------------------------------------------------------------

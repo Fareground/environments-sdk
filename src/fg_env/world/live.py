@@ -24,6 +24,7 @@ from ..stdlib.dates import calendar_date
 from . import links as _links
 from .defaults import default_order
 from .entity import Entity
+from .hidden import Hidden
 from .links import Link
 from .parts import ClockView, Entry, Journal, LogEvent, PhysicsView, PropsView, private_metrics
 from .props import finite_number as _finite_number
@@ -41,14 +42,16 @@ __all__ = ["SdkWorld", "Entry", "LogEvent", "Abort", "LuckAhead", "prop_type"]
 
 
 class _TurnLocal:
-    """Per-turn state (a turn's random stream, its ``$pending``, its deadline, draw and def-depth counters, whether it
-    may draw)."""
+    """Per-turn state (a turn's random stream, its ``$pending``, its deadline, draw, hidden-read and def-depth counters,
+    the agent whose action is running, whether it may draw)."""
 
-    __slots__ = ("rng", "pending", "deadline", "draws", "depth", "luckless")
+    __slots__ = ("rng", "pending", "deadline", "draws", "hidden", "actor", "depth", "luckless")
     rng: Any
     pending: list[dict[str, Any]] | None
     deadline: float | None
     draws: int
+    hidden: int
+    actor: Entity | None
     depth: int
     luckless: str | None
 
@@ -160,17 +163,10 @@ class SdkWorld(World):
         self._clock_view = ClockView(self)
         self.patterns = PatternRuntime(self)
         self._type_props = {t: contract.props_of(t) for t in contract.types}
-        #: An agent's private properties, which only that agent may be shown. Other entities have no owner the SDK
-        #: knows of: their private properties are hidden from inspect, and the contract's views say who sees them.
-        self._private = {t: frozenset(p for p, spec in props.items() if spec.private)
-                         for t, props in self._type_props.items() if contract.is_agent(t)}
-        #: Every type's private properties: none is shown to agents by the engine, so game logic reading one of
-        #: another entity is a hidden read (see :attr:`hidden_reads`).
-        self._hidden = {t: frozenset(p for p, spec in props.items() if spec.private)
-                        for t, props in self._type_props.items()}
-        self.private_metrics = private_metrics(contract, frozenset().union(*self._private.values()))
-        self.private_names = frozenset().union(*self._hidden.values())
-        self.hidden_reads = 0
+        #: What is hidden from whom (see world/hidden.py).
+        self.hidden = Hidden(contract)
+        self.private_names = self.hidden.names
+        self.private_metrics = private_metrics(contract, self.private_names)
         #: Def results for the current world state (see :meth:`call_def`).
         self._def_cache: dict[Any, Any] = {}
         self._def_cache_state: Any = None
@@ -300,11 +296,39 @@ class SdkWorld(World):
             return entity_id
         return self.entities.get(entity_id) if isinstance(entity_id, str) else None
 
-    def is_private(self, type_name: str, prop: str) -> bool:
-        return prop in self._private.get(type_name, ())
+    def hides(self, owner: Any, prop: str, agent: Any) -> bool:
+        if owner is self._props_view:
+            return prop in self.hidden.world
+        return type(owner) is Entity and self.hidden.entity_hides(owner, prop, agent)
 
-    def is_hidden(self, type_name: str, prop: str) -> bool:
-        return prop in self._hidden.get(type_name, ())
+    def read_hidden(self) -> None:
+        local = self._here()
+        local.hidden = getattr(local, "hidden", 0) + 1
+
+    def refusal(self, entity: Entity, prop: str, told: str, instead: str) -> Abort:
+        """The refusal of a rule about ``entity``'s ``prop``: ``told``, or ``instead`` — which says nothing of it —
+        when the value is hidden from the agent whose action is running (the read is noted, so the refusal spends the
+        action; see world/hidden.py)."""
+        if self.hides(entity, prop, getattr(self._here(), "actor", None)):
+            self.read_hidden()
+            return Abort(instead)
+        return Abort(told)
+
+    @contextmanager
+    def acting_as(self, actor: Entity) -> Iterator[None]:
+        """Inside the block the rules run for ``actor``'s action (whose refusals may not tell it a hidden value)."""
+        local = self._here()
+        previous = getattr(local, "actor", None)
+        local.actor = actor
+        try:
+            yield
+        finally:
+            local.actor = previous
+
+    def hidden_reads(self) -> int:
+        """How many values hidden from the acting agent this thread's game logic has read: equal counts mean a refusal
+        could tell the agent nothing hidden."""
+        return getattr(self._here(), "hidden", 0)
 
     def records(self, name: str) -> list[Entry]:
         if name not in self.records_store:
@@ -412,7 +436,7 @@ class SdkWorld(World):
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
         local.depth = depth + 1
-        drawn = getattr(local, "draws", 0)
+        drawn, hidden = getattr(local, "draws", 0), getattr(local, "hidden", 0)
         try:
             values = dict(zip(spec.args, args))
             if viewer is not None:
@@ -420,25 +444,26 @@ class SdkWorld(World):
             value = compile_expr(spec.expr)(self._scope(local, values))
         finally:
             local.depth = depth
-        # A call that drew a random number is never reused; with the same state and arguments a call that
-        # drew nothing takes the same path again, so its value is exactly what a fresh call would return.
-        if (key is not None and self.draws() == drawn and self.state_version() == state
-            and isinstance(value, _CACHEABLE)):
+        # A call that drew a random number or read a hidden value is never reused (a reuse would neither draw nor
+        # count the read); with the same state and arguments any other call takes the same path again, so its value
+        # is exactly what a fresh call would return.
+        if (key is not None and self.draws() == drawn and self.hidden_reads() == hidden
+                and self.state_version() == state and isinstance(value, _CACHEABLE)):
             self._def_cache[key] = value
         return value
 
     def remembered(self, key: tuple[Any, ...], work: Callable[[], Any]) -> Any:
         """``work()``, reused under ``key`` while the world stays as it is: one turn asks for the same choices and
-        tools several times (legality, its tools, validating a call, diagnostics). Work that drew at random is never
-        reused."""
+        tools several times (legality, its tools, validating a call, diagnostics). Work that drew at random or read a
+        hidden value is never reused: each call draws and counts its hidden reads afresh."""
         state = self.state_version()
         if state != self._remembered_state:
             self._remembered, self._remembered_state = {}, state
         elif key in self._remembered:
             return self._remembered[key]
-        drawn = self.draws()
+        drawn, hidden = self.draws(), self.hidden_reads()
         value = work()
-        if self.draws() == drawn and self.state_version() == state:
+        if self.draws() == drawn and self.hidden_reads() == hidden and self.state_version() == state:
             self._remembered[key] = value
         return value
 

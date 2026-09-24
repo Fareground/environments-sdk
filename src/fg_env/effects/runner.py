@@ -438,28 +438,20 @@ class EffectRunner:
         have = _amount_held(source, prop, where)
         held = _amount_held(target, into, where)
         # A transfer moves value; it never creates or destroys it. Limits that would clamp
-        # either side refuse the transfer instead. Neither side's private amount is told to another actor.
-        hidden = self._hidden(source, prop, vars)
+        # either side refuse the transfer instead, never telling an amount hidden from the actor (world.refusal).
+        low, high = self.world.prop_spec(source, prop).min, self.world.prop_spec(target, into).max
+        instead = "That transfer cannot be made."
         if have < amount:
-            raise Abort(f"{source.name} cannot cover that." if hidden else
-                        f"{source.name} has only {format_value(have)} {prop}; {format_value(amount)} is needed.")
-        low = self.world.prop_spec(source, prop).min
+            raise self.world.refusal(source, prop, f"{source.name} has only {format_value(have)} {prop}; "
+                                                   f"{format_value(amount)} is needed.", instead)
         if low is not None and have - amount < low:
-            raise Abort(f"{source.name} cannot cover that." if hidden else
-                        f"{source.name} cannot go below {format_value(low)} {prop}; "
-                        f"at most {format_value(have - low)} can be given.")
-        high = self.world.prop_spec(target, into).max
+            raise self.world.refusal(source, prop, f"{source.name} cannot go below {format_value(low)} {prop}; "
+                                                   f"at most {format_value(have - low)} can be given.", instead)
         if high is not None and held + amount > high:
-            raise Abort(f"{target.name} cannot take that much more {into}." if self._hidden(target, into, vars) else
-                        f"{target.name} can hold at most {format_value(high)} {into}; "
-                        f"at most {format_value(max(0, high - held))} more fits.")
+            raise self.world.refusal(target, into, f"{target.name} can hold at most {format_value(high)} {into}; "
+                                                   f"at most {format_value(max(0, high - held))} more fits.", instead)
         self.world.set_prop(source, prop, have - amount)
         self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
-
-    def _hidden(self, entity: Entity, prop: str, vars: dict[str, Any]) -> bool:
-        """Whether a refusal must not show ``entity``'s ``prop``: it is private and the actor, who is told, is
-        someone else."""
-        return bool(self.world.prop_spec(entity, prop).private) and getattr(vars.get("actor"), "id", None) != entity.id
 
     def _op_link(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         value = self._eval(effect["value"], vars) if "value" in effect else None
