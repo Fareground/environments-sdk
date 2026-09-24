@@ -21,6 +21,7 @@ from ..api import ContractLike, _merge, apply_arm, contract_source, default_data
 from ..checks import BASE, _Checker, check_contract, parse_contract
 from ..contract import Contract, PropSpec
 from ..contract.inputs import resolve_inputs
+from ..contract.normalize import normalize
 from ..errors import ContractError, Issue, RunError, SnapshotError
 from ..expr import ExprError, compile_expr, is_expr
 from ..sampling.seeds import SeedTree
@@ -102,8 +103,8 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     # Continuing the same arm keeps the current rules, including earlier patches.
     # A different arm or replacement contract deliberately selects a new rule base.
     new = old if to is None and new_arm == old_arm else (apply_arm(base, new_arm) if new_arm is not None else base)
-    if patch:
-        new = located(parse_contract(_merge(contract_source(new), dict(patch))), new._folder)
+    if patch:  # a patch may be written in an earlier form: the merged contract is normalized
+        new = located(parse_contract(normalize(_merge(contract_source(new), dict(patch)))[0]), new._folder)
     problems = [issue for issue in check_contract(new) if issue.severity == "error"]
     if problems:
         raise ContractError(problems, title="the forked contract is invalid")
@@ -273,11 +274,13 @@ def _physics(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any]) ->
     names = sorted((held.get("variables") or {}) if isinstance(held.get("variables"), dict)
                    else [var.get("name") for var in held.get("variables") or []])
     if new.physics is None:
-        issues.append(Issue("physics", "is gone, but the run holds physics state", "keep the physics section"))
+        issues.append(Issue("mechanisms.physics", "is gone, but the run holds physics state",
+                            "keep the physics mechanism"))
         return
     for name in names:
         if name not in new.physics.vars:
-            issues.append(Issue(f"physics.vars.{name}", "is gone, but the run holds its value", "keep the variable"))
+            issues.append(Issue(f"mechanisms.physics.vars.{name}", "is gone, but the run holds its value",
+                                "keep the variable"))
 
 
 def _clock(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any], probe: SdkWorld) -> None:
@@ -368,7 +371,7 @@ def _physics_params(env: Env, old: Contract, new: Contract) -> None:
         try:
             value = compile_expr(raw)(scope) if is_expr(raw) else raw
         except ExprError as exc:
-            raise RunError(str(exc), f"physics.params.{name}") from None
+            raise RunError(str(exc), f"mechanisms.physics.params.{name}") from None
         model.params[name] = float(value)
     for name in spec.read:
         model.params.setdefault(name, 0.0)

@@ -13,7 +13,7 @@ MARKET = {
     "clock": {"rounds": 2},
     "types": {"shopper": {"agent": True, "props": {"age": 30}}},
     "population": [{"type": "shopper", "count": 4, "props": {"age": "20 + 10 * $i"}}],
-    "mechanisms": {"lives": {"kind": "mind", "mode": "personas", "who": "shopper",
+    "mechanisms": {"lives": {"kind": "host", "mode": "personas", "who": "shopper",
                              "prompt": "A {age}-year-old shopper."}},
     "actions": {"browse": {"by": "shopper", "terminal": True}},
 }
@@ -61,22 +61,22 @@ def test_persona_config_is_checked():
         fg_env.load(_with(who="ghost"))
     with pytest.raises(fg_env.ContractError, match="prompt"):
         fg_env.load(_with(prompt="A {age shopper"))
-    with pytest.raises(fg_env.ContractError, match="'personas' is a mode of kind 'mind'"):
+    with pytest.raises(fg_env.ContractError, match="'personas' is a mode of kind 'host'"):
         fg_env.load({**MARKET, "mechanisms": {"lives": {"kind": "personas", "of": "shopper", "prompt": "A shopper."}}})
-    with pytest.raises(fg_env.ContractError, match="`of` is not a field of `mind` mode `personas`"):
+    with pytest.raises(fg_env.ContractError, match="`of` is not a field of `host` mode `personas`"):
         fg_env.load(_with(of="shopper"))
 
 
 def test_personas_can_be_written_on_demand_with_the_write_action():
-    stage = {"name": "shop", "turns": "sequential", "on_enter": [{"mind": "lives", "action": "write"}]}
+    stage = {"name": "shop", "turns": "sequential", "on_enter": [{"host": "lives", "action": "write"}]}
     contract = {**_with(fallback="Shopper aged {age}."), "stages": [stage]}
     env = fg_env.load(contract, seed=1)
     env.run("random", rounds=1)
     assert env.world.entities["shopper_4"].properties["persona"] == "Shopper aged 60."
     issues = [str(i)
               for i in fg_env.check({**contract,
-                                     "events": [{"do": [{"mind": "lives", "action": "write", "who": "x"}]}]})]
-    assert any("'who' is not part of `mind.write`" in i for i in issues)
+                                     "events": [{"do": [{"host": "lives", "action": "write", "who": "x"}]}]})]
+    assert any("'who' is not part of `host.write`" in i for i in issues)
 
 
 BOARD = {

@@ -40,7 +40,8 @@ def test_a_declared_generated_stage_keeps_its_generated_fields_and_place():
     original = next(s for s in generated if s.name == "flop")
     assert "flash" in flop.actions and (flop.who, flop.until) == (original.who, original.until)
     starts = [event.do for event in env.contract.events if event.on == "stage.flop.start"]
-    assert starts == [event.do for event in fg_env.load(HOLDEM, seed=1).contract.events if event.on == "stage.flop.start"]
+    plain = fg_env.load(HOLDEM, seed=1).contract.events
+    assert starts == [event.do for event in plain if event.on == "stage.flop.start"]
     assert env.run(_passive).status == "completed"
     assert sum(1 for card in env.entities("card") if card["props"].get("zone") == "board") == 4
 

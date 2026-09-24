@@ -214,7 +214,8 @@ _MINIMAL = {"name": "Caps", "types": {"p": {"agent": True}}}
     ({"stages": [{"name": "s", "max_calls": 10 ** 6}]}, "stages[0].max_calls"),
     ({"stages": [{"name": "s", "max_actions": 10 ** 6}]}, "stages[0].max_actions"),
     ({"population": [{"type": "p", "count": 10 ** 8}]}, "population[0].count"),
-    ({"physics": {"substeps": 10 ** 7}}, "physics.substeps"),
+    ({"mechanisms": {"physics": {"kind": "dynamics", "mode": "ode", "substeps": 10 ** 7}}},
+     "mechanisms.physics.substeps"),
 ])
 def test_contract_ceilings_reject_typos_with_a_fix(patch, path):
     with pytest.raises(ContractError) as err:

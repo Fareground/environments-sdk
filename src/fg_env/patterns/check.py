@@ -31,7 +31,7 @@ def configs(contract: Any) -> dict[str, PatternConfig]:
 def check_patterns(checker: _Checker, base: frozenset[str]) -> None:
     declared = configs(checker.c)
     for name, cfg in declared.items():
-        path = f"patterns.{name}"
+        path = f"mechanisms.{name}"
         kind = KINDS[cfg.kind]
         _keys(checker, cfg, path)
         roots = ({"inputs", "pattern"} | ({"key"} if cfg.keyed else set())
@@ -228,7 +228,7 @@ def _calibrated(checker: _Checker, declared: dict[str, PatternConfig], name: str
             written = f"{pattern}_{field}"  # the input fit_patterns writes this parameter to
             tuned = [n for n in (read if read.isidentifier() else "", written) if n and n in calibration.params]
             if tuned:
-                checker.warn(f"patterns.{pattern}.{field}",
+                checker.warn(f"mechanisms.{pattern}.{field}",
                              f"$inputs.{tuned[0]} is fitted from data (patterns.{name}.fit) and also tuned at every "
                              "load by calibration.params, so each load replaces the estimate",
                              f"remove '{tuned[0]}' from calibration.params, or drop the fit and let calibration tune "
@@ -256,7 +256,8 @@ def _cycles(checker: _Checker, declared: dict[str, PatternConfig]) -> None:
         if state.get(name) is None:
             cycle = visit(name, [])
             if cycle:
-                checker.error(f"patterns.{cycle[0]}.of", "patterns combine each other in a cycle: " + " → ".join(cycle))
+                checker.error(f"mechanisms.{cycle[0]}.of",
+                              "patterns combine each other in a cycle: " + " → ".join(cycle))
                 return
 
 

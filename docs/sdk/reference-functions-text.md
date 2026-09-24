@@ -4,15 +4,12 @@
 
 - `$chars(text)` — The characters of text as a list.
 - `$contains(text, part)` — True when `part` occurs in `text` (case-insensitive).
-- `$count_text(text, part)` — How many times `part` occurs in text, not overlapping (case-sensitive).
 - `$ends_with(text, suffix)` — True when text ends with `suffix` (case-sensitive).
 - `$fmt(value, format)` — The value as text in a template format: money, pct, int, 0–4 decimals, upper, …
-- `$index_of(text, part)` — Position of the first `part` in text (case-sensitive), or -1.
 - `$join(list, separator?)` — Items joined into text (default separator ', ').
 - `$lower(text)` — Lower-case text.
 - `$matches(text, pattern)` — True when the regular expression occurs in text. Linear-time subset: . [a-z] [^x] \d \w \s ^ $ ( ) (?: ) | * + ? {m,n}; no backreferences or lookaround.
 - `$pad(text, width, fill?, side?)` — Text padded with `fill` (default a space) to `width` characters; `side` left (default), right or both.
-- `$repeat_text(text, n)` — Text repeated `n` times.
 - `$replace(text, old, new)` — Text with every `old` replaced by `new` (case-sensitive).
 - `$similar(a, b)` — How alike two texts are, 0–1: 1 minus the edit (Levenshtein) distance over the longer length. Case-sensitive.
 - `$split(text, separator?)` — Text cut into a list at each `separator` (default: runs of whitespace, ends trimmed).

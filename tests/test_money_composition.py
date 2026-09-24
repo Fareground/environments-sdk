@@ -118,17 +118,18 @@ def test_mechanisms_attached_to_one_declared_stage_share_its_turn():
                 "stages": [{"name": "floor", "turns": "sequential"}],
                 "mechanisms": {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 10,
                                         "stage": "floor"},
-                               "chat": {"kind": "social", "mode": "channels", "who": "trader", "stage": "floor"},
+                               "bolt": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 5,
+                                        "stage": "floor"},
                                "v": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["y", "n"],
                                      "stage": "floor"}}}
-    _, replies = play(contract, {(1, "a"): [("chat_say", {"channel": "general", "text": "selling"}),
+    _, replies = play(contract, {(1, "a"): [("bolt_buy", {"qty": 1, "price": 5}),
                                             ("acme_sell", {"qty": 1, "price": 10}), ("acme_cancel_all", {}),
                                             ("v_vote", {"choice": "y"})]})
     assert all(reply.ok for _, reply in replies), [(tool, reply.text) for tool, reply in replies]
     declared = json.loads(json.dumps(contract))
     declared["stages"][0]["max_actions"] = 1
     _, replies = play(declared,
-                      {(1, "a"): [("chat_say", {"channel": "general", "text": "hi"}),
+                      {(1, "a"): [("bolt_buy", {"qty": 1, "price": 5}),
                                   ("acme_sell", {"qty": 1, "price": 10})]})
     assert [reply.ok for _, reply in replies] == [True, False]  # the author's own budget stands
     game = json.loads(json.dumps(contract))
@@ -139,12 +140,12 @@ def test_mechanisms_attached_to_one_declared_stage_share_its_turn():
 
 def test_check_warns_when_one_agent_type_takes_a_separate_turn_per_mechanism():
     floor = {"acme": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 10},
-             "chat": {"kind": "social", "mode": "channels", "who": "trader"},
+             "w": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["p", "q"]},
              "v": {"kind": "decision", "mode": "ballot", "who": "trader", "options": ["y", "n"]}}
     contract = {"name": "Floor", "clock": {"rounds": 1}, "types": {"trader": {"agent": True}},
                 "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}}, "mechanisms": floor}
     warned = [i for i in fg_env.check(contract) if i.severity == "warning" and i.path == "mechanisms"]
-    assert len(warned) == 1 and "acme, chat and v" in warned[0].message and '"stage"' in warned[0].fix
+    assert len(warned) == 1 and "acme, w and v" in warned[0].message and '"stage"' in warned[0].fix
     shared = {**contract, "stages": [{"name": "floor", "turns": "sequential"}],
               "mechanisms": {name: {**use, "stage": "floor"} for name, use in floor.items()}}
     assert not [i for i in fg_env.check(shared) if i.path == "mechanisms"]

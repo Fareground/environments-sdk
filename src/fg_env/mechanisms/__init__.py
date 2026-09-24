@@ -41,7 +41,7 @@ _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
 #: Sections merged by key: the author's entry wins over a generated one of the same name.
 _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "policies", "metrics",
-          "outputs", "defs", "blocks", "arms", "patterns")
+          "outputs", "defs", "blocks", "arms")
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
 _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "brief")
 #: Effects a mechanism may run around a declared stage: each becomes an event on the stage's anchor (a point of it, and
@@ -198,6 +198,10 @@ def _added(before: Mapping[str, list[str]], after: Mapping[str, list[str]]) -> d
     return added
 
 
+#: Families whose mechanisms the engine reads in place ($physics, $pattern), usually generating nothing.
+_READ_IN_PLACE = ("dynamics", "pattern")
+
+
 def generated_summary(data: Mapping[str, Any]) -> list[str]:
     """One compact line per declared mechanism naming what it generated (and whether it can end the run), e.g.
     ``sale (market.auction): actions sale_bid · stages sale · outputs sale_sold, sale_revenue · 2 events``."""
@@ -209,6 +213,8 @@ def generated_summary(data: Mapping[str, Any]) -> list[str]:
     lines = []
     for name, parts in generated.items():
         use = (data.get("mechanisms") or {}).get(name)
+        if not parts and isinstance(use, Mapping) and use.get("kind") in _READ_IN_PLACE:
+            continue  # physics and patterns generate nothing: they are read where they are declared
         label = f"{use.get('kind')}.{use.get('mode')}" if isinstance(use, Mapping) and use.get("mode") else "generated"
         shown = [f"{section} {', '.join(names)}" if section in _NAMED else f"{len(names)} {section}"
                  for section, names in parts.items()]
@@ -393,10 +399,8 @@ def _entries(data: Mapping[str, Any], section: str) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-#: The former `dynamics` family and its old kind names, and what replaced each.
+#: Modes of an earlier `dynamics` family (written as the kind, or as a mode of `dynamics`), and what replaced each.
 _FOLDED_INTO_PATTERNS = {
-    "dynamics": "drift → trend, seasonal, random_walk or mean_reversion patterns (an event applies them to state); "
-                "shocks → a shocks pattern an event reads; priors → draw patterns",
     "drift": "use trend, seasonal, random_walk or mean_reversion patterns, applied to state by an event when agents "
              "change it too",
     "shocks": "use a shocks pattern, and an event with when: $pattern.<name> > 0 for what it does",
@@ -416,15 +420,18 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
         mode = use.get("mode")
         modes = ", ".join(family.modes) or "none"
         if mode is None:
-            return Issue(path, f"a `{kind}` mechanism needs a `mode`", f"{kind} modes: {modes}")
+            return Issue(path, f"a `{kind}` mechanism needs a `mode`", f"{kind} modes: {modes} (guide('{kind}'))")
         spec = family.modes.get(mode) if isinstance(mode, str) else None
+        if spec is None and kind in ("dynamics", "pattern") and mode in _FOLDED_INTO_PATTERNS:
+            return Issue(f"{path}.mode", f"'{mode}' is no longer a mechanism: the world's own changes are patterns",
+                         _FOLDED_INTO_PATTERNS[mode] + " (guide('patterns'))")
         if spec is None:
             hint = get_close_matches(str(mode), list(family.modes), n=1)
             return Issue(f"{path}.mode", f"'{mode}' is not a mode of `{kind}`",
                          f"did you mean '{hint[0]}'?" if hint else f"{kind} modes: {modes}")
         return spec, f"`{kind}` mode `{mode}`"
     if isinstance(kind, str) and kind in _FOLDED_INTO_PATTERNS:
-        return Issue(f"{path}.kind", f"'{kind}' is no longer a mechanism: the world's own changes are `patterns`",
+        return Issue(f"{path}.kind", f"'{kind}' is no longer a mechanism: the world's own changes are patterns",
                      _FOLDED_INTO_PATTERNS[kind] + " (guide('patterns'))")
     owner = family_of_mode(kind) if isinstance(kind, str) else None
     if owner is not None:
@@ -451,8 +458,8 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
     if error["type"] == "missing":
         info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
         about = f"`{loc[0]}`: {info.description.rstrip('.')}. " if info is not None and info.description else ""
-        return Issue(at, "is required", f"{about}{label} takes: {', '.join(model.model_fields)}")
-    return Issue(at, str(error["msg"]), None)
+        return Issue(at, "is required", f"{about}{label} takes: {', '.join(_fields_at(model, ()))}")
+    return Issue(at, str(error["msg"]).removeprefix("Value error, "), (error.get("ctx") or {}).get("fix"))
 
 
 def _fields_at(model: Any, loc: tuple[Any, ...]) -> list[str]:
@@ -461,7 +468,9 @@ def _fields_at(model: Any, loc: tuple[Any, ...]) -> list[str]:
     for part in loc:
         if isinstance(current, type) and issubclass(current, BaseModel) and part in current.model_fields:
             current = _model_in(current.model_fields[part].annotation)
-    return list(current.model_fields) if isinstance(current, type) and issubclass(current, BaseModel) else []
+    if not (isinstance(current, type) and issubclass(current, BaseModel)):
+        return []
+    return [name for name in current.model_fields if not (current is model and name in ("kind", "mode"))]
 
 
 def _model_in(annotation: Any) -> Any:
@@ -515,7 +524,7 @@ def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
                     roles = brief.setdefault(key, {})
                     for role, role_text in text.items():
                         roles.setdefault(role, role_text)
-        elif section in ("clock", "game"):  # a mechanism (a board, a victory rule) may fill in what the author left out
+        elif section in ("clock", "game"):  # a mechanism (a board, a pot) may fill in what the author left out
             settings = data.setdefault(section, {})
             for key, item in value.items():
                 settings.setdefault(key, copy.deepcopy(item))
@@ -639,16 +648,13 @@ from . import families  # noqa: E402,F401  (registers the mechanism families bef
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
 from . import boards  # noqa: E402,F401  (registers the board-game mechanism)
 from . import markets  # noqa: E402,F401  (registers the market mechanisms)
-from . import card_scoring, cards, cards_mechanism, pot, roles, slots  # noqa: E402,F401  (cards, pots, roles, worker placement)
+from . import card_scoring, cards, cards_mechanism, pot, roles  # noqa: E402,F401  (cards, pots, roles)
 from . import social  # noqa: E402,F401  (registers the social mechanism family)
 from . import matching  # noqa: E402,F401  (two-sided stable matching, a groups mode)
 from . import status  # noqa: E402,F401
-from . import abilities  # noqa: E402,F401
-from . import locations  # noqa: E402,F401
 from . import procedure  # noqa: E402,F401
-from . import turn_order  # noqa: E402,F401
-from . import victory  # noqa: E402,F401
-from . import judging, host_personas, host_tools, memory  # noqa: E402,F401  (host-evaluated intelligence, in guide order)
+from . import judging, host_personas, host_tools, memory, host_feed  # noqa: E402,F401  (host services, in guide order)
 from . import economy  # noqa: E402,F401  (registers the economy mechanisms)
-from . import ops_queue  # noqa: E402,F401  (registers the operations mechanisms)
+from . import ops_queue  # noqa: E402,F401  (the economy's service queues)
+from . import dynamics, pattern_modes  # noqa: E402,F401  (the world's continuous change and its patterns)
 # isort: on

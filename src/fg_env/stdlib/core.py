@@ -220,6 +220,43 @@ def _top(call: Call) -> list[Any]:
     return _sorted(call, True)
 
 
+def _rank_key(call: Call, value: Any) -> tuple[Any, ...]:
+    parts = value if isinstance(value, list) else [value]
+    for part in parts:
+        if not isinstance(part, (int, float, str)):  # a bool is an int
+            raise ExprError(f"$best: a ranking key is a number, text or a list of them, got {part!r}", call.source)
+    return tuple(int(p) if isinstance(p, bool) else p for p in parts)
+
+
+@function("best(items, by, ties?)",
+          "The best of `items` by `by` (a value or list of values, highest first): always one item — a tie is broken "
+          "at random (seeded) with ties 'random' (default), or gives null with 'none'; null when empty. ties 'all' "
+          "always gives a list: every item tied for best ([] when empty).",
+          min_args=2, max_args=3, lazy=[1])
+def _best(call: Call) -> Any:
+    items = call.collection(0)
+    ties = call.arg(2, "random")
+    if ties not in ("random", "none", "all"):
+        raise ExprError(f"$best: ties is random, none or all, got {ties!r}", call.source)
+    if not items:
+        return [] if ties == "all" else None
+    try:
+        keyed = [(_rank_key(call, call.each(1, item, i)), item) for i, item in enumerate(items)]
+        best = max(key for key, _ in keyed)
+    except TypeError:
+        raise ExprError("$best: ranking keys must be comparable (all numbers or all text)", call.source) from None
+    top = [item for key, item in keyed if key == best]
+    if ties == "all":
+        return top
+    if len(top) == 1:
+        return top[0]
+    if ties == "none":
+        return None
+    world: Any = call.scope.world
+    ids = sorted(getattr(item, "id", str(item)) for item in top)
+    return top[world.seeds.rng("winner", world.round, *ids).randrange(len(top))]
+
+
 @function("filter(items, where)", "The items for which `where` holds.", min_args=2, max_args=2, lazy=[1])
 def _filter(call: Call) -> list[Any]:
     return call.filtered(0, 1)
@@ -249,11 +286,6 @@ def _any(call: Call) -> bool:
           min_args=2, max_args=2, lazy=[1])
 def _all(call: Call) -> bool:
     return all(truthy(call.each(1, it, i)) for i, it in enumerate(call.collection(0)))
-
-
-@function("ids(items)", "The ids of the entities given.", min_args=1, max_args=1)
-def _ids(call: Call) -> list[Any]:
-    return [_entity_id(it) for it in call.collection(0)]
 
 
 @function("len(value)", "Length of a list or text.", min_args=1, max_args=1)
@@ -349,12 +381,6 @@ def _get(call: Call) -> Any:
 @function("entity(id)", "The entity with this id, or null.", min_args=1, max_args=1)
 def _entity(call: Call) -> Any:
     return call.scope.world.entity(_entity_id(call.arg(0)))
-
-
-@function("exists(id)", "True when an alive entity with this id exists.", min_args=1, max_args=1)
-def _exists(call: Call) -> bool:
-    found = call.scope.world.entity(_entity_id(call.arg(0)))
-    return bool(found is not None and found.alive)
 
 
 @function("records(name, where?)", "Entries of a declared record, oldest first. Game logic reads every entry; what an "
@@ -524,11 +550,6 @@ def _pct(call: Call) -> float:
 # ---------------------------------------------------------------------------
 # Randomness — always drawn from the run's seeded generator
 # ---------------------------------------------------------------------------
-
-
-@function("random()", "Uniform number in [0, 1).", max_args=0)
-def _random(call: Call) -> float:
-    return call.rng.random()
 
 
 @function("chance(p)", "True with probability p.", min_args=1, max_args=1)

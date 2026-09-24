@@ -46,7 +46,8 @@ def test_retail_and_wholesale_demand_and_lead_times_fitted_from_the_histories_re
     elasticity, error = (fitted["retail_price_effect_elasticity"]["default"],
                          fitted["retail_price_effect_elasticity_se"]["default"])
     assert abs(elasticity - truth["retail_price_effect_elasticity"]) < 3 * error
-    assert fitted["sales_dispersion"]["default"] == pytest.approx(truth["sales_dispersion"], rel=0.3)
+    # the counts pattern `sales` shares its name with the demand mechanism, so it loads as `sales_pattern`
+    assert fitted["sales_pattern_dispersion"]["default"] == pytest.approx(truth["sales_dispersion"], rel=0.3)
     assert fitted["bulk_dispersion"]["default"] == pytest.approx(truth["bulk_dispersion"], rel=0.3)
     assert fitted["lead_noise_sd"]["default"] == pytest.approx(truth["lead_noise_sd"], abs=0.04)
     assert abs(fitted["lead_noise_mean"]["default"]) < 0.05

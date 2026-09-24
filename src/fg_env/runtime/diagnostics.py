@@ -61,7 +61,7 @@ _MOVING = re.compile(
     r"\$(round|clock|time|stage|metrics|series|chance|random|randint|choice|shuffle|pending|pattern)\b")
 _BUILT_IN_FIELDS = {"id", "name", "type", "alive", "at"}
 #: Sections whose effects and settings can write properties, post to records or name a winner.
-_RULE_SECTIONS = ("actions", "stages", "events", "blocks", "end", "feeds", "physics", "policies")
+_RULE_SECTIONS = ("actions", "stages", "events", "blocks", "end", "policies")
 
 
 def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]] = ()) -> list[dict[str, str]]:

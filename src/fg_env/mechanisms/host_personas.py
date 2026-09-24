@@ -1,6 +1,6 @@
 """Personas written by a host once, when the world is built.
 
-``"mechanisms": {"lives": {"kind": "mind", "mode": "personas", "who": "citizen", "prompt": "A {age}-year-old …"}}``
+``"mechanisms": {"lives": {"kind": "host", "mode": "personas", "who": "citizen", "prompt": "A {age}-year-old …"}}``
 asks the host to write one persona per citizen from the prompt template. The text is stored in
 the entity's ``persona`` property and added to its brief, so snapshots carry it and a restore
 never writes it again. ``fg_env.host.load`` writes personas before round 1; with a plain
@@ -25,7 +25,7 @@ from ..registry import MechanismError, family_action, mechanism_config, mode
 
 __all__ = ["PersonaConfig", "generate", "KEY"]
 
-KEY = "mind.personas"
+KEY = "host.personas"
 
 
 class PersonaConfig(BaseModel):
@@ -45,7 +45,7 @@ class PersonaConfig(BaseModel):
     max_chars: int = Field(2000, ge=50, le=20_000, description="Longest persona kept (longer text is cut).")
 
 
-@mode("mind", "personas", PersonaConfig,
+@mode("host", "personas", PersonaConfig,
            "Personas written by a host writer from a prompt template over $it, once per entity before round 1: "
            "stored in the `prop` property and the entity's brief, carried by snapshots, recorded for replay.",
            example={"who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.",
@@ -65,7 +65,7 @@ def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, An
         "types": {config.who: {"props": {config.prop: {"type": "text", "default": "", "private": True}}}},
         "world": {"host_tape": tape_prop()},
         "events": [{"name": f"{name}_personas", "at": 1, "phase": "start", "once": True,
-                    "do": [{"mind": name, "action": "write"}]}],
+                    "do": [{"host": name, "action": "write"}]}],
     }
 
 
@@ -124,7 +124,7 @@ def _add_to_brief(world: Any, entity_id: str, line: str) -> None:
     world.journal.push(undo)
 
 
-@family_action("mind", ("personas",), "write",
-               example='{"mind": "lives", "action": "write"}  (write any missing personas now; generated for round 1)')
+@family_action("host", ("personas",), "write",
+               example='{"host": "lives", "action": "write"}  (write any missing personas now; generated for round 1)')
 def _write(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-    generate(runner.world, effect["mind"], where)
+    generate(runner.world, effect["host"], where)

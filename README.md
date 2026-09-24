@@ -205,7 +205,6 @@ See [engine starters and persona sampling](docs/sdk/engines.md).
 | `clock`, `space` | Round budget and calendar; grid, graph or plane positions |
 | `world`, `types`, `entities`, `population` | Global props; kinds of entities with inheritance; named entities; sampled populations |
 | `relations`, `links` | Typed links and generated networks (small-world, random, ring, complete) |
-| `physics` | Continuous variables integrated with RK4, read from and written back to the world |
 | `records` | Append-only logs (chat, reviews, transcripts) with per-viewer visibility |
 | `actions` | What agents can do: typed params, requirements, chance, atomic effects, outcome text |
 | `stages` | The steps of each round: sequential or sealed simultaneous turns, `until`, `quiet` |
@@ -215,6 +214,7 @@ See [engine starters and persona sampling](docs/sdk/engines.md).
 | `metrics`, `outputs` | Series tracked each round; the typed result of a run |
 | `end`, `invariants` | Early ending; rules that must always hold (a violation fails the run) |
 | `arms`, `defs`, `blocks` | Experiment variants; reusable expressions and effect lists |
+| `mechanisms` | Native building blocks by family: markets, ledgers, ballots, boards and cards, hidden roles, feeds, continuous dynamics (`$physics`) and the world's patterns (`$pattern`) |
 
 One small, strict expression language is used everywhere:
 `$actor.cash >= $params.qty * $params.offer.price`, `$count(buyer, $it.cash > 0)`,

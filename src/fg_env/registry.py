@@ -225,9 +225,9 @@ def mode(family_name: str, mode: str, config: type[BaseModel], doc: str, example
             raise ValueError(f"mode '{mode}' names the unregistered family '{family_name}'")
         if mode in spec.modes:
             raise ValueError(f"mode '{family_name}.{mode}' is registered twice")
-        for key in _SWITCH:
-            if key in config.model_fields:
-                raise ValueError(f"{family_name}.{mode}: a config cannot have a field named '{key}'")
+        for key in _SWITCH:  # the entry's own `kind` and `mode` never reach the config: such a field keeps its default
+            if key in config.model_fields and config.model_fields[key].is_required():
+                raise ValueError(f"{family_name}.{mode}: a config field named '{key}' needs a default")
         full_example = {"kind": family_name, "mode": mode, **(example or {})}
         spec.modes[mode] = ModeSpec(family_name, mode, doc, config, expand, full_example, ends)
         spec.actions.setdefault(mode, {})

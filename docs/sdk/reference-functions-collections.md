@@ -5,13 +5,13 @@
 - `$all(items, where)` — True when every item matches (and for no items).
 - `$any(items, where)` — True when at least one item matches.
 - `$avg(items, value?, where?)` — Mean of `value` over matching items (nulls skipped); null when none. $avg(list) averages a list.
+- `$best(items, by, ties?)` — The best of `items` by `by` (a value or list of values, highest first): always one item — a tie is broken at random (seeded) with ties 'random' (default), or gives null with 'none'; null when empty. ties 'all' always gives a list: every item tied for best ([] when empty).
 - `$count(items, where?)` — How many items (entities of a type, or a list) match `where`.
 - `$dict(items, key, value)` — A {key: value} map with one entry per item (later items win).
 - `$filter(items, where)` — The items for which `where` holds.
 - `$first(list)` — First element, or null for an empty list.
 - `$flatten(lists)` — One list from a list of lists (one level).
 - `$get(object, key, default?)` — Field `key` of an entity, map or record, or element `key` of a list; `default` when missing.
-- `$ids(items)` — The ids of the entities given.
 - `$is(entity, type)` — True when the entity is of `type` or a type that extends it.
 - `$keys(map)` — The keys of a map.
 - `$last(list)` — Last element, or null for an empty list.

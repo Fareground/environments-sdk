@@ -14,7 +14,7 @@ from .signals import when
 __all__ = ["DrawConfig", "SegmentsConfig", "DiffusionConfig"]
 
 _NEEDS = {"normal": ("mean", "sd"), "lognormal": ("mu", "sigma"), "uniform": ("low", "high"), "beta": ("a", "b"),
-          "gamma": ("shape", "scale"), "triangular": ("low", "mode", "high"), "choice": ("values",),
+          "gamma": ("shape", "scale"), "triangular": ("low", "peak", "high"), "choice": ("values",),
           "mvnormal": ("means", "cov"), "poisson": ("mean",)}
 
 
@@ -29,7 +29,7 @@ class DrawConfig(PatternConfig):
     sigma: Number | None = None
     low: Number | None = None
     high: Number | None = None
-    mode: Number | None = None
+    peak: Number | None = Field(None, description="triangular: the most likely value.")
     a: Number | None = None
     b: Number | None = None
     shape: Number | None = None
@@ -49,17 +49,17 @@ class DrawConfig(PatternConfig):
         for key in _NEEDS[self.dist]:
             if getattr(self, key) is None:
                 raise ValueError(f"a {self.dist} draw needs `{key}`")
-        literal = {k: getattr(self, k) for k in ("low", "high", "mode", "sd", "sigma", "a", "b", "shape", "scale")
+        literal = {k: getattr(self, k) for k in ("low", "high", "peak", "sd", "sigma", "a", "b", "shape", "scale")
                    if isinstance(getattr(self, k), (int, float))}
         for key, value in literal.items():
             if not math.isfinite(value):
                 raise ValueError(f"{key} must be a finite number")
         if "low" in literal and "high" in literal and literal["low"] > literal["high"]:
             raise ValueError("low is more than high")
-        if self.dist == "triangular" and "mode" in literal:
-            if ("low" in literal and literal["mode"] < literal["low"]) or \
-                    ("high" in literal and literal["mode"] > literal["high"]):
-                raise ValueError("a triangular draw needs low ≤ mode ≤ high")
+        if self.dist == "triangular" and "peak" in literal:
+            if ("low" in literal and literal["peak"] < literal["low"]) or \
+                    ("high" in literal and literal["peak"] > literal["high"]):
+                raise ValueError("a triangular draw needs low ≤ peak ≤ high")
         if self.dist == "uniform" and self.integer and "low" in literal and "high" in literal:
             if math.ceil(literal["low"]) > math.floor(literal["high"]):
                 raise ValueError("an integer uniform draw needs at least one whole number between low and high")
@@ -87,7 +87,7 @@ def _draw_words(cfg: DrawConfig) -> str:
       "entity, correlated with mvnormal. Parameters of other patterns may read it.",
       example={"kind": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"},
       random=True, words=_draw_words,
-      params=("mean", "sd", "mu", "sigma", "low", "high", "mode", "a", "b", "shape", "scale", "values", "weights",
+      params=("mean", "sd", "mu", "sigma", "low", "high", "peak", "a", "b", "shape", "scale", "values", "weights",
               "means", "cov"))
 def _draw(ctx: Any) -> Any:
     cfg: DrawConfig = ctx.cfg
@@ -119,10 +119,10 @@ def _draw(ctx: Any) -> Any:
     elif dist == "gamma":
         value = rng.gammavariate(ctx.number("shape", 1e-12), ctx.number("scale", 1e-12))
     elif dist == "triangular":
-        low, high, mode = ctx.number("low"), ctx.number("high"), ctx.number("mode")
-        if not low <= mode <= high:
-            raise ctx.fail(f"a triangular draw needs low ≤ mode ≤ high, got {low:g}, {mode:g}, {high:g}")
-        value = rng.triangular(low, high, mode)
+        low, high, peak = ctx.number("low"), ctx.number("high"), ctx.number("peak")
+        if not low <= peak <= high:
+            raise ctx.fail(f"a triangular draw needs low ≤ peak ≤ high, got {low:g}, {peak:g}, {high:g}")
+        value = rng.triangular(low, high, peak)
     else:
         try:
             value = sample_poisson(rng, ctx.number("mean", 0))

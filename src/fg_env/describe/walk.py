@@ -19,7 +19,7 @@ _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
 #: Sections that build the world before round 1.
 _SETUP = frozenset({"world", "types", "entities", "population", "links", "relations", "space"})
 #: Sections whose expressions change or steer the world during play.
-_RULES = frozenset({"actions", "events", "stages", "end", "defs", "blocks", "physics", "invariants", "feeds"})
+_RULES = frozenset({"actions", "events", "stages", "end", "defs", "blocks", "invariants"})
 #: Fields whose text an agent reads: briefs, descriptions, news, outcomes, entries, titles, refusal reasons.
 _TEXT_FIELDS = frozenset({"brief", "description", "outcome", "announce", "say", "show", "why", "title", "empty",
                           "invalid"})
@@ -70,10 +70,12 @@ def in_effects(path: str) -> bool:
     return bool(parts) and parts[0] not in _ASIDE and bool(_EFFECT_LISTS.intersection(parts))
 
 
-def roles(path: str) -> frozenset[str]:
+def roles(path: str, engine: Sequence[str] = ()) -> frozenset[str]:
     """Where text at ``path`` acts: ``setup``, ``rules`` and/or ``shown`` (to agents); empty for measurement and data.
-    """
+    ``engine`` names the mechanisms the engine runs from their config (physics, feeds): their texts are rules."""
     parts = _parts(path)
+    if len(parts) > 1 and parts[0] == "mechanisms" and parts[1] in engine:
+        return frozenset({"rules"}) if parts[-1] not in _TEXT_FIELDS else frozenset()
     if not parts or parts[0] in _ASIDE:
         return frozenset()
     last = parts[-1]

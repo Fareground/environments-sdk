@@ -1,4 +1,4 @@
-"""The ``operations`` family's ``queue`` mode: customers arriving on channels, served by staffed server pools.
+"""The ``economy`` family's ``queue`` mode: customers arriving on channels, served by staffed server pools.
 
 A contact centre, a clinic, a counter or a repair crew: each interval (a round) the mode reads its numbers —
 expected arrivals per channel, service and patience distributions, staff on duty per pool — and plays every arrival,
@@ -25,7 +25,7 @@ from .ops_stats import empty_totals, latest, merge_counts, record_for, updated_t
 
 __all__ = ["QueueConfig", "ChannelSpec", "PoolSpec", "DurationSpec", "interval_length"]
 
-KEY = "operations.queue"
+KEY = "economy.queue"
 #: Seconds in each time unit the mode and a clock may use.
 UNIT_SECONDS = {"second": 1.0, "minute": 60.0, "hour": 3600.0, "day": 86400.0, "week": 604800.0}
 
@@ -172,7 +172,7 @@ def _check_duration(spec: DurationSpec, path: str) -> None:
                                                                           "\"high\": 240, \"mean\": 150}", path)
 
 
-@mode("operations", "queue", QueueConfig,
+@mode("economy", "queue", QueueConfig,
       "A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at "
       "the interval's expected `arrivals`), are answered at once by a free server of a pool with the skill, or wait in "
       "line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers "
@@ -206,7 +206,7 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_totals": {"type": "map", "default": empty_totals(channels),
                            "description": "Totals over every interval."},
     }
-    events = [{"name": f"{name}: interval", "phase": "end", "do": [{"operations": name, "action": "tick"}]}]
+    events = [{"name": f"{name}: interval", "phase": "end", "do": [{"economy": name, "action": "tick"}]}]
     totals, intervals = f"$world.{name}_totals", f"$world.{name}_intervals"
     outputs: dict[str, Any] = {
         f"{name}_service_level": {"expr": f"{totals}.service_level", "type": "number", "format": "pct",
@@ -265,7 +265,7 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
 def _config(world: Any, name: str, where: str) -> QueueConfig:
     raw = world.contract.mechanisms.get(name)
     if not isinstance(raw, Mapping) or f"{raw.get('kind')}.{raw.get('mode')}" != KEY:
-        raise RunError(f"'{name}' is not a declared operations queue", where)
+        raise RunError(f"'{name}' is not a declared economy queue", where)
     return parsed(raw, QueueConfig)
 
 
@@ -362,11 +362,11 @@ def _clock_data(world: Any) -> dict[str, Any]:
     return {"unit": clock.unit, "step": clock.step}
 
 
-@family_action("operations", ("queue",), "tick", internal=True,
-               example='{"operations": "centre", "action": "tick"}  (play the next interval)')
+@family_action("economy", ("queue",), "tick", internal=True,
+               example='{"economy": "centre", "action": "tick"}  (play the next interval)')
 def _tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["operations"]
+    name = effect["economy"]
     config = _config(world, name, where)
     state = world.props[f"{name}_state"]
     world.set_world(f"{name}_state", _play(world, name, config, resolve(world, name, config, int(state["interval"]))),

@@ -64,7 +64,7 @@ def test_nested_random_probability_preserves_existing_draw_order(seed):
     rng = SeedTree(seed).rng('draws', 'events[0].do', 1, 0)  # the event's own stream in round 1
     roll, probability = rng.random(), rng.random()
     c = {'name': 'Nested draw', 'clock': {'rounds': 1}, 'types': {'item': {}}, 'world': {'outcome': False},
-         'events': [{'do': '$world.outcome = $chance($random())'}], 'outputs': {'outcome': '$world.outcome'}}
+         'events': [{'do': '$world.outcome = $chance($uniform(0, 1))'}], 'outputs': {'outcome': '$world.outcome'}}
     result = fg_env.run(c, seed=seed)
     assert result.ok, result.error
     assert result.outputs['outcome'] == (roll < probability)

@@ -26,7 +26,7 @@ from ..contract.parse_errors import validation_issues
 from ..errors import ContractError, Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
 from ..expr.base import WrongKind
-from ..expr.calls import suggest_function
+from ..expr.calls import callable_in, callable_names, suggest_function
 from ..expr.codegen import _ITEM_ROOTS
 from ..expr.template import compile_template, quoted_placeholders
 from ..host.common import raw_model_ids
@@ -72,11 +72,6 @@ def parse_contract(data: Any) -> Contract:
     expanded, mechanism_issues = expand_mechanisms(source)
     if mechanism_issues:
         raise ContractError(_dedupe(mechanism_issues))
-    from ..patterns.expand import expand_patterns
-
-    expanded, pattern_issues = expand_patterns(expanded)
-    if pattern_issues:
-        raise ContractError(_dedupe(pattern_issues))
     expanded = normalize(expanded)[0]  # what mechanisms and imports generated in an earlier form
     try:
         contract = Contract.model_validate(expanded)
@@ -125,6 +120,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self.known_words = words
         self.stage_names = [s.name for s in contract.stage_list()]
         self.collection_funcs = _collection_funcs()
+        self.families = contract.mechanism_families()
 
     # -- reporting -----------------------------------------------------------------
 
@@ -247,9 +243,16 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
               params: Mapping[str, C.ParamSpec]) -> None:
         # An unknown callee may be the collection function that binds $it, $i and $outer (a misspelled $max): report
         # the name to repair, not those roots. Independent errors are kept.
-        unknown = sorted(name for name in compiled.functions if name not in FUNCTIONS and name not in self.c.defs)
+        unknown = sorted(name for name in compiled.functions
+                         if not callable_in(name, self.families) and name not in self.c.defs)
         for name in unknown:
-            hint = suggest_function(name, list(FUNCTIONS) + list(self.c.defs))
+            if name in FUNCTIONS:
+                families = FUNCTIONS[name].families
+                self.error(path, f"${name} reads a {' or '.join(f'`{f}`' for f in families)} mechanism, and this "
+                                 "contract declares none",
+                           f"declare one (guide('{families[0]}')) — in `{compiled.source}`")
+                continue
+            hint = suggest_function(name, callable_names(self.families) + list(self.c.defs))
             self.error(path, f"unknown function ${name}",
                        (f"did you mean {hint}?" if hint else "declare it under `defs`") + f" — in `{compiled.source}`")
         for root in compiled.roots:
@@ -286,7 +289,7 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
                            self._suggest(symbol, self.c.records))
         check_pattern_call(self, compiled, path)
         for name, signature in getattr(compiled, "arity_errors", ()):
-            if name not in self.c.defs:
+            if name not in self.c.defs and callable_in(name, self.families):  # else it is reported as unavailable
                 self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
         for chain, word in compiled.comparisons:
             self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)

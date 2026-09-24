@@ -13,8 +13,8 @@ from ..assets.store import AssetStore
 from ..contract import MAX_ENTITIES, Contract, PropSpec
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import FatalRunError, RunError
-from ..expr import FUNCTIONS, ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
-from ..expr.calls import suggest_function
+from ..expr import ExprError, Scope, Untrusted, World, compile_expr, is_expr, truthy
+from ..expr.calls import callable_names, suggest_function
 from ..expr.hidden import Hidden
 from ..expr.objects import Entity, PropsView
 from ..expr.template import format_value
@@ -418,7 +418,7 @@ class SdkWorld(World):
         one agent), so ``$records`` and ``$events`` inside it show what the caller could see."""
         spec = self.contract.defs.get(name)
         if spec is None:
-            hint = suggest_function(name, list(FUNCTIONS) + list(self.contract.defs))
+            hint = suggest_function(name, callable_names(self.contract.mechanism_families()) + list(self.contract.defs))
             raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
         if len(args) != len(spec.args):
             raise ExprError(f"${name} takes {len(spec.args)} argument(s) ({', '.join(spec.args) or 'none'}), got "
@@ -635,10 +635,10 @@ class SdkWorld(World):
     def set_physics(self, name: str, value: Any) -> None:
         model = self.physics
         if model is None:
-            raise RunError("this environment declares no physics", f"physics.{name}")
+            raise RunError("this environment declares no physics", f"mechanisms.physics.{name}")
         if not _finite_number(value):
             raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}",
-                           f"physics.{name}")
+                           f"mechanisms.physics.{name}")
         if name in model.variables:
             var = model.variables[name]
             old = var.value
@@ -654,7 +654,7 @@ class SdkWorld(World):
             model.params[name] = float(value)
             self.journal.push(lambda: model.params.__setitem__(name, old_param))
         else:
-            raise RunError(f"physics has no variable or param '{name}'", f"physics.{name}")
+            raise RunError(f"physics has no variable or param '{name}'", f"mechanisms.physics.{name}")
 
     def next_id(self, type_name: str) -> str:
         n = self.counters.get(type_name, 0)
@@ -937,7 +937,7 @@ class SdkWorld(World):
             return world_physics.step_physics(self)
         except Abort as refusal:
             raise RunError(f"{refusal.reason} Keep the formula in range, e.g. with clamp(x, low, high)",
-                           "physics") from None
+                           "mechanisms.physics") from None
 
     # -- helpers ---------------------------------------------------------------
 

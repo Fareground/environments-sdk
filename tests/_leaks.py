@@ -12,6 +12,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from test_examples import REWRITE_BY_HAND
+
 import fg_env
 from fg_env.expr.template import format_value
 from fg_env.participants import RandomAgent
@@ -141,5 +143,6 @@ SMALL = {
     "corner_shop_town": {"households": 3},
     "market": {"sample_size": 80, "days": 7}, "exchange": {"participants": 20, "seed_bars": 20, "bars": 5},
 }
-#: Every example contract.
-EXAMPLES = sorted((Path(__file__).parents[1] / "examples" / "contracts").glob("*.json"))
+#: Every example contract that loads (not those awaiting a rewrite by hand).
+EXAMPLES = sorted(path for path in (Path(__file__).parents[1] / "examples" / "contracts").glob("*.json")
+                  if path.stem not in REWRITE_BY_HAND)

@@ -20,7 +20,6 @@ from ..contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from ..engines import list_engines
 from ..expr.template import FORMATS
 from ..patterns.guide import patterns_page
-from ..patterns.schema import patterns_definitions, patterns_field_schema
 from ..registry import FAMILIES
 from .authoring import AUTHORING
 from .pages import (
@@ -45,8 +44,6 @@ __all__ = ["guide", "schema", "guide_parts"]
 def schema() -> dict[str, Any]:
     """JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning)."""
     out = C.Contract.model_json_schema(by_alias=True)
-    out["$defs"] = {**out.get("$defs", {}), **patterns_definitions()}
-    out["properties"]["patterns"] = {**out["properties"]["patterns"], **patterns_field_schema()}
     for name, _, _, doc in SECTIONS:
         field = out["properties"][name]
         tier = "Core" if name in CORE_SECTIONS else "Extended"

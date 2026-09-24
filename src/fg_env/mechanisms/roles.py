@@ -179,14 +179,14 @@ def _reveal_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where:
 
 
 @function("known_role(viewer, player)", "The role `viewer` knows `player` has ('' when unknown): their own, a revealed "
-          "role, or a teammate's when their team knows each other.", min_args=2, max_args=2)
+          "role, or a teammate's when their team knows each other.", min_args=2, max_args=2, family="groups")
 def _known_role_function(call: Call) -> str:
     world: Any = call.scope.world
     return known_role(world, world.entity(call.arg(0)), world.entity(call.arg(1)))
 
 
 @function("teammates(player)", "The other players `player` knows are on their team (empty when their team is secret).",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="groups")
 def _teammates_function(call: Call) -> list[Entity]:
     world: Any = call.scope.world
     player = world.entity(call.arg(0))
@@ -200,7 +200,8 @@ def _teammates_function(call: Call) -> list[Entity]:
             and known_role(world, player, q)]
 
 
-@function("team_alive(team)", "How many players of `team` (or role) are still in the game.", min_args=1, max_args=1)
+@function("team_alive(team)", "How many players of `team` (or role) are still in the game.", min_args=1, max_args=1,
+          family="groups")
 def _team_alive_function(call: Call) -> int:
     team = call.arg(0)
     world: Any = call.scope.world

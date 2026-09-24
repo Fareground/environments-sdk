@@ -17,14 +17,14 @@ MARKET = {
     "types": {"trader": {"agent": True, "props": {"cash": 100}}},
     "entities": {"t1": {"type": "trader"}},
     "records": {"news": {"fields": {"headline": "text", "impact": "number"}}},
-    "feeds": {
-        "oil": {"host": "prices", "into": "world.oil", "query": {"symbol": "BRENT", "date": "{$clock.date}"},
-                "fallback": "$world.oil * $uniform(0.9, 1.1)"},
-        "wire": {"host": "news", "into": "records.news", "every": 2, "query": "$round",
+    "mechanisms": {
+        "oil": {"kind": "host", "mode": "feed", "host": "prices", "into": "world.oil",
+                "query": {"symbol": "BRENT", "date": "{$clock.date}"}, "fallback": "$world.oil * $uniform(0.9, 1.1)"},
+        "wire": {"kind": "host", "mode": "feed", "host": "news", "into": "records.news", "every": 2, "query": "$round",
                  "fallback": [{"headline": "Quiet day", "impact": 0}]},
     },
     "actions": {"wait": {"by": "trader", "do": []}},
-    "events": [{"do": ["$world.draws += $random()"]}],
+    "events": [{"do": ["$world.draws += $uniform(0, 1)"]}],
     "metrics": {"oil": "$world.oil"},
     "outputs": {"oil": "$world.oil", "news": "$count($records(news))", "draws": "$world.draws"},
 }
@@ -70,7 +70,7 @@ def test_without_a_host_the_fallback_answers_deterministically_and_draws_nothing
     assert result.series["oil"] != [80, 80, 80, 80]
     assert [entry["headline"] for entry in first.world.records("news")] == ["Quiet day", "Quiet day"]
     assert not isinstance(first.world.records("news")[0]["headline"], Untrusted)  # the contract's own text
-    without = {key: value for key, value in MARKET.items() if key != "feeds"}
+    without = {key: value for key, value in MARKET.items() if key != "mechanisms"}
     assert fg_env.load(without, seed=2).run().outputs["draws"] == result.outputs["draws"]
     replay = host.load(MARKET, hosts=host.Hosts.replaying(host.tape_of(first)), seed=2)
     assert replay.run().to_dict() == result.to_dict()
@@ -78,15 +78,15 @@ def test_without_a_host_the_fallback_answers_deterministically_and_draws_nothing
 
 def test_a_feed_without_a_host_or_fallback_stops_the_run_naming_the_host():
     contract = copy.deepcopy(MARKET)
-    del contract["feeds"]["oil"]["fallback"]
+    del contract["mechanisms"]["oil"]["fallback"]
     result = fg_env.load(contract, seed=1).run()
     assert result.status == "failed"
-    assert "feeds.oil" in result.error and "needs the host 'prices'" in result.error
+    assert "mechanisms.oil" in result.error and "needs the host 'prices'" in result.error
 
 
 def test_when_decides_which_rounds_fetch():
     contract = copy.deepcopy(MARKET)
-    contract["feeds"]["oil"]["when"] = "$round > 2"
+    contract["mechanisms"]["oil"]["when"] = "$round > 2"
     hosts = _hosts()
     result = host.load(contract, hosts=hosts, seed=1).run()
     assert [call["round"] for call in hosts["prices"].calls] == [3, 4]
@@ -128,23 +128,24 @@ def test_previews_never_change_the_run():
 
 def test_the_checker_validates_feed_targets_queries_and_fallbacks():
     contract = copy.deepcopy(MARKET)
-    contract["feeds"].update({
+    contract["mechanisms"].update({name: {"kind": "host", "mode": "feed", **spec} for name, spec in {
         "a": {"host": "x", "into": "world.nope"},
         "b": {"host": "x", "into": "records.nope"},
         "c": {"host": "x", "into": "entities.t1"},
         "d": {"host": " ", "into": "world.oil", "fallback": "high", "when": "$nope > 1", "query": "{$world.nah}"},
         "e": {"host": "x", "into": "world.host_tape"},
-    })
+    }.items()})
     found = [(i.path, i.message) for i in fg_env.check(contract) if i.severity == "error"]
     for issue in [
-        ("feeds.a.into", "world has no property 'nope'"),
-        ("feeds.b.into", "'nope' is not a declared record"),
-        ("feeds.c.into", "a feed writes into 'world.<prop>' or 'records.<record>'"),
-        ("feeds.d.host", "names no host"),
-        ("feeds.d.fallback", "world.oil must be a number, got 'high'"),
-        ("feeds.e.into", "world has no property 'host_tape'"),
+        ("mechanisms.a.into", "world has no property 'nope'"),
+        ("mechanisms.b.into", "'nope' is not a declared record"),
+        ("mechanisms.c.into", "a feed writes into 'world.<prop>' or 'records.<record>'"),
+        ("mechanisms.d.host", "names no host"),
+        ("mechanisms.d.fallback", "world.oil must be a number, got 'high'"),
+        ("mechanisms.e.into", "world has no property 'host_tape'"),
     ]:
         assert issue in found, (issue, found)
-    assert any(path == "feeds.d.when" for path, _ in found) and any(path == "feeds.d.query" for path, _ in found)
+    assert any(path == "mechanisms.d.when" for path, _ in found)
+    assert any(path == "mechanisms.d.query" for path, _ in found)
     assert [i for i in fg_env.check(MARKET) if i.severity == "error"] == []
     assert "host_tape" in fg_env.load(MARKET, seed=1).props

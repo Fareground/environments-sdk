@@ -367,7 +367,8 @@ def test_board_actions_check_their_own_keys():
     assert (path.endswith(".action") and message == "'mvoe' is not an action of chess (game board)" and fix
             == "did you mean 'move'?")
     _, _, fix = op({"pass": "chess"})[0]
-    assert fix.startswith('`pass` is an action of the `game` or `flow` op: {"game": "<mechanism>", "action": "pass"')
+    assert fix.startswith('`pass` is an action of the `decision` or `game` op: {"decision": "<mechanism>", "action": '
+                          '"pass"')
 
 
 def test_a_board_fills_the_game_section_so_the_winner_scores_against_the_loser():

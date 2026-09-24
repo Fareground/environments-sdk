@@ -37,6 +37,6 @@ def normalize(data: Any) -> tuple[Any, list[str]]:
 def _rules() -> list[Rule]:
     """Every rule, in registration order. The rules live one module per part of the language, which registers them
     when it is first imported (here, not at load: they import :func:`rule` from this module)."""
-    from . import normalize_happenings  # noqa: F401
+    from . import normalize_happenings, normalize_mechanisms  # noqa: F401
 
     return RULES

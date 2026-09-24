@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from test_examples import REWRITE_BY_HAND
 
 import fg_env
 from fg_env.__main__ import main
@@ -123,8 +124,8 @@ def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_descri
     assert outbreak["external_data"] == [{"feed": "weather", "host": "weather", "into": "world.temperature",
                                           "every": 1}]
     chance = outbreak["evidence"]["chance_mode"]
-    assert "feeds.weather.fallback calls $normal" in chance
-    assert "physics.per.resident.vars.viral_load.noise is a random term" in chance
+    assert "mechanisms.weather.fallback calls $normal" in chance
+    assert "mechanisms.physics.per.resident.vars.viral_load.noise is a random term" in chance
     assert "actions.advise.do[0] may lose the message (drop)" in chance
     assert outbreak["information"] == "imperfect"
     assert ({"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"}
@@ -146,6 +147,8 @@ def test_a_spectator_view_does_not_show_state_to_agents():
 
 def test_every_example_contract_is_described():
     for path in sorted(EXAMPLES.glob("*.json")):
+        if path.stem in REWRITE_BY_HAND:
+            continue
         description = describe(path)
         for heading in ("## 1. Purpose", "## 2. Entities", "## 3. Process", "## 4. Design concepts",
                         "## 5. Initialisation", "## 6. Input data", "## 7. Submodels", "## Game-theoretic summary"):

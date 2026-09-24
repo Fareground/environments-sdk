@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..expr import Call, ExprError, compile_expr, function
-from ..patterns.base import KINDS
+from ..patterns.base import KINDS, declared
 from ..registry import MechanismError, mode
 from .econ_base import (
     DEMAND,
@@ -179,7 +179,7 @@ def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any])
     if config.segment in config.segments:
         raise MechanismError(f"'{config.segment}' is the main segment and a listed segment", "rename one of them",
                              "segments")
-    patterns = contract.get("patterns") or {}
+    patterns = declared(contract)
     drivers: list[str] = []
     for segment, spec in segments.items():
         path = "" if segment == config.segment else f"segments.{segment}."
@@ -378,7 +378,7 @@ def totals(world: Any, name: str, measure: str, by: str | None, where: str) -> A
           "A demand mechanism's run total: demand, served, substituted, backordered, lost, spill_in, sold, returned, "
           "revenue, refunds, cogs, fill_rate, net_revenue or margin — overall, or {key: total} by 'item', 'group' "
           "or 'segment'.",
-          min_args=2, max_args=3)
+          min_args=2, max_args=3, family="economy")
 def _demand_totals(call: Call) -> Any:
     name, measure, by = call.arg(0), call.arg(1), call.arg(2)
     return totals(call.scope.world, str(name), str(measure), None if by is None else str(by), call.source)
@@ -395,6 +395,6 @@ def stock_balance(world: Any, name: str, where: str) -> float:
 
 
 @function("stock_conserved(mechanism)", "True while a demand mechanism's stock equals its starting stock plus every "
-          "recorded flow in and out (sales, returns, receive and remove).", min_args=1, max_args=1)
+          "recorded flow in and out (sales, returns, receive and remove).", min_args=1, max_args=1, family="economy")
 def _stock_conserved(call: Call) -> bool:
     return abs(stock_balance(call.scope.world, str(call.arg(0)), call.source)) < EPS

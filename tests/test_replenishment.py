@@ -224,4 +224,4 @@ def test_the_guide_documents_demand_and_replenishment_with_their_actions_and_fun
     everything = fg_env.guide("all")
     for fn in ("$demand_totals(", "$replenishment_totals(", "$stock_conserved("):
         assert fn in everything
-    assert "supply_chain, demand, replenishment |" in fg_env.guide()
+    assert "supply_chain, demand, replenishment, queue |" in fg_env.guide()

@@ -294,7 +294,7 @@ def _size(call: Call, index: int) -> int:
 @function("poker_rank(cards)",
           "The best 5-card poker hand among the cards (e.g. 2 hole cards + 5 on the board): {score, category, "
           "level, name, ranks, best}. A higher score is a better hand; equal scores split.",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="game")
 def _poker_rank_function(call: Call) -> dict[str, Any]:
     return _guard(call, lambda: poker_rank(call.arg(0)))
 
@@ -302,26 +302,26 @@ def _poker_rank_function(call: Call) -> dict[str, Any]:
 @function("poker_hand(hole, board)",
           "What a player's hole cards make with the board, in words: the hand, and whether it uses the hole cards "
           "(\"two pair, kings and sevens, using both hole cards\") or is on the board, shared by everyone.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="game")
 def _poker_hand_function(call: Call) -> str:
     return str(_guard(call, lambda: poker_hand(call.arg(0), call.arg(1))))
 
 
 @function("blackjack_value(cards)", "Blackjack total of the cards: aces 11 unless that busts, faces 10.",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="game")
 def _blackjack_value_function(call: Call) -> int:
     return int(_guard(call, lambda: blackjack(call.arg(0)))["total"])
 
 
 @function("blackjack_soft(cards)", "True when the blackjack total counts an ace as 11 (a soft total).",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="game")
 def _blackjack_soft_function(call: Call) -> bool:
     return bool(_guard(call, lambda: blackjack(call.arg(0)))["soft"])
 
 
 @function("sets(cards, size?)",
           "Groups (lists) of at least `size` (default 3) cards of one rank, for rummy-like games.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="game")
 def _sets_function(call: Call) -> list[list[Any]]:
     size = _size(call, 1)
     return _guard(call, lambda: sets(call.arg(0), size))
@@ -330,7 +330,7 @@ def _sets_function(call: Call) -> list[list[Any]]:
 @function("runs(cards, size?)",
           "Runs (lists) of at least `size` (default 3) consecutive ranks in one suit, longest first; an ace is high or "
           "low.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="game")
 def _runs_function(call: Call) -> list[list[Any]]:
     size = _size(call, 1)
     return _guard(call, lambda: runs(call.arg(0), size))
@@ -339,13 +339,13 @@ def _runs_function(call: Call) -> list[list[Any]]:
 @function("trick_winner(cards, lead_suit?, trump?)",
           "The card winning a trick (cards in play order): highest trump, else highest of the suit led "
           "(default: the first card's suit). Its `played_by` is the player who played it.",
-          min_args=1, max_args=3)
+          min_args=1, max_args=3, family="game")
 def _trick_winner_function(call: Call) -> Any:
     return _guard(call, lambda: trick_winner(call.arg(0), call.arg(1) or None, call.arg(2) or None))
 
 
 @function("follow_suit(hand, lead_suit)",
           "The cards of `hand` that follow the suit led, or the whole hand when it has none of that suit "
-          "(or nothing was led).", min_args=2, max_args=2)
+          "(or nothing was led).", min_args=2, max_args=2, family="game")
 def _follow_suit_function(call: Call) -> list[Any]:
     return _guard(call, lambda: follow_suit(call.arg(0), call.arg(1) or None))

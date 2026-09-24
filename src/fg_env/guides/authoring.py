@@ -119,11 +119,10 @@ Every section is optional except `name` and `types`. `guide('<section>')` has ea
 | `end` | `[{when, winner, say, check: stage or action}]` |
 | `metrics`, `outputs` | `{name: expr}` or `{name: {expr, type}}`; an output's `format` (money, pct, 2 …) shapes summaries |
 | `invariants` | `[expr or {expr, why}]` — must always hold |
-| `patterns` | `{name: {kind, …}}` — trends, seasons, random paths, draws; read `$pattern.name` |
-| `mechanisms` | `{name: {kind, mode, ...}}` — markets, auctions, ballots, hidden roles, queues …; `guide('mechanisms')` |
+| `mechanisms` | `{name: {kind, mode, ...}}` — markets, ballots, hidden roles, queues, physics, patterns (`{kind: pattern, mode: trend, …}`, read `$pattern.name`) …; `guide('mechanisms')` |
 | `policies` | `{name: {rules: [{when, do, with}]}}` — coded participants for baselines (`policy:<name>`) |
 
-Also: `assets`, `game`, `space`, `relations`, `links`, `physics`, `feeds`, `arms`, `calibration`,
+Also: `assets`, `game`, `space`, `relations`, `links`, `arms`, `calibration`,
 `defs`, `blocks`, `imports`. Property types: number int bool text enum list map any. Without `type` the default
 decides: a number → `number` (fractions too; `"type": "int"` for whole numbers), true/false → `bool`, text → `text`
 (`enum` with `values`), a list or object → `list`/`map`, an expression → `any`. Inputs also take `table` (rows with
@@ -139,9 +138,9 @@ A string with `$name` in it is an expression; other strings are text.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not`, `in`, `a if cond else b`, lists `[1, 2]`, maps
   `{price: 3}`, indexing `$list[0]`. Bare words are text: `$actor.role == wolf`. Compare with `==`, never `=`.
 * Functions always take `$`: `$count(buyer, $it.cash > 0)`, `$sum(player, $it.coins)`, `$avg`, `$min`, `$max`,
-  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.coins)`,
-  `$top(offer, $it.price, 3)`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
-  `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)`, `$round(x, 2)`, `$floor`, `$clamp`.
+  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.cash)`,
+  `$top(offer, $it.price, 3)`/`$sort`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
+  `$records`, `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice`, `$round(x, 2)`, `$floor`, `$clamp`.
   `$min` `$max` `$sum` `$avg` take a collection and a value (`$min(stand, $it.price)`) or a list; `$min` and
   `$max` also take numbers (`$min(3, $x)`).
 * Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject

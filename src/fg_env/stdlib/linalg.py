@@ -1,8 +1,8 @@
-"""Linear algebra on nested lists (a matrix is a list of equal-length rows) and correlated normal draws.
+"""Correlated normal draws ($mvnormal), and the matrix helpers behind them and the tournament ratings: Cholesky
+factors of a covariance matrix and Gauss–Jordan elimination (a matrix is a list of equal-length rows).
 
-Work is charged before it is done: reading a matrix costs one step per element, a product costs
-n·m·p, and elimination costs n³, so a huge matrix meets the work budget instead of stalling a run.
-Whole-number determinants are exact (fraction-free elimination); everything else is floating point.
+Work is charged before it is done: reading a matrix costs one step per element and a factorisation n³, so a huge
+matrix meets the work budget instead of stalling a run.
 """
 from __future__ import annotations
 
@@ -10,8 +10,8 @@ import math
 from collections.abc import Sequence
 from typing import Any
 
-from ..expr import MAX_INT_BITS, MAX_LIST_LEN, Call, _describe, charge, function
-from ._args import check_len, fail, int_arg, list_arg
+from ..expr import Call, _describe, charge, function
+from ._args import check_len, fail, list_arg
 
 Matrix = list[list[Any]]
 
@@ -35,10 +35,6 @@ def _vector(call: Call, index: int, what: str) -> list[Any]:
     if not values:
         raise fail(call, f"{what} is empty")
     return [_number(call, v, f"{what}: item {i}") for i, v in enumerate(values)]
-
-
-def _is_matrix(value: Any) -> bool:
-    return isinstance(value, (list, tuple)) and bool(value) and isinstance(value[0], (list, tuple))
 
 
 def _matrix(call: Call, index: int, what: str) -> Matrix:
@@ -70,68 +66,6 @@ def _shape(matrix: Matrix) -> str:
     return f"{len(matrix)}×{len(matrix[0])}"
 
 
-def _scale(matrix: Matrix) -> float:
-    return max((abs(v) for row in matrix for v in row), default=0.0)
-
-
-@function("dot(xs, ys)",
-          "Inner product of two equal-length lists of numbers: Σ xs[i] × ys[i] (use $matmul for matrices).",
-          min_args=2, max_args=2)
-def _dot(call: Call) -> Any:
-    if _is_matrix(call.arg(0)) or _is_matrix(call.arg(1)):
-        raise fail(call, "takes two lists of numbers; use $matmul to multiply matrices")
-    xs, ys = _vector(call, 0, "xs"), _vector(call, 1, "ys")
-    if len(xs) != len(ys):
-        raise fail(call, f"xs and ys must be the same length, got {len(xs)} and {len(ys)}")
-    if all(isinstance(v, int) for v in xs + ys):
-        return sum(x * y for x, y in zip(xs, ys))
-    return math.fsum(x * y for x, y in zip(xs, ys))
-
-
-def _product(a: Matrix, b: Matrix) -> Matrix:
-    columns = list(zip(*b))
-    exact = all(isinstance(v, int) for row in a for v in row) and all(isinstance(v, int) for row in b for v in row)
-    total = sum if exact else math.fsum
-    return [[total(x * y for x, y in zip(row, column)) for column in columns] for row in a]
-
-
-@function("matmul(a, b)", "Matrix product a × b. A plain list is a column on the right (matrix × list → list) "
-          "or a row on the left (list × matrix → list).", min_args=2, max_args=2)
-def _matmul(call: Call) -> Any:
-    left_matrix, right_matrix = _is_matrix(call.arg(0)), _is_matrix(call.arg(1))
-    if not left_matrix and not right_matrix:
-        raise fail(call, "needs at least one matrix; use $dot for two lists")
-    a = _matrix(call, 0, "a") if left_matrix else [_vector(call, 0, "a")]
-    b = _matrix(call, 1, "b") if right_matrix else [[v] for v in _vector(call, 1, "b")]
-    if len(a[0]) != len(b):
-        left = _shape(a) if left_matrix else f"a list of {len(a[0])}"
-        right = _shape(b) if right_matrix else f"a list of {len(b)}"
-        raise fail(call, f"cannot multiply {left} by {right}: the columns of a ({len(a[0])}) "
-                         f"must equal the rows of b ({len(b)})")
-    check_len(call, len(a) * len(b[0]), "product")
-    charge(len(a) * len(b) * len(b[0]), call.source)
-    product = _product(a, b)
-    if not left_matrix:
-        return product[0]
-    if not right_matrix:
-        return [row[0] for row in product]
-    return product
-
-
-@function("transpose(matrix)", "The matrix with rows and columns swapped: an n×m matrix becomes m×n.",
-          min_args=1, max_args=1)
-def _transpose(call: Call) -> Matrix:
-    matrix = _matrix(call, 0, "the matrix")
-    return [list(column) for column in zip(*matrix)]
-
-
-@function("identity(n)", "The n×n identity matrix (1 on the diagonal, 0 elsewhere).", min_args=1, max_args=1)
-def _identity(call: Call) -> Matrix:
-    n = int_arg(call, 0, low=1, high=MAX_LIST_LEN, what="the size n")
-    check_len(call, n * n, "identity matrix")
-    return [[1 if r == c else 0 for c in range(n)] for r in range(n)]
-
-
 def eliminate(matrix: Sequence[Sequence[float]], extra: Sequence[Sequence[float]]) -> list[list[float]] | None:
     """Solve ``matrix`` × X = ``extra`` (square ``matrix``, ``extra`` with one row per row of it) by Gauss–Jordan
     elimination with partial pivoting. ``None`` when ``matrix`` is singular. No budget: callers charge the work."""
@@ -150,84 +84,6 @@ def eliminate(matrix: Sequence[Sequence[float]], extra: Sequence[Sequence[float]
             if r != col and factor != 0.0:
                 rows[r] = [v - factor * p for v, p in zip(rows[r], rows[col])]
     return [row[n:] for row in rows]
-
-
-def _eliminate(call: Call, matrix: Matrix, extra: Matrix, what: str) -> list[list[float]]:
-    charge(len(matrix) ** 2 * (len(matrix) + len(extra[0])), call.source)
-    solved = eliminate(matrix, extra)
-    if solved is None:
-        raise fail(call, f"{what} is singular (its rows are linearly dependent), so there is no unique answer")
-    return solved
-
-
-@function("inverse(matrix)", "The inverse of a square matrix (error when it is singular).", min_args=1, max_args=1)
-def _inverse(call: Call) -> Matrix:
-    matrix = _square(call, 0, "the matrix")
-    n = len(matrix)
-    return _eliminate(call, matrix, [[1.0 if r == c else 0.0 for c in range(n)] for r in range(n)], "the matrix")
-
-
-@function("linsolve(a, b)",
-          "x such that a × x = b, for a square matrix a and a list b (or a matrix b, solved column by column).",
-          min_args=2, max_args=2)
-def _linsolve(call: Call) -> Any:
-    a = _square(call, 0, "a")
-    columns = _is_matrix(call.arg(1))
-    b = _matrix(call, 1, "b") if columns else [[v] for v in _vector(call, 1, "b")]
-    if len(b) != len(a):
-        raise fail(call,
-                   f"b must have {len(a)} {'rows' if columns else 'numbers'} to match a ({_shape(a)}), got {len(b)}")
-    solved = _eliminate(call, a, b, "a")
-    return solved if columns else [row[0] for row in solved]
-
-
-def _exact_det(call: Call, matrix: Matrix) -> int:
-    """Bareiss fraction-free elimination: every intermediate value is a minor, so it stays a whole number."""
-    rows = [list(row) for row in matrix]
-    n, sign, previous = len(rows), 1, 1
-    for k in range(n - 1):
-        if rows[k][k] == 0:
-            swap = next((r for r in range(k + 1, n) if rows[r][k] != 0), None)
-            if swap is None:
-                return 0
-            rows[k], rows[swap], sign = rows[swap], rows[k], -sign
-        for i in range(k + 1, n):
-            for j in range(k + 1, n):
-                value = (rows[i][j] * rows[k][k] - rows[i][k] * rows[k][j]) // previous
-                if value.bit_length() > MAX_INT_BITS:
-                    raise fail(call, f"the determinant is past the limit of {MAX_INT_BITS:,} bits")
-                rows[i][j] = value
-        previous = rows[k][k]
-    return sign * rows[n - 1][n - 1]
-
-
-@function("det(matrix)", "Determinant of a square matrix (exact for whole numbers; 0 when singular).",
-          min_args=1, max_args=1)
-def _det(call: Call) -> Any:
-    matrix = _square(call, 0, "the matrix")
-    n = len(matrix)
-    charge(n ** 3, call.source)
-    if all(isinstance(v, int) for row in matrix for v in row):
-        return _exact_det(call, matrix)
-    tolerance = SINGULAR_TOLERANCE * n * _scale(matrix)
-    rows = [[float(v) for v in row] for row in matrix]
-    det = 1.0
-    for col in range(n):
-        pivot = max(range(col, n), key=lambda r: abs(rows[r][col]))
-        if abs(rows[pivot][col]) <= tolerance:
-            return 0.0
-        if pivot != col:
-            rows[col], rows[pivot] = rows[pivot], rows[col]
-            det = -det
-        lead = rows[col][col]
-        det *= lead
-        for r in range(col + 1, n):
-            factor = rows[r][col] / lead
-            if factor != 0.0:
-                rows[r] = [v - factor * p for v, p in zip(rows[r], rows[col])]
-    if not math.isfinite(det):
-        raise fail(call, "the determinant is too large to represent")
-    return det
 
 
 def cholesky(cov: Matrix) -> tuple[list[list[float]], str]:

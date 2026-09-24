@@ -41,7 +41,7 @@ def check_feeds(checker: _Checker, base: frozenset[str]) -> None:
     """Feeds: a host name, a declared target, and valid expressions for query, when and fallback."""
     contract = checker.c
     for name, spec in contract.feeds.items():
-        path = f"feeds.{name}"
+        path = f"mechanisms.{name}"
         if not _FIELD_NAME.match(name):
             checker.error(path, "feed names are letters, digits and underscores")
         if not spec.host.strip():
@@ -128,25 +128,26 @@ def check_physics_state(checker: _Checker, base: frozenset[str]) -> None:
     for name, var in spec.vars.items():
         if var.noise is None:
             continue
-        path = f"physics.vars.{name}.noise"
+        path = f"mechanisms.physics.vars.{name}.noise"
         if var.rate is None:
             checker.error(path, "noise needs a rate", "give the variable a rate (\"0\" for pure noise)")
         checker._physics_expr(var.noise, path, world_names | MATH_NAMES)
     for type_name, dynamics in spec.per.items():
-        if checker._type(type_name, f"physics.per.{type_name}"):
+        if checker._type(type_name, f"mechanisms.physics.per.{type_name}"):
             _entity_dynamics(checker, type_name, dynamics, world_names, base)
     for type_name, dynamics in spec.per.items():
         for other, other_dynamics in spec.per.items():
             if other == type_name or type_name not in checker.c.types or not checker.c.is_a(type_name, other):
                 continue
             for shared in sorted(set(dynamics.vars) & set(other_dynamics.vars)):
-                checker.error(f"physics.per.{type_name}.vars.{shared}", f"is also integrated by physics.per.{other}, "
-                              f"which covers every {type_name}", f"integrate {shared} in one of the two")
+                checker.error(f"mechanisms.physics.per.{type_name}.vars.{shared}",
+                              f"is also integrated by mechanisms.physics.per.{other}, which covers every {type_name}",
+                              f"integrate {shared} in one of the two")
 
 
 def _entity_dynamics(checker: _Checker, type_name: str, dynamics: EntityDynamics, world_names: set[str],
                      base: frozenset[str]) -> None:
-    path = f"physics.per.{type_name}"
+    path = f"mechanisms.physics.per.{type_name}"
     props = checker.c.props_of(type_name)
     numbers = {name for name, spec in props.items() if prop_type(spec) in ("number", "int")} - MATH_NAMES
     meanings: dict[str, list[str]] = {}

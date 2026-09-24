@@ -83,9 +83,9 @@ class World:
 
     def call_def(self, name: str, args: list[Any], source: str, viewer: Any = None) -> Any:
         """Call a contract-defined function (``defs``), which sees the caller's ``viewer``. The empty world has none."""
-        from .calls import FUNCTIONS, suggest_function
+        from .calls import callable_names, suggest_function
 
-        hint = suggest_function(name, list(FUNCTIONS))
+        hint = suggest_function(name, callable_names(()))
         raise ExprError(f"unknown function ${name}" + (f" — did you mean {hint}?" if hint else ""), source)
 
 

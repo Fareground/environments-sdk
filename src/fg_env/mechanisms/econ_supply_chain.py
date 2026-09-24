@@ -170,7 +170,7 @@ def _pipeline(world: Any, name: str, node_id: str) -> list[int]:
 
 
 @function("pipeline(agent, chain)", "Units on their way to a node of a supply chain, slot 0 arriving next round.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _pipeline_fn(call: Call) -> list[int]:
     world: Any = call.scope.world
     agent = maybe_entity(world, call.arg(0))
@@ -180,7 +180,7 @@ def _pipeline_fn(call: Call) -> list[int]:
 
 
 @function("pipeline_text(agent, chain)", "Units on their way to a node, in words: '4 next round, 8 in 2 rounds'.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _pipeline_text(call: Call) -> str:
     world: Any = call.scope.world
     agent = maybe_entity(world, call.arg(0))

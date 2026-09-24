@@ -24,7 +24,7 @@ CENTRE = {
         "calls": {"kind": "product", "scale": 55, "of": ["hours", "weekday"]},
         "outage": {"kind": "lifecycle", "start": "2026-09-14T09:00", "before": 1, "peak": "1 + $inputs.surge",
                    "floor": 1, "half_life": 60}},
-    "mechanisms": {"centre": {"kind": "operations", "mode": "queue",
+    "mechanisms": {"centre": {"kind": "economy", "mode": "queue",
                               "channels": {"calls": {"arrivals": "$pattern.calls * $pattern.outage",
                                                      "service": {"mean": 240}, "patience": {"mean": 180},
                                                      "threshold": 20, "target": 0.75}},

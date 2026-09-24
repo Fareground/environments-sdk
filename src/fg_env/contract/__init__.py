@@ -14,6 +14,7 @@ from typing import Any
 
 from pydantic import Field, PrivateAttr, model_validator
 
+from ..registry import config_data, parsed
 from .assets import AssetSpec
 from .base import (
     CONTRACT_VERSION,
@@ -178,14 +179,6 @@ class Contract(_Model):
     population: list[PopulationSpec] = Field(default_factory=list)
     relations: dict[str, RelationSpec] = Field(default_factory=dict)
     links: list[LinkSpec] = Field(default_factory=list)
-    physics: PhysicsSpec | None = None
-    feeds: dict[str, FeedSpec] = Field(default_factory=dict,
-                                       description="External data written into world props or records, answered by "
-                                                   "host adapters.")
-    patterns: dict[str, dict[str, Any]] = Field(
-        default_factory=dict,
-        description="Named patterns of the world — trends, seasons, responses, random processes, draws — read as "
-                    "$pattern.<name>; see the guide's patterns part.")
     records: dict[str, RecordSpec] = Field(default_factory=dict)
     actions: dict[str, ActionSpec] = Field(default_factory=dict)
     stages: list[StageSpec] = Field(default_factory=list)
@@ -218,13 +211,12 @@ class Contract(_Model):
 
     @model_validator(mode="before")
     @classmethod
-    def _feed_tape(cls, data: Any) -> Any:
-        """Feeds and described assets record their answers on the host tape, so such a contract declares it."""
+    def _asset_tape(cls, data: Any) -> Any:
+        """Described assets record their answers on the host tape, so such a contract declares it."""
         world = data.get("world") if isinstance(data, dict) else None
         assets = data.get("assets") if isinstance(data, dict) else None
         described = isinstance(assets, dict) and any(isinstance(a, dict) and a.get("describe") for a in assets.values())
-        if (isinstance(data, dict) and (data.get("feeds") or described) and isinstance(world or {}, dict)
-            and TAPE not in (world or {})):
+        if isinstance(data, dict) and described and isinstance(world or {}, dict) and TAPE not in (world or {}):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
         return data
 
@@ -279,6 +271,39 @@ class Contract(_Model):
 
     def agent_types(self) -> list[str]:
         return [name for name in self.types if self.is_agent(name)]
+
+    # -- mechanisms the engine reads as sections ---------------------------------
+
+    def _mechanisms_of(self, kind: str, mode: str | None = None) -> list[tuple[str, dict[str, Any]]]:
+        return [(name, use) for name, use in self.mechanisms.items()
+                if use.get("kind") == kind and (mode is None or use.get("mode") == mode)]
+
+    @property
+    def physics(self) -> PhysicsSpec | None:
+        """The continuous dynamics: the config of the `physics` mechanism (kind `dynamics`, mode `ode`), if any."""
+        found = self._mechanisms_of("dynamics", "ode")
+        return parsed(found[0][1], PhysicsSpec) if found else None
+
+    @property
+    def feeds(self) -> dict[str, FeedSpec]:
+        """External data by name: the config of every `host.feed` mechanism."""
+        return {name: parsed(use, FeedSpec) for name, use in self._mechanisms_of("host", "feed")}
+
+    @property
+    def patterns(self) -> dict[str, dict[str, Any]]:
+        """The world's patterns by name, each as its kind's data (``{"kind": <its mode>, ...}``): every `pattern`
+        mechanism."""
+        return {name: {"kind": use.get("mode"), **config_data(use)} for name, use in self._mechanisms_of("pattern")}
+
+    def run_by_engine(self) -> list[str]:
+        """The mechanisms the engine itself runs from their config each round, which expand into nothing: the
+        physics and every feed. Their expressions are rules like any event's."""
+        return [name for name, use in self.mechanisms.items()
+                if (use.get("kind"), use.get("mode")) in (("dynamics", "ode"), ("host", "feed"))]
+
+    def mechanism_families(self) -> frozenset[str]:
+        """The families of the declared mechanisms: a family's functions can be called only beside one of them."""
+        return frozenset(str(use["kind"]) for use in self.mechanisms.values() if isinstance(use.get("kind"), str))
 
     def stage_list(self) -> list[StageSpec]:
         """Declared stages, or the default single stage where every action is available."""

@@ -24,12 +24,12 @@ ellipsis = "…"
 
 
 def raw_model_ids(data: Mapping[str, Any]) -> list[Issue]:
-    """Warnings for host mechanisms (``kind`` host or mind) whose `model` hint is a provider's model id: the operator's
+    """Warnings for host mechanisms (``kind`` host) whose `model` hint is a provider's model id: the operator's
     host decides which model answers, and maps a contract's hint only when told to."""
     issues: list[Issue] = []
     uses = data.get("mechanisms")
     for name, use in uses.items() if isinstance(uses, Mapping) else ():
-        if isinstance(use, Mapping) and use.get("kind") in ("host", "mind"):
+        if isinstance(use, Mapping) and use.get("kind") == "host":
             _raw_models(use, f"mechanisms.{name}", issues)
     return issues
 

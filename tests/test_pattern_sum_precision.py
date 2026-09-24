@@ -61,7 +61,7 @@ def test_nonrepresentable_sums_and_weighted_terms_have_actionable_errors(terms, 
     result = fg_env.load(c).run()
     assert not result.ok
     issue = next(i for i in result.output_issues if i['path'] == 'outputs.net')
-    assert message in issue['message'] and 'patterns.net' in issue['message']
+    assert message in issue['message'] and 'mechanisms.net' in issue['message']
     json.dumps(result.to_dict(), allow_nan=False)
 
 

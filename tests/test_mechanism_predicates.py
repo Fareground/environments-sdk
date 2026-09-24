@@ -1,9 +1,8 @@
 """Mechanism predicates have expression semantics even without $ references."""
 import copy
-import json
 
 import pytest
-from test_mech_dynamics import ARENA, MAGES, _script
+from test_mech_dynamics import ARENA
 
 import fg_env
 
@@ -35,7 +34,7 @@ def test_production_requirement_controls_actual_production(condition, allowed):
 @pytest.mark.parametrize('condition,advance', CONDITIONS)
 def test_procedure_transition_respects_constant_condition(condition, advance):
     c = {'name': 'Approval gate', 'clock': {'rounds': 3}, 'types': {'item': {}},
-         'mechanisms': {'review': {'kind': 'flow', 'mode': 'procedure', 'phases': {
+         'mechanisms': {'review': {'kind': 'decision', 'mode': 'procedure', 'phases': {
              'pending': {'next': [{'to': 'approved', 'when': condition}]}, 'approved': {}}}}}
     env = fg_env.load(c, seed=1)
     result = env.run()
@@ -48,27 +47,12 @@ def test_status_unless_controls_application(condition, immune):
     c = copy.deepcopy(ARENA)
     c['clock'] = {'rounds': 1}
     c['mechanisms']['conditions']['statuses']['curse']['unless'] = condition
-    c['events'] = [{'at': 1, 'do': [{'conditions': 'conditions', 'action': 'apply',
+    c['events'] = [{'at': 1, 'do': [{'game': 'conditions', 'action': 'apply',
                                    'status': 'curse', 'who': '$entity(ann)'}]}]
     env = fg_env.load(c, seed=1)
     result = env.run(rounds=1)
     assert result.ok, result.error
     assert ('curse' in env.entity('ann')['props']['conditions']) is not immune
-
-
-@pytest.mark.parametrize('condition,interrupt', CONDITIONS)
-def test_channel_interrupt_controls_pending_resolution_and_restore(condition, interrupt):
-    c = copy.deepcopy(MAGES)
-    c['clock'] = {'rounds': 3}
-    c['mechanisms']['spells']['actions']['meteor']['interrupt'] = condition
-    play = _script({('ann', 1): [('meteor', {'target': 'bob', 'power': 1})]})
-    env = fg_env.load(c, seed=1)
-    env.run(play, rounds=1)
-    restored = fg_env.Env.restore(c, json.loads(json.dumps(env.snapshot())))
-    result = env.run(play, rounds=2)
-    assert result.ok, result.error
-    assert env.entity('bob')['props']['hp'] == (50 if interrupt else 40)
-    assert result.to_dict() == restored.run(play, rounds=2).to_dict()
 
 
 @pytest.mark.parametrize('condition,enabled', CONDITIONS)

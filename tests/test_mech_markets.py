@@ -267,17 +267,15 @@ def test_conservation_can_be_checked_after_every_action_every_round_or_at_the_en
 
 
 def test_a_crowd_trades_on_its_book_but_is_not_one_of_the_traders_other_mechanisms_count():
-    """Coded crowd traders are `<book>_crowd`, beside `who` rather than under it: a ballot's quorum, a victory's
-    candidates and a channel's members are the declared traders only, while the crowd still trades (and conserves) on
-    the book."""
+    """Coded crowd traders are `<book>_crowd`, beside `who` rather than under it: a ballot's quorum and the candidates
+    for a winner are the declared traders only, while the crowd still trades (and conserves) on the book."""
     contract = {**CROWD, "clock": {"rounds": 3},
                 "types": {"trader": {"agent": True, "props": {"cash": 0, "mood": "calm"}}},
                 "mechanisms": {**CROWD["mechanisms"],
                                "fee": {"kind": "decision", "mode": "ballot", "who": "trader",
-                                       "options": ["cut", "keep"], "quorum": 0.5, "when": "$round == 2"},
-                               "chat": {"kind": "social", "mode": "channels", "who": "trader"},
-                               "win": {"kind": "flow", "mode": "victory", "who": "trader",
-                                       "conditions": [{"most": "$it.cash + $it.acme_shares * $book(acme).last"}]}},
+                                       "options": ["cut", "keep"], "quorum": 0.5, "when": "$round == 2"}},
+                "end": [{"when": "$round == 3",
+                         "winner": "$best(trader, $it.cash + $it.acme_shares * $book(acme).last)"}],
                 "outputs": {"fee": "$world.fee_result"}}
     env = fg_env.load(contract, seed=3)
     crowd = [e for e in env.world.entities.values() if e.entity_type != "trader"]
@@ -294,7 +292,7 @@ def test_a_crowd_trades_on_its_book_but_is_not_one_of_the_traders_other_mechanis
     result = env.run({"trader": everyone_votes})  # the crowd keeps its coded policy
     assert result.status == "ended", result.error
     assert result.outputs["fee"]["decided"] and result.outputs["fee"]["turnout"] == 1
-    assert result.winner and {env.world.entities[w].entity_type for w in result.winner} == {"trader"}
+    assert env.world.entities[result.winner].entity_type == "trader"
     assert result.outputs["acme_trades"] > 0 and not order_book.audit(env.world, "acme")
 
 

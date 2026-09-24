@@ -61,21 +61,8 @@ def test_an_unnamed_read_of_several_mechanisms_names_them():
                "committee, floor)" in e for e in issues(wrong))
 
 
-def test_two_channel_networks_keep_their_messages_apart():
-    contract = _with(town={"kind": "social", "mode": "channels", "who": "member", "rooms": ["plaza"]},
-                     backroom={"kind": "social", "mode": "channels", "who": "committee_member", "rooms": ["lobby"]})
-    assert errors(contract) == []
-    env = fg_env.load(contract, seed=1)
-    c2 = env.world.entities["c2"]
-    assert ev(env, "$channels($actor, 'town')", actor=c2) == ["plaza"]
-    assert ev(env, "$channels($actor, 'backroom')", actor=c2) == ["lobby"]
-    assert do(env, "c1", [{"social": "backroom", "action": "say", "channel": "lobby", "text": "a quiet word"}])
-    assert ev(env, "$unread('c2', null, 'backroom')") == 1 and ev(env, "$unread('c2', null, 'town')") == 0
-    assert fg_env.load(contract, seed=2).run("random").status == "completed"
-
-
 def test_two_mechanisms_generating_one_name_is_an_error_naming_both():
-    memory = {"kind": "mind", "mode": "memory", "who": "member"}
+    memory = {"kind": "host", "mode": "memory", "who": "member"}
     assert any("'m1' and 'm2' both generate actions 'note'" in e for e in errors(_with(m1=memory, m2=memory)))
     assert errors(_with(m1=memory, m2={**memory, "note": "jot", "recall": "search"})) == []
 
@@ -118,5 +105,5 @@ def test_a_mechanism_named_like_another_ones_records_is_an_error_naming_both():
     contract = {"name": "Clash", "clock": {"rounds": 2}, "types": {"trader": {"agent": True, "props": {"cash": 100}}},
                 "entities": {"t1": {"type": "trader"}},
                 "mechanisms": {"a": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 5},
-                               "a_tape": {"kind": "social", "mode": "channels", "who": "trader"}}}
+                               "a_tape": {"kind": "decision", "mode": "deliberation", "who": "trader"}}}
     assert any("'a' and 'a_tape' both generate records 'a_tape'" in e for e in errors(contract))

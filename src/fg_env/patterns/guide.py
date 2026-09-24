@@ -14,7 +14,7 @@ from .base import GROUPS, KINDS, PatternConfig
 __all__ = ["patterns_page"]
 
 _INTRO = """\
-## `patterns`: {name: {kind, …}}
+## Patterns: `"mechanisms": {name: {"kind": "pattern", "mode": <kind>, …}}`
 
 The world's own regularities, declared once like its physics and read anywhere as values: a season, a trend, how
 demand answers price, a random walk, a draw per customer, noisy counts, an effect that carries over. Write
@@ -43,7 +43,7 @@ when it has keys: `$pattern.season($it.category)`, `$pattern.sales($mean, $it)`.
 * State that agents and events change is not a pattern: keep it in props written by events or `physics`, which read
   patterns (`"$it.trust += $pattern.trust_noise($it)"`)."""  # noqa: E501 — guide text: each line is shown as written
 
-_EXAMPLES = {
+_EXAMPLES: dict[str, dict[str, dict[str, Any]]] = {
     "time": {"season": {"kind": "seasonal", "period": "year", "table": "$inputs.categories", "column": "category",
                         "profile": "$row.profile"},
              "growth": {"kind": "trend", "form": "exponential", "rate": "$inputs.growth"}},
@@ -142,14 +142,19 @@ def patterns_page() -> str:
     lines = [_INTRO, "", _FITTING, "", "### Groups", ""]
     for group, about in GROUPS.items():
         kinds = [name for name, spec in KINDS.items() if spec.group == group]
-        example = json.dumps(_EXAMPLES[group], ensure_ascii=False)
+        example = json.dumps({name: _declared(spec) for name, spec in _EXAMPLES[group].items()}, ensure_ascii=False)
         lines += [f"**{group}** — {about}: " + ", ".join(f"`{k}`" for k in kinds) + ".",
-                  f"`\"patterns\": {example}` · read {_READS[group]}", ""]
+                  f"`\"mechanisms\": {example}` · read {_READS[group]}", ""]
     lines += ["### Kinds", ""]
     for group in GROUPS:
         for name, spec in KINDS.items():
             if spec.group != group:
                 continue
             lines += [f"#### `{name}` ({group}, {spec.shape})", "", spec.doc, "", f"Read: {_call(spec)}. Example: "
-                      f"`{json.dumps(spec.example, ensure_ascii=False)}`", *_fields(spec.model), ""]
+                      f"`{json.dumps(_declared(spec.example), ensure_ascii=False)}`", *_fields(spec.model), ""]
     return "\n".join(lines).rstrip()
+
+
+def _declared(spec: dict[str, Any]) -> dict[str, Any]:
+    """A pattern's config as it is declared: a mechanism of kind `pattern` whose mode is the pattern's kind."""
+    return {"kind": "pattern", "mode": spec["kind"], **{k: v for k, v in spec.items() if k != "kind"}}

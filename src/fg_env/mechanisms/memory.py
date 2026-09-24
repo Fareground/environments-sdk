@@ -36,7 +36,7 @@ CHARS_PER_TOKEN = 4
 MAX_ENTRY_CHARS = 2000
 #: Most recent memories a reflection reads.
 REFLECTION_WINDOW = 20
-MEMORY = "mind.memory"
+MEMORY = "host.memory"
 RECAP = "host.recap"
 _STOP = frozenset("a an and are as at be but by did do for from had has have he her his i if in into is it its "
                   "me my no not of on or our she so than that the their them then there they this to was we "
@@ -104,7 +104,7 @@ class MemoryConfig(BaseModel):
         return self.weights.get(key, DEFAULT_WEIGHTS[key])
 
 
-@mode("mind", "memory", MemoryConfig,
+@mode("host", "memory", MemoryConfig,
            "Per-agent memory: each round what the agent did and read is remembered, plus `note(text)` entries "
            "and optional host reflections; importance fades with `half_life`. `recall(query)` returns the most "
            "relevant memories (lexical, or host-scored) and strengthens them; a view shows the strongest within "
@@ -131,13 +131,13 @@ def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any])
         actions[config.note] = {
             "by": by, "description": "Write a note to your future self. Only you can read it; it stays in your memory.",
             "params": {"text": {"type": "text", "max_len": config.max_chars, "description": "The note."}},
-            "private": True, "do": [{"mind": name, "action": "note", "text": "$params.text"}], "outcome": "Noted."}
+            "private": True, "do": [{"host": name, "action": "note", "text": "$params.text"}], "outcome": "Noted."}
     if config.recall:
         actions[config.recall] = {
             "by": by,
             "description": "Search your memory for what bears on a question; returns the most relevant memories.",
             "params": {"query": {"type": "text", "max_len": 300, "description": "What you want to remember."}},
-            "private": True, "do": [{"mind": name, "action": "recall", "query": "$params.query"}],
+            "private": True, "do": [{"host": name, "action": "recall", "query": "$params.query"}],
             "outcome": f"{{$actor.{name}_recalled}}"}
     if config.stages and actions:
         condition = {"expr": f"$stage in {json.dumps(config.stages)}", "why": "Not available now."}
@@ -146,11 +146,11 @@ def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any])
         fragment["stage_hooks"] = {stage: {"actions": list(actions)} for stage in config.stages}
     if config.capture:
         fragment["events"].append({"name": f"{name}_capture", "phase": "end",
-                                   "do": [{"mind": name, "action": "capture"}]})
+                                   "do": [{"host": name, "action": "capture"}]})
     if config.reflect_every:
         fragment["events"].append({"name": f"{name}_reflect", "phase": "end",
                                    "when": f"$round % {config.reflect_every} == 0",
-                                   "do": [{"mind": name, "action": "reflect"}]})
+                                   "do": [{"host": name, "action": "reflect"}]})
     if config.views:
         fragment["views"][name] = {"for": by, "title": "From your memory", "of": f"$memories($actor, '{name}')",
                                    "show": "{$it.label}: {$it.text}"}
@@ -241,7 +241,7 @@ def _relevance(world: Any, name: str, config: MemoryConfig, agent: Entity, query
     return ranked
 
 
-# -- the mind op's memory actions ----------------------------------------------------------
+# -- the host op's memory actions ----------------------------------------------------------
 
 
 def _actor(vars: dict[str, Any], action: str, where: str) -> Entity:
@@ -251,14 +251,14 @@ def _actor(vars: dict[str, Any], action: str, where: str) -> Entity:
     return actor
 
 
-@family_action("mind", ("memory",), "capture", internal=True,
-               example='{"mind": "memory", "action": "capture"}  (remember what each agent did and read since the last '
+@family_action("host", ("memory",), "capture", internal=True,
+               example='{"host": "memory", "action": "capture"}  (remember what each agent did and read since the last '
                        'capture)')
 def _capture(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     from ..runtime.perception import Perception
 
     world = runner.world
-    name = effect["mind"]
+    name = effect["host"]
     config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     cursor = int(world.props.get(f"{name}_cursor") or 0)
     events = [e for e in world.log if e.seq > cursor]
@@ -297,12 +297,12 @@ def _did(event: Any) -> str:
     return f"You did: {action}" + (f" ({args})" if args else "") + failed
 
 
-@family_action("mind", ("memory",), "note", keys=("text",), required=("text",),
-               example='{"mind": "memory", "action": "note", "text": "$params.text"}  (add a note to the actor\'s '
+@family_action("host", ("memory",), "note", keys=("text",), required=("text",),
+               example='{"host": "memory", "action": "note", "text": "$params.text"}  (add a note to the actor\'s '
                        'memory)')
 def _note(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["mind"]
+    name = effect["host"]
     config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     actor = _actor(vars, "note", where)
     text = runner.eval(effect["text"], vars)
@@ -311,12 +311,12 @@ def _note(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str)
     _add(world, actor, name, config, [("note", clip(text, config.max_chars))])
 
 
-@family_action("mind", ("memory",), "recall", keys=("query",), required=("query",),
-               example='{"mind": "memory", "action": "recall", "query": "$params.query"}  (the actor\'s most relevant '
+@family_action("host", ("memory",), "recall", keys=("query",), required=("query",),
+               example='{"host": "memory", "action": "recall", "query": "$params.query"}  (the actor\'s most relevant '
                        "memories as text in $actor.memory_recalled; recalled memories strengthen)")
 def _recall(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["mind"]
+    name = effect["host"]
     config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     actor = _actor(vars, "recall", where)
     query = runner.eval(effect["query"], vars)
@@ -347,12 +347,12 @@ def _skip() -> None:
     return None
 
 
-@family_action("mind", ("memory",), "reflect", internal=True,
-               example='{"mind": "memory", "action": "reflect"}  (each agent reflects on its recent memories with the '
+@family_action("host", ("memory",), "reflect", internal=True,
+               example='{"host": "memory", "action": "reflect"}  (each agent reflects on its recent memories with the '
                        'host writer)')
 def _reflect(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
     world = runner.world
-    name = effect["mind"]
+    name = effect["host"]
     config = mechanism_config(world, name, MEMORY, MemoryConfig, where)
     for agent in agents_of(world, config.who):
         entries = _entries(agent, name)
@@ -382,7 +382,7 @@ def _text(answer: Any, limit: int) -> str:
 @function("memories(agent, name, budget?)",
           "The agent's strongest memories from the memory mechanism `name`, oldest first, within `budget` tokens "
           "(default: the mechanism's budget): a list of {id, round, kind, text, label}.",
-          min_args=2, max_args=3)
+          min_args=2, max_args=3, family="host")
 def _memories_function(call: Call) -> list[Memory]:
     world: Any = call.scope.world
     agent = world.entity(call.arg(0))
@@ -391,7 +391,7 @@ def _memories_function(call: Call) -> list[Memory]:
         raise ExprError(f"$memories: expected an agent, got {format_value(call.arg(0))}", call.source)
     raw = world.contract.mechanisms.get(name) if isinstance(name, str) else None
     if use_key(raw) != MEMORY:
-        raise ExprError(f"$memories: '{name}' is not a declared mind (memory) mechanism", call.source)
+        raise ExprError(f"$memories: '{name}' is not a declared host (memory) mechanism", call.source)
     config = mechanism_config(world, name, MEMORY, MemoryConfig, "memories")
     budget = call.arg(2, config.budget)
     if isinstance(budget, bool) or not isinstance(budget, (int, float)) or budget <= 0:

@@ -510,7 +510,7 @@ def _guard(call: Call, run: Any) -> Any:
 @function("has(agent, asset, qty?)",
           "True when the agent holds at least `qty` (default 1) of an item or currency: $has($actor, bread, 2), "
           "$has($actor, cash, 5).",
-          min_args=2, max_args=3)
+          min_args=2, max_args=3, family="economy")
 def _has(call: Call) -> bool:
     world, agent, asset, qty = call.scope.world, _agent(call), call.arg(1), call.number(2, 1)
     if isinstance(asset, str) and asset in assets(world).currencies:
@@ -519,7 +519,8 @@ def _has(call: Call) -> bool:
 
 
 @function("count_items(agent, item?)",
-          "How many of `item` the agent holds; without `item`, how many goods of every kind.", min_args=1, max_args=2)
+          "How many of `item` the agent holds; without `item`, how many goods of every kind.", min_args=1, max_args=2,
+          family="economy")
 def _count_items(call: Call) -> int:
     world, agent = call.scope.world, _agent(call)
     if len(call) > 1:
@@ -546,7 +547,7 @@ def owned(world: Any, agent: Entity, inventory: str | None, where: str) -> list[
 @function("owned_items(agent, inventory?)",
           "Items the agent holds now: stackable item names with a quantity above 0 and the ids of unique items it "
           "owns.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="economy")
 def _owned_items(call: Call) -> list[str]:
     world = call.scope.world
     return _guard(call, lambda: owned(world, _agent(call), call.arg(1), call.source))  # type: ignore[no-any-return]
@@ -569,14 +570,14 @@ def items_text(world: Any, agent: Entity, inventory: str | None, where: str) -> 
 
 
 @function("items_text(agent, inventory?)", "The agent's goods as plain words: '3 bread, 2 flour, room for 5 more'.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="economy")
 def _items_text(call: Call) -> str:
     world = call.scope.world
     return _guard(call, lambda: items_text(world, _agent(call), call.arg(1), call.source))  # type: ignore[no-any-return]
 
 
 @function("space_left(agent, inventory)", "Capacity the agent has left in an inventory, or null when unlimited.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _space_left(call: Call) -> float | None:
     world, inventory = call.scope.world, call.arg(1)
     if inventory not in assets(world).inventories:
@@ -587,7 +588,7 @@ def _space_left(call: Call) -> float | None:
 @function("net_worth(agent, prices?)",
           "Money (at each currency's value) plus goods (at `prices` {item: price}, else each item's value) plus loans "
           "owed to the agent, minus loans it owes.",
-          min_args=1, max_args=2)
+          min_args=1, max_args=2, family="economy")
 def _net_worth(call: Call) -> float:
     world, agent, prices = call.scope.world, _agent(call), call.arg(1) or {}
     if not isinstance(prices, dict):
@@ -617,7 +618,7 @@ def _net_worth(call: Call) -> float:
 
 @function("total_held(type, asset)",
           "Total of a currency or item held by every entity of `type` (goods on their way to them included).",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _total_held(call: Call) -> float:
     members = call.collection(0)
     world = call.scope.world
@@ -626,7 +627,7 @@ def _total_held(call: Call) -> float:
 
 @function("money_held(ledger)", "Each currency of a ledger as held now, {currency: total}: every holder's balance and "
           "what markets hold for their traders (escrow, reserves, vaults, fees). The ledger's supply starts at it.",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="economy")
 def _money_held(call: Call) -> dict[str, float]:
     world, name = call.scope.world, str(call.arg(0))
     ledger = assets(world).ledgers.get(name)
@@ -636,13 +637,14 @@ def _money_held(call: Call) -> dict[str, float]:
 
 
 @function("loose_total(inventory, item)", "Items nobody holds: on the ground, or unique items whose owner is gone.",
-          min_args=2, max_args=2)
+          min_args=2, max_args=2, family="economy")
 def _loose_total(call: Call) -> int:
     world = call.scope.world
     return _guard(call, lambda: loose_total(world, str(call.arg(0)), str(call.arg(1)), call.source))  # type: ignore[no-any-return]
 
 
-@function("ground_items(inventory, place)", "Stackable items lying at a place: {item: qty}.", min_args=2, max_args=2)
+@function("ground_items(inventory, place)", "Stackable items lying at a place: {item: qty}.", min_args=2, max_args=2,
+          family="economy")
 def _ground_items(call: Call) -> dict[str, int]:
     world: Any = call.scope.world
     inventory = call.arg(0)
@@ -655,7 +657,7 @@ def _ground_items(call: Call) -> dict[str, int]:
 @function("conserved(ledger_or_inventory)",
           "True while every currency or item of a ledger or inventory adds up to its supply (and no balance passes its "
           "credit limit).",
-          min_args=1, max_args=1)
+          min_args=1, max_args=1, family="economy")
 def _conserved(call: Call) -> bool:
     world = call.scope.world
     ok, _ = _guard(call, lambda: conserved(world, str(call.arg(0)), call.source))
