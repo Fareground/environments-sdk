@@ -559,7 +559,7 @@ def _run_problem(result: RunResult, who: str, exempt: frozenset) -> str:
     if result.output_issues:
         issue = result.output_issues[0]
         return f"a run with {who} has an output that fails: {issue['path']}: {issue['message']}"
-    found = [f for f in result.diagnostics if f["code"] in (DEGRADING | _FAULTS) - exempt]
+    found = [f for f in result.diagnostics if f["code"] in (DEGRADING | _FAULTS) - exempt - _TEST_SETUP]
     if found:
         return (f"a run with {who} shows {found[0]['code']}: {found[0]['path']}: {found[0]['message']} → "
                 f"{found[0]['fix']}")
@@ -568,6 +568,9 @@ def _run_problem(result: RunResult, who: str, exempt: frozenset) -> str:
 
 #: Findings that an agent's choice broke a rule as its action applied (the action was refused and undone).
 _FAULTS = frozenset({"action_rule_failed", "action_broke_invariant"})
+#: What a test run's own setup causes, not the contract: its share of the test time running out, and the contract's
+#: declared fallbacks answering in place of hosts (a feed's fallback is what a test run plays).
+_TEST_SETUP = frozenset({"budget_cut", "host_fallback"})
 #: What says nothing about a contract when its test agents mean not to act, or act only on the edges.
 _NOT_ACTING = frozenset({"agents_never_acted"})
 

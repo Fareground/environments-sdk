@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Iterable, List, Mapping, Optional, Set
 
 from .. import contract as C
+from ..actions import stage_actions
 from ..expr import Expr, ExprError, compile_expr
 from ..reads import inspect_rule
 from ..template import compile_template
@@ -43,12 +44,31 @@ class PrivacyChecks:
                            "work out what the actor may learn in `do` (`\"$seen = $params.target.role\"`) and show "
                            "`{$seen}`, or read only what it may know")
         for index, condition in enumerate(spec.when):
-            read = self._agent_private_reads(_expressions(condition.expr), {}, spec.params, items=False)
+            expressions = _expressions(condition.expr)
+            read = self._agent_private_reads(expressions, {}, spec.params) | self._fetched_private_reads(expressions)
             if read:
                 self.warn(f"{path}.when[{index}]", f"refuses by private {', '.join(sorted(read))}: a refusal costs "
                                                    "the actor nothing, so calling again and again reads it out",
-                          "decide by what the actor may know, or let the action go ahead and work out in `do` "
-                          "what happens")
+                          "decide by what the actor may know, or test it in `do` instead (`{\"if\": ..., \"then\": "
+                          "[{\"fail\": ...}]}`): a refusal from `do` spends the action")
+
+    def _sealed_announced(self: "_Checker", stage: C.StageSpec, path: str) -> None:  # type: ignore[misc]
+        """A simultaneous stage announces each sealed choice to everyone by its action's name as it commits (unless
+        the action is private or says what to announce): with more than one to choose from, each agent's choice —
+        a secret ballot's vote — is public."""
+        if stage.turns != "simultaneous":
+            return
+        for kind in self.c.agent_types():
+            named = [name for name in stage_actions(self.c, stage, kind)
+                     if not self.c.actions[name].private and self.c.actions[name].announce is None]
+            if len(named) > 1:
+                self.warn(path, f"announces each sealed choice to everyone by name as it commits (\"Ann: "
+                                f"{named[0].replace('_', ' ')}.\"), so which of {', '.join(named)} each agent chose "
+                                "is public",
+                          "if the choice is secret (a ballot), give those actions `private: true` and announce only "
+                          "the outcome (an `emit` in the stage's on_exit); if it is meant to be public, give them an "
+                          "`announce`")
+                return
 
     def _secret_subtypes(self: "_Checker") -> None:  # type: ignore[misc]
         """An agent subtype with private actions of its own, of a type agents may inspect: inspect names each agent's
@@ -69,15 +89,15 @@ class PrivacyChecks:
 
     def _shared_text(self: "_Checker", source: Optional[str], path: str, types: Types,  # type: ignore[misc]
                      params: Optional[Mapping[str, C.ParamSpec]] = None) -> None:
-        """Text sent to several agents (an announcement, news) may read no agent's private property, not even the
-        actor's own: the engine refuses it."""
+        """Text sent to several agents (an announcement, news, an entry every agent reads) may read no agent's private
+        property, not even the actor's own: the engine refuses it."""
         read = self._agent_private_reads(_expressions(source), types, params or {})
         if read:
             self.error(path, f"reads private {', '.join(sorted(read))}, and this text is sent to others than its "
                              "owner: the engine refuses it at run time",
                        "work out what they may learn in game logic and show that (in an action, `\"$shown = "
                        "$actor.cash\"` in `do`, then `{$shown}`; in an event, a property that is not private), or "
-                       "emit it `to` the owner alone")
+                       "send it `to` the owner alone")
 
     def _agent_private_reads(self: "_Checker", expressions: Iterable[Expr], types: Types,  # type: ignore[misc]
                              params: Mapping[str, C.ParamSpec], items: bool = True) -> Set[str]:
@@ -100,6 +120,13 @@ class PrivacyChecks:
                 if kind is not None and len(chain) > 1 and self._agent_private({kind}, chain[1]):
                     read.add(f"{chain[1]} of every {kind} (in ${function})")
         return read
+
+    def _fetched_private_reads(self: "_Checker", expressions: Iterable[Expr]) -> Set[str]:  # type: ignore[misc]
+        """The reads of a private property of some agent type from an entity a function fetched
+        (``$entity(bo).cash``, ``$first(player).cash``): whose it is shows only at run time."""
+        agents = self.c.agent_types()
+        return {f"${chain[0]}(…).{chain[1]}" for expr in expressions for chain in expr.call_paths
+                if len(chain) > 1 and self._agent_private(agents, chain[1])}
 
     def _agent_private(self: "_Checker", kinds: Iterable[str], field: str) -> bool:  # type: ignore[misc]
         return any(kind in self.c.types and self.c.is_agent(kind) and (prop := self.c.props_of(kind).get(field))

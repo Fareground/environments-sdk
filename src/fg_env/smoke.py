@@ -94,10 +94,11 @@ def _outputs(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> Non
 
 def _random_findings(play: RunResult, errors: List[Issue], warnings: List[Issue]) -> None:
     """The random play's diagnostics, one per cause: an action whose rule always failed is not also reported as
-    offered when none of its choices could succeed (the failing rule is why)."""
+    offered when none of its choices could succeed (the failing rule is why). The play's own time running out
+    (`budget_cut`) says nothing about the contract."""
     broken = {found["path"] for found in play.diagnostics if found["code"] == "action_always_faulted"}
     for found in play.diagnostics:
-        if found["code"] == "action_offered_but_unusable" and found["path"] in broken:
+        if found["code"] == "budget_cut" or found["code"] == "action_offered_but_unusable" and found["path"] in broken:
             continue
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
         (errors if severity == "error" else warnings).append(

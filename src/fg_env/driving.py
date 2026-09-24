@@ -286,9 +286,9 @@ class Driver:
                 went_wrong = bool(stats.invalid_calls or stats.rejected_actions or stats.refusals or stats.truncated
                                   or stats.out_of_steps or stats.no_tool_replies)
                 had_to = turn.stage.must_act or turn.calls_left <= 0
-                if (went_wrong or had_to) and turn.actor.alive and not turn.timed_out and turn._legal():
-                    stats.failed_turns += went_wrong  # an action was there to take
-                    turn.did_not_act = had_to
+                if (went_wrong or had_to or turn.timed_out) and turn.actor.alive and turn._legal():
+                    stats.failed_turns += went_wrong or turn.timed_out  # an action was there to take
+                    turn.did_not_act = had_to and not turn.timed_out  # a timeout is reported as one
             env._tally(turn.actor.id, turn.stats)
             turn.tallied = True
             if turn.exposure is not None and not turn.staged:  # simultaneous turns close once their choices commit
@@ -300,7 +300,7 @@ class Driver:
     def _inline(self, turn: "Turn", participant: Participant, rng: Any) -> Any:
         with self.env.world.turn_context(rng, turn.pending):
             try:
-                return participant(Wake(turn))
+                return _answer(turn, participant(Wake(turn)))
             except (RunError, ExprError):
                 raise
             except Exception as exc:
@@ -372,7 +372,7 @@ class Driver:
         turn = flight.turn
         try:
             with self.env.world.turn_context(rng, turn.pending):
-                answer = participant(Wake(turn))
+                answer = _answer(turn, participant(Wake(turn)))
         except BaseException as exc:  # handed to the engine's thread, which reports it
             self._land(flight, exc)
             return
@@ -398,7 +398,7 @@ class Driver:
 
         async def play() -> None:
             with world.turn_context(rng, turn.pending):
-                await answer
+                _answer(turn, await answer)
 
         coroutine = play()
         try:
@@ -461,6 +461,19 @@ class Driver:
 
 def _failure(turn: "Turn", exc: BaseException) -> RunError:
     return RunError(f"participant for {turn.actor.id} raised {type(exc).__name__}: {exc}", f"participant:{turn.actor.id}")
+
+
+def _answer(turn: "Turn", answer: Any) -> Any:
+    """What a participant's call handed back: an awaitable (an async participant's turn, still to run), or anything once
+    it has called a tool (``lambda wake: wake.call("pass")`` returns the call's result). A value returned from a turn
+    that called nothing is a move returned instead of made — nothing would be done, so the run fails and says how to
+    act."""
+    if answer is None or inspect.isawaitable(answer) or turn.stats.calls or turn.done:
+        return answer
+    shown = repr(answer)
+    raise RunError(f"participant for {turn.actor.id} returned {shown if len(shown) <= 60 else shown[:57] + '...'}: a "
+                   "participant acts by calling tools on its wake (wake.call(\"give\", {\"amount\": 5})) and returns "
+                   "nothing — a returned value is not an action", f"participant:{turn.actor.id}")
 
 
 def _discard(answer: Any) -> None:

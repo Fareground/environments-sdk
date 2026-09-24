@@ -1,7 +1,7 @@
 """Randomness cannot be probed: no refusal, dry run, undo or legal-action mask tells an agent how its luck will fall.
 
-A call refused before it draws gives nothing away and costs nothing; a call refused after it drew has been played:
-its luck is spent and the attempt counts. Sealed choices are checked without their luck, which is drawn when they
+A call refused for its arguments or a `when` requirement gives nothing away and costs nothing; a call refused once
+its `do` began has been played: the attempt counts, and any luck it drew is spent. Sealed choices are checked without their luck, which is drawn when they
 commit; an atomic turn is settled by the action that draws, so what the turn does next cannot undo it.
 """
 import pytest
@@ -53,12 +53,12 @@ def test_a_refusal_after_a_draw_spends_the_attempt():
     assert lost and all(not r.ok and "1 time(s) per turn" in r.text for r in lost)
 
 
-def test_a_refusal_before_any_draw_is_free_and_leaves_the_luck_as_it_was():
+def test_a_refusal_of_the_arguments_is_free_and_leaves_the_luck_as_it_was():
     def plain(wake):
         wake.call("guess", {"n": 3})
 
     def mistaken(wake):
-        assert not wake.call("guess", {"n": 50}).ok  # refused before the draw: nothing played
+        assert not wake.call("guess", {"n": 500}).ok  # out of bounds: refused before `do`, nothing played
         wake.call("guess", {"n": 3})
 
     contract = _guess(per_turn=1) | {"clock": {"rounds": 60}}
@@ -215,7 +215,7 @@ def test_who_a_stage_wakes_by_chance_does_not_depend_on_what_the_agents_do():
 
     def woken(action):
         seen = []
-        fg_env.run(c, {"*": lambda w: (seen.append((w.round, w.stage, w.entity_id)), w.call(action, {}))}, seed=2)
+        fg_env.run(c, {"*": lambda w: seen.append((w.round, w.stage, w.entity_id)) or w.call(action, {})}, seed=2)
         return seen
 
     assert woken("wait") == woken("roll") == woken("make")

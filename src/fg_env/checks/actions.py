@@ -213,6 +213,7 @@ class ActionChecks:
             for hook in ("on_idle", "on_wake", "on_turn_end"):
                 self.effects(getattr(stage, hook), f"{path}.{hook}", set(BASE) | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
+            self._sealed_announced(stage, path)
         self._open_stages()
 
     def _open_stages(self: "_Checker") -> None:  # type: ignore[misc]

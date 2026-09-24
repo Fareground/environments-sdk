@@ -76,7 +76,7 @@ def test_sealed_choice_that_cannot_happen_is_refused_at_submit():
 
     fg_env.run(contract, agent, seed=1, rounds=1)  # sealed turns run in threads: keep each agent's notes apart
     assert notes["m"][0] == (False, "rejected", "Mo has only 10 cash; 20 is needed.")
-    assert notes["m"][1][0] is True  # the refused choice did not use up the turn
+    assert notes["m"][1][0] is False  # refused by its `do`, the choice was spent, as when it commits
 
 
 def test_inspect_is_scoped_by_type_rules():

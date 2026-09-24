@@ -8,7 +8,7 @@ import heapq
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from .delivery import run_delivery
-from .effects import each_items
+from .effects import each_items, removed_since
 from .contract import StageSpec
 from .build import whole_setting
 from .errors import RunError
@@ -76,7 +76,10 @@ class Happenings:
                 if event.sync:
                     run_sync(env, event, items, item_name, path)
                     items = []
+                removed = removed_since(items)
                 for position, item in enumerate(items):
+                    if removed(position):
+                        continue
                     inner = {item_name: item, "i": position}
                     if event.where is not None:
                         with world.drawing_for(f"{path}.where", item):

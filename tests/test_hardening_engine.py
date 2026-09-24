@@ -267,7 +267,8 @@ CACHED = {
 
 
 def test_def_results_refresh_after_changes_rollbacks_and_metrics():
-    env = fg_env.load(CACHED, seed=1)
+    two = [{**CACHED["stages"][0], "max_actions": 2}]  # the refused action is spent, so the next needs a second action
+    env = fg_env.load({**CACHED, "stages": two}, seed=1)
 
     def play(wake):
         if wake.entity_id == "a" and wake.round == 1:

@@ -168,6 +168,17 @@ def _chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
     return None
 
 
+def _call_chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
+    """``$first(xs).b.c`` → ``("first", "b", "c")``: fields read from what a function returned; None for anything else."""
+    fields: List[str] = []
+    while isinstance(node, ast.Attribute):
+        fields.append(node.attr)
+        node = node.value
+    if fields and isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX):
+        return (node.func.id[len(_FUNC_PREFIX):], *reversed(fields))
+    return None
+
+
 def _entity_chain(node: ast.AST) -> Optional[Tuple[str, ...]]:
     """``$entity(a).b`` → ``("entity(a)", "b")``: a field of the entity a bare id names; None for anything else."""
     fields: List[str] = []
@@ -192,6 +203,7 @@ class Codegen:
         self.functions: set = set()
         self.symbols: set = set()
         self.paths: set = set()
+        self.call_paths: set = set()
         self.calls: set = set()
         self.arity_errors: set = set()
         self.item_paths: set = set()
@@ -322,6 +334,10 @@ class Codegen:
         chain = _chain(node)
         if chain is not None:
             self.paths.add(chain)
+        else:
+            called = _call_chain(node)
+            if called is not None:
+                self.call_paths.add(called)
         base, name = self.node(node.value), node.attr
         key, value, source = self._const(name), self._temp(), self._source()
         if name in _ENTITY_FIELDS:

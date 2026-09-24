@@ -61,7 +61,8 @@ class Stats:
     #: ``rejected_actions``): a contract bug, explained in the run's diagnostics.
     faulted_actions: int = 0
     #: Turns that ended with an action available and none taken after the agent's attempts went wrong: invalid or
-    #: refused calls, a model refusal, a reply cut off or with no tool call, its model calls used up.
+    #: refused calls, a model refusal, a reply cut off or with no tool call, its model calls used up — or it ran out of
+    #: time.
     failed_turns: int = 0
 
     def add(self, other: "Stats") -> None:
@@ -126,14 +127,15 @@ class RunResult:
     @property
     def ok(self) -> bool:
         """The run reached its end, its outputs are sound and it shows how the environment plays (nothing in
-        :attr:`degraded`). A run its budget ended is ok: it stopped where it was told to."""
+        :attr:`degraded`). A run its budget cut short is not ok: its outputs are those of an unfinished game."""
         return self.status in ("completed", "ended") and not self.output_issues and not self.degraded
 
     @property
     def degraded(self) -> List[str]:
         """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
         agent could ever take, agents that never acted or whose turns mostly failed, agents that never had an action
-        to take, turns lost to a failing provider — and ``output_failed`` when an output raised an error
+        to take, turns lost to a failing provider, a budget that cut the run short, host answers that were the
+        contract's stand-ins — and ``output_failed`` when an output raised an error
         (``output_issues``; an output that is only null is not one). Empty for a sound run; a degraded run is not
         :attr:`ok`."""
         from .diagnostics import DEGRADING

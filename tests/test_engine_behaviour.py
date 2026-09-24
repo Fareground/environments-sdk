@@ -18,6 +18,7 @@ def run(engine_id, participants=None, *, seed=0, inputs=None):
 def test_contest_without_a_judge_is_decided_by_skill_and_luck_and_says_so():
     result = run("contest")
     assert [d["code"] for d in result.diagnostics] == ["host_fallback"]  # the rubric scores were a stand-in
+    assert result.degraded == ["host_fallback"] and not result.ok
     assert "judge" in result.diagnostics[0]["message"]
     assert result.outputs["judged"] is False and result.outputs["winning_score"] is None  # no stand-in score reported
     winners = [run("contest", seed=seed).outputs["winner"] for seed in range(20)]
@@ -316,7 +317,9 @@ def test_every_engine_runs_at_both_ends_of_each_declared_input(engine_id, name, 
     # days or passes show they run at that size; every other engine runs to its end
     rounds = {"market": 1, "exchange": 12}.get(engine_id)
     result = fg_env.engines.load(engine_id, inputs={name: value}, seed=1).run(rounds=rounds)
-    assert result.error is None and (rounds is not None or result.ok), result.error
+    # a contest with no judge bound scores by its stand-in rubric: that run is degraded (host_fallback), not broken
+    unjudged = result.degraded == ["host_fallback"] and engine_id == "contest"
+    assert result.error is None and (rounds is not None or result.ok or unjudged), result.error
     assert not result.output_issues
 
 
