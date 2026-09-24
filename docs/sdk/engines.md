@@ -1,9 +1,9 @@
 # Behavioral engines and persona sampling
 
-An **engine** is a reusable human-interaction mechanism. It is not a finished
-environment, topic preset, or Arena game. A custom environment combines one or
-more engines with scenario-specific roles, populations, information, rules, and
-measurements.
+An **engine** is a runnable starter for one kind of human interaction (a market,
+a negotiation, a vote …): a complete contract with coded participants that runs
+as cloned. Clone the closest one and make it your own: its topic, roles, people,
+information, rules and measurements.
 
 The engine catalog contains exactly these twelve boundaries:
 
@@ -28,8 +28,7 @@ declared input's range, and moving a declared numeric input from one end to the 
 negotiation or a one-player strategy game, is refused with the fix. Every engine can be discovered,
 inspected, cloned, customized, loaded from the installed package, run with a
 deterministic seed, supplied with sampled or fixed people, and executed across
-an N-run experiment. The SDK packages reusable mechanics and neutral starters;
-it does not package finished Fareground environments or named Arena games.
+an N-run experiment.
 The detailed role, information, action, state, termination, output and extension
 contracts for the seven newly generalized engines are in
 [Behavioral engine contracts](engine-contracts.md).

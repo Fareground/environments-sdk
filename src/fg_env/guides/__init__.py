@@ -92,7 +92,8 @@ FAMILIES
 
 ## Engines
 
-Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
+Runnable starters, one per kind of human interaction: each a complete contract with coded participants that runs as
+cloned, to copy and make your own (topic, roles, people, inputs, rules) rather than start blank:
 `fg-env new --engine <id> my_env.json` (`fg_env.engines.clone`); `fg-env engines` lists them.
 
 ENGINES

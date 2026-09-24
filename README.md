@@ -19,7 +19,7 @@
 
 ---
 
-[Documentation](https://fareground.com/docs/env-kernel/) · [Quickstart](docs/sdk/getting-started.md) · [Authoring guide](docs/sdk/authoring.md) · [Reference](docs/sdk/reference.md)
+[Documentation](https://fareground.com/docs/env-kernel/) · [Start here: the authoring guide](docs/sdk/reference-authoring.md) · [Business walkthrough](docs/sdk/getting-started.md) · [Reference](docs/sdk/reference.md)
 
 ## Overview
 
@@ -29,13 +29,11 @@ transitions, stopping conditions, and measurements. The runtime builds the world
 agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
-scenario repeatedly. Twelve reusable behavioral engines—Retail, Council, Dispute, Exchange,
-Legislature, Contest, Deliberation, Negotiation, Population, Network, Matching and Strategy—can be
-cloned as a starting point, then customized: topic, participants, rules, information and outcomes.
-
-Do not treat an engine as a finished scenario. Engines provide interaction mechanics; your
-environment supplies the real-world question and assumptions. Named Arena games and physical,
-spatial, logistics, or disease models are not part of the behavioral engine catalog.
+scenario repeatedly. Twelve engines—Retail, Council, Dispute, Exchange, Legislature, Contest,
+Deliberation, Negotiation, Population, Network, Matching and Strategy—are runnable starters, one per
+kind of human interaction: each is a complete contract with coded participants that runs as cloned.
+Clone the closest one and make it your own: topic, participants, rules, information and outcomes.
+The real-world question and its assumptions are yours to supply.
 
 You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
 and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
@@ -180,8 +178,7 @@ result = fg_env.experiment("my_market.json", runs=2, participants="random", inpu
 print(result.table())
 ```
 
-The catalog contains reusable behavioral engines only—not finished environments,
-scenario presets, or Arena games. All twelve engines are native, available, and cloneable.
+All twelve engines are native, available, and cloneable.
 
 Persona generation is shared infrastructure rather than an environment:
 
@@ -234,7 +231,7 @@ fg-env guide market       # a mechanism family; fg-env guide market.auction for 
 <!-- not run: shop.json stands for your own contract -->
 ```bash
 fg-env new shop shop.json                 # a ready-to-run start: blank, duel, shop, simulation or meeting
-fg-env engines                            # the engines: complete scenarios with coded participants to start from
+fg-env engines                            # the engines: runnable starters to copy and make your own
 fg-env new --engine legislature vote.json # a copy of one to edit
 fg-env check shop.json                    # every problem with its path and a fix, then plays it with random agents and each policy
 fg-env expand shop.json --mechanisms       # the contract with every mechanism expanded into plain sections

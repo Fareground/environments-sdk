@@ -1,14 +1,13 @@
-# Author scenarios from a brief
+# Authoring principles
 
-The shortest reliable path is **brief → contract → checks → known-answer tests → run → review**. Start with the smallest model that preserves the decision the user wants to make.
+**Start with `fg-env guide authoring`** (or `fg_env.guide("authoring")`; [the same page here](reference-authoring.md)).
+It is the one page an author needs: the faithful-first principle, the write → check → preview → run loop, a complete
+worked contract with a known-answer check, and the guide parts most briefs need. Give it to an authoring agent as its
+starting context; `check` errors name the guide part to read next.
 
-## Start with the executable guide
-
-Run `fg-env guide authoring` (or `fg_env.guide("authoring")`) for the one page an
-author needs to start: faithful-first principle, the write → check → preview → run
-loop, a complete worked contract with a known-answer check, and a short list of the
-guide parts most briefs need. Hosts can include this installed-SDK page directly in
-an authoring agent’s starting context; `check` errors name the guide part to read next.
+This page is the judgement around that loop: the shortest reliable path is **brief → contract → checks →
+known-answer tests → run → review**, starting with the smallest model that preserves the decision the user wants to
+make.
 
 ## 1. Make the decision explicit
 
@@ -24,113 +23,12 @@ Represent objects with their own lifecycle as entities: an order that can arrive
 
 Entity `id`, `name`, `type`, `alive` and `at` are built-in fields, not custom properties. Put display labels in the entity or population entry’s `name`, outside `props`. Within `create.props`, `$it` refers to the new entity; capture values from the enclosing loop in local variables before creating it.
 
-Choose input types from the business units, not the example values. Money, effort and rates can be fractional (`type: "number"`); counts of indivisible items use `int`. An example of two hours per job does not imply whole-hour work. Defaults do not define minimums or maximums. Derive processing and bucket sizes from configured data instead of constraining customer inputs to match a hardcoded implementation. Input bounds reject values; they are not just the visual scale of a control. Do not invent a maximum merely to use a slider or knob. Use a number control unless the brief or domain justifies a finite range, and explain necessary modeling limits.
+Choose input types from the business units, not the example values. Money, effort and rates can be fractional (`type: "number"`); counts of indivisible items use `int`. An example of two hours per job does not imply whole-hour work. Defaults do not define minimums or maximums. Derive processing and bucket sizes from configured data instead of constraining inputs to match a hardcoded implementation. For money that must add up exactly, see [money and settlement](business-modeling.md#money-and-settlement).
 
-## Exact monetary budgets
-
-Use `metrics` for per-round expressions and `outputs` for final results. `format`
-belongs on outputs, not metrics. For per-entity rows, use an output expression
-such as `$map(product, {id: $it.id, name: $it.name, stock: $it.stock})`.
-Include entity IDs in row reports: display names may repeat, so names alone
-cannot identify which entity a result belongs to.
-
-Use integer minor units for accounting that must be exact. Dollar inputs and
-outputs can remain ordinary numbers: convert them to cents once, perform budget
-checks and whole-unit ratios in cents, then divide by 100 for reporting. A money
-format changes presentation, not numeric arithmetic. The `money` formatter takes
-dollars in outputs, views and action receipts. Convert every cent-valued expression
-there, not only the final report. State the rounding policy.
-Configuration inputs and action parameters have different schemas. On `inputs`,
-`multiple_of: 0.01` validates cents and `step` is a display hint. On action
-`params`, `step: 0.01` validates increments from `min` (or zero); describe them
-with `description`, not input-only `label` or `display`. Do not put `multiple_of`
-on action parameters. For whole cents, choose a cent-aligned minimum.
-This example rejects fractional cents before changing the budget.
-
-```python
-import fg_env
-
-money = {
-    "name": "Exact budget", "clock": {"rounds": 1},
-    "inputs": {
-        "budget": {"type": "number", "default": 0.30, "min": 0, "step": 0.01, "multiple_of": 0.01,
-                   "description": "Dollars in whole-cent increments; fractional cents are rejected"},
-        "unit_cost": {"type": "number", "default": 0.10, "min": 0.01, "step": 0.01, "multiple_of": 0.01,
-                      "description": "Dollars in whole-cent increments; fractional cents are rejected"}
-    },
-    "world": {"available_cents": "$round($inputs.budget * 100)",
-              "unit_cents": "$round($inputs.unit_cost * 100)", "spent_cents": 0},
-    "types": {"operator": {"agent": True}},
-    "entities": {"manager": {"type": "operator"}},
-    "stages": [{"name": "allocate", "max_actions": 4}],
-    "actions": {"spend": {
-        "by": "operator",
-        "params": {"amount": {"type": "number", "min": 0.01, "step": 0.01,
-                              "max": "$world.available_cents / 100",
-                              "description": "Amount in dollars, in whole cents."}},
-        "do": ["$cost_cents = $round($params.amount * 100)",
-               "$world.available_cents -= $cost_cents", "$world.spent_cents += $cost_cents"],
-        "outcome": "Paid {$cost_cents / 100|money}."
-    }},
-    "outputs": {"spent": "$world.spent_cents / 100",
-                "units": "$world.spent_cents // $world.unit_cents"}
-}
-def spend_in_parts(wake):
-    assert not wake.call("spend", {"amount": 0.105}).ok
-    for amount, receipt in [(0.10, "Paid $0.10."), (0.20, "Paid $0.20.")]:
-        paid = wake.call("spend", {"amount": amount})
-        assert paid.ok and paid.text == receipt
-    assert not wake.call("spend", {"amount": 0.01}).ok
-    wake.end()
-
-result = fg_env.run(money, spend_in_parts)
-assert result.ok and result.outputs == {"spent": 0.30, "units": 3}
-money = fg_env.run({"name": "Money", "types": {}, "clock": {"rounds": 1}, "world": {"cash_cents": 16600},
-    "metrics": {"cash": "$world.cash_cents / 100"},
-    "outputs": {"cash": {"expr": "$world.cash_cents / 100", "format": "money"}}})
-assert money.series["cash"] == [166] and money.outputs["cash"] == 166
-assert "$166.00" in money.summary()
-```
-
-### Move money with one operation
-
-Give each cash holder an entity with a `cash_cents` property. Use `transfer` for
-payments and reverse its endpoints for refunds. The engine debits one holder and
-credits the other atomically, rejecting a transfer when funds are insufficient.
-Keep income and liabilities separate from cash. Where the brief has no external
-cash sources or sinks, assert that total cash is conserved.
-
-```python
-import fg_env
-
-accounts = {
-    "name": "Account transfers", "clock": {"rounds": 1},
-    "types": {"operator": {"agent": True}, "account": {"props": {"cash_cents": 0}}},
-    "entities": {"manager": {"type": "operator"},
-                 "payer": {"type": "account", "props": {"cash_cents": 1000}},
-                 "payee": {"type": "account"}},
-    "stages": [{"name": "payments", "max_actions": 5}],
-    "actions": {"move": {"by": "operator", "params": {
-        "source": {"type": "entity", "of": "account"},
-        "target": {"type": "entity", "of": "account"},
-        "cents": {"type": "int", "min": 0}}, "do": {
-            "transfer": "cash_cents", "from": "$params.source",
-            "to": "$params.target", "amount": "$params.cents"}}},
-    "invariants": [{"expr": "$sum(account, $it.cash_cents) == 1000",
-                    "why": "Transfers must conserve total cash."}],
-    "outputs": {"payer": "$entity(payer).cash_cents / 100",
-                "payee": "$entity(payee).cash_cents / 100"}
-}
-def payments(wake):
-    assert wake.call("move", {"source": "payer", "target": "payee", "cents": 700}).ok
-    assert not wake.call("move", {"source": "payer", "target": "payee", "cents": 400}).ok
-    assert wake.call("move", {"source": "payee", "target": "payer", "cents": 200}).ok
-    assert wake.call("move", {"source": "payer", "target": "payee", "cents": 0}).ok
-    wake.end()
-
-result = fg_env.run(accounts, payments)
-assert result.ok and result.outputs == {"payer": 5, "payee": 5}
-```
+Expose what a user should change as `inputs`, each defaulting to the brief's value, and read them with `$inputs`
+wherever the contract needs them. Maps, tables and lists can declare the fields of their items. Bound an input only
+where the brief or the domain limits it: a bound refuses values, it is not a display range. `fg-env guide inputs`
+lists every field.
 
 ## 3. Choose the timing
 
@@ -196,34 +94,3 @@ Use this as a starting instruction in your own authoring workflow:
 > Build a rounds-based environment with the Environments SDK. Read `fg-env guide authoring`, then only the reference parts it points to when you need them. Implement every stated requirement and deliverable faithfully first, then make values configurable with the brief's values as defaults. Map each requirement to contract rules and observable checks. Make uncertain assumptions explicit inputs. Use public SDK APIs and keep scenario logic in the contract. Check the contract, preview every role, run a deterministic baseline, and verify a small known-answer case. Report omissions and unsupported behavior. Deliver the contract, data, tests and run instructions.
 
 The agent should repair errors using their paths and suggested fixes, then rerun the affected checks. A clean checker result does not prove that the brief was captured faithfully.
-
-## Configurable data and controls
-
-Expose the data a user should change in `inputs`, and bind it into entity defaults,
-population `from`, actions or events using `$inputs`. Input objects are data, not
-new engine entity types. A `map` input can declare nested `fields`; a `table` can
-declare the fields of each row, and a `list` can declare `items`. Each child uses
-the same input specification, including types, defaults, required values and bounds.
-
-```json
-{"shop": {"type": "map", "label": "Store", "display": "object", "default": {},
-  "fields": {
-    "price": {"type": "number", "default": 25, "min": 5, "max": 100, "step": 1, "display": "slider", "unit": "USD"},
-    "segment": {"type": "enum", "values": ["consumer", "business"], "default": "consumer", "display": "select"},
-    "description": {"type": "text", "default": "", "display": "textarea"}
-  }}}
-```
-
-The example is an `inputs` section. Read its price as `$inputs.shop.price`.
-Hosts may render `display` hints using their own controls; the standalone SDK
-validates and resolves values without requiring a UI. Supported displays are
-`number`, `text`, `textarea`, `select`, `toggle`, `date`, `slider`, `knob`,
-`table`, `object`, `list` and `json`. Sliders and knobs require numeric bounds.
-For configuration inputs, `step` is a presentation increment, not rounding or
-a validation constraint. Action parameters differ: their `step` is enforced.
-Use `multiple_of` to validate numeric increments: `0.01` for whole-cent dollar
-inputs or `6` for packs of six. It applies to defaults and supplied values,
-including nested fields and list items, and is measured from zero independently
-of `min`. Invalid values are rejected, never rounded. Ordinary floating-point
-arithmetic noise within one billionth of an increment is tolerated.
-Old contracts need no changes; existing `columns` table declarations still work.

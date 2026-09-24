@@ -39,7 +39,7 @@ def reference_pages() -> dict[str, str]:
     index = ["# Contract reference", "",
              "Generated from the installed source models, expression registry and authoring guides. Regenerate with "
              "`make docs`.", "",
-             "[Python API](api.md) · [Authoring workflow](authoring.md)", "", "## Guide sections", ""]
+             "[Python API](api.md) · [Authoring principles](authoring.md)", "", "## Guide sections", ""]
     for part in guide_parts():
         if part == "all":
             continue

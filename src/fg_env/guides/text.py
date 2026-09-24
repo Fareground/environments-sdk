@@ -463,7 +463,9 @@ def my_agent(wake):
     result = wake.call("buy", {"offer": "latte", "qty": 1})   # result.ok, result.text, result.ended
     wake.end()
 ```
-`Wake`: `entity_id name type round stage reason me` (own props), `brief`, `update`, `tools` (each a
+`Wake`: `entity_id name type round stage reason`, `me` (a copy of the agent's own props, private ones too, with `id`
+`name` `type` `at`: how a coded participant reads its private value), `brief`, `update` (the text an LLM reads this
+turn), `tools` (each a
 `ToolSpec`: name, description, input_schema, kind act|look|end, terminal), `tools_for("anthropic"|"openai")`,
 `call(name, args)` → `ToolResult(ok, text, ended, data)` (`data.error` is `invalid` or `rejected`),
 `end()`, `done`, `calls_left`, `actions_left`. In a simultaneous stage a choice is tried at submit (after the agent's

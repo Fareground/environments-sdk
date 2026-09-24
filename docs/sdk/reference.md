@@ -2,7 +2,7 @@
 
 Generated from the installed source models, expression registry and authoring guides. Regenerate with `make docs`.
 
-[Python API](api.md) · [Authoring workflow](authoring.md)
+[Python API](api.md) · [Authoring principles](authoring.md)
 
 ## Guide sections
 

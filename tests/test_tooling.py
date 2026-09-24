@@ -227,8 +227,8 @@ def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeyp
     assert len(page) < 11_000  # One page an authoring agent starts from.
     contract_text = page.split('```json\n')[1].split('```')[0]
     scripts = [block.split('```')[0] for block in page.split('```python\n')[1:]]
-    money_page = (Path(__file__).resolve().parents[1] / 'docs/sdk/authoring.md').read_text()
-    money_section = money_page.split('## Exact monetary budgets\n')[1].split('\n## ')[0]
+    money_page = (Path(__file__).resolve().parents[1] / 'docs/sdk/business-modeling.md').read_text()
+    money_section = money_page.split('## Money and settlement\n')[1].split('\n## ')[0]
     scripts += [block.split('```')[0] for block in money_section.split('```python\n')[1:]]
     (tmp_path / 'lake.json').write_text(contract_text)
     monkeypatch.chdir(tmp_path)

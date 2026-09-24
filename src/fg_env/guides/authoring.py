@@ -73,7 +73,7 @@ import fg_env
 assert fg_env.check("lake.json") == []
 print(fg_env.load("lake.json").preview("fisher_1"))
 
-def greedy(wake):  # every fisher asks for 10 every season
+def greedy(wake):  # asks 10 a season; wake.me: own props, wake.update: what an LLM reads
     wake.call("catch", {"amount": 10})
     wake.end()
 
@@ -167,7 +167,7 @@ READ_NEXT = '''
 ## Read next, only when you need it
 
 `fg_env.guide('<part>')` or `fg-env guide <part>`: a section's fields and roots (`actions`, `stages`, `views`,
-`events`, `inputs` …), `effects`, `expressions`, `functions.collections`, `functions.random`, `mechanisms` (markets,
+`events`, `inputs` …), `effects`, `expressions`, `functions`, `mechanisms` (markets,
 auctions, ballots, hidden roles, queues, inventories), `patterns` (demand, trends and seasons over time), `inspect`
 (reading a run). `guide()` maps every part.
 '''
