@@ -138,7 +138,8 @@ def _reserve(world: Any, name: str, cfg: AuctionConfig) -> float:
 
 
 def min_bid(world: Any, name: str) -> float:
-    """The smallest legal bid right now: the next English raise, the Dutch clock, else the reserve (never below MIN_PRICE)."""
+    """The smallest legal bid right now, never below MIN_PRICE: the next English raise, the Dutch clock, the reserve
+    (a tender, double or package auction has no floor on a bid)."""
     cfg = auction_config(world, name)
     lot = world.props.get(f"{name}_lot") or {}
     reserve = _reserve(world, name, cfg)
