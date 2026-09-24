@@ -6,7 +6,7 @@ inputs exist, and that each expression only uses roots available where it is wri
 
 The checker's sections live beside it: effects (:mod:`.effects`), the world model
 (:mod:`.world`), actions, stages and views (:mod:`.actions`), and events, policies,
-measures, defs, arms and calibration (:mod:`.rules`).
+measures, defs and arms (:mod:`.rules`).
 """
 from __future__ import annotations
 
@@ -469,7 +469,6 @@ class _Checker(EffectChecks, WorldChecks, ActionChecks, PrivacyChecks, RuleCheck
         self._policies()
         self._measure()
         self._arms()
-        self._calibration()
         self._defs()
         check_game(self)
         check_scans(self)

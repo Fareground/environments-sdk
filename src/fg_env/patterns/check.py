@@ -208,31 +208,6 @@ def _fit(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: 
     if fit.noise is not None and (fit.noise not in declared or declared[fit.noise].kind != "counts"):
         checker.error(f"{path}.fit.noise", f"'{fit.noise}' is not a declared counts pattern",
                       checker._suggest(fit.noise, declared))
-    _calibrated(checker, declared, name, cfg)
-
-
-def _calibrated(checker: _Checker, declared: dict[str, PatternConfig], name: str, cfg: PatternConfig) -> None:
-    """Warn about a fitted input that the ``calibration`` section also tunes: every load would replace the estimate."""
-    calibration = checker.c.calibration
-    if calibration is None or cfg.fit is None:
-        return
-    fit = cfg.fit
-    fitted = [name, *(fit.x if isinstance(fit.x, dict) else []), *([fit.noise] if fit.noise else [])]
-    for pattern in fitted:
-        other = declared.get(pattern)
-        if other is None:
-            continue
-        for field in KINDS[other.kind].params:
-            value = getattr(other, field, None)
-            read = value[len("$inputs."):] if isinstance(value, str) and value.startswith("$inputs.") else ""
-            written = f"{pattern}_{field}"  # the input fit_patterns writes this parameter to
-            tuned = [n for n in (read if read.isidentifier() else "", written) if n and n in calibration.params]
-            if tuned:
-                checker.warn(f"patterns.{pattern}.{field}",
-                             f"$inputs.{tuned[0]} is fitted from data (patterns.{name}.fit) and also tuned at every "
-                             "load by calibration.params, so each load replaces the estimate",
-                             f"remove '{tuned[0]}' from calibration.params, or drop the fit and let calibration tune "
-                             "it")
 
 
 def _cycles(checker: _Checker, declared: dict[str, PatternConfig]) -> None:

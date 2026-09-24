@@ -115,9 +115,6 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
     ("feeds", [C.FeedSpec], "{feed: FeedSpec}",
      "External data written into world props or records, answered by host adapters."),
     ("arms", [C.ArmSpec], "{arm: ArmSpec}", "Experiment variants: input overrides or contract patches."),
-    ("calibration", [C.CalibrationSpec], "CalibrationSpec",
-     "Inputs fitted by short pilot sessions every time the contract loads, reproducible from the session's seed; a "
-     "load that sets a fitted input skips it (each load costs budget × runs pilot sessions)."),
     ("defs", [C.DefSpec], "{name: expr | DefSpec}",
      "Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with "
      "{\"call\": name, \"with\": {...}}."),

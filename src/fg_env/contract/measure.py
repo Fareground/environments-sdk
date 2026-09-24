@@ -1,7 +1,7 @@
-"""Contract sections of measurement, ending, experiments, invariants and calibration."""
+"""Contract sections of measurement, ending, reuse, experiments and invariants."""
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any
 
 from pydantic import Field, StrictBool, model_validator
 
@@ -105,31 +105,3 @@ class InvariantSpec(_ExprShorthand):
                                    "properties re-checks only the members that changed) | round (after the build and "
                                    "at the end of every round: much cheaper for sums over big crowds) | end (once, "
                                    "when the run finishes).")
-
-
-class CalibrationSpec(_Model):
-    """A quick pilot calibration run whenever the contract loads: inputs are fitted so short pilot sessions hit the
-    targets, and the session runs with the fitted values (``env.inputs``, ``result.inputs``; the fit is in
-    ``env.calibration``). Deterministic given the session's seed. It costs ``budget × runs`` pilot sessions plus
-    ``holdout`` at every load that does not set a fitted input itself — setting one (or sweeping it) skips it.
-
-    A pilot fit is only as steady as its pilots: a noisy target (a volatility over a few dozen bars) fitted with one
-    short pilot per point can land anywhere in the range, even on its bounds (check ``env.calibration``). Longer
-    pilots, more ``runs`` per point, a larger ``holdout`` and a range no wider than plausible make it reliable."""
-
-    params: dict[str, dict[str, Any]] = Field(..., min_length=1,
-                                              description="{input: {low?, high?, log?}}: number or int inputs to fit "
-                                                          "(the range defaults to the input's min and max).")
-    targets: dict[str, Any] = Field(..., min_length=1,
-                                    description="{output or metric: target} as fg_env.analysis.calibrate takes "
-                                                "them; a number (or a stat target's `value`) may be an expression "
-                                                "over $inputs and $world, read from the world this session builds.")
-    inputs: dict[str, Any] = Field(default_factory=dict,
-                                   description="Inputs of the pilot sessions only, e.g. fewer bars; the session's own "
-                                               "inputs apply underneath.")
-    runs: int = Field(2, ge=1, le=20, description="Pilot sessions per evaluated point.")
-    budget: int = Field(6, ge=2, le=50, description="Distinct points evaluated.")
-    holdout: int = Field(1, ge=1, le=20, description="Pilot sessions on fresh seeds that validate the fit.")
-    method: Literal["auto", "bisection", "golden", "nelder_mead", "cross_entropy"] = Field(
-        "auto", description="Search method (see fg_env.analysis.calibrate).")
-    workers: int = Field(1, ge=1, le=64, description="Pilot sessions run in this many processes at once.")

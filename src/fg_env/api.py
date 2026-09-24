@@ -17,7 +17,6 @@ from .contract.normalize import normalize
 from .contract.normalize_state import expand_macros
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
-from .runtime.calibration import calibrate_at_load
 from .runtime.env import Env
 from .runtime.measure import RunResult
 from .sampling.seeds import mint_seed
@@ -263,7 +262,7 @@ def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, dat
         built = contract
         try:
             found, warnings_from_smoke = smoke_issues(
-                built, lambda: load(built, inputs=inputs, seed=seed, hosts=hosts, calibrate=False), rounds, seed)
+                built, lambda: load(built, inputs=inputs, seed=seed, hosts=hosts), rounds, seed)
             errors.extend(found)
         except ContractError as exc:
             errors.extend(exc.issues)
@@ -325,13 +324,14 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
     (``result.exposures``); a contract that calls ``$seen`` records it anyway. ``chance`` decides `chance` effects:
     ``"sampled"`` (the default: drawn from the seeded stream) or a callable given each
     :class:`~fg_env.effects.chance.ChanceNode` that returns the index of the outcome to take (a fixed deal, duplicate
-    formats); :func:`fg_env.rl.game` enumerates chance for search. A contract with a ``calibration`` section fits its
-    inputs with pilot sessions first (``env.calibration`` is the report); ``calibrate=False`` skips that, as
-    ``fg_env.check``'s smoke play does. ``events=False`` keeps no event log, for a big crowd played for many rounds:
+    formats); :func:`fg_env.rl.game` enumerates chance for search. ``calibrate`` is accepted for one release and does
+    nothing: fit inputs before loading with :func:`fg_env.analysis.calibrate` and pass its ``params`` as ``inputs``.
+    ``events=False`` keeps no event log, for a big crowd played for many rounds:
     ``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
     news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
     that reads `$events` or `$seen` keeps its log).
     """
+    del calibrate  # accepted for one release: the `calibration` section is gone
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
     if blocking or contract is None:
@@ -351,14 +351,7 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
     resolved = resolve_inputs(contract, merged, folder)
     assets = resolve_assets(contract, resolved, folder)
     run_seed = mint_seed() if seed is None else seed
-    report = None
-    if calibrate and contract.calibration is not None:
-        report = calibrate_at_load(contract, merged, resolved, run_seed, arm,
-                                   lambda values: Env(contract, dict(values), run_seed, arm, parallel, False, assets))
-        if report is not None:
-            resolved = resolve_inputs(contract, {**merged, **report["params"]}, folder)
     env = Env(contract, resolved, run_seed, arm, parallel, exposures, assets, events)
-    env.calibration = report
     env.origin.unarmed = unarmed
     if chance is not None:
         from .copying.branch import use_chance

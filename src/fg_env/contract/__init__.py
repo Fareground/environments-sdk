@@ -5,7 +5,7 @@ reference, field by field, is generated from these models (see ``fg_env.guide()`
 
 The section models live beside it — shared names and ceilings in :mod:`.base`, the world model in
 :mod:`.world`, records, actions, stages, views, events and policies in :mod:`.rules`, and
-measurement, ending, experiments, invariants and calibration in :mod:`.measure` — and this module
+measurement, ending, reuse, experiments and invariants in :mod:`.measure` — and this module
 exports every one of them.
 """
 from __future__ import annotations
@@ -39,7 +39,6 @@ from .measure import (
     END_CHECKS,
     INVARIANT_CHECKS,
     ArmSpec,
-    CalibrationSpec,
     DefSpec,
     EndSpec,
     InvariantSpec,
@@ -113,7 +112,6 @@ __all__ = [
     "OutputSpec",
     "EndSpec",
     "ArmSpec",
-    "CalibrationSpec",
     "ScoreSpec",
     "UTILITIES",
     "DefSpec",
@@ -177,9 +175,6 @@ class Contract(_Model):
     outputs: dict[str, OutputSpec] = Field(default_factory=dict)
     end: list[EndSpec] = Field(default_factory=list)
     arms: dict[str, ArmSpec] = Field(default_factory=dict)
-    calibration: CalibrationSpec | None = Field(None,
-                                                description="Inputs fitted by short pilot sessions whenever the "
-                                                            "contract loads.")
     invariants: list[InvariantSpec] = Field(default_factory=list)
     defs: dict[str, DefSpec] = Field(default_factory=dict,
                                      description="Reusable expressions, called as $name(args), and effect lists, run "

@@ -12,6 +12,7 @@
 * ``blocks`` → ``defs`` with ``do``; the ``{"block": b, "with": ...}`` effect → ``{"call": b, "with": ...}``.
 * ``assets`` → ``inputs`` of ``type: file`` (``file`` or ``folder`` → ``source``; the kind filter ``type`` goes:
   a file's kind is its extension).
+* ``calibration`` is refused: fit inputs before load with ``fg_env.analysis.calibrate``.
 * Each arm's ``patch`` is a contract fragment, so its earlier forms are rewritten too.
 """
 from __future__ import annotations
@@ -677,6 +678,19 @@ def assets_into_file_inputs(data: dict[str, Any]) -> list[str]:
     del data["assets"]
     data["inputs"] = inputs
     return [f"assets.{name}: now inputs.{name} (type file)" for name in assets]
+
+
+# -- calibration → the calibrate API ---------------------------------------------------------------------------------
+
+
+@rule
+def calibration_refused(data: dict[str, Any]) -> list[str]:
+    """The ``calibration`` section fitted inputs at every load; that is a step before loading now."""
+    if "calibration" in data:
+        raise ContractError([Issue("calibration", "is no longer part of the contract",
+                                   "fit the inputs before loading: fit = fg_env.analysis.calibrate(contract, targets, "
+                                   "params), then fg_env.load(contract, inputs=fit.params)")])
+    return []
 
 
 # -- arm patches ----------------------------------------------------------------------------------------------------

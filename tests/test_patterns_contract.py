@@ -154,14 +154,3 @@ def test_the_guide_teaches_every_kind_and_the_schema_describes_each():
     schema = fg_env.schema()
     kinds = schema["properties"]["patterns"]["additionalProperties"]["oneOf"]
     assert {"$ref": "#/$defs/TrendConfig"} in kinds and "TrendConfig" in schema["$defs"]
-
-
-def test_a_fitted_input_that_calibration_also_tunes_is_warned_about():
-    contract = world({"p": {"kind": "elasticity", "elasticity": "$inputs.p_elasticity", "reference": 20,
-                            "fit": {"data": "$inputs.history", "value": "units", "x": "price"}}},
-                     inputs={"p_elasticity": {"type": "number", "default": -1, "min": -3, "max": 0},
-                             "history": {"type": "table", "default": [{"price": 20, "units": 5}]}},
-                     calibration={"params": {"p_elasticity": {}}, "targets": {"level": 1}},
-                     outputs={"level": "$pattern.p(20)"})
-    warned = [issue for issue in fg_env.check(contract, rounds=0) if "calibration.params" in issue.message]
-    assert [(issue.severity, issue.path) for issue in warned] == [("warning", "patterns.p.elasticity")]
