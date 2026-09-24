@@ -66,6 +66,10 @@ class RandomAgent:
         return f"RandomAgent(seed={self.seed})"
 
 
+#: What random agents write for free text.
+SAMPLE_TEXT = "I would like to try this and see what happens next."
+
+
 def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]:
     args: Dict[str, Any] = {}
     for name, prop in (schema.get("properties") or {}).items():
@@ -88,8 +92,8 @@ def sample_args(schema: Mapping[str, Any], rng: random.Random) -> Dict[str, Any]
             args[name] = rng.randint(int(low), int(high)) if kind == "integer" else round(rng.uniform(low, high), 2)
         elif kind == "boolean":
             args[name] = rng.random() < 0.5
-        elif kind == "string":
-            args[name] = "ok"
+        elif kind == "string":  # a real sentence, so a rule that reads the text can pass
+            args[name] = SAMPLE_TEXT[:prop.get("maxLength", len(SAMPLE_TEXT))]
         elif kind == "array":
             items = _sample_list(prop, rng)
             if items is not None:

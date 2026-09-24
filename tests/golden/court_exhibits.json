@@ -1,18 +1,18 @@
 {
   "actions": 7,
   "events": 18,
-  "events_sha256": "fb2b191d85924f91863d9de9019bce74d92476d875542ed9f6a457fd1069a708",
+  "events_sha256": "d68b8d04e40055195f2f4e34031bb0208b8529d161d843b0cc745d7645cd842c",
   "first_events": [
     "r1 action pat: {\"action\": \"offer\", \"params\": {\"exhibit\": \"p1\"}, \"private\": true, \"success\": true}",
     "r1 action dana: {\"action\": \"offer\", \"params\": {\"exhibit\": \"d2\"}, \"private\": true, \"success\": true}",
     "r2 record: {\"entry\": 1, \"fields\": {\"file\": \"inspection_report\", \"text\": \"Exhibit P-1: Weld inspection report\"}, \"record\": \"evidence\"}",
     "r2 record: {\"entry\": 2, \"fields\": {\"file\": \"photos/loading_dock.png\", \"text\": \"Exhibit D-2: Photo of the loading dock\"}, \"record\": \"evidence\"}",
-    "r2 action pat: {\"action\": \"argue\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
-    "r2 record pat: {\"entry\": 3, \"fields\": {\"text\": \"ok\"}, \"record\": \"arguments\"}",
-    "r2 record: {\"entry\": 4, \"fields\": {\"judges\": [\"bench\"], \"name\": \"Pat Moreno\", \"rationale\": \"No evaluator was available; every criterion was scored at its midpoint.\", \"scores\": {\"persuasion\": 5.5, \"use_of_evidence\": 5.5}, \"stand_in\": true, \"subject\": \"pat\", \"target\": null, \"total\": 5.0}, \"record\": \"bench\"}",
-    "r2 action dana: {\"action\": \"argue\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
-    "r2 record dana: {\"entry\": 5, \"fields\": {\"text\": \"ok\"}, \"record\": \"arguments\"}",
-    "r2 record: {\"entry\": 6, \"fields\": {\"judges\": [\"bench\"], \"name\": \"Dana Liu\", \"rationale\": \"No evaluator was available; every criterion was scored at its midpoint.\", \"scores\": {\"persuasion\": 5.5, \"use_of_evidence\": 5.5}, \"stand_in\": true, \"subject\": \"dana\", \"target\": null, \"total\": 5.0}, \"record\": \"bench\"}"
+    "r2 action pat: {\"action\": \"argue\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"success\": true}",
+    "r2 record pat: {\"entry\": 3, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"arguments\"}",
+    "r2 record: {\"entry\": 4, \"fields\": {\"judges\": [\"bench\"], \"name\": \"Pat Moreno\", \"rationale\": \"No evaluator was available; every criterion was scored at its midpoint.\", \"scores\": {\"persuasion\": 5.5, \"use_of_evidence\": 5.5}, \"subject\": \"pat\", \"target\": null, \"total\": 5.0}, \"record\": \"bench\"}",
+    "r2 action dana: {\"action\": \"argue\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"success\": true}",
+    "r2 record dana: {\"entry\": 5, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"arguments\"}",
+    "r2 record: {\"entry\": 6, \"fields\": {\"judges\": [\"bench\"], \"name\": \"Dana Liu\", \"rationale\": \"No evaluator was available; every criterion was scored at its midpoint.\", \"scores\": {\"persuasion\": 5.5, \"use_of_evidence\": 5.5}, \"subject\": \"dana\", \"target\": null, \"total\": 5.0}, \"record\": \"bench\"}"
   ],
   "metrics": {
     "admitted": 2,

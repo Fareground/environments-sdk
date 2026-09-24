@@ -1,18 +1,18 @@
 {
   "actions": 10,
   "events": 28,
-  "events_sha256": "e5b04e5bf79775bcbc17372b761bcbc725a52d3eef6eac10a8b4cff3a14dd9a8",
+  "events_sha256": "db1a80383e3d3503f84a4eacb6f147fd2bb3cb7304f6d9cb9c11945b236bcf44",
   "first_events": [
-    "r1 action pat: Pat Moreno: offer exhibit (exhibit=\u00abok\u00bb).",
-    "r1 hearing_stack pat: Pat Moreno pushes exhibit [1]: \u00abok\u00bb (plaintiff). Waiting on Dana Liu to answer.",
+    "r1 action pat: Pat Moreno: offer exhibit (exhibit=\u00abI would like to try this and see what happens next.\u00bb).",
+    "r1 hearing_stack pat: Pat Moreno pushes exhibit [1]: \u00abI would like to try this and see what happens next.\u00bb (plaintiff). Waiting on Dana Liu to answer.",
     "r1 hearing_stack dana: Dana Liu pushes objection [2]: relevance. Waiting on Judge Ito to answer.",
     "r1 action dana: {\"action\": \"hearing_objection\", \"params\": {\"ground\": \"relevance\"}, \"private\": true, \"success\": true}",
     "r1 hearing_stack ito: Judge Ito lets the objection [2] stand.",
     "r1 hearing_stack: The objection [2] by Dana Liu: relevance resolves.",
-    "r1 hearing_stack: The exhibit [1] by Pat Moreno: \u00abok\u00bb (plaintiff) resolves.",
+    "r1 hearing_stack: The exhibit [1] by Pat Moreno: \u00abI would like to try this and see what happens next.\u00bb (plaintiff) resolves.",
     "r1 action ito: {\"action\": \"hearing_pass\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r2 action pat: Pat Moreno: offer exhibit (exhibit=\u00abok\u00bb).",
-    "r2 hearing_stack pat: Pat Moreno pushes exhibit [3]: \u00abok\u00bb (plaintiff). Waiting on Dana Liu to answer."
+    "r2 action pat: Pat Moreno: offer exhibit (exhibit=\u00abI would like to try this and see what happens next.\u00bb).",
+    "r2 hearing_stack pat: Pat Moreno pushes exhibit [3]: \u00abI would like to try this and see what happens next.\u00bb (plaintiff). Waiting on Dana Liu to answer."
   ],
   "metrics": {},
   "rounds": 4,

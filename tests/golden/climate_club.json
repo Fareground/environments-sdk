@@ -1,18 +1,18 @@
 {
   "actions": 106,
   "events": 196,
-  "events_sha256": "61473dc63057949494512ff76f4c38d3cc6dd8fb6bb4ad9339fcfc04cb2f7126",
+  "events_sha256": "0b7963fb64727e5c06fae89ee5c4835c7a655681302e04d6423cebc51b00ffeb",
   "first_events": [
     "r1 action usa: {\"action\": \"write\", \"params\": {\"to\": \"ind\"}, \"success\": true}",
-    "r1 record usa: {\"entry\": 1, \"fields\": {\"text\": \"ok\"}, \"record\": \"letters\"}",
-    "r1 action eu: {\"action\": \"speak\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
-    "r1 record eu: {\"entry\": 2, \"fields\": {\"text\": \"ok\"}, \"record\": \"forum\"}",
-    "r1 action chn: {\"action\": \"speak\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
-    "r1 record chn: {\"entry\": 3, \"fields\": {\"text\": \"ok\"}, \"record\": \"forum\"}",
+    "r1 record usa: {\"entry\": 1, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"letters\"}",
+    "r1 action eu: {\"action\": \"speak\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"success\": true}",
+    "r1 record eu: {\"entry\": 2, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"forum\"}",
+    "r1 action chn: {\"action\": \"speak\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"success\": true}",
+    "r1 record chn: {\"entry\": 3, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"forum\"}",
     "r1 action ind: {\"action\": \"write\", \"params\": {\"to\": \"eu\"}, \"success\": true}",
-    "r1 record ind: {\"entry\": 4, \"fields\": {\"text\": \"ok\"}, \"record\": \"letters\"}",
-    "r1 action rus: {\"action\": \"speak\", \"params\": {\"text\": \"ok\"}, \"success\": true}",
-    "r1 record rus: {\"entry\": 5, \"fields\": {\"text\": \"ok\"}, \"record\": \"forum\"}"
+    "r1 record ind: {\"entry\": 4, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"letters\"}",
+    "r1 action rus: {\"action\": \"speak\", \"params\": {\"text\": \"I would like to try this and see what happens next.\"}, \"success\": true}",
+    "r1 record rus: {\"entry\": 5, \"fields\": {\"text\": \"I would like to try this and see what happens next.\"}, \"record\": \"forum\"}"
   ],
   "metrics": {
     "avg_actual_cut": 50.07333333,

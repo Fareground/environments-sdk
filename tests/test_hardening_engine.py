@@ -6,6 +6,7 @@ import pytest
 import fg_env
 from fg_env.errors import SnapshotError
 from fg_env.expr import Untrusted
+from fg_env.participants import SAMPLE_TEXT
 
 TALK = {
     "name": "Talk",
@@ -188,7 +189,7 @@ def test_preview_changes_nothing_and_shows_earlier_seats():
     before = json.dumps(env.snapshot(), sort_keys=True)
     preview = env.preview("member_3")  # earlier seats are played on a copy with built-in participants
     assert preview["update"].startswith("Round 2 of 3")
-    assert "Member 1: «ok»" in preview["update"]  # member_1's round-2 post, made on the copy before member_3's turn
+    assert f"Member 1: «{SAMPLE_TEXT}»" in preview["update"]  # member_1's round-2 post, made on the copy before member_3's turn
     assert json.dumps(env.snapshot(), sort_keys=True) == before
     env.run(_talker, stop=lambda e: e.world.stage is not None)
     count = env._turn_count
