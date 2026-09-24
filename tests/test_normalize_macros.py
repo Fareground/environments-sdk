@@ -1,4 +1,5 @@
-"""Parse-time macros: repeated structure generated from data, expanded before mechanisms."""
+"""Macros of earlier releases (`for`/`make`): a contract that uses them still loads, expanded in place when it is read
+(each file on its own, before mechanisms), and `fg-env expand` shows the expanded form to write instead."""
 import json
 from pathlib import Path
 
@@ -6,7 +7,8 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
-from fg_env.contract.macros import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
+from fg_env.contract.normalize import normalize
+from fg_env.contract.normalize_state import MAX_MACRO_DEPTH, MAX_MACRO_ITEMS
 from fg_env.errors import ContractError
 from fg_env.experiments.experiment import Job, run_jobs
 
@@ -29,6 +31,14 @@ BETTING = {
 
 def _issues(excinfo):
     return [(issue.path, issue.message) for issue in excinfo.value.issues]
+
+
+def test_macros_are_expanded_in_place_with_a_note_and_are_gone_from_the_guide():
+    expanded, notes = normalize(BETTING)
+    assert list(expanded["actions"]) == ["bet_flop", "bet_turn", "bet_river"] and any("macros" in n for n in notes)
+    assert normalize(expanded) == (expanded, [])
+    with pytest.raises(KeyError, match="unknown guide part 'macros'"):
+        fg_env.guide("macros")
 
 
 def test_list_items_and_named_entries_are_generated_with_placeholders_keeping_types():

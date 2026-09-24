@@ -436,7 +436,7 @@ def add_commands(sub: Any) -> None:
     add_new_command(sub)
     add_author_command(sub)
 
-    p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, macros expanded")
+    p = sub.add_parser("expand", help="print the contract as the engine reads it: imports merged, earlier forms rewritten")
     p.add_argument("file", help="contract JSON file")
     p.add_argument("--mechanisms", action="store_true", help="also expand every mechanism into ordinary sections")
     p.set_defaults(func=_guarded(cmd_expand))

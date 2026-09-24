@@ -13,8 +13,8 @@ from .checks import check_contract, parse_contract
 from .checks.smoke import run_issue, smoke_issues
 from .contract import Contract
 from .contract.inputs import resolve_inputs
-from .contract.macros import expand_macros
 from .contract.normalize import normalize
+from .contract.normalize_state import expand_macros
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
 from .runtime.calibration import calibrate_at_load
@@ -55,11 +55,12 @@ MAX_IMPORTS = 64
 
 
 def _with_imports(data: Any, folder: Path, stack: tuple[Path, ...]) -> Any:
-    """``data`` with its macros expanded and its ``imports`` merged in (unchanged when it has neither)."""
-    data = normalize(expand_macros(data))[0]
-    if not isinstance(data, Mapping) or "imports" not in data:
-        return data
-    return _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
+    """``data`` in the current form with its ``imports`` merged in (each file's earlier-release macros expanded before it
+    is merged)."""
+    data = expand_macros(data)
+    if isinstance(data, Mapping) and "imports" in data:
+        data = _resolve_imports(data, folder, folder.resolve(), stack, [0], "imports")
+    return normalize(data)[0]
 
 
 def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: tuple[Path, ...], count: list[int],
@@ -173,7 +174,7 @@ def located(contract: Contract, folder: DataDir) -> Contract:
 
 
 def expand(source: ContractLike, *, mechanisms: bool = False) -> dict[str, Any]:
-    """The contract data the engine reads: imports merged and macros expanded (and, with
+    """The contract data the engine reads: imports merged and earlier forms rewritten (and, with
     ``mechanisms=True``, every mechanism expanded into ordinary sections too; the ``mechanisms`` block stays,
     since the generated effects read their config there, and loading the result again changes nothing).
 
