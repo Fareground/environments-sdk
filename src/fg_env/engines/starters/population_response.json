@@ -1,7 +1,7 @@
 {
   "fg_env": "1",
   "name": "Population Engine",
-  "description": "A reusable sampled-population response engine. People independently choose among configurable responses with private inclinations and report confidence; the coded baseline responds from each person's inclination blurred by their uncertainty, and reports how likely it would give the same answer again, so outcomes vary across runs and aggregate across people and experiment runs.",
+  "description": "A reusable sampled-population response engine. People independently choose among configurable responses with private inclinations and report confidence; the coded baseline responds from each person's inclination blurred by their uncertainty, stays undecided unless that leaning clearly outweighs its doubt (so the less confident answer undecided more often), and reports its confidence discounted by how likely it would give the same answer again, so outcomes vary across runs and aggregate across people and experiment runs.",
   "inputs": {
     "question": {"type": "text", "default": "Would you adopt the proposed change?"},
     "participants": {
@@ -148,11 +148,12 @@
   },
   "stages": [{"name": "respond", "turns": "simultaneous", "must_act": true}],
   "views": {"private_context": {"for": "person", "show": "Segment: {segment}. Private inclination: {inclination|2}."}},
-  "defs": {"sure": {"args": ["person", "low", "high"], "expr": "$round(($erf(($high - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2))) - $erf(($low - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2)))) / 2, 2)", "description": "How sure the coded baseline says it is of an answer: the chance its leaning (inclination plus noise of spread 1 - confidence) lands between low and high again, so certain people with a clear inclination report high confidence and uncertain or borderline people report less."}},
+  "defs": {"band": {"args": ["person"], "expr": "0.25 / $max(0.01, $person.default_confidence)", "description": "How far the leaning must go before the coded baseline commits to support or oppose: the less confident, the wider the undecided band."},
+           "sure": {"args": ["person", "low", "high"], "expr": "$round(($erf(($high - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2))) - $erf(($low - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2)))) / 2, 2)", "description": "The chance the coded baseline's leaning (inclination plus noise of spread 1 - confidence) lands between low and high again."}},
   "policies": {"baseline": {"rules": [
-    {"when": "$actor.leaning > 0.25", "do": "respond", "with": {"choice": "support", "confidence": "$sure($actor, 0.25, 9)", "reason": "The change fits my priorities."}},
-    {"when": "$actor.leaning < -0.25", "do": "respond", "with": {"choice": "oppose", "confidence": "$sure($actor, -9, -0.25)", "reason": "The change conflicts with my priorities."}},
-    {"do": "respond", "with": {"choice": "undecided", "confidence": "$sure($actor, -0.25, 0.25)", "reason": "I would need more information."}}
+    {"when": "$actor.leaning > $band($actor)", "do": "respond", "with": {"choice": "support", "confidence": "$round($actor.default_confidence * $sure($actor, $band($actor), 99), 2)", "reason": "The change fits my priorities."}},
+    {"when": "$actor.leaning < -$band($actor)", "do": "respond", "with": {"choice": "oppose", "confidence": "$round($actor.default_confidence * $sure($actor, -99, -$band($actor)), 2)", "reason": "The change conflicts with my priorities."}},
+    {"do": "respond", "with": {"choice": "undecided", "confidence": "$round($actor.default_confidence * $sure($actor, -$band($actor), $band($actor)), 2)", "reason": "I would need more information."}}
   ]}},
   "metrics": {
     "support_share": {"expr": "$count(person, $it.response == support) / $count(person) if $count(person) > 0 else null"},
@@ -164,6 +165,6 @@
     "oppose": {"type": "int", "expr": "$count(person, $it.response == oppose)"},
     "undecided": {"type": "int", "expr": "$count(person, $it.response == undecided)"},
     "support_share": {"type": "number", "expr": "$metrics.support_share"},
-    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)", "description": "Mean confidence people reported (the coded baseline reports how likely it would give the same answer again)."}
+    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)", "description": "Mean confidence people reported (the coded baseline reports its confidence discounted by how likely it would give the same answer again)."}
   }
 }

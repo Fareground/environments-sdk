@@ -119,6 +119,7 @@ Generated from the installed source models, expression registry and authoring gu
 - [functions / social](reference-functions-social.md)
 - [functions / mind](reference-functions-mind.md)
 - [functions / conditions](reference-functions-conditions.md)
+- [functions / host](reference-functions-host.md)
 - [inspect](reference-inspect.md)
 - [running](reference-running.md)
 - [optimise](reference-optimise.md)

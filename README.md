@@ -29,11 +29,12 @@ transitions, stopping conditions, and measurements. The runtime builds the world
 agent an appropriate view and typed tools, applies actions atomically, and returns typed outputs.
 
 Use this SDK when you need to simulate people interacting under explicit rules and run the same
-scenario repeatedly. Twelve engines—Retail, Council, Dispute, Exchange, Legislature, Contest,
-Deliberation, Negotiation, Population, Network, Matching and Strategy—are runnable starters, one per
-kind of human interaction: each is a complete contract with coded participants that runs as cloned.
-Clone the closest one and make it your own: topic, participants, rules, information and outcomes.
-The real-world question and its assumptions are yours to supply.
+scenario repeatedly. Eighteen engines—Retail, Council, Dispute, Exchange, Legislature, Contest,
+Deliberation, Negotiation, Population, Network, Matching, Strategy, Supply chain, Auction, Contact centre,
+Ride hailing, Epidemic and Hidden roles—are runnable starters, one per kind of interaction: each is a
+complete contract with coded participants that runs as cloned. Clone the closest one and make it your
+own: topic, participants, rules, information and outcomes. The real-world question and its assumptions
+are yours to supply.
 
 You write data, never engine code. The same contract runs with LLM agents, coded crowds, or both,
 and engine randomness is reproducible from its seed. Reproducing an LLM run also requires the same participant decisions; record traces for replay.
@@ -180,7 +181,7 @@ result = fg_env.experiment("my_market.json", runs=2, participants="random", inpu
 print(result.table())
 ```
 
-All twelve engines are native, available, and cloneable.
+All eighteen engines are native, available, and cloneable.
 
 Persona generation is shared infrastructure rather than an environment:
 

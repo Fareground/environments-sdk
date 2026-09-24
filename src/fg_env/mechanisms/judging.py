@@ -21,13 +21,14 @@ from ..assets.delivery import Attachment, attached_ids, entry_assets
 from ..assets.multimodal import host_attachments
 from ..contract.base import tape_prop
 from ..errors import RunError
-from ..expr import Untrusted
+from ..expr import Call, ExprError, Untrusted, function
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host import allowlist
 from ..host.common import MODEL_HINT, NAME, clip, prop_of, type_list
+from ..host.hosts import hosts_for
 from ..host.protocols import HostError
-from ..host.tape import consult, plain
+from ..host.tape import TAPE, consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.live import Abort, _plain
 
@@ -41,6 +42,22 @@ GAME_MASTER = "host.game_master"
 # ---------------------------------------------------------------------------
 # judge
 # ---------------------------------------------------------------------------
+
+
+@function("host_bound(name)", "Whether the host `name` answers this run: bound live, or its answers are on the run's "
+          "tape (a replay, or a restored run). Branch on it to use a host's judgment only when there is one, e.g. a "
+          "judge's reading of a speech, and a coded stand-in otherwise.", min_args=1, max_args=1)
+def _host_bound_function(call: Call) -> bool:
+    world: Any = call.scope.world
+    name = call.arg(0)
+    if not isinstance(name, str):
+        raise ExprError(f"$host_bound: name must be a host's name, got {format_value(name)}", call.source)
+    hosts = hosts_for(world)
+    if hosts is not None and hosts.adapter(name) is not None:
+        return True
+    tape = world.props.get(TAPE)
+    recorded = [*(tape.values() if isinstance(tape, Mapping) else ()), *(hosts.replay.values() if hosts else ())]
+    return any(isinstance(e, Mapping) and e.get("service") == name and not e.get("fallback") for e in recorded)
 
 
 class Criterion(BaseModel):

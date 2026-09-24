@@ -79,6 +79,9 @@ class AuctionConfig(BaseModel):
                                                   "`reverse`, the highest the house pays.")
     reverse: bool = Field(False, description="first_price / second_price: a procurement tender: the `house` buys, the "
                                              "lowest offer wins and is paid (its offer, or the second-lowest).")
+    deliver_from: str | None = Field(None, description="reverse: the bidders' property holding their stock; the "
+                                                       "winner's unit comes out of it, so an offer needs one in stock "
+                                                       "(default: the unit is a service, made on delivery).")
     score: str | None = Field(None, description="first_price: award to the acceptable bid with the highest score, an "
                                                 "expression over $price and $it (the bidder), e.g. \"$it.quality * 10 "
                                                 "- $price\".")
@@ -218,6 +221,8 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
         raise Abort(f"Your bid must be at least {fmt(floor, 4)}.")
     if cfg.reverse and price > _reserve(world, name, cfg) + 1e-9:
         raise Abort(f"Your offer must be at most {fmt(_reserve(world, name, cfg), 4)}, the most the house pays.")
+    if cfg.deliver_from and not _in_stock(world, cfg, trader):
+        raise Abort(f"You have no {cfg.item} in stock to supply ({cfg.deliver_from} is 0).")
     cash, escrow = Account(trader, cfg.currency), Account(trader, f"{name}_escrow")
     item = f"{cfg.item}"
     if cfg.format == "dutch":
@@ -383,9 +388,15 @@ def _merit(world: Any, name: str, cfg: AuctionConfig) -> Callable[[dict[str, Any
     return (lambda b: -b["price"]) if cfg.reverse else (lambda b: b["price"])
 
 
+def _in_stock(world: Any, cfg: AuctionConfig, bidder: Entity) -> bool:
+    return not cfg.deliver_from or balance(world, Account(bidder, cfg.deliver_from)) >= 1 - 1e-9
+
+
 def _award_tender(world: Any, name: str, cfg: AuctionConfig, lot: dict[str, Any], bids: list[dict[str, Any]],
                   payer: Account, source: Account) -> None:
-    """A procurement lot: the best offer the house can pay, at most the reserve, wins, is paid and delivers a unit."""
+    """A procurement lot: the best offer the house can pay, at most the reserve, wins, is paid and delivers a unit
+    (from its `deliver_from` stock, so an offer whose stock has gone since counts for nothing)."""
+    bids = [b for b in bids if _in_stock(world, cfg, entity_of(world, b["bidder"], f"mechanisms.{name}", "a bidder"))]
     cap = min(_reserve(world, name, cfg), balance(world, payer))
     accepted = [b for b in bids if b["price"] <= cap + 1e-9]
     if not accepted:
@@ -396,7 +407,12 @@ def _award_tender(world: Any, name: str, cfg: AuctionConfig, lot: dict[str, Any]
     price = best["price"] if cfg.format == "first_price" else min([cap, *others])
     winner = entity_of(world, best["bidder"], f"mechanisms.{name}", "a bidder")
     move(world, payer, Account(winner, cfg.currency), price, what="cash")
-    move(world, source, Account(payer.entity, f"{name}_units"), 1, what="units")  # the winner supplies it to the house
+    delivered = Account(payer.entity, f"{name}_units")
+    if cfg.deliver_from:  # the winner's stock supplies the unit; the house wants one fewer
+        move(world, Account(winner, cfg.deliver_from), delivered, 1, what=cfg.deliver_from)
+        world.set_world(f"{name}_stock", int(balance(world, source)) - 1)
+    else:
+        move(world, source, delivered, 1, what="units")  # the winner supplies it to the house
     _won(world, name, winner, 1)
     capped = price == cap and not any(p <= cap for p in others)
     notes = {"first_price": "best score, paid its offer" if cfg.score else "lowest offer, paid its offer",

@@ -33,6 +33,26 @@ def test_contest_without_a_judge_is_decided_by_skill_and_luck_and_says_so():
     assert run("contest", inputs={"participants": even, "luck": 0}).outputs["winner"] is None  # a true tie stays one
 
 
+def _judged(engine_id, direction, output, seeds=SEEDS):
+    """The mean of ``output`` when a bound judge hears every speech as arguing ``direction`` (-1 against, 1 for)."""
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get(engine_id).path)))
+    judge = StubEvaluator(lambda request: {"direction": direction, "strength": 1})
+    return statistics.fmean(float(fg_env.host.load(path, hosts={"judge": judge}, seed=s).run().outputs[output])
+                            for s in seeds)
+
+
+@pytest.mark.parametrize("engine_id, output", [("deliberation", "yes"), ("legislature", "yes"),
+                                               ("dispute", "jury_award")])
+def test_with_a_judge_bound_what_a_speech_says_moves_the_listeners(engine_id, output):
+    assert _judged(engine_id, 1, output) > _judged(engine_id, -1, output)
+
+
+def test_without_a_judge_coded_listeners_react_to_the_speakers_stance_and_the_run_stays_clean():
+    for engine_id in ("deliberation", "legislature", "dispute"):
+        result = run(engine_id)
+        assert result.status in ("completed", "ended") and "host_fallback" not in result.degraded, engine_id
+
+
 def test_contest_knows_it_was_judged_from_the_verdicts_not_the_host_tape():
     assert "host_tape" not in json.dumps(fg_env.engines.get("contest").source())
     path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("contest").path)))
@@ -345,8 +365,9 @@ _SWEEP_BASE = {"retail": {"days": 60, "sample_size": 80, "launch_day": 5}, "exch
                "dispute": {"evidence_rounds": 1}}  # one exhibit a side: a close case, where every jury rule can bite
 #: Rounds a sweep stops at where an extreme would run for minutes; outputs are read where it stops.
 _SWEEP_ROUNDS = {("retail", "sample_size"): 1, ("exchange", "bars"): 24, ("exchange", "participants"): 4}
-#: The retail engine's launch inputs act in its chain_launch arm, which runs the baseline's rules too.
-_SWEEP_ARM = {"retail": "chain_launch"}
+#: The retail engine's launch inputs act in its chain_launch arm, which runs the baseline's rules too; the contact
+#: centre's outage and callback inputs act in the arm that has both.
+_SWEEP_ARM = {"retail": "chain_launch", "contact_centre": "outage_with_callbacks"}
 #: Declared inputs no output shows when moved alone from one bound to the other, and why.
 _INERT = {
     ("exchange", "circuit_breaker_pct"): "0 turns the breaker off and a 50% move within one bar does not happen in "
@@ -408,6 +429,19 @@ def test_a_rate_over_nobody_is_null_not_zero(engine_id, inputs, output):
     assert run(engine_id, inputs=inputs).outputs[output] is None
 
 
+def test_population_answers_undecided_more_often_the_less_confident_people_are():
+    """Survey behaviour: doubt shows up as "undecided", never as noise that pushes people into a firm answer."""
+    people = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
+
+    def undecided(confidence):
+        table = [{**p, "confidence": confidence} for p in people]
+        return statistics.fmean(run("population", seed=s, inputs={"participants": table}).outputs["undecided"]
+                                for s in SEEDS)
+
+    shares = [undecided(c) for c in (1, 0.7, 0.4, 0.1)]
+    assert shares == sorted(shares) and shares[-1] > shares[0] + 20, shares
+
+
 def test_population_reports_more_confidence_the_more_certain_people_are():
     people = fg_env.engines.get("population").source()["inputs"]["participants"]["default"]
 
@@ -441,3 +475,28 @@ def test_forward_looking_players_compete_more_as_the_temptation_grows():
 
 def test_coded_negotiators_strike_different_deals_on_different_seeds():
     assert len({json.dumps(run("negotiation", seed=seed).outputs["surplus"]) for seed in range(8)}) > 2
+
+
+def _mean_output(engine_id, output, inputs, seeds):
+    values = [run(engine_id, seed=s, inputs=inputs).outputs[output] for s in seeds]
+    return statistics.fmean((v == "werewolves") if isinstance(v, str) else float(v) for v in values)  # a win rate
+
+
+#: Each promoted scenario engine moves its headline output the way the real system does: (engine, output, the
+#: input change, whether the output rises).
+DIRECTIONS = [
+    ("supply_chain", "bullwhip_ratio", ({"share_demand": False}, {"share_demand": True}), False),
+    ("supply_chain", "total_cost", ({"shipping_delay": 1}, {"shipping_delay": 4}), True),
+    ("auction", "house_revenue", ({"collectors": 3}, {"collectors": 20}), True),
+    ("contact_centre", "centre_service_level", ({"staffing": [8] * 24}, {"staffing": [25] * 24}), True),
+    ("ride_hailing", "cancellation_rate", ({"drivers": 10}, {"drivers": 60}), False),
+    ("epidemic", "ever_infected_share", ({"transmissibility": 0.1}, {"transmissibility": 0.4}), True),
+    ("hidden_roles", "winning_side", ({"werewolves": 1}, {"werewolves": 3}), True),
+]
+
+
+@pytest.mark.parametrize("engine_id, output, change, rises", DIRECTIONS)
+def test_promoted_engines_move_their_outputs_the_way_the_real_system_does(engine_id, output, change, rises):
+    seeds = range(2) if engine_id in ("ride_hailing", "epidemic") else range(6)
+    low, high = (_mean_output(engine_id, output, inputs, seeds) for inputs in change)
+    assert (high > low) if rises else (high < low), (low, high)

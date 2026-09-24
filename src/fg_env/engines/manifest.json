@@ -22,7 +22,7 @@
       "id": "dispute",
       "title": "Dispute",
       "summary": "a civil trial: evidence, objections and cross-examination before a judge, then a jury verdict",
-      "description": "Simulates two sides offering (coded counsel lead with their strongest exhibits and now and then risk a flawed one), objecting to and cross-examining evidence before a judge; the parties, case, jury and exhibits are inputs; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury.",
+      "description": "Simulates two sides offering (coded counsel lead with their strongest exhibits and now and then risk a flawed one), objecting to and cross-examining evidence before a judge; the parties, case, jury and exhibits are inputs; jurors weigh the total strength of what was admitted, sway one another in the jury room and vote on liability and damages, re-deliberating until a verdict or a hung jury; a jury-room remark pulls toward what a bound judge host ('judge') reads in its words, and without one toward the speaker's own leaning, so an unjudged remark's words move nobody.",
       "status": "native",
       "path": "starters/civil_trial.json"
     },
@@ -43,7 +43,7 @@
       "id": "legislature",
       "title": "Legislature",
       "summary": "members move, second, amend, debate and vote on a measure",
-      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each member's view blends their starting stance with the floor speeches so far, their own party's counting more, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates a legislative body moving, seconding, debating and voting on a measure (members may amend it; the coded members do not); each member's view blends their starting stance with the floor speeches so far, their own party's counting more, and the outcome is passed, rejected, or the status quo when nothing comes to a vote; a speech counts for what a bound judge host ('judge') reads in its words, and without one for the speaker's own stance, so an unjudged speech's words move nobody.",
       "status": "native",
       "path": "starters/configurable_legislature.json"
     },
@@ -59,7 +59,7 @@
       "id": "deliberation",
       "title": "Deliberation",
       "summary": "people exchange reasons, propose a conclusion and vote on it",
-      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each member's view blends their starting stance with the speeches so far, and the outcome is passed, rejected, or the status quo when nothing comes to a vote.",
+      "description": "Simulates people exchanging reasons, proposing a conclusion (participants may amend it; the coded members do not) and voting; each member's view blends their starting stance with the speeches so far, and the outcome is passed, rejected, or the status quo when nothing comes to a vote; a speech counts for what a bound judge host ('judge') reads in its words, and without one for the speaker's own stance, so an unjudged speech's words move nobody.",
       "status": "native",
       "path": "starters/open_deliberation.json"
     },
@@ -75,7 +75,7 @@
       "id": "population",
       "title": "Population",
       "summary": "sampled people each respond to one situation; the responses are aggregated",
-      "description": "Runs sampled people through a shared situation: each responds independently from their inclination, blurred by their uncertainty, and the responses are aggregated.",
+      "description": "Runs sampled people through a shared situation: each responds independently from their inclination, blurred by their uncertainty; the less confident answer undecided more often, and the responses are aggregated.",
       "status": "native",
       "path": "starters/population_response.json"
     },
@@ -102,6 +102,57 @@
       "description": "Simulates repeated cooperate-or-compete choices among any number of players under a configurable payoff matrix; coded players follow classic strategies (tit for tat, grim trigger, always cooperate or compete, random), which ignore the payoffs, or look forward and weigh the payoffs against the rounds left, with occasional mistakes, and a tie names no winner.",
       "status": "native",
       "path": "starters/repeated_strategy.json"
+    },
+    {
+      "id": "supply_chain",
+      "title": "Supply chain",
+      "summary": "tiers of a supply chain order upstream and ship downstream with delays (the beer game)",
+      "description": "Simulates a four-tier supply chain (retailer, wholesaler, distributor, factory) in which each tier sees only its own stock, backlog and incoming orders and orders from the tier above, with order, shipping and brewing delays; customer demand, delays and costs are inputs. Coded tiers order what they were asked for plus part of the gap to their target stock (base-stock and pass-through policies are included), so a demand step ripples upstream as the bullwhip effect; sharing real demand with every tier (share_demand) damps it. Reports cost, the bullwhip ratio, backlog and how long the chain takes to settle.",
+      "status": "native",
+      "path": "starters/beer_game.json"
+    },
+    {
+      "id": "auction",
+      "title": "Auction",
+      "summary": "collectors with private values bid for identical lots under each auction format",
+      "description": "Simulates collectors with private valuations (drawn every run) bidding for three identical lots, with an experiment arm per format: sealed first-price (the baseline), Vickrey second-price, English, Dutch, uniform-price and a double auction against dealers; the number of collectors and their budget are inputs. Coded collectors shade first-price bids below their value, bid their value in a Vickrey auction, raise in an English one while the price is under their value and take a Dutch clock once it falls far enough, so more competition raises the price.",
+      "status": "native",
+      "path": "starters/auction_house.json"
+    },
+    {
+      "id": "contact_centre",
+      "title": "Contact centre",
+      "summary": "a call-by-call day at a contact centre: arrivals, handling, abandonment and staffing",
+      "description": "Simulates one day (08:00-20:00, half-hours) at a contact centre call by call: arrivals follow a base rate times day-of-week and time-of-day indices fitted from a call history (a bundled CSV input), handle times are lognormal around the history's average and callers give up after a patience calibrated to its abandonment; agents on duty per half-hour are an input (empty: a rule of 10% over the forecast workload plus two). Arms compare that rule with an optimised plan, a network outage and callbacks; more staff answers more calls sooner.",
+      "status": "native",
+      "path": "starters/contact_centre.json",
+      "resources": [
+        "contact_centre/history.csv"
+      ]
+    },
+    {
+      "id": "ride_hailing",
+      "title": "Ride hailing",
+      "summary": "drivers serve ride requests on a city grid while the platform can price zones by surge",
+      "description": "Simulates drivers serving ride requests on a city grid in five-minute steps: demand follows an hourly profile with rush hours downtown (a table input), riders drop out as prices rise, and the platform can price each zone by surge; fleet size, fares and pricing are inputs. Coded drivers take the nearest reachable request and chase surge zones when idle; arms compare no surge with surge on trips, waits, cancellations, driver earnings and utilisation. More drivers cut cancellations.",
+      "status": "native",
+      "path": "starters/ride_hailing.json"
+    },
+    {
+      "id": "epidemic",
+      "title": "Epidemic",
+      "summary": "an outbreak on a contact network, with lockdowns, vaccination and hospital capacity",
+      "description": "Simulates a respiratory outbreak in a town of residents on a small-world contact network (susceptible, infected, recovered or dead, with waning immunity), with hospital capacity, a mayor who imposes lockdowns and runs a budget-limited vaccination campaign, and residents who decide each day whether to comply; transmissibility, illness length, immunity, beds, budget and policy triggers are inputs. Coded residents comply more when neighbours are sick and less the longer a lockdown lasts; the coded mayor locks down once past a case threshold, lifts it below another after two weeks, and vaccinates from vaccine_day as far as the budget allows. Arms compare early and late lockdowns; higher transmissibility infects more people.",
+      "status": "native",
+      "path": "starters/town_epidemic.json"
+    },
+    {
+      "id": "hidden_roles",
+      "title": "Hidden roles",
+      "summary": "social deduction: hidden werewolves kill at night while the village talks and votes by day",
+      "description": "Simulates social deduction among the players (a table input): werewolves (their number an input), a seer, a doctor and villagers are dealt at random and hidden; each night the werewolves pick a victim, the seer inspects a player and the doctor protects one, and each day everyone talks in public chat and votes to exile someone. Coded werewolves kill and vote against villagers, a seer who found a werewolf sometimes names it and votes for it, and everyone else votes at random (coded villagers do not follow what is said); more werewolves win more often.",
+      "status": "native",
+      "path": "starters/werewolf.json"
     }
   ]
 }

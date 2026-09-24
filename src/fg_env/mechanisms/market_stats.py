@@ -125,8 +125,15 @@ def _ratio_score(sim: float, ref: float) -> float:
     return math.exp(-abs(math.log(sim / ref)))
 
 
+def _against(sim: float, ref: float, tolerance: float) -> float:
+    """How close a fact is to the reference's: by ratio when the reference is positive (half or double scores 0.5),
+    else by distance within ``tolerance``."""
+    return _ratio_score(sim, ref) if ref > 0 else _closeness(sim, ref, tolerance)
+
+
 def realism_score(sim: Mapping[str, float], ref: Mapping[str, float]) -> dict[str, Any]:
-    """Compare simulated stylized facts with a reference: ``{score, components}`` (each 0..1)."""
+    """Compare simulated stylized facts with a reference: ``{score, components}`` (each 0..1, held to the
+    reference's own value, so a tape scores 1 only where it matches the reference)."""
     components: list[dict[str, Any]] = []
 
     def add(key: str, label: str, score: float, sim_value: float, ref_value: float | None, note: str) -> None:
@@ -134,24 +141,22 @@ def realism_score(sim: Mapping[str, float], ref: Mapping[str, float]) -> dict[st
                            "sim": round(sim_value, 5), "ref": None if ref_value is None else round(ref_value, 5),
                            "note": note})
 
-    add("volatility", "Volatility", _ratio_score(sim.get("sigma", 0.0), ref.get("sigma", 0.0)),
-        sim.get("sigma", 0.0), ref.get("sigma", 0.0), "per-bar return standard deviation")
-    sim_k, ref_k = sim.get("kurtosis", 0.0), ref.get("kurtosis", 0.0)
-    add("fat_tails", "Fat tails", 1.0 if sim_k > 0.3 and ref_k > 0.3 else _closeness(sim_k, ref_k, 3.0),
-        sim_k, ref_k, "excess kurtosis; real returns have heavier tails than a normal")
-    add("no_return_memory", "No return memory", 1.0 - min(1.0, abs(sim.get("acf1", 0.0)) * 4.0),
-        sim.get("acf1", 0.0), ref.get("acf1", 0.0), "lag-1 autocorrelation of returns should sit near zero")
-    sim_a, ref_a = sim.get("acf_abs", 0.0), ref.get("acf_abs", 0.0)
-    add("volatility_clustering", "Volatility clustering",
-        min(1.0, max(0.0, sim_a) / max(ref_a, 0.05)) if sim_a > 0 else 0.0, sim_a, ref_a,
-        "autocorrelation of absolute returns should be positive and persistent")
+    def fact(key: str, label: str, stat: str, tolerance: float, note: str) -> None:
+        sim_value, ref_value = sim.get(stat, 0.0), ref.get(stat, 0.0)
+        add(key, label, _against(sim_value, ref_value, tolerance), sim_value, ref_value, note)
+
+    fact("volatility", "Volatility", "sigma", 0.0, "per-bar return standard deviation")
+    fact("fat_tails", "Fat tails", "kurtosis", 3.0, "excess kurtosis; real returns have heavier tails than a normal")
+    sim_m, ref_m = sim.get("acf1", 0.0), ref.get("acf1", 0.0)
+    add("no_return_memory", "No return memory", _closeness(sim_m, ref_m, 0.25), sim_m, ref_m,
+        "lag-1 autocorrelation of returns, near the reference's (near zero in a real market)")
+    fact("volatility_clustering", "Volatility clustering", "acf_abs", 0.1,
+         "autocorrelation of absolute returns should be positive and persistent")
     if "avg_volume" in sim and "avg_volume" in ref and ref["avg_volume"] > 0:
-        add("volume", "Volume", _ratio_score(sim["avg_volume"], ref["avg_volume"]), sim["avg_volume"],
-            ref["avg_volume"], "average traded quantity per bar")
+        fact("volume", "Volume", "avg_volume", 0.0, "average traded quantity per bar")
     if "vol_volume_corr" in sim and "vol_volume_corr" in ref:
-        add("volume_volatility", "Volume tracks volatility",
-            1.0 if sim["vol_volume_corr"] > 0.1 else max(0.0, sim["vol_volume_corr"] / 0.1),
-            sim["vol_volume_corr"], ref["vol_volume_corr"], "big moves should come with big volume")
+        fact("volume_volatility", "Volume tracks volatility", "vol_volume_corr", 0.3,
+             "big moves should come with big volume")
     overall = _mean([c["score"] for c in components]) if components else 0.0
     return {"score": round(overall, 3), "components": components}
 

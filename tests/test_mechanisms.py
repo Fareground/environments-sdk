@@ -52,6 +52,23 @@ def test_a_ranked_count_without_tie_breaks_eliminates_every_option_tied_for_last
     assert irv["winner"] == "w" and [sorted(r["counts"]) for r in irv["rounds"]] == [["w", "x", "y", "z"], ["w", "x"]]
 
 
+def test_a_ranked_count_breaks_ties_first_the_way_every_other_method_does_and_says_a_tie_decided_it():
+    # b and c tie for last: ties first keeps the first-declared option (b), as plurality's ties first makes it win
+    ballots = [["a", "c", "b"]] * 3 + [["b", "c", "a"]] * 2 + [["c", "b", "a"]] * 2
+    irv = tally("ranked", ballots, ["a", "b", "c"], ties="first")
+    assert irv["winner"] == "b" and irv["tie"] and irv["tied"] == ["b", "c"]
+    assert tally("plurality", {"x": "b", "y": "c"}, ["a", "b", "c"], ties="first")["winner"] == "b"
+    assert not tally("ranked", [["a"], ["a"], ["b"]], ["a", "b"])["tie"]
+
+
+@pytest.mark.parametrize("method", ["ranked", "plurality"])
+def test_the_ranking_always_starts_with_the_winner_after_a_random_tie_break(method):
+    ballots = [["a"], ["b"]] if method == "ranked" else ["a", "b"]
+    for seed in range(12):
+        result = tally(method, ballots, ["a", "b"], rng=random.Random(seed))
+        assert result["tie"] and result["ranking"][0] == result["winner"]
+
+
 def test_passed_means_the_motion_listed_first_carried_and_decided_means_a_winner():
     lost = tally("majority", {"a": "yes", "b": "no", "c": "no"}, ["yes", "no"])
     assert lost["winner"] == "no" and lost["decided"] and not lost["passed"]

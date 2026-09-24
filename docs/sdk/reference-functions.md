@@ -16,7 +16,7 @@ General functions, for any contract:
 - `dates` (calendar arithmetic and parts of ISO dates): $date_add $date_part $days_between $is_holiday
 - `lists` (list and map manipulation, sets): $chunk $cumsum $diff $difference $index $insert $intersect $items $lookup $lookup_one $merge $pick_keys $rank $remove_at $rotate $set_at $union $window $without $zip
 - `stats` (statistics, time series and forecast scores): $abs_error $autocorr $brier $corr $cov $crps $drawdown $elo $ema $entropy $gini $hhi $histogram $linreg $log_loss $percentile_rank $pool $returns $sma $variance $zscore
-- `space` (grids, graphs, networks and links): $at $cells $clustering $components $degree $distance $empty $hops $layer $link $linked $links $near $nearest $neighbors $normal_for $random_empty $random_for $relation
+- `space` (grids, graphs, networks and links): $at $cells $clustering $components $degree $distance $empty $hops $layer $link $linked $links $near $nearest $neighbors $normal_for $path_distance $random_empty $random_for $relation
 
 Mechanism functions, for reading a mechanism family's state (a board, a deck, a market …); each group is also on its family's page:
 
@@ -30,3 +30,4 @@ Mechanism functions, for reading a mechanism family's state (a board, a deck, a 
 - `social` (Talking and spreading: channels (rooms, direct messages), a social feed, diffusion over a network): $adopter_count $channel_log $channels $exposures $feed $followers $following $groups $heard $homophily $inbox $inbox_channels $influence $insularity $invites $reach $recent_messages $spread_state $trending $unread
 - `mind` (What agents know and remember: beliefs with confidence, memory with recall, generated personas): $belief $beliefs_of $believes $confidence $memories
 - `conditions` (Effects on entities over time: statuses, cooldowns, channeled actions and terrain): $ability_text $can_enter $channeling $charges $cooldown_left $effective $has_status $ready $status_rounds $status_stacks $status_text $terrain
+- `host` (Services the host provides during a run: an LLM judge, a game master, recaps and tools such as web search): $host_bound

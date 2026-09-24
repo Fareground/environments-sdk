@@ -65,7 +65,7 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     census = _Census()
     random_env = _kept(build(), played)
     default = rounds is None
-    rounds = _default_rounds(random_env) if default else rounds
+    rounds = _default_rounds(random_env) if rounds is None else rounds
     random_play = _play(random_env, {"*": _reading(RandomAgent(seed))}, rounds, seconds, census)
     census.take(random_env)
     _failure(random_play, "random agents", errors)

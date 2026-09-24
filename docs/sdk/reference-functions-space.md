@@ -18,6 +18,7 @@
 - `$nearest(center, type, where?)` — The closest entity of `type` to a position or entity (itself left out) for which `where` holds ($it), or null; candidates are tried nearest first, ties in creation order.
 - `$neighbors(entity, kind)` — Entities linked to `entity` by `kind` (either direction).
 - `$normal_for(key, mean, sd)` — Normal draw fixed by `key` (aligned across experiment arms).
+- `$path_distance(from, to, open?)` — Grid steps from one position or entity to another along a path that only crosses cells for which `open` holds ($it is the cell; the start and the goal are always open), e.g. `not $layer(wall, $it)`; null when no such path exists. Without `open`, every cell is open.
 - `$random_empty(type?)` — One cell holding no entity (of `type`), picked at random; null when every cell is taken.
 - `$random_for(key)` — Uniform number in [0, 1) fixed by `key` (an entity, text or list): the same key gives the same draw in every arm of an experiment, however many other draws happen.
 - `$relation(a, b, kind)` — Value of the `kind` link from a to b, or null when not linked.
