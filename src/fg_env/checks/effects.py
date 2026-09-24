@@ -359,6 +359,7 @@ class EffectChecks:
         elif op == "end":
             v("winner")
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
+            self._shared_text(effect.get("say"), f"{path}.say", types, params)  # the run's last news, to everyone
         elif op == "after":
             v("after")
             delay = effect["after"]

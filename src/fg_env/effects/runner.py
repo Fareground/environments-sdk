@@ -371,8 +371,9 @@ class EffectRunner:
         """Evaluate an expression (or a structure of them) with these locals."""
         return resolve(value, self.world.scope(**vars))
 
-    def text(self, template: str | None, vars: dict[str, Any], viewer: Entity | _Everyone | None = None) -> str:
-        """Render a template with these locals for ``viewer`` (see information/gate.py)."""
+    def text(self, template: str | None, vars: dict[str, Any], viewer: Entity | _Everyone | None) -> str:
+        """Render a template with these locals for ``viewer``, the one agent it is shown to, :data:`EVERYONE` for text
+        sent to several, or None for the rules' own words (see information/gate.py)."""
         if not template:
             return ""
         return render(self.world, template, vars, viewer=viewer)
@@ -438,8 +439,8 @@ class EffectRunner:
         made: list[Entity] = []
         for n in range(count):
             inner = {**vars, "i": n + 1}
-            entity_id = self._text(effect.get("id"), inner) or None
-            name = self._text(effect.get("name"), inner) or None
+            entity_id = self._text(effect.get("id"), inner, None) or None  # the rules' own words: an id and a name
+            name = self._text(effect.get("name"), inner, None) or None
             at = self._eval(effect.get("at"), inner)
             made.append(self.world.create(effect["create"], entity_id, name, effect.get("props") or {},
                                           at, self.world.scope(**inner), where))
@@ -541,7 +542,7 @@ class EffectRunner:
 
     def _op_end(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None
-        self.world.request_end(str(effect["end"]), _plain_value(winner), self._text(effect.get("say"), vars))
+        self.world.request_end(str(effect["end"]), _plain_value(winner), self._text(effect.get("say"), vars, EVERYONE))
 
     def _op_after(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         delay = self._eval(effect["after"], vars)
@@ -562,9 +563,12 @@ class EffectRunner:
         world.schedule(world.round + delay, effects, captured, f"{where}.do")
 
     def _op_wake(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-        why = self._text(effect.get("why"), vars) or "You were asked to act."
+        woken = _to_ids(self._eval(effect["wake"], vars), where)
+        if not woken:
+            return
+        why = self.said(effect.get("why"), vars, woken) or "You were asked to act."  # what each woken agent is told
         now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
-        for entity_id in _to_ids(self._eval(effect["wake"], vars), where) or ():
+        for entity_id in woken:
             if now:
                 self.world.request_reaction(entity_id, why, effect.get("actions"))
             else:

@@ -26,7 +26,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from ..errors import RunError
-from ..expr import Call, ExprError, function
+from ..expr import EVERYONE, Call, ExprError, function
 from ..expr.objects import Entity
 from ..information.gate import render
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
@@ -230,7 +230,7 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
 def _say(runner: Any, mech: str, template: str, vars: dict[str, Any], where: str) -> None:
     if not template:
         return
-    text = render(runner.world, template, vars, viewer=None, path=where)
+    text = render(runner.world, template, vars, viewer=EVERYONE, path=where)  # news
     if text.strip():
         runner.world.emit(mech, text, data={"mechanism": KEY})
 
@@ -319,6 +319,7 @@ def _check_rules(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[
             checker.effects(getattr(spec, key), f"{at}.{key}", roots, dict(types))
         for key in ("say", "expire_say"):
             checker.template(getattr(spec, key) or None, f"{at}.{key}", None, roots, types)
+            checker._shared_text(getattr(spec, key) or None, f"{at}.{key}", types)  # news, to everyone
         checker.expr(spec.unless, f"{at}.unless", base | {"it"}, types)
         for prop, modifier in spec.modifiers.items():
             if not any(prop in checker.type_props.get(t, ()) for t in carried):

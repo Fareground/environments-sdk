@@ -37,7 +37,7 @@ from pydantic import Field, ValidationError, model_validator
 from ..contract import StageSpec
 from ..contract.normalize import normalize
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function
+from ..expr import EVERYONE, Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config, Effects
@@ -246,7 +246,7 @@ def _since(world: Any, since: int) -> list[Any]:
 
 def _news(runner: Any, mech: str, template: str) -> None:
     if template:
-        text = runner.text(template, {})
+        text = runner.text(template, {}, EVERYONE)  # news
         if text.strip():
             runner.world.emit(mech, text, data={"mechanism": KEY})
 
@@ -346,6 +346,7 @@ def _check_rules(checker: Any, name: str, cfg: ProcedureConfig) -> None:
         for key in ("on_enter", "on_exit"):
             checker.effects(getattr(spec, key), f"{at}.{key}", base, {})
         checker.template(spec.say or None, f"{at}.say", None, base)
+        checker._shared_text(spec.say or None, f"{at}.say", {})  # news, to everyone
         checker.expr(spec.winner, f"{at}.winner", base)
         for index, transition in enumerate(spec.transitions()):
             where = f"{at}.next[{index}]"
@@ -355,6 +356,7 @@ def _check_rules(checker: Any, name: str, cfg: ProcedureConfig) -> None:
             checker.value(transition.after, f"{where}.after", base)
             checker.effects(transition.do, f"{where}.do", base, {})
             checker.template(transition.say or None, f"{where}.say", None, base)
+            checker._shared_text(transition.say or None, f"{where}.say", {})
 
 
 def _check_shared_completion(checker: Any, name: str, transition: Transition, path: str) -> None:

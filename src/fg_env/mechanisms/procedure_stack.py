@@ -38,9 +38,10 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, truthy
+from ..expr import EVERYONE, Call, ExprError, compile_expr, truthy
 from ..expr.objects import Entity
 from ..expr.template import format_value
+from ..expr.values import _Everyone
 from ..information.gate import render
 from ..world.live import Abort
 from . import _common as common
@@ -175,14 +176,16 @@ def _vars(world: Any, cfg: StackConfig, item: Mapping[str, Any], below: Mapping[
             "below": _view(world, cfg, below)}
 
 
-def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], by: bool = True) -> str:
+def _describe(world: Any, cfg: StackConfig, item: Mapping[str, Any], viewer: Entity | _Everyone | None,
+              by: bool = True) -> str:
+    """``item`` in words for ``viewer`` (see information/gate.py): its `show` may read only what that reader may see."""
     spec = cfg.kinds[item["kind"]]
     owner = world.entities.get(item["by"])
     text = f"{cfg.title(item['kind'])} [{item['id']}]"
     if by:
         text += f" by {owner.name if owner is not None else item['by']}"
     if spec.show:
-        shown = render(world, spec.show, _vars(world, cfg, item, None), viewer=None)
+        shown = render(world, spec.show, _vars(world, cfg, item, None), viewer=viewer)
     else:
         params = common.thaw(item["params"], world, version=item.get("capture_version", 0))
         shown = ", ".join(f"{key} {format_value(value)}" for key, value in params.items())
@@ -254,7 +257,7 @@ def _push(runner: Any, name: str, cfg: StackConfig, kind: str, actor: Entity, pa
     runner.run(spec.on_push, _vars(world, cfg, item, below), f"{at}.on_push")
     waiting = _waiting(world, item)
     tail = f" Waiting on {_names(world, waiting)} to answer." if waiting else ""
-    _emit(world, name, f"{actor.name} pushes {_describe(world, cfg, item, by=False)}.{tail}", "push", item,
+    _emit(world, name, f"{actor.name} pushes {_describe(world, cfg, item, EVERYONE, by=False)}.{tail}", "push", item,
           actor=actor.id)
     _settle(runner, name, cfg, where)
 
@@ -285,7 +288,7 @@ def _settle(runner: Any, name: str, cfg: StackConfig, where: str) -> None:
             return
         top = items.pop()
         _save(world, name, items)
-        _emit(world, name, f"The {_describe(world, cfg, top)} resolves.", "resolve", top)
+        _emit(world, name, f"The {_describe(world, cfg, top, EVERYONE)} resolves.", "resolve", top)
         runner.run(cfg.kinds[top["kind"]].resolve, _vars(world, cfg, top, items[-1] if items else None),
                    f"mechanisms.{name}.stack.kinds.{top['kind']}.resolve")
         _reopen(world, name, cfg)
@@ -299,8 +302,8 @@ def _reopen(world: Any, name: str, cfg: StackConfig) -> None:
         _save(world, name, items)
         waiting = _waiting(world, items[-1])
         if waiting:
-            _emit(world, name, f"Back to the {_describe(world, cfg, items[-1])}: waiting on {_names(world, waiting)}.",
-                  "reopen", items[-1])
+            back = _describe(world, cfg, items[-1], EVERYONE)
+            _emit(world, name, f"Back to the {back}: waiting on {_names(world, waiting)}.", "reopen", items[-1])
 
 
 def _counter(runner: Any, name: str, cfg: StackConfig, target: Any) -> None:
@@ -311,7 +314,7 @@ def _counter(runner: Any, name: str, cfg: StackConfig, target: Any) -> None:
         return  # the item already left the stack (resolved or countered): the counter fizzles
     item = items.pop(index)
     _save(world, name, items)
-    _emit(world, name, f"The {_describe(world, cfg, item)} is countered.", "counter", item)
+    _emit(world, name, f"The {_describe(world, cfg, item, EVERYONE)} is countered.", "counter", item)
     runner.run(cfg.kinds[item["kind"]].countered, _vars(world, cfg, item, items[index - 1] if index > 0 else None),
                f"mechanisms.{name}.stack.kinds.{item['kind']}.countered")
     if index == len(items):
@@ -391,6 +394,7 @@ def check_stack_rules(checker: Any, name: str, cfg: StackConfig) -> None:
         for key in ("on_push", "resolve", "countered"):
             checker.effects(getattr(spec, key), f"{at}.{key}", roots, {})
         checker.template(spec.show or None, f"{at}.show", None, roots)
+        checker._shared_text(spec.show or None, f"{at}.show", {"actor": set(cfg.pushers(kind))})  # in the news
 
 
 def _entity_arg(call: Call, index: int) -> Entity:
@@ -425,21 +429,24 @@ def read_stack(call: Call, name: str, cfg: StackConfig) -> Any:
             raise ExprError(f"$stack: '{kind}' is not a kind of the {name} stack "
                             f"({common.suggest(str(kind), cfg.kinds)})", call.source)
         return refusal(world, name, cfg, kind, _entity_arg(call, 3)) is None
-    return _text(world, name, cfg, _entity_arg(call, 2) if len(call) > 2 else None)
+    return _text(world, name, cfg, _entity_arg(call, 2) if len(call) > 2 else None, call.scope.vars.get("viewer"))
 
 
-def _text(world: Any, name: str, cfg: StackConfig, viewer: Entity | None) -> str:
+def _text(world: Any, name: str, cfg: StackConfig, answering: Entity | None,
+          reader: Entity | _Everyone | None) -> str:
+    """The stack in words for ``reader`` (whoever reads the text that asks for it), with the answers ``answering``
+    may give when it owes one."""
     items = _items(world, name)
     if not items:
         return "The stack is empty."
-    lines = [f"{'Top' if depth == 0 else 'Below'}: {_describe(world, cfg, item)}"
+    lines = [f"{'Top' if depth == 0 else 'Below'}: {_describe(world, cfg, item, reader)}"
              + (f" (answers [{item['on']}])" if item["on"] is not None else "")
              for depth, item in enumerate(reversed(items))]
     waiting = _waiting(world, items[-1])
     lines.append(f"Waiting on: {_names(world, waiting)}.")
-    if viewer is not None and viewer.id in waiting:
+    if answering is not None and answering.id in waiting:
         options = [cfg.title(k) for k, spec in cfg.kinds.items() if spec.tool
-                   and refusal(world, name, cfg, k, viewer) is None]
+                   and refusal(world, name, cfg, k, answering) is None]
         lines.append("You may answer with " + (", ".join(options) + " or pass." if options else "a pass."))
     return "\n".join(lines)
 

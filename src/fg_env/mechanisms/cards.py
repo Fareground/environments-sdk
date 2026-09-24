@@ -600,8 +600,9 @@ def _reveal(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: st
     cards = _cards(runner, effect, vars, deck_named(world, effect["game"], where), where)
     if not cards:
         return
-    say = runner.text(effect["say"], vars) if effect.get("say") else ""
-    if viewers is None:
+    ids = None if viewers is None else [e.id for e in _entities(world, viewers, where, "players")]
+    say = runner.said(effect["say"], vars, ids) if effect.get("say") else ""  # for the players it is shown to
+    if ids is None:
         for card in cards:
             _set(world, card, {"face_up": True})
         by_owner: dict[str, list[Entity]] = {}
@@ -611,14 +612,20 @@ def _reveal(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: st
                  else f"Revealed: {card_names(held)}" for owner, held in by_owner.items()]
         world.emit("cards", say or "; ".join(parts) + ".")
         return
-    ids = [e.id for e in _entities(world, viewers, where, "players")]
     for card in cards:
         seen = list(_props(card).get("seen_by") or [])
         _set(world, card, {"seen_by": seen + [i for i in ids if i not in seen]})
     world.emit("cards", say or f"You see: {card_names(cards)}.", to=tuple(ids))
 
 
+def _check_reveal(checker: Any, effect: dict[str, Any], path: str) -> list[tuple[str, str, str | None]]:
+    if "to" not in effect:  # face up for everyone: its `say` is news to every player
+        checker._shared_text(effect.get("say"), f"{path}.say", {})
+    return []
+
+
 @family_action("game", ("cards",), "reveal", keys=("cards", "to", "say"), required=("cards",), templates=("say",),
+               check=_check_reveal,
                example='{"game": "cards", "action": "reveal", "cards": "$hand($it)"}  (face up for everyone; with '
                        '`to`, shown only to those players)')
 def _reveal_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:

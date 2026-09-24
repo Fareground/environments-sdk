@@ -20,7 +20,7 @@ from typing import Any, cast
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function, is_expr
+from ..expr import EVERYONE, Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
 from ..world.live import Abort
@@ -343,7 +343,7 @@ def showdown(runner: Any, config: PotConfig, name: str, vars: dict[str, Any], wh
         for player in live:
             scores[player.id] = runner.eval(config.score, {**vars, "it": player})
             if config.label:
-                labels[player.id] = runner.text("{" + config.label + "}", {**vars, "it": player})
+                labels[player.id] = runner.text("{" + config.label + "}", {**vars, "it": player}, EVERYONE)
     pots = side_pots(committed, [p.id for p in live]) if live else [(sum(committed.values()), [])]
     record = []
     for amount, eligible in pots:

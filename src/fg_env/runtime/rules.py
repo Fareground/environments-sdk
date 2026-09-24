@@ -226,7 +226,7 @@ class Rules:
                 if not truthy(compile_expr(end.when)(scope)):
                     continue
                 winner = _plain(compile_expr(end.winner)(scope)) if end.winner else None
-                text = self.information.render(end.say, {}, viewer=None) if end.say else ""
+                text = self.information.render(end.say, {}, viewer=EVERYONE) if end.say else ""  # the run's last news
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
             world.request_end(end.name or f"end_{index}", winner, text)
@@ -276,7 +276,7 @@ class Rules:
                 try:
                     if truthy(compile_expr(condition.expr)(scope)):
                         continue
-                    why = self.information.render(condition.why, vars, viewer=None) if condition.why else ""
+                    why = self.information.render(condition.why, vars, viewer=actor) if condition.why else ""
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}[{index}]") from None
                 return str(why).strip().rstrip(".") or "this turn is not allowed"

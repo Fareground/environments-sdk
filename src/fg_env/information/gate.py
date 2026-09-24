@@ -5,11 +5,11 @@ is enforced on whoever the render binds as ``$viewer`` (``expr/values.py``). So 
 every caller says whom it renders for:
 
 * an entity — text one agent reads (an outcome, a refusal, its brief): its own private values may show, no other's;
-* :data:`~fg_env.expr.EVERYONE` — text sent to more than one agent (an announcement, news, an invariant's `why`): no
-  private value may show;
-* ``None`` — the rules' own words, read in the true state as game logic reads it (a value hidden from the acting
-  agent counts as read by it, see ``runtime/ledger.py``): generated ids and names, a host's prompt, and the texts whose
-  reader the rules do not bind.
+* :data:`~fg_env.expr.EVERYONE` — text sent to more than one agent (an announcement, news, an end's `say`, an
+  invariant's `why`): no private value may show;
+* ``None`` — the rules' own words, which no agent reads as text, in the true state as game logic reads it (a value
+  hidden from the acting agent counts as read by it, see ``runtime/ledger.py``): generated ids and names, a host's
+  prompt.
 
 :class:`~fg_env.information.core.Information` renders for a run through :meth:`~.core.Information.render`; the parts
 built before it or beneath it — the world's builder, effects, the action book, mechanisms — call :func:`render` with

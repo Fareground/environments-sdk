@@ -55,6 +55,13 @@ feature with the core of the contract language marked apart from the rest.
   through a local instead. Default announcements omit arguments kept in a private property. Metrics and series that
   read a private property, and a stage `order` by one, cannot reach what agents are shown. A `when` that reads hidden
   state no longer hides the tool; the call is refused instead. A shared `post` may not carry a private property.
+- **Every agent-facing text is rendered for its reader.** A stage's `valid` why (told to the acting agent), a `wake`'s
+  why (to the woken agent; to several, to everyone), an end's `say` (a condition's or an `end` effect's), and
+  mechanisms' news — a status's `say`/`expire_say`, a procedure phase's or transition's `say`, a stack item's `show`, a
+  card reveal's `say`, a pot's showdown `label`, a ballot's `announce` — and a `chance` branch's `label` were rendered
+  in the true state and could quote another agent's private value; now a read of one is refused like in every other
+  such text, and `check` reports the reads it can see (a private world value, the actor's or carrier's own where
+  several read the text).
 - **Runs report their health.** A degraded run is not `ok` and `fg-env run` exits 3: a seat that never acts or whose
   turns mostly fail, an output that raises (the diagnostic `output_failed`; `check` reports it as an error), a run its
   budget cut short or handed to idle agents (`budget_cut`), and stand-in host answers (`host_fallback`) all degrade

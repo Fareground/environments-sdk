@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
+from ..expr import EVERYONE
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from .statements import RESERVED_ROOTS
@@ -85,7 +86,7 @@ def _node(runner: EffectRunner, effect: dict[str, Any], vars: dict[str, Any], wh
             p = _number(runner.eval(branch.get("p"), vars), f"{where}.chance[{index}].p", "a probability")
             if p > 1:
                 raise RunError(f"a probability is at most 1, got {format_value(p)}", f"{where}.chance[{index}].p")
-            label = runner.text(branch.get("label"), vars) or str(index + 1)
+            label = runner.text(branch.get("label"), vars, EVERYONE) or str(index + 1)
             outcomes.append(ChanceOutcome(index, label, p, label))
         total = sum(outcome.p for outcome in outcomes)
         if abs(total - 1) > PROBABILITY_TOLERANCE:
@@ -218,6 +219,7 @@ def _check_branches(checker: Any, branches: list[Any], path: str, roots: set[str
         label = branch.get("label")
         if isinstance(label, str):
             checker.template(label, f"{where}.label", None, roots, types, params)
+            checker._shared_text(label, f"{where}.label", types, params)  # every player of the game tree reads it
             if label in labels:
                 checker.error(f"{where}.label", f"label '{label}' is used by another branch",
                               "give each branch its own label")

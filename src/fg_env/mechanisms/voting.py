@@ -9,7 +9,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
-from ..expr import Call, ExprError, function, truthy
+from ..expr import EVERYONE, Call, ExprError, function, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from . import _common
 
@@ -379,7 +379,7 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     result["round"] = world.round
     world.set_world(f"{name}_result", result)
     world.set_world(f"{name}_ballots", {})
-    text = (runner.text(config.announce, {**vars, "result": result}) if config.announce
+    text = (runner.text(config.announce, {**vars, "result": result}, EVERYONE) if config.announce
             else _announcement(world, config, result))
     world.emit(name, text, data={"mechanism": "ballot", "result": result})
 
