@@ -47,14 +47,14 @@ From the command line, `fg-env engines` lists every engine with a one-line summa
 ```python
 import fg_env
 
-for engine in fg_env.list_engines():
+for engine in fg_env.engines.list_engines():
     print(engine.id, engine.status, engine.available)
 
-path = fg_env.clone_engine("retail", "campaign_market.json", name="Campaign market")
+path = fg_env.engines.clone("retail", "campaign_market.json", name="Campaign market")
 contract = fg_env.parse(path)
 ```
 
-Use `fg_env.list_engines(available=True)` when a builder needs a cloneable engine.
+Use `fg_env.engines.list_engines(available=True)` when a builder needs a cloneable engine.
 `list_engines(available=True)` returns all twelve engines. The `available` filter
 is retained so builders remain compatible with older SDK releases that did not
 yet ship every implementation.

@@ -305,7 +305,7 @@ def test_coded_baselines_give_seed_varying_outcomes(engine_id, output):
     assert len({run(engine_id, seed=seed).outputs[output] for seed in range(10)}) > 1
 
 
-@pytest.mark.parametrize("engine_id", sorted(engine.id for engine in fg_env.list_engines()))
+@pytest.mark.parametrize("engine_id", sorted(engine.id for engine in fg_env.engines.list_engines()))
 def test_every_engine_that_ships_policies_binds_one_to_each_acting_type(engine_id):
     contract = fg_env.engines.get(engine_id).source()
     if not contract.get("policies"):
@@ -320,7 +320,7 @@ def test_exchange_seats_are_where_participants_trade_by_default():
 
 
 def _input_extremes():
-    for engine in fg_env.list_engines():
+    for engine in fg_env.engines.list_engines():
         for name, spec in engine.source()["inputs"].items():
             for bound in ("min", "max"):
                 if spec.get("type") in ("int", "number") and spec.get(bound) is not None:
@@ -355,7 +355,7 @@ _INERT = {
 
 
 def _numeric_ranges():
-    for engine in fg_env.list_engines():
+    for engine in fg_env.engines.list_engines():
         for name, spec in engine.source()["inputs"].items():
             if spec.get("type") in ("int", "number") and spec.get("min") is not None and spec.get("max") is not None:
                 yield pytest.param(engine.id, name, spec["min"], spec["max"], id=f"{engine.id}-{name}")

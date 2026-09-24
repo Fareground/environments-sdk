@@ -23,9 +23,9 @@ def test_catalog_contains_only_the_twelve_behavioral_engines():
 
 
 def test_catalog_ships_all_twelve_as_native_engines():
-    assert {engine.id for engine in fg_env.list_engines(available=True)} == ENGINE_IDS
-    assert fg_env.list_engines(available=False) == []
-    assert all(engine.status == "native" for engine in fg_env.list_engines())
+    assert {engine.id for engine in fg_env.engines.list_engines(available=True)} == ENGINE_IDS
+    assert fg_env.engines.list_engines(available=False) == []
+    assert all(engine.status == "native" for engine in fg_env.engines.list_engines())
 
 
 #: Warnings the checker gives a starter that are not problems in it. The discussion stages end when everyone is
@@ -48,7 +48,7 @@ def test_every_starter_checks_without_warnings(engine_id):
 
 
 def test_available_engine_can_clone_customize_and_run(tmp_path):
-    target = fg_env.clone_engine("retail", tmp_path / "custom_market.json", name="Custom market")
+    target = fg_env.engines.clone("retail", tmp_path / "custom_market.json", name="Custom market")
     contract = json.loads(target.read_text())
     assert contract["name"] == "Custom market"
     env = fg_env.engines.load("retail", seed=4)
@@ -74,7 +74,7 @@ def test_available_engine_can_be_materialized_for_database_backed_builders():
     "legislature", "contest", "deliberation", "population", "network", "matching", "strategy",
 ])
 def test_new_native_engine_clones_runs_deterministically_and_aggregates(engine_id, tmp_path):
-    target = fg_env.clone_engine(engine_id, tmp_path / f"{engine_id}.json", name=f"Custom {engine_id}")
+    target = fg_env.engines.clone(engine_id, tmp_path / f"{engine_id}.json", name=f"Custom {engine_id}")
     assert json.loads(target.read_text())["name"] == f"Custom {engine_id}"
     assert not [issue for issue in fg_env.check(target) if issue.severity == "error"]
 
@@ -122,7 +122,7 @@ def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
         "strategy": ({"rounds": 3, "mutual_cooperate": 4}, "cooperation_rate"),
     }
     for engine_id, (inputs, expected_output) in cases.items():
-        target = fg_env.clone_engine(engine_id, tmp_path / f"custom-{engine_id}.json",
+        target = fg_env.engines.clone(engine_id, tmp_path / f"custom-{engine_id}.json",
                                      name=f"Scenario using {engine_id}")
         result = fg_env.load(target, inputs=inputs, seed=29).run()
         assert result.status in {"completed", "ended"}
@@ -130,7 +130,7 @@ def test_each_new_engine_supports_nontrivial_scenario_customization(tmp_path):
 
 
 def test_negotiation_engine_clone_customize_and_batch(tmp_path):
-    target = fg_env.clone_engine("negotiation", tmp_path / "vendor_negotiation.json",
+    target = fg_env.engines.clone("negotiation", tmp_path / "vendor_negotiation.json",
                                  name="Vendor renewal negotiation")
     contract = json.loads(target.read_text())
     contract["brief"]["situation"] = "A software buyer and vendor negotiate a renewal."
@@ -166,7 +166,7 @@ def test_negotiation_engine_accepts_sampled_people_and_keeps_positions_private()
 
 
 def test_cloned_market_uses_sampled_personas_across_an_aggregated_batch(tmp_path):
-    target = fg_env.clone_engine("retail", tmp_path / "neighborhood_market.json",
+    target = fg_env.engines.clone("retail", tmp_path / "neighborhood_market.json",
                                  name="Neighborhood market")
     contract = json.loads(target.read_text())
     households = contract["inputs"]["households"]["default"]

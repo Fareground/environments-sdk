@@ -1,5 +1,7 @@
 """The public API: a small core at ``fg_env``, everything else one subpackage away."""
 import importlib
+import subprocess
+import sys
 
 import pytest
 
@@ -8,14 +10,26 @@ import fg_env
 CORE = {
     "__version__", "load", "run", "check", "parse", "expand", "experiment", "fork", "Env", "Contract", "RunResult",
     "ExperimentResult", "Branch", "Wake", "ToolResult", "Issue", "ContractError", "InputError", "RunError",
-    "InvariantViolation", "FatalRunError", "SnapshotError", "guide", "schema", "new", "author", "clone_engine",
-    "list_engines", "participants", "analysis", "rl", "engines", "personas",
+    "InvariantViolation", "FatalRunError", "SnapshotError", "guide", "schema", "new", "author", "participants",
+    "analysis", "rl", "engines", "personas",
 }
 SUBPACKAGES = ["analysis", "rl", "engines", "personas", "participants"]
 
 
 def test_top_level_is_the_core():
     assert set(fg_env.__all__) == CORE
+
+
+def test_every_public_name_resolves_and_is_listed():
+    assert all(getattr(fg_env, name) is not None for name in fg_env.__all__)
+    assert set(fg_env.__all__) - {"__version__"} <= set(dir(fg_env))
+
+
+def test_importing_fg_env_loads_only_what_is_used():
+    loaded = subprocess.run([sys.executable, "-c", "import sys, fg_env; print(sorted(sys.modules))"],
+                            capture_output=True, text=True, check=True).stdout
+    assert "'fg_env.expr'" in loaded  # the expression functions register at once
+    assert not any(f"'fg_env.{part}'" in loaded for part in ("api", "checks", "mechanisms", "analysis", "rl"))
 
 
 @pytest.mark.parametrize("name", SUBPACKAGES)

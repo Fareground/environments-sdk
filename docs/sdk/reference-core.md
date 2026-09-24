@@ -84,7 +84,7 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 ## Engines
 
 Complete, runnable scenarios with coded participants, to copy and edit rather than start blank:
-`fg-env new --engine <id> my_env.json` (`fg_env.clone_engine`); `fg-env engines` lists them.
+`fg-env new --engine <id> my_env.json` (`fg_env.engines.clone`); `fg-env engines` lists them.
 
 - `retail` — households choose whether and where to buy while sellers set prices
 - `council` — a panel forecasts a yes/no question, deliberates and forecasts again (Brier-scored)

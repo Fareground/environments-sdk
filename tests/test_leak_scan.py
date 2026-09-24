@@ -19,9 +19,9 @@ def test_no_example_shows_an_agent_another_agents_private_values(path):
     assert scanner.leaks == []
 
 
-@pytest.mark.parametrize("engine", [spec.id for spec in fg_env.list_engines()])
+@pytest.mark.parametrize("engine", [spec.id for spec in fg_env.engines.list_engines()])
 def test_no_engine_starter_shows_an_agent_another_agents_private_values(engine, tmp_path):
-    path = fg_env.clone_engine(engine, tmp_path / f"{engine}.json")
+    path = fg_env.engines.clone(engine, tmp_path / f"{engine}.json")
     scanner = scan(path, rounds=ROUNDS, inputs=SMALL.get(engine))
     assert scanner.result.status != "failed", scanner.result.error
     assert scanner.leaks == []

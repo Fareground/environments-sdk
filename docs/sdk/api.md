@@ -290,22 +290,6 @@ inside an agent's action, it fails the run wherever it happens.
 
 A snapshot cannot be restored into this contract.
 
-## `list_engines`
-
-```pyi
-list_engines(*, available: 'bool | None' = None) -> 'list[EngineSpec]'
-```
-
-List behavioral engines, optionally filtered by implementation availability.
-
-## `clone_engine`
-
-```pyi
-clone_engine(engine_id: 'str', destination: 'str | Path', *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'Path'
-```
-
-Clone a reusable engine contract into a project-owned JSON file.
-
 ## `fg_env.participants`
 
 Participants: whoever takes the turns. Anything callable with a :class:`~fg_env.Wake` works.

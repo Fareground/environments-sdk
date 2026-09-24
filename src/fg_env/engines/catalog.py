@@ -41,7 +41,7 @@ class EngineSpec:
         if self.path is None:
             raise EngineUnavailable(
                 f"engine {self.id!r} has no starter contract in this SDK version; "
-                "list the ones that do with fg_env.list_engines(available=True) (fg-env engines)"
+                "list the ones that do with fg_env.engines.list_engines(available=True) (fg-env engines)"
             )
         resource = files("fg_env.engines").joinpath(self.path)
         return json.loads(resource.read_text(encoding="utf-8"))
