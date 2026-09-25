@@ -136,7 +136,7 @@ def test_an_argument_with_a_worked_out_default_is_never_announced():
     for args in ({}, {"n": 42}):
         seen = {}
 
-        def play(wake, args=args):
+        def play(wake, args=args, seen=seen):
             if wake.entity_id == "a":
                 assert wake.call("cho", args).ok
             else:

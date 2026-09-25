@@ -18,7 +18,6 @@ from ..errors import RunError
 from ..expr import (
     EVAL_BUDGET,
     EVERYONE,
-    Expr,
     ExprError,
     PrivateRead,
     Scope,
