@@ -271,3 +271,33 @@ def test_a_view_of_the_runs_state_is_no_value_to_keep_or_show(where, text):
     contract[where] = {"pot": {"expr": "$world.pot", "series": True}} if where == "outputs" else \
         {"v": {"show": "Pot {$world.pot}, round {$clock.round}"}}
     assert not _errors(contract)
+
+
+def test_an_entity_named_from_participant_text_keeps_the_text_and_renders_it_quoted():
+    """The name holds what was typed, so logic and outputs read it; it still renders in «» wherever it is shown, and
+    a snapshot keeps its provenance (audit 9 hands-on H2)."""
+    contract = {"name": "Names", "clock": {"rounds": 2},
+                "types": {"p": {"agent": True}, "thing": {"props": {"label": ""}}},
+                "entities": {"a": {"type": "p"}},
+                "actions": {"make": {"by": "p", "params": {"t": {"type": "text", "max_len": 50}},
+                                     "do": {"create": "thing", "name": "The {$params.t}",
+                                            "props": {"label": "$params.t"}},
+                                     "outcome": "Made {$first(thing).name}."}},
+                "views": {"things": {"of": "thing", "show": "{name}"}},
+                "outputs": {"names": "$map(thing, $it.name)", "hello": "$count(thing, $it.name == 'The hello')"}}
+    seen = []
+
+    def play(wake):
+        if wake.round == 1:
+            seen.append(wake.call("make", {"t": "hello"}).text)
+        else:
+            seen.append(wake.update)
+        wake.end()
+
+    env = fg_env.load(contract, seed=1)
+    result = env.run(play, rounds=1)
+    assert result.outputs == {"names": ["The hello"], "hello": 1}
+    assert seen[0] == "Made «The hello»."
+    resumed = fg_env.Env.restore(contract, json.loads(json.dumps(env.snapshot())))
+    resumed.run(play)
+    assert "- «The hello»" in seen[1]

@@ -23,6 +23,7 @@ from functools import lru_cache
 from typing import Any
 
 from . import Expr, ExprError, Scope, Untrusted, compile_expr
+from .base import quoted
 
 __all__ = ["Template", "compile_template", "render", "format_value", "apply_format", "entity_handles",
            "quoted_placeholders"]
@@ -32,7 +33,6 @@ _FIELD = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*|\[\d+\])
 _REQUOTED = re.compile(r"«\s*(\{[^{}]*\})\s*»")
 #: Line breaks inside participant text, with the spaces around them: quoted text reads on one line, so it cannot open
 #: a heading or a line of its own in what another agent reads.
-_BREAKS = re.compile(r"\s*[\r\n\v\f\x1c-\x1e\x85\u2028\u2029]\s*")
 #: While an agent's reading renders: which entities show their [id] handle after their name.
 _HANDLES: ContextVar[Callable[[Any], bool] | None] = ContextVar("fg_env_entity_handles", default=None)
 
@@ -56,7 +56,7 @@ def format_value(value: Any) -> str:
     if value is None:
         return "—"
     if isinstance(value, Untrusted):
-        return "«" + _BREAKS.sub(" ", str.__str__(value)).replace("«", "‹").replace("»", "›") + "»"
+        return quoted(value)
     if isinstance(value, bool):
         return "yes" if value else "no"
     if isinstance(value, float):
@@ -64,7 +64,7 @@ def format_value(value: Any) -> str:
             return str(int(value))
         return f"{value:.2f}".rstrip("0").rstrip(".")
     if hasattr(value, "entity_type") and hasattr(value, "name"):
-        name = str(value.name or value.id)
+        name = quoted(value.name) if isinstance(value.name, Untrusted) else str(value.name or value.id)
         show = _HANDLES.get()
         return f"{name} [{value.id}]" if show is not None and name != value.id and show(value) else name
     if isinstance(value, (list, tuple)):
@@ -123,6 +123,17 @@ class Template:
     expressions: tuple[Expr, ...]
 
     def render(self, scope: Scope) -> str:
+        """The text as a reader reads it: participant text in it wrapped in «»."""
+        return "".join(self._parts(scope, plain=False))
+
+    def text(self, scope: Scope) -> str:
+        """The text as data to keep (an entity's name): participant text in it kept as typed, and the whole marked as
+        participant text (:class:`Untrusted`) when any of it is, so it renders in «» wherever it is shown."""
+        parts = self._parts(scope, plain=True)
+        joined = "".join(str.__str__(part) for part in parts)
+        return Untrusted(joined) if any(isinstance(part, Untrusted) for part in parts) else joined
+
+    def _parts(self, scope: Scope, plain: bool) -> list[str]:
         out: list[str] = []
         for part in self.parts:
             if isinstance(part, str):
@@ -133,12 +144,15 @@ class Template:
                 value = expr(scope)
             except ExprError as exc:
                 raise ExprError(f"template {self.source!r}: {exc.detail}", exc.source) from None
+            if plain and isinstance(value, Untrusted) and not fmt:
+                out.append(value)
+                continue
             try:
                 out.append(_FORMATS[fmt](value) if fmt else format_value(value))
             except (ArithmeticError, ValueError, TypeError, RecursionError) as exc:
                 raise ExprError(f"template {self.source!r}: cannot format {type(value).__name__} value ({exc})",
                                 expr.source) from None
-        return "".join(out)
+        return out
 
 
 @lru_cache(maxsize=4_096)

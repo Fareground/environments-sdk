@@ -32,7 +32,7 @@ def test_personas_are_written_once_at_load_and_carried_by_snapshots():
     persona = env.world.entities["shopper_1"].properties["persona"]
     assert isinstance(persona, Untrusted) and persona.startswith("A 30-year-old shopper.")
     brief = env.preview("shopper_1")["brief"]
-    assert f"Your persona: «{persona}»" in brief
+    assert f"Your persona: {persona}" in brief  # participant text formats in «»
     result = host.run(env, "random")
     assert result.status == "completed" and len(writer.calls) == 4
 

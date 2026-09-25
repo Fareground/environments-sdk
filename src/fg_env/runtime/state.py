@@ -211,7 +211,7 @@ class RunState:
         rng = w.luck.main.getstate()  # the main stream itself (reading `rng` counts as a draw)
         return {
             "round": w.round, "rounds": w.rounds, "stage": w.stage,
-            "entities": [{"id": e.id, "type": e.entity_type, "name": e.name, "props": encode(e.properties),
+            "entities": [{"id": e.id, "type": e.entity_type, "name": encode(e.name), "props": encode(e.properties),
                           "alive": e.alive, "at": e.location_id, **({"luck": e.luck} if e.luck else {})}
                          for e in w.entities.values()],
             "entity_briefs": encode(w.entity_briefs),
@@ -255,7 +255,7 @@ class RunState:
         w = self.world
         w.entities = {}
         for row in data["entities"]:
-            w.entities[row["id"]] = Entity(id=row["id"], name=row["name"], entity_type=row["type"],
+            w.entities[row["id"]] = Entity(id=row["id"], name=decode(row["name"]), entity_type=row["type"],
                                            properties=decode(row["props"]), location_id=row.get("at"),
                                            alive=row["alive"], luck=row.get("luck"))
         w.rebuild_index()

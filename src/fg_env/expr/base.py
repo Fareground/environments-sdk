@@ -33,9 +33,10 @@ EXPRESSION_WORDS = frozenset({"and", "or", "not", "in", "if", "else", "true", "f
 
 
 class Untrusted(str):
-    """Text written by a participant. It keeps that provenance wherever it is stored and
-    renders wrapped in «» and on one line, so other agents read it as information, never instructions or the
-    SDK's own layout.
+    """Text written by a participant. It is stored as the plain text it is (comparisons, lengths and outputs read
+    what was typed), keeps that provenance wherever it is stored, and renders wrapped in «» and on one line wherever it
+    is formatted into text (a template, an f-string), so other agents read it as information, never instructions or
+    the SDK's own layout.
 
     ``str(value)`` keeps the marker, so code that normalises keys or values with ``str()``
     cannot silently launder participant text; ``str.__str__(value)`` gives the plain text."""
@@ -44,6 +45,18 @@ class Untrusted(str):
 
     def __str__(self) -> str:
         return self
+
+    def __format__(self, spec: str) -> str:
+        return format(quoted(self), spec)
+
+
+#: Line breaks and the spaces around them: participant text renders on one line.
+_BREAKS = re.compile(r"\s*[\r\n\v\f\x1c-\x1e\x85\u2028\u2029]\s*")
+
+
+def quoted(text: str) -> str:
+    """Participant ``text`` as it renders: in «» on one line, its own guillemets made plain."""
+    return "«" + _BREAKS.sub(" ", str.__str__(text)).replace("«", "‹").replace("»", "›") + "»"
 
 
 def tainted(value: Any) -> bool:

@@ -40,7 +40,7 @@ from ..contract import MAX_CREATE, one_or_many
 from ..errors import FatalRunError, RunError
 from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, map_key, resolve, truthy
 from ..expr.objects import Entity, PropsView
-from ..expr.template import format_value
+from ..expr.template import compile_template, format_value
 from ..expr.values import _eq, _Everyone
 from ..information.gate import render
 from ..registry import OPS, OpSpec, family_action_hint
@@ -432,6 +432,13 @@ class EffectRunner:
             return ""
         return render(self.world, template, vars, viewer=viewer)
 
+    def _name(self, template: str | None, vars: dict[str, Any]) -> str:
+        """An entity's name from its template, kept as data: participant text in it stays as typed (and marked, so it
+        renders in «» wherever it is shown)."""
+        if not template:
+            return ""
+        return compile_template(template, None).text(self.world.evaluation.scope(**vars))
+
     def said(self, template: str | None, vars: dict[str, Any], to: Sequence[str] | None) -> str:
         """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
         properties may show."""
@@ -496,7 +503,7 @@ class EffectRunner:
         for n in range(count):
             inner = {**vars, "i": n + 1}
             entity_id = self._text(effect.get("id"), inner, None) or None  # the rules' own words: an id and a name
-            name = self._text(effect.get("name"), inner, None) or None
+            name = self._name(effect.get("name"), inner) or None
             at = self._eval(effect.get("at"), inner)
             made.append(self.world.evaluation.create(effect["create"], entity_id, name, effect.get("props") or {},
                                                      at, self.world.evaluation.scope(**inner), where))
