@@ -354,9 +354,9 @@ class _LLMParticipant:
     def _create(self, wake: Wake, request: Callable[[], Any], prompt: int) -> Any:
         """One provider call (``prompt``: its rough input tokens), its usage counted. Rate limits, timeouts, overload,
         server errors and empty replies are retried while the turn lasts, never sleeping past its deadline; when the
-        retries run out the turn is forfeited, and so is one whose prompt is too long for the model (the next turn starts
-        a fresh conversation). Any other error fails the run: retrying would send the same request again. Once the turn
-        is over no call is made (:class:`_Over`)."""
+        retries run out the turn is forfeited, and so is one whose prompt is too long for the model (the next turn
+        starts a fresh conversation). Any other error fails the run: retrying would send the same request again. Once
+        the turn is over no call is made (:class:`_Over`)."""
         for attempt in range(self.retries + 1):
             if _over(wake):
                 raise _Over()
