@@ -39,7 +39,7 @@ from ..world.abort import Abort
 from ..world.props import prop_type
 from ._common import entity_of, fmt, lot_floor
 from .book_rules import Venue, venue
-from .expressions import Expr
+from .expressions import EachCrowd, Expr
 from .ledger import EPS, Account, balance, clean, move
 
 __all__ = ["OrderBookConfig", "CrowdSpec", "STRATEGIES", "book_config", "place", "cancel", "cancel_all", "quote",
@@ -140,13 +140,13 @@ class OrderBookConfig(BaseModel):
                                      description="Coded strategies other than market makers measure volatility from "
                                                  "recent closes; false makes them always assume `volatility` (a "
                                                  "calibrated value).")
-    base_qty: float | str | None = Field(None,
+    base_qty: float | EachCrowd | None = Field(None,
                                          description="Coded strategies' unit of order size (default 10 lots); an "
                                                      "expression is read on every turn, so a controller can steer it.")
-    flow_scale: Expr | None = Field(None,
+    flow_scale: EachCrowd | None = Field(None,
                                    description="Expression multiplying speculative order sizes (momentum, noise, "
                                                "passive); default 1.")
-    sentiment: Expr | None = Field(None,
+    sentiment: EachCrowd | None = Field(None,
                                   description="Expression for market sentiment in [-1, 1] that tilts noise traders "
                                               "toward buying or selling; default 0.")
     fair_value: Expr | None = Field(None, description="Expression for the true value fundamentalists estimate "

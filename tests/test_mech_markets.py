@@ -61,6 +61,14 @@ def test_order_book_contract_checks_clean_and_configs_are_checked_with_fixes():
     assert any(i.path.startswith("mechanisms.acme.crowd") for i in fg_env.check(typo))
 
 
+def test_a_crowd_setting_is_checked_where_it_is_written():
+    """A setting read for each coded trader names the trader as `$actor`; `$it` is reported at its field, not as
+    refused attempts (audit 9 mech M1)."""
+    contract = book(crowd={"noise": {"count": 4}}, base_qty="$it.size")
+    issues = [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert [i.path for i in issues] == ["mechanisms.acme.base_qty"] and "$it" in issues[0].message
+
+
 def test_price_time_priority_and_partial_fills():
     env, replies = play(book(), {
         (1, "a"): [("acme_sell", {"qty": 10, "price": 50})],

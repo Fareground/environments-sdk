@@ -36,7 +36,7 @@ from ..errors import Issue
 from ..expr import ExprError, compile_expr
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 from ._common import raw_is_a
-from .expressions import bare_words, expression_fields
+from .expressions import bare_words, each_root, expression_fields
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]
 
@@ -246,11 +246,12 @@ def separate_turns(data: Mapping[str, Any]) -> list[Issue]:
             for kind, names in staged.items() if len(names) > 1]
 
 
-def authored_expressions(data: Mapping[str, Any]) -> list[tuple[str, str]]:
-    """``(path, source)`` of every expression in the declared mechanisms' fields (see :mod:`.expressions`), for
-    ``check`` to check what each reads."""
+def authored_expressions(data: Mapping[str, Any]) -> list[tuple[str, str, dict[str, set[str]] | None]]:
+    """``(path, source, item)`` of every expression in the declared mechanisms' fields (see :mod:`.expressions`), for
+    ``check`` to check what each reads. ``item``: for a field worked out for each agent, the root it binds and the
+    types it may be (empty when not known); None for any other field."""
     uses = data.get("mechanisms")
-    found: list[tuple[str, str]] = []
+    found: list[tuple[str, str, dict[str, set[str]] | None]] = []
     for name, use in (uses.items() if isinstance(uses, Mapping) else ()):
         spec = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
         if not isinstance(spec, tuple):
@@ -259,7 +260,11 @@ def authored_expressions(data: Mapping[str, Any]) -> list[tuple[str, str]]:
             config = spec[0].config.model_validate(config_data(use))
         except ValidationError:
             continue
-        found.extend((f"mechanisms.{name}.{field}", source) for field, source in expression_fields(config))
+        for field, source in expression_fields(config):
+            each = each_root(config, field)
+            who = getattr(config, "who", None) if each is not None and each.who else None
+            item = None if each is None else {each.root: {who} if isinstance(who, str) else set(who or ())}
+            found.append((f"mechanisms.{name}.{field}", source, item))
     return found
 
 

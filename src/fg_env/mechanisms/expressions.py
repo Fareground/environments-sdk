@@ -11,18 +11,34 @@ from __future__ import annotations
 import types
 import typing
 from collections.abc import Iterator
+from dataclasses import dataclass
 from typing import Annotated, Any
 
 from pydantic import BaseModel
 
 from ..expr import is_expr
 
-__all__ = ["Expr", "EXPRESSION", "expression_fields", "bare_words"]
+__all__ = ["Expr", "EXPRESSION", "Each", "EachCrowd", "EachWho", "expression_fields", "bare_words", "each_root"]
 
 #: Marks text that is always an expression (``Annotated[str, EXPRESSION]``).
 EXPRESSION = "expression"
 #: Text that is always an expression.
 Expr = Annotated[str, EXPRESSION]
+
+
+@dataclass(frozen=True)
+class Each:
+    """Marks an expression field the mechanism works out once for each of its agents, bound to ``$<root>``: ``check``
+    offers that root there and no other item root, and with ``who`` reads it as one of the mechanism's `who`."""
+
+    root: str
+    who: bool = False
+
+
+#: An expression over each of the mechanism's `who`, as ``$it`` (a voter's weight or veto).
+EachWho = Annotated[str, EXPRESSION, Each("it", who=True)]
+#: An expression worked out for each coded trader of a crowd, as ``$actor`` (an order book's sizes).
+EachCrowd = Annotated[str, EXPRESSION, Each("actor")]
 _SCALARS = frozenset({int, float, bool})
 
 
@@ -32,6 +48,16 @@ def expression_fields(config: BaseModel, path: str = "") -> Iterator[tuple[str, 
         # a field typed `Expr` alone keeps its mark in the field's metadata; in a union, in its annotation
         annotation = Annotated[field.annotation, EXPRESSION] if EXPRESSION in field.metadata else field.annotation
         yield from _written(getattr(config, name), annotation, f"{path}{field.alias or name}")
+
+
+def each_root(config: BaseModel, field: str) -> Each | None:
+    """How the top-level ``field`` of ``config`` is worked out for each agent, when it is (see :class:`Each`)."""
+    spec = type(config).model_fields.get(field)
+    if spec is None:
+        return None
+    marks = [*spec.metadata, *(mark for member in _members(spec.annotation) if typing.get_origin(member) is Annotated
+                               for mark in member.__metadata__)]
+    return next((mark for mark in marks if isinstance(mark, Each)), None)
 
 
 def bare_words(config: BaseModel, path: str = "") -> Iterator[tuple[str, str]]:

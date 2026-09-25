@@ -114,8 +114,11 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
         check_assets(self, BASE)
         from ..mechanisms import authored_expressions, authored_slips, separate_turns
 
-        for path, source in authored_expressions(c._source or {}):  # read by the mechanism's own code as it runs
-            self.expr(source, path, BASE | compile_expr(source).roots)
+        for path, source, item in authored_expressions(c._source or {}):  # read by the mechanism's code as it runs
+            if item is None:
+                self.expr(source, path, BASE | compile_expr(source).roots)
+            else:
+                self.expr(source, path, BASE | set(item), {root: kinds for root, kinds in item.items() if kinds})
         self.issues.extend(separate_turns(c._source or {}))
         self.issues.extend(authored_slips(c._source or {}))
         self.issues.extend(raw_model_ids(c._source or {}))

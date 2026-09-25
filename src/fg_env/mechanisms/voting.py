@@ -12,7 +12,7 @@ from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, function, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from . import _common
-from .expressions import Expr
+from .expressions import EachWho, Expr
 
 __all__ = ["tally", "METHODS"]
 
@@ -324,9 +324,9 @@ class BallotConfig(BaseModel):
     threshold_of: Literal["votes", "members"] = Field(
         "votes", description="What the threshold is a share of: the votes cast (abstentions aside), or all members "
                              "still in the game (e.g. cloture at 3/5 of the senate).")
-    weight: Expr | None = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
+    weight: EachWho | None = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
                                                  "\"$it.shares\"); default 1. Turnout and quorum count weight too.")
-    veto: Expr | None = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. "
+    veto: EachWho | None = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. "
                                                "\"$it.permanent\"): one of them voting for the second option defeats "
                                                "the first. Needs exactly two options, the motion first.")
     quorum: float | None = Field(None, ge=0, le=1,

@@ -281,6 +281,14 @@ def test_an_expression_field_is_worked_out_as_one_with_or_without_a_dollar():
     assert forgot and "`$it.permanent`" in forgot[0].fix
 
 
+def test_a_voters_weight_or_veto_is_checked_against_the_voter_type_at_its_field():
+    """Typos in `$it.<prop>` used to surface only in a play, at a generated event's path (audit 9 mech M1)."""
+    for field, source in (("veto", "$it.permanet"), ("weight", "$it.sharez")):
+        issues = [i for i in _issues(_security_council(**{field: source})) if i.severity == "error"]
+        assert [i.path for i in issues] == [f"mechanisms.resolution.{field}"], issues
+        assert "has no property" in issues[0].message
+
+
 def test_a_veto_or_members_threshold_that_cannot_apply_is_refused():
     three = _issues(_security_council(options=["a", "b", "c"]))
     assert any(i.path == "mechanisms.resolution.veto" and "two options" in i.message for i in three)

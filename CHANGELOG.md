@@ -276,6 +276,10 @@ worlds stay fast, and the package is organised by feature.
     of a bare "invalid syntax".
   - An empty map or list shows as "none" in text (it showed nothing: "Current bids: ."), and a view's `of` may be a
     list literal (`"['up', 'down']"`).
+  - A mechanism field worked out for each agent is checked at its own path against what it binds: a ballot's
+    `weight` and `veto` read the voter type (`$it.sharez` names the typo and its fix), an order book's crowd
+    settings (`base_qty`, `flow_scale`, `sentiment`) have `$actor` and no `$it`. Before, such slips surfaced only in a
+    play, at a generated event's path or as refused attempts.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
