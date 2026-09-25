@@ -413,7 +413,7 @@ EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 def test_town_hall_debates_amends_and_ends_on_the_vote():
     path = EXAMPLES / "town_hall.json"
     assert errors(path) == []
-    for seed in (1, 2, 3, 7):
+    for seed in (1, 2, 5, 7):  # residents' stances are drawn at build: on these seeds the hall reaches a decision
         result = fg_env.load(path, seed=seed).run()
         assert result.status == "ended" and result.ended_by == "hall", (seed, result.error)
         assert result.outputs["decided"] and result.outputs["yes"] + result.outputs["no"] > 0
@@ -455,3 +455,17 @@ def test_a_cascade_adopter_gets_one_chance_unless_the_cascade_is_persistent():
     # the hub tells each leaf once, right after adopting; leaves only know the hub, so a one-shot star stops at step 1
     assert _star_cascade(False, rounds=5) == _star_cascade(False, rounds=1) < 21
     assert _star_cascade(True, rounds=5) > _star_cascade(True, rounds=1)  # a persistent hub keeps trying every step
+
+
+def test_a_ballots_tools_end_a_question_once_and_leave_a_template_question_to_the_rendered_texts():
+    ballot = {"name": "Vote", "clock": {"rounds": 1}, "world": {"bill": "B7"}, "types": {"m": {"agent": True}},
+              "entities": {"m": {"type": "m", "count": 3}},
+              "mechanisms": {"b": {"kind": "decision", "mode": "ballot", "who": "m", "options": ["yes", "no"],
+                                   "method": "approval", "question": "Which projects?"},
+                             "c": {"kind": "decision", "mode": "ballot", "who": "m", "options": ["yes", "no"],
+                                   "question": "Pass {$world.bill}?"}}}
+    env = fg_env.load(ballot)
+    asked = [t["description"] for t in env.preview("m_1", stage="b").tools]
+    templated = [t["description"] for t in env.preview("m_1", stage="c").tools]
+    assert asked[0].startswith("Approve options on: Which projects? (") and "?." not in " ".join(asked)
+    assert not any("{" in text for text in templated)

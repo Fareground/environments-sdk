@@ -463,7 +463,10 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     # Each voter's ballot is its own property, so casting one costs the same however many have voted.
     ballot, result = f"{name}_ballot", f"{name}_result"
     vote, abstain = f"{name}_vote", f"{name}_abstain"
-    question = f" on: {config.question}" if config.question else ""
+    # A tool's description is plain text: a question that is a template (`{$world.bill}`) is shown in the stage's brief
+    # and the result, rendered, and left out here rather than shown with its braces.
+    plain = config.question.strip() if "{" not in config.question else ""
+    question = f" on: {plain.rstrip('.')}" if plain else ""
     open_ballot = f"$actor.{ballot} == null"
     # In a declared stage the vote is one of the turn's moves, not its end: the stage gives each mechanism hooked into
     # it its share of the turn, and voting first must not forfeit the rest.
@@ -482,7 +485,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
                                     "description": f"List {what}."}}
         cast, told = "$params.choices", "Your ballot: {$params.choices}."
     actions: dict[str, Any] = {
-        vote: {"by": config.who, "description": f"{how}{question}.",
+        vote: {"by": config.who, "description": _sentence(f"{how}{question}"),
                "params": ballot_param,
                "when": [{"expr": open_ballot, "why": "You have already voted."}],
                "do": [f"$actor.{ballot} = {cast}"],
@@ -490,7 +493,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
                "private": config.private, "terminal": not shared},
     }
     if config.abstain:
-        actions[abstain] = {"by": config.who, "description": f"Abstain{question}.",
+        actions[abstain] = {"by": config.who, "description": _sentence(f"Abstain{question}"),
                             "when": [{"expr": open_ballot, "why": "You have already voted."}],
                             "do": [f"$actor.{ballot} = '{ABSTAIN}'"], "outcome": "You abstained.",
                             "private": config.private, "terminal": not shared}
@@ -518,3 +521,9 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     count = "close" if config.stage is not None and config.when else "tally"
     fragment["events"] = [_common.stage_event(config.stage or name, "end", [{"decision": name, "action": count}])]
     return fragment
+
+
+def _sentence(text: str) -> str:
+    """``text`` ending as a sentence does: a question keeps its question mark, anything else gets a full stop."""
+    return text if text.endswith(("?", "!", ".")) else f"{text}."
+

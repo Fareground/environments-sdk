@@ -107,11 +107,11 @@ def test_the_floor_refusal_says_what_to_do_before_and_after_raising_a_hand():
 
     fg_env.run(_example("town_hall.json"), {"r1": resident}, seed=1, inputs={"residents": 3}, rounds=1)
     assert (texts[0]
-            == "You cannot hall speak now: You do not hold the floor: raise your hand and wait to be recognized.")
+            == "You cannot call hall_speak now: You do not hold the floor: raise your hand and wait to be recognized.")
     assert texts[1] == ("Your hand is raised. The chair gives the floor between turns: end your turn now; you will be "
                         "woken when you hold the floor.")
-    assert texts[2] == "You cannot hall speak now: Your hand is raised: wait to be recognized."
-    assert texts[3] == "You cannot hall raise hand now: Your hand is raised: wait to be recognized."
+    assert texts[2] == "You cannot call hall_speak now: Your hand is raised: wait to be recognized."
+    assert texts[3] == "You cannot call hall_raise_hand now: Your hand is raised: wait to be recognized."
     assert tools["hall_raise_hand"].description.startswith(
         "Ask the chair for the floor, then end your turn: you are woken when you hold the floor.")
 

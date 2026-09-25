@@ -288,6 +288,9 @@ worlds stay fast, and the package is organised by feature.
     event sends everyone news, and an `if` with a branch that does ("reads private …, and every agent learns …").
     Before, only a stage's `when` was warned about. The conformance docs say the leak check changes steps, not the
     starting hidden state.
+  - A ballot's tools end its question once ("Approve options on: Which projects?", not "…?."), and leave out a
+    question written as a template (its braces showed raw; the rendered question is in the stage's brief and the
+    result). A tool refused as not allowed now reads "You cannot call b_vote now: …", not "You cannot b vote now".
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

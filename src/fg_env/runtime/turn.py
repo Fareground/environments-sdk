@@ -421,7 +421,7 @@ class Turn:
         blocked = rules.blocked(self.actor, name, self.ledger.used)
         if blocked:
             self.note(INVALID)
-            return (self._refused(name, f"You cannot {name.replace('_', ' ')} now: {blocked}.", observed, _INVALID),
+            return (self._refused(name, f"You cannot call {name} now: {blocked}.", observed, _INVALID),
                     False, False)
         args, cut = _cut(spec.params, args)
         params, problem = rules.validate(self.actor, name, args)
