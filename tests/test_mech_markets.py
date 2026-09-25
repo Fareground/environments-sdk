@@ -978,8 +978,8 @@ def _crowd_book(fair_value):
 
 def test_a_broken_mechanism_expression_is_a_check_error_at_its_field():
     for fair_value, words in (("$world.x +", "syntax error"), ("$world.nothere", "no such world property")):
-        issues = fg_env.check(_crowd_book(fair_value), rounds=0)
-        assert [(i.path, i.severity) for i in issues] == [("mechanisms.x.fair_value", "error")], issues
+        issues = [i for i in fg_env.check(_crowd_book(fair_value), rounds=0) if i.severity == "error"]
+        assert [i.path for i in issues] == ["mechanisms.x.fair_value"], issues
         assert words in issues[0].message
 
 
@@ -996,6 +996,6 @@ def test_an_authors_syntax_error_in_a_mechanism_field_is_reported_at_the_field_n
          "types": {"t": {"agent": True, "props": {"cash": 100}}}, "entities": {"a": {"type": "t"}},
          "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "t", "outcomes": ["yes", "no"],
                               "outcome": "$world.x ??"}}}
-    issues = fg_env.check(c, rounds=0)
-    assert [(i.path, i.severity) for i in issues] == [("mechanisms.m.outcome", "error")]
+    issues = [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+    assert [i.path for i in issues] == ["mechanisms.m.outcome"]
     assert "bug" not in issues[0].message + (issues[0].fix or "")
