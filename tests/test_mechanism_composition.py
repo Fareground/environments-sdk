@@ -210,3 +210,24 @@ def test_every_money_moving_market_conserves_a_ledgers_money_with_and_without_a_
     for seed in range(3):
         result = fg_env.run(contract, "random", seed=seed)
         assert result.status == "completed" and result.outputs["conserved"] is True, (seed, result.error)
+
+
+def test_a_sealed_bid_on_a_shared_stage_leaves_the_rest_of_the_turn_to_the_other_mechanisms():
+    """A stage several mechanisms share gives the sum of their actions; a sealed bid ends the turn only on the
+    auction's own stage (audit 12 mech M3)."""
+    contract = {"name": "Floor", "clock": {"rounds": 1}, "types": {"trader": {"agent": True, "props": {"cash": 500}}},
+                "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}},
+                "stages": [{"name": "floor", "turns": "simultaneous"}],
+                "mechanisms": {"auc": {"kind": "market", "mode": "auction", "format": "second_price", "who": "trader",
+                                       "stock": 1, "stage": "floor"},
+                               "pm": {"kind": "market", "mode": "prediction", "who": "trader",
+                                      "outcomes": ["up", "down"], "stage": "floor"}}}
+    replies = []
+
+    def play(wake):
+        replies.append((wake.call("auc_bid", {"price": 20}).ended, wake.call("pm_buy", {"outcome": "up",
+                                                                                         "spend": 5}).ok))
+        wake.end()
+
+    fg_env.run(contract, play, seed=1)
+    assert replies == [(False, True), (False, True)]

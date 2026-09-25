@@ -244,7 +244,9 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
             "params": {**amount, "price": price}, "when": when,
             "do": [{"market": name, "action": "bid", "price": "$params.price",
                     **({"package": "$params.package"} if packaged else {"qty": "$params.qty"})}],
-            "outcome": receipt, "private": sealed, "terminal": sealed and not packaged,
+            # a sealed bid ends the turn on the auction's own stage; on a declared stage the turn's budget, shared
+            # with the other mechanisms there, decides (the bidder may still trade elsewhere)
+            "outcome": receipt, "private": sealed, "terminal": sealed and not packaged and cfg.stage is None,
         },
     }
     if cfg.format == "english":
