@@ -88,3 +88,28 @@ def test_total_holdings_preserve_small_balances_independent_of_entity_order():
         assert result.status == "completed", result.error
         outputs.append(result.outputs["total"])
     assert outputs == [1e16 + 100, 1e16 + 100]
+
+
+@pytest.mark.parametrize("tax, path, message", [
+    ({"rate": 0.1, "to": "nobody"}, "mechanisms.money.taxes.vat.to", "is not a declared entity"),
+    ({"rate": 0.1, "to": "gov"}, "mechanisms.money.taxes.vat.to", "names a group of entities, not one"),
+    ({"rate": "0.1", "to": "gov_1"}, "mechanisms.money.taxes.vat.rate", "not a number"),
+])
+def test_a_tax_is_checked_at_its_own_fields(tax, path, message):
+    """A tax's collector is one of the world's entities and its rate a number, reported where each is written as a
+    house's or a reserve's is (audit 14 mech M2)."""
+    c = {"types": {"h": {"agent": True}, "g": {}}, "entities": {"h": {"type": "h", "count": 2}, "gov": {"type": "g",
+                                                                                                        "count": 2}},
+         "actions": {"buy": {"by": "h", "do": [{"economy": "money", "action": "pay", "from": "$actor", "to": "h_2",
+                                                "amount": 50, "tax": "vat"}]}},
+         "mechanisms": {"money": {"kind": "economy", "mode": "ledger", "who": ["h", "g"],
+                                  "currencies": {"cash": {"start": 100}}, "taxes": {"vat": tax}}}}
+    assert any(i.severity == "error" and i.path == path and message in i.message
+               for i in fg_env.check(c, rounds=0))
+
+
+def test_an_action_that_never_happened_names_the_rule_that_failed_in_the_error():
+    c = {"types": {"h": {"agent": True, "props": {"k": 0}}}, "entities": {"h": {"type": "h", "count": 2}},
+         "world": {"z": 0}, "actions": {"buy": {"by": "h", "do": ["$actor.k = 1 / $world.z"]}}}
+    error = next(i for i in fg_env.check(c) if i.path == "actions.buy")
+    assert error.severity == "error" and "it failed at actions.buy.do[0]: division by zero" in error.message

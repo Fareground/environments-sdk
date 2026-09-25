@@ -85,12 +85,27 @@ def quoted_numbers(config: BaseModel, path: str = "") -> Iterator[tuple[str, str
     reads ``"45"`` as the number.)"""
     for name, field in type(config).model_fields.items():
         value, where = getattr(config, name), f"{path}{field.alias or name}"
-        if isinstance(value, BaseModel):
-            yield from quoted_numbers(value, f"{where}.")
-        elif isinstance(value, str) and EXPRESSION not in field.metadata and not is_expr(value) \
+        for at, nested in _models_in(value, where):  # a nested model, or each of a map's or a list's
+            yield from quoted_numbers(nested, f"{at}.")
+        if isinstance(value, str) and EXPRESSION not in field.metadata and not is_expr(value) \
                 and _holds_expression(field.annotation) and not _holds_expression(field.annotation, marked_only=True) \
                 and (_number_text(value) or _counts(field.annotation) and not _takes_words(field.annotation)):
             yield where, value, _number_text(value)
+
+
+def _models_in(value: Any, path: str) -> Iterator[tuple[str, BaseModel]]:
+    """``value`` when it is a config model, and each model a map or a list of them holds (a ledger's `taxes`), with
+    its path."""
+    if isinstance(value, BaseModel):
+        yield path, value
+    elif isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(item, BaseModel):
+                yield f"{path}.{key}", item
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            if isinstance(item, BaseModel):
+                yield f"{path}[{index}]", item
 
 
 def _counts(annotation: Any) -> bool:

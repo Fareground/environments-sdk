@@ -317,6 +317,10 @@ worlds stay fast, and the package is organised by feature.
     decided: false, passed: null, counts: {}` …), and keeps them after a count, so `"when": "$world.v_result.passed
     == true"` works from the first round instead of failing the run (and the smoke run's "no agent had a single
     turn" warning that followed from it) (mech M1).
+  - A ledger tax's `to` and `rate` are checked at their fields, as a house's or a reserve's are (a collector that is no
+    entity or a group, a rate written as text); a mechanism's config fields inside a map or a list of specs are held
+    to the number rule too. An action the smoke run found never happening names, in the error itself, the rule that
+    failed and its error (mech M2).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

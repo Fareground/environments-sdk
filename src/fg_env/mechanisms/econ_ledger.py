@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import entity_of, setting_kept
+from ._common import declared_entity, entity_of, setting_kept
 from .econ_assets import balance, move_money
 from .econ_base import (
     INVENTORY,
@@ -182,6 +182,9 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
         "events": [_source_event(name, config, source, spec, contract) for source, spec in config.sources.items()],
         "actions": {},
     }
+    for tax, spec in config.taxes.items():  # a collector is one of the world's entities, as a house is
+        if spec.to is not None:
+            declared_entity(contract, spec.to, f"taxes.{tax}.to", "tax collector")
     agents = agent_types(contract, holders)
     if "pay" in config.actions and agents:
         fragment["actions"][f"{name}_pay"] = _pay_action(name, config, holders, agents)

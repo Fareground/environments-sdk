@@ -174,8 +174,14 @@ def _random_findings(play: RunResult, errors: list[Issue], warnings: list[Issue]
                 found["code"] == "action_offered_but_unusable" and found["path"] in broken):
             continue  # a failing output is reported by _outputs; the failing rule is why the action was unusable
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
+        message = found["message"]
+        if found["code"] == "action_always_faulted":  # the failing rule's own error, in the error itself
+            causes = [f"{cause['path']}: {cause['message'].split(': ', 1)[-1]}" for cause in play.diagnostics
+                      if cause["code"] in _EDGE_FINDINGS and cause["path"].startswith(found["path"] + ".")]
+            if causes:
+                message += f"; it failed at {causes[0]}"
         (errors if severity == "error" else warnings).append(
-            Issue(found["path"], f"{found['message']} (smoke run of {play.rounds} round(s), random agents)",
+            Issue(found["path"], f"{message} (smoke run of {play.rounds} round(s), random agents)",
                   found["fix"], severity))
 
 
