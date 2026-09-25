@@ -316,6 +316,8 @@ worlds stay fast, and the package is organised by feature.
     `"earned": 0` refuses a fractional payment.)
   - `print(env.preview("ann"))` prints the turn as `fg-env preview` shows it: the preview is a `Preview`, a mapping
     (brief, update, tools, time_limit, tokens) whose text is that layout. Before, it printed a raw dict.
+  - A command's own usage line reads `usage: fg-env new …`, not the whole top-level usage before it, and
+    `experiment --agent` says what it takes.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

@@ -30,7 +30,9 @@ def main(argv: list[str] | None = None) -> int:
     from .cli.report import add_report_command
 
     parser.add_argument("--version", action="version", version=f"fg-env {__version__}")
-    sub = parser.add_subparsers(dest="cmd", required=True, metavar="<command>", help=argparse.SUPPRESS)
+    # prog: a command's own usage line reads "fg-env <command> ...", not the whole top-level usage before it
+    sub = parser.add_subparsers(dest="cmd", required=True, metavar="<command>", help=argparse.SUPPRESS,
+                                prog="fg-env")
     add_commands(sub)
     add_analysis_commands(sub)
     add_report_command(sub)

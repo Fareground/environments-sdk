@@ -300,6 +300,17 @@ def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_command
     assert "fg-env replay" not in shown and "fg-env trace FILE replay" in " ".join(shown.split())
 
 
+def test_each_command_says_its_own_usage_and_every_option_has_help(capsys):
+    for command in ("run", "preview", "experiment"):
+        with pytest.raises(SystemExit):
+            main([command, "--help"])
+        shown = capsys.readouterr().out
+        assert shown.startswith(f"usage: fg-env {command} ["), shown.splitlines()[0]
+        lines = shown.splitlines()
+        agent = lines.index("  --agent [TYPE_OR_ID=]PARTICIPANT")
+        assert lines[agent + 1].startswith(" " * 24) and lines[agent + 1].strip()  # the option says what it takes
+
+
 def test_the_command_list_names_each_command_once_by_workflow_and_no_two_alike(capsys):
     with pytest.raises(SystemExit):
         main(["--help"])

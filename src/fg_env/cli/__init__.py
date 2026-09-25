@@ -368,7 +368,9 @@ def add_commands(sub: Any) -> None:
     p.add_argument("--seed", type=int, default=0)
     p.add_argument("--input", action="append", metavar="NAME=VALUE")
     p.add_argument("--inputs-file")
-    p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT")
+    p.add_argument("--agent", action="append", metavar="[TYPE_OR_ID=]PARTICIPANT",
+                   help="random | idle | policy:<name> | anthropic:<model> | openai:<model>, optionally for one type "
+                        "or entity")
     p.add_argument("--rounds", type=int)
     p.add_argument("--workers", type=int, default=1)
     p.add_argument("--data-dir", help="folder input data files are read from (default: the contract's folder)")
