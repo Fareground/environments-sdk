@@ -391,3 +391,14 @@ def test_an_output_reading_itself_or_one_written_after_it_is_an_error():
     errors = {i.path: i.message for i in _errors(c, rounds=0)}
     assert set(errors) == {"outputs.a", "outputs.c"}
     assert errors["outputs.c"].startswith("reads itself") and "$outputs.b" in errors["outputs.a"]
+
+
+def test_a_bare_word_naming_a_listed_items_prop_is_warned_in_a_list_view_too():
+    c = {"name": "x", "clock": {"rounds": 1},
+         "types": {"p": {"agent": True, "props": {"status": ""}}, "item": {"props": {"decision": ""}}},
+         "entities": {"a": {"type": "p"}, "item": {"type": "item", "count": 2}},
+         "actions": {"go": {"by": "p", "description": "g", "do": []}},
+         "views": {"items": {"for": "p", "of": "item", "show": "{id}{' — ' + decision if decision else ''}"}},
+         "outputs": {"n": "$count(item)"}}
+    warned = [i for i in _warnings(c, rounds=0) if i.path == "views.items.show"]
+    assert warned and "did you mean $it.decision?" in warned[0].fix

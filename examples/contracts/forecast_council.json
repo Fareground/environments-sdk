@@ -219,7 +219,7 @@
           "do": [
             "$it.initial = $it.prior",
             "$it.working = $it.prior",
-            "$it.abstained += initial",
+            "$it.abstained += 'initial'",
             "$it.initial_why = 'no ballot submitted; recorded at stated prior'"
           ]
         }
@@ -232,7 +232,7 @@
     {
       "on": "stage.final_ballot.end",
       "do": [
-        {"each": "panelist", "where": "$it.final == null", "do": ["$it.final = $it.working", "$it.abstained += final"]}
+        {"each": "panelist", "where": "$it.final == null", "do": ["$it.final = $it.working", "$it.abstained += 'final'"]}
       ]
     }
   ],

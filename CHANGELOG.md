@@ -319,6 +319,9 @@ worlds stay fast, and the package is organised by feature.
   - A policy rule's `each: $filter(<type>, <condition>)` that picks the agent's own items may also test their private
     properties (`$it.holder == $actor.id and $it.secret == 0`), as a view's `where` may. Before, the second condition
     was refused as a leak even for items the agent held.
+  - The bare-word warning covers the listed item too: `{' — ' + decision if decision else ''}` in a list view (`of`)
+    warns that `decision` is the text 'decision' and suggests `$it.decision`, as `status` in a single-line view
+    suggests `$actor.status`. The council engine quotes the stage names it records.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

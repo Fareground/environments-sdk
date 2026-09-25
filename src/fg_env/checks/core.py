@@ -256,13 +256,13 @@ class Checker:
             if symbol in self.c.types and len(chain) == 2:
                 spec = self.c.props_of(symbol).get(chain[1])
                 self._compare((spec.values, prop_type(spec)) if spec else None, chain, word, path, compiled.source)
-        actor_props: set[str] = set()
-        for kind in types.get("actor", ()):
-            actor_props |= self.type_props.get(kind, set())
-        for word in compiled.symbols:
-            if word in actor_props and word not in self.known_words:
+        props = {root: {prop for kind in types.get(root, ()) for prop in self.type_props.get(kind, set())}
+                 for root in ("it", "actor")}  # a list view's item, and the reader
+        for word in sorted(compiled.symbols - self.known_words):
+            root = next((root for root, names in props.items() if word in names), None)
+            if root is not None:
                 self.warn(path, f"bare word '{word}' is the text '{word}'",
-                          f"did you mean $actor.{word}? — in `{compiled.source}`")
+                          f"did you mean ${root}.{word}? — in `{compiled.source}`")
         for chain in compiled.paths:
             self._chain(chain, path, types, params, compiled.source)
         for _, symbol, chain in compiled.item_paths:
