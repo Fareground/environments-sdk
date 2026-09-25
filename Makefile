@@ -3,14 +3,20 @@ PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
 SCHEMA := schema/contract.schema.json
 RUN := PYTHONPATH=src $(PYTHON)
 
-.PHONY: gate test test-fast lint typecheck schema check-schema docs check-docs
+.PHONY: gate test test-fast test-slow lint typecheck schema check-schema docs check-docs
 
-# Everything that must pass before a push: the whole suite, lint, types, the schema and the generated docs.
+# Everything that must pass before a push: the whole suite, lint, types, the schema and the generated docs. Before a
+# release, and after changing the kernel, the game algorithms or the fuzzer, also run `make test-slow`.
 gate: test lint typecheck check-schema check-docs
 
 # The whole suite: run it before every push.
 test:
 	$(RUN) -m pytest tests -q -n auto
+
+# The whole suite with its longest tier on (FG_ENV_SLOW=1): thousands of fuzzed contracts, more seeds and playouts,
+# every adversary everywhere, full engine and exchange sessions. Tens of minutes: before a release.
+test-slow:
+	FG_ENV_SLOW=1 $(RUN) -m pytest tests -q -n auto
 
 # Everything but the tests marked slow (statistical and engine-behaviour checks): the loop while iterating.
 test-fast:

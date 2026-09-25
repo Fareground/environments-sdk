@@ -26,8 +26,13 @@ PYTHONPATH=src python -m pytest tests -q -n auto   # straight from a checkout (s
 several times faster that way. Leave it off (or use `-n 0`) to debug one test with `pdb` or `print` output.
 
 While iterating, `make test-fast` runs everything except the tests marked `slow` (statistical and engine-behaviour
-checks that take many seconds each) in a minute or two. Run the whole suite, `make test`, before every push. Mark a
-new test `@pytest.mark.slow` when it takes more than a few seconds on its own.
+checks that take many seconds each) in a minute or two. Run the whole suite, `make test` (part of `make gate`), before
+every push. Mark a new test `@pytest.mark.slow` when it takes more than a few seconds on its own.
+
+A third tier runs only with `FG_ENV_SLOW=1`: thousands of fuzzed contracts, more seeds and playouts, every adversary
+on every example, full engine and exchange sessions. `make test-slow` runs the whole suite with it on; run it before
+a release and after changing the run's kernel, the game algorithms or the fuzzer. A test that needs minutes goes in
+this tier (`pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), ...)`, or more seeds when it is set).
 `testpaths` is set to `tests` in `pyproject.toml`, so a bare `pytest` from the
 repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <expr>`.
 

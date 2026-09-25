@@ -248,6 +248,8 @@ worlds stay fast, and the package is organised by feature.
     doc-sample test now covers the reference pages too: `guide("inspect")` runs a cookbook recipe it writes first.
   - The diagnostic for sealed choices that overwrite each other says to combine them in an event on
     `stage.<s>.end`, not in the deprecated `on_exit`.
+  - `make test-slow` runs the whole suite with its longest tier on (`FG_ENV_SLOW=1`), which no target ran before;
+    CONTRIBUTING and the `gate` target say when to run it.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
