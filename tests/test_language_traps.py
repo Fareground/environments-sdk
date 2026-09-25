@@ -255,3 +255,19 @@ def test_a_view_sort_that_reads_nothing_of_the_item_is_an_error(key):
                 "views": {"rich": {"of": "p", "sort": key, "show": "{name}: {cash}"}}}
     [found] = [i for i in _errors(contract) if i.path == "views.rich.sort"]
     assert "gives every item the same key" in found.message and "$it.cash" in found.fix
+
+
+@pytest.mark.parametrize("where, text", [("outputs", {"world": {"expr": "$world", "series": True}}),
+                                         ("views", {"v": {"show": "State: {$world}"}}),
+                                         ("views", {"v": {"show": "{$keys($physics)} {$clock}"}})])
+def test_a_view_of_the_runs_state_is_no_value_to_keep_or_show(where, text):
+    """`$world` as a value was the live engine object: a series kept one object for every round, outputs were not
+    JSON and a view showed a memory address (audit 9 core H4). Its fields are values; it is not."""
+    contract = {"name": "State", "clock": {"rounds": 2}, "world": {"pot": 0},
+                "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+                "actions": {"inc": {"by": "p", "do": "$world.pot += 1"}}, where: text}
+    errors = _errors(contract)
+    assert errors and "is not a value: read one of its fields" in errors[0].message
+    contract[where] = {"pot": {"expr": "$world.pot", "series": True}} if where == "outputs" else \
+        {"v": {"show": "Pot {$world.pot}, round {$clock.round}"}}
+    assert not _errors(contract)

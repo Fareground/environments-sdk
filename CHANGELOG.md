@@ -240,6 +240,10 @@ worlds stay fast, and the package is organised by feature.
     block it is) and how many that block created this round, not by its id. Ids come from a counter every creator
     shares, so whether one agent created something shifted the luck of what another created. Runs that draw for
     created entities draw differently (the `wolf_sheep` golden changed); snapshots carry the new counts.
+  - `$world`, `$physics` and `$clock` are views of the run's state, not values: using one bare (an output, a view,
+    a stored value, a function argument) is a check error naming the fix (`$world.<field>`). Before, `$world` handed
+    out the live engine object: a series kept the same object every round, outputs were not JSON and a view showed a
+    memory address.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
