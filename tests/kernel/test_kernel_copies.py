@@ -310,7 +310,7 @@ def test_a_copy_shares_nothing_its_run_changes(path):
 
 #: What a part of a run may keep that is not configuration: caches of what it worked out, and the round in progress
 #: (a generator over the cursor, which a copy resumes from the cursor).
-_CACHES = {"effects": {"_hooks"}, "actions.redaction": {"_kept_secrets"},
+_CACHES = {"effects": {"_hooks"}, "actions.redaction": {"_writes_private"},
            "information.perception": {"_selections", "_news"}, "driver": {"_resolved", "_turn_tools"},
            "schedule": {"_round"}}
 _PARTS = ("effects", "actions", "actions.redaction", "actions.validation", "information", "information.perception",
