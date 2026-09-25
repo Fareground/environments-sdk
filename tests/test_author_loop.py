@@ -45,6 +45,23 @@ def test_a_rule_rewritten_to_do_nothing_is_named_and_kept_only_once_confirmed():
     assert "REMOVED since revision 1, the first that worked: events.0 (its do now does nothing)" in summary
 
 
+def test_a_rule_whose_effects_fired_before_and_never_fire_now_does_nothing_however_it_was_rewritten():
+    event = LEMONADE["events"][0]
+    never = lemonade(events=[{**event, "when": "$round < 0"}])  # the payout event is still there, and never runs
+    client = FakeOpenAI([write(LEMONADE)], [write(never)], [])
+
+    result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
+
+    assert "But it removed events.0 (its effects never fired in any test run), which revision 1 has" in \
+        tool_replies(client)[1]
+    assert result.contract == LEMONADE and result.kept == 1
+
+    itself = lemonade(events=[{**event, "do": [{**event["do"][0], "do": ["$it.earned = $it.earned"]}]}])
+    client = FakeOpenAI([write(LEMONADE)], [write(itself)], [])
+    assert fg_env.author("A lemonade stand duel.", "openai:m", client=client).kept == 1
+    assert "events.0 (its do now does nothing)" in tool_replies(client)[1]
+
+
 def test_an_output_that_comes_out_the_same_in_every_test_run_is_a_warning_the_model_reads():
     no_market = lemonade(events=[])  # nothing earns: the winner is a tie-break
 

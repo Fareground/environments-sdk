@@ -283,6 +283,11 @@ worlds stay fast, and the package is organised by feature.
   - `fg_env.author` gives every model request a timeout of the time left in its session, on both providers. Before,
     the Anthropic path sent none, so the official client refused its 20,000-token cap on models with a smaller
     non-streaming cap (Opus 4 and 4.1) before sending anything, and the session ended at once.
+  - `fg_env.author` treats a rule whose effects fired in the kept revision's test runs and in none of a new
+    revision's as removed ("its effects never fired in any test run"), however it was rewritten — a `when` that never
+    holds, an `if` on false, a hook that never fires — and a self-assignment (`$it.earned = $it.earned`) as doing
+    nothing; the new revision is kept only once saved again. Before, only `+= 0`, `*= 1` and an empty `do` were
+    caught, and a gutted payout replaced the working revision with `ok=True`.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

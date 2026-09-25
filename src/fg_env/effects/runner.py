@@ -30,6 +30,7 @@ rule that never settles is reported instead of silently truncated.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Sequence
 from difflib import get_close_matches
 from typing import Any
@@ -134,6 +135,13 @@ def removed_since(items: Sequence[Any]) -> Callable[[int], bool]:
     return lambda position: active[position] and not items[position].alive
 
 
+#: The rule an effect's path is in: an action, or an event by its position.
+_RULE = re.compile(r"actions\.[A-Za-z_]\w*|events\[\d+\]")
+#: Operations that only run, schedule or refuse other effects: they fire nothing themselves (see
+#: :attr:`EffectRunner.fired`).
+_RUNS_OTHERS = frozenset({"if", "each", "call", "chance", "repeat", "after", "fail"})
+
+
 class EffectRunner:
     """Applies effect lists to one world, and fires the events on ``create.<type>`` and ``remove.<type>`` when entities
     are created or removed (inside whatever change made them, so they commit or roll back with it)."""
@@ -148,6 +156,11 @@ class EffectRunner:
         self._call_depth = 0
         self._hooks: dict[tuple[str, str], list[tuple[int, Any]]] = {}
         world.lifecycle = self.lifecycle
+        #: When a set (``fg_env.author``'s test runs), the rules — ``actions.<name>``, ``events[<i>]`` — whose effects
+        #: fired: an effect ran for the rule that is not a local's assignment or one that only runs others (`if`,
+        #: `each`, `call` ...). A def's effects fire for the rule that called it.
+        self.fired: set[str] | None = None
+        self._rule: str | None = None
 
     def lifecycle(self, kind: str, entity: Entity, where: str) -> None:
         """Fire the events on ``<kind>.<type>`` (create / remove) for the entity's type and its ancestors, root first,
@@ -181,24 +194,36 @@ class EffectRunner:
             self._hook_depth -= 1
 
     def run(self, effects: list[Any], vars: dict[str, Any], path: str) -> None:
-        for index, effect in enumerate(one_or_many(effects) or []):
-            try:
-                if isinstance(effect, str):
-                    self._statement(effect, vars, path, index)  # its path is spelled out only if it is reported
-                elif isinstance(effect, dict):
-                    self._keyed(effect, vars, f"{path}[{index}]")
-                else:
-                    raise RunError(f"an effect is text or an object, got {effect!r}", f"{path}[{index}]")
-            except ExprError as exc:
-                raise RunError(str(exc), f"{path}[{index}]") from None
-            except OverflowError:  # its own text varies by platform
-                raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
-            # a contract rule's arithmetic failed: the rule's fault, never the participant's
-            except ArithmeticError as exc:
-                raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
-            # values the rule combines that do not fit: the rule's fault, never the participant's
-            except TypeError as exc:
-                raise RunError(f"could not apply: {exc}", f"{path}[{index}]") from None
+        rule = self._rule
+        if self.fired is not None:
+            found = _RULE.match(path)
+            self._rule = found.group(0) if found else rule
+        try:
+            for index, effect in enumerate(one_or_many(effects) or []):
+                try:
+                    if isinstance(effect, str):
+                        self._statement(effect, vars, path, index)  # its path is spelled out only if it is reported
+                    elif isinstance(effect, dict):
+                        self._keyed(effect, vars, f"{path}[{index}]")
+                    else:
+                        raise RunError(f"an effect is text or an object, got {effect!r}", f"{path}[{index}]")
+                except ExprError as exc:
+                    raise RunError(str(exc), f"{path}[{index}]") from None
+                except OverflowError:  # its own text varies by platform
+                    raise RunError("arithmetic failed: the result is too large", f"{path}[{index}]") from None
+                # a contract rule's arithmetic failed: the rule's fault, never the participant's
+                except ArithmeticError as exc:
+                    raise RunError(f"arithmetic failed: {exc}", f"{path}[{index}]") from None
+                # values the rule combines that do not fit: the rule's fault, never the participant's
+                except TypeError as exc:
+                    raise RunError(f"could not apply: {exc}", f"{path}[{index}]") from None
+        finally:
+            self._rule = rule
+
+    def _fire(self) -> None:
+        """Note that an effect fired for the rule running (see :attr:`fired`)."""
+        if self.fired is not None and self._rule is not None:
+            self.fired.add(self._rule)
 
     # -- statements ------------------------------------------------------------
 
@@ -211,6 +236,7 @@ class EffectRunner:
                 value = self._combine(stmt.op, scope.root(stmt.local, source), value, source)
             vars[stmt.local] = value
             return
+        self._fire()
         assert stmt.base is not None
         if len(stmt.steps) == 1:  # `$x.prop op value`, the common shape: the base itself owns the property
             owner = stmt.base(scope)
@@ -378,6 +404,8 @@ class EffectRunner:
                     where,
                 )
             raise RunError(f"an effect object names exactly one operation, got {ops}", where)
+        if ops[0] not in _RUNS_OTHERS:
+            self._fire()
         registered = OPS.get(ops[0])
         if registered is None:
             getattr(self, "_op_" + ops[0])(effect, vars, where)

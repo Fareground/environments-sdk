@@ -92,14 +92,23 @@ def describe_changes(before: dict[str, Any], after: dict[str, Any]) -> str:
     return "; ".join(changes)
 
 
-def removed_parts(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+def removed_parts(before: dict[str, Any], after: dict[str, Any],
+                  tests: tuple[Tested, Tested] | None = None) -> list[str]:
     """The parts of ``before`` that ``after`` no longer has, e.g. ``actions.take`` or ``actions.take.params.count``,
-    and those whose effects ``after`` rewrote to do nothing, e.g. ``events.0 (its do now does nothing)``."""
+    and those whose effects ``after`` rewrote to do nothing, e.g. ``events.0 (its do now does nothing)``. With
+    ``tests`` — what testing ``before`` and ``after`` found — a rule whose effects fired in ``before``'s test runs and
+    in none of ``after``'s does nothing too, however it was rewritten (a `when` that never holds, an `if` on false)."""
     old_parts, new_parts = _parts(before), _parts(after)
     gone = [f"{key}.{name}" for key, names in old_parts.items()
             for name in sorted(names.keys() - new_parts.get(key, {}).keys())]
     gutted = [f"{key}.{name} (its do now does nothing)" for key in _RULES for name, old in old_parts[key].items()
               if name in new_parts[key] and _acts(old) and not _acts(new_parts[key][name])]
+    if tests is not None:
+        said = {path.split(" ")[0] for path in gutted}
+        was, now = set(tests[0].fired), set(tests[1].fired)
+        gutted += [f"{key}.{name} (its effects never fired in any test run)" for key in _RULES
+                   for name in old_parts[key] if name in new_parts[key] and f"{key}.{name}" not in said
+                   and f"{key}.{name}" in was and f"{key}.{name}" not in now]
     return [path for path in gone
             if not any(path.startswith(other + ".") for other in gone)] + gutted  # an action, not its params
 
@@ -109,8 +118,8 @@ _SECTIONS = ("inputs", "world", "types", "entities", "relations", "records", "ac
              "outputs", "end", "arms", "invariants", "defs", "mechanisms")
 #: The sections whose parts are rules with effects (`do`).
 _RULES = ("actions", "events")
-#: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1.
-_IDENTITY = re.compile(r"\s*\$[\w.\[\]'\"]+\s*(?:[-+]=\s*0|[*/]=\s*1)(?:\.0*)?\s*")
+#: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1, assigning a value to itself.
+_IDENTITY = re.compile(r"\s*(\$[\w.\[\]'\"]+)\s*(?:[-+]=\s*0(?:\.0*)?|[*/]=\s*1(?:\.0*)?|=\s*\1)\s*")
 
 
 def _parts(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -293,7 +302,8 @@ class Workbench:
         self.working.append(number)
         self.tests[number] = found
         saved = f"Saved revision {number}: it works — {_verdict(found)}."
-        removed = removed_parts(self.best, data) if self.best is not None else []
+        removed = (removed_parts(self.best, data, (self.tests[self.kept], found))
+                   if self.best is not None and self.kept is not None else [])
         if removed and removed != self.unconfirmed:
             self.unconfirmed = removed
             self.problem = (f"it removed {', '.join(removed)}, which revision {self.kept} has; saving it again keeps "

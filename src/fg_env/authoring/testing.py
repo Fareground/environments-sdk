@@ -53,6 +53,9 @@ class Tested(NamedTuple):
     hosts: tuple[str, ...] = ()
     #: ``(average, largest)`` tokens of what an agent read in a turn of its runs: its brief and update.
     prompt: tuple[int, int] = (0, 0)
+    #: The contract's own rules whose effects fired in some run, as parts: ``actions.<name>``, ``events.<name or
+    #: position>``. A rule missing from it never did anything in any test run.
+    fired: tuple[str, ...] = ()
 
 
 def tested(source: ContractLike, box: Sandbox | None = None) -> Tested:
@@ -87,7 +90,7 @@ def tested(source: ContractLike, box: Sandbox | None = None) -> Tested:
     except RuntimeError as exc:  # the child died: a contract can break the engine in any way
         return Tested(str(exc))
     return Tested(found["problem"], found["untested"], tuple(found["warnings"]), found["seeds"], tuple(found["hosts"]),
-                  tuple(found["prompt"]))
+                  tuple(found["prompt"]), tuple(found["fired"]))
 
 
 def contract_problem(source: ContractLike) -> str:
@@ -105,7 +108,8 @@ def _plain(source: ContractLike) -> Any:
 def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str, Any]:
     """:func:`tested`'s work, in the child process: its findings as JSON data."""
     hosts, deadline, seen = StubHosts(source), time.monotonic() + seconds, Seen()
-    found: dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": [], "prompt": [0, 0]}
+    found: dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": [], "prompt": [0, 0],
+                             "fired": []}
     try:
         step("checking it")
         issues = check(source, hosts=hosts)
@@ -123,10 +127,24 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
             warned = {issue.path for issue in issues}  # what check already warned about is not said twice
             found["warnings"] += [str(i) for i in seen.warnings(contract) if i.path not in warned]
             found["prompt"] = list(seen.prompt)
+            found["fired"] = _fired_parts(contract, seen.fired)
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
         found["problem"] = f"{type(exc).__name__}: {exc}"
     found["hosts"] = list(hosts.asked)
     return found
+
+
+def _fired_parts(contract: Contract, fired: set[str]) -> list[str]:
+    """The rules that fired, as the parts of the contract the author wrote: an event by its name, else its position
+    (generated events come after the authored ones, so an authored event's position is its own)."""
+    parts = []
+    for rule in sorted(fired):
+        if rule.startswith("events["):
+            index = int(rule[len("events["):-1])
+            if index < len(contract.events):
+                rule = f"events.{contract.events[index].name or index}"
+        parts.append(rule)
+    return parts
 
 
 def _pointless(contract: Contract) -> str:
@@ -158,6 +176,7 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
     for n, (participant, who, seed, exempt) in enumerate(plays):
         step(f"the run with {who} (seed {seed})")
         env = load(source, seed=seed, hosts=hosts)
+        env.effects.fired = seen.fired
         share = (deadline - time.monotonic()) / (len(plays) - n)
         result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
         problem = _run_problem(result, f"{who} (seed {seed})", exempt)
@@ -184,8 +203,9 @@ def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], mo
         seed += 1
         step(f"the run with random agents (seed {seed})")
         began = time.monotonic()
-        result = load(source, seed=seed, hosts=hosts).run({"*": _Reading(RandomAgent(seed), seen)},
-                                                          budget={"seconds": deadline - began})
+        env = load(source, seed=seed, hosts=hosts)
+        env.effects.fired = seen.fired
+        result = env.run({"*": _Reading(RandomAgent(seed), seen)}, budget={"seconds": deadline - began})
         problem = _run_problem(result, f"random agents (seed {seed})", frozenset())
         if problem:
             return problem, "", played

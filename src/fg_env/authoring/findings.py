@@ -26,11 +26,13 @@ _GOAL = re.compile(r"\b(goals?|aims?|objectives?|purpose|wins?|winn(er|ing)|maxi
 
 
 class Seen:
-    """What the test runs showed beyond their problems: the runs that finished, and how much agents read a turn (their
-    brief and update)."""
+    """What the test runs showed beyond their problems: the runs that finished, how much agents read a turn (their
+    brief and update), and the rules whose effects fired in any of them."""
 
     def __init__(self) -> None:
         self.runs: list[RunResult] = []
+        #: ``actions.<name>`` and ``events[<i>]`` whose effects fired (see :attr:`EffectRunner.fired`).
+        self.fired: set[str] = set()
         self.turns = self.chars = self.most = 0
         self._lock = threading.Lock()  # simultaneous turns read in parallel
 
