@@ -29,7 +29,7 @@ from typing import Any
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, Carried, anthropic_parts, openai_parts, without_content
 from ..errors import RunError
 from .hosts import credit_tokens, time_left
-from .protocols import HostError
+from .protocols import HostError, HostUnavailable
 
 __all__ = ["LLMHost", "AnthropicWebSearch", "HistoricalFeed", "anthropic", "openai", "anthropic_web_search",
            "historical", "parse_json"]
@@ -104,8 +104,9 @@ class _Provider:
 
     def _retrying(self, request: Callable[[float], Any]) -> Any:
         """The provider's response to ``request(timeout)``, each try given at most the time left in the turn that asked.
-        A failure is never a :class:`HostError`, which would ask the model again with a correction: nothing was wrong
-        with its answer, there was none."""
+        A failure is never a :class:`HostError` that asks the model again with a correction: nothing was wrong with its
+        answer, there was none. One retrying could fix that still fails is :class:`HostUnavailable` (that request goes
+        unanswered); any other stops the run."""
         from ..participants.llm import _backoff, _retryable, provider_failure, request_timeout
 
         for attempt in range(self.retries + 1):
@@ -118,7 +119,8 @@ class _Provider:
                 if not retry or late:
                     call, client = self.CALLS[self.provider]
                     text = provider_failure(exc, call, client, self.model, attempt)
-                    raise RunError(text + (" (The turn's time ran out before another try.)" if late else "")) from exc
+                    text += " (The turn's time ran out before another try.)" if late else ""
+                    raise (HostUnavailable(text) if _retryable(exc) else RunError(text)) from exc
                 self._add(retries=1)
                 time.sleep(wait)
         raise AssertionError("unreachable")

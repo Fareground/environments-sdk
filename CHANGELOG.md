@@ -280,6 +280,10 @@ worlds stay fast, and the package is organised by feature.
     2 makers: 54 of 90; 1,000 and 10: 69 of 90; now 19 and 15).
   - An LLM participant whose prompt is too long for its model forfeits that turn, as with a provider that stays down;
     the next turn starts a fresh conversation. Before, the provider's "prompt is too long" failed the whole run.
+  - A judge or game master whose provider is still down or rate-limited after its retries leaves that one request
+    unanswered (the text unscored, the attempt refused), as a participant forfeits its turn, and is not asked again
+    at once. Before, a 429 on a judge after its retries failed the whole run. The adapters raise
+    `HostUnavailable` (a `HostError`) for it.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

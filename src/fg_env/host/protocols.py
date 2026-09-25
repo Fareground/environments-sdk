@@ -21,12 +21,17 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any, Protocol, runtime_checkable
 
-__all__ = ["HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed", "Describer"]
+__all__ = ["HostError", "HostUnavailable", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed", "Describer"]
 
 
 class HostError(Exception):
     """A host failed, or answered outside its protocol. Raise it from an adapter to fail cleanly (the engine asks
     once more, with a ``correction``, before it gives up on the request)."""
+
+
+class HostUnavailable(HostError):
+    """The host's provider stayed down, overloaded or rate-limited through the adapter's retries: that request gets no
+    answer (it is not asked again), as when the host declines it."""
 
 
 @runtime_checkable

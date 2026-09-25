@@ -22,7 +22,7 @@ from ..contract.base import TAPE
 from ..errors import FatalRunError, RunError
 from ..expr import Untrusted
 from .hosts import counting, hosts_for
-from .protocols import HostError
+from .protocols import HostError, HostUnavailable
 
 __all__ = ["MAX_RESPONSE_CHARS", "HostUnusable", "plain", "request_key", "consult", "discard", "tape_of"]
 
@@ -142,6 +142,8 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
         asked = adapter if correction is None else _Corrected(adapter, correction)
         try:
             answer = ask(asked)
+        except HostUnavailable as exc:  # asking again at once would only meet the same outage
+            return None, f"host '{service}' failed: {exc}", False
         except HostError as exc:
             if correction is not None:
                 return None, f"host '{service}' failed, also when asked again: {exc}", False

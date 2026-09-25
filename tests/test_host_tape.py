@@ -274,3 +274,13 @@ def test_web_search_adapter_resumes_paused_turns_and_lists_sources():
 def test_parse_json_reads_the_first_value():
     assert parse_json('noise {"a": [1, 2]} trailing') == {"a": [1, 2]}
     assert parse_json("[0.1, 0.9]") == [0.1, 0.9]
+
+
+def test_a_judge_still_rate_limited_after_its_retries_leaves_that_text_unscored_and_the_run_goes_on(monkeypatch):
+    monkeypatch.setattr("time.sleep", lambda seconds: None)
+    client = _Anthropic([_RateLimited("slow down")] * 3 + [_message('{"scores": {"quality": 7}, "rationale": "Ok."}')])
+    env = host.load(PITCH, hosts={"judge": host.adapters.anthropic(client, "m", retries=2)}, seed=1)
+    result = host.run(env, pitcher)
+    assert result.status == "completed", result.error
+    assert len(client.requests) == 4  # three tries for the first pitch, never asked again; the second is scored
+    assert result.outputs["points"] > 0 and "still failed after 2 retries" in _unusable(result)[0]
