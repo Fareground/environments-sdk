@@ -1,17 +1,24 @@
 """Calling a model provider: which failures are worth retrying and how long to wait, how long one request may take,
-and what a failure says — shared by the LLM participants, the hosts' reference adapters and the author loop, so each
-treats a provider the same way."""
+what a failure says, and how a reply is read — shared by the LLM participants, the hosts' reference adapters and the
+author loop, so each treats a provider the same way.
+
+A reply is read in one place, whatever shape a client or proxy gives it (:func:`reply_text`, :func:`openai_calls`,
+:func:`anthropic_blocks`): objects or plain dicts, content as text or as a list of parts, a tool call's name missing or
+not text (read as ``""``, which the engine refuses as no tool), its arguments as JSON text, an object or nothing (read
+as the JSON text they mean), an Anthropic tool input given as JSON text (read as the object it holds)."""
 from __future__ import annotations
 
 import inspect
+import json
 import random
 from collections.abc import Mapping
 from typing import Any
 
 from ..errors import RunError
 
-__all__ = ["field_of", "block_dict", "PROVIDER_CALLS", "MAX_BACKOFF_SECONDS", "REQUEST_TIMEOUT", "EmptyReply",
-           "retryable", "too_long", "refuse_awaitable", "provider_failure", "backoff", "retry_after", "request_timeout"]
+__all__ = ["field_of", "block_dict", "reply_text", "openai_calls", "anthropic_blocks", "PROVIDER_CALLS",
+           "MAX_BACKOFF_SECONDS", "REQUEST_TIMEOUT", "EmptyReply", "retryable", "too_long", "refuse_awaitable",
+           "provider_failure", "backoff", "retry_after", "request_timeout"]
 
 
 #: Per provider: the call every built-in client of it makes, and its sync client (named in failures).
@@ -30,8 +37,6 @@ MAX_BACKOFF_SECONDS = 60.0
 
 
 #: The longest one provider request may take (the provider SDKs' own default). A turn with less time left gives each
-
-
 #: request only what is left, so no request outlives the turn that made it (:func:`request_timeout`).
 REQUEST_TIMEOUT = 600.0
 
@@ -133,14 +138,74 @@ def field_of(owner: Any, name: str) -> Any:
     return owner.get(name) if isinstance(owner, Mapping) else getattr(owner, name, None)
 
 
+def reply_text(content: Any) -> str:
+    """A message's content as text: the text itself, or the text of its parts (a list of text parts, as objects or
+    dicts, as some OpenAI-compatible servers send; other parts left out), joined."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    parts = [content] if isinstance(content, Mapping) else content if isinstance(content, (list, tuple)) else []
+    return "".join(text for part in parts
+                   if isinstance(text := part if isinstance(part, str) else field_of(part, "text"), str))
+
+
+def _name(value: Any) -> str:
+    return value if isinstance(value, str) else ""
+
+
+def _arguments(value: Any) -> str:
+    """A tool call's arguments as the JSON text the model meant: text as written, an object or list as its JSON."""
+    if value is None:
+        return "{}"
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value, ensure_ascii=False)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def openai_calls(message: Any) -> list[tuple[Any, str, str]]:
+    """The tool calls of an OpenAI-format reply ``message`` as ``(id, name, arguments as JSON text)``."""
+    calls = field_of(message, "tool_calls")
+    if not isinstance(calls, (list, tuple)):
+        return []
+    return [(field_of(call, "id"), _name(field_of(field_of(call, "function"), "name")),
+             _arguments(field_of(field_of(call, "function"), "arguments"))) for call in calls]
+
+
+def anthropic_blocks(content: Any) -> list[dict[str, Any]]:
+    """An Anthropic reply's ``content`` as plain blocks (:func:`block_dict`), from a list of blocks, one block, or
+    text."""
+    if content is None:
+        return []
+    if isinstance(content, str):
+        return [{"type": "text", "text": content}]
+    blocks = [content] if isinstance(content, Mapping) else content if isinstance(content, (list, tuple)) else []
+    return [block_dict(block) for block in blocks]
+
+
+def _input(value: Any) -> dict[str, Any]:
+    """An Anthropic tool input as the object it is: given as JSON text, the object that text holds."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return {}
+    return dict(value) if isinstance(value, Mapping) else {}
+
+
 def block_dict(block: Any) -> dict[str, Any]:
     """An Anthropic content block (an object, or a plain dict) as the plain dict a later request sends back."""
+    if isinstance(block, str):
+        return {"type": "text", "text": block}
     kind = field_of(block, "type") or ""
     if kind == "text":
-        return {"type": "text", "text": field_of(block, "text") or ""}
+        return {"type": "text", "text": reply_text(field_of(block, "text"))}
     if kind == "tool_use":
-        return {"type": "tool_use", "id": field_of(block, "id"), "name": field_of(block, "name"),
-                "input": field_of(block, "input") or {}}
+        return {"type": "tool_use", "id": field_of(block, "id"), "name": _name(field_of(block, "name")),
+                "input": _input(field_of(block, "input"))}
     if hasattr(block, "model_dump"):
         return dict(block.model_dump())
     return dict(block) if isinstance(block, Mapping) else {"type": str(kind)}

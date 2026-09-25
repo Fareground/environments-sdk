@@ -33,10 +33,12 @@ from .hosts import credit_tokens, time_left
 from .protocols import HostError, HostUnavailable
 from .providers import (
     PROVIDER_CALLS,
+    anthropic_blocks,
     backoff,
     field_of,
     provider_failure,
     refuse_awaitable,
+    reply_text,
     request_timeout,
     retryable,
     too_long,
@@ -212,8 +214,7 @@ class LLMHost(_Provider):
                 raise HostUnavailable("the model declined the request")
             if stop == "max_tokens":
                 raise HostError(self._cut_off())
-            return "".join(field_of(b, "text") or "" for b in field_of(response, "content") or []
-                           if field_of(b, "type") == "text")
+            return "".join(b["text"] for b in anthropic_blocks(field_of(response, "content")) if b["type"] == "text")
         parts = openai_parts(files, OPENAI_MEDIA)
         user: Any = [{"type": "text", "text": content}, *parts] if parts else content
         response = self._retrying(lambda timeout: self.client.chat.completions.create(
@@ -228,7 +229,7 @@ class LLMHost(_Provider):
             raise HostError(self._cut_off())
         if finish == "content_filter" or field_of(reply, "refusal"):  # the provider's filter declines like the model
             raise HostUnavailable("the model declined the request")
-        return field_of(reply, "content") or ""
+        return reply_text(field_of(reply, "content"))
 
 
 
@@ -261,11 +262,12 @@ class AnthropicWebSearch(_Provider):
                 raise HostUnavailable("the model declined the search")
             if stop == "max_tokens":  # a cut-off report is no evidence: say so, as LLMHost does
                 raise HostError(self._cut_off())
-            blocks = list(field_of(response, "content") or [])
+            content = field_of(response, "content")
+            blocks = list(content) if isinstance(content, (list, tuple)) else [] if content is None else [content]
             for block in blocks:
-                kind = field_of(block, "type")
+                kind = "text" if isinstance(block, str) else field_of(block, "type")
                 if kind == "text":
-                    texts.append(field_of(block, "text") or "")
+                    texts.append(reply_text(block if isinstance(block, str) else field_of(block, "text")))
                 elif kind == "web_search_tool_result" and isinstance(field_of(block, "content"), list):
                     for result in field_of(block, "content"):
                         url = field_of(result, "url")

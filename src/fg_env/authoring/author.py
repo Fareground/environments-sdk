@@ -44,9 +44,11 @@ from ..host.providers import (
     MAX_BACKOFF_SECONDS,
     PROVIDER_CALLS,
     EmptyReply,
-    block_dict,
+    anthropic_blocks,
     field_of,
+    openai_calls,
     provider_failure,
+    reply_text,
     request_timeout,
     retry_after,
     retryable,
@@ -453,11 +455,9 @@ def _openai(client: Any, model: str) -> Request:
             raise SpentEmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""),
                                   _spent_on(used, "openai", messages))
         choice = choices[0]
-        calls = [{"id": field_of(c, "id"), "type": "function",
-                  "function": {"name": field_of(field_of(c, "function"), "name"),
-                               "arguments": field_of(field_of(c, "function"), "arguments")}}
-                 for c in field_of(reply, "tool_calls") or []]
-        message: Message = {"role": "assistant", "content": field_of(reply, "content") or ""}
+        calls = [{"id": call_id, "type": "function", "function": {"name": name, "arguments": arguments}}
+                 for call_id, name, arguments in openai_calls(reply)]
+        message: Message = {"role": "assistant", "content": reply_text(field_of(reply, "content"))}
         if calls:
             message["tool_calls"] = calls
         finish = field_of(choice, "finish_reason")
@@ -484,7 +484,7 @@ def _anthropic(client: Any, model: str) -> Request:
         response = client.messages.create(model=model, system=system, messages=conversation,
                                           tools=tools, max_tokens=ANTHROPIC_MAX_TOKENS, timeout=timeout)
         # read as the participants and hosts read a response: objects or the plain dicts some proxies return
-        blocks = [block_dict(block) for block in field_of(response, "content") or []]
+        blocks = anthropic_blocks(field_of(response, "content"))
         text = "".join(b["text"] for b in blocks if b["type"] == "text")
         calls = [{"id": b["id"], "type": "function",
                   "function": {"name": b["name"], "arguments": json.dumps(b["input"])}}

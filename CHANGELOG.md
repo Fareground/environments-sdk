@@ -337,6 +337,12 @@ worlds stay fast, and the package is organised by feature.
     one, as documented) and sometimes object to a damaging clean exhibit on prejudice, which the judge overrules, so
     objections are no longer all sustained; `objection_success_rate` is null when no objection was made (engines
     EM2, EL2). The civil_trial golden changes with it.
+  - A provider's reply is read in one place (`fg_env.host.providers`: `reply_text`, `openai_calls`,
+    `anthropic_blocks`) by the LLM participants, the hosts and the author loop alike: content as text or a list of
+    parts, a tool call's name missing or not text, arguments as text or an object, an Anthropic input given as JSON
+    text. A judge whose server sent list-shaped content no longer fails the run with a `TypeError`, and
+    `fg_env.author` no longer raises on object arguments or a null tool name (agentif A2, B1, and the LOW on string
+    input).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

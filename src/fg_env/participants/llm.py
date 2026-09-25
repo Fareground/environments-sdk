@@ -22,11 +22,13 @@ from ..errors import RunError
 from ..host.providers import (
     PROVIDER_CALLS,
     EmptyReply,
+    anthropic_blocks,
     backoff,
-    block_dict,
     field_of,
+    openai_calls,
     provider_failure,
     refuse_awaitable,
+    reply_text,
     request_timeout,
     retryable,
     too_long,
@@ -416,7 +418,7 @@ class _Anthropic(_LLMParticipant):
             truncated = field_of(response, "stop_reason") == "max_tokens"
             if truncated:
                 self._record(wake, truncated=1)
-            content = _reply_blocks(field_of(response, "content") or [], truncated)
+            content = _reply_blocks(field_of(response, "content"), truncated)
             calls = [block for block in content if block.get("type") == "tool_use"]
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
@@ -476,7 +478,7 @@ def _cached(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _reply_blocks(blocks: Any, truncated: bool) -> list[dict[str, Any]]:
     """A reply's content blocks as they are sent back: without empty text (the API refuses it), and — for a reply cut
     off at ``max_tokens`` — without its tool calls, whose arguments may be cut off too (none of them is made)."""
-    content = [block_dict(block) for block in blocks]
+    content = anthropic_blocks(blocks)
     return [block for block in content
             if not (block.get("type") == "text" and not block.get("text", "").strip())
             and not (truncated and block.get("type") == "tool_use")]
@@ -573,10 +575,8 @@ class _OpenAI(_LLMParticipant):
             truncated = finish == "length"
             if truncated:
                 self._record(wake, truncated=1)
-            calls = [] if truncated else [(field_of(c, "id"), field_of(field_of(c, "function"), "name"),
-                                           field_of(field_of(c, "function"), "arguments"))
-                                          for c in field_of(message, "tool_calls") or []]  # cut-off ones are not made
-            assistant: dict[str, Any] = {"role": "assistant", "content": field_of(message, "content") or ""}
+            calls = [] if truncated else openai_calls(message)  # cut-off ones are not made
+            assistant: dict[str, Any] = {"role": "assistant", "content": reply_text(field_of(message, "content"))}
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
                 if follow is None:
@@ -590,7 +590,7 @@ class _OpenAI(_LLMParticipant):
             messages.append(assistant)
             files: list[dict[str, Any]] = []
             for call_id, name, raw in calls:
-                args, broken = parse_arguments(raw or "{}") if isinstance(raw, str) or raw is None else (raw, "")
+                args, broken = parse_arguments(raw or "{}")
                 if broken:
                     args = raw  # not readable: the engine refuses it, saying why, and counts it invalid
                 result = self._dispatch(wake, name, args)
