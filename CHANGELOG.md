@@ -308,6 +308,9 @@ worlds stay fast, and the package is organised by feature.
     revision's test runs and comes out the same in every one now counts as removed, and so does a view's text or a
     brief section cut to almost nothing. Its `check` tool also says what testing the revision showed (as the save's
     reply does), and a revision that only renames the environment reuses the last test.
+  - Mechanisms check an entity id the way the run makes it: an auction's `house`, a posted market's `seller` and a
+    supply chain's `nodes` may name `buyer_1` of a counted group (before, only the group's key passed `check`, and then
+    the run failed), and naming the group is refused with the ids to use.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

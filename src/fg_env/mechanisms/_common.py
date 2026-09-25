@@ -29,7 +29,7 @@ __all__ = [
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
-    "is_agent_type", "stage_event",
+    "is_agent_type", "stage_event", "declared_entity",
 ]
 
 
@@ -124,6 +124,30 @@ def actions_by(contract: Mapping[str, Any], type_names: Sequence[str]) -> list[s
         if any(raw_is_a(contract, t, a) or raw_is_a(contract, a, t) for t in type_names for a in allowed):
             out.append(name)
     return out
+
+
+def declared_entity(contract: Mapping[str, Any], entity_id: Any, field: str, what: str) -> Mapping[str, Any]:
+    """The `entities` entry that makes the entity ``entity_id`` as the run will name it: a named entry, or a generator
+    whose ids are ``<key>_<n>`` (``buyer_1`` of ``"buyer": {"count": 3}``). Else a :class:`MechanismError` at ``field``
+    saying what is wrong (``what``: "house", "seller" …) — naming the generated ids when a generator's key was given."""
+    entities = contract.get("entities") or {}
+    entry = entities.get(entity_id) if isinstance(entity_id, str) else None
+    if isinstance(entry, Mapping) and "count" not in entry and "from" not in entry:
+        return entry
+    for key, group in entities.items():
+        count = group.get("count") if isinstance(group, Mapping) else None
+        if count is None or "from" in group or "id" in group or not isinstance(entity_id, str):
+            continue  # ids from data rows or an id template are known only once built
+        number = entity_id.removeprefix(f"{key}_")
+        if number != entity_id and number.isdigit() and (not isinstance(count, int) or 1 <= int(number) <= count):
+            return group
+    if isinstance(entry, Mapping):
+        count = entry.get("count")
+        ids = (f"{entity_id}_1" if count == 1 else f"{entity_id}_1 … {entity_id}_{count}") if isinstance(count, int) \
+            else f"{entity_id}_1, {entity_id}_2 …"
+        raise MechanismError(f"{what} '{entity_id}' names a group of entities, not one", f"name one of them: {ids}",
+                             field)
+    raise MechanismError(f"{what} '{entity_id}' is not a declared entity", "declare it under entities", field)
 
 
 def check_names(contract: Mapping[str, Any], names: str | Sequence[str], field: str,

@@ -1068,3 +1068,19 @@ def test_market_makers_quote_for_a_big_crowds_flow_so_the_book_keeps_both_sides(
     spreads = [spread for seed in (1, 2)
                for spread in fg_env.load(c, seed=seed, events=False).run({"trader": "idle"}).series["x_spread"]]
     assert sum(spread is None for spread in spreads) < len(spreads) / 3
+
+
+@pytest.mark.parametrize("house, ok", [("buyer_1", True), ("buyer", False)])
+def test_a_house_from_a_counted_group_is_named_by_its_generated_id(house, ok):
+    """`check` and the run agree on ids: a group with `count` makes `buyer_1` …, and naming the group is refused with
+    the ids to use."""
+    tender = {"name": "Tender", "clock": {"rounds": 1},
+              "types": {"bidder": {"agent": True, "props": {"cash": 0}}, "buyer": {"props": {"cash": 1000}}},
+              "entities": {"bidder": {"type": "bidder", "count": 2}, "buyer": {"type": "buyer", "count": 1}},
+              "mechanisms": {"a": {"kind": "market", "mode": "auction", "format": "first_price", "who": "bidder",
+                                   "reverse": True, "house": house, "reserve": 100}}}
+    errors = [i for i in fg_env.check(tender, rounds=0) if i.severity == "error"]
+    if ok:
+        assert errors == [] and fg_env.run(tender, seed=1).status != "failed"
+    else:
+        assert [i.path for i in errors] == ["mechanisms.a.house"] and "buyer_1" in errors[0].fix

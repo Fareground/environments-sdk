@@ -12,7 +12,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import entity_of
+from ._common import declared_entity, entity_of
 from .econ_assets import destroy_items, held, put_items, take_items
 from .econ_base import (
     INVENTORY,
@@ -80,13 +80,11 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
         raise MechanismError(f"'{config.item}' is not a stackable item of inventory '{config.inventory}'", None, "item")
     if len(set(config.nodes)) != len(config.nodes):
         raise MechanismError("a node is listed twice", None, "nodes")
-    entities = contract.get("entities") or {}
     node_types: list[str] = []
     for node in config.nodes:
-        if node not in entities:
-            raise MechanismError(f"node '{node}' is not a declared entity", "nodes are ids under `entities`", "nodes")
-        if entities[node].get("type") not in node_types:
-            node_types.append(entities[node]["type"])
+        kind = declared_entity(contract, node, "nodes", "node").get("type")
+        if kind not in node_types:
+            node_types.append(kind)
     # Node props go on the most specific type all nodes share, so expressions over that type can read them.
     shared = common_ancestor(contract, node_types)
     types = [shared] if shared is not None else node_types

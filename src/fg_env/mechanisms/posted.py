@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import entity_of, fmt
+from ._common import declared_entity, entity_of, fmt
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -410,7 +410,6 @@ _register_actions()
                                             "negotiable": True, "floor": 2.5}}})
 def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
-    entities = contract.get("entities") or {}
     for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):
         if kind is not None and kind not in types:
             raise MechanismError(f"{field} '{kind}' is not a declared type", f"types: {', '.join(types) or 'none'}",
@@ -437,10 +436,11 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
         seller_props.update(money_prop(contract, cfg.sellers, cfg.currency))
     generated: dict[str, Any] = {}
     for listing_id, spec in cfg.listings.items():
-        seller = entities.get(spec.seller)
-        if not isinstance(seller, Mapping) or seller.get("type") not in types:
-            raise MechanismError(f"listing '{listing_id}': seller '{spec.seller}' is not a declared entity",
-                                 "declare the seller under entities", f"listings.{listing_id}.seller")
+        seller = declared_entity(contract, spec.seller, f"listings.{listing_id}.seller",
+                                 f"listing '{listing_id}': seller")
+        if seller.get("type") not in types:
+            raise MechanismError(f"listing '{listing_id}': seller '{spec.seller}' is not of a declared type",
+                                 "declare its type", f"listings.{listing_id}.seller")
         seller_props = fragment_types.setdefault(seller["type"], {"props": {}})["props"]
         seller_props.update(money_prop(contract, seller["type"], cfg.currency))
         generated[listing_id] = {"type": f"{name}_listing", "name": spec.name or spec.item, "props": {

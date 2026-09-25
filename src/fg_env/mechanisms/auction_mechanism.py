@@ -8,7 +8,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ._common import entity_of, fmt, stage_event
+from ._common import declared_entity, entity_of, fmt, stage_event
 from ._social import check_expr
 from .auctions import FORMATS, MIN_PRICE, SEALED, AuctionConfig, bid, close_sealed, open_lot, tick
 from .econ_base import money_prop
@@ -179,9 +179,9 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     if cfg.format == "double":
         party_types[cfg.sellers or cfg.who] = {"props": _party_props(name, cfg, contract, cfg.sellers or cfg.who)}
     if cfg.house:
-        entity = (contract.get("entities") or {}).get(cfg.house)
-        if not isinstance(entity, Mapping) or entity.get("type") not in types:
-            raise MechanismError(f"house '{cfg.house}' is not a declared entity", "declare it under entities", "house")
+        entity = declared_entity(contract, cfg.house, "house", "house")
+        if entity.get("type") not in types:
+            raise MechanismError(f"house '{cfg.house}' is not of a declared type", "declare its type", "house")
         party_types[entity["type"]] = {"props": _party_props(name, cfg, contract, entity["type"])}
     sealed = cfg.format in SEALED
     single = cfg.format not in ("uniform", "double")
