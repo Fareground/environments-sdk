@@ -343,6 +343,11 @@ worlds stay fast, and the package is organised by feature.
     text. A judge whose server sent list-shaped content no longer fails the run with a `TypeError`, and
     `fg_env.author` no longer raises on object arguments or a null tool name (agentif A2, B1, and the LOW on string
     input).
+  - One rule for a host an agent's action asks: a request it cannot answer (down, declined, out of budget, outside
+    its protocol) never fails the run. A host tool (web search) refuses that call ("Search could not answer that
+    just now, so nothing was found."), as a judge leaves a text unscored and a game master refuses the attempt, and
+    a memory ranked by a host ranks by words instead; the diagnostics say `host_unusable`. One web-search outage
+    used to fail the whole run (agentif A1).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

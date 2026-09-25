@@ -1,7 +1,7 @@
 # host / tool
 
 ### `host.tool`
-A host service as an agent tool (web search, retrieval): the `<name>` tool calls the host, returns the result «quoted» and keeps it as evidence in $actor.<name>_evidence (look: <name>_evidence), within per-turn and per-run limits. Results are recorded for replay.
+A host service as an agent tool (web search, retrieval): the `<name>` tool calls the host, returns the result «quoted» and keeps it as evidence in $actor.<name>_evidence (look: <name>_evidence), within per-turn and per-run limits. Results are recorded for replay. A call the host cannot answer (down, declined, out of budget) is refused and the run goes on; its diagnostics report `host_unusable`.
 
 Config:
 - `host` (required): Host name of the service (a Tools adapter).

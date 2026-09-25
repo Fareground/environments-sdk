@@ -37,9 +37,13 @@ _LOCK = threading.RLock()
 
 class HostUnusable(FatalRunError):
     """A host gave no answer the engine can use, also when asked again (it declined, or answered outside its
-    protocol). The outcome is on the tape, so a replay meets it at the same call. It fails the run unless the mechanism
-    that asked refuses that one request instead: a judge leaves the text unscored, a game master refuses the attempt
-    (the run's diagnostics report each, as ``host_unusable``)."""
+    protocol). The outcome is on the tape, so a replay meets it at the same call.
+
+    One rule: a request an agent's action makes never fails the run for it — the mechanism that asked answers that one
+    request without the host, in words that say so: a judge leaves the text unscored, a game master refuses the
+    attempt, a host tool refuses the call, a memory ranks by words. The run's diagnostics report each, as
+    ``host_unusable``. World logic that asks with no fallback of the contract's (a feed, a persona, a summary) fails
+    the run: it has no value to go on with."""
 
     def __init__(self, message: str, path: str | None = None):
         self.reason = message

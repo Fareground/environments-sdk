@@ -25,7 +25,7 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host.common import MODEL_HINT, NAME, agents_of, clip, prop_of, type_list
 from ..host.protocols import HostError
-from ..host.tape import consult, plain
+from ..host.tape import HostUnusable, consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode, use_key
 from .expressions import Expr
 
@@ -235,10 +235,13 @@ def _relevance(world: Any, name: str, config: MemoryConfig, agent: Entity, query
     if config.relevance == "lexical":
         return lexical_relevance(query, texts)
     request = plain({"query": query, "items": [{"id": e["id"], "text": t} for e, t in zip(entries, texts)]})
-    ranked: list[float] = consult(world, service=config.host or "", method="rank", site=f"mechanisms.{name}",
-                                  actor=agent.id, identity={"query": query, "ids": [e["id"] for e in entries]},
-                                  ask=lambda adapter: list(adapter.rank(request)),
-                                  validate=partial(_ranks, count=len(entries)))
+    try:
+        ranked: list[float] = consult(world, service=config.host or "", method="rank", site=f"mechanisms.{name}",
+                                      actor=agent.id, identity={"query": query, "ids": [e["id"] for e in entries]},
+                                      ask=lambda adapter: list(adapter.rank(request)),
+                                      validate=partial(_ranks, count=len(entries)))
+    except HostUnusable:  # an agent's recall never fails the run: ranked by words instead (diagnostics say so)
+        return lexical_relevance(query, texts)
     return ranked
 
 

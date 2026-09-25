@@ -179,3 +179,28 @@ def test_a_web_search_the_model_declines_or_cuts_off_is_handled_as_the_llm_host_
         with pytest.raises(error) as caught:
             search.call("web_search", {"query": "q"})
         assert (type(caught.value) is HostUnavailable) is (stop == "refusal")
+
+
+def test_a_host_tool_that_cannot_answer_refuses_the_call_and_the_run_goes_on():
+    """audit 13 agentif A1: an outage or a declined query never fails the run an agent's query set off."""
+    class Down:
+        class messages:
+            @staticmethod
+            def create(**request):
+                error = Exception("overloaded")
+                error.status_code = 529
+                raise error
+
+    contract = Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json"
+    env = fg_env.host.load(contract, seed=1,
+                           hosts={"web_search": fg_env.host.adapters.anthropic_web_search(Down(), "m", retries=0)})
+    told = []
+
+    def searcher(wake):
+        if "search" in [tool.name for tool in wake.tools]:
+            told.append(wake.call("search", {"query": "base rates"}))
+        wake.end()
+
+    result = env.run(searcher)
+    assert result.status == "completed" and "host_unusable" in result.degraded
+    assert told and not told[0].ok and "could not answer" in told[0].text

@@ -20,7 +20,7 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..host.common import agents_of, clip, prop_of, type_list
 from ..host.protocols import HostError
-from ..host.tape import consult, plain, request_key
+from ..host.tape import HostUnusable, consult, plain, request_key
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
 
@@ -54,7 +54,8 @@ class HostToolConfig(BaseModel):
 @mode("host", "tool", HostToolConfig,
            "A host service as an agent tool (web search, retrieval): the `<name>` tool calls the host, returns "
            "the result «quoted» and keeps it as evidence in $actor.<name>_evidence (look: <name>_evidence), "
-           "within per-turn and per-run limits. Results are recorded for replay.",
+           "within per-turn and per-run limits. Results are recorded for replay. A call the host cannot answer (down, "
+           "declined, out of budget) is refused and the run goes on; its diagnostics report `host_unusable`.",
            example={"host": "web_search", "who": "panelist", "max_calls_per_turn": 2, "max_calls_per_run": 6})
 def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     by = type_list(contract, config.who, "who")
@@ -118,7 +119,10 @@ def prefetch(env: Any, name: str, actor: Entity, params: Mapping[str, Any]) -> s
         known = key in (env.world.props.get(TAPE) or {})
     if config.max_calls_per_run is not None and calls >= config.max_calls_per_run:
         return None
-    fetch(env.world, name, config, actor.id, arguments, lock=env.gate)
+    try:
+        fetch(env.world, name, config, actor.id, arguments, lock=env.gate)
+    except HostUnusable:  # on the tape: the call meets it as it applies, and is refused there
+        return None
     return None if known else key
 
 
@@ -145,7 +149,10 @@ def _host_tool_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], whe
     if config.max_calls_per_run is not None and calls >= config.max_calls_per_run:
         raise Abort(f"You have used all {config.max_calls_per_run} {name} calls of this run.")
     arguments = plain({key: value for key, value in args.items() if value is not None})
-    text = Untrusted(fetch(world, name, config, actor.id, arguments))
+    try:
+        text = Untrusted(fetch(world, name, config, actor.id, arguments))
+    except HostUnusable:  # down, declined or out of budget: this call is refused, the run goes on (as a judge's)
+        raise Abort(f"{spoken(name).capitalize()} could not answer that just now, so nothing was found.") from None
     query = arguments["query"] if isinstance(arguments.get("query"), str) else json.dumps(arguments, sort_keys=True)
     evidence = list(prop_of(actor, f"{name}_evidence", []))
     evidence.append({"round": world.round, "query": Untrusted(query), "args": arguments, "text": text, "shared": False})
