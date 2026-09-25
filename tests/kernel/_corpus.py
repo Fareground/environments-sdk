@@ -86,16 +86,30 @@ def undoable_state(env: fg_env.Env) -> dict[str, Any]:
         "adjacent": {kind: {a: dict(linked) for a, linked in pairs.items() if linked}  # no edges is no entry
                      for kind, pairs in w.adjacent.items()},
         "entry_seqs": sorted(w.entry_by_seq),
+        "record_authors": {name: {repr(key): list(rows) for key, rows in owners.items()}
+                           for name, owners in w.record_authors.by_record.items()},
+        "record_events": {str(record): {repr(key): [event.seq for event in events] for key, events in owners.items()}
+                          for record, owners in w.record_events.groups.items()},
     })
     return state
 
 
-def restored_state(env: fg_env.Env) -> dict[str, Any]:
+def restored_state(env: fg_env.Env, *, luck: bool = False) -> dict[str, Any]:
     """:func:`undoable_state` as an undo must bring it back: without the host answers the run recorded
-    (``host_tape``), which like luck are kept once asked for (see host/tape.py)."""
+    (``host_tape``), which like luck are kept once asked for (see host/tape.py). With ``luck`` — for an attempt that
+    drew nothing — the luck too (every site's firings and the main stream): an attempt that drew nothing and was
+    undone leaves the world byte for byte as it found it."""
     state = undoable_state(env)
     state["props"] = {key: value for key, value in state["props"].items() if key != TAPE}
+    if luck:
+        encoded = env.state.encode()
+        state.update(firings=encoded["firings"], rng=encoded["rng"])
     return state
+
+
+def same_bytes(a: dict[str, Any], b: dict[str, Any]) -> bool:
+    """Whether two states are the same byte for byte in their canonical JSON."""
+    return json.dumps(a, sort_keys=True, default=str) == json.dumps(b, sort_keys=True, default=str)
 
 
 class ConcurrentRandom(RandomAgent):

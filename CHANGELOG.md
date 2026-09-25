@@ -253,6 +253,10 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 13.**
+  - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
+    new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
+    entity before failing no longer shifts the luck of the next one (H3).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

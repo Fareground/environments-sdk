@@ -3,7 +3,8 @@
 Each journaled write pushes one undo op — a plain tuple ``(kind, *what it replaced)`` — and :meth:`Journal.rollback`
 undoes ops newest first by their kind (:data:`UNDO`, the complete list). What is not journaled is never undone: the
 luck a run has drawn (``world.luck``: its streams and firings), and what a change outside the journal moved
-(:meth:`Journal.bump`: metrics sampling, physics steps).
+(:meth:`Journal.bump`: metrics sampling, physics steps). How many entities each block created (``world.luck.births``) is
+journaled: an undone creation gives its count back, so it shifts no later creation's luck.
 
 Ops name entities, records and events by id or sequence number, not by the objects themselves, and entries a change
 dropped are kept as data, so an open journal is data about the world it undoes.
@@ -128,6 +129,14 @@ def _counter(world: World, op: Op) -> None:
         world.counters.pop(type_name, None)
     else:
         world.counters[type_name] = old
+
+
+def _birth(world: World, op: Op) -> None:
+    _, site, old = op
+    if old:
+        world.luck.births[site] = old
+    else:  # the site had created nothing this round: an undone create leaves no count
+        world.luck.births.pop(site, None)
 
 
 def _create(world: World, op: Op) -> None:
@@ -294,7 +303,7 @@ def _use(world: World, op: Op) -> None:
 #: How each kind of op is undone: the complete list of what the journal can take back.
 UNDO: dict[str, Callable[[World, Op], None]] = {
     "prop": _prop, "world": _world_prop, "physics_variable": _physics_variable, "physics_param": _physics_param,
-    "counter": _counter, "create": _create, "remove": _remove, "move": _move, "link": _link,
+    "counter": _counter, "birth": _birth, "create": _create, "remove": _remove, "move": _move, "link": _link,
     "link_field": _link_field, "unlink": _unlink, "post": _post, "emit": _emit, "first": _first,
     "schedule": _schedule,
     "reaction": _reaction, "wake": _wake, "end": _end, "brief": _brief, "cell": _cell, "layer": _layer,

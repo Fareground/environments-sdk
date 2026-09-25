@@ -23,6 +23,7 @@ from _corpus import (
     clean_seed,
     load,
     restored_state,
+    same_bytes,
     undoable_state,
 )
 
@@ -56,6 +57,17 @@ def _still_spent(env, spent, version):
     assert answers <= recorded, "a recorded host answer was dropped"
     if recorded == answers:
         assert env.world.version == version, "the undone world has another version"
+
+
+def _left_no_trace(env, before, drew):
+    """The world is byte for byte as ``before`` (:func:`restored_state` with its luck): all of it, the luck too, when
+    the undone work ``drew`` nothing; all but the luck it spent when it did."""
+    after = restored_state(env, luck=not drew)
+    expected = before if not drew else {key: value for key, value in before.items() if key not in ("firings", "rng")}
+    if same_bytes(after, expected):
+        return True
+    return {key: (expected.get(key), after.get(key)) for key in expected.keys() | after.keys()
+            if not same_bytes({"v": expected.get(key)}, {"v": after.get(key)})}
 
 
 def _stopped(subject, seed):
@@ -115,7 +127,8 @@ def _undo_restores(subject, seed, trials, pick):
         is_guarded = trial % 2 == 0
         failures = [FAIL, BROKEN, *(failure for failure in own if is_guarded or failure != INVARIANT)]
         block.insert(rng.randint(0, len(block)), rng.choice(failures))
-        before, version, spent = restored_state(env), env.world.version, _spent(env)
+        before, version, spent = restored_state(env, luck=True), env.world.version, _spent(env)
+        observed = env.world.luck.observe()
 
         def work(block=block, vars=vars, path=path, actor=actor):
             env.rules.run_block(block, vars, path, owner=actor)
@@ -126,7 +139,7 @@ def _undo_restores(subject, seed, trials, pick):
         else:  # as world logic: the run would fail, with the block undone
             with pytest.raises(RunError):
                 work()
-        assert restored_state(env) == before, block
+        assert _left_no_trace(env, before, observed.drew) is True, block
         _still_spent(env, spent, version)
         tried += 1
     assert tried == trials
@@ -172,7 +185,7 @@ class _Prober:
         stage = next(stage for stage in self.env.contract.stage_list() if stage.name == wake.stage)
         if stage.turns != "simultaneous" and any(tool.name == "kernel_probe" for tool in wake.tools):
             env = self.env
-            before, version, spent = restored_state(env), env.world.version, _spent(env)
+            before, version, spent = restored_state(env, luck=True), env.world.version, _spent(env)
             result = wake.call("kernel_probe", {})
             if result.ok:  # an atomic turn holds its actions until it settles: the failure undoes the turn then
                 assert stage.valid, result.text
@@ -182,7 +195,8 @@ class _Prober:
             if (result.data or {}).get("spent"):
                 used = before["used_round"].setdefault(wake.entity_id, {})
                 used["kernel_probe"] = used.get("kernel_probe", 0) + 1
-            assert restored_state(env) == before, result.text
+            free = not (result.data or {}).get("spent") and not result.ended  # refused for nothing, or played again
+            assert _left_no_trace(env, before, drew=not free) is True, result.text
             _still_spent(env, spent, version)
             self.probed += 1
         if not wake.done:
@@ -273,3 +287,28 @@ def test_undoing_an_unlink_puts_the_link_back_where_it_was():
         assert "b" not in world.adjacent["knows"]["a"]
         world.rollback(mark)
     assert (list(world.links["knows"]), {k: list(v) for k, v in world.adjacent["knows"].items()}) == before
+
+
+def test_a_free_refusal_after_a_create_shifts_no_later_creation_s_luck():
+    """audit 13 H3: the count of what a block created (``births``) comes back with the undo, so a refused call that
+    created and failed leaves the next creation keyed, and so drawing, as if it never happened."""
+    contract = {
+        "name": "Births", "clock": {"rounds": 3},
+        "types": {"player": {"agent": True, "props": {}}, "tok": {"props": {"v": 0}}},
+        "entities": {"ann": {"type": "player"}},
+        "stages": [{"name": "s", "max_actions": 3}],
+        "actions": {"make": {"by": "player", "description": "Make.", "params": {"ok": {"type": "bool"}},
+                             "do": [{"create": "tok"}, {"if": "not $params.ok", "then": {"fail": "Not now."}}]}},
+        "events": [{"on": "round.end", "do": {"each": "tok", "do": "$it.v += $randint(1, 1000)"}}],
+        "outputs": {"toks": "$dict(tok, $it.id, $it.v)"}}
+
+    def play(refuse_first):
+        def agent(wake):
+            if wake.round == 1:
+                if refuse_first:
+                    assert not wake.call("make", {"ok": False}).ok
+                wake.call("make", {"ok": True})
+            wake.end()
+        return fg_env.run(contract, {"ann": agent}, seed=5).outputs
+
+    assert play(True) == play(False)

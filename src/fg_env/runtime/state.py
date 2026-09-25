@@ -42,8 +42,8 @@ __all__ = ["Cursor", "Memory", "RunState", "UNDONE"]
 #: trial) brings back as they were. The rest is spent for good or only records the run.
 UNDONE = frozenset({
     "round", "stage", "entities", "entity_briefs", "props", "links", "records", "record_seq", "log", "seq", "physics",
-    "scheduled", "schedule_seq", "wake_requests", "reactions", "counters", "end_request", "layers", "fired_once",
-    "armed", "used_round"})
+    "scheduled", "schedule_seq", "wake_requests", "reactions", "counters", "births", "end_request", "layers",
+    "fired_once", "armed", "used_round"})
 
 
 class Memory:
