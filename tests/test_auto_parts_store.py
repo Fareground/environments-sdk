@@ -28,7 +28,8 @@ def _truth():
 
 def test_the_store_is_demand_and_replenishment_modes_reading_patterns_with_no_hand_written_rules():
     contract = json.loads(CONTRACT.read_text())
-    assert {name: (use["kind"], use["mode"]) for name, use in contract["mechanisms"].items()} == {
+    uses = {name: (use["kind"], use["mode"]) for name, use in contract["mechanisms"].items()}
+    assert {name: use for name, use in uses.items() if use[0] != "pattern"} == {
         "shop": ("economy", "demand"), "reorder": ("economy", "replenishment")}
     assert not {"events", "metrics", "outputs", "records"} & set(contract)
     outputs = fg_env.load(CONTRACT, seed=1, inputs={"weeks": 2}).run().outputs

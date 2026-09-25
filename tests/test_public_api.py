@@ -8,8 +8,8 @@ import pytest
 import fg_env
 
 CORE = {
-    "__version__", "load", "run", "check", "parse", "expand", "experiment", "fork", "Env", "Contract", "RunResult",
-    "ExperimentResult", "Branch", "Wake", "ToolResult", "Issue", "ContractError", "InputError", "RunError",
+    "__version__", "load", "run", "check", "parse", "expand", "migrate", "experiment", "fork", "Env", "Contract",
+    "RunResult", "ExperimentResult", "Branch", "Wake", "ToolResult", "Issue", "ContractError", "InputError", "RunError",
     "InvariantViolation", "FatalRunError", "SnapshotError", "guide", "schema", "new", "author", "participants",
     "analysis", "rl", "engines", "personas",
 }

@@ -29,7 +29,8 @@ def test_expand_parse_and_check_read_the_same_current_form():
     expanded = fg_env.expand(EARLIER)
     assert expanded == contract_source(fg_env.parse(EARLIER)) == fg_env.expand(expanded)
     assert fg_env.expand(EARLIER, mechanisms=True) == fg_env.expand(expanded, mechanisms=True)
-    assert [i.message for i in fg_env.check(EARLIER, rounds=0)] == [i.message for i in fg_env.check(expanded, rounds=0)]
+    earlier = [i.message for i in fg_env.check(EARLIER, rounds=0) if i.path != "fg_env"]  # less its one migrate warning
+    assert earlier == [i.message for i in fg_env.check(expanded, rounds=0)]
 
 
 def test_an_imported_file_in_an_earlier_form_is_rewritten_and_noted_with_its_place(tmp_path):

@@ -1,7 +1,7 @@
 {
   "fg_env": "2",
   "name": "The Clean Rivers Bill",
-  "description": "A bill passes through first, second and third readings with a committee stage between; each reading ends in a division. The readings are written once as a macro over data.",
+  "description": "A bill passes through first, second and third readings with a committee stage between; each reading ends in a division. Each reading is its own stage and event, written out in order.",
   "brief": {
     "situation": "Parliament considers the Clean Rivers Bill, which would fine factories that pollute rivers.",
     "rules": "The bill passes through a first reading (a formal vote), a second reading (debate on its principle, then a vote), a committee stage (amendments) and a third reading (final debate and vote). Each reading ends in a division: the bill moves on when more members vote aye than no, and is defeated otherwise. After the third reading it becomes law.",

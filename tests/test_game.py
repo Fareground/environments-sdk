@@ -310,13 +310,15 @@ def test_a_declared_utility_is_verified_by_check_and_earlier_claims_are_derived_
     utility = found["types.player.score.utility"]
     assert utility.severity == "error" and "'identical'" in utility.message
     old = copy.deepcopy(NIM)
-    old["game"]["dynamics"] = "simultaneous"  # a claim describe derives: dropped when the section is rewritten
+    score = old["types"]["player"].pop("score")  # the earlier `game` section, with a claim describe derives
+    old["game"] = {"players": "player", "seat": score["seat"], "utility": score["utility"],
+                   "returns": score["value"].replace("$it", "$actor"), "dynamics": "simultaneous"}
     assert [i for i in fg_env.check(old) if i.severity == "error"] == []
 
 
 def test_a_game_without_returns_says_what_to_declare():
     plain = copy.deepcopy(NIM)
-    del plain["game"]
+    del plain["types"]["player"]["score"]
     state = fg_env.rl.game(plain).new_initial_state()
     with pytest.raises(ContractError, match="no type has a `score`"):
         state.returns()

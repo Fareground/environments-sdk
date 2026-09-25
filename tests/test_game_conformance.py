@@ -92,7 +92,7 @@ def test_an_inconsistent_bound_declaration_is_a_check_error():
 
 def test_the_report_names_the_seed_and_steps_that_reproduce_an_issue():
     broken = load_game("nim")
-    broken["game"]["returns"] = "1 if $world.winner != '' else 0"  # both seats win: not zero-sum
+    broken["types"]["player"]["score"]["value"] = "1 if $world.winner != '' else 0"  # both seats win: not zero-sum
     report = fg_env.rl.conformance(broken, sims=1, resume=False, leak_branches=0)
     issue = next(issue for issue in report.issues if issue.check == "returns")
     assert "zero_sum" in issue.message and issue.history and "seed 0" in str(issue)

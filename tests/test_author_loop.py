@@ -30,7 +30,8 @@ def test_a_view_behind_more_views_than_a_turn_has_free_reads_is_read_and_its_fai
 
 
 def test_a_rule_rewritten_to_do_nothing_is_named_and_kept_only_once_confirmed():
-    gutted = lemonade(events=[{**LEMONADE["events"][0], "do": ["$it.earned += 0"]}])
+    event = LEMONADE["events"][0]
+    gutted = lemonade(events=[{**event, "do": [{**event["do"][0], "do": ["$it.earned += 0"]}]}])
     client = FakeOpenAI([write(LEMONADE)], [write(gutted)], [], [write(gutted)], [])
 
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)

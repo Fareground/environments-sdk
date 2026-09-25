@@ -75,27 +75,6 @@ def test_independent_rollout_results_do_not_depend_on_declaration_order_when_fun
         assert a.entity(entity_id) == b.entity(entity_id)
 
 
-def test_same_macros_support_an_additional_region_without_new_engine_code():
-    raw = json.loads(PATH.read_text())
-
-    def extend(value):
-        if isinstance(value, dict):
-            if value.get("for") == ["north", "south"]:
-                value["for"].append("west")
-            for child in value.values():
-                extend(child)
-        elif isinstance(value, list):
-            for child in value:
-                extend(child)
-
-    extend(raw)
-    raw["entities"]["hq"]["props"]["cash"] = 200
-    env, out = run(raw)
-    assert [out[f"sales_{r}"] for r in ("north", "south", "west")] == [3, 3, 3]
-    assert env.entity("vendor")["props"]["cash"] == 210
-    assert out["cash"] == 90
-
-
 def test_specialized_manager_and_customer_types_keep_workflow_access():
     c = contract()
     c["types"]["senior_manager"] = {"extends": "manager"}

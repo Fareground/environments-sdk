@@ -88,9 +88,10 @@ class AsyncOpenAI:
     (lambda: participants.openai(AsyncOpenAI(), "m"), "openai.OpenAI()"),
 ])
 def test_an_async_client_fails_the_run_saying_to_pass_the_sync_client(make, sync_client):
+    env = fg_env.load(SHOP, seed=1, inputs=ONE_SHOPPER)
     with warnings.catch_warnings():
         warnings.simplefilter("error")  # the coroutine is closed, not left to warn "never awaited"
-        result = fg_env.load(SHOP, seed=1, inputs=ONE_SHOPPER).run(make(), rounds=1)
+        result = env.run(make(), rounds=1)
     assert result.status == "failed"
     assert "async client" in result.error and sync_client in result.error and "env.arun" in result.error
 

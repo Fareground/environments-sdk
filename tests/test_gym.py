@@ -64,7 +64,7 @@ def test_action_ids_come_with_a_legal_mask():
 
 def test_a_gym_needs_a_seat_that_has_returns():
     plain = copy.deepcopy(NIM)
-    del plain["game"]
+    del plain["types"]["player"]["score"]
     with pytest.raises(ContractError, match="types.player.score: is needed"):
         fg_env.rl.gym(plain, "a")
     with pytest.raises(ContractError, match="not an agent"):

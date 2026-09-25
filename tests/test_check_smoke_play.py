@@ -30,7 +30,7 @@ def errors(issues):
 
 
 def test_a_clean_contract_stays_clean():
-    assert fg_env.check(shop()) == []
+    assert fg_env.check(fg_env.migrate(shop())[0]) == []  # SHOP keeps its policies in the earlier top-level form
 
 
 def test_rules_that_break_when_an_agent_does_not_act_fail_the_check():
