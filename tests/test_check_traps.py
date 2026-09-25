@@ -491,3 +491,13 @@ def test_a_choice_among_unnamed_created_entities_no_view_shows_is_warned_about()
     assert unseen and "nothing to tell them apart" in unseen[0].message
     listed = _notes({"notes": {"for": "p", "of": "note", "show": "{id}: {text}"}})
     assert not [i for i in fg_env.check(listed, rounds=0) if i.path == "actions.keep.params.note"]
+
+
+def test_a_root_not_available_here_says_what_per_item_functions_and_locals_offer():
+    lake = {"name": "Lake", "clock": {"rounds": 1}, "types": {"fisher": {"agent": True, "props": {"caught": 0}}},
+            "entities": {"fisher": {"type": "fisher", "count": 2}},
+            "actions": {"fish": {"by": "fisher", "do": "$actor.caught += 1"}},
+            "outputs": {"ahead": "$count(fisher, $it.caught > $actor.caught)", "tally": "$tally + 1"}}
+    fixes = {i.path: i.fix for i in fg_env.check(lake, rounds=0)}
+    assert "$outer the $it around it" in fixes["outputs.ahead"]
+    assert "lasts only to the end of the `do` that sets it" in fixes["outputs.tally"]

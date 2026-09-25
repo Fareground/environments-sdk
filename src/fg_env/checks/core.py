@@ -14,7 +14,7 @@ from ..contract import Contract
 from ..contract.base import TYPE_SYNONYMS
 from ..errors import Issue
 from ..expr import FUNCTIONS, ExprError, Scope, compile_expr, is_expr
-from ..expr.base import WrongKind
+from ..expr.base import RESERVED_ROOTS, WrongKind
 from ..expr.calls import callable_in, callable_names, suggest_function
 from ..expr.codegen import _ITEM_ROOTS
 from ..expr.template import compile_template, quoted_placeholders
@@ -37,6 +37,18 @@ def _collection_funcs() -> set[str]:
 
 #: Bare words an author may mean as "no value"; in expressions they are plain text.
 _NULL_WORDS = frozenset({"none", "None", "nil", "undefined", "Null", "NULL", "empty"})
+
+
+def _scope_note(root: str, compiled: Any) -> str:
+    """What else can be read where ``root`` is not: inside a per-item function the item and the one around it, and
+    that a local lasts only to the end of the `do` that set it."""
+    note = ""
+    if compiled.item_paths or any(name in _collection_funcs() for name, _ in compiled.calls):
+        note += "; inside a per-item function ($count(<type>, …), $filter …) $it is each item and $outer the $it " \
+                "around it"
+    if root not in RESERVED_ROOTS:
+        note += f"; a local (`${root} = …`) lasts only to the end of the `do` that sets it"
+    return note
 
 
 class Checker:
@@ -221,7 +233,8 @@ class Checker:
                 continue
             if root not in roots and not (root in exprs and not exprs[root].args):
                 available = ", ".join(f"${r}" for r in sorted(roots))
-                self.error(path, f"${root} is not available here", f"available: {available} — in `{compiled.source}`")
+                self.error(path, f"${root} is not available here",
+                           f"available: {available}{_scope_note(root, compiled)} — in `{compiled.source}`")
         if not (compiled.roots or compiled.functions or compiled.methods):
             try:  # literals only: text where a number is needed fails the same way every time it runs
                 compiled(Scope())
