@@ -53,6 +53,10 @@ class ActionChecks(EffectChecks):
             by_types = {t for t in by if self._type(t, f"{path}.by", agent=True)}
             types: Types = {"actor": by_types}
             self._tool_name(name, path)
+            for limit in ("per_turn", "per_round"):
+                if (count := getattr(spec, limit)) is not None and count < 1:
+                    self.error(f"{path}.{limit}", f"is {count}, so the action can never be taken",
+                               f"give it a limit of 1 or more, or leave `{limit}` out for no limit")
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
                 self.plain_text(param.description, f"{ppath}.description", "an argument's description", _DYNAMIC)

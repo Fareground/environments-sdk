@@ -262,6 +262,9 @@ class EffectChecks(FieldReads):
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
             self.condition(effect["if"], f"{path}.if", roots, types, params)
+            if "then" not in effect and "else" not in effect:
+                self.error(path, "an `if` without `then` or `else` does nothing",
+                           "give it the effects to run: {\"if\": ..., \"then\": [...]}")
             if broadcasts([effect.get("then"), effect.get("else")], self.c):
                 self._private_gate(effect["if"], f"{path}.if", "which way it went (a branch sends everyone news)",
                                    types, params)

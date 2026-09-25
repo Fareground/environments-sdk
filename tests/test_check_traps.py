@@ -572,3 +572,18 @@ def test_an_entitys_own_value_of_the_wrong_kind_is_a_static_error():
     c = {"name": "Own", "types": {"p": {"agent": True, "props": {"k": 0}}},
          "entities": {"a": {"type": "p", "props": {"k": "text"}}}, "actions": {"go": {"by": "p", "do": []}}}
     assert any(i.severity == "error" and i.path == "entities.a.props.k" for i in fg_env.check(c, rounds=0))
+
+
+@pytest.mark.parametrize("change, path", [
+    (lambda c: c.update(invariants=["5"]), "invariants[0]"),
+    (lambda c: c["actions"]["go"].update(do=[{"if": "true"}]), "actions.go.do[0]"),
+    (lambda c: c["actions"]["go"].update(per_turn=0), "actions.go.per_turn"),
+    (lambda c: c["actions"]["go"].update(per_round=0), "actions.go.per_round"),
+])
+def test_rules_that_can_never_do_anything_are_static_errors(change, path):
+    """A constant invariant that is not true or false, an `if` with nothing to run, a limit of zero uses (audit 14
+    L2)."""
+    c = {"name": "Nothing", "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"go": {"by": "p", "do": []}}}
+    change(c)
+    assert any(i.severity == "error" and i.path == path for i in fg_env.check(c, rounds=0))

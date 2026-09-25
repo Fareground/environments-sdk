@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from .. import contract as C
 from ..contract import Contract
 from ..effects.statements import RESERVED_ROOTS
-from ..expr import ExprError, compile_expr
+from ..expr import ExprError, Scope, compile_expr
 from ..expr.calls import callable_in
 from ..expr.template import FORMATS, compile_template
 from ..sampling.probability import check_literal_probability
@@ -156,6 +156,11 @@ class RuleChecks(EffectChecks):
                            self._suggest(end.check, C.END_CHECKS) or ", ".join(C.END_CHECKS))
         for index, invariant in enumerate(self.c.invariants):
             self.condition(invariant.expr, f"invariants[{index}]", BASE)
+            if _not_true_or_false(invariant.expr):
+                self.error(f"invariants[{index}]", f"`{invariant.expr}` is a constant that is not true or false, so it "
+                                                    "states nothing: an invariant is a law of the state",
+                           "write the law you mean over the state, e.g. `$world.pot >= 0` or "
+                           "`$sum(player, $it.cash) == $inputs.total`")
             self.template(invariant.why or None, f"invariants[{index}].why", None, BASE)
             if invariant.check not in C.INVARIANT_CHECKS:
                 self.error(f"invariants[{index}].check", f"unknown check '{invariant.check}'",
@@ -232,3 +237,14 @@ def _reads_root(template: str, root: str) -> bool:
         return any(root in expr.roots for expr in compile_template(template, None).expressions)
     except ExprError:
         return False
+
+
+def _not_true_or_false(source: str) -> bool:
+    """Whether an expression reads nothing (no root, no function) and gives something other than true or false."""
+    try:
+        expr = compile_expr(source)
+        if expr.roots or expr.functions or expr.methods:
+            return False
+        return not isinstance(expr(Scope()), bool)
+    except ExprError:
+        return False  # reported by the condition check
