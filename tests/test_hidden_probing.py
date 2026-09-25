@@ -168,3 +168,39 @@ def test_check_warns_that_a_sealed_stage_announces_which_choice_each_agent_made(
     for spec in secret["actions"].values():
         spec["announce"] = False
     assert not [i for i in fg_env.check(secret) if i.path == "stages[0]"]
+
+
+DOORS = {
+    "name": "Doors", "clock": {"rounds": 1},
+    "world": {"trap": {"default": 2, "private": True}},
+    "types": {"p": {"agent": True, "props": {"coins": 10, "moves": 0}}},
+    "entities": {"a": {"type": "p"}},
+    "stages": [{"name": "s", "max_actions": 2, "valid": [{"expr": "$actor.moves == 2", "why": "Open two doors."}]}],
+    "actions": {"open": {"by": "p", "description": "Open a door; one of 1-3 hides a trap costing 5.",
+                         "params": {"n": {"type": "int", "min": 1, "max": 3}},
+                         "do": ["$actor.moves += 1", {"if": "$params.n == $world.trap", "then": ["$actor.coins -= 5"]}]}},
+    "views": {"purse": {"show": "You have {coins} coins.", "look": True}},
+    "outputs": {"coins": "$entity(a).coins"},
+}
+
+
+def test_an_atomic_turn_cannot_read_a_hidden_value_and_then_undo_it_for_free():
+    """An action that read a value hidden from its actor settles an atomic turn at once, like one that drew luck:
+    undoing the turn afterwards would hand the agent what it learned for free."""
+    probes = []
+
+    def prober(wake):
+        for door in (1, 2, 3):
+            opened = wake.call("open", {"n": door})
+            probes.append((opened, wake.call("look", {"view": "purse"}).text))
+            if wake.done or opened.ended:
+                return
+            wake.call("end_turn", {})  # one move breaks `valid`: the turn is undone
+            if wake.done:
+                return
+
+    result = fg_env.run(DOORS, prober, seed=1)
+    opened, _ = probes[0]
+    assert len(probes) == 1  # the first door settled the turn: it was undone and the turn is over
+    assert not opened.ok and opened.ended and "hidden" in opened.text
+    assert result.outputs["coins"] == 10

@@ -227,6 +227,10 @@ worlds stay fast, and the package is organised by feature.
   - An action whose effects may write a private property announces none of its arguments. Before, only an argument
     copied into the property was left out, so one that decided the write (`if $params.n > 4 then secret = 1`), keyed
     it, or set a transfer of a private resource was announced and gave the value away.
+  - An action that reads a value hidden from its agent settles an atomic (`valid`) turn at once, as one that draws
+    luck does: one rule (`attempt_cost`) decides both what a refusal costs and what settles a turn. Before, an agent
+    could open a door, look at its coins to learn whether the hidden trap was there, break `valid` on purpose and play
+    the turn again, until it knew every safe door.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

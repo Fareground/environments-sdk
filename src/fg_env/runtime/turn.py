@@ -40,7 +40,7 @@ from .facts import (
     Undone,
     Woke,
 )
-from .ledger import AttemptLedger
+from .ledger import AttemptLedger, attempt_cost
 from .session import END_TURN, ToolResult
 from .state import Memory
 
@@ -349,14 +349,14 @@ class Turn:
         if acted is None:
             assert fault is not None
             self.note(FAULTED)
-            drew = observed.drew
+            spent = attempt_cost(observed) == "spent"
             result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED), False
         else:
-            result, applied, drew = acted
-        if drew and self.ledger.part_open:  # luck settles an atomic turn at once: nothing after it can undo it
+            result, applied, spent = acted
+        if spent and self.ledger.part_open:  # luck or a hidden read settles an atomic turn: nothing may undo it
             why = self.settle()
             if why is not None:
-                return self._after(self._undone(why, luck=name))
+                return self._after(self._undone(why, settled_by=name))
             self.ledger.begin_part()
         if applied:
             if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
@@ -370,7 +370,7 @@ class Turn:
 
     def _act(self, name: str, spec: ActionSpec, args: Any, observed: Observation) -> tuple[ToolResult, bool, bool]:
         """Check, then submit (sealed turns) or apply and commit one action call — ``observed`` from its start: its
-        result, whether it applied, and whether applying it drew randomness. Runs inside :meth:`Rules.guarded`, so the
+        result, whether it applied, and whether applying it was spent (:func:`~fg_env.runtime.ledger.attempt_cost`). Runs inside :meth:`Rules.guarded`, so the
         turn's own counts change only once nothing can fail any more."""
         with self.after_choices():
             return self._checked_act(name, spec, args, observed)
@@ -411,10 +411,10 @@ class Turn:
             text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
             return ToolResult(True, text, ended or self.ledger.actions_left <= 0), False, False
         outcome = rules.apply(self.actor, name, params)
-        drew = observed.drew  # checking the call drew nothing (it may not): what applying it drew
+        spent = attempt_cost(observed) == "spent"  # what checking and applying the call drew or read
         if not outcome.ok:
             self.note(REJECTED)
-            return self._refused(name, outcome.text, observed, _REJECTED), False, drew
+            return self._refused(name, outcome.text, observed, _REJECTED), False, spent
         pending = self.ledger.pending
         pending.append({"action": name, **plain_value(params)})  # what the commit's rules read as $pending
         try:
@@ -427,11 +427,11 @@ class Turn:
         self.ledger.took(name)
         self.note(APPLIED)
         text, closes = _with_references(outcome.text, files), ended or self.ledger.actions_left <= 0
-        settles = drew or closes or env.world.end_request is not None  # the part commits in this call
+        settles = spent or closes or env.world.end_request is not None  # the part commits in this call
         if self.ledger.part_open and not settles and (spec.outcome or files):
             self.ledger.hold(text, files)
             text, files = f"{env.actions.default_outcome(name, params)} {_HELD}", []
-        return ToolResult(True, text + cut, closes, attachments=files), True, drew
+        return ToolResult(True, text + cut, closes, attachments=files), True, spent
 
     def _must_act(self) -> bool:
         """The stage requires an action, the turn has taken none, and one is available."""
@@ -488,14 +488,15 @@ class Turn:
                                data={"ok": False, "undone": True})
                 env.world.commit()
 
-    def _undone(self, why: str, luck: str | None = None) -> ToolResult:
-        if luck is None:
+    def _undone(self, why: str, settled_by: str | None = None) -> ToolResult:
+        if settled_by is None:
             return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
                                      "play your turn again.", data=dict(_UNDONE))
-        self.done = True  # its luck is spent: playing the turn again would retry it
-        return ToolResult(False, f"That turn is not allowed: {why}. {luck.replace('_', ' ').capitalize()} drew on "
-                                 "chance, which settles a turn at once, so it was undone with what you did before it "
-                                 "this turn, and your turn is over.", True, dict(_UNDONE))
+        self.done = True  # what it drew or read is spent: playing the turn again would retry it
+        return ToolResult(False, f"That turn is not allowed: {why}. {settled_by.replace('_', ' ').capitalize()} "
+                                 "turned on chance or on something hidden from you, which settles a turn at once, so "
+                                 "it was undone with what you did before it this turn, and your turn is over.", True,
+                          dict(_UNDONE))
 
     def _after(self, result: ToolResult) -> ToolResult:
         released = self.ledger.released()

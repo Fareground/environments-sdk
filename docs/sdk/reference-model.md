@@ -57,8 +57,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   shown once the turn commits — an undone turn shows nothing it was not charged for. Its conditions (`$actor`,
   `$pending`) are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move); `"valid": "true"` makes
-  turns atomic with no condition. An action that draws randomness settles the turn so far at once, so later actions
-  cannot undo its luck (if `valid` fails then, the turn is undone and over). In a simultaneous stage each agent's
+  turns atomic with no condition. An action that draws randomness or reads a value hidden from its agent settles the
+  turn so far at once, so later actions cannot undo its luck or what it revealed (if `valid` fails then, the turn is
+  undone and over). In a simultaneous stage each agent's
   choices commit or are undone together.
 * Luck never decides whether a call is allowed: `when` requirements and parameters' bounds, defaults, values and
   `where` may not draw at random (a check error), since a refused call costs nothing and calling again would roll

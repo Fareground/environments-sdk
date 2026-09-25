@@ -1,8 +1,9 @@
 """One turn's accounting: what it may still do, what it has used, and — in an atomic turn — the part an undo returns to.
 
-The one decision of what an attempt costs is :func:`attempt_cost`: an attempt refused after it drew luck or read a value
-hidden from its agent is spent — it counts as a use of the action, for good — and any other refusal is free. A free
-retry of a spent one would let an agent reroll its luck, or probe the hidden value again and again.
+The one decision of what an attempt costs is :func:`attempt_cost`: an attempt that drew luck or read a value hidden
+from its agent is spent. Refused, it counts as a use of the action, for good, and any other refusal is free: a free
+retry of a spent one would let an agent reroll its luck, or probe the hidden value again and again. Applied in an
+atomic turn, it settles the turn at once, for the same reason: undoing it later would hand back what it revealed.
 
 An atomic turn (a stage with `valid` rules) plays in parts: a part begins at a world mark and the ledger's checkpoint,
 and undoing it rolls the world back to the mark and the ledger back to the checkpoint. The world's journal undoes the
@@ -26,8 +27,9 @@ _VERSIONS = itertools.count(1)
 
 
 def attempt_cost(observed: Observation) -> Literal["free", "spent"]:
-    """What a refused attempt costs, ``observed`` from its start: spent when working it out drew luck or read a value
-    hidden from the actor, else free."""
+    """What an attempt costs, ``observed`` from its start: spent when working it out drew luck or read a value hidden
+    from the actor, else free. A spent refusal counts as a use of the action; a spent action that applied settles an
+    atomic turn at once (nothing after it can undo it)."""
     return "spent" if observed.drew or observed.read_hidden else "free"
 
 

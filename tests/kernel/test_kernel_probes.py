@@ -149,13 +149,14 @@ def test_a_refusal_spent_on_a_hidden_value_stays_spent_when_its_atomic_turn_is_u
             if wake.done:
                 return
             result = wake.call("guess", {"x": x})
-            guesses.append((x, result.ok, (result.data or {}).get("spent")))
+            guesses.append((x, result.ok, result.data or {}))
             if result.ok or wake.done:
                 return
             wake.call("wait", {})  # the turn's last action: it settles, is not allowed, and is undone to play again
 
     fg_env.run(copy.deepcopy(VAULT), play, seed=1)
-    assert all(spent for _, ok, spent in guesses if not ok)  # each wrong guess read the hidden code
+    # each wrong guess read the hidden code: spent, and it settles the atomic turn at once (here: undone and over)
+    assert all(data.get("spent") or data.get("error") == "undone" for _, ok, data in guesses if not ok)
     assert len(guesses) <= VAULT["stages"][0]["max_actions"], guesses  # was 0..6: the code found in one turn
 
 
