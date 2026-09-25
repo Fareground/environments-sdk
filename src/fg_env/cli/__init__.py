@@ -141,9 +141,10 @@ def _checked(path: str, rounds: int | None) -> str:
     if rounds is not None and rounds <= 0:
         played = " (static checks only)"
     else:
-        whole = contract.clock.rounds
-        length = (f"{rounds} round(s)" if rounds is not None else f"all {whole} round(s)" if whole <= SMOKE_ROUNDS
-                  else f"{SMOKE_ROUNDS} of its {whole} rounds (more to reach a scheduled event)")
+        whole = contract.clock.rounds  # a number, or an expression over the inputs
+        length = (f"{rounds} round(s)" if rounds is not None
+                  else f"all {whole} round(s)" if isinstance(whole, int) and whole <= SMOKE_ROUNDS
+                  else f"up to {SMOKE_ROUNDS} rounds (more to reach a scheduled event)")
         policies = " and with each policy" if any(spec.policies for spec in contract.types.values()) else ""
         played = f" and played {length} with random agents, with idle agents{policies}"
     clock = contract.clock
