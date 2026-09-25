@@ -92,7 +92,7 @@ UNKEPT = ("Revision {latest} works, but it removed {removed}, which revision {ke
           "is kept. Put back what the brief asks for; if the brief does not need them, save it again to confirm the "
           "removal. Stopping now keeps revision {kept}.")
 NUDGE = "No contract is saved yet. Save it with write_contract (keep replies short; put the contract in the tool call)."
-NOT_WORKING = "Nothing you saved works yet: {problem}\nFix it and save it again."
+NOT_WORKING = "Nothing you saved works yet. Your last write: {problem}\nFix it and save it again."
 #: What a model that stops on a broken revision, after an earlier one worked, is told once.
 REGRESSED = "{latest} does not work: {problem}\nStopping now keeps revision {kept}; or fix it and save it again."
 #: What a reply cut off at the output limit, with no tool call, is told.
@@ -166,7 +166,7 @@ class AuthorResult:
         if untested:
             lines.append(f"  PARTLY TESTED: {untested}")
         if self.problem and not self.ok:
-            lines.append(f"  problem: {self.problem}")
+            lines.append(f"  the last write: {self.problem}")
         elif self.problem:
             last = ("the last write" if self.writes[-1] is not revisions[-1]
                     else f"revision {len(revisions)} was not kept"
@@ -457,7 +457,8 @@ def _openai(client: Any, model: str) -> Request:
         # read as the participants and hosts read a response: objects or the plain dicts some proxies return
         used, choices = field_of(response, "usage"), field_of(response, "choices")
         reply = field_of(choices[0], "message") if choices else None
-        if reply is None:  # OpenRouter does this now and then, with the reason in `error`
+        # OpenRouter does both now and then, with the reason in `error`: asked again, as participants are
+        if reply is None or field_of(choices[0], "finish_reason") == "error":
             error = field_of(response, "error")
             raise SpentEmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""),
                                   _spent_on(used, "openai", messages))

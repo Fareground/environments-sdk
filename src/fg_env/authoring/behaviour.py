@@ -49,6 +49,8 @@ def profile(contract: Contract, seen: Seen, fired: list[str], flat: list[str]) -
     scores = {round(float(value), 9) for run in runs for value in (run.returns or {}).values()}
     return {
         "rounds": max((run.rounds for run in runs), default=0),
+        # a run the test budget cut short says how fast the machine was, not how long the contract plays
+        "cut": any((run.budget or {}).get("exhausted") == "seconds" for run in runs),
         "fired": sorted(fired),
         "taken": sorted(str(name) for name in taken if name),
         "acted": len(acted),
@@ -66,7 +68,7 @@ def collapsed(old: dict[str, Any], new: dict[str, Any], parts: set[str]) -> list
     if not old or not new:
         return []
     found = []
-    if new["rounds"] < old["rounds"]:
+    if new["rounds"] < old["rounds"] and not (new.get("cut") or old.get("cut")):
         found.append(f"rounds played (every test run now plays at most {new['rounds']}, where one played "
                      f"{old['rounds']})")
     found += [f"{rule} (its effects changed nothing in any test run)"

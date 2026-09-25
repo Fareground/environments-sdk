@@ -28,7 +28,8 @@ def cmd_author(args: argparse.Namespace) -> int:
               if value is not None}
     result = author(brief, args.model, out=out, budget=budget, progress=lambda line: print(line, file=sys.stderr))
     print(result.summary())
-    return 0 if result.ok else 1
+    # a session the provider ended is a failure to report, even when an earlier revision works and is kept
+    return 0 if result.ok and not result.stop.startswith(("error", "refused")) else 1
 
 
 def _names_a_file(text: str) -> bool:

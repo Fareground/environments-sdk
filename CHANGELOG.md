@@ -317,6 +317,11 @@ worlds stay fast, and the package is organised by feature.
     a judge's answer is read whole when it is one JSON value, else by the last one in it (never a quoted
     participant's); the `agents_often_failed` finding no longer repeats itself; the trade-negotiation, tavern and
     Kuhn poker briefs say what an agent is after and leave out a zero penalty and a raw place id.
+  - Author loop polish (agentif author LOWs): `edits` sent as JSON text are read as the edits they are; an OpenAI-style
+    `finish_reason: error` is asked again, as participants do; a rounds collapse is not judged from runs the test
+    budget cut short; `fg-env author` exits non-zero when the provider ended the session, even with a working
+    revision kept; a write that saved nothing is worded once ("Your last write does not work: it was cut off …"); and
+    `start_from` shows a starter as far as one reply holds, the cut saying where to read on (`start`).
   - **A contract's `name` is optional** (mech H1): left out, a contract read from a file is named after the file, any
     other `Environment`; so every mechanism reference example works as pasted. The judge and game-master examples
     declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract

@@ -49,9 +49,12 @@ TOOLS: list[dict[str, Any]] = [
                                                                    "a string, a number, true, false or null)."}},
          "required": ["path"]}}}, "required": ["edits"]}},
     {"name": "start_from", "description": "Save an engine starter as your contract (a new revision, tested like any "
-     "other), to adapt to the brief with edit_contract. The reply shows the whole contract.",
+     "other), to adapt to the brief with edit_contract. The reply shows the contract; one longer than a reply is cut, "
+     "and the cut says where to read on (with `start`, which saves nothing again).",
      "parameters": {"type": "object", "properties": {"engine": {
-         "type": "string", "enum": [spec.id for spec in list_engines(available=True)]}}, "required": ["engine"]}},
+         "type": "string", "enum": [spec.id for spec in list_engines(available=True)]}, "start": {
+         "type": "integer", "minimum": 0, "description": "Read the starter on from here, in characters, without "
+                                                         "saving it again."}}, "required": ["engine"]}},
     {"name": "check", "description": "Check the saved contract: every problem with its path and a fix.",
      "parameters": {"type": "object", "properties": {}}},
     {"name": "run", "description": "Run the saved contract once and return its summary and outputs.",
@@ -314,7 +317,7 @@ class Workbench:
             text = str(getattr(self, "tool_" + name)(**args))
         except Exception as exc:  # the SDK's own errors are what the author reads
             text = f"{type(exc).__name__}: {exc}"
-        if len(text) <= MAX_RESULT or name == "start_from":  # a starter is adapted from all its rules
+        if len(text) <= MAX_RESULT or name == "start_from":  # a starter cuts its own contract (see tool_start_from)
             return text
         more = (f": read on with guide({args['part']!r}, start={int(args.get('start') or 0) + MAX_RESULT})"
                 if name == "guide" else "")
@@ -325,7 +328,7 @@ class Workbench:
         if name not in ("write_contract", "edit_contract"):
             return CUT_CALL.format(tool=name, done="done") + " Call it again, keeping your reply short."
         self.writes.append(arguments)
-        self.problem = "the last write was cut off at the output limit, so it saved nothing"
+        self.problem = "it was cut off at the output limit, so it saved nothing"
         return CUT_CALL.format(tool=name, done="saved") + CUT_WRITE
 
     def tool_write_contract(self, contract: Any) -> str:
@@ -334,17 +337,22 @@ class Workbench:
         data, broken = parse_arguments(contract) if isinstance(contract, str) else (contract, None)  # JSON text
         if broken:
             self.writes.append(contract)
-            self.problem = f"the last write was {broken}, so it saved nothing"
+            self.problem = f"it was {broken}, so it saved nothing"
             return f"{broken[0].upper()}{broken[1:]}. Nothing saved."
         if not isinstance(data, dict):
             self.writes.append(contract)
-            self.problem = "the last write was not a JSON object, so it saved nothing"
+            self.problem = "it was not a JSON object, so it saved nothing"
             return "Not a JSON object: a contract is one object {...}. Nothing saved."
         return self._save(data)
 
     def tool_edit_contract(self, edits: list[dict[str, Any]]) -> str:
         if self.latest is None:
             return "No contract saved yet: save one with write_contract first."
+        if isinstance(edits, str):  # the edits written as JSON text, as models often do: read as the JSON they are
+            parsed, broken = parse_arguments(edits)
+            if broken:
+                return f"`edits` is text that is {broken}: give the list of edits itself. Nothing saved."
+            edits = parsed
         data = copy.deepcopy(self.latest)
         for n, one in enumerate(edits if isinstance(edits, list) else [edits]):
             wrong = _edit(data, one)
@@ -352,9 +360,19 @@ class Workbench:
                 return f"edits[{n}]: {wrong}. Nothing saved."
         return self._save(data)
 
-    def tool_start_from(self, engine: str) -> str:
+    def tool_start_from(self, engine: str, start: int = 0) -> str:
+        """Save the starter (unless reading on from ``start``) and show its contract as far as one reply holds, the
+        cut saying where to read on."""
+        if isinstance(start, bool) or not isinstance(start, int) or start < 0:
+            return "Bad tool call: start_from: `start` is a number of characters ≥ 0. Nothing saved."
         source = engine_spec(engine).materialized_source()
-        return self._save(source) + "\n\nThe contract:\n" + _abridged(source)
+        head = "" if start else self._save(source) + "\n\nThe contract:\n"
+        body = _abridged(source)
+        end = start + max(MAX_RESULT - len(head), MAX_RESULT // 2)
+        if end >= len(body):
+            return head + body[start:]
+        return (head + body[start:end] + f"\n[cut at {end:,} of {len(body):,} characters of the contract: read on "
+                f"with start_from({engine!r}, start={end}), which saves nothing again]")
 
     def _save(self, data: dict[str, Any]) -> str:
         if data == self.latest:
