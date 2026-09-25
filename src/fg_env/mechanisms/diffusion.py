@@ -385,7 +385,9 @@ def _threshold_of(world: Any, name: str, config: DiffusionConfig, state: dict[st
            "adopter. Read it with $reach(item), $adopter_count(item), $spread_state(agent, item), $exposures(agent, "
            "item), $heard(agent).",
            example={"who": "account", "over": "follows", "flow": "against", "model": "cascade", "p": 0.1,
-                    "seeds": {"rumor": ["u1"]}})
+                    "seeds": {"rumor": ["u1"]}},
+           context={"entities": {"u1": {"type": "account"}, "u2": {"type": "account"}},
+                    "relations": {"follows": {"links": [{"from": "u2", "to": "u1"}]}}})
 def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who")
     check_expr(config.p, "p", ("from", "to", "item"))

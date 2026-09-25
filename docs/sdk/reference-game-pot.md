@@ -29,5 +29,5 @@ Actions of the `game` op:
 - `all_in` — takes `who`: {"game": "table", "action": "all_in"}  (put every chip in; for $actor or `who`; an illegal move fails the action)
 
 ```json
-{"mechanisms": {"my_pot": {"kind": "game", "mode": "pot", "who": "player", "stack": 500, "blinds": [5, 10], "seat": "$it.seat", "streets": {"preflop": [], "flop": [{"game": "cards", "action": "deal", "qty": 3, "zone": "board"}]}, "setup": [{"game": "cards", "action": "collect"}, {"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}], "score": "$poker_rank($hand($it) + $zone(board)).score"}}}
+{"types": {"player": {"agent": true, "props": {"seat": 0}}}, "entities": {"ann": {"type": "player", "props": {"seat": 1}}, "bo": {"type": "player", "props": {"seat": 2}}}, "mechanisms": {"cards": {"kind": "game", "mode": "cards", "who": "player", "deal": "never", "zones": {"board": "public"}}, "my_pot": {"kind": "game", "mode": "pot", "who": "player", "stack": 500, "blinds": [5, 10], "seat": "$it.seat", "streets": {"preflop": [], "flop": [{"game": "cards", "action": "deal", "qty": 3, "zone": "board"}]}, "setup": [{"game": "cards", "action": "collect"}, {"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}], "score": "$poker_rank($hand($it) + $zone(board)).score"}}}
 ```

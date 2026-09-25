@@ -60,5 +60,5 @@ Actions of the `decision` op:
 - `counter` — takes `target`: {"decision": "trial", "action": "counter"}  (remove an item without resolving it: target is an item id, default the item below the one resolving, else the top)
 
 ```json
-{"mechanisms": {"my_procedure": {"kind": "decision", "mode": "procedure", "phases": {"debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]}, "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": true}}}}}
+{"types": {"member": {"agent": true, "props": {"said": 0, "votes": 0}}}, "entities": {"member": {"type": "member", "count": 3}}, "actions": {"speak": {"by": "member", "do": "$actor.said += 1"}, "vote": {"by": "member", "do": "$actor.votes += 1"}}, "mechanisms": {"my_procedure": {"kind": "decision", "mode": "procedure", "phases": {"debate": {"stages": [{"actions": ["speak"]}], "next": [{"to": "vote", "after": 2}]}, "vote": {"stages": [{"actions": ["vote"], "turns": "simultaneous"}], "terminal": true}}}}}
 ```

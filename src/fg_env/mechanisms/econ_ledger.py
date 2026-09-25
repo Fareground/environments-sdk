@@ -147,7 +147,9 @@ def _money_left(currency: str, spec: CurrencySpec) -> str:
       "every source and sink since.",
       example={"who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}},
                "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}},
-               "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}})
+               "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}},
+      context={"types": {"household": {"agent": True}, "shop": {"agent": True}},
+               "entities": {"household": {"type": "household", "count": 2}, "shop": {"type": "shop"}}})
 def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     holders = type_list(config.who)
     require_types(contract, holders, "who")

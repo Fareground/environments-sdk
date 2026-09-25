@@ -38,5 +38,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_noise": {"kind": "pattern", "mode": "noise", "dist": "normal", "sd": 0.01, "keys": "resident"}}}
+{"types": {"resident": {}}, "entities": {"resident": {"type": "resident", "count": 2}}, "mechanisms": {"my_noise": {"kind": "pattern", "mode": "noise", "dist": "normal", "sd": 0.01, "keys": "resident"}}}
 ```

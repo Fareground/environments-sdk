@@ -29,4 +29,4 @@ def _expand(name: str, cfg: PatternConfig, contract: Mapping[str, Any]) -> dict[
 
 for _name, _kind in KINDS.items():
     mode("pattern", _name, _kind.model, _kind.doc,
-         example={key: value for key, value in _kind.example.items() if key != "kind"})(_expand)
+         example={key: value for key, value in _kind.example.items() if key != "kind"}, context=_kind.context)(_expand)

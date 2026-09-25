@@ -40,5 +40,5 @@ Actions of the `economy` op:
 - `order` — takes `item`, `qty` (needs `item`, `qty`): {"economy": "reorder", "action": "order", "item": "$params.item", "qty": 24}  (order stock now: rounded to the case pack, within capacity, the budget and the account)
 
 ```json
-{"mechanisms": {"my_replenishment": {"kind": "economy", "mode": "replenishment", "demand": "shop", "policy": "service", "service_level": 0.95, "lead_time": {"pattern": "lead_noise", "scale": "$it.lead_weeks"}, "case_pack": "$it.case_pack", "holding_cost": "$it.unit_cost * 0.004", "order_cost": 6}}}
+{"types": {"sku": {"props": {"price": 10.0, "promo": 0.0, "list_price": 10.0, "shop_promo": 0.0, "unit_cost": 4.0, "category": "tools", "sibling": "sku_1", "shop_rate": 2.0, "lead_weeks": 1, "case_pack": 6, "stock": 20}}}, "entities": {"sku": {"type": "sku", "count": 2}}, "mechanisms": {"shop": {"kind": "economy", "mode": "demand", "items": "sku", "stock": "stock", "price": "$it.price", "rate": 2}, "lead_noise": {"kind": "pattern", "mode": "noise", "dist": "lognormal", "sd": 0.1, "keys": "sku"}, "my_replenishment": {"kind": "economy", "mode": "replenishment", "demand": "shop", "policy": "service", "service_level": 0.95, "lead_time": {"pattern": "lead_noise", "scale": "$it.lead_weeks"}, "case_pack": "$it.case_pack", "holding_cost": "$it.unit_cost * 0.004", "order_cost": 6}}}
 ```

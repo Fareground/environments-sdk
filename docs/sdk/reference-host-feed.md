@@ -13,5 +13,5 @@ Config:
 - `description` (default ""): 
 
 ```json
-{"mechanisms": {"my_feed": {"kind": "host", "mode": "feed", "host": "weather", "into": "world.temperature", "query": {"city": "Millbrook", "date": "{$clock.date}"}, "fallback": "$round($normal(9, 4), 1)"}}}
+{"world": {"temperature": 10.0}, "clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "mechanisms": {"my_feed": {"kind": "host", "mode": "feed", "host": "weather", "into": "world.temperature", "query": {"city": "Millbrook", "date": "{$clock.date}"}, "fallback": "$round($normal(9, 4), 1)"}}}
 ```

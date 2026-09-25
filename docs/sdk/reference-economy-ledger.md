@@ -51,5 +51,5 @@ Actions of the `economy` op:
 - `repay` — takes `loan`, `amount` (needs `loan`, `amount`): {"economy": "money", "action": "repay", "loan": "$params.loan", "amount": 50}  (pays a loan down; the borrower pays, never on credit)
 
 ```json
-{"mechanisms": {"my_ledger": {"kind": "economy", "mode": "ledger", "who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}}, "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}}, "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}}}}
+{"types": {"household": {"agent": true}, "shop": {"agent": true}}, "entities": {"household": {"type": "household", "count": 2}, "shop": {"type": "shop"}}, "mechanisms": {"my_ledger": {"kind": "economy", "mode": "ledger", "who": ["household", "shop"], "currencies": {"cash": {"start": 100, "credit": 20}}, "sources": {"allowance": {"to": "household", "amount": 300, "every": 30, "mode": "reset"}}, "taxes": {"sales_tax": {"rate": 0.08, "on": "payer"}}}}}
 ```

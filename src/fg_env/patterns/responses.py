@@ -35,7 +35,8 @@ class ElasticityConfig(PatternConfig):
       "Price elasticity: a multiplier on demand for a price, constant-elasticity or linear.",
       example={"kind": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99},
       args=("price",), params=("elasticity", "reference"),
-      words=lambda cfg: f"{cfg.form} price elasticity {cfg.elasticity} around a price of {cfg.reference}")
+      words=lambda cfg: f"{cfg.form} price elasticity {cfg.elasticity} around a price of {cfg.reference}",
+      context={"inputs": {"elasticity": {"type": "number", "default": -1.5}}})
 def _elasticity(ctx: Any, price: Any) -> float:
     p, ref, e = driver(ctx, price, "the price"), ctx.number("reference"), ctx.number("elasticity")
     if ref <= 0:

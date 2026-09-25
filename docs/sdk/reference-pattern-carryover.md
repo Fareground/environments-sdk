@@ -39,5 +39,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_carryover": {"kind": "pattern", "mode": "carryover", "input": "$world.ad_spend", "half_life": 2, "lag": 1}}}
+{"world": {"ad_spend": 100.0}, "mechanisms": {"my_carryover": {"kind": "pattern", "mode": "carryover", "input": "$world.ad_spend", "half_life": 2, "lag": 1}}}
 ```

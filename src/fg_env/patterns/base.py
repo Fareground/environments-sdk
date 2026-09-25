@@ -141,6 +141,8 @@ class KindSpec:
     #: For memory kinds: the next state after a round, given the context, the input now and the state before.
     commit: Callable[..., dict[str, Any]] | None = None
     extra: dict[str, Any] = field(default_factory=dict)
+    #: The contract parts the example builds on (see :attr:`fg_env.registry.ModeSpec.context`).
+    context: dict[str, Any] = field(default_factory=dict)
 
     def arg_names(self, cfg: Any) -> tuple[str, ...]:
         return self.args(cfg) if callable(self.args) else self.args
@@ -162,8 +164,10 @@ def kind(name: str, group: str, shape: Literal["signal", "process", "draw", "res
          model: type[PatternConfig], doc: str, *, example: dict[str, Any],
          args: tuple[str, ...] | Callable[[Any], tuple[str, ...]] = (), random: bool = False,
          words: Callable[[Any], str] = lambda cfg: "", params: tuple[str, ...] = (),
-         commit: Callable[..., dict[str, Any]] | None = None) -> Callable[[Evaluate], Evaluate]:
-    """Register a pattern kind. ``params`` are the fields that may be expressions (evaluated once per run and key)."""
+         commit: Callable[..., dict[str, Any]] | None = None,
+         context: dict[str, Any] | None = None) -> Callable[[Evaluate], Evaluate]:
+    """Register a pattern kind. ``params`` are the fields that may be expressions (evaluated once per run and key);
+    ``context`` the contract parts its example builds on."""
     if group not in GROUPS:
         raise ValueError(f"unknown pattern group '{group}'")
     if (shape == "memory") != (commit is not None):
@@ -172,7 +176,8 @@ def kind(name: str, group: str, shape: Literal["signal", "process", "draw", "res
     def register(evaluate: Evaluate) -> Evaluate:
         if name in KINDS:
             raise ValueError(f"pattern kind '{name}' is registered twice")
-        KINDS[name] = KindSpec(name, group, shape, model, doc, example, evaluate, args, random, words, params, commit)
+        KINDS[name] = KindSpec(name, group, shape, model, doc, example, evaluate, args, random, words, params, commit,
+                               context=context or {})
         return evaluate
 
     return register

@@ -32,6 +32,9 @@ NAME = "physics"
       example={"params": {"beta": 0.3, "gamma": 0.1}, "read": {"N": "$count(person)"},
                "vars": {"S": {"start": 990, "rate": "-beta*S*I/N", "min": 0},
                         "I": {"start": 10, "rate": "beta*S*I/N - gamma*I", "min": 0}},
-               "write": {"world.infected": "I"}}, name=NAME)
+               "write": {"world.infected": "I"}}, name=NAME,
+      context={"world": {"infected": 0.0},
+               "types": {"person": {}},
+               "entities": {"person": {"type": "person", "count": 5}}})
 def _expand(name: str, config: PhysicsSpec, contract: Mapping[str, Any]) -> dict[str, Any]:
     return {}

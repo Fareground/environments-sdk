@@ -78,6 +78,9 @@ class ModeSpec:
     ends: Callable[[Any], bool] = lambda config: False
     #: The one name a use of this mode must have (its mechanism is read by that root, as ``physics``), or None: any.
     name: str | None = None
+    #: The contract parts the example builds on besides a type for its `who` (other types, entities, mechanisms
+    #: declared before it): shown with it, so the reference example works as written.
+    context: dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> str:
@@ -215,12 +218,14 @@ def family(name: str, doc: str, shared: Mapping[str, str] | None = None) -> Fami
 
 
 def mode(family_name: str, mode: str, config: type[BaseModel], doc: str, example: dict[str, Any] | None = None, *,
-         ends: Callable[[Any], bool] = lambda config: False, name: str | None = None
+         ends: Callable[[Any], bool] = lambda config: False, name: str | None = None,
+         context: dict[str, Any] | None = None
          ) -> Callable[[Callable[..., dict[str, Any]]], Callable[..., dict[str, Any]]]:
     """Register a mode of a family: ``@mode("market", "auction", AuctionConfig, doc, example)``.
 
     ``example`` is the config without ``kind`` and ``mode``; ``ends(config)`` says whether a use can end the run;
-    ``name`` is the one name a use of the mode must have (the reference shows its example under it), else any."""
+    ``name`` is the one name a use of the mode must have (the reference shows its example under it), else any;
+    ``context`` the contract parts the example builds on besides a type for its `who`, shown with it."""
 
     def register(expand: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         spec = FAMILIES.get(family_name)
@@ -232,7 +237,7 @@ def mode(family_name: str, mode: str, config: type[BaseModel], doc: str, example
             if key in config.model_fields and config.model_fields[key].is_required():
                 raise ValueError(f"{family_name}.{mode}: a config field named '{key}' needs a default")
         full_example = {"kind": family_name, "mode": mode, **(example or {})}
-        spec.modes[mode] = ModeSpec(family_name, mode, doc, config, expand, full_example, ends, name)
+        spec.modes[mode] = ModeSpec(family_name, mode, doc, config, expand, full_example, ends, name, context or {})
         spec.actions.setdefault(mode, {})
         return expand
 

@@ -38,5 +38,5 @@ Nested config:
 - `key`: text (required) — Its key, as an expression over $key, $row and $inputs ($row.category).
 
 ```json
-{"mechanisms": {"my_sum": {"kind": "pattern", "mode": "sum", "of": ["normal_temp", "anomaly"], "base": 0}}}
+{"mechanisms": {"normal_temp": {"kind": "pattern", "mode": "cycle", "period": 4, "level": 10}, "anomaly": {"kind": "pattern", "mode": "noise", "sd": 1}, "my_sum": {"kind": "pattern", "mode": "sum", "of": ["normal_temp", "anomaly"], "base": 0}}}
 ```

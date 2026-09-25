@@ -183,7 +183,10 @@ def _check_duration(spec: DurationSpec, path: str) -> None:
                                       "service": {"dist": "lognormal", "mean": 380, "cv": 0.6},
                                       "patience": {"mean": 160}, "threshold": 20, "target": 0.8,
                                       "callback": {"when": 90, "accept": 0.6}}},
-               "servers": {"agents": {"staff": "$inputs.staffing[$interval]", "cost": 26, "shrinkage": 0.3}}})
+               "servers": {"agents": {"staff": "$inputs.staffing[$interval]", "cost": 26, "shrinkage": 0.3}}},
+      context={"inputs": {"calls": {"type": "list", "default": [20, 30, 25]},
+                          "staffing": {"type": "list", "default": [4, 5, 5]}},
+               "clock": {"rounds": 3, "unit": "second"}})
 def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     _check(config)
     clock = contract.get("clock") or {}

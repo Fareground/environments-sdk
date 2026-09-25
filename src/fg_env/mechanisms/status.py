@@ -100,7 +100,9 @@ def _carrier_types(cfg: StatusConfig) -> list[str]:
       example={"who": "unit", "statuses": {
           "poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]},
           "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"},
-          "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}})
+          "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}},
+      context={"types": {"unit": {"agent": True, "props": {"hp": 20, "armor": 0}}},
+               "actions": {"attack": {"by": "unit", "do": "$actor.hp += 0"}}})
 def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     on = common.types_in(contract, cfg.who, "who")
     _unique_statuses(name, cfg, contract)

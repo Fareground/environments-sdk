@@ -520,7 +520,8 @@ def _record(world: Any, name: str, actor: Entity, says: str, text: Any, motion: 
            "decision only with `end`.",
            example={"who": "resident", "chair": "moderator", "floor": True,
                     "question": "Should the town build a skate park?", "passes": 8},
-           ends=lambda config: config.end != "never")
+           ends=lambda config: config.end != "never",
+           context={"types": {"moderator": {"agent": True}}, "entities": {"chair": {"type": "moderator"}}})
 def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.chair, "chair", agent=True)

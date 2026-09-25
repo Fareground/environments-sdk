@@ -72,7 +72,16 @@ def _filled(length: int | str, flow: float | str) -> str:
       "_last_order, _round_cost, _cost, _peak_backlog; $pipeline(agent, chain) lists goods on the way.",
       example={"inventory": "stock", "item": "beer",
                "nodes": ["retailer", "wholesaler", "distributor", "factory"], "demand": "4 if $round < 5 else 8",
-               "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1})
+               "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1},
+      context={"types": {"stage_node": {"agent": True}},
+               "entities": {"retailer": {"type": "stage_node"},
+                            "wholesaler": {"type": "stage_node"},
+                            "distributor": {"type": "stage_node"},
+                            "factory": {"type": "stage_node"}},
+               "mechanisms": {"stock": {"kind": "economy",
+                                        "mode": "inventory",
+                                        "who": "stage_node",
+                                        "items": {"beer": {}}}}})
 def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     inventory = declared_use(contract, config.inventory, INVENTORY, "inventory")
     items = inventory.get("items") or {}

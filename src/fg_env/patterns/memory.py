@@ -101,7 +101,8 @@ def _carryover_commit(ctx: Any, x: Any, state: dict[str, Any] | None) -> dict[st
       params=("retain", "half_life", "start"), commit=_carryover_commit,
       words=lambda cfg: f"carry-over of {cfg.input} ({cfg.form}, retain "
                         f"{cfg.half_life and f'half-life {cfg.half_life}' or cfg.retain}"
-                        + (f", lag {cfg.lag}" if cfg.lag else "") + ")")
+                        + (f", lag {cfg.lag}" if cfg.lag else "") + ")",
+      context={"world": {"ad_spend": 100.0}})
 def _carryover(ctx: Any) -> float:
     x, before, _ = _current(ctx)
     return _stock(ctx, x, before)
@@ -144,7 +145,19 @@ def _promotion_commit(ctx: Any, x: Any, state: dict[str, Any] | None) -> dict[st
       "dips while customers work through what they bought early.",
       example={"kind": "promotion", "input": "$it.promo", "keys": "sku", "lift": 0.8, "dip": 0.25, "half_life": 1.5},
       params=("lift", "dip", "retain", "half_life"), commit=_promotion_commit,
-      words=lambda cfg: f"promotion lift {cfg.lift} from {cfg.input}, dipping by {cfg.dip} afterwards")
+      words=lambda cfg: f"promotion lift {cfg.lift} from {cfg.input}, dipping by {cfg.dip} afterwards",
+      context={"types": {"sku": {"props": {"price": 10.0,
+                                           "promo": 0.0,
+                                           "list_price": 10.0,
+                                           "shop_promo": 0.0,
+                                           "unit_cost": 4.0,
+                                           "category": "tools",
+                                           "sibling": "sku_1",
+                                           "shop_rate": 2.0,
+                                           "lead_weeks": 1,
+                                           "case_pack": 6,
+                                           "stock": 20}}},
+               "entities": {"sku": {"type": "sku", "count": 2}}})
 def _promotion(ctx: Any) -> float:
     x, before, _ = _current(ctx)
     if x > 0:
@@ -186,7 +199,19 @@ def _reference_commit(ctx: Any, x: Any, state: dict[str, Any] | None) -> dict[st
       "it more (loss aversion). The memory drifts toward prices paid.",
       example={"kind": "reference_price", "input": "$it.price", "keys": "sku", "retain": 0.8, "gain": 0.8, "loss": 1.6},
       params=("retain", "gain", "loss"), commit=_reference_commit,
-      words=lambda cfg: f"reference price remembered from {cfg.input} (gain {cfg.gain}, loss {cfg.loss})")
+      words=lambda cfg: f"reference price remembered from {cfg.input} (gain {cfg.gain}, loss {cfg.loss})",
+      context={"types": {"sku": {"props": {"price": 10.0,
+                                           "promo": 0.0,
+                                           "list_price": 10.0,
+                                           "shop_promo": 0.0,
+                                           "unit_cost": 4.0,
+                                           "category": "tools",
+                                           "sibling": "sku_1",
+                                           "shop_rate": 2.0,
+                                           "lead_weeks": 1,
+                                           "case_pack": 6,
+                                           "stock": 20}}},
+               "entities": {"sku": {"type": "sku", "count": 2}}})
 def _reference_price(ctx: Any) -> float:
     x, before, _ = _current(ctx)
     reference = _reference(ctx, x, before)
@@ -237,7 +262,9 @@ def _habit_commit(ctx: Any, x: Any, state: dict[str, Any] | None) -> dict[str, A
       example={"kind": "habit", "form": "fatigue", "input": "$it.ads_seen", "keys": "viewer", "strength": 0.3,
                "half_life": 3},
       params=("strength", "retain", "half_life"), commit=_habit_commit,
-      words=lambda cfg: f"{cfg.form} from {cfg.input} (strength {cfg.strength})")
+      words=lambda cfg: f"{cfg.form} from {cfg.input} (strength {cfg.strength})",
+      context={"types": {"viewer": {"props": {"ads_seen": 1}}},
+               "entities": {"viewer": {"type": "viewer", "count": 2}}})
 def _habit(ctx: Any) -> float:
     x, before, _ = _current(ctx)
     stock = _exposure(ctx, x, before)

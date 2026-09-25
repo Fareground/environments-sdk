@@ -90,7 +90,13 @@ register_config(BOOKINGS, BookingsConfig)
            "$world.<name>_stats; utilization is stats.served / stats.offered.",
            example={"who": "household", "currency": "cash", "waitlist": True, "patience": 2,
                     "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3,
-                                             "max_party": 4}}})
+                                             "max_party": 4}}},
+           context={"types": {"household": {"agent": True}, "restaurant": {"agent": True}},
+                    "entities": {"household": {"type": "household", "count": 2}, "bistro": {"type": "restaurant"}},
+                    "mechanisms": {"economy": {"kind": "economy",
+                                               "mode": "ledger",
+                                               "who": ["household", "restaurant"],
+                                               "currencies": {"cash": {"start": 100}}}}})
 def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     guests = type_list(config.who)
     require_types(contract, guests, "who")

@@ -26,5 +26,5 @@ Actions of the `agreements` op:
 - `set_price` — takes `plan`, `price` (needs `plan`, `price`): {"agreements": "coffee", "action": "set_price", "plan": "coffee_club", "price": 36}  (reprice a plan and tell its subscribers)
 
 ```json
-{"mechanisms": {"my_subscriptions": {"kind": "agreements", "mode": "subscriptions", "who": "household", "currency": "cash", "providers": "cafe", "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}}}}
+{"types": {"household": {"agent": true}, "cafe": {"agent": true}}, "entities": {"household": {"type": "household", "count": 2}, "bean_bar": {"type": "cafe"}}, "mechanisms": {"economy": {"kind": "economy", "mode": "ledger", "who": ["household", "cafe"], "currencies": {"cash": {"start": 100}}}, "my_subscriptions": {"kind": "agreements", "mode": "subscriptions", "who": "household", "currency": "cash", "providers": "cafe", "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}}}}
 ```

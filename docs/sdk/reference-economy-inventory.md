@@ -36,5 +36,5 @@ Actions of the `economy` op:
 - `pickup` — takes `item`, `to`, `qty` (needs `item`, `to`): {"economy": "goods", "action": "pickup", "item": "$params.item", "to": "$actor", "qty": 1}  (take goods lying where the holder stands)
 
 ```json
-{"mechanisms": {"my_inventory": {"kind": "economy", "mode": "inventory", "who": "villager", "capacity": 20, "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 2 * $qty"]}, "axe": {"unique": true, "value": 20, "props": {"durability": 10}}}}}}
+{"types": {"villager": {"agent": true, "props": {"hunger": 10}}}, "mechanisms": {"my_inventory": {"kind": "economy", "mode": "inventory", "who": "villager", "capacity": 20, "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 2 * $qty"]}, "axe": {"unique": true, "value": 20, "props": {"durability": 10}}}}}}
 ```

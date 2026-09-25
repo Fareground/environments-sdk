@@ -134,7 +134,30 @@ _DOC = ("Inventory policies for a demand mechanism's items: orders travel in a p
 @mode("economy", "replenishment", ReplenishmentConfig, _DOC,
       example={"demand": "shop", "policy": "service", "service_level": 0.95,
                "lead_time": {"pattern": "lead_noise", "scale": "$it.lead_weeks"}, "case_pack": "$it.case_pack",
-               "holding_cost": "$it.unit_cost * 0.004", "order_cost": 6})
+               "holding_cost": "$it.unit_cost * 0.004", "order_cost": 6},
+      context={"types": {"sku": {"props": {"price": 10.0,
+                                           "promo": 0.0,
+                                           "list_price": 10.0,
+                                           "shop_promo": 0.0,
+                                           "unit_cost": 4.0,
+                                           "category": "tools",
+                                           "sibling": "sku_1",
+                                           "shop_rate": 2.0,
+                                           "lead_weeks": 1,
+                                           "case_pack": 6,
+                                           "stock": 20}}},
+               "entities": {"sku": {"type": "sku", "count": 2}},
+               "mechanisms": {"shop": {"kind": "economy",
+                                       "mode": "demand",
+                                       "items": "sku",
+                                       "stock": "stock",
+                                       "price": "$it.price",
+                                       "rate": 2},
+                              "lead_noise": {"kind": "pattern",
+                                             "mode": "noise",
+                                             "dist": "lognormal",
+                                             "sd": 0.1,
+                                             "keys": "sku"}}})
 def _expand_replenishment(name: str, config: ReplenishmentConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     raw = declared_use(contract, config.demand, DEMAND, "demand")
     try:

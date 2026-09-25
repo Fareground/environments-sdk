@@ -436,7 +436,13 @@ class RecapConfig(BaseModel):
 @mode("host", "recap", RecapConfig,
            "A \"story so far\" of a long record every N rounds, written by a host writer from the entries since "
            "the last recap and posted to the record <name> (delivered as news, recorded for replay).",
-           example={"record": "board", "every": 3, "fallback": "extract"})
+           example={"record": "board", "every": 3, "fallback": "extract"},
+           context={"types": {"member": {"agent": True}},
+                    "entities": {"member": {"type": "member", "count": 2}},
+                    "records": {"board": {"fields": {"text": "text"}}},
+                    "actions": {"post": {"by": "member",
+                                         "params": {"text": {"type": "text"}},
+                                         "do": [{"post": "board", "text": "$params.text"}]}}})
 def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     records = contract.get("records") or {}
     source = records.get(config.record)

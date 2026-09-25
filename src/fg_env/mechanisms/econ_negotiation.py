@@ -171,7 +171,12 @@ register_config(NEGOTIATION, NegotiationConfig)
                     "reservation": 40, "value": "$party.weight * $terms.quota - $terms.tariff",
                     "obligations": [{"from": "$acceptor", "to": "$proposer", "pay": "credits", "amount": "$terms.quota",
                                      "times": 4}],
-                    "breach": {"penalty": 100, "terminate": True}})
+                    "breach": {"penalty": 100, "terminate": True}},
+           context={"types": {"country": {"agent": True, "props": {"weight": 1.0}}},
+                    "mechanisms": {"economy": {"kind": "economy",
+                                               "mode": "ledger",
+                                               "who": ["country"],
+                                               "currencies": {"credits": {"start": 1000}}}}})
 def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     parties = type_list(config.who)
     require_types(contract, parties, "who")

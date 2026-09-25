@@ -588,7 +588,11 @@ piece per cell (no stacks), dice are not built in."""
 
 @mode("game", "board", BoardConfig, _DOC, example={
     "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"},
-      ends=lambda config: True)
+      ends=lambda config: True,
+      context={"types": {"player": {"agent": True,
+                                    "props": {"side": {"type": "enum", "values": ["x", "o"], "default": "x"}}}},
+               "entities": {"xena": {"type": "player", "props": {"side": "x"}},
+                            "otto": {"type": "player", "props": {"side": "o"}}}})
 def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     rules = compile_rules(name, config)
     _check_shared_types(name, config, contract)

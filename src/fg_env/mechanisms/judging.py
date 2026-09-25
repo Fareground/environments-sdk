@@ -138,7 +138,12 @@ class _Item:
            "$world.<name>_totals and the `into` property, recorded for replay.",
            example={"record": "speeches", "who": "debater", "into": "score",
                     "criteria": {"logic": {"weight": 2}, "evidence": {"scale": [1, 5]}},
-                    "instructions": "Judge each debate speech on its merits."})
+                    "instructions": "Judge each debate speech on its merits."},
+           context={"types": {"debater": {"agent": True, "props": {"score": 0}}},
+                    "records": {"speeches": {"fields": {"text": "text"}}},
+                    "actions": {"speak": {"by": "debater",
+                                          "params": {"text": {"type": "text"}},
+                                          "do": [{"post": "speeches", "text": "$params.text"}]}}})
 def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     records = contract.get("records") or {}
     if config.who is not None:
@@ -462,7 +467,12 @@ class GameMasterConfig(BaseModel):
                     "allow": [{"effect": "set", "prop": "health", "min": 0, "max": 10, "delta": 3},
                               {"effect": "transfer", "prop": "gold", "to": "$filter(adventurer, $it.id != $actor.id)",
                                "amount": 5},
-                              {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_chars": 160}]})
+                              {"effect": "move", "to": "adjacent"}, {"effect": "news", "max_chars": 160}]},
+           context={"types": {"adventurer": {"agent": True, "props": {"health": 8, "gold": 10}}, "room": {}},
+                    "entities": {"hall": {"type": "room"},
+                                 "yard": {"type": "room"},
+                                 "adventurer": {"type": "adventurer", "count": 2, "at": "hall"}},
+                    "space": {"graph": {"nodes": ["hall", "yard"], "edges": [["hall", "yard"]]}}})
 def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     by = type_list(contract, config.who, "who")
     if not NAME.match(config.tool):

@@ -38,5 +38,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_series": {"kind": "pattern", "mode": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c", "missing": "interpolate"}}}
+{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "inputs": {"weather": {"type": "table", "default": [{"date": "2025-12-20", "temp_c": 4}, {"date": "2025-12-22", "temp_c": 6}]}}, "mechanisms": {"my_series": {"kind": "pattern", "mode": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c", "missing": "interpolate"}}}
 ```

@@ -75,7 +75,13 @@ register_config(SUBSCRIPTIONS, SubscriptionsConfig)
            "subscriptions of `<name>_sub`; totals (started, trials, converted, renewed, cancelled, lapsed, revenue) "
            "are in $world.<name>_stats. $subscribed(agent, plan_or_provider) reads membership.",
            example={"who": "household", "currency": "cash", "providers": "cafe",
-                    "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}})
+                    "plans": {"coffee_club": {"provider": "bean_bar", "price": 30, "period": 30, "trial": 7}}},
+           context={"types": {"household": {"agent": True}, "cafe": {"agent": True}},
+                    "entities": {"household": {"type": "household", "count": 2}, "bean_bar": {"type": "cafe"}},
+                    "mechanisms": {"economy": {"kind": "economy",
+                                               "mode": "ledger",
+                                               "who": ["household", "cafe"],
+                                               "currencies": {"cash": {"start": 100}}}}})
 def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     subscribers = type_list(config.who)
     require_types(contract, subscribers, "who")

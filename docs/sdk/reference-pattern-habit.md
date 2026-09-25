@@ -38,5 +38,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_habit": {"kind": "pattern", "mode": "habit", "form": "fatigue", "input": "$it.ads_seen", "keys": "viewer", "strength": 0.3, "half_life": 3}}}
+{"types": {"viewer": {"props": {"ads_seen": 1}}}, "entities": {"viewer": {"type": "viewer", "count": 2}}, "mechanisms": {"my_habit": {"kind": "pattern", "mode": "habit", "form": "fatigue", "input": "$it.ads_seen", "keys": "viewer", "strength": 0.3, "half_life": 3}}}
 ```

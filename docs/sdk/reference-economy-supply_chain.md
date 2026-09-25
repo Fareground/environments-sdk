@@ -22,5 +22,5 @@ Actions of the `economy` op:
 - `order` — takes `who`, `qty` (needs `who`, `qty`): {"economy": "beer", "action": "order", "who": "$actor", "qty": 8}  (a node orders from upstream; the producer starts a batch)
 
 ```json
-{"mechanisms": {"my_supply_chain": {"kind": "economy", "mode": "supply_chain", "inventory": "stock", "item": "beer", "nodes": ["retailer", "wholesaler", "distributor", "factory"], "demand": "4 if $round < 5 else 8", "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1}}}
+{"types": {"stage_node": {"agent": true}}, "entities": {"retailer": {"type": "stage_node"}, "wholesaler": {"type": "stage_node"}, "distributor": {"type": "stage_node"}, "factory": {"type": "stage_node"}}, "mechanisms": {"stock": {"kind": "economy", "mode": "inventory", "who": "stage_node", "items": {"beer": {}}}, "my_supply_chain": {"kind": "economy", "mode": "supply_chain", "inventory": "stock", "item": "beer", "nodes": ["retailer", "wholesaler", "distributor", "factory"], "demand": "4 if $round < 5 else 8", "initial_flow": 4, "holding_cost": 0.5, "backlog_cost": 1}}}
 ```

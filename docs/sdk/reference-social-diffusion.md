@@ -25,5 +25,5 @@ Actions of the `social` op:
 - `expose` — takes `item`, `who` (needs `item`, `who`): {"social": "rumor", "action": "expose", "item": "moon", "who": "$params.who"}  (count one more exposure of each agent in `who` who does not hold the item)
 
 ```json
-{"mechanisms": {"my_diffusion": {"kind": "social", "mode": "diffusion", "who": "account", "over": "follows", "flow": "against", "model": "cascade", "p": 0.1, "seeds": {"rumor": ["u1"]}}}}
+{"entities": {"u1": {"type": "account"}, "u2": {"type": "account"}}, "relations": {"follows": {"links": [{"from": "u2", "to": "u1"}]}}, "mechanisms": {"my_diffusion": {"kind": "social", "mode": "diffusion", "who": "account", "over": "follows", "flow": "against", "model": "cascade", "p": 0.1, "seeds": {"rumor": ["u1"]}}}}
 ```

@@ -140,7 +140,8 @@ def _other_names(contract: Mapping[str, Any], name: str) -> dict[str, str]:
       "Totals are in $world.<name>_supply and every named flow in $world.<name>_flows.",
       example={"who": "villager", "capacity": 20,
                "items": {"bread": {"value": 3, "shelf_life": 4, "on_consume": ["$actor.hunger -= 2 * $qty"]},
-                         "axe": {"unique": True, "value": 20, "props": {"durability": 10}}}})
+                         "axe": {"unique": True, "value": 20, "props": {"durability": 10}}}},
+      context={"types": {"villager": {"agent": True, "props": {"hunger": 10}}}})
 def _expand_inventory(name: str, config: InventoryConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     holders = type_list(config.who)
     require_types(contract, holders, "who")

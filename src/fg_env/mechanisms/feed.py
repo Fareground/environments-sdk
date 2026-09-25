@@ -563,7 +563,8 @@ _FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.or
            "with $feed(viewer, n?), $trending(n?), $following(a), $followers(a), $influence(a), $insularity(a?), "
            "$homophily(prop); with several feeds, name one as the last argument ($following($actor, 'net')).",
            example={"who": "account", "feed_size": 6, "moderators": "moderator",
-                    "downrank": {"labels": ["misleading"], "factor": 0.2}})
+                    "downrank": {"labels": ["misleading"], "factor": 0.2}},
+           context={"types": {"moderator": {"agent": True}}, "entities": {"mod": {"type": "moderator"}}})
 def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.moderators, "moderators", agent=True)

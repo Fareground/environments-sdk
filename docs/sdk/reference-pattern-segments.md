@@ -36,5 +36,5 @@ Nested config:
 - `values`: object — What the segment gives: {elasticity: -2.2, …}.
 
 ```json
-{"mechanisms": {"my_segments": {"kind": "pattern", "mode": "segments", "keys": "customer", "segments": {"bargain": {"share": 0.6, "values": {"elasticity": -2.4}}, "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}}}}
+{"types": {"customer": {}}, "entities": {"customer": {"type": "customer", "count": 3}}, "mechanisms": {"my_segments": {"kind": "pattern", "mode": "segments", "keys": "customer", "segments": {"bargain": {"share": 0.6, "values": {"elasticity": -2.4}}, "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}}}}
 ```

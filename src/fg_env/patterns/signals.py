@@ -66,7 +66,8 @@ def _trend_words(cfg: TrendConfig) -> str:
 
 @kind("trend", "time", "signal", TrendConfig, "A long-run trend: linear, exponential or a logistic S-curve.",
       example={"kind": "trend", "form": "exponential", "start": 100, "rate": "$inputs.growth"},
-      words=_trend_words, params=("start", "slope", "rate", "capacity", "midpoint", "steepness", "origin"))
+      words=_trend_words, params=("start", "slope", "rate", "capacity", "midpoint", "steepness", "origin"),
+      context={"inputs": {"growth": {"type": "number", "default": 0.02}}})
 def _trend(ctx: Any) -> float:
     cfg: TrendConfig = ctx.cfg
     tau = ctx.t - when(ctx, ctx.param("origin"), "origin")
@@ -140,7 +141,8 @@ def _seasonal_words(cfg: SeasonalConfig) -> str:
       "A repeating season: a profile per month, weekday or hour, a smooth wave, or harmonics — around 1 or 0.",
       example={"kind": "seasonal", "period": "year",
                "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]},
-      words=_seasonal_words, params=("profile", "amplitude", "peak", "harmonics"))
+      words=_seasonal_words, params=("profile", "amplitude", "peak", "harmonics"),
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}})
 def _seasonal(ctx: Any) -> float:
     cfg: SeasonalConfig = ctx.cfg
     base = 1.0 if cfg.form == "multiply" else 0.0
@@ -241,7 +243,8 @@ def _calendar_words(cfg: CalendarConfig) -> str:
       "averages the days it covers. Needs clock.start and a calendar unit.",
       example={"kind": "calendar", "effects": [{"on": "weekend", "effect": 1.3},
                                                {"on": "dates", "dates": ["12-25"], "effect": 0.1, "before": 0}]},
-      words=_calendar_words, params=("effects",))
+      words=_calendar_words, params=("effects",),
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}})
 def _calendar_effects(ctx: Any) -> float:
     days = tb.days_covered(ctx.clock, ctx.t)
     if not days:
@@ -343,7 +346,8 @@ def _curve(ctx: Any, tau: float) -> float:
       example={"kind": "lifecycle", "start": "2025-09-19", "before": 1, "peak": 0.93, "floor": 0.6, "half_life": 40},
       words=lambda cfg: f"a lifecycle from {cfg.start}: {cfg.before} before, {cfg.peak} at its peak, decaying toward "
                         f"{cfg.floor}",
-      params=("start", "before", "peak", "floor", "ramp", "half_life", "rate"))
+      params=("start", "before", "peak", "floor", "ramp", "half_life", "rate"),
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}})
 def _lifecycle(ctx: Any) -> float:
     raw = ctx.param("start")
     starts = raw if isinstance(raw, list) else [raw]
@@ -384,7 +388,8 @@ class StepConfig(PatternConfig):
 @kind("step", "time", "signal", StepConfig,
       "Step changes that last: a value that jumps to, by or times an amount at set times.",
       example={"kind": "step", "start": 0.2, "changes": [{"at": "2026-01-01", "to": 0.23}]},
-      words=lambda cfg: f"starts at {cfg.start} and changes {len(cfg.changes)} time(s)", params=("start", "changes"))
+      words=lambda cfg: f"starts at {cfg.start} and changes {len(cfg.changes)} time(s)", params=("start", "changes"),
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}})
 def _step(ctx: Any) -> float:
     value = ctx.number("start")
     changes = sorted(((when(ctx, change["at"], f"changes[{i}].at"), i, change)
@@ -468,7 +473,11 @@ def _number_cell(ctx: Any, raw: Any, index: int) -> float | None:
       example={"kind": "series", "data": "$inputs.weather", "time": "date", "value": "temp_c",
                "missing": "interpolate"},
       words=lambda cfg: f"values read from {cfg.data}" + (f" (column {cfg.value})" if cfg.value else ""),
-      params=("data",))
+      params=("data",),
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"},
+               "inputs": {"weather": {"type": "table",
+                                      "default": [{"date": "2025-12-20", "temp_c": 4},
+                                                  {"date": "2025-12-22", "temp_c": 6}]}}})
 def _series(ctx: Any) -> float | None:
     times, values = ctx.cached("points", lambda: _series_points(ctx))
     if not times:

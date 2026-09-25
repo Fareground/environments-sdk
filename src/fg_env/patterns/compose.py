@@ -77,7 +77,15 @@ class ProductConfig(_Combined):
       "the base and every factor together.",
       example={"kind": "product", "of": ["trend", {"pattern": "season", "key": "$row.category"}], "scale": "$row.base",
                "table": "$inputs.skus", "column": "sku"},
-      params=("scale",), words=lambda cfg: f"{cfg.scale} × " + " × ".join(operand_names(cfg)))
+      params=("scale",), words=lambda cfg: f"{cfg.scale} × " + " × ".join(operand_names(cfg)),
+      context={"inputs": {"skus": {"type": "table", "default": [{"sku": "a", "category": "tools", "base": 10}]}},
+               "mechanisms": {"trend": {"kind": "pattern", "mode": "trend", "start": 1, "rate": 0.01},
+                              "season": {"kind": "pattern",
+                                         "mode": "draw",
+                                         "dist": "normal",
+                                         "mean": 1,
+                                         "sd": 0.1,
+                                         "keys": ["tools"]}}})
 def _product(ctx: Any) -> float:
     scale = ctx.number("scale")
     return product(_operands(ctx), start=scale)
@@ -99,7 +107,9 @@ class SumConfig(_Combined):
       "A weighted sum of patterns plus a base: level + seasonal swing + noise.",
       example={"kind": "sum", "of": ["normal_temp", "anomaly"], "base": 0},
       params=("weights", "base"),
-      words=lambda cfg: " + ".join(operand_names(cfg)) + (f" + {cfg.base}" if cfg.base else ""))
+      words=lambda cfg: " + ".join(operand_names(cfg)) + (f" + {cfg.base}" if cfg.base else ""),
+      context={"mechanisms": {"normal_temp": {"kind": "pattern", "mode": "cycle", "period": 4, "level": 10},
+                              "anomaly": {"kind": "pattern", "mode": "noise", "sd": 1}}})
 def _sum(ctx: Any) -> float:
     weights = ctx.numbers("weights") if ctx.cfg.weights is not None else [1.0] * len(ctx.cfg.of)
     terms = [ctx.number("base"), *(w * v for w, v in zip(weights, _operands(ctx)))]

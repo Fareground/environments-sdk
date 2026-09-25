@@ -88,7 +88,19 @@ def _draw_words(cfg: DrawConfig) -> str:
       example={"kind": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"},
       random=True, words=_draw_words,
       params=("mean", "sd", "mu", "sigma", "low", "high", "peak", "a", "b", "shape", "scale", "values", "weights",
-              "means", "cov"))
+              "means", "cov"),
+      context={"types": {"sku": {"props": {"price": 10.0,
+                                           "promo": 0.0,
+                                           "list_price": 10.0,
+                                           "shop_promo": 0.0,
+                                           "unit_cost": 4.0,
+                                           "category": "tools",
+                                           "sibling": "sku_1",
+                                           "shop_rate": 2.0,
+                                           "lead_weeks": 1,
+                                           "case_pack": 6,
+                                           "stock": 20}}},
+               "entities": {"sku": {"type": "sku", "count": 2}}})
 def _draw(ctx: Any) -> Any:
     cfg: DrawConfig = ctx.cfg
     rng = ctx.stream("draw")
@@ -171,7 +183,8 @@ class SegmentsConfig(PatternConfig):
           "bargain": {"share": 0.6, "values": {"elasticity": -2.4}},
           "loyal": {"share": 0.4, "values": {"elasticity": -0.8}}}},
       random=True, params=("segments",),
-      words=lambda cfg: "segments " + ", ".join(f"{name} ({seg.share})" for name, seg in cfg.segments.items()))
+      words=lambda cfg: "segments " + ", ".join(f"{name} ({seg.share})" for name, seg in cfg.segments.items()),
+      context={"types": {"customer": {}}, "entities": {"customer": {"type": "customer", "count": 3}}})
 def _segments(ctx: Any) -> dict[str, Any]:
     segments = ctx.param("segments")
     names = list(segments)
@@ -212,7 +225,8 @@ def _bass(p: float, q: float, tau: float) -> float:
       example={"kind": "diffusion", "p": 0.03, "q": 0.38, "market": 5000, "start": "2025-03-01", "output": "new"},
       args=lambda cfg: ("share",) if cfg.output == "hazard" else (),
       words=lambda cfg: f"Bass diffusion (p {cfg.p}, q {cfg.q}) of a market of {cfg.market}, giving {cfg.output}",
-      params=("p", "q", "market", "start"))
+      params=("p", "q", "market", "start"),
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-03-01"}})
 def _diffusion(ctx: Any, share: Any = None) -> float:
     p, q = ctx.number("p", 1e-12), ctx.number("q", 0)
     if ctx.cfg.output == "hazard":

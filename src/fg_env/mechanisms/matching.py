@@ -153,7 +153,9 @@ def _rank_action(name: str, by: str, other: str, where: str | None) -> dict[str,
       "and cuts every ranking to eligible partners. When the stage ends (after the contract's own events on its end) "
       "the match is stable and the best stable one for every proposer; read it as $it.<name>_match (a proposer's "
       "receiver id, '' when unmatched) and $it.<name>_matches (a receiver's proposer ids). Output `<name>_matched`.",
-      example={"who": "student", "to": "school", "seats": "$it.capacity"})
+      example={"who": "student", "to": "school", "seats": "$it.capacity"},
+      context={"types": {"school": {"agent": True, "props": {"capacity": 2}}},
+               "entities": {"school": {"type": "school", "count": 2}}})
 def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who")
     require_type(contract, config.to, "to")

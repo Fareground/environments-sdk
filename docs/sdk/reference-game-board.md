@@ -113,5 +113,5 @@ Actions of the `game` op:
 - `setup` — takes `position`, `turn` (needs `position`): {"game": "chess", "action": "setup", "position": "$inputs.start", "turn": "black"}  (replace every piece with a position — board-symbol rows or {side: {kind: [cells]}} — and restart the game state)
 
 ```json
-{"mechanisms": {"my_board": {"kind": "game", "mode": "board", "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"}}}
+{"types": {"player": {"agent": true, "props": {"side": {"type": "enum", "values": ["x", "o"], "default": "x"}}}}, "entities": {"xena": {"type": "player", "props": {"side": "x"}}, "otto": {"type": "player", "props": {"side": "o"}}}, "mechanisms": {"my_board": {"kind": "game", "mode": "board", "size": [3, 3], "sides": ["x", "o"], "pieces": {"mark": {}}, "place": {}, "line": 3, "no_moves": "draw"}}}
 ```

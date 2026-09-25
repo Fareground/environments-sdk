@@ -599,7 +599,15 @@ def _one_pot_per_player(name: str, config: PotConfig, contract: Mapping[str, Any
                "streets": {"preflop": [], "flop": [{"game": "cards", "action": "deal", "qty": 3, "zone": "board"}]},
                "setup": [{"game": "cards", "action": "collect"},
                          {"game": "cards", "action": "deal", "qty": 2, "to": "$filter(player, $it.in_hand)"}],
-               "score": "$poker_rank($hand($it) + $zone(board)).score"})
+               "score": "$poker_rank($hand($it) + $zone(board)).score"},
+      context={"types": {"player": {"agent": True, "props": {"seat": 0}}},
+               "entities": {"ann": {"type": "player", "props": {"seat": 1}},
+                            "bo": {"type": "player", "props": {"seat": 2}}},
+               "mechanisms": {"cards": {"kind": "game",
+                                        "mode": "cards",
+                                        "who": "player",
+                                        "deal": "never",
+                                        "zones": {"board": "public"}}}})
 def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     if config.who not in types:

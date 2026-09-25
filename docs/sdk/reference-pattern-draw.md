@@ -51,5 +51,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_draw": {"kind": "pattern", "mode": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"}}}
+{"types": {"sku": {"props": {"price": 10.0, "promo": 0.0, "list_price": 10.0, "shop_promo": 0.0, "unit_cost": 4.0, "category": "tools", "sibling": "sku_1", "shop_rate": 2.0, "lead_weeks": 1, "case_pack": 6, "stock": 20}}}, "entities": {"sku": {"type": "sku", "count": 2}}, "mechanisms": {"my_draw": {"kind": "pattern", "mode": "draw", "dist": "normal", "mean": -1.4, "sd": 0.3, "max": -0.2, "keys": "sku"}}}
 ```

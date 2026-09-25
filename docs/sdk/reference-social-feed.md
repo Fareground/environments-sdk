@@ -60,5 +60,5 @@ Actions of the `social` op:
 - `label` — takes `target`, `label`, `who` (needs `target`, `label`): {"social": "net", "action": "label", "target": "$params.post", "label": "$params.label"}  (a moderator labels a post and its reposts)
 
 ```json
-{"mechanisms": {"my_feed": {"kind": "social", "mode": "feed", "who": "account", "feed_size": 6, "moderators": "moderator", "downrank": {"labels": ["misleading"], "factor": 0.2}}}}
+{"types": {"moderator": {"agent": true}}, "entities": {"mod": {"type": "moderator"}}, "mechanisms": {"my_feed": {"kind": "social", "mode": "feed", "who": "account", "feed_size": 6, "moderators": "moderator", "downrank": {"labels": ["misleading"], "factor": 0.2}}}}
 ```

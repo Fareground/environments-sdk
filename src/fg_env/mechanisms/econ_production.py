@@ -103,7 +103,16 @@ register_config(PRODUCTION, ProductionConfig)
                "recipes": {"bake": {"inputs": {"flour": 2}, "outputs": {"bread": 3}, "rounds": 1, "skill": "baking",
                                     "xp": 2, "at": "bakery"},
                            "forage": {"outputs": {"berries": "1 + $skill($actor, foraging)"}, "at": "forest",
-                                      "skill": "foraging", "xp": 1}}})
+                                      "skill": "foraging", "xp": 1}}},
+      context={"types": {"villager": {"agent": True}, "place": {}},
+               "entities": {"bakery": {"type": "place"},
+                            "forest": {"type": "place"},
+                            "villager": {"type": "villager", "count": 2, "at": "forest"}},
+               "space": {"graph": {"nodes": ["bakery", "forest"], "edges": [["bakery", "forest"]]}},
+               "mechanisms": {"goods": {"kind": "economy",
+                                        "mode": "inventory",
+                                        "who": "villager",
+                                        "items": {"flour": {}, "bread": {}, "berries": {}}}}})
 def _expand_production(name: str, config: ProductionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     producers = type_list(config.who)
     require_types(contract, producers, "who")

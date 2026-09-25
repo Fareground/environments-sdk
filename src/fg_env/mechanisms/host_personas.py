@@ -49,7 +49,8 @@ class PersonaConfig(BaseModel):
            "Personas written by a host writer from a prompt template over $it, once per entity before round 1: "
            "stored in the `prop` property and the entity's brief, carried by snapshots, recorded for replay.",
            example={"who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.",
-                    "fallback": "A shopper, age {age}."})
+                    "fallback": "A shopper, age {age}."},
+           context={"types": {"shopper": {"agent": True, "props": {"age": 30, "budget": 50}}}})
 def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     type_list(contract, config.who, "who")
     if not NAME.match(config.prop):

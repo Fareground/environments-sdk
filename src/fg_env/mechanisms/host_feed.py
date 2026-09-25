@@ -24,6 +24,7 @@ from ..registry import mode
       "host bound, `fallback` stands in; without one, the run stops and names the host it needs. Text from a host "
       "is marked untrusted.",
       example={"host": "weather", "into": "world.temperature", "query": {"city": "Millbrook", "date": "{$clock.date}"},
-               "fallback": "$round($normal(9, 4), 1)"})
+               "fallback": "$round($normal(9, 4), 1)"},
+      context={"world": {"temperature": 10.0}, "clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}})
 def _expand(name: str, config: FeedSpec, contract: Mapping[str, Any]) -> dict[str, Any]:
     return {"world": {"host_tape": tape_prop()}}

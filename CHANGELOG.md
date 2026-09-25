@@ -319,6 +319,11 @@ worlds stay fast, and the package is organised by feature.
     kept one action a turn, so six agents trading left a ballot on the same stage with no votes). The mechanisms
     page states the rule and that a mechanism with no `stage` gets a stage of its own, after the author's, in
     declaration order.
+  - Every mechanism reference example is self-contained: a mode registers the contract parts its example builds on
+    (`context`: the seller it sells for, the cards mechanism a pot deals from, the world value a prediction market
+    resolves on …) and the page shows them with it. The test that plays every example uses only that and a type for
+    its `who`, so an example that stops working as written fails it. Before, six examples (pot, prediction,
+    deliberation, negotiation, procedure, posted) did not run as shown.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

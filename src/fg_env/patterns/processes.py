@@ -351,7 +351,8 @@ class NoiseConfig(_Stepped):
       "Fresh noise every step, independent over time; a key (or a keyed pattern) gives each item its own draws.",
       example={"kind": "noise", "dist": "normal", "sd": 0.01, "keys": "resident"},
       random=True, params=("mean", "sd", "low", "high"),
-      words=lambda cfg: f"independent {cfg.dist} noise each step")
+      words=lambda cfg: f"independent {cfg.dist} noise each step",
+      context={"types": {"resident": {}}, "entities": {"resident": {"type": "resident", "count": 2}}})
 def _noise(ctx: Any) -> float:
     rng = ctx.stream("noise", ctx.step())
     dist = ctx.cfg.dist
@@ -392,7 +393,8 @@ def _weather_step(ctx: Any, rng: Any, state: float, step: int) -> tuple[float, f
       example={"kind": "weather", "mean": 18, "amplitude": 9, "peak": 0.55, "persistence": 0.75, "sd": 3},
       random=True, params=("mean", "amplitude", "peak", "persistence", "sd"),
       words=lambda cfg: f"weather-like: {cfg.mean} ± {cfg.amplitude} over the year, departures of {cfg.sd} that "
-                        f"persist ({cfg.persistence})")
+                        f"persist ({cfg.persistence})",
+      context={"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}})
 def _weather(ctx: Any) -> float:
     anomaly = ctx.path(ctx.step(), lambda c, rng: (c.number("sd", 0) * rng.gauss(0.0, 1.0),) * 2, _weather_step)
     try:

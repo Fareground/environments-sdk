@@ -11,5 +11,5 @@ Config:
 - `stage` (default null): Rank during this declared stage and match when it ends, after the contract's own events on its end (every time); default: a stage named after the mechanism, once.
 
 ```json
-{"mechanisms": {"my_matching": {"kind": "groups", "mode": "matching", "who": "student", "to": "school", "seats": "$it.capacity"}}}
+{"types": {"school": {"agent": true, "props": {"capacity": 2}}}, "entities": {"school": {"type": "school", "count": 2}}, "mechanisms": {"my_matching": {"kind": "groups", "mode": "matching", "who": "student", "to": "school", "seats": "$it.capacity"}}}
 ```

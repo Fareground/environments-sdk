@@ -30,5 +30,5 @@ Actions of the `agreements` op:
 - `cancel` — takes `booking` (needs `booking`): {"agreements": "dining", "action": "cancel", "booking": "$params.booking"}  (cancel with a refund; the waitlist moves up)
 
 ```json
-{"mechanisms": {"my_bookings": {"kind": "agreements", "mode": "bookings", "who": "household", "currency": "cash", "waitlist": true, "patience": 2, "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3, "max_party": 4}}}}}
+{"types": {"household": {"agent": true}, "restaurant": {"agent": true}}, "entities": {"household": {"type": "household", "count": 2}, "bistro": {"type": "restaurant"}}, "mechanisms": {"economy": {"kind": "economy", "mode": "ledger", "who": ["household", "restaurant"], "currencies": {"cash": {"start": 100}}}, "my_bookings": {"kind": "agreements", "mode": "bookings", "who": "household", "currency": "cash", "waitlist": true, "patience": 2, "resources": {"tables": {"provider": "bistro", "capacity": 8, "price": 25, "horizon": 3, "max_party": 4}}}}}
 ```

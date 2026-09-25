@@ -18,5 +18,5 @@ Actions of the `host` op:
 - `write`: {"host": "story", "action": "write"}  (recap the new entries of the record now; generated every N rounds)
 
 ```json
-{"mechanisms": {"my_recap": {"kind": "host", "mode": "recap", "record": "board", "every": 3, "fallback": "extract"}}}
+{"types": {"member": {"agent": true}}, "entities": {"member": {"type": "member", "count": 2}}, "records": {"board": {"fields": {"text": "text"}}}, "actions": {"post": {"by": "member", "params": {"text": {"type": "text"}}, "do": [{"post": "board", "text": "$params.text"}]}}, "mechanisms": {"my_recap": {"kind": "host", "mode": "recap", "record": "board", "every": 3, "fallback": "extract"}}}
 ```
