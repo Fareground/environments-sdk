@@ -4,6 +4,7 @@ much agents read and whether their brief gives them a goal."""
 import json
 from types import SimpleNamespace
 
+import pytest
 from test_author import WORKING, FakeOpenAI, ProviderError, call, edit, tool_replies, write
 from test_author_best import TAVERN
 from test_author_honest import LEMONADE, authored, lemonade
@@ -38,12 +39,13 @@ def test_a_rule_rewritten_to_do_nothing_is_named_and_kept_only_once_confirmed():
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
 
     replies = tool_replies(client)
-    assert "But it removed events.0 (its do now does nothing)" in replies[1]  # and the output it paid, now flat
+    assert "But it removed events.0 (its effects changed nothing in any test run)" in replies[1]  # its output flat
     assert replies[2] == "Revision 2 saved again unchanged: its removals are confirmed, and it is kept."
     assert result.ok and result.kept == 2
     summary = result.summary()
     assert "changed since revision 1, the first that worked: events ~0" in summary
-    assert "REMOVED since revision 1, the first that worked: events.0 (its do now does nothing)" in summary
+    assert "REMOVED since revision 1, the first that worked: events.0 (its effects changed nothing in any test run)" \
+        in summary
 
 
 def test_a_rule_whose_effects_fired_before_and_never_fire_now_does_nothing_however_it_was_rewritten():
@@ -59,7 +61,7 @@ def test_a_rule_whose_effects_fired_before_and_never_fire_now_does_nothing_howev
     itself = lemonade(events=[{**event, "do": [{**event["do"][0], "do": ["$it.earned = $it.earned"]}]}])
     client = FakeOpenAI([write(LEMONADE)], [write(itself)], [])
     assert fg_env.author("A lemonade stand duel.", "openai:m", client=client).kept == 1
-    assert "events.0 (its do now does nothing)" in tool_replies(client)[1]
+    assert "events.0 (its effects changed nothing in any test run)" in tool_replies(client)[1]
 
 
 def test_a_rule_gutted_by_an_arithmetic_identity_changes_nothing_and_counts_as_removed():
@@ -222,13 +224,13 @@ def test_the_guide_tool_reads_from_the_start_when_asked_to_start_before_it():
 
 def test_an_output_zeroed_or_a_view_blanked_counts_as_removed():
     """Gutting a contract without deleting anything is caught too: an output that moved in revision 1's test runs and
-    comes out the same in every one now, and a view cut to almost nothing."""
+    comes out the same in every one now, and a view cut to almost nothing or no longer filled with values."""
     zeroed = lemonade(outputs={**LEMONADE["outputs"], "avg_price": {**LEMONADE["outputs"]["avg_price"],
                                                                      "expr": "$avg(seller, $it.price) * 0"}})
     blanked = lemonade(views={"market": {**LEMONADE["views"]["market"], "show": "."}})
     for gutted, removed in ((zeroed, "outputs.avg_price (came out the same in every test run, where it varied "
                                      "before)"),
-                            (blanked, "views.market.show (cut from")):
+                            (blanked, "views.market (reads the same every time, where its values changed before)")):
         client = FakeOpenAI([write(LEMONADE)], [write(gutted)], [])
         result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
         assert removed in tool_replies(client)[1] and result.kept == 1, tool_replies(client)[1]
@@ -276,3 +278,46 @@ def test_taking_away_a_type_s_score_or_an_action_s_announce_or_when_counts_as_re
                                              "when": "$round > 0"}})
     assert removed_parts(before, LEMONADE) == ["actions.set_price.announce", "actions.set_price.when",
                                                "types.seller.score"]
+
+
+def _scored(**changes):
+    """The lemonade stand, each seller scored by what it earned, with ``changes``."""
+    contract = json.loads(json.dumps(LEMONADE))
+    contract["types"]["seller"]["score"] = {"value": "$it.earned"}
+    contract["brief"]["roles"] = {"seller": "You run a lemonade stand. Your goal: earn more than the other stand."}
+    contract["brief"]["rules"] = ("Each hour both stands set a price at the same time. Forty customers come by and "
+                                  "split between the stands in proportion to how cheap each is, so a lower price wins "
+                                  "more of them but earns less on each cup; what you earn is price times cups sold, "
+                                  "summed over the day.")
+    contract.update(changes)
+    return contract
+
+
+def _gutted(contract, change):
+    gutted = json.loads(json.dumps(contract))
+    change(gutted)
+    return gutted
+
+
+GUTTINGS = {  # audit 13 agentif B2-B5: every one was kept without a word
+    "brief rules deleted": lambda c: c["brief"].pop("rules"),
+    "brief situation deleted": lambda c: c["brief"].pop("situation"),
+    "brief roles deleted": lambda c: c["brief"].pop("roles"),
+    "whole brief deleted": lambda c: c.pop("brief"),
+    "brief rules made generic": lambda c: c["brief"].update(rules="Play as well as you can."),
+    "ends after two rounds": lambda c: c.update(end=[{"name": "early", "when": "$round >= 2"}]),
+    "its stage held once": lambda c: c["stages"][0].update(when="$round == 1"),
+    "score made constant": lambda c: c["types"]["seller"].update(score={"value": "0"}),
+    "view without values": lambda c: c["views"]["market"].update(show="Here is a lemonade stand in the sun."),
+}
+
+
+@pytest.mark.parametrize("name", list(GUTTINGS))
+def test_a_revision_whose_test_runs_behave_less_must_be_confirmed(name):
+    """However a revision guts the environment, its test runs show it: the save names the dimension that collapsed,
+    in full, and the working revision stays kept until the removal is confirmed."""
+    working = _scored()
+    client = FakeOpenAI([write(working)], [write(_gutted(working, GUTTINGS[name]))], [])
+    result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
+    reply = tool_replies(client)[1]
+    assert result.kept == 1 and "But it removed" in reply and "…" not in reply, reply

@@ -146,6 +146,9 @@ class AuthorResult:
     #: What testing the kept revision found: how far its runs got when test time ran out (``untested``), its check's
     #: warnings, and the hosts the SDK's stand-in stubs answered (None when none works).
     tested: Tested | None = None
+    #: What testing the first revision that worked found, which the summary compares the kept one with (None when
+    #: none works).
+    first_tested: Tested | None = None
 
     def summary(self) -> str:
         """What it built — name, agent types, actions, stages, outputs — what changed along the way, what it used, and
@@ -173,7 +176,8 @@ class AuthorResult:
         changed = describe_changes(first, self.contract) if first is not None and self.contract else ""
         if changed:
             lines.append(f"  changed since revision {self.working[0]}, the first that worked: {changed}")
-        removed = removed_parts(first, self.contract) if first is not None and self.contract else []
+        tests = (self.first_tested, self.tested) if self.first_tested and self.tested else None
+        removed = removed_parts(first, self.contract, tests) if first is not None and self.contract else []
         if removed:
             lines.append(f"  REMOVED since revision {self.working[0]}, the first that worked: {', '.join(removed)} — "
                          "check the brief is still met")
@@ -262,7 +266,8 @@ def author(brief: str, model: str, *, client: Any = None, out: str | None = None
         _write(path, contract)
     return AuthorResult(contract, bench.best is not None, bench.problem, stop, bench.writes, messages, usage,
                         round(time.time() - started, 1), path, bench.working, bench.kept,
-                        bench.tests.get(bench.kept) if bench.kept else None)
+                        bench.tests.get(bench.kept) if bench.kept else None,
+                        bench.tests.get(bench.working[0]) if bench.working else None)
 
 
 def _starters() -> str:

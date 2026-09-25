@@ -229,12 +229,13 @@ def test_a_shortened_run_or_an_output_made_constant_must_be_confirmed_and_settin
     shorter = {**LEMONADE, "clock": {**LEMONADE["clock"], "rounds": 1}}
     client = FakeOpenAI([write(LEMONADE)], [write(shorter)], [], [])
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
-    assert result.kept == 1 and "clock.rounds (shortened from" in tool_replies(client)[1]
+    assert result.kept == 1 and "rounds played (every test run now plays at most 1, where one played" \
+        in tool_replies(client)[1]
     output = next(iter(LEMONADE["outputs"]))
     constant = {**LEMONADE, "outputs": {**LEMONADE["outputs"], output: "0"}}
     client = FakeOpenAI([write(LEMONADE)], [write(constant)], [], [])
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
-    assert result.kept == 1 and f"outputs.{output} (now a constant)" in tool_replies(client)[1]
+    assert result.kept == 1 and f"outputs.{output} (came out the same in every test run" in tool_replies(client)[1]
     briefer = {**LEMONADE, "brief": {**LEMONADE.get("brief", {}), "situation": "A hot day."}}
     client = FakeOpenAI([write(LEMONADE)], [write(briefer)], [], [])
     assert "brief " in fg_env.author("A lemonade stand duel.", "openai:m", client=client).summary()

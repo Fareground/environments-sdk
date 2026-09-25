@@ -351,12 +351,13 @@ def test_edit_contract_changes_parts_of_the_saved_contract():
     replies = tool_replies(client)
     assert replies[0] == "No contract saved yet: save one with write_contract first."
     assert replies[2].startswith("Saved revision 2: it works")
+    assert "But it removed brief.rules" in replies[2]  # the rules taken away are a removal to confirm (audit 13 B2)
     assert replies[3] == "edits[0]: clock.nope.deeper: the contract has no clock.nope. Nothing saved."
     assert replies[4].startswith("edits[0]: actions.take.do[9]: actions.take.do has 4 item(s): use an index below 4, "
                                  "or 4 to add one. Nothing saved.")
-    kept = result.contract
-    assert kept["name"] == "Pile" and "east" in kept["entities"] and "rules" not in kept["brief"]
-    assert kept["actions"]["take"]["do"][-1] == "$world.stones -= 0" and WORKING["name"] == "Take the last stone"
+    edited = [write for write in result.writes if isinstance(write, dict)][-1]
+    assert edited["name"] == "Pile" and "east" in edited["entities"] and "rules" not in edited["brief"]
+    assert edited["actions"]["take"]["do"][-1] == "$world.stones -= 0" and WORKING["name"] == "Take the last stone"
 
 
 def test_the_summary_says_when_the_kept_revision_changed_what_the_environment_is():

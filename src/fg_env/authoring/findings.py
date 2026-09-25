@@ -27,21 +27,32 @@ _GOAL = re.compile(r"\b(goals?|aims?|objectives?|purpose|wins?|winn(er|ing)|maxi
 
 class Seen:
     """What the test runs showed beyond their problems: the runs that finished, how much agents read a turn (their
-    brief and update), and the rules whose effects fired and the views shown in any of them."""
+    brief and update), the rules whose effects fired, and each view shown and each agent type's brief — the longest
+    text each rendered, and whether it ever read differently (its template values changed)."""
 
     def __init__(self) -> None:
         self.runs: list[RunResult] = []
         #: ``actions.<name>`` and ``events[<i>]`` whose effects fired (see :attr:`EffectRunner.fired`).
         self.fired: set[str] = set()
-        #: The views some run showed an agent (see :attr:`Perception.rendered`).
-        self.views: set[str] = set()
+        #: view → [longest text it rendered, a text it rendered, whether it rendered another] (see
+        #: :attr:`Perception.rendered`).
+        self.views: dict[str, list[Any]] = {}
+        #: agent type → the same, for the briefs its agents read.
+        self.briefs: dict[str, list[Any]] = {}
         self.turns = self.chars = self.most = 0
         self._lock = threading.Lock()  # simultaneous turns read in parallel
 
-    def read(self, chars: int) -> None:
-        """Count one turn in which an agent read ``chars`` characters."""
+    def read(self, wake: Any) -> None:
+        """Count one turn: what its agent read (its brief and update), and its brief as its type's."""
+        chars = len(wake.brief) + len(wake.update)
         with self._lock:
             self.turns, self.chars, self.most = self.turns + 1, self.chars + chars, max(self.most, chars)
+            _note(self.briefs, wake.type, wake.brief)
+
+    def view(self, name: str, text: str | None) -> None:
+        """A view was shown (its `when` held), rendering ``text`` (None: nothing)."""
+        with self._lock:
+            _note(self.views, name, text or "")
 
     @property
     def prompt(self) -> tuple[int, int]:
@@ -63,6 +74,14 @@ class Seen:
                                f"turns of ~{self.prompt[0]:,} tokens each), a costly run with model agents",
                       "show each agent less: a view that summarises (counts, a few nearest or best) rather than "
                       "listing every entity, or fewer agents woken each round", "warning")]
+
+
+def _note(texts: dict[str, list[Any]], key: str, text: str) -> None:
+    seen = texts.get(key)
+    if seen is None:
+        texts[key] = [len(text), text, False]
+    else:
+        seen[0], seen[2] = max(seen[0], len(text)), seen[2] or text != seen[1]
 
 
 def flat_measures(contract: Contract, runs: list[RunResult], stubbed: bool = False) -> list[Issue]:

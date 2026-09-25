@@ -348,6 +348,16 @@ worlds stay fast, and the package is organised by feature.
     just now, so nothing was found."), as a judge leaves a text unscored and a game master refuses the attempt, and
     a memory ranked by a host ranks by words instead; the diagnostics say `host_unusable`. One web-search outage
     used to fail the whole run (agentif A1).
+  - `fg_env.author` finds a gutted revision by how its test runs behaved, not by how it reads: each working
+    revision's tests record a behaviour profile (rounds played, rules that fired and actions taken, outputs and
+    scores that varied, every view shown and every type's brief with the longest text it rendered and whether its
+    values changed), and a revision whose profile fell on any of them against the kept one must be confirmed like a
+    removal, the save naming the dimension in full. Deleting the brief or a part of it, ending the game early by an
+    `end` or a stage's `when`, a constant score and a view stripped of its values are caught where they were kept;
+    the structural special cases this subsumes (identity rewrites, a shortened `clock.rounds`, an output rewritten
+    to a constant, a view's text cut) are gone. The change summary names each changed setting's fields with both
+    values in full, never cut at 80 characters. `Tested.fired`, `.flat` and `.views` become `Tested.profile`, and
+    `AuthorResult.first_tested` holds the first working revision's (agentif B2-B6).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

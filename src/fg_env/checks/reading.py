@@ -21,16 +21,15 @@ __all__ = ["Reading"]
 
 
 class Reading:
-    """``agent``, reading first each turn (see the module docstring); ``seen`` is told how many characters of brief
-    and update each turn read."""
+    """``agent``, reading first each turn (see the module docstring); ``seen`` is told each turn's wake before the
+    agent plays it (what it reads: its brief and update)."""
 
-    def __init__(self, agent: Any, seen: Callable[[int], None] | None = None) -> None:
+    def __init__(self, agent: Any, seen: Callable[[Wake], None] | None = None) -> None:
         self.agent, self.seen = agent, seen
 
     def __call__(self, wake: Wake) -> None:
-        shown = len(wake.brief) + len(wake.update)
         if self.seen is not None:
-            self.seen(shown)
+            self.seen(wake)
         turn = wake._turn  # read straight from the turn, as its look and inspect tools do, but without their allowance
         with turn.gate:
             for kind, _, args in _reads(turn):

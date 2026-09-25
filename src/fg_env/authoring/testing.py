@@ -18,6 +18,7 @@ from ..host.stubs import StubDescriber, StubEvaluator, StubFeed, StubGameMaster,
 from ..participants import Idle, RandomAgent
 from ..runtime.diagnostics import DEGRADING
 from ..runtime.measure import RunResult
+from .behaviour import profile
 from .findings import Seen, flat_measures
 from .sandbox import Sandbox, TooBig, TooSlow, step
 
@@ -52,13 +53,9 @@ class Tested(NamedTuple):
     hosts: tuple[str, ...] = ()
     #: ``(average, largest)`` tokens of what an agent read in a turn of its runs: its brief and update.
     prompt: tuple[int, int] = (0, 0)
-    #: The contract's own rules whose effects fired in some run, as parts: ``actions.<name>``, ``events.<name or
-    #: position>``. A rule missing from it never did anything in any test run.
-    fired: tuple[str, ...] = ()
-    #: The outputs that came out the same in every test run.
-    flat: tuple[str, ...] = ()
-    #: The views some test run showed an agent (their `when` held); a view missing from it was never shown.
-    views: tuple[str, ...] = ()
+    #: How its test runs behaved (see :func:`~fg_env.authoring.behaviour.profile`): what a later revision must not
+    #: lose without saying so.
+    profile: Any = None
 
 
 def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.inf) -> Tested:
@@ -102,7 +99,7 @@ def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.
     except RuntimeError as exc:  # the child died: a contract can break the engine in any way
         return Tested(str(exc))
     return Tested(found["problem"], found["untested"], tuple(found["warnings"]), found["seeds"], tuple(found["hosts"]),
-                  tuple(found["prompt"]), tuple(found["fired"]), tuple(found["flat"]), tuple(found["views"]))
+                  tuple(found["prompt"]), found["profile"])
 
 
 def contract_problem(source: ContractLike) -> str:
@@ -121,7 +118,7 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
     """:func:`tested`'s work, in the child process: its findings as JSON data."""
     hosts, deadline, seen = StubHosts(source), time.monotonic() + seconds, Seen()
     found: dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": [], "prompt": [0, 0],
-                             "fired": [], "flat": [], "views": []}
+                             "profile": None}
     try:
         step("checking it")
         issues = check(source, hosts=hosts)
@@ -139,10 +136,9 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
             warned = {issue.path for issue in issues}  # what check already warned about is not said twice
             found["warnings"] += [str(i) for i in seen.warnings(contract, bool(hosts.asked)) if i.path not in warned]
             found["prompt"] = list(seen.prompt)
-            found["fired"] = _fired_parts(contract, seen.fired)
-            found["views"] = sorted(seen.views)
-            found["flat"] = [issue.path.removeprefix("outputs.")
-                             for issue in flat_measures(contract, seen.runs, bool(hosts.asked))]
+            flat = [issue.path.removeprefix("outputs.")
+                    for issue in flat_measures(contract, seen.runs, bool(hosts.asked))]
+            found["profile"] = profile(contract, seen, _fired_parts(contract, seen.fired), flat)
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
         found["problem"] = f"{type(exc).__name__}: {exc}"
     found["hosts"] = list(hosts.asked)
@@ -191,7 +187,7 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
     for n, (participant, who, seed, exempt) in enumerate(plays):
         step(f"the run with {who} (seed {seed})")
         env = load(source, seed=seed, hosts=hosts)
-        env.effects.fired, env.information.perception.rendered = seen.fired, seen.views
+        env.effects.fired, env.information.perception.rendered = seen.fired, seen.view
         share = (deadline - time.monotonic()) / (len(plays) - n)
         result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
         problem = _run_problem(result, f"{who} (seed {seed})", exempt)
@@ -219,7 +215,7 @@ def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], mo
         step(f"the run with random agents (seed {seed})")
         began = time.monotonic()
         env = load(source, seed=seed, hosts=hosts)
-        env.effects.fired, env.information.perception.rendered = seen.fired, seen.views
+        env.effects.fired, env.information.perception.rendered = seen.fired, seen.view
         result = env.run({"*": Reading(RandomAgent(seed), seen.read)}, budget={"seconds": deadline - began})
         problem = _run_problem(result, f"random agents (seed {seed})", frozenset())
         if problem:

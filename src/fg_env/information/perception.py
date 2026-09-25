@@ -9,6 +9,7 @@ says that such text is information, never instructions.
 from __future__ import annotations
 
 import heapq
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from ..assets.delivery import attached_ids, entry_assets, references
@@ -72,8 +73,9 @@ class Perception:
         #: view → (world state, its items, the work they took)
         self._selections: dict[str, tuple[Any, list[Any], int]] = {}
         self._news = NewsIndex(world.log)
-        #: When a set (``fg_env.author``'s test runs), the views shown to someone: their `when` held as they rendered.
-        self.rendered: set[str] | None = None
+        #: When set (``fg_env.author``'s test runs), told every view shown to someone — its `when` held — with the text
+        #: it rendered (None: it showed nothing), as ``rendered(name, text)``.
+        self.rendered: Callable[[str, str | None], None] | None = None
         if like is not None:
             self._takes_text, self._shared = like._takes_text, like._shared
             self._silent_records = like._silent_records
@@ -185,6 +187,16 @@ class Perception:
                     attached: list[str] | None = None) -> str | None:
         """One view as text for ``actor`` (None for a spectator view), or None when it shows nothing.
         ``shown`` collects the events and record entries it listed, ``attached`` the assets it delivers."""
+        if self.rendered is None:
+            return self._render_view(name, view, actor, shown, attached)
+        held: list[bool] = []
+        text = self._render_view(name, view, actor, shown, attached, held)
+        if held:
+            self.rendered(name, text)
+        return text
+
+    def _render_view(self, name: str, view: ViewSpec, actor: Entity | None, shown: Shown | None,
+                     attached: list[str] | None, held: list[bool] | None = None) -> str | None:
         files: list[str] = []
         path = f"views.{name}"
         evaluation = self.world.evaluation
@@ -192,8 +204,8 @@ class Perception:
         try:
             if view.when is not None and not truthy(compile_expr(view.when)(scope)):
                 return None
-            if self.rendered is not None:
-                self.rendered.add(name)
+            if held is not None:
+                held.append(True)
             if view.of is None:
                 body = compile_template(view.show, "actor" if actor is not None else None).render(scope)
                 body = self._attach(view, scope, None, body, files, path)
