@@ -225,7 +225,8 @@ def author(brief: str, model: str, *, client: Any = None, out: str | None = None
     ask = _ANSWERERS[provider](client if client is not None else official_client(provider, name), name)
     if out and not Path(out).parent.is_dir():
         raise ValueError(f"out {out!r}: the folder {str(Path(out).parent)!r} does not exist")
-    bench, started = Workbench(), time.time()
+    started = time.time()
+    bench = Workbench(started + limits["seconds"])
     instruction = INSTRUCTION.format(revisions=MAX_REVISIONS, test=TEST_SECONDS, **limits)
     messages: list[Message] = [{"role": "system", "content": guide("authoring")},
                                {"role": "user", "content": brief + instruction + _starters()}]

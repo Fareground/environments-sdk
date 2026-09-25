@@ -195,3 +195,16 @@ def test_the_model_is_offered_the_engine_starters_and_can_start_from_one():
     reply = tool_replies(client)[0]
     assert reply.startswith("Saved revision 1: it works") and '"name": ' in reply
     assert result.ok and result.contract == fg_env.engines.get("negotiation").materialized_source()
+
+
+def test_a_seconds_budget_bounds_the_tool_calls_of_a_reply_and_the_tests_they_start():
+    """One reply saves a slow contract and runs it twice: testing gets only the session's time left, and no tool call
+    starts once it is up. Before, each save and run took its own full minute past the budget."""
+    slow = {**WORKING, "clock": {**WORKING["clock"], "rounds": 90000}, "world": {"stones": 10 ** 9}}
+    client = FakeOpenAI([write(slow), call("run", seed=1), call("run", seed=2)], [])
+
+    started = time.monotonic()
+    result = fg_env.author("A game.", "openai:m", client=client, budget={"seconds": 3})
+
+    assert time.monotonic() - started < 20 and result.stop == "seconds"
+    assert all(reply.startswith("Not done") for reply in tool_replies(client)[1:])

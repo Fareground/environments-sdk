@@ -294,6 +294,9 @@ worlds stay fast, and the package is organised by feature.
   - `fg_env.author` counts a rule as doing something in its test runs only when it changed a value (or ran an
     operation such as a transfer), so a rule gutted by an arithmetic identity (`$world.stones = $world.stones + 0`)
     is named as removed and not kept. Before, it only had to run.
+  - `fg_env.author`'s `seconds` budget holds within a reply: no tool call starts once it is up, and each test, check
+    or run in the child process gets at most the time left. Before, one reply could save and run a slow contract
+    several times, a minute each (a 5-second budget took 113 s).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

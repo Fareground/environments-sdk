@@ -5,8 +5,10 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import re
 import tempfile
+import time
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -200,7 +202,10 @@ class Workbench:
     was saved again to confirm the removal — ``latest`` the latest saved and ``problem`` what is wrong with the last
     write, or why it was not kept ("" when it is kept)."""
 
-    def __init__(self) -> None:
+    def __init__(self, deadline: float = math.inf) -> None:
+        #: When the session's time is up (a ``time.time()``): no tool call starts after it, and each child process
+        #: step is given at most the time left.
+        self.deadline = deadline
         self.path = Path(tempfile.mkdtemp(prefix="fg-author-")) / "contract.json"
         #: The child process the saved contract is tested, checked, run and previewed in.
         self.box = Sandbox()
@@ -231,6 +236,8 @@ class Workbench:
         return len(self.revisions) >= MAX_REVISIONS
 
     def call(self, name: str, arguments: str) -> str:
+        if self._left() <= 0:
+            return f"Not done: the session's time is up, so {name} was not called."
         tool = next((t for t in TOOLS if t["name"] == name), None)
         if tool is None:
             return f"Bad tool call: there is no tool {name!r}; the tools are {', '.join(t['name'] for t in TOOLS)}."
@@ -295,7 +302,7 @@ class Workbench:
         self.path.write_text(json.dumps(data, indent=2))
         content = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
         if content not in self._tested:  # a revision saved before, back again, is not tested again
-            self._tested[content] = tested(str(self.path), self.box)
+            self._tested[content] = tested(str(self.path), self.box, self._left())
         found = self._tested[content]
         self.problem, number = found.problem[:MAX_RESULT], len(self.revisions)
         if self.problem:
@@ -337,15 +344,23 @@ class Workbench:
         return guide(part)[int(start or 0):]
 
     def _in_child(self, name: str, **args: Any) -> str:
-        """The ``name`` tool on the saved contract, in a child process of at most :data:`RUN_SECONDS`."""
+        """The ``name`` tool on the saved contract, in a child process of at most :data:`RUN_SECONDS` (or the session's
+        time left)."""
         if not self.path.exists():
             return "No contract saved yet."
+        seconds = min(RUN_SECONDS, self._left())
         try:
             text: str = self.box.call("fg_env.authoring.workbench:_tool",
-                                      {"name": name, "path": str(self.path), "args": args}, RUN_SECONDS)
+                                      {"name": name, "path": str(self.path), "args": args}, seconds)
         except TooSlow as exc:
+            if seconds < RUN_SECONDS:
+                return f"Not done: the session's time ran out while {name} was going ({exc.step or 'building it'})."
             return f"Too slow: {name} was still going after {RUN_SECONDS:g}s ({exc.step or 'building it'})."
         return text
+
+    def _left(self) -> float:
+        """Seconds left in the session."""
+        return self.deadline - time.time()
 
 
 def _verdict(found: Tested) -> str:

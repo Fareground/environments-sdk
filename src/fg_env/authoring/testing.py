@@ -2,6 +2,7 @@
 process within a time budget (:func:`tested`). Hosts it consults are answered by the SDK's stand-in stubs."""
 from __future__ import annotations
 
+import math
 import os
 import time
 from types import SimpleNamespace
@@ -58,7 +59,7 @@ class Tested(NamedTuple):
     fired: tuple[str, ...] = ()
 
 
-def tested(source: ContractLike, box: Sandbox | None = None) -> Tested:
+def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.inf) -> Tested:
     """What testing the contract finds. Its ``problem`` is what stops it from working, or "": its first check error;
     else that it declares no outputs, or has an agent type with no action; else the first of its test runs — on each
     of :data:`TEST_SEEDS` with random agents and with idle ones (agents that never act), once with agents that choose
@@ -75,15 +76,19 @@ def tested(source: ContractLike, box: Sandbox | None = None) -> Tested:
     share of what is left. A run still going when its share ends has passed the rounds it reached, and ``untested``
     then says how far the runs got; a check or a turn still going when the time is up makes the contract too slow to
     test. Hosts the contract consults are answered by the SDK's stand-in stubs. ``box`` is the child process to use
-    (by default, one of its own)."""
-    request = {"source": _plain(source), "seconds": TEST_SECONDS, "seeds": list(TEST_SEEDS), "most": MOST_SEEDS}
+    (by default, one of its own). ``left``: the seconds its session has left; testing is given no more, and a test the
+    session's end cuts short says so."""
+    seconds = min(TEST_SECONDS, left)
+    request = {"source": _plain(source), "seconds": seconds, "seeds": list(TEST_SEEDS), "most": MOST_SEEDS}
     try:
         if box is None:
             with Sandbox() as own:
-                found = own.call("fg_env.authoring.testing:_test", request, TEST_SECONDS)
+                found = own.call("fg_env.authoring.testing:_test", request, seconds)
         else:
-            found = box.call("fg_env.authoring.testing:_test", request, TEST_SECONDS)
+            found = box.call("fg_env.authoring.testing:_test", request, seconds)
     except TooSlow as exc:
+        if seconds < TEST_SECONDS:
+            return Tested("not tested: the session's time ran out while it was being tested")
         return Tested(f"too slow to test: {exc.step or 'starting'} was still going when the {TEST_SECONDS:g}s test "
                       "budget ran out → make each round cheaper: fewer entities, or views and rules that do not go "
                       "over every entity for every agent (such a view grows with the square of their number)")
