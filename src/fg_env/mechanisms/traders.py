@@ -47,7 +47,7 @@ from .order_book import OrderBookConfig, book_config, cancel_all, heat, place, p
 
 __all__ = ["DEFAULTS", "run_algo"]
 
-#: Default parameters per strategy (overridden by a crowd's ``params``).
+#: Every parameter of each strategy, with its default (a crowd's ``params`` overrides them, and may name no other).
 DEFAULTS: dict[str, dict[str, float]] = {
     "market_maker": {"activity": 1.0, "half_spread_ticks": 2.0, "vol_mult": 0.5, "quote_mult": 1.0,
                      "inventory_mult": 8.0, "layers": 2, "position_mult": 16.0, "impact": 1.0, "toxicity_mult": 2.0},
@@ -59,6 +59,8 @@ DEFAULTS: dict[str, dict[str, float]] = {
               "position_mult": 6.0, "sentiment_sensitivity": 0.35},
     "passive": {"activity": 0.5, "size_mult": 0.3, "position_mult": 8.0, "direction_bias": 0.0, "side_rounds": 1},
 }
+for _params in DEFAULTS.values():  # every strategy may stop out: a loss (in cash) past which it liquidates; 0 never
+    _params["stop_loss"] = 0.0
 #: How far a market maker's reference leans toward the last trade each round, and how much of its toxicity reading
 #: carries over from the round before.
 LAST_WEIGHT, TOXICITY_MEMORY = 0.3, 0.7

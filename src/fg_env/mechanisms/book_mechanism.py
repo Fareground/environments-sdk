@@ -14,10 +14,11 @@ from typing import Any
 
 from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
-from ._common import conserve_invariant, fmt, pct
+from ._common import conserve_invariant, fmt, pct, suggest
 from .book_rules import rules_default
 from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
+from .traders import DEFAULTS
 
 _LABELS = {"market_maker": "Market maker", "momentum": "Momentum trader", "mean_reversion": "Mean reverter",
            "fundamentalist": "Fundamentalist", "noise": "Noise trader", "passive": "Passive flow"}
@@ -178,6 +179,11 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
         raise MechanismError(f"who '{cfg.who}' is not a declared type", f"types: {', '.join(types) or 'none'}", "who")
     if not _is_agent(types, cfg.who):
         raise MechanismError(f"who '{cfg.who}' must be an agent type", "set \"agent\": true on it", "who")
+    for strategy, spec in cfg.crowd.items():
+        unknown = next((key for key in spec.params if key not in DEFAULTS[strategy]), None)
+        if unknown is not None:
+            raise MechanismError(f"'{unknown}' is not a parameter of the {strategy} strategy",
+                                 suggest(unknown, DEFAULTS[strategy]), f"crowd.{strategy}.params.{unknown}")
     p = props_for(name)
     qty_type = "int" if not isinstance(cfg.lot_size, str) and float(cfg.lot_size).is_integer() else "number"
     unit = cfg.instrument or name

@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A crowd's strategy `params` may name only that strategy's parameters (every one, `stop_loss` included, is listed
+    with its default): a misspelt one is an error with a suggestion, not silently ignored.
   - A sealed bid ends the turn only on the auction's own stage; on a declared stage it shares with other mechanisms,
     the turn's shared budget decides, so a bidder may still trade elsewhere in the same turn.
   - A ballot nobody cast or abstained on is not counted: on a stage that repeats, the last result stands instead of

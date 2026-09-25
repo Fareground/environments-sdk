@@ -1128,3 +1128,15 @@ def test_a_number_written_as_text_in_a_config_field_is_refused_where_it_is_writt
     assert [i.severity for i in found] == ["error"] and "write the number without quotes: 45" in str(found[0])
     contract["mechanisms"]["t"]["reserve"] = 45
     assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+
+
+def test_a_misspelt_crowd_strategy_parameter_is_an_error_with_a_suggestion():
+    """A typo in a crowd's params used to be ignored silently (audit 12 mech M4)."""
+    contract = {"name": "Cr", "clock": {"rounds": 2}, "types": {"trader": {"agent": True}},
+                "entities": {"me": {"type": "trader"}},
+                "mechanisms": {"bk": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
+                                      "crowd": {"noise": {"count": 3, "cash": 500, "shares": 10,
+                                                          "params": {"activty": 0.2}}}}}}
+    issues = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    assert [(i.path, i.fix) for i in issues] == [("mechanisms.bk.crowd.noise.params.activty",
+                                                  "did you mean 'activity'?")]
