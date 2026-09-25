@@ -42,7 +42,7 @@ from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_
 from ..expr.objects import Entity, PropsView
 from ..expr.template import compile_template, format_value
 from ..expr.values import _ENTITY_FIELDS, _eq, _Everyone
-from ..information.gate import render
+from ..information.gate import render, viewer_for
 from ..registry import OPS, OpSpec, family_action_hint
 from ..world.abort import Abort
 from ..world.links import Link
@@ -155,7 +155,7 @@ class EffectRunner:
                     raise RunError(str(exc), f"{path}.when") from None
                 self.run(event.do, {"it": entity}, f"{path}.do")
                 if event.say:
-                    text = self.text(event.say, {"it": entity}, EVERYONE)
+                    text = self.text(event.say, {"it": entity}, viewer_for("EventSpec.say"))
                     if text.strip():
                         self.world.emit("news", text, data={"event": event.name or index})
         finally:
@@ -408,21 +408,36 @@ class EffectRunner:
 
     def _name(self, template: str | None, vars: dict[str, Any]) -> str:
         """An entity's name from its template, kept as data: participant text in it stays as typed (and marked, so it
-        renders in «» wherever it is shown)."""
+        renders in «» wherever it is shown). Every agent reads it, so it is worked out for everyone."""
         if not template:
             return ""
-        return compile_template(template, None).text(self.world.evaluation.scope(**vars))
+        return compile_template(template, None).text(
+            self.world.evaluation.scope(**vars, viewer=viewer_for("create.name")))
 
     def expression(self, source: str, vars: dict[str, Any]) -> Any:
         """Work out text that is always an expression (a mechanism's `Expr` field), `$` or not: ``"false"`` is
         false."""
         return compile_expr(source)(self.world.evaluation.scope(**vars))
 
-    def said(self, template: str | None, vars: dict[str, Any], to: Sequence[str] | None) -> str:
-        """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
-        properties may show."""
-        viewer = self.world.entities.get(to[0]) if to is not None and len(to) == 1 else None
-        return self.text(template, vars, viewer or EVERYONE)
+    def said(self, template: str | None, vars: dict[str, Any], to: Sequence[str] | None,
+             field: str = "emit.say") -> str:
+        """Render text sent ``to`` these entity ids (None: everyone) — ``field``'s — in which only its one recipient's
+        private properties may show."""
+        return self.text(template, vars, viewer_for(field, self._addressed(to)))
+
+    def _addressed(self, to: Sequence[str] | None, author: str | None = None, record: str | None = None) -> Any:
+        """Whom what is sent ``to`` these entity ids is worked out for (a field read by whom it is addressed to; see
+        contract/readers.py): its one reader — the recipient, with the author of an entry — whose own private
+        properties it may carry; everyone when several read it; for an entry sent to nobody in particular, everyone
+        when its record shows every entry to every agent, else None: its `visible` rule decides, and game logic
+        reads the true state."""
+        if to is not None:
+            readers = {*to, *([author] if author is not None else [])}
+            return self.world.entities.get(next(iter(readers))) if len(readers) == 1 else EVERYONE
+        if record is None:
+            return EVERYONE
+        spec = self.world.contract.records.get(record)
+        return EVERYONE if spec is not None and spec.visible == "all" else None
 
     _eval = eval
     _text = text
@@ -486,7 +501,7 @@ class EffectRunner:
         made: list[Entity] = []
         for n in range(count):
             inner = {**vars, "i": n + 1}
-            entity_id = self._text(effect.get("id"), inner, None) or None  # the rules' own words: an id and a name
+            entity_id = self._text(effect.get("id"), inner, viewer_for("create.id")) or None  # every agent reads both
             name = self._name(effect.get("name"), inner) or None
             at = self._eval(effect.get("at"), inner)
             made.append(self.world.evaluation.create(effect["create"], entity_id, name, effect.get("props") or {},
@@ -557,32 +572,22 @@ class EffectRunner:
             actor = vars.get("actor")
             author = actor.id if isinstance(actor, Entity) else None
         to = _to_ids(self._eval(effect.get("to"), vars), self.world, where) if "to" in effect else None
-        read = {**vars, "viewer": self._entry_reader(effect["post"], author, to)}
+        read = {**vars, "viewer": viewer_for("post.*", self._addressed(to, author, effect["post"]))}
         fields = {k: _plain_value(self._eval(v, read)) for k, v in effect.items() if k not in POST_KEYS}
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
              {"kind": "post", "record": effect["post"], "fields": fields, "author": author,
               "to": list(to) if to is not None else None}, where)
-
-    def _entry_reader(self, record: str, author: str | None, to: Sequence[str] | None) -> Any:
-        """Who an entry is shown to, as its fields are worked out: its one reader (its author and whom it is sent `to`),
-        whose own private properties it may carry; everyone when several read it; None — game logic reading the true
-        state — when the record's `visible` rule decides."""
-        if to is not None:
-            readers = {*to, *([author] if author is not None else [])}
-            return self.world.entities.get(next(iter(readers))) if len(readers) == 1 else EVERYONE
-        spec = self.world.contract.records.get(record)
-        return EVERYONE if spec is not None and spec.visible == "all" else None
 
     def _op_emit(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         if self._dropped(effect, vars, where):
             return
         to = _to_ids(self._eval(effect.get("to"), vars), self.world, where) if "to" in effect else None
         actor = vars.get("actor")
-        data = self._eval(effect.get("data") or {}, vars)
+        data = self._eval(effect.get("data") or {}, {**vars, "viewer": viewer_for("emit.data", self._addressed(to))})
         if not isinstance(data, dict):
             raise RunError(f"`data` must give an object, got {format_value(data)}", where)
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
-             {"kind": "emit", "event": str(effect["emit"]), "text": self.said(effect.get("say"), vars, to),
+             {"kind": "emit", "event": str(effect["emit"]), "text": self.said(effect.get("say"), vars, to, "emit.say"),
               "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
               "data": {k: _plain_value(v) for k, v in data.items()}}, where)
 
@@ -593,12 +598,12 @@ class EffectRunner:
     def _op_fail(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         # the refusal is text the actor is shown: the rules' $actor, or the agent whose action they run for
         actor = vars.get("actor") if isinstance(vars.get("actor"), Entity) else self.world.luck.here().actor
-        text = self.text(effect["fail"], vars, actor)
+        text = self.text(effect["fail"], vars, viewer_for("fail.fail", actor))
         raise Abort(text or "That is not possible right now.")
 
     def _op_end(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None
-        self.world.request_end(str(effect["end"]), winner, self._text(effect.get("say"), vars, EVERYONE),
+        self.world.request_end(str(effect["end"]), winner, self._text(effect.get("say"), vars, viewer_for("end.say")),
                                f"{where}.winner")
 
     def _op_after(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
@@ -625,7 +630,8 @@ class EffectRunner:
         woken = _to_ids(self._eval(effect["wake"], vars), self.world, where)
         if not woken:
             return
-        why = self.said(effect.get("why"), vars, woken) or "You were asked to act."  # what each woken agent is told
+        # what each woken agent is told
+        why = self.said(effect.get("why"), vars, woken, "wake.why") or "You were asked to act."
         now = self._condition(effect["now"], vars) if "now" in effect else False
         for entity_id in woken:
             if now:

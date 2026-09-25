@@ -52,7 +52,6 @@ class RuleChecks(EffectChecks):
                            f'to tell news per item, emit it in `do`: {{"emit": "news", "say": "…{{${item}.name}}…"}}')
             else:
                 self.template(event.say, f"{path}.say", None, roots, types)
-            self._shared_text(event.say, f"{path}.say", {})
             if event.say or broadcasts(event.do, self.c):
                 self._private_gate(event.when, f"{path}.when", "whether it fired (it sends everyone news)", types)
             if not event.do and not event.say:
@@ -152,14 +151,12 @@ class RuleChecks(EffectChecks):
                           '...}}}')
             self.expr(end.winner, f"end[{index}].winner", BASE)
             self.template(end.say, f"end[{index}].say", None, BASE)
-            self._shared_text(end.say, f"end[{index}].say", {})  # the run's last news, to everyone
             if end.check not in C.END_CHECKS:
                 self.error(f"end[{index}].check", f"unknown check '{end.check}'",
                            self._suggest(end.check, C.END_CHECKS) or ", ".join(C.END_CHECKS))
         for index, invariant in enumerate(self.c.invariants):
             self.condition(invariant.expr, f"invariants[{index}]", BASE)
             self.template(invariant.why or None, f"invariants[{index}].why", None, BASE)
-            self._shared_text(invariant.why, f"invariants[{index}].why", {})  # whose action broke it is not known
             if invariant.check not in C.INVARIANT_CHECKS:
                 self.error(f"invariants[{index}].check", f"unknown check '{invariant.check}'",
                            self._suggest(invariant.check, C.INVARIANT_CHECKS) or ", ".join(C.INVARIANT_CHECKS))

@@ -14,8 +14,8 @@ from ..effects.shapes import READ_ONLY, misshapen
 from ..effects.statements import RESERVED_ROOTS, statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
+from .field_reads import FieldReads
 from .params import check_entity_literals
-from .privacy import PrivacyChecks
 from .roots import ENTITY_FIELDS, merge_types
 from .space import check_sync
 from .state import check_delivery, check_link_fields
@@ -33,7 +33,7 @@ _REMOVED = {("wake", "in"): "a wake that comes later is a `wake` inside an `afte
 _KIND_WORDS = {"number": "a number", "int": "a whole number", "bool": "true or false", "text": "text"}
 
 
-class EffectChecks(PrivacyChecks):
+class EffectChecks(FieldReads):
     """Effect lists and the operations in them (a part of the contract checker)."""
 
     def effects(self, effects: Any, path: str, roots: set[str], types: Types,
@@ -258,6 +258,7 @@ class EffectChecks(PrivacyChecks):
                                _REMOVED.get((op, key)) or self._suggest(key, allowed)
                                or f"`{op}` takes: {', '.join(sorted(allowed))}")
         check_entity_literals(self, op, effect, path)
+        self.effect_reads(op, effect, path, roots, types, params)  # who reads each field (contract/readers.py)
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
             self.condition(effect["if"], f"{path}.if", roots, types, params)
@@ -364,16 +365,9 @@ class EffectChecks(PrivacyChecks):
             for key, raw in effect.items():
                 if key != "post":
                     self.value(raw, f"{path}.{key}", roots, types, params)
-            if spec is not None and spec.visible == "all" and "to" not in effect:  # an entry every agent reads
-                for key in spec.fields:
-                    self._shared_text(effect.get(key), f"{path}.{key}", types, params)
             check_delivery(self, op, effect, path)
         elif op == "emit":
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
-            if "to" not in effect:
-                self._shared_text(effect.get("say"), f"{path}.say", types, params)
-            else:
-                self._said_to(effect.get("say"), effect["to"], f"{path}.say", types)
             v("to")
             v("data")
             v("delay")
@@ -381,12 +375,9 @@ class EffectChecks(PrivacyChecks):
             check_delivery(self, op, effect, path)
         elif op == "fail":
             self.template(effect["fail"], f"{path}.fail", None, roots, types, params)
-            if "actor" in roots:  # the acting agent is told it
-                self._actor_text(effect["fail"], f"{path}.fail", params or {})
         elif op == "end":
             v("winner")
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
-            self._shared_text(effect.get("say"), f"{path}.say", types, params)  # the run's last news, to everyone
         elif op == "after":
             v("after")
             delay = effect["after"]

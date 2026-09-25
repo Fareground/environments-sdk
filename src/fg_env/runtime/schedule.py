@@ -26,6 +26,7 @@ from ..contract import MAX_STAGE_PASSES, StageSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
 from ..expr.objects import Entity
+from ..information.gate import viewer_for
 from ..physics.world import step_physics
 from ..world.build import whole_setting
 from .diagnosis import SealedWrites
@@ -272,7 +273,8 @@ class Schedule:
                     agent.id for agent in self.eligible(stage, ordered=False, who=False) if agent.id not in woken)
             if stage.until is not None:
                 try:
-                    if truthy(compile_expr(stage.until)(world.evaluation.scope())):
+                    until = viewer_for("StageSpec.until", self._woken_learn(stage))
+                    if truthy(compile_expr(stage.until)(world.evaluation.scope(viewer=until))):
                         break
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}.until") from None
@@ -286,7 +288,9 @@ class Schedule:
         if stage.when is None:
             return True
         try:
-            return truthy(compile_expr(stage.when)(self.env.world.evaluation.scope()))
+            # the stage's name opens every update in it: every agent learns whether it was held
+            held = self.env.world.evaluation.scope(viewer=viewer_for("StageSpec.when"))
+            return truthy(compile_expr(stage.when)(held))
         except ExprError as exc:
             raise RunError(str(exc), f"stages.{stage.name}.when") from None
 
@@ -314,7 +318,8 @@ class Schedule:
                 self._shuffle(stage, agents)
             elif stage.order is not None and stage.order != "seat":
                 key = compile_expr(stage.order)  # every agent sees the order: it may read no agent's private property
-                keyed = [(key(world.evaluation.scope(it=a, i=i, viewer=EVERYONE)), i, a) for i, a in enumerate(agents)]
+                seen = viewer_for("StageSpec.order")
+                keyed = [(key(world.evaluation.scope(it=a, i=i, viewer=seen)), i, a) for i, a in enumerate(agents)]
                 keyed.sort(key=lambda t: (t[0], t[1]))
                 agents = [a for _, _, a in keyed]
         except PrivateRead as exc:
@@ -327,12 +332,19 @@ class Schedule:
             raise RunError("`order` must give comparable values (numbers or text)", f"{path}.order") from None
         return agents
 
+    def _woken_learn(self, stage: StageSpec) -> Any:
+        """Who learns whom ``stage`` wakes and how many passes it plays (see contract/readers.py, `WOKEN`): everyone
+        (:data:`EVERYONE`) when it wakes everyone or announces its actions; otherwise only the woken, and it is the
+        rules' (None)."""
+        return EVERYONE if stage.who is None or announces(self.env.contract, stage) else None
+
     def _woken(self, stage: StageSpec, agents: list[Entity], pass_index: int) -> list[Entity]:
         """The ``agents`` that the stage's `who` wakes. Each is decided with luck of its own (the stage, round, pass and
         agent), so who else is alive never shifts it, and asking again (a preview) gives the same answer."""
         world, who = self.env.world, compile_expr(stage.who)
         # When the stage's actions are announced, everyone learns who was woken: `who` reads what everyone may know.
-        shown = {"viewer": EVERYONE} if announces(self.env.contract, stage) else {}
+        seen = viewer_for("StageSpec.who", self._woken_learn(stage))
+        shown = {"viewer": seen} if seen is not None else {}
         woken, chance = [], self.env.state.diagnosis.chance_woken
         for i, agent in enumerate(agents):
             stream = world.luck.seeds.lazy_rng("who", stage.name, world.round, pass_index, agent.id)

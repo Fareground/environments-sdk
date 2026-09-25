@@ -24,6 +24,7 @@ from ..expr import ExprError, compile_expr, truthy
 from ..expr.objects import Entity
 from ..expr.scope import Scope
 from ..expr.template import format_value
+from .gate import viewer_for
 from .schemas import ToolSpec
 from .tool_text import compact_ids, free_reads
 
@@ -64,7 +65,8 @@ def _may_inspect_rule(info: Information, viewer: Entity, target: Entity, rule: A
     if isinstance(rule, bool):
         return rule
     try:
-        here = scope.child(it=target) if scope is not None else info.world.evaluation.scope(viewer=viewer, it=target)
+        here = scope.child(it=target) if scope is not None else info.world.evaluation.scope(
+            viewer=viewer_for("TypeSpec.inspect", viewer), it=target)
         return truthy(compile_expr(rule)(here))
     except ExprError as exc:
         raise RunError(str(exc), f"types.{target.entity_type}.inspect") from None
@@ -73,7 +75,7 @@ def _may_inspect_rule(info: Information, viewer: Entity, target: Entity, rule: A
 def inspectable(info: Information, viewer: Entity) -> list[Entity]:
     """The living entities ``viewer`` may inspect, in the world's order."""
     rules = {kind: inspect_rule(info.contract, kind) for kind in info.contract.types}
-    scope = info.world.evaluation.scope(viewer=viewer)
+    scope = info.world.evaluation.scope(viewer=viewer_for("TypeSpec.inspect", viewer))
     return [entity for entity in _candidates(info, viewer, rules)
             if _may_inspect_rule(info, viewer, entity, rules[entity.entity_type], scope)]
 
@@ -95,7 +97,7 @@ def _candidates(info: Information, viewer: Entity, rules: dict[str, Any]) -> lis
 def _offered(info: Information, viewer: Entity) -> list[Entity]:
     """The inspectable entities worth offering: inspecting them shows more than their name."""
     rules = {kind: inspect_rule(info.contract, kind) for kind in info.contract.types}
-    scope = info.world.evaluation.scope(viewer=viewer)
+    scope = info.world.evaluation.scope(viewer=viewer_for("TypeSpec.inspect", viewer))
     return [entity for entity in _candidates(info, viewer, rules)
             if _may_inspect_rule(info, viewer, entity, rules[entity.entity_type], scope)
             and (entity.location_id is not None or any(True for _ in _shown(info, viewer, entity)))]

@@ -30,6 +30,7 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
 from ..expr.objects import Entity
 from ..expr.template import format_value
+from ..information.gate import viewer_for
 from ..runtime.session import END_TURN
 from ..world.values import plain_value
 
@@ -202,7 +203,7 @@ def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any,
     out = []
     for actor in actors:
         try:
-            add(expr(world.evaluation.scope(actor=actor, viewer=actor)), out)
+            add(expr(world.evaluation.scope(actor=actor, viewer=viewer_for("ParamSpec.values", actor))), out)
         except ExprError:
             return None, "its choices cannot be worked out at the start of the game"
     return _unique(out), ""
@@ -355,7 +356,7 @@ def choices(env: Env, turn: Turn, name: str, pname: str, param: ParamSpec, resol
     path = f"actions.{name}.params.{pname}"
 
     def scope() -> Any:  # built only for a domain that is an expression
-        return world.evaluation.scope(actor=actor, viewer=actor, params=resolved)
+        return world.evaluation.scope(actor=actor, viewer=viewer_for("ParamSpec.values", actor), params=resolved)
 
     try:
         if param.type == "bool":

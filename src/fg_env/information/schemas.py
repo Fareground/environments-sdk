@@ -26,6 +26,7 @@ from ..errors import RunError
 from ..expr import ExprError, is_expr, resolve
 from ..expr.objects import Entity
 from ..world.values import copy_value, plain_value
+from .gate import viewer_for
 from .tool_text import compact_ids, text_limit, usage_limits
 
 if TYPE_CHECKING:
@@ -229,7 +230,8 @@ class ToolSchemas:
             return None
         if _mentions_expr(raw):
             try:
-                raw = resolve(raw, self.actions.world.evaluation.scope(actor=actor, viewer=actor))
+                raw = resolve(raw, self.actions.world.evaluation.scope(
+                    actor=actor, viewer=viewer_for("ParamSpec.default", actor)))
             except ExprError:
                 return None
             if _mentions_expr(raw):

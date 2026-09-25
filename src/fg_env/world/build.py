@@ -21,7 +21,7 @@ from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from ..expr.objects import Entity
-from ..information.gate import render
+from ..information.gate import render, viewer_for
 from ..physics.world import build_physics
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import parse_moment
@@ -54,7 +54,8 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
                 generated += 1
                 continue
             evaluation = world.evaluation
-            name = render(world, named.name, {}, viewer=None) if named.name else entity_id  # a template, as generated
+            name = entity_id if not named.name else render(  # a template, as generated: every agent reads it
+                world, named.name, {}, viewer=viewer_for("EntitySpec.name"), path=f"entities.{entity_id}.name")
             evaluation.create(named.type, entity_id, name, named.props, _placed(world, entity_id, named.at, {}),
                               evaluation.scope(), f"entities.{entity_id}")
             if named.brief:
@@ -68,7 +69,8 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
         # Briefs render once the whole world exists, so they can count and read everything.
         for entity_id, template, vars, path in pending_briefs:
             actor = world.entities[entity_id]
-            world.entity_briefs[entity_id] = render(world, template, {"actor": actor, **vars}, viewer=actor,
+            world.entity_briefs[entity_id] = render(world, template, {"actor": actor, **vars},
+                                                    viewer=viewer_for("EntitySpec.brief", actor),
                                                     subject="actor", path=path).strip()
         _build_hooks(world)
     except ExprError as exc:
@@ -224,14 +226,14 @@ def _generate(world: World, key: str, spec: EntitySpec, ordinal: int,
     for n, row in enumerate(rows, start=1):
         vars = {"i": n, "row": row}
         scope = world.evaluation.scope(**vars)
-        if spec.id:  # generated ids and names are world data: the rules' own words
-            entity_id = render(world, spec.id, vars, viewer=None)
+        if spec.id:  # a generated id and name are text every agent reads
+            entity_id = render(world, spec.id, vars, viewer=viewer_for("EntitySpec.id"), path=f"{path}.id")
         elif isinstance(row, dict) and isinstance(row.get("id"), str):
             entity_id = row["id"]
         else:
             entity_id = f"{key}_{n}"
         if spec.name:
-            name = render(world, spec.name, vars, viewer=None)
+            name = render(world, spec.name, vars, viewer=viewer_for("EntitySpec.name"), path=f"{path}.name")
         elif isinstance(row, dict) and isinstance(row.get("name"), str):
             name = row["name"]
         else:

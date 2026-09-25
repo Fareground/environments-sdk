@@ -14,14 +14,19 @@ every caller says whom it renders for:
 :class:`~fg_env.information.core.Information` renders for a run through :meth:`~.core.Information.render`; the parts
 built before it or beneath it — the world's builder, effects, the action book, mechanisms — call :func:`render` with
 their world.
+
+Whom a field is rendered or worked out for comes from one table (``contract/readers.py``), the one the privacy check
+reads too: :func:`viewer_for` gives the ``$viewer`` a field's reader class binds, so the run and the check cannot
+disagree about a field.
 """
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
+from ..contract.readers import Reader, reader_of
 from ..errors import RunError
-from ..expr import ExprError
+from ..expr import EVERYONE, ExprError
 from ..expr.template import compile_template
 
 if TYPE_CHECKING:
@@ -29,7 +34,7 @@ if TYPE_CHECKING:
     from ..expr.values import _Everyone
     from ..world.store import World
 
-__all__ = ["render"]
+__all__ = ["render", "viewer_for"]
 
 
 def render(world: World, template: str, vars: Mapping[str, Any], *, viewer: Entity | _Everyone | None,
@@ -44,3 +49,16 @@ def render(world: World, template: str, vars: Mapping[str, Any], *, viewer: Enti
         return compile_template(template, subject).render(scope)
     except ExprError as exc:
         raise RunError(str(exc), path) from None
+
+
+def viewer_for(field: str, reader: Entity | _Everyone | None = None) -> Entity | _Everyone | None:
+    """The ``$viewer`` ``field`` is worked out for (``Model.field`` or ``op.field``; see contract/readers.py): game
+    logic's None for the rules' fields, :data:`~fg_env.expr.EVERYONE` for what several are sent or learn from, and
+    ``reader`` for the fields whose reader the caller knows — the one agent shown it, or (a message, a stage's passes)
+    whoever it reaches as the caller resolves it."""
+    kind = reader_of(field)
+    if kind is Reader.RULES or kind is Reader.WORDS:
+        return None
+    if kind is Reader.SEVERAL:
+        return EVERYONE
+    return reader

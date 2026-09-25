@@ -18,7 +18,6 @@ from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import (
     EVAL_BUDGET,
-    EVERYONE,
     ExprError,
     PrivateRead,
     Scope,
@@ -30,7 +29,7 @@ from ..expr import (
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..information.announce import Redaction, notified_since
-from ..information.gate import render
+from ..information.gate import render, viewer_for
 from ..information.schemas import _ENUM_CHOICES
 from ..world.abort import Abort
 from ..world.randomness import LuckAhead
@@ -178,7 +177,8 @@ class ActionBook:
             if offered and observed.read_hidden:
                 continue
             # the why is a template, like a `fail` text: text the actor is shown
-            why = render(self.world, condition.why, vars, viewer=actor, path=f"{path}.why") if condition.why else ""
+            why = render(self.world, condition.why, vars, viewer=viewer_for("Condition.why", actor),
+                         path=f"{path}.why") if condition.why else ""
             return (why or "its requirements are not met").rstrip(". ")
         return None
 
@@ -200,7 +200,8 @@ class ActionBook:
         if "params" in expr.roots:
             return None
         try:
-            return expr(self.world.evaluation.scope(actor=actor, viewer=actor))
+            field = f"ParamSpec.{where.rsplit('.', 1)[-1]}"  # the bound's own field: read as the actor sees it
+            return expr(self.world.evaluation.scope(actor=actor, viewer=viewer_for(field, actor)))
         except PrivateRead as exc:
             raise RunError(str(exc), where) from None
         except ExprError:
@@ -242,7 +243,8 @@ class ActionBook:
                     params: dict[str, Any] | None, first: bool) -> list[Entity]:
         """The ``items`` the `where` ``expr`` picks, read as the actor sees them."""
         out = []
-        base = self.world.evaluation.scope(actor=actor, viewer=actor, params=params or {})
+        viewer = viewer_for("ParamSpec.where", actor)
+        base = self.world.evaluation.scope(actor=actor, viewer=viewer, params=params or {})
         ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
         for position, item in enumerate(items):
             if ruled_out is not None and ruled_out(item):
@@ -329,19 +331,21 @@ class ActionBook:
         record_mark = world.record_seq
         try:
             self.effects.run(spec.do, vars, f"{path}.do")
-            text = render(world, spec.outcome, vars, viewer=actor, path=f"{path}.outcome") if spec.outcome else \
+            text = render(world, spec.outcome, vars, viewer=viewer_for("ActionSpec.outcome", actor),
+                          path=f"{path}.outcome") if spec.outcome else \
                 "" if trial else self.default_outcome(name, params)
-            assets = attached_ids(world, spec.attach, world.evaluation.scope(**vars), f"{path}.attach") \
-                if spec.attach else []
+            assets = attached_ids(world, spec.attach, world.evaluation.scope(
+                **vars, viewer=viewer_for("ActionSpec.attach", actor)), f"{path}.attach") if spec.attach else []
             announce = spec.announce
             shared = {**vars, "params": self.redaction.shared(name, params)}  # what text sent to several reads
             if trial:
                 if isinstance(announce, str):
-                    render(world, announce, shared, viewer=EVERYONE, path=f"{path}.announce")
+                    render(world, announce, shared, viewer=viewer_for("ActionSpec.announce"), path=f"{path}.announce")
             elif announce is not False:
                 public = self.redaction.public_params(world, name, params, record_mark)
                 if announce is not None:
-                    line = render(world, announce, shared, viewer=EVERYONE, path=f"{path}.announce")
+                    line = render(world, announce, shared, viewer=viewer_for("ActionSpec.announce"),
+                                  path=f"{path}.announce")
                 elif notified_since(world, log_mark):
                     line = ""  # the posted entry itself is the news
                 else:
@@ -374,7 +378,8 @@ class ActionBook:
         if isinstance(terminal, bool):
             return terminal
         try:
-            return truthy(compile_expr(terminal)(self.world.evaluation.scope(actor=actor, viewer=actor, params=params)))
+            return truthy(compile_expr(terminal)(self.world.evaluation.scope(
+                actor=actor, viewer=viewer_for("ActionSpec.terminal", actor), params=params)))
         except ExprError as exc:
             raise RunError(str(exc), f"actions.{name}.terminal") from None
 

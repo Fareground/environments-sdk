@@ -263,6 +263,24 @@ worlds stay fast, and the package is organised by feature.
     entries and game logic the record's latest, and the store keeps an entry while some reader's window holds it.
     Whispers between others no longer push a reader's own entries out of its view, which told it how many it could
     not see (M4). A record every agent sees in full keeps exactly its latest entries, as before.
+  - **One table of who reads each field** (`fg_env.contract.readers`): every contract field and every field of every
+    core effect is listed once with its reader — the rules, one agent, several agents, whom it is sent to, whom a stage
+    wakes — and both `check` and the run's gate read it, so they cannot disagree about a field; a test fails on a field
+    added without a reader, and another puts a hidden read in every field and holds the check and the run to agree.
+    What it fixed: an `emit`'s `data` is held to its readers like a post's fields (sent to several, it may read no
+    private value: a check error and a run-time refusal) (H2); an entity's `name` and `id`, as built and as `create`
+    makes them, are text every agent reads (H3); a brief's `situation`, `roles` and `attach`, an emit's `say` sent to
+    one agent, a policy's rules, a stage's `order`, an action's `attach` and a record's `show` and `visible` are
+    checked as what their readers are shown (M2); text sent to several may not read a def worked out from private
+    properties; a stage's `when`, `order`, `until` and `passes` are worked out for everyone at run time, as the check
+    always said.
+  - A read of a listed item's private property counts as the reader's own exactly where a test that the item is its
+    own must have held — after it in an `and`, after its negation in an `or`, in the branch of an `if` it decides —
+    and the same rule covers a view's `where`/`show`/`sort`, an entity choice's `where` (which skipped it for types
+    with an owner) and an inspect rule, and the items of a per-item function (`$sum(player, $it.cash)` in an outcome,
+    `$any([$it], …)` in a `where`) anywhere one agent is shown. `check` now reports what the run refused and accepts
+    what the run allows, such as `($it.floor if $it.seller == $actor.id else 0) > 3` (M1). The hidden-roles recipe's
+    day stage no longer reads the roles to decide whether it is held (the end conditions already stop the run).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

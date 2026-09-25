@@ -18,7 +18,7 @@ from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
 from .syntax_hints import syntax_message
 
-__all__ = ["Expr", "call_roots", "compile_expr", "item_conditions"]
+__all__ = ["Expr", "call_roots", "compile_expr", "item_conditions", "syntax_tree", "ROOT_PREFIX", "FUNC_PREFIX"]
 
 _MAX_SOURCE = 8_192
 _MAX_NODES = 2_048
@@ -315,6 +315,21 @@ def call_roots(source: str) -> tuple[tuple[str, tuple[str | None, ...]], ...]:
                  for node in ast.walk(tree)
                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
                  and node.func.id.startswith(_FUNC_PREFIX))
+
+
+#: How :func:`syntax_tree` spells a root (``$actor`` → ``__r_actor``) and a function (``$count(`` → ``__f_count(``).
+ROOT_PREFIX, FUNC_PREFIX = _ROOT_PREFIX, _FUNC_PREFIX
+
+
+@lru_cache(maxsize=1_024)
+def syntax_tree(source: str) -> ast.expr:
+    """The expression's parsed tree, for reading what it reads where (a root is a name spelled with
+    :data:`ROOT_PREFIX`, a function call's name with :data:`FUNC_PREFIX`). An invalid expression raises as
+    :func:`compile_expr` does. The tree is shared: read it, never change it."""
+    compile_expr(source)
+    tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
+    _restore_words(list(ast.walk(tree)))
+    return tree.body
 
 
 def _restore_words(nodes: list[ast.AST]) -> None:

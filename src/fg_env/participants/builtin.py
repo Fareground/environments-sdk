@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING, Any
 from ..effects.runner import each_items
 from ..errors import ContractError, Issue, RunError
 from ..expr import ExprError, compile_expr, resolve, truthy
+from ..information.gate import viewer_for
 from ..runtime.facts import PolicyRule
 from ..runtime.session import Wake
 from ..sampling.probability import is_probability
@@ -178,7 +179,8 @@ class PolicyAgent:
             acted = False
             for index, rule in enumerate(spec.rules):
                 path = f"{base}.rules[{index}]"
-                scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=turn.actor)
+                viewer = viewer_for("PolicyRule.when", turn.actor)  # a policy reads what its agent may know
+                scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=viewer)
                 if rule.each is None:
                     outcome = self._try(wake, spec, base, index, scope, rng)
                     if outcome == "passed":
@@ -272,7 +274,7 @@ class PolicyAgent:
         """Evaluate each rule after ``index`` whose action is legal now, as a turn would reach it — `when`, then
         `chance` and `with` if it holds — for the first of its `each` items. Nothing acts, and draws come from a stream
         of their own."""
-        scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=turn.actor)
+        scope = turn.env.world.evaluation.scope(actor=turn.actor, viewer=viewer_for("PolicyRule.when", turn.actor))
         with turn.gate:
             legal = set(turn._legal()) | {"pass"}
         with turn.env.world.luck.using(random.Random(0)):

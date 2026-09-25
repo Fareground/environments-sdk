@@ -24,6 +24,7 @@ from ..world.parts import Entry, LogEvent
 from ..world.randomness import LuckAhead
 from ..world.record_index import author_only
 from ..world.store import World
+from .gate import viewer_for
 from .news_index import NewsIndex
 
 if TYPE_CHECKING:
@@ -92,7 +93,7 @@ class Perception:
     def brief(self, actor: Entity, attached: list[str] | None = None) -> str:
         """``actor``'s brief; the assets it attaches are added to ``attached``."""
         c = self.contract
-        scope = self.world.evaluation.scope(actor=actor, viewer=actor)
+        scope = self.world.evaluation.scope(actor=actor, viewer=viewer_for("Brief.situation", actor))
 
         def text(template: str, path: str) -> str:
             try:
@@ -200,7 +201,8 @@ class Perception:
         files: list[str] = []
         path = f"views.{name}"
         evaluation = self.world.evaluation
-        scope = evaluation.scope(actor=actor, viewer=actor) if actor is not None else evaluation.scope()
+        scope = evaluation.scope(actor=actor, viewer=viewer_for("ViewSpec.show", actor)) if actor is not None \
+            else evaluation.scope()
         try:
             if view.when is not None and not truthy(compile_expr(view.when)(scope)):
                 return None
@@ -325,7 +327,8 @@ class Perception:
 
     def _render(self, template: str, actor: Entity, path: str) -> str:
         try:
-            return compile_template(template, "actor").render(self.world.evaluation.scope(actor=actor, viewer=actor))
+            return compile_template(template, "actor").render(
+                self.world.evaluation.scope(actor=actor, viewer=viewer_for("StageSpec.brief", actor)))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
 
@@ -431,7 +434,7 @@ class Perception:
         if "seq" in template:  # numbered as the reader sees the record (only worked out when shown)
             entry = self.world.evaluation.entry_as_read(name, entry, actor)
         try:
-            scope = self.world.evaluation.scope(actor=actor, viewer=actor, it=entry)
+            scope = self.world.evaluation.scope(actor=actor, viewer=viewer_for("RecordSpec.show", actor), it=entry)
             body = compile_template(template, "it").render(scope)
         except ExprError as exc:
             raise RunError(str(exc), f"records.{name}.show") from None

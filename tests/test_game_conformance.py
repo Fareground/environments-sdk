@@ -63,7 +63,8 @@ def test_a_hidden_card_only_its_owner_reads_is_no_leak_and_one_shown_to_all_is_r
 
 def test_a_view_that_reads_the_other_players_private_hand_is_refused_by_the_engine():
     peeking = load_game("goofspiel")
-    peeking["views"]["table"]["show"] = "Prize: {$world.prize}. Their cards: {$join($other($actor).hand, ' ')}."
+    their = "$join($get($other($actor), 'hand'), ' ')"  # spelled so only the engine can see whose hand it reads
+    peeking["views"]["table"]["show"] = f"Prize: {{$world.prize}}. Their cards: {{{their}}}."
     report = fg_env.rl.conformance(peeking, sims=4, resume=False, leak_branches=4)
     assert any("B's hand is private" in issue.message for issue in report.issues), report.summary()
 

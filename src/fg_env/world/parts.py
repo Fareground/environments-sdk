@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ..contract import Contract
     from .store import World
 
-__all__ = ["Entry", "LogEvent", "PhysicsView", "ClockView", "private_metrics"]
+__all__ = ["Entry", "LogEvent", "PhysicsView", "ClockView", "private_metrics", "private_defs"]
 
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 
@@ -22,19 +22,31 @@ def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[st
     output it reads — names one (``private``, the names agent types keep private). Read by name, so an output that
     only might read one counts too: showing it to agents is refused, and an output that must be shown reads no
     private name."""
+    sampled = {name: spec.sampled or "" for name, spec in contract.series_outputs().items()}
+    return _worked_out_from(contract, sampled, private) & frozenset(sampled)
+
+
+def private_defs(contract: Contract, private: frozenset[str]) -> frozenset[str]:
+    """The expression defs worked out from private properties: those whose body — or a def it reads — names one
+    (read by name, as :func:`private_metrics` reads outputs)."""
+    return _worked_out_from(contract, {}, private) & frozenset(contract.expr_defs())
+
+
+def _worked_out_from(contract: Contract, texts: dict[str, str], private: frozenset[str]) -> frozenset[str]:
+    """Of ``texts`` (name → expression) and the contract's expression defs, those that name one of ``private`` or,
+    in turn, one of them."""
     if not private:
         return frozenset()
-    sampled = {name: spec.sampled or "" for name, spec in contract.series_outputs().items()}
-    texts = dict(sampled)
+    texts = dict(texts)
     texts.update({name: spec.expr or "" for name, spec in contract.expr_defs().items() if name not in texts})
     names = {name: set(_NAME.findall(text)) for name, text in texts.items()}
     hidden = {name for name, found in names.items() if found & private}
     grown = True
-    while grown:  # an output or def reading one that is worked out from private properties is too
+    while grown:  # one reading one that is worked out from private properties is too
         more = {name for name, found in names.items() if name not in hidden and found & hidden}
         hidden |= more
         grown = bool(more)
-    return frozenset(hidden & set(sampled))
+    return frozenset(hidden)
 
 
 class Entry(dict):

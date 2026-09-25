@@ -61,11 +61,12 @@ def with_(**parts):
 def test_a_view_cannot_show_or_sort_by_anothers_private_property_whatever_its_where():
     with pytest.raises(fg_env.ContractError, match="views.leak.where: reads private cash of player before picking"):
         play(with_(views={"leak": {"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"}}))
-    result, seen = play(with_(views={"leak": {"of": "player", "sort": "$it.cash", "show": "{$it.name}",
-                                              "where": "true"}}))
+    sorted_ = with_(views={"leak": {"of": "player", "sort": "$it.cash", "show": "{$it.name}", "where": "true"}})
+    with pytest.raises(fg_env.ContractError, match="views.leak.show: shows .* private cash of every player"):
+        play(sorted_)  # the check sees it too (audit 14 M1)
+    result = Env(parse_contract(sorted_), {}, 1).run(lambda wake: (wake.update, wake.end()))  # the run refuses it
     assert result.status == "failed" and "bob's cash is private" in result.error
-    assert "update" not in seen
-    with pytest.raises(fg_env.ContractError, match="views.leak.show: reads private cash of every player"):
+    with pytest.raises(fg_env.ContractError, match="views.leak.show: reads private cash of an item that may not be"):
         play(with_(views={"leak": {"show": "top: {$best(player, $it.cash, 'random').name}"}}))
 
 
@@ -146,7 +147,7 @@ def test_a_stepped_game_and_its_clones_enforce_it_too():
     from fg_env.game import game
 
     c = contract()
-    c["views"] = {"leak": {"show": "Bob holds {$entity('bob').cash}."}}
+    c["views"] = {"leak": {"show": "Bob holds {$get($entity('bob'), 'cash')}."}}  # a read the check cannot follow
     state = game(c).new_initial_state()
     for seat in (state, state.clone()):
         with pytest.raises(fg_env.RunError, match="bob's cash is private"):
@@ -233,9 +234,11 @@ def test_bounds_and_outcomes_reading_a_chosen_agents_private_property_are_check_
 def test_choices_worked_out_from_anothers_private_property_fail_loudly_not_as_an_empty_schema():
     c = with_(actions={"guess": {"by": "player", "do": [], "params": {
         "x": {"type": "enum", "values": "$map(player, $it.cash)"}}}})
-    result, seen = play(c)
+    assert any(i.severity == "error" and i.path == "actions.guess.params.x.values" and "cash of an item" in i.message
+               for i in fg_env.check(c, rounds=0))  # each item may be another's (audit 14 M1)
+    result = Env(parse_contract(c), {}, 1).run()  # the run refuses it too
     assert result.status == "failed" and "actions.guess.params.x.values" in result.error
-    assert "bob's cash is private" in result.error and "tools" not in seen
+    assert "bob's cash is private" in result.error
 
 
 def test_an_inspectable_agent_type_with_a_secret_subtype_is_a_warning():
@@ -259,15 +262,16 @@ def _secrets(**extra):
     return c
 
 
-@pytest.mark.parametrize("extra, path", [
-    ({"brief": {"roles": {"p": "Ann holds {$entity(ann).secret}."}}}, "brief.roles.p"),
-    ({"stages": [{"name": "s", "brief": "Ann holds {$entity(ann).secret}."}]}, "stages.s.brief"),
+@pytest.mark.parametrize("extra, path, field", [
+    ({"brief": {"roles": {"p": "Ann holds {$entity(ann).secret}."}}}, "brief.roles.p", "brief.roles.p"),
+    ({"stages": [{"name": "s", "brief": "Ann holds {$entity(ann).secret}."}]}, "stages.s.brief", "stages[0].brief"),
     ({"records": {"log": {"fields": {"n": "int"}, "show": "Ann holds {$entity(ann).secret}"}},
-      "events": [{"phase": "start", "do": [{"post": "log", "n": 1}]}]}, "records.log.show"),
+      "events": [{"phase": "start", "do": [{"post": "log", "n": 1}]}]}, "records.log.show", "records.log.show"),
 ])
-def test_a_brief_or_record_line_naming_another_agents_private_property_is_refused(extra, path):
+def test_a_brief_or_record_line_naming_another_agents_private_property_is_refused(extra, path, field):
     c = _secrets(**extra)
-    assert any(i.severity == "error" and "ann's secret is private" in i.message for i in fg_env.check(c))
+    assert any(i.severity == "error" and i.path == field and "$entity(…).secret" in i.message
+               for i in fg_env.check(c, rounds=0))
     seen = []
 
     def participant(wake):
@@ -275,7 +279,7 @@ def test_a_brief_or_record_line_naming_another_agents_private_property_is_refuse
             seen.append(wake.brief + wake.update)
         wake.end()
 
-    result = fg_env.load(c, seed=1).run(participant)
+    result = Env(parse_contract(c), {}, 1).run(participant)  # the run refuses it too
     assert result.status == "failed" and path in result.error
     assert not any("4242" in text for text in seen)  # bob never reads ann's secret
 
@@ -327,8 +331,8 @@ def test_a_series_output_worked_out_from_a_private_property_is_not_shown_to_agen
 
 def test_turn_order_cannot_rank_agents_by_a_private_property():
     c = _secrets(stages=[{"name": "s", "order": "-$it.secret"}])
-    assert any(i.severity == "error" and i.path == "stages.s.order" and "ann's secret is private" in i.message
-               for i in fg_env.check(c))
+    assert any(i.severity == "error" and i.path == "stages[0].order" and "$it.secret" in i.message
+               for i in fg_env.check(c, rounds=0))
     result = Env(parse_contract(c), {}, 1).run()
     assert result.status == "failed" and "stages.s.order" in result.error
 

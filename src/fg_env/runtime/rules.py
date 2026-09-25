@@ -25,8 +25,9 @@ from ..actions.faults import LogicRefused, fault_reason, world_logic_refused
 from ..contract import Contract, StageSpec
 from ..effects.runner import EffectRunner
 from ..errors import FatalRunError, InvariantViolation, RunError
-from ..expr import EVERYONE, ExprError, compile_expr, item_conditions, shared_budget, truthy
+from ..expr import ExprError, compile_expr, item_conditions, shared_budget, truthy
 from ..expr.objects import Entity
+from ..information.gate import viewer_for
 from ..world.abort import Abort, OutOfBounds
 from .events import Events
 from .facts import Faulted
@@ -193,7 +194,7 @@ class Rules:
             if not holds:
                 # told to the agent whose action broke it, so it may read no agent's private property (whose action
                 # it is, the invariant does not know)
-                why = self.information.render(invariant.why, {}, viewer=EVERYONE,
+                why = self.information.render(invariant.why, {}, viewer=viewer_for("InvariantSpec.why"),
                                               path=f"invariants[{index}].why") if invariant.why else ""
                 raise InvariantViolation(f"invariant `{invariant.expr}` no longer holds after {path}"
                                          f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
@@ -235,7 +236,8 @@ class Rules:
                 if not truthy(compile_expr(end.when)(scope)):
                     continue
                 winner = compile_expr(end.winner)(scope) if end.winner else None
-                text = self.information.render(end.say, {}, viewer=EVERYONE) if end.say else ""  # the run's last news
+                # the run's last news
+                text = self.information.render(end.say, {}, viewer=viewer_for("EndSpec.say")) if end.say else ""
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
             world.request_end(end.name or f"end_{index}", winner, text, f"{path}.winner")
@@ -290,7 +292,8 @@ class Rules:
                 try:
                     if truthy(compile_expr(condition.expr)(scope)):
                         continue
-                    why = self.information.render(condition.why, vars, viewer=actor) if condition.why else ""
+                    why = self.information.render(condition.why, vars, viewer=viewer_for("Condition.why", actor)) \
+                        if condition.why else ""
                 except ExprError as exc:
                     raise RunError(str(exc), f"{path}[{index}]") from None
                 return str(why).strip().rstrip(".") or "this turn is not allowed"

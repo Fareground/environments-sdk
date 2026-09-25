@@ -40,7 +40,7 @@ def test_the_owner_reads_its_own_and_no_where_widens_it_to_anothers():
     assert "ann: 111" in mine.preview("ann")["update"] and "222" not in mine.preview("ann")["update"]
     for where in ("$it.holder != $actor.id", "$it.holder == $actor.id or true", "true", "$it.secret > 0"):
         contract = _vaults(where)
-        assert any("v2's secret is private" in issue.message or "reads private secret of vault" in issue.message
+        assert any("v2's secret is private" in issue.message or "private secret of" in issue.message
                    for issue in _errors(contract)), where
         env = fg_env.Env(fg_env.checks.parse_contract(contract), {}, 1)
         with pytest.raises(fg_env.RunError, match="v2's secret is private"):
@@ -92,9 +92,10 @@ def test_a_chair_only_score_reaches_the_chair_and_the_reviewer_but_never_the_pap
     leak = copy.deepcopy(contract)
     leak["views"]["mine"] = {"for": "author", "of": "review", "where": "$it.paper_author == $actor.id",
                              "show": "score {score}"}
-    assert any("r1's score is private" in issue.message for issue in _errors(leak))
+    assert any("private score of every review" in issue.message for issue in _errors(leak))
     stated = copy.deepcopy(leak)  # unless the contract makes the paper's author the review's owner
     stated["types"]["review"]["owner"] = "paper_author"
+    del stated["views"]["scored"]  # the reviewer owns it no longer: its view would read another's (audit 14 M1)
     assert "score 3" in fg_env.load(stated, seed=1).preview("au")["update"]
 
 

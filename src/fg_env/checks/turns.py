@@ -21,7 +21,6 @@ def check_stage_turns(checker: PrivacyChecks, stage: C.StageSpec, path: str, bas
         where = f"{path}.valid[{index}]"
         checker.condition(condition.expr, where, base | {"actor"}, agents)
         checker.template(condition.why or None, f"{where}.why", None, base | {"actor"}, agents)
-        checker._actor_text(condition.why, f"{where}.why", {})  # the acting agent is told it
     if stage.valid and stage.actions == []:
         checker.warn(f"{path}.valid", "the stage wakes nobody, so there is no turn to check")
 

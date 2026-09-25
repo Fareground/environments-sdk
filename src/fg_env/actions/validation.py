@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import ExprError, Scope, Untrusted, compile_expr, is_expr, nested_free, truthy
 from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..information.gate import render
+from ..information.gate import render, viewer_for
 from ..world.values import plain_value
 from .params import (
     _LISTED_UNKNOWN,
@@ -74,8 +74,8 @@ class ActionValidation:
             if raw is None:
                 if param.default is not None:
                     try:
-                        raw = compile_expr(param.default)(
-                            self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
+                        raw = compile_expr(param.default)(self.world.evaluation.scope(
+                            actor=actor, viewer=viewer_for("ParamSpec.default", actor), params=params)) \
                             if is_expr(param.default) else param.default
                     except ExprError as exc:
                         if failed:
@@ -98,7 +98,8 @@ class ActionValidation:
             if problem and param.invalid:
                 shown = Untrusted(raw) if isinstance(raw, str) else raw
                 problem = render(self.world, param.invalid, {"actor": actor, "params": params, "value": shown},
-                                 viewer=actor, path=f"actions.{name}.params.{pname}.invalid")
+                                 viewer=viewer_for("ParamSpec.invalid", actor),
+                                 path=f"actions.{name}.params.{pname}.invalid")
                 problems.append(problem.rstrip("."))
             elif problem:
                 problems.append(f"{pname} {problem}")
@@ -134,7 +135,8 @@ class ActionValidation:
                     continue
                 try:
                     if is_expr(bound):
-                        scope = scope or self.world.evaluation.scope(actor=actor, viewer=actor, params=params)
+                        scope = scope or self.world.evaluation.scope(
+                            actor=actor, viewer=viewer_for(f"ParamSpec.{key}", actor), params=params)
                         limit = compile_expr(bound)(scope)
                     else:
                         limit = bound
@@ -147,8 +149,8 @@ class ActionValidation:
                     stated = int(limit) if kind == "int" and float(limit).is_integer() else limit  # 10, not 10.0
                     return None, f"must be {label} {preview(stated)} (got {preview(value)})"
             if param.step is not None:
-                base = compile_expr(param.min)(
-                    scope or self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
+                base = compile_expr(param.min)(scope or self.world.evaluation.scope(
+                    actor=actor, viewer=viewer_for("ParamSpec.min", actor), params=params)) \
                     if is_expr(param.min) else param.min
                 offset = (value - (base or 0)) / param.step
                 if abs(offset - round(offset)) > STEP_TOLERANCE:
@@ -211,7 +213,8 @@ class ActionValidation:
         values = param.values
         if isinstance(values, str):
             try:
-                values = compile_expr(values)(self.world.evaluation.scope(actor=actor, viewer=actor, params=params))
+                values = compile_expr(values)(self.world.evaluation.scope(
+                    actor=actor, viewer=viewer_for("ParamSpec.values", actor), params=params))
             except ExprError as exc:
                 raise RunError(str(exc), f"actions.{action}.params.{pname}.values") from None
         if values is not None and not isinstance(values, (list, tuple)):
@@ -235,7 +238,9 @@ class ActionValidation:
         if "i" in expr.roots or not nested_free():  # $i needs the full listing; nested work charges a budget
             return None
         try:  # it draws nothing: whether a call is allowed is decided without luck (see ActionBook.deciding)
-            holds = truthy(expr(self.world.evaluation.scope(actor=actor, viewer=actor, params=params).child(it=entity)))
+            viewer = viewer_for("ParamSpec.where", actor)
+            scope = self.world.evaluation.scope(actor=actor, viewer=viewer, params=params)
+            holds = truthy(expr(scope.child(it=entity)))
         except ExprError:
             holds = False  # the full listing reports it
         return entity if holds else None
@@ -255,7 +260,8 @@ class ActionValidation:
         def count(bound: Any, key: str) -> int | None:
             path = f"actions.{action}.params.{pname}.{key}"
             try:
-                value = compile_expr(bound)(self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
+                viewer = viewer_for(f"ParamSpec.{key}", actor)
+                value = compile_expr(bound)(self.world.evaluation.scope(actor=actor, viewer=viewer, params=params)) \
                     if is_expr(bound) else bound
             except ExprError as exc:
                 raise RunError(str(exc), path) from None

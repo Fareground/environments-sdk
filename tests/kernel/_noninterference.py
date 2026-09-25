@@ -32,6 +32,8 @@ from fg_env.participants import RandomAgent
 
 #: Legal calls listed per action at most (a larger space is noted as unlisted, in both worlds alike).
 LIMIT = 64
+#: Why an agent is woken when nothing but its turn wakes it.
+_TURN_REASONS = frozenset({"It is your turn.", "Your turn again.", "Everyone chooses at the same time."})
 #: A text a hidden entry carries, and what a hidden text becomes.
 HIDDEN_TEXT = "zqhiddenzq"
 
@@ -62,7 +64,8 @@ def seen(env: fg_env.Env, observer: str) -> str:
     """What ``observer`` may see of the world, as one text: every property not hidden from it, the entries and events
     it may know of, where the run is. An action's announcement counts by who did what and whether it applied — its
     default line and its arguments are the engine's words, held to the observer's view, not part of the world; an
-    `announce` the contract writes is the contract's."""
+    `announce` the contract writes is the contract's. News sent to every agent counts by which happened: what it says
+    is text several agents read, which may show nothing hidden, so it is held to the comparison."""
     world = env.world
     reader = world.entities[observer]
     evaluation = world.evaluation
@@ -84,9 +87,11 @@ def seen(env: fg_env.Env, observer: str) -> str:
             written = spec is not None and isinstance(spec.announce, str)
             events.append([event.round, event.actor, event.data.get("action"), event.data.get("success"),
                            event.text if written else None])
-        else:
+        elif event.to is not None:  # addressed to the observer: what the rules chose to tell it
             events.append([event.round, event.kind, event.text, event.actor,
                            {k: v for k, v in event.data.items() if not (event.kind == "record" and k == "entry")}])
+        else:  # news every agent is sent: its text and data are shown, and held to the comparison
+            events.append([event.round, event.kind, event.actor])
     links = {kind: sorted(map(list, edges.items())) for kind, edges in world.links.items()}
     return _plain([world.round, world.stage, entities, props, records, events, links, world.end_request])
 
@@ -147,7 +152,9 @@ class _Player:
         mine = self.calls.setdefault(agent, [])
         mine.append([])
         watching = agent == self.observer
-        turn = Turn(seen(self.env, agent), _shown(self.env, wake)) if watching else None
+        # whether the rules woke it (a `wake`), not only its turn: what they chose to tell it, like a message to it
+        woken = "" if wake.reason in _TURN_REASONS else "|woken by the rules"
+        turn = Turn(seen(self.env, agent) + woken, _shown(self.env, wake)) if watching else None
         if turn is not None:
             self.turns.append(turn)
         planned = self._planned(agent, len(mine) - 1, wake)
@@ -192,14 +199,16 @@ class _Recorded:
 
 
 def play(source: Any, seed: int, observer: str, inputs: Any = None, replay: Play | None = None,
-         rounds: int | None = None, sealed: bool = False) -> Play:
+         rounds: int | None = None, sealed: bool = False, perturb: bool = True, participants: Any = None) -> Play:
     """Play ``source`` watching ``observer``: at random, or — given the first world's play to ``replay`` — as the second
-    world, with what the observer must not know changed (and, with ``sealed``, other agents' sealed choices too)."""
+    world, with what the observer must not know changed (and, with ``sealed``, other agents' sealed choices too).
+    ``perturb=False`` leaves the second world as ``source`` builds it (a contract whose hidden values already
+    differ); ``participants`` plays the agents it names in place of the random player (a policy, by type)."""
     env = fg_env.load(source, seed=seed, inputs=inputs)
-    if replay is not None:
+    if replay is not None and perturb:
         hide_otherwise(env, observer, random.Random(seed))
     player = _Player(env, observer, seed, replay, sealed)
-    result = env.run(player, rounds=rounds)
+    result = env.run(player if participants is None else {**participants, "*": player}, rounds=rounds)
     return Play(player.calls, player.turns, result.status)
 
 

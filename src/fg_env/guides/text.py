@@ -134,18 +134,27 @@ auditor every ledger — and nothing widens it further: the author of a paper do
 review of it unless the review's type makes that author its owner. The world's private props have no owner. A view's
 or entity choice's `where` (or a policy rule's `each: $filter(<type>, <condition>)`) never grants anything: it picks
 only among what its reader may read, so `"where": "$it.seller == $actor.id"` over a listing type with
-`"owner": "seller"` lists the reader's own listings with their private props. A `where` reads its terms in order and
-stops at the first false one, so test ownership first (`"$it.seller == $actor.id and $it.floor > 3"`): one that reads
-a hidden value of an item the reader does not own is an error, which `check` reports and `load` refuses. Reading a
-hidden value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
-outcome text, whether an action ends the turn (`terminal`), briefs, policies, defs they call, series outputs worked out
-from private props) is an error,
-however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
-stage whose actions are announced (a stage `when` that reads one is warned: everyone sees whether the stage ran). Reveal what an agent may learn by working it out in game logic
-(`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
-several agents — an `announce`, an event's `say`, an emit's `say` without a lone `to` — may read no
-private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`). Text sent
-`to` one agent may show only what that agent may read, so the actor's private props only when it goes to the actor.
+`"owner": "seller"` lists the reader's own listings with their private props. A read of an item's private prop counts
+as the reader's own only where a test that the item is its own must have held — after it in an `and`
+(`"$it.seller == $actor.id and $it.floor > 3"`), after its negation in an `or`, in the branch of an `if` it decides
+(`"$it.floor if $it.seller == $actor.id else 0"`), and for every item a `where` that picks the reader's own lets through;
+one read anywhere else is an error, which `check` reports and `load` refuses.
+Every field is read by someone, and that decides what a hidden value may do there — one rule per reader, which `check`
+and the run both follow (`fg_env.contract.readers` lists every field):
+* what one agent is shown or offered (views and their where/sort/attach, a brief, tool choices, bounds and defaults,
+  outcome text, a refusal's why, whether an action ends the turn (`terminal`), its `attach`, a policy's rules, an inspect
+  rule, a record's `show` and `visible`) may read that agent's own private props and nothing else hidden from it;
+* what several agents are sent or learn from may read no private prop, not even the actor's: an `announce`, an event's
+  or an `end`'s `say`, an invariant's `why`, an entity's `name` and `id` (as built and as `create` makes them), a stage's
+  `when` and `order`, and a stage's `who`, `until` and `passes` when every agent learns whom it woke;
+* what is sent (an emit's `say` and `data`, a post's fields, a wake's `why`) is read by whom it reaches: text `to` one
+  agent may show only what that agent may read — the actor's private props only when it goes to the actor — and
+  anything sent to several, or to everyone, may show no private prop;
+* game logic (action `when`/`do`, events, `end` conditions, outputs, invariants) reads everything, and what it writes
+  into what agents see is its reveal.
+Reveal what an agent may learn by working it out in game logic (`"do": ["$seen = $params.target.role"], "outcome":
+"... {$seen}"`, or a prop the agent owns), and what several may learn the same way (`"$shown = $actor.card"`, then
+`{$shown}`).
 A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
 wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
 The engine's own refusals (a transfer that does not fit, a bound) never show a hidden value. A `when` that reads a

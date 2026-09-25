@@ -20,8 +20,9 @@ from ..effects.delivery import deliver
 from ..effects.runner import each_items, removed_since, select_ops
 from ..effects.sync import run_synced
 from ..errors import RunError
-from ..expr import EVERYONE, ExprError, compile_expr, resolve, shared_budget, truthy
+from ..expr import ExprError, compile_expr, resolve, shared_budget, truthy
 from ..expr.objects import Entity
+from ..information.gate import viewer_for
 from ..world.abort import Abort
 from ..world.randomness import event_streams
 from .diagnosis import LoopWrites
@@ -215,7 +216,8 @@ class Events:
         if not event.say:
             return
         world = self.rules.world
-        text = self.rules.information.render(event.say, vars, viewer=EVERYONE, path=f"events[{index}].say")
+        text = self.rules.information.render(event.say, vars, viewer=viewer_for("EventSpec.say"),
+                                             path=f"events[{index}].say")
         if text.strip():
             world.emit("news", text, data={"event": event.name or index})
         world.commit()

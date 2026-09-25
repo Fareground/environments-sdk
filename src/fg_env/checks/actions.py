@@ -232,8 +232,6 @@ class ActionChecks(EffectChecks):
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})
             check_stage_turns(self, stage, path, BASE)
             self._sealed_announced(stage, path)
-            self._private_who(stage, f"{path}.who")
-            self._private_stage_when(stage, f"{path}.when")
         self._open_stages()
 
     def _unseen_choice(self, of: str, by: set[str], path: str) -> None:
@@ -287,8 +285,6 @@ class ActionChecks(EffectChecks):
             if _never_holds(view.when):
                 self.warn(f"{path}.when", f"`{view.when}` never holds, so no agent is ever shown this view",
                           "remove the view, or give it a `when` that reads the state it waits for")
-            with self._reading(actor_types):
-                self._private_view(view, path)
             self.plain_text(view.empty, f"{path}.empty", "a view's `empty`")
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)

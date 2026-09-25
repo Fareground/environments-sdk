@@ -108,6 +108,7 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
             if isinstance(spec.inspect, str):
                 self._private_inspect(kind, spec.inspect, f"types.{kind}.inspect")
         self._unshown_private()
+        self._field_reads()
         self._events()
         self._policies()
         self._measure()
