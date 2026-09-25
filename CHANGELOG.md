@@ -304,6 +304,10 @@ worlds stay fast, and the package is organised by feature.
     without knowing it would. The playthrough goldens gain that line; no information state changes.
   - An argument's name is held to the rule tool names are (letters, digits, `_` and `-`, at most 64): `check` reports
     one a model provider would refuse, instead of the first model call failing (agentif MEDIUM-1).
+  - The author loop's behaviour profile counts the turns in which random agents took an action and the values they
+    chose for each argument, and judges whether an output varied among random agents' runs alone (idle agents leave
+    it at its default): a revision that narrows a bound to one value, cuts an enum to one, or restricts an action or
+    a stage to the first round is found like any other gutting, and the earlier revision stays (agentif MEDIUM-A1).
   - **A contract's `name` is optional** (mech H1): left out, a contract read from a file is named after the file, any
     other `Environment`; so every mechanism reference example works as pasted. The judge and game-master examples
     declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract

@@ -138,8 +138,11 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
             warned = {issue.path for issue in issues}  # what check already warned about is not said twice
             found["warnings"] += [str(i) for i in seen.warnings(contract, bool(hosts.asked)) if i.path not in warned]
             found["prompt"] = list(seen.prompt)
+            # what varied is judged among the runs of one kind of agent — random agents, who explore — never pooled
+            # with idle agents' runs, whose outputs stay at their defaults whatever a revision does
+            explored = [run for run, kind in zip(seen.runs, seen.kinds) if kind == "random"]
             flat = [issue.path.removeprefix("outputs.")
-                    for issue in flat_measures(contract, seen.runs, bool(hosts.asked))]
+                    for issue in flat_measures(contract, explored, bool(hosts.asked))]
             found["profile"] = profile(contract, seen, _fired_parts(contract, seen.fired), flat)
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
         found["problem"] = f"{type(exc).__name__}: {exc}"
@@ -180,13 +183,13 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
            most: int, seen: Seen) -> tuple[str, str, int]:
     """``(problem, untested, random seeds)`` from :func:`tested`'s runs, within ``deadline`` (the end of the
     ``seconds`` of the test budget); ``seen`` gathers what they show besides."""
-    plays: list[tuple[Any, str, int, frozenset]] = [
+    plays: list[tuple[Any, str, int, frozenset, str]] = [
         (Reading(RandomAgent(seed) if agents == "random" else Idle(), seen.read), f"{agents} agents",
-         seed, frozenset() if agents == "random" else _NOT_ACTING)
+         seed, frozenset() if agents == "random" else _NOT_ACTING, agents)
         for seed in seeds for agents in ("random", "idle")]
-    plays.append((Reading(EdgeAgent(1), seen.read), "agents choosing edge values", 1, _NOT_ACTING))
+    plays.append((Reading(EdgeAgent(1), seen.read), "agents choosing edge values", 1, _NOT_ACTING, "edge"))
     reached, total = [], 0
-    for n, (participant, who, seed, exempt) in enumerate(plays):
+    for n, (participant, who, seed, exempt, kind) in enumerate(plays):
         step(f"the run with {who} (seed {seed})")
         env = load(source, seed=seed, hosts=hosts)
         env.effects.fired, env.information.perception.rendered = seen.fired, seen.view
@@ -196,6 +199,7 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
         if problem:
             return problem, "", 0
         seen.runs.append(result)
+        seen.kinds.append(kind)
         if result.budget.get("exhausted") == "seconds":
             reached.append(result.rounds)
             total = env.world.rounds
@@ -224,6 +228,7 @@ def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], mo
         if problem:
             return problem, "", played
         seen.runs.append(result)
+        seen.kinds.append("random")
         if result.budget.get("exhausted") == "seconds":
             break  # the time is spent: the rounds this run reached are tested, the seed does not count
         played, took = played + 1, time.monotonic() - began

@@ -32,6 +32,8 @@ class Seen:
 
     def __init__(self) -> None:
         self.runs: list[RunResult] = []
+        #: Who played each of :attr:`runs`: ``random``, ``idle`` or ``edge`` agents.
+        self.kinds: list[str] = []
         #: ``actions.<name>`` and ``events[<i>]`` whose effects fired (see :attr:`EffectRunner.fired`).
         self.fired: set[str] = set()
         #: view → [longest text it rendered, a text it rendered, whether it rendered another] (see
