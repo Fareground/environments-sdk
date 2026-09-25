@@ -85,6 +85,7 @@ Current player: 1
 Legal calls of seat 1: [6] bid(quantity=1, face=6); [7] bid(quantity=2, face=1); [8] bid(quantity=2, face=2); [9] bid(quantity=2, face=3); [10] bid(quantity=2, face=4); [11] bid(quantity=2, face=5); [12] bid(quantity=2, face=6); [13] liar
 Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
+  | Your last turn: Done: bid (quantity=1, face=5).
   | 
   | Your die: 4. Last bid: 1 x 5.
 Seat 0 information state: a64bda083bdd5cc5
@@ -106,6 +107,7 @@ Current player: 0
 Legal calls of seat 0: [13] liar
 Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
+  | Your last turn: Done: bid (quantity=1, face=5).
   | Now: Your turn again.
   | 
   | Since your last turn:
@@ -115,6 +117,7 @@ Seat 0 (p0) reads:
 Seat 0 information state: 3c9406b289e701a4
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
+  | Your last turn: Done: bid (quantity=2, face=6).
   | 
   | Your die: 6. Last bid: 2 x 6.
 Seat 1 information state: 814bc1c0b101bb02

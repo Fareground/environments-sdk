@@ -84,6 +84,7 @@ Current player: 1
 Legal calls of seat 1: [1] pass; [2] bet
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: bet.
   | 
   | Your card: 2. Betting so far (P0 first): bet.
 Seat 0 information state: 63529991cd42978e

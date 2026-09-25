@@ -50,6 +50,7 @@ Current player: 1
 Legal calls of seat 1: [1] take(count=1); [2] take(count=2)
 Seat 0 (a) reads:
   | Move 2 of 50 · move
+  | Your last turn: Done: take (count=3).
   | 
   | Stones left: 2.
 Seat 0 information state: caab43cd765f87da
@@ -71,6 +72,7 @@ Current player: 0
 Legal calls of seat 0: [1] take(count=1)
 Seat 0 (a) reads:
   | Move 3 of 50 · move
+  | Your last turn: Done: take (count=3).
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -80,6 +82,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 4c3e0755b86daaa8
 Seat 1 (b) reads:
   | Move 3 of 50 · move
+  | Your last turn: Done: take (count=1).
   | 
   | Stones left: 1.
 Seat 1 information state: 1991ff7ccc6d10d1

@@ -85,6 +85,7 @@ Current player: 1
 Legal calls of seat 1: [1] fold; [2] call; [3] raise
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: raise.
   | 
   | Your card: Q. Public card: none. Betting round 1. Chips in: you 3, opponent 1. Raises this round: 1.
 Seat 0 information state: 0fcc196f9ea0615e
@@ -106,6 +107,7 @@ Current player: chance
 Chance outcomes: public card: 1 (p=0.25), public card: 2 (p=0.25), public card: 3 (p=0.25), public card: 5 (p=0.25)
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: raise.
   | 
   | Your card: Q. Public card: none. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
 Seat 0 information state: 76c20f2f0b767bbc
@@ -126,6 +128,7 @@ Current player: 0
 Legal calls of seat 0: [2] call; [3] raise
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: raise.
   | Now: Your turn again.
   | 
   | Since your last turn:
@@ -136,6 +139,7 @@ Seat 0 (p0) reads:
 Seat 0 information state: 00ad64e1b97eb574
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: call.
   | 
   | Your card: K. Public card: J. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
 Seat 1 information state: 67e9e2e1aa875c79
@@ -148,11 +152,13 @@ Current player: 1
 Legal calls of seat 1: [1] fold; [2] call; [3] raise
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: raise.
   | 
   | Your card: Q. Public card: J. Betting round 2. Chips in: you 7, opponent 3. Raises this round: 1.
 Seat 0 information state: aa60a297f4e8ed07
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: call.
   | Now: Your turn again.
   | 
   | Since your last turn:
@@ -169,6 +175,7 @@ Current player: 0
 Legal calls of seat 0: [1] fold; [2] call
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: raise.
   | Now: Your turn again.
   | 
   | Since your last turn:
@@ -178,6 +185,7 @@ Seat 0 (p0) reads:
 Seat 0 information state: 74bb734c9b572b8f
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
+  | Your last turn: Done: raise.
   | 
   | Your card: K. Public card: J. Betting round 2. Chips in: you 11, opponent 7. Raises this round: 2.
 Seat 1 information state: ca4c40e3e7107144
