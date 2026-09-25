@@ -180,3 +180,37 @@ def test_keeping_few_entries_of_a_record_sent_to_agents_is_a_check_warning():
     assert [i.severity for i in found] == ["warning"] and "never reaches it" in found[0].message
     del contract["records"]["dm"]["keep"]
     assert not [i for i in fg_env.check(contract, rounds=0) if i.path == "records.dm.keep"]
+
+
+def test_an_event_a_reader_reads_is_numbered_in_its_own_view_as_an_entry_is():
+    """`$events` numbers what a reader reads by its place among what it read, as `$records` does, so the numbers never
+    count the events it may not know of: whispers between others leave a third agent's numbers as they were (audit 14
+    H1). Game logic reads the world's numbering, and `$seen` knows an event by the world's number."""
+    def numbers(hidden):
+        c = {"name": "Numbers", "types": {"p": {"agent": True}},
+             "entities": {"a": {"type": "p"}, "b": {"type": "p"}, "c": {"type": "p"}},
+             "records": {"dm": {"fields": {"text": "text"},
+                                "visible": "$viewer.id in ($it.to or []) or $viewer.id == $it.author"}},
+             "stages": [{"name": "s", "max_actions": 5}], "clock": {"rounds": 1},
+             "actions": {"whisper": {"by": "p", "announce": False,
+                                     "params": {"to": {"type": "entity", "of": "p"}, "text": {"type": "text"}},
+                                     "do": {"post": "dm", "to": "$params.to", "text": "$params.text"}}}}
+        env = fg_env.load(c, seed=1)
+
+        def play(wake):
+            if wake.entity_id == "a":
+                for _ in range(hidden):
+                    wake.call("whisper", {"to": "b", "text": "psst"})
+                wake.call("whisper", {"to": "c", "text": "hi"})
+            wake.end()
+
+        env.step(play)
+        world = env.world
+        seen = evaluate("$map($events(), $it.seq)", world.evaluation.scope(viewer=world.entities["c"]))
+        kinds = evaluate("$map($events(record), $it.seq)", world.evaluation.scope(viewer=world.entities["c"]))
+        logic = evaluate("$map($events(), $it.seq)", world.evaluation.scope())
+        return seen, kinds, logic
+
+    quiet, busy = numbers(0), numbers(3)
+    assert quiet[:2] == busy[:2] == ([1, 2], [1])
+    assert quiet[2] != busy[2]  # game logic counts every event

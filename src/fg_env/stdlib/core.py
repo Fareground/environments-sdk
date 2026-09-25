@@ -388,7 +388,8 @@ def _entity(call: Call) -> Any:
 
 
 @function("records(name, where?)", "Entries of a declared record, oldest first. Game logic reads every entry; what an "
-          "agent is shown or offered reads only those the record's `visible` rule lets it see.",
+          "agent is shown or offered reads only those the record's `visible` rule lets it see, each numbered (`seq`) "
+          "by its place among those.",
           min_args=1, max_args=2, lazy=[1])
 def _records(call: Call) -> list[Any]:
     # $viewer is bound only while rendering for, or offering choices to, one agent.
@@ -403,7 +404,8 @@ def _records(call: Call) -> list[Any]:
 
 @function("events(kind?, where?)", "Events so far (optionally of one kind), oldest first. Game logic reads every "
           "event; what an agent is shown or offered reads only those it may know of (a record event follows its "
-          "entry's `visible` rule).", min_args=0, max_args=2, lazy=[1])
+          "entry's `visible` rule), each numbered (`seq`) by its place among those, as $records numbers entries.",
+          min_args=0, max_args=2, lazy=[1])
 def _events(call: Call) -> list[Any]:
     kind = call.arg(0) if len(call) else None
     viewer = call.scope.vars.get("viewer")

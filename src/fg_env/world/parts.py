@@ -41,8 +41,8 @@ class Entry(dict):
     """One record entry. ``author`` reads as the authoring entity.
 
     Its ``seq`` is the world's count of every entry posted to every record, for game logic. What an agent reads is a
-    copy numbered in that agent's own view of the record (:meth:`numbered`), so no reader learns from its ``seq`` how
-    many entries it cannot see; :attr:`key` is the world's number in either."""
+    copy numbered in that agent's own view of what it read (:meth:`numbered`, the rule events follow too), so no
+    reader learns from its ``seq`` how many entries it cannot see; :attr:`key` is the world's number in either."""
 
     world: World
     _key: int | None = None
@@ -72,7 +72,11 @@ class Entry(dict):
 
 @dataclass(eq=False, slots=True)
 class LogEvent:
-    """Something that happened, in order. ``to`` None means every agent may learn of it."""
+    """Something that happened, in order. ``to`` None means every agent may learn of it.
+
+    Its ``seq`` is the world's count of every event logged, for game logic; what an agent reads is a copy numbered in
+    that agent's own view of the events it read (:meth:`numbered`), as a record entry is, so no reader learns from its
+    ``seq`` how many events it may not know of. :attr:`key` is the world's number in either."""
 
     seq: int
     round: int
@@ -82,6 +86,19 @@ class LogEvent:
     to: tuple[str, ...] | None = None
     data: dict[str, Any] = field(default_factory=dict)
     stage: str | None = None
+    _key: int | None = field(default=None, repr=False)
+
+    @property
+    def key(self) -> int:
+        """The event's number among every event logged: the same for every reader of it."""
+        return self._key if self._key is not None else self.seq
+
+    def numbered(self, position: int) -> LogEvent:
+        """The event as a reader sees it: numbered by its ``position`` (from 1) among the events that reader read."""
+        if position == self.seq:
+            return self
+        return LogEvent(position, self.round, self.kind, self.text, self.actor, self.to, self.data, self.stage,
+                        self.key)
 
     def visible_to(self, entity_id: str) -> bool:
         return self.to is None or entity_id in self.to

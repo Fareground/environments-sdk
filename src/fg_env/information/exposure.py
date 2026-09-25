@@ -92,7 +92,7 @@ class Shown:
         if isinstance(value, Entry):
             self.entries.append(value.key)
         elif isinstance(value, LogEvent):
-            self.events.append(value.seq)
+            self.events.append(value.key)
 
 
 class Exposure:
@@ -259,7 +259,7 @@ class ExposureLog:
         ``item`` is none of those."""
         viewer_id = viewer.id if isinstance(viewer, Entity) else viewer
         if isinstance(item, LogEvent):
-            return item.seq in self._events.get(viewer_id, ())
+            return item.key in self._events.get(viewer_id, ())
         if isinstance(item, Entry):
             return item.key in self._entries.get(viewer_id, ())
         if isinstance(item, str):

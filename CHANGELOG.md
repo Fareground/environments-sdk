@@ -253,6 +253,10 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 14.**
+  - An event an agent reads through `$events` is numbered (`seq`) by its place among the events it read, as a record
+    entry is: its gaps no longer count the whispers between others it may not know of. Game logic reads the world's
+    numbering; `$seen` knows an event by the world's number (H1).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

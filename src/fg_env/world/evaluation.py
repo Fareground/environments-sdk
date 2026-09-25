@@ -187,7 +187,7 @@ class EvalContext:
         else:
             indexed = world.record_authors.candidates(name, viewer)
             seen = [row for row in (rows if indexed is None else indexed) if self.entry_visible(name, row, viewer)]
-        return [row.numbered(position) for position, row in enumerate(seen, 1)]
+        return numbered(seen)
 
     def entry_as_read(self, name: str, entry: Entry, viewer: Entity) -> Entry:
         """``entry`` of record ``name`` as ``viewer`` reads it: numbered by its place among the entries it sees."""
@@ -219,16 +219,20 @@ class EvalContext:
     def events(self, kind: str | None, viewer: Any = None) -> list[LogEvent]:
         """Events so far (of ``kind``; None: every kind): those an agent ``viewer`` may know of; for everyone
         (:data:`~fg_env.expr.EVERYONE`) those every agent knows of; for game logic (None) every one, a read of what may
-        be hidden from the acting agent when events of the kind may be kept from some (see expr/hidden.py)."""
+        be hidden from the acting agent when events of the kind may be kept from some (see expr/hidden.py). A reader's
+        events are numbered (``seq``) in its own view, as its record entries are (:func:`numbered`); game logic reads
+        the world's numbering."""
         world = self.world
         if viewer is None:
             if world.hidden.events_hide(kind):
                 world.read_hidden()
             return [e for e in world.log if kind is None or e.kind == kind]
         if not isinstance(viewer, Entity):
-            return [e for e in world.log if (kind is None or e.kind == kind) and self._public_event(e)]
-        candidates = world.record_events.candidates(world.contract, viewer) if kind == "record" else world.log
-        return [e for e in candidates if (kind is None or e.kind == kind) and self.event_visible(e, viewer)]
+            seen = [e for e in world.log if (kind is None or e.kind == kind) and self._public_event(e)]
+        else:
+            candidates = world.record_events.candidates(world.contract, viewer) if kind == "record" else world.log
+            seen = [e for e in candidates if (kind is None or e.kind == kind) and self.event_visible(e, viewer)]
+        return numbered(seen)
 
     def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
         """Whether ``viewer`` may know of ``event``: the one rule for every agent-facing reading of the log. An event
@@ -292,6 +296,13 @@ class EvalContext:
         if order is not raws:  # evaluated out of declaration order: keep the declared order
             entity.properties = {prop: entity.properties[prop] for prop in declared}
         return world.add(entity, where)
+
+
+def numbered(seen: list[Any]) -> list[Any]:
+    """What a reader read — record entries, or events — each numbered (``seq``) by its place, from 1, among what it
+    read: the one numbering every agent-facing read of the records and the log follows, so no reader learns from a
+    number how much it may not see."""
+    return [item.numbered(position) for position, item in enumerate(seen, 1)]
 
 
 def _prop_order(raws: dict[str, Any], expressions: dict[str, Any], where: str) -> Iterable[str]:

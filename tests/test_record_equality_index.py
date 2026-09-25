@@ -30,7 +30,9 @@ def read(w, who):
     seen = [r for r in w.records('notes') if w.evaluation.entry_visible('notes', r, viewer)]
     assert rows == [r.numbered(n) for n, r in enumerate(seen, 1)]  # a reader numbers what it sees (audit 12 H1)
     events = w.events('record', viewer)
-    assert events == [e for e in w.log if e.kind == 'record' and w.evaluation.event_visible(e, viewer)]
+    expected = [e for e in w.log if e.kind == 'record' and w.evaluation.event_visible(e, viewer)]
+    assert [e.key for e in events] == [e.seq for e in expected]  # numbered in the reader's own view (audit 14 H1)
+    assert [e.seq for e in events] == list(range(1, len(expected) + 1))
     return [r['value'] for r in rows], [e.data.get('fields', {}).get('value') for e in events]
 
 

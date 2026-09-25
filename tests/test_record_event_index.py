@@ -25,7 +25,8 @@ def read(w, who):
     actor = w.entities[who]
     expected = [e for e in w.log if e.kind == "record" and w.evaluation.event_visible(e, actor)]
     actual = w.events("record", actor)
-    assert actual == expected
+    assert [e.key for e in actual] == [e.seq for e in expected]
+    assert [e.seq for e in actual] == list(range(1, len(expected) + 1))  # numbered in the reader's own view
     assert w.events("record") == [e for e in w.log if e.kind == "record"]
     return [e.data.get("fields", {}).get("value") for e in actual]
 
