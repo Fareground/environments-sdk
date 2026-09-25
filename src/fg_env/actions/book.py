@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -100,12 +100,13 @@ class ActionBook:
     def blocked(self, actor: Entity, name: str, used_turn: dict[str, int], used_round: dict[str, int],
                 offered: bool = False) -> str | None:
         """Why ``name`` is not legal for ``actor`` right now, or None when it is. ``offered``: whether to offer it as
-        a tool, where a requirement that reads another agent's private property does not count — the tool is listed
+        a tool, where a requirement that reads something hidden from the actor does not count — the tool is listed
         and a call is refused if the requirement fails, so the list itself reveals nothing hidden. A turn asks this
         several times in the same state (its tools, a coded policy's rule, the call itself), so the answer is
         remembered."""
         key = ("blocked", actor.id, name, used_turn.get(name, 0), used_round.get(name, 0), offered)
-        with self.deciding():
+        # Offering is no attempt: what it reads hidden counts toward no call around it.
+        with self.deciding(), self.world.luck.apart() if offered else nullcontext():
             return self.world.evaluation.remembered(
                 key, lambda: self._blocked(actor, name, used_turn, used_round, offered))
 
@@ -156,39 +157,30 @@ class ActionBook:
 
     def unmet(self, actor: Entity, name: str, params: dict[str, Any] | None, offered: bool = False) -> str | None:
         """The `why` of the first requirement that does not hold: those over $actor alone (``params`` None), or
-        those that read $params. ``offered``: leave out those that read another agent's private property."""
+        those that read $params. ``offered``: leave out those that read something hidden from the actor — the tool is
+        listed and a call refused if the requirement fails, so the list itself reveals nothing hidden."""
         vars: dict[str, Any] = {"actor": actor} if params is None else {"actor": actor, "params": params}
         scope: Scope | None = None
+        luck = self.world.luck
         for index, condition in enumerate(self.contract.actions[name].when):
             compiled = compile_expr(condition.expr)
             if ("params" in compiled.roots) is not (params is not None):
                 continue
-            if offered and self._reads_hidden(actor, compiled):
-                continue
             if scope is None:  # built for the first requirement evaluated
                 scope = self.world.evaluation.scope(**vars)
             path = f"actions.{name}.when[{index}]"
+            observed = luck.observe()
             try:
                 if truthy(compiled(scope)):
                     continue
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
+            if offered and observed.read_hidden:
+                continue
             # the why is a template, like a `fail` text: text the actor is shown
             why = render(self.world, condition.why, vars, viewer=actor, path=f"{path}.why") if condition.why else ""
             return (why or "its requirements are not met").rstrip(". ")
         return None
-
-    def _reads_hidden(self, actor: Entity, compiled: Expr) -> bool:
-        """Whether a requirement, read as ``actor`` is shown things, reads another agent's private property."""
-        if not self.world.private_names:
-            return False
-        try:
-            compiled(self.world.evaluation.scope(actor=actor, viewer=actor))
-        except PrivateRead:
-            return True
-        except ExprError:
-            pass  # evaluated in the true state next, where it is reported
-        return False
 
     def _empty_range(self, actor: Entity, param: ParamSpec, where: str) -> str | None:
         """The bounds, when no value lies between them right now (min above max)."""
@@ -377,11 +369,12 @@ class ActionBook:
         return Outcome(True, text, params, assets)
 
     def ends_turn(self, actor: Entity, name: str, params: dict[str, Any]) -> bool:
+        """Whether the call ends the actor's turn (`terminal`): something its actor is shown, so read as it sees."""
         terminal = self.contract.actions[name].terminal
         if isinstance(terminal, bool):
             return terminal
         try:
-            return truthy(compile_expr(terminal)(self.world.evaluation.scope(actor=actor, params=params)))
+            return truthy(compile_expr(terminal)(self.world.evaluation.scope(actor=actor, viewer=actor, params=params)))
         except ExprError as exc:
             raise RunError(str(exc), f"actions.{name}.terminal") from None
 

@@ -307,3 +307,87 @@ def test_every_condition_that_decides_what_everyone_sees_by_a_hidden_value_is_wa
     every agent a bit of the hidden value it reads, and `check` says so in the same words wherever it is written."""
     found = [i for i in fg_env.check(contract, rounds=0) if i.path == path]
     assert [i.severity for i in found] == ["warning"] and "and every agent learns" in found[0].message
+
+
+def _whispers(**accuse):
+    """a may whisper to b (nobody else sees it, nor learns it happened); `accuse` is c's tool to shape."""
+    return {"name": "Whispers", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True}},
+            "entities": {"a": {"type": "p"}, "b": {"type": "p"}, "c": {"type": "p"}},
+            "records": {"dm": {"fields": {"text": "text"},
+                               "visible": "$it.author == $viewer.id or $viewer.id in ($it.to or [])"}},
+            "actions": {"dm": {"by": "p", "announce": False,
+                               "params": {"to": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"},
+                                          "text": {"type": "text", "max_len": 20}},
+                               "do": [{"post": "dm", "text": "$params.text", "to": ["$params.to"]}]},
+                        "hid": {"by": "p", "announce": False, "do": []},
+                        "accuse": {"by": "p", "do": [], **accuse}},
+            "stages": [{"name": "s", "max_actions": 2, "order": "$it.id"}],
+            "outputs": {"n": "$len($records(dm))"}}
+
+
+def _what_c_sees(contract, whisper):
+    seen = {}
+
+    def play(wake):
+        if wake.entity_id == "a" and whisper:
+            wake.call(whisper, {"to": "b", "text": "psst"} if whisper == "dm" else {})
+        if wake.entity_id == "c":
+            seen["tools"] = [tool.name for tool in wake.tools]
+            seen["update"] = wake.update
+            result = wake.call("accuse", {})
+            seen["accuse"] = (result.ok, result.text, result.data)
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    assert result.status == "completed", result.error
+    return seen
+
+
+@pytest.mark.parametrize("when, whisper", [("$len($records(dm)) > 0", "dm"), ("$len($events('action')) > 0", "hid"),
+                                           ("$count($events()) > 0", "hid")])
+def test_a_requirement_reading_entries_or_events_the_actor_cannot_see_offers_the_tool_either_way(when, whisper):
+    """Record entries and events hidden from an agent are hidden values like private properties (audit 11 H2): a
+    requirement that reads them lists the tool whatever they hold, and a refused call spends the action."""
+    contract = _whispers(when=[when])
+    told, untold = _what_c_sees(contract, whisper), _what_c_sees(contract, None)
+    assert told["tools"] == untold["tools"] == ["dm", "hid", "accuse", "end_turn"]
+    assert told["update"] == untold["update"]
+    assert told["accuse"][0] is True
+    assert untold["accuse"][0] is False and untold["accuse"][2].get("spent")
+    warned = [i for i in fg_env.check(contract, rounds=0) if i.path == "actions.accuse.when[0]"]
+    assert [i.severity for i in warned] == ["warning"] and "every agent sees" in warned[0].message
+
+
+def test_text_sent_to_everyone_counts_only_the_entries_everyone_sees():
+    """An announcement reads the records as every agent sees them, so it cannot count a whisper to others (audit 11
+    H2); the actor's own outcome reads them as it sees them."""
+    contract = _whispers(announce="c counted {$len($records(dm))}", outcome="I see {$len($records(dm))}")
+    announced = []
+
+    def play(wake):
+        if wake.entity_id == "a":
+            wake.call("dm", {"to": "b", "text": "psst"})
+        if wake.entity_id == "c":
+            assert wake.call("accuse", {}).text == "I see 0"
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    announced = [event["text"] for event in result.events if event["kind"] == "action" and event.get("text")]
+    assert announced == ["c counted 0"]
+
+
+def test_whether_a_call_ends_the_turn_reads_the_records_as_its_actor_sees_them():
+    """`terminal` is what the actor is told, so a whisper to others does not decide it."""
+    contract = _whispers(terminal="$len($records(dm)) > 0")
+    ended = {}
+    for whisper in ("dm", None):
+        def play(wake, whisper=whisper):
+            if wake.entity_id == "a" and whisper:
+                wake.call("dm", {"to": "b", "text": "psst"})
+            if wake.entity_id == "c":
+                ended[whisper] = wake.call("accuse", {}).ended
+            wake.end()
+
+        fg_env.run(contract, play, seed=1)
+    assert ended == {"dm": False, None: False}

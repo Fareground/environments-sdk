@@ -7,6 +7,11 @@ is a stated fact, read from the entity's own value each time it is read, never i
 is written, so the property naming the owner is public. The world's private properties have no owner: only the listed
 types read them.
 
+Record entries and events are hidden the same way: an entry sent `to` others, or one its record's `visible` rule keeps
+from the reader; an event addressed to others, or one carrying such an entry. What game logic reads of them counts as
+hidden by what the contract says — a record that may hold an entry some agent cannot see, a kind of event that may be
+kept from one — never by what the log holds now: whether a read counts reveals nothing itself.
+
 Everything an agent is shown or offered — views, tools and their bounds, choices and defaults, `who`,
 announcements, news, outcomes, refusals, inspect — refuses a hidden value (see ``expr/values.py``), and a refusal
 whose rules read one spends the action (see ``runtime/turn.py``), so no hidden value can be probed for free. A
@@ -27,7 +32,7 @@ class Hidden:
     """The private properties a contract declares, and whom each is hidden from: per property, the agent types that
     read it besides the entity and its owner (none for ``private: true``); per type, the property naming its owner."""
 
-    __slots__ = ("types", "agents", "world", "names", "lineage", "owners")
+    __slots__ = ("types", "agents", "world", "names", "lineage", "owners", "records", "open_events")
 
     def __init__(self, contract: Contract):
         self.types = {kind: {prop: readers(spec.private) for prop, spec in contract.props_of(kind).items()
@@ -40,6 +45,14 @@ class Hidden:
         self.lineage = {kind: frozenset(contract.lineage(kind)) for kind in contract.types}
         #: Each type with an owner, and the property naming it.
         self.owners = {kind: owner for kind in contract.types if (owner := contract.owner_of(kind)) is not None}
+        #: The records that may hold an entry some agent may not see.
+        self.records = contract.hiding_records()
+        #: The kinds of event every agent sees every one of: actions, when none is silent and none posts an entry that
+        #: may be hidden; record news, when no record may hide an entry. Any other kind may be addressed to some.
+        opened = set() if self.records else {"record"}
+        if not self.records and not any(spec.silent for spec in contract.actions.values()):
+            opened.add("action")
+        self.open_events = frozenset(opened)
 
     def entity_hides(self, entity: Any, prop: str, agent: Any) -> bool:
         """Whether ``entity``'s ``prop`` is hidden from ``agent`` (an entity; anything else — everyone, or game logic
@@ -63,6 +76,10 @@ class Hidden:
         """Whether the world's ``prop`` is hidden from ``agent``."""
         allowed = self.world.get(prop)
         return allowed is not None and not self._reads(agent, allowed)
+
+    def events_hide(self, kind: Any) -> bool:
+        """Whether the events of ``kind`` (None: every kind) may include one some agent may not know of."""
+        return kind not in self.open_events
 
     def _reads(self, agent: Any, allowed: frozenset[str]) -> bool:
         kind = getattr(agent, "entity_type", None)

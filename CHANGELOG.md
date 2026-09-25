@@ -245,6 +245,14 @@ worlds stay fast, and the package is organised by feature.
     default announcement and the action's event leave it out, and an `announce` that reads it (`{$params.n}`) is a
     check error. A default is worked out as its actor sees the world, so `"default": "$actor.secret"` used to
     announce the secret to everyone ("a: cho (n=42).").
+  - Record entries and events an agent may not see are hidden values like private properties. Game logic that reads
+    a record that may hold such an entry (its `visible` is a rule, or a `post` sends it `to` someone), or events of a
+    kind that may be kept from some, counts as reading something hidden from the actor — decided by the contract,
+    never by what the log holds now. So a `when` over `$records(dm)` or `$events(...)` offers its tool whatever the
+    log holds and a refused call spends the action (before, the tool list told an agent whether others had
+    whispered), and check warns about it as for a private property. Text sent to several agents (an announcement,
+    news, an ordered `who`) reads only the entries and events every agent sees, and an action's `terminal` reads them
+    as its actor does. The posted market's ledger declares that only the buyer and seller see a sale.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

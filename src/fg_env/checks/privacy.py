@@ -80,7 +80,8 @@ class PrivacyChecks(Checker):
             self._actor_text(text, f"{path}.{key}", spec.params)
         for index, condition in enumerate(spec.when):
             expressions = _expressions(condition.expr)
-            read = self._hidden_reads(expressions, {}, spec.params) | self._fetched_reads(expressions)
+            read = self._hidden_reads(expressions, {}, spec.params) | self._fetched_reads(expressions) \
+                | self._log_reads(expressions)
             if read:
                 self.warn(f"{path}.when[{index}]", f"decides by private {', '.join(sorted(read))}, which the actor "
                                                    "cannot see: it cannot know when the action is allowed, and each "
@@ -133,7 +134,8 @@ class PrivacyChecks(Checker):
         """A condition that reads a hidden value and decides something every agent sees (a stage held, news sent to
         everyone): every agent learns a bit of the value from ``learns``. Warned alike wherever it is written."""
         expressions = _expressions(condition)
-        read = self._hidden_reads(expressions, types or {}, params or {}) | self._fetched_reads(expressions)
+        read = self._hidden_reads(expressions, types or {}, params or {}) | self._fetched_reads(expressions) \
+            | self._log_reads(expressions)
         if read:
             self.warn(path, f"reads private {', '.join(sorted(read))}, and every agent learns {learns}",
                       "decide it by what is not private, or keep a public property that says what everyone may know "
@@ -263,6 +265,26 @@ class PrivacyChecks(Checker):
         ``$first(player).cash``): whose it is shows only at run time."""
         return {f"${chain[0]}(…).{chain[1]}" for expr in expressions for chain in expr.call_paths
                 if len(chain) > 1 and self._private(self.c.types, chain[1])}
+
+    def _log_reads(self, expressions: Iterable[Expr]) -> set[str]:
+        """The reads, in game logic, of record entries or events some agent may not see: a record that may hold such
+        an entry, events of a kind that may be kept from some (see expr/hidden.py)."""
+        hidden = self._hidden
+        read: set[str] = set()
+        for expr in expressions:
+            for function, symbol in expr.calls:
+                if function == "records" and (symbol in hidden.records or (symbol is None and hidden.records)):
+                    read.add(f"$records({symbol or '…'}) (entries not every agent sees)")
+                elif function == "events" and hidden.events_hide(symbol):
+                    read.add(f"$events({symbol or '…'}) (events not every agent sees)")
+        return read
+
+    @property
+    def _hidden(self) -> Hidden:
+        hidden = getattr(self, "_hidden_model", None)
+        if hidden is None:
+            hidden = self._hidden_model = Hidden(self.c)
+        return hidden
 
     def _private(self, kinds: Iterable[str], field: str) -> bool:
         return any(kind in self.c.types and (prop := self.c.props_of(kind).get(field)) is not None and prop.private

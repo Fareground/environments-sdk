@@ -530,6 +530,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
         "records": {f"{name}_ledger": {"fields": {"listing": "text", "item": "text", "qty": "int",
                                                   "unit_price": "number", "negotiated": "bool"},
                                        "show": "{author} bought {qty} × {item} at {unit_price|money}", "notify": True,
+                                       "visible": "$viewer.id in ($it.to or [])",
                                        "description": "Sales, visible to the buyer and the seller."}},
         "actions": actions,
         "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],

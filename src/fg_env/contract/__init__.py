@@ -187,6 +187,8 @@ class Contract(_Model):
     _notes: list[str] = PrivateAttr(default_factory=list)
     #: Events by anchor (see :meth:`events_on`), built on first use.
     _anchored: dict[str, list[tuple[int, EventSpec]]] | None = PrivateAttr(default=None)
+    #: The records that may hold an entry some agent may not see (see :meth:`hiding_records`), found on first use.
+    _hiding: frozenset[str] | None = PrivateAttr(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -262,6 +264,18 @@ class Contract(_Model):
             for index, event in enumerate(self.events):
                 by_anchor.setdefault(event.on, []).append((index, event))
         return by_anchor.get(anchor, [])
+
+    def hiding_records(self) -> frozenset[str]:
+        """The records that may hold an entry some agent may not see: those whose `visible` is a rule, and those a
+        `post` anywhere in the rules sends `to` someone. Decided by what the contract says, never by what the records
+        hold now, so that whether reading one counts as reading something hidden reveals nothing itself."""
+        hiding = self._hiding
+        if hiding is None:
+            addressed: set[str] = set()
+            _addressed_posts(self.model_dump(mode="json", exclude={"records", "entities"}), addressed)
+            hiding = self._hiding = frozenset(name for name, spec in self.records.items()
+                                              if spec.visible != "all" or name in addressed)
+        return hiding
 
     def policies_of(self, type_name: str) -> dict[str, tuple[str, PolicySpec]]:
         """``{policy: (declaring type, spec)}`` for the policies agents of ``type_name`` may play: its own and its
@@ -344,3 +358,15 @@ ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
 #: Where a contract's data files are read from: a folder, or None for the contract file's own.
 DataDir = Union[str, "os.PathLike[str]", None]
 
+
+def _addressed_posts(data: Any, found: set[str]) -> None:
+    """Add to ``found`` the record of every `post` in ``data`` (a dumped contract) that names whom it is sent `to`."""
+    if isinstance(data, dict):
+        record = data.get("post")
+        if isinstance(record, str) and data.get("to") is not None:
+            found.add(record)
+        for value in data.values():
+            _addressed_posts(value, found)
+    elif isinstance(data, list):
+        for value in data:
+            _addressed_posts(value, found)

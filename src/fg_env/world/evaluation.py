@@ -171,10 +171,18 @@ class EvalContext:
         return Abort(told)
 
     def visible_records(self, name: str, viewer: Any) -> list[Entry]:
+        """The entries of record ``name`` ``viewer`` may see: an agent (an :class:`Entity`) those its `visible` rule and
+        their `to` let it see; everyone (:data:`~fg_env.expr.EVERYONE`, text sent to several) only those every agent
+        sees; game logic (None) every entry, a read of what may be hidden from the acting agent when the record may
+        hold one it cannot see (see expr/hidden.py)."""
         world = self.world
         rows = world.records(name)
-        if not isinstance(viewer, Entity):
+        if viewer is None:
+            if name in world.hidden.records:
+                world.read_hidden()
             return rows
+        if not isinstance(viewer, Entity):
+            return rows if name not in world.hidden.records else []
         indexed = world.record_authors.candidates(name, viewer)
         if indexed is not None:
             rows = indexed
@@ -202,12 +210,18 @@ class EvalContext:
             raise RunError(str(exc), f"records.{record}.visible") from None
 
     def events(self, kind: str | None, viewer: Any = None) -> list[LogEvent]:
-        """Events so far; with a ``viewer`` (views, record visibility) only those it may know about."""
+        """Events so far (of ``kind``; None: every kind): those an agent ``viewer`` may know of; for everyone
+        (:data:`~fg_env.expr.EVERYONE`) those every agent knows of; for game logic (None) every one, a read of what may
+        be hidden from the acting agent when events of the kind may be kept from some (see expr/hidden.py)."""
         world = self.world
-        seen = viewer if isinstance(viewer, Entity) else None
-        candidates = world.record_events.candidates(world.contract, seen) if kind == "record" and seen else world.log
-        return [e for e in candidates if (kind is None or e.kind == kind)
-                and (seen is None or self.event_visible(e, seen))]
+        if viewer is None:
+            if world.hidden.events_hide(kind):
+                world.read_hidden()
+            return [e for e in world.log if kind is None or e.kind == kind]
+        if not isinstance(viewer, Entity):
+            return [e for e in world.log if (kind is None or e.kind == kind) and self._public_event(e)]
+        candidates = world.record_events.candidates(world.contract, viewer) if kind == "record" else world.log
+        return [e for e in candidates if (kind is None or e.kind == kind) and self.event_visible(e, viewer)]
 
     def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
         """Whether ``viewer`` may know of ``event``: the one rule for every agent-facing reading of the log. An event
@@ -220,6 +234,13 @@ class EvalContext:
         posted = event.data.get("posted") if event.kind == "action" else None
         return not posted or event.actor == viewer.id or all(
             self._retained_visible(record, seq, viewer) for record, seq in posted)
+
+    def _public_event(self, event: LogEvent) -> bool:
+        """Whether every agent knows of ``event``: addressed to nobody in particular, and carrying no entry some agent
+        may not see."""
+        if event.to is not None or (event.kind == "action" and event.data.get("posted")):
+            return False
+        return event.kind != "record" or event.data.get("record") not in self.world.hidden.records
 
     def _retained_visible(self, record: Any, seq: Any, viewer: Entity) -> bool:
         """Whether entry ``seq`` of ``record`` is still kept and ``viewer`` may see it."""
