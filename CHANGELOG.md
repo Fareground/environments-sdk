@@ -279,6 +279,8 @@ worlds stay fast, and the package is organised by feature.
     docs said such an item is "simply left out"; they now say what the engine does: test ownership first.
   - Smaller: a whole-number parameter states its bounds as whole numbers ("at most 10", not "10.0"); chance
     `outcomes` written as quoted text says it got text; an action that removes its own actor ends that turn.
+  - `check` warns about a bare word that names a property (`{' - DONE' if done else ''}` is always true) also when
+    an output has the same name: outputs are never read as bare words.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

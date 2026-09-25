@@ -461,3 +461,16 @@ def test_len_of_a_type_name_is_refused_with_count_as_the_fix():
               "outputs": {"n": "$len(trader)", "ids": "$len($map(trader, $it.id))"}}
     errors = [i for i in fg_env.check(market) if i.severity == "error"]
     assert [i.path for i in errors] == ["outputs.n"] and "$count(trader)" in errors[0].fix
+
+
+def test_a_bare_word_naming_a_property_is_warned_about_even_when_an_output_shares_its_name():
+    """Outputs are read as `$outputs.<name>`, never as bare words: `{' - DONE' if done else ''}` is always true
+    whether or not an output is called `done`."""
+    tasks = {"name": "Tasks", "clock": {"rounds": 1},
+             "types": {"p": {"agent": True}, "task": {"props": {"done": False}}},
+             "entities": {"a": {"type": "p"}, "t1": {"type": "task"}},
+             "actions": {"noop": {"by": "p", "do": []}},
+             "views": {"tasks": {"for": "p", "of": "task", "show": "{name}{' - DONE' if done else ''}"}},
+             "outputs": {"done": "$count(task, $it.done)"}}
+    assert any(i.path == "views.tasks.show" and "bare word 'done'" in i.message and "$it.done" in i.fix
+               for i in fg_env.check(tasks, rounds=0))

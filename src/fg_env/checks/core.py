@@ -48,8 +48,10 @@ class Checker:
         self.issues: list[Issue] = []
         self.type_props: dict[str, set[str]] = {t: set(contract.props_of(t)) for t in contract.types}
         self.agents = contract.agent_types()
+        # Names an expression may mean as bare text (a type, a stage, an enum value …); an output never is one: it is
+        # read as `$outputs.<name>`, so a bare word that names a property as well is warned about all the same.
         words: set[str] = set(contract.types) | set(contract.records) | set(contract.relations) | set(contract.actions)
-        words |= ({s.name for s in contract.stage_list()} | set(contract.outputs)
+        words |= ({s.name for s in contract.stage_list()}
                   | {name for spec in contract.types.values() for name in spec.policies}
                   | set(contract.arms))
         for kind in contract.types:
