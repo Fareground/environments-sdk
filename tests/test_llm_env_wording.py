@@ -383,3 +383,17 @@ def test_the_last_turn_line_sums_up_what_the_turn_did_and_what_was_refused_after
     fg_env.run(contract, ann, seed=1)
     assert updates[1].splitlines()[1] == ("Your last turn: Done: pay (n=5). Done: pay (n=2). Then: pay was not done: "
                                           "n must be at most 5 (got 50). Correct the arguments and call again.")
+
+
+def test_a_tool_schema_lists_each_choice_once_and_no_default_the_call_would_refuse():
+    """Strict validators refuse repeated enum values; a default outside the bounds invites a refused call (audit 11)."""
+    contract = {"name": "Schema", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}},
+                "actions": {"pick": {"by": "p", "do": [], "params": {
+                    "v": {"type": "enum", "values": ["a", "a", "b"]},
+                    "n": {"type": "int", "min": 0, "max": 3, "default": 5}}}}}
+    schema = fg_env.load(contract).preview("a")["tools"][0]["input_schema"]["properties"]
+    assert schema["v"]["enum"] == ["a", "b"] and "default" not in schema["n"]
+    assert [i.path for i in fg_env.check({**contract, "actions": {"pick": {
+        "by": "p", "do": [], "params": {"n": {"type": "int", "description": "Up to {$actor.cash}"}}}}}, rounds=0)
+        if "static" in i.message] == ["actions.pick.params.n.description"]

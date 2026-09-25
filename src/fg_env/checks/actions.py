@@ -53,6 +53,10 @@ class ActionChecks(EffectChecks):
             self._tool_name(name, path)
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
+                if "{$" in (param.description or ""):
+                    self.warn(f"{ppath}.description", "argument descriptions are static: {$...} remains literal",
+                              "Put dynamic instructions in brief.roles.<actor type> or views.show; inspect "
+                              "env.preview(actor_id) to verify the actual text")
                 if param.type not in C.PARAM_TYPES:
                     self.error(f"{ppath}.type", f"unknown type '{param.type}'",
                                self._suggest_type(param.type, C.PARAM_TYPES))

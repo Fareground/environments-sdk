@@ -350,6 +350,9 @@ worlds stay fast, and the package is organised by feature.
     `cost` in a usage dict are read, not an `AttributeError` told as "pass the sync client".
   - What billed empty replies cost counts in an authoring session's usage even when they end it; before, it was
     counted only when a reply followed.
+  - Tool schemas list each enum choice once and leave out a default the call would refuse (outside its bounds or
+    choices); check warns about `{$…}` in an argument's description, which is shown as written, as it does for an
+    action's.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

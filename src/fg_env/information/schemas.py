@@ -3,6 +3,7 @@ a shared tool's call to the action it picks."""
 from __future__ import annotations
 
 import itertools
+import json
 import math
 import re
 from collections.abc import Sequence
@@ -147,7 +148,7 @@ class ToolSchemas:
                 values = self._every_value(actor, action, pname, param)
                 description = (description + " Valid choices depend on the other arguments.").strip()
             if isinstance(values, list) and values:
-                out["enum"] = [plain_value(v) for v in values]
+                out["enum"] = _distinct([plain_value(v) for v in values])  # strict validators refuse repeats
                 kind = _enum_type(out["enum"])
                 if kind:
                     out["type"] = kind
@@ -187,7 +188,7 @@ class ToolSchemas:
         if description:
             out["description"] = description
         default = self._schema_default(actor, param)
-        if default is not None:
+        if default is not None and _allowed(out, default):  # never a default the call would refuse
             out["default"] = default
         return out
 
@@ -236,6 +237,26 @@ class ToolSchemas:
         if isinstance(value, float) and not math.isfinite(value):
             return None
         return tidy(value)
+
+
+def _distinct(values: list[Any]) -> list[Any]:
+    """``values`` without repeats, in order (``1`` and ``true`` are distinct)."""
+    seen: set[str] = set()
+    out = []
+    for value in values:
+        key = json.dumps([type(value).__name__, value], sort_keys=True, default=str)
+        if key not in seen:
+            seen.add(key)
+            out.append(value)
+    return out
+
+
+def _allowed(schema: dict[str, Any], value: Any) -> bool:
+    """Whether ``value`` fits the bounds and choices ``schema`` states."""
+    if "enum" in schema and value not in schema["enum"]:
+        return False
+    number = isinstance(value, (int, float)) and not isinstance(value, bool)
+    return not number or (schema.get("minimum", value) <= value <= schema.get("maximum", value))
 
 
 def _enum_type(values: Sequence[Any]) -> str | None:
