@@ -307,7 +307,8 @@ class Turn:
                 gate.notify()
             if self.exposure is not None:
                 self.exposure.called(name, args, result)
-            if not (self.staged or self.closed) and isinstance(name, str) and name in self.env.contract.actions:
+            if not (self.staged or self.closed) and isinstance(name, str) and name in self.env.contract.actions \
+                    and result.data.get("error") != "undone":  # an undone turn's outcome is set by what undid it
                 self.last_outcome = result.text  # a sealed choice's result reaches its agent as news when it commits
             self.note(Answered(name, args, result))
             return result
@@ -517,6 +518,7 @@ class Turn:
             with env.world.luck.turn_context(None, self.ledger.pending):
                 undo = self.settle()
             if undo is not None:
+                self.last_outcome = f"Your turn was undone: {undo.why}."  # not what an undone action returned
                 env.world.emit("outcome", f"Your turn was undone: {undo.why}.", actor=self.actor.id,
                                to=(self.actor.id,), data={"ok": False, "undone": True})
                 env.world.commit()
@@ -526,6 +528,7 @@ class Turn:
         turn, or the turn's own commit and `valid`) turned on chance or on something hidden from the agent — then
         the turn is over, since playing it again would retry the luck or probe the hidden value for free."""
         why = undo.why
+        self.last_outcome = f"Your turn was undone: {why}."  # not what an undone action returned
         if settled_by is None and not undo.spent:
             return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
                                      "play your turn again.", data=dict(_UNDONE))

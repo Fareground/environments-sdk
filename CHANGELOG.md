@@ -274,6 +274,8 @@ worlds stay fast, and the package is organised by feature.
   - `Env.restore` holds a snapshot's property values to their declarations, as `fork` does, and refuses a
     non-finite number anywhere (no rule can make one): a tampered snapshot with `cash = NaN`, text in a number or a
     value past its bound is a `SnapshotError` naming the property. Before, NaN restored and the run completed.
+  - After a turn `valid` undid, the agent's next update opens with "Your last turn: Your turn was undone: <why>."
+    instead of what the undone action had returned ("Done: sched."), which told it a move had happened.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

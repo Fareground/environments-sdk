@@ -201,3 +201,23 @@ def test_valid_holds_on_the_world_the_turns_change_events_leave():
     result = fg_env.run(sealed, {"ann": ann, "bo": "idle"}, seed=1)
     assert result.outputs == {"load": 5, "overloaded": False}
     assert any("Your choices were undone: That overloads the system" in (e.get("text") or "") for e in result.events)
+
+
+def test_the_next_update_says_a_turn_was_undone_not_what_its_undone_action_returned():
+    """After a turn `valid` undid, "Your last turn" says it was undone and why (audit 11 M6), whether the agent ended
+    it (and left) or the turn settled as it returned; an action it then took says what that action did."""
+    walk = copy.deepcopy(WALK)
+    walk["clock"]["rounds"] = 2
+    for leaves in ("end_turn", "return"):
+        updates = []
+
+        def ann(wake, leaves=leaves, updates=updates):
+            updates.append(wake.update)
+            if wake.round == 1:
+                wake.call("step", {"by": 1})
+                if leaves == "end_turn":
+                    wake.call("end_turn")
+
+        fg_env.run(walk, {"ann": ann, "bo": "idle"}, seed=1)
+        assert "Your last turn: Your turn was undone: You must end on an even square, not 1." in updates[1]
+        assert "Done: step" not in updates[1]
