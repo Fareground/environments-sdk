@@ -319,7 +319,7 @@ def test_coded_traders_produce_a_moving_stylized_facts_tape_across_seeds():
         assert sum(1 for v in volumes if v > 0) >= 0.9 * len(volumes) and sum(volumes) / len(volumes) > 10
         # Quotes stand for a whole round of a 2% volatility: makers who learn from flow need about two volatilities of
         # spread to cover what informed traders take from them, and no more.
-        assert statistics.median(spreads) < 0.05 * statistics.median(prices)
+        assert statistics.median(s for s in spreads if s is not None) < 0.05 * statistics.median(prices)
         trade_acf.append(abs(series_stats(prices, volumes)["acf1"]))
         mid_sigma.append(series_stats(mids, volumes)["sigma"])
         realism = result.outputs["realism"]
