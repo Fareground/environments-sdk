@@ -396,4 +396,4 @@ def test_a_tool_schema_lists_each_choice_once_and_no_default_the_call_would_refu
     assert schema["v"]["enum"] == ["a", "b"] and "default" not in schema["n"]
     assert [i.path for i in fg_env.check({**contract, "actions": {"pick": {
         "by": "p", "do": [], "params": {"n": {"type": "int", "description": "Up to {$actor.cash}"}}}}}, rounds=0)
-        if "static" in i.message] == ["actions.pick.params.n.description"]
+        if "plain text" in i.message] == ["actions.pick.params.n.description"]
