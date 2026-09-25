@@ -330,12 +330,7 @@ Known answer: `fg-env new negotiation && fg-env run negotiation.json --agent pol
   },
   "stages": [
     {"name": "night", "turns": "simultaneous", "actions": ["attack"], "who": "$it.role == wolf"},
-    {
-      "name": "day",
-      "when": "$wolves_left > 0 and $wolves_left < $count(player) - $wolves_left",
-      "turns": "simultaneous",
-      "actions": ["accuse"]
-    }
+    {"name": "day", "turns": "simultaneous", "actions": ["accuse"]}
   ],
   "views": {
     "you": {"for": "player", "show": "You are a {role}."},

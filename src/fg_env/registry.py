@@ -89,7 +89,7 @@ class ModeSpec:
         return f"{self.family}.{self.mode}"
 
     def reference(self) -> dict[str, Any]:
-        """The contract the reference shows the example in, which works as pasted (with a `name`): its context, an
+        """The contract the reference shows the example in, which works as pasted: its context, an
         agent type for each `who` it names and two agents of it (unless the context declares them), and the
         mechanisms it builds on declared before it."""
         shown = copy.deepcopy(self.context)

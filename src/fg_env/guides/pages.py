@@ -312,7 +312,7 @@ def mode_page(spec: ModeSpec) -> str:
             takes = f" — takes {', '.join(f'`{k}`' for k in keys)}" if keys else ""
             required = f" (needs {', '.join(f'`{k}`' for k in needs)})" if needs else ""
             lines.append(f"- `{action}`{takes}{required}: {op.example}")
-    # with what it builds on and its `who`: it works as pasted, given a `name`
+    # with what it builds on and its `who`: it works as pasted
     lines += ["", "```json", json.dumps(spec.reference(), ensure_ascii=False), "```"]
     return "\n".join(lines)
 

@@ -2385,6 +2385,8 @@
       "type": "string"
     },
     "name": {
+      "default": "Environment",
+      "description": "Its title: the heading of every agent's brief. Left out, a contract read from a file is named after the file, any other `Environment`.",
       "title": "Name",
       "type": "string"
     },
@@ -2552,7 +2554,6 @@
     }
   },
   "required": [
-    "name",
     "types"
   ],
   "title": "Contract",

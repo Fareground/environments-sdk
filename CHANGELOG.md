@@ -302,6 +302,11 @@ worlds stay fast, and the package is organised by feature.
     this turn; it ends your turn."), and with one action left every action tool says "Ends your turn." and is marked
     terminal. With the default `max_actions: 1` a model that called a side action first (a note) ended its turn
     without knowing it would. The playthrough goldens gain that line; no information state changes.
+  - **A contract's `name` is optional** (mech H1): left out, a contract read from a file is named after the file, any
+    other `Environment`; so every mechanism reference example works as pasted. The judge and game-master examples
+    declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract
+    and mechanism example on every docs page (a block that cannot run is marked `<!-- not run: why -->`). The JSON
+    Schema changes accordingly.
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

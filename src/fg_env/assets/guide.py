@@ -9,6 +9,7 @@ ASSETS = """\
 An environment can carry real files — product photos, evidence, contracts, recordings — declared beside the
 contract and delivered to agents under the same visibility rules as everything else.
 
+<!-- not run: its files live beside the contract -->
 ```json
 {
   "inputs": {

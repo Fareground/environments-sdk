@@ -1,6 +1,6 @@
 """The environment contract — one JSON document describing any environment.
 
-Every section is optional except ``name`` and at least one agent type. Section
+Every section is optional except at least one agent type (``name`` defaults to the file's name). Section
 reference, field by field, is generated from these models (see ``fg_env.guide()``).
 
 The section models live beside it — shared names and ceilings in :mod:`.base`, the world model in
@@ -150,7 +150,8 @@ class Contract(_Model):
     """An environment: world, people, rules, what agents see, what is measured."""
 
     fg_env: str = Field(CONTRACT_VERSION, description="Contract version.")
-    name: str
+    name: str = Field("Environment", description="Its title: the heading of every agent's brief. Left out, a contract "
+                                                "read from a file is named after the file, any other `Environment`.")
     description: str = ""
     imports: list[str] = Field(default_factory=list,
                                description="Contract files merged into this one (paths relative to this file, inside "

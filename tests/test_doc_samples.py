@@ -126,3 +126,31 @@ def test_the_cookbook_shows_every_recipe_as_the_file_new_writes(tmp_path):
         written = json.loads(path.read_text())
         shown = json.loads(fg_env.guide(f"cookbook.{name}").split("```json\n")[1].split("```")[0])
         assert written == {**shown, "name": written["name"]} and f"## {name}" in page
+
+
+def _contracts():
+    """Each JSON block on the pages that is a whole contract (it declares `types`) or uses a mechanism, and is not
+    marked as not run: a reader pastes one as it is."""
+    for page in PAGES:
+        text = page.read_text(encoding="utf-8")
+        for number, match in enumerate(re.finditer(r"```json\n(.*?)```", text, re.S), 1):
+            before = text[:match.start()].rstrip("\n").rsplit("\n", 1)[-1]
+            if before.startswith("<!-- not run"):
+                continue
+            block = match[1]
+            try:
+                data = json.loads(block)
+            except json.JSONDecodeError:
+                continue  # a fragment written for reading, not pasting
+            if isinstance(data, dict) and ("types" in data or "mechanisms" in data):
+                yield pytest.param(data, id=f"{page.stem}-{number}")
+
+
+@pytest.mark.parametrize("contract", list(_contracts()))
+def test_every_contract_on_a_page_checks_clean_and_plays_as_pasted(contract):
+    """A contract or mechanism example on a docs page works when pasted as it is: it checks without errors and plays
+    with random agents (audit 14 mech H1)."""
+    errors = [str(issue) for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]
+    assert errors == []
+    result = fg_env.run(contract, "random", seed=1, rounds=3)  # its first rounds: enough to reach every rule once
+    assert result.status != "failed", result.error

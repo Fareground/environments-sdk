@@ -54,7 +54,11 @@ def _read_noted(source: ContractLike) -> tuple[Any, list[str]]:
         return _with_imports(_json(source, "(json text)"), Path.cwd(), ())
     if isinstance(source, (str, os.PathLike)):
         path = Path(source)
-        return _with_imports(_json(_file_text(path), _shown(str(path))), path.parent, (path.resolve(),))
+        data, notes = _with_imports(_json(_file_text(path), _shown(str(path))), path.parent, (path.resolve(),))
+        if isinstance(data, dict) and "name" not in data:  # a file's contract is named after the file
+            data = {"name": path.stem.replace("_", " ").replace("-", " ").strip().capitalize() or "Environment",
+                    **data}
+        return data, notes
     raise ContractError([Issue("(contract)", f"cannot read a contract from {type(source).__name__}", _SOURCES)])
 
 
