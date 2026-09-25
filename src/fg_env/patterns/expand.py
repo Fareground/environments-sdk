@@ -9,6 +9,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from ..contract.parse_errors import error_message
 from ..errors import Issue
 from . import catalogue  # noqa: F401 — registers every kind
 from .base import KINDS, PatternConfig
@@ -58,8 +59,7 @@ def _issue(path: str, kind: str, model: Any, error: Mapping[str, Any]) -> Issue:
         info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
         about = f"`{loc[0]}`: {info.description}" if info is not None and info.description else None
         return Issue(at, "is required", about or f"see guide('patterns') for `{kind}`")
-    message = str(error["msg"]).removeprefix("Value error, ")
-    return Issue(at if loc else path, message, f"see guide('patterns') for `{kind}`")
+    return Issue(at if loc else path, error_message(error), f"see guide('patterns') for `{kind}`")
 
 
 def _fields(model: Any, loc: list[Any]) -> list[str]:

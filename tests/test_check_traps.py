@@ -308,3 +308,13 @@ def test_an_entity_count_that_is_not_a_number_is_caught_before_running():
                 "entities": {"p": {"type": "p", "count": "three"}}}
     [issue] = [i for i in _errors(contract, rounds=0) if i.path == "entities.p.count"]
     assert "whole number" in issue.message
+
+
+def test_a_validation_message_is_the_validators_own_words_without_pydantics_prefix():
+    contract = {"name": "x", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+                "actions": {"go": {"by": "p", "do": []}}, "events": [{"on": "round.finish", "do": []}]}
+    [issue] = [i for i in fg_env.check(contract) if i.path == "events[0].on"]
+    assert issue.message.startswith("'round.finish' is not an anchor — did you mean 'round.end'?")
+    ballot = {**contract, "events": [], "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "p",
+                                                             "options": ["a", "b"], "threshold": 2}}}
+    assert not [i for i in fg_env.check(ballot) if "error," in i.message or "failed," in i.message]

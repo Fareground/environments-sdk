@@ -16,7 +16,7 @@ from pydantic import BaseModel, ValidationError
 from .. import contract as C
 from ..errors import Issue
 
-__all__ = ["validation_issues", "shape_issue"]
+__all__ = ["validation_issues", "shape_issue", "error_message"]
 
 #: What a pydantic type error expects, and the loc tag a union branch of that type adds.
 _EXPECTED: dict[str, tuple[str, str]] = {
@@ -164,9 +164,21 @@ def validation_issues(exc: ValidationError) -> list[Issue]:
         elif kind == "missing":
             issues.append(Issue(path, "is required"))
         else:
-            issues.append(Issue(path, error["msg"], (error.get("ctx") or {}).get("fix")))
+            issues.append(Issue(path, error_message(error), (error.get("ctx") or {}).get("fix")))
     issues.extend(shape_issue(path, expected, value) for path, (expected, value) in unions.items())
     return [_with_guide_part(issue) for issue in issues]
+
+
+#: What pydantic puts before the message a validator raised: never shown to an author.
+_PYDANTIC_PREFIXES = ("Value error, ", "Assertion failed, ")
+
+
+def error_message(error: Mapping[str, Any]) -> str:
+    """A validation error's message as the author reads it: the validator's own words, without pydantic's prefix."""
+    message = str(error["msg"])
+    for prefix in _PYDANTIC_PREFIXES:
+        message = message.removeprefix(prefix)
+    return message
 
 
 def shape_issue(path: str, expected: list[str], value: Any) -> Issue:

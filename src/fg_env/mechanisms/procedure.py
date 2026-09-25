@@ -36,6 +36,7 @@ from pydantic import Field, ValidationError, model_validator
 
 from ..contract import StageSpec
 from ..contract.normalize import normalize
+from ..contract.parse_errors import error_message
 from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
@@ -202,7 +203,7 @@ def _stages(name: str, phase: str, spec: PhaseDef, taken: set) -> list[dict[str,
         except ValidationError as exc:
             error = exc.errors()[0]
             where = ".".join(str(p) for p in error["loc"])
-            message = "is not a stage field" if error["type"] == "extra_forbidden" else error["msg"]
+            message = "is not a stage field" if error["type"] == "extra_forbidden" else error_message(error)
             raise MechanismError(message, None, f"{field}.{where}" if where else field) from None
         out.append(stage)
     return out

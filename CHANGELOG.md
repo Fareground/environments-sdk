@@ -318,6 +318,10 @@ worlds stay fast, and the package is organised by feature.
     (brief, update, tools, time_limit, tokens) whose text is that layout. Before, it printed a raw dict.
   - A command's own usage line reads `usage: fg-env new …`, not the whole top-level usage before it, and
     `experiment --agent` says what it takes.
+  - Messages no longer show internals: every validation message is the validator's own words (one helper strips
+    pydantic's "Value error, " prefix wherever contract, mechanism, stage and pattern errors are reported; the contract
+    path did not), and the fix for an action that always faulted says what to fix in plain words instead of naming
+    internal finding codes.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

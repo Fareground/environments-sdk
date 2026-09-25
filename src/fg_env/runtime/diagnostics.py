@@ -281,8 +281,8 @@ def _actions(env: Env) -> list[dict[str, str]]:
                                 f"never happened: all {entry['faulted']} attempt(s) were refused because a rule failed "
                                 "or an invariant broke as it applied, so the rule is broken for every choice agents "
                                 "made, not just some",
-                                "fix the rule the action_rule_failed or action_broke_invariant finding names; until "
-                                "then no agent can take this action"))
+                                "fix the rule that failed or the invariant it broke (reported with its path and "
+                                "error beside this finding); until then no agent can take this action"))
         if entry["chosen"] >= MIN_CALLS and entry["chosen_refused"] == entry["chosen"] and not entry["applied"] \
                 and not entry["faulted"] and not entry["unusable"]:
             out.append(_finding("action_never_succeeded", f"actions.{name}",

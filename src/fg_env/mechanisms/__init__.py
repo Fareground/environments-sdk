@@ -30,7 +30,7 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
-from ..contract.parse_errors import shape_issue
+from ..contract.parse_errors import error_message, shape_issue
 from ..contract.rules import StageSpec
 from ..errors import Issue
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
@@ -456,7 +456,7 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
         info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
         about = f"`{loc[0]}`: {info.description.rstrip('.')}. " if info is not None and info.description else ""
         return Issue(at, "is required", f"{about}{label} takes: {', '.join(_fields_at(model, ()))}")
-    return Issue(at, str(error["msg"]).removeprefix("Value error, "), (error.get("ctx") or {}).get("fix"))
+    return Issue(at, error_message(error), (error.get("ctx") or {}).get("fix"))
 
 
 def _fields_at(model: Any, loc: tuple[Any, ...]) -> list[str]:
