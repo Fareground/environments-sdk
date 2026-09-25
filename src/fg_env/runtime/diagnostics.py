@@ -321,7 +321,7 @@ def _overwrites(env: Env) -> list[dict[str, str]]:
     return [_finding("sealed_choices_overwrite", f"stages.{stage}",
                      f"sealed choices overwrote each other {count} time(s): {example}",
                      "give each agent its own value (a prop on $actor, or a map keyed by $actor.id) and combine them "
-                     "in the stage's on_exit, or make the stage sequential")
+                     f"in an event on `stage.{stage}.end`, or make the stage sequential")
             for stage, (count, example) in sorted(env.state.diagnosis.overwrites.items())] + [
         _finding("loop_overwrites", path, f"an `each` loop overwrote one value {count} time(s): {example}",
                  "collect the values instead (a list with +=, or a map keyed by $it.id) and choose one after the loop "

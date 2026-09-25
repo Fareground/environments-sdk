@@ -246,6 +246,8 @@ worlds stay fast, and the package is organised by feature.
     ends `sold_out`). Before, nine rounds sold about one lot, so their revenue and surplus looked like a format effect.
   - Every Python sample on the reference pages runs as written or is marked as an API map that is not run, and the
     doc-sample test now covers the reference pages too: `guide("inspect")` runs a cookbook recipe it writes first.
+  - The diagnostic for sealed choices that overwrite each other says to combine them in an event on
+    `stage.<s>.end`, not in the deprecated `on_exit`.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

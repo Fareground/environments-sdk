@@ -82,6 +82,7 @@ def test_sealed_choices_that_replace_each_others_values_are_reported():
     assert [(d["code"], d["path"]) for d in found] == [("sealed_choices_overwrite", "stages.pick")]
     assert "`$world.pick = $params.n` in actions.choose set $world.pick, replacing the value ann's choice had set" \
         in found[0]["message"]
+    assert "an event on `stage.pick.end`" in found[0]["fix"] and "on_exit" not in found[0]["fix"]
 
 
 def test_sealed_choices_that_build_on_the_value_before_are_not_overwrites():
