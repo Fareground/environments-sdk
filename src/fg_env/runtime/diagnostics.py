@@ -292,7 +292,11 @@ def _faults(env: Env) -> list[dict[str, str]]:
 
 def _faulted_types(env: Env) -> list[dict[str, str]]:
     """Agent types most of whose attempts were refused because a rule failed as they applied — a coded population whose
-    actions fail (another type's use of the same action may still work, so the action alone does not show it)."""
+    actions fail (another type's use of the same action may still work, so the action alone does not show it). An
+    action that never once applied is reported as such instead (`_actions`), which names the same cause."""
+    if any(entry["faulted"] >= ALWAYS_FAULTED and not entry["applied"]
+           for entry in env.state.diagnosis.actions.values()):
+        return []
     kinds: dict[str, list[Any]] = {}
     for agent, stats in env.state.agent_stats.items():
         entity = env.world.entities.get(agent)
