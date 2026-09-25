@@ -162,6 +162,15 @@ class OrderBookConfig(BaseModel):
     max_actions: int = Field(4, ge=1, description="Actions per turn in the generated stage.")
     conserve: Conserve = conserve_field("reserves match the book and balances stay within limits")
 
+    @field_validator("crowd")
+    @classmethod
+    def _makers_hold_something(cls, value: dict[str, CrowdSpec]) -> dict[str, CrowdSpec]:
+        maker = value.get("market_maker")
+        if maker is not None and maker.cash == 0 and maker.shares == 0:
+            raise ValueError("market makers with no cash and no shares can never quote: give them `cash` (to bid) "
+                             "and `shares` (to ask)")
+        return value
+
     @field_validator("start_price")
     @classmethod
     def _price_or_expression(cls, value: Any) -> Any:

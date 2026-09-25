@@ -1184,3 +1184,12 @@ def test_a_type_prop_that_would_replace_a_mechanisms_starting_setting_is_an_erro
                 "entities": {"a": {"type": "player"}, "b": {"type": "player"}}, "mechanisms": {"m": mechanism}}
     issues = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
     assert issues and f"types.player.props.{prop} (default 5) would replace" in issues[0].message, issues
+
+
+def test_market_makers_with_nothing_to_quote_are_a_check_error():
+    """audit 13 mechanisms L5: with no cash and no shares a market maker can never quote."""
+    contract = {"name": "B", "clock": {"rounds": 3}, "types": {"trader": {"agent": True, "props": {"cash": 1000}}},
+                "entities": {"t": {"type": "trader", "count": 1}},
+                "mechanisms": {"bk": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
+                                      "crowd": {"market_maker": {"count": 2}}}}}
+    assert [i.path for i in fg_env.check(contract, rounds=0) if i.severity == "error"] == ["mechanisms.bk.crowd"]
