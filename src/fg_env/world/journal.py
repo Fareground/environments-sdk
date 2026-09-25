@@ -80,6 +80,19 @@ class Journal:
         self._clear_due = False
 
     @contextmanager
+    def tried(self) -> Iterator[None]:
+        """Undo everything done inside the block on the way out, commits included (a call tried before it is made):
+        nothing inside it clears the journal, and it leaves no clear owed that was not owed before it."""
+        mark, due = self.mark(), self._clear_due
+        self.holding += 1
+        try:
+            yield
+        finally:
+            self.holding -= 1
+            self.rollback(mark)
+            self._clear_due = due
+
+    @contextmanager
     def held(self) -> Iterator[None]:
         """Keep every change made inside the block undoable until it ends: commits inside it (an agent's action and
         the events it sets off) clear the journal only once the block finishes without an error, so a failure

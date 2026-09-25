@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..actions.book import ACTION_BUDGET, ActionBook, Outcome
-from ..actions.faults import LogicRefused, fault_reason, world_logic_refused
+from ..actions.faults import LogicRefused, fault_reason, refused_text, world_logic_refused
 from ..contract import Contract, StageSpec
 from ..effects.runner import EffectRunner
 from ..errors import FatalRunError, InvariantViolation, RunError
@@ -29,6 +29,7 @@ from ..expr import ExprError, compile_expr, item_conditions, shared_budget, trut
 from ..expr.objects import Entity
 from ..information.gate import viewer_for
 from ..world.abort import Abort, OutOfBounds
+from ..world.randomness import LuckAhead
 from .events import Events
 from .facts import Faulted
 
@@ -263,8 +264,27 @@ class Rules:
         return self.actions.apply(actor, name, params)
 
     def trial(self, actor: Entity, name: str, params: dict[str, Any]) -> str | None:
-        """Try ``name`` without keeping anything and without drawing luck: why it would be refused, or None."""
-        return self.actions.dry_run(actor, name, params)
+        """Try ``name`` without keeping anything and without drawing luck: why it would be refused, or None — as far as
+        a call made now would go before its first draw: its `do` and the events it sets off, then its commit (the
+        invariants it would break, the `change` events it would set off), each refusal worded as the call's own."""
+        world = self.world
+        with world.journal.tried():
+            refusal = self.actions.trial(actor, name, params)
+            if refusal is not None:
+                return refusal
+            picker, world.chance_picker = world.chance_picker, None
+            try:
+                with world.luck.forbidden(), world.luck.acting_as(actor, name):
+                    self.commit(f"actions.{name}")
+            except LuckAhead:
+                return None  # what follows is luck, which only the call itself rolls
+            except (RunError, ExprError) as exc:
+                if isinstance(exc, FatalRunError):
+                    raise
+                return refused_text(name, fault_reason(exc if isinstance(exc, RunError) else RunError(str(exc))))
+            finally:
+                world.chance_picker = picker
+        return None
 
     @contextmanager
     def replay_intents(self, actor: Entity, intents: Sequence[tuple[str, dict[str, Any]]]) -> Iterator[None]:

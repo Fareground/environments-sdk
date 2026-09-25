@@ -295,6 +295,9 @@ worlds stay fast, and the package is organised by feature.
     named entity) is a check error, not a smoke-run failure (L4).
   - An action's `outcome` is worked out once the reactions it set off right away (`wake` with `now`) have run, so it no
     longer reports the state before them (L5).
+  - A sealed choice is tried at submit as far as a call made now would go: its `do`, then its commit — the invariants
+    it would break and the `change` events it would set off — so it is refused there, not only at commit; and a
+    `change` event's `fail` reads the same (its own text) in either kind of stage, at submit and at commit (L6).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

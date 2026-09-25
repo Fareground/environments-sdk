@@ -197,3 +197,19 @@ def test_a_bare_whole_number_default_holds_any_number_and_int_holds_whole_number
     assert fg_env.run(game(10), seed=1).outputs == {"coins": 10.5}
     with pytest.raises(RunError, match="must be a whole number"):
         fg_env.run(game({"type": "int", "default": 10}), seed=1)
+
+
+@pytest.mark.parametrize("turns", ["sequential", "simultaneous"])
+@pytest.mark.parametrize("rule", ["invariant", "change"])
+def test_a_call_its_commit_would_refuse_is_refused_alike_in_either_kind_of_stage(turns, rule):
+    """A sealed choice is tried as far as a call made now would go — its `do`, then its commit: the invariants it
+    would break and the `change` events it would set off — and the refusal reads as a sequential call's does, the
+    `fail` text included, at submit and at commit alike (audit 14 L6)."""
+    c = {**SHOP, "stages": [{"name": "shop", "turns": turns}]}
+    if rule == "invariant":
+        c["invariants"] = [{"expr": "$world.stock >= 2", "why": "Keep two in stock."}]
+    else:
+        c["events"] = [{"on": "change", "when": "$world.stock < 2", "do": [{"fail": "Keep two in stock."}]}]
+    result, env = _first_call(c, "take", {"n": 2})
+    assert not result.ok and result.text.startswith("Your take was not done: Keep two in stock.")
+    assert env.props["stock"] == 3

@@ -109,6 +109,7 @@ def _apply_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], def
             world.commit()
         return 0
     if not deferred:
-        rules.commit(f"actions.{name}")
+        with world.luck.acting_as(actor, name):  # the change events it sets off are the action's, as in turns
+            rules.commit(f"actions.{name}")
     rules.facts.emit(Committed(name), turn)
     return 1
