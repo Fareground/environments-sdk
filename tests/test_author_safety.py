@@ -207,3 +207,32 @@ def test_the_test_process_stops_itself_past_its_memory_ceiling_and_the_next_call
         with pytest.raises(TooBig, match="more than 200 MB"):
             box.call("test_author_safety:hog", {"megabytes": 400}, seconds=30)
         assert box.call("test_author_safety:hog", {"megabytes": 10}, seconds=30) == 10 * 1024 * 1024
+
+
+def test_what_empty_replies_cost_is_counted_even_when_they_end_the_session(monkeypatch):
+    """Five billed empty replies then a failure: their tokens are in the session's usage (audit 11 B-M1)."""
+    monkeypatch.setattr("fg_env.authoring.author.time.sleep", lambda seconds: None)
+
+    class Billed(FakeOpenAI):
+        def create(self, model, messages, tools, timeout=None):
+            reply = super().create(model, messages, tools, timeout)
+            if not reply.choices:
+                reply.usage = SimpleNamespace(prompt_tokens=5000, completion_tokens=0)
+            return reply
+
+    lost = fg_env.author("A game.", "openai:m", client=Billed([write(WORKING)], *[EMPTY] * 5))
+    assert lost.stop.startswith("error:") and lost.usage["input_tokens"] == 100 + 5 * 5000
+    assert lost.usage["calls"] == 6
+
+
+def test_replies_as_plain_dicts_are_read_like_the_participants_read_them():
+    """A proxy that returns Anthropic content blocks as dicts, or an OpenAI reply with no message, is read with the
+    participants' and hosts' reader (audit 11 B-M2), not refused as "pass the sync client"."""
+    blocks = iter([{"content": [{"type": "tool_use", "id": "t1", "name": "write_contract",
+                                 "input": {"contract": WORKING}}], "stop_reason": "tool_use",
+                    "usage": {"input_tokens": 5, "output_tokens": 5}},
+                   {"content": [{"type": "text", "text": "Done."}], "stop_reason": "end_turn",
+                    "usage": {"input_tokens": 5, "output_tokens": 5}}])
+    client = SimpleNamespace(messages=SimpleNamespace(create=lambda **request: next(blocks)))
+    result = fg_env.author("A game.", "anthropic:m", client=client)
+    assert result.ok and result.stop == "done" and result.contract == WORKING

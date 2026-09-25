@@ -287,8 +287,12 @@ def _converse(ask: Ask, messages: list[Message], bench: Workbench, usage: dict[s
             return "seconds"
         try:
             message, used = ask(messages)
-        except Exception as exc:  # the provider's error ends the loop; what already works is kept
-            return (f"error: {exc}" if isinstance(exc, ProviderFailed) else f"error: {type(exc).__name__}: {exc}")[:800]
+        except ProviderFailed as exc:  # the provider's error ends the loop; what already works is kept
+            for key, value in exc.spent.items():  # what the calls that answered with nothing cost still counts
+                usage[key] = usage.get(key, 0) + value
+            return f"error: {exc}"[:800]
+        except Exception as exc:
+            return f"error: {type(exc).__name__}: {exc}"[:800]
         refused = used.pop("refused", 0)
         for key, value in used.items():
             usage[key] = usage.get(key, 0) + value
@@ -365,7 +369,12 @@ def _answer(calls: list[dict[str, Any]], truncated: bool, bench: Workbench) -> l
 
 
 class ProviderFailed(Exception):
-    """The provider still failed (or failed in a way retrying cannot fix): the error and how to fix it."""
+    """The provider still failed (or failed in a way retrying cannot fix): the error and how to fix it. ``spent`` is
+    what the calls that answered with nothing cost, which the session still counts."""
+
+    def __init__(self, message: str, spent: Mapping[str, int] | None = None):
+        super().__init__(message)
+        self.spent = dict(spent or {})
 
 
 def _retrying(ask: Request, provider: str, model: str, progress: Callable[[str], None] | None,
@@ -375,11 +384,12 @@ def _retrying(ask: Request, provider: str, model: str, progress: Callable[[str],
     past ``deadline``: a wait that would is not made, and the error stands (:class:`ProviderFailed`, with its fix)."""
     call, client = PROVIDER_CALLS[provider]
 
-    def failed(exc: Exception, attempt: int) -> ProviderFailed:
+    def failed(exc: Exception, attempt: int, spent: Mapping[str, int]) -> ProviderFailed:
         if isinstance(exc, EmptyReply):
             return ProviderFailed(f"{call} still sent no usable reply after {attempt} retr"
-                                  f"{'y' if attempt == 1 else 'ies'} ({exc}): try again later, or another provider")
-        return ProviderFailed(provider_failure(exc, call, client, model, attempt))
+                                  f"{'y' if attempt == 1 else 'ies'} ({exc}): try again later, or another provider",
+                                  spent)
+        return ProviderFailed(provider_failure(exc, call, client, model, attempt), spent)
 
     def retried(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         wasted: dict[str, int] = {}  # what calls answered with nothing spent: counted with the reply that follows
@@ -392,14 +402,14 @@ def _retrying(ask: Request, provider: str, model: str, progress: Callable[[str],
                     wasted = {key: wasted.get(key, 0) + exc.spent.get(key, 0) for key in {*wasted, *exc.spent}}
                     wasted["calls"] = wasted.get("calls", 0) + 1
                 if attempt >= RETRIES or not retryable(exc):
-                    raise failed(exc, attempt) from exc
+                    raise failed(exc, attempt, wasted) from exc
                 delay = retry_after(exc)
                 wait = min(MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt)
                 if time.time() + wait >= deadline:
                     raise ProviderFailed(f"{call} failed with {type(exc).__name__}: {exc}, and retrying means waiting "
                                          f"{wait:.0f}s, past the session's time budget: give it more seconds "
-                                         "(budget={'seconds': ...}), or try again when the provider is less busy"
-                                         ) from exc
+                                         "(budget={'seconds': ...}), or try again when the provider is less busy",
+                                         wasted) from exc
                 if progress:
                     progress(f"provider busy ({type(exc).__name__}: {str(exc)[:200]}); retrying in {wait:.0f}s")
                 time.sleep(wait)

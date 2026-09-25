@@ -348,6 +348,8 @@ worlds stay fast, and the package is organised by feature.
   - The author loop reads a provider's reply with the reader the participants and hosts use (one
     `field_of`/`block_dict`), so Anthropic content blocks as plain dicts, an OpenAI reply with no message, and a
     `cost` in a usage dict are read, not an `AttributeError` told as "pass the sync client".
+  - What billed empty replies cost counts in an authoring session's usage even when they end it; before, it was
+    counted only when a reply followed.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
