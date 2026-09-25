@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import importlib
 import inspect
-import json
 import os
 import random
 import threading
@@ -16,6 +15,7 @@ import time
 from collections.abc import Callable, Collection, Mapping
 from typing import TYPE_CHECKING, Any
 
+from ..actions.params import parse_arguments
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from ..errors import RunError
 from ..information.schemas import ToolSpec
@@ -66,6 +66,7 @@ class _LLMUsage:
         self.refusals = 0
         self.out_of_steps = 0
         self.no_tool_replies = 0
+        self.unreported_usage = 0
 
     def to_dict(self) -> dict[str, int]:
         return dict(self.__dict__)
@@ -374,7 +375,11 @@ class _LLMParticipant:
                 raise RunError(f"{self.CALL} returned an awaitable, so this is an async client. Pass the sync client, "
                                f"{self.CLIENT}: simultaneous turns already run in parallel, and `await env.arun(...)` "
                                "keeps your event loop free while the run plays", f"participant:{wake.entity_id}")
-            self._count(wake, getattr(response, "usage", None))
+            usage = getattr(response, "usage", None)
+            if usage is None:  # the provider says nothing of what the call cost: count its prompt, so budgets hold
+                self._record(wake, llm_calls=1, input_tokens=prompt, unreported_usage=1)
+            else:
+                self._count(wake, usage)
         finally:
             if budget is not None:
                 budget.release(turn.env, held)
@@ -632,10 +637,10 @@ class _OpenAI(_LLMParticipant):
             messages.append(assistant)
             files: list[dict[str, Any]] = []
             for c in calls:
-                try:
-                    args = json.loads(c.function.arguments or "{}")
-                except (json.JSONDecodeError, TypeError, RecursionError):
-                    args = c.function.arguments  # not JSON: the engine refuses it, saying so, and counts it invalid
+                raw = c.function.arguments
+                args, broken = parse_arguments(raw or "{}") if isinstance(raw, str) or raw is None else (raw, "")
+                if broken:
+                    args = raw  # not readable: the engine refuses it, saying why, and counts it invalid
                 result = self._dispatch(wake, c.function.name, args)
                 text = _NOT_RUN if result is None else result.text
                 if result is not None and self.media and result.attachments:

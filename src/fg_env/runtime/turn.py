@@ -6,7 +6,6 @@ and invariants wait, and a turn that breaks the rules is undone as a whole.
 """
 from __future__ import annotations
 
-import json
 import time
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
@@ -14,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..actions.book import stage_actions
 from ..actions.faults import refused_text
-from ..actions.params import REFUSED_ARGS
+from ..actions.params import REFUSED_ARGS, parse_arguments
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
 from ..expr.objects import Entity
@@ -573,11 +572,9 @@ def _not_an_object(args: Any) -> str:
     """Why arguments that are not a JSON object were refused: text that is not valid JSON (a model's broken arguments)
     says where it broke."""
     if isinstance(args, str):
-        try:
-            json.loads(args)
-        except ValueError as exc:
-            return (f"its arguments are not valid JSON ({exc}). Call again with the arguments as one JSON object of "
-                    "named values.")
+        _, broken = parse_arguments(args)
+        if broken:
+            return f"its arguments are {broken}. Call again with the arguments as one JSON object of named values."
     return f"arguments must be a JSON object of named values, got {type(args).__name__}."
 
 

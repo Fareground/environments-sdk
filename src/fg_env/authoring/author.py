@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from ..actions.params import parse_arguments
 from ..api import load, parse
 from ..engines import list_engines
 from ..guides import guide
@@ -455,7 +456,7 @@ def _to_anthropic(messages: list[Message]) -> list[Message]:
         elif m["role"] == "assistant":
             blocks: list[dict[str, Any]] = [{"type": "text", "text": m["content"]}] if m["content"].strip() else []
             blocks += [{"type": "tool_use", "id": c["id"], "name": c["function"]["name"],
-                        "input": json.loads(c["function"]["arguments"] or "{}")} for c in m.get("tool_calls", [])]
+                        "input": _input(c["function"]["arguments"])} for c in m.get("tool_calls", [])]
             out.append({"role": "assistant", "content": blocks or [{"type": "text", "text": "(no reply)"}]})
         else:
             out.append({"role": "user", "content": m["content"]})
@@ -463,3 +464,10 @@ def _to_anthropic(messages: list[Message]) -> list[Message]:
 
 
 _ANSWERERS = {"openai": _openai, "anthropic": _anthropic}
+
+
+def _input(arguments: str | None) -> Any:
+    """A tool call's arguments as the Anthropic API takes them back: the parsed object, or ``{}`` when the model's text
+    could not be read (its reply already told the model why)."""
+    args, broken = parse_arguments(arguments or "{}")
+    return {} if broken or not isinstance(args, dict) else args

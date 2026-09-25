@@ -208,6 +208,9 @@ class Stats:
     output_tokens: int = 0
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
+    #: Model calls whose provider reported no token usage: each counts its prompt's estimated size instead, so a token
+    #: budget still holds.
+    unreported_usage: int = 0
     llm_retries: int = 0
     #: Out-of-turn reaction turns (`wake` with `now`).
     reactions: int = 0

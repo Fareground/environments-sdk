@@ -2,6 +2,7 @@
 element spec and length bounds of list parameters."""
 from __future__ import annotations
 
+import json
 import re
 import reprlib
 from collections.abc import Callable
@@ -10,7 +11,8 @@ from typing import Any
 from ..contract import MAX_LIST_ITEMS, ParamSpec
 from ..errors import RunError
 
-__all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT", "MAX_ARG_DEPTH", "REFUSED_ARGS", "unbounded", "choice_list"]
+__all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT", "MAX_ARG_DEPTH", "REFUSED_ARGS", "unbounded", "parse_arguments",
+           "choice_list"]
 
 #: Longest text a participant may pass to a text parameter that declares no `max_len`.
 TEXT_MAX_LEN = 4_000
@@ -59,6 +61,17 @@ def unbounded(args: Any) -> str | None:
             items = [*value.keys(), *value.values()] if isinstance(value, dict) else value
             pending.extend((item, depth + 1) for item in items)
     return None
+
+
+def parse_arguments(text: str) -> tuple[Any, str | None]:
+    """Arguments a model wrote as JSON text, parsed — or None and why they cannot be: text that is not JSON, or lists
+    and objects nested so deep that parsing them would exhaust Python's stack. The one place such text is parsed."""
+    try:
+        return json.loads(text), None
+    except RecursionError:
+        return None, f"nested far more than {MAX_ARG_DEPTH} levels deep, too deep to read"
+    except ValueError as exc:
+        return None, f"not valid JSON ({exc})"
 
 
 def _tidy(value: Any) -> Any:

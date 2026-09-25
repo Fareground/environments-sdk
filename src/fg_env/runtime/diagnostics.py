@@ -72,7 +72,8 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
     failed = [issue for issue in issues if issue["path"].startswith("outputs.")]
     return [*(_finding("output_failed", issue["path"], issue["message"],
                        issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
-            *_budget_cut(env), *_forfeits(env), *_never_acted(env), *_out_of_steps(env), *_arm_inputs(env),
+            *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_never_acted(env), *_out_of_steps(env),
+            *_arm_inputs(env),
             *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
             *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
             *_stuck_measures(env, outputs, rules, {issue["path"] for issue in failed})]
@@ -86,6 +87,17 @@ def _budget_cut(env: Env) -> list[dict[str, str]]:
                      f"{budget.message(env).rstrip('.')}, so the outputs are those of a run cut short, not of the "
                      "environment played to its end",
                      "give the run a larger budget, or fewer `rounds`, when the outputs are to count")]
+
+
+def _unreported_usage(env: Env) -> list[dict[str, str]]:
+    calls = env.state.stats.unreported_usage
+    if not calls:
+        return []
+    return [_finding("usage_unreported", "participants",
+                     f"{calls} model call(s) came back without token usage, so their cost is an estimate (the prompt's "
+                     "size) in the run's token counts and budget",
+                     "use a provider or proxy that reports usage when the token counts or a token budget must be "
+                     "exact")]
 
 
 def _forfeits(env: Env) -> list[dict[str, str]]:

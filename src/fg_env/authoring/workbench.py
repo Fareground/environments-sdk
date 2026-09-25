@@ -11,6 +11,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from ..actions.params import parse_arguments
 from ..api import check, load
 from ..contract.normalize import normalize
 from ..engines import get as engine_spec
@@ -248,12 +249,11 @@ class Workbench:
     def tool_write_contract(self, contract: Any) -> str:
         if isinstance(contract, dict):
             return self._save(contract)
-        try:
-            data = json.loads(contract) if isinstance(contract, str) else contract  # some models send JSON text
-        except json.JSONDecodeError as exc:
+        data, broken = parse_arguments(contract) if isinstance(contract, str) else (contract, None)  # JSON text
+        if broken:
             self.writes.append(contract)
-            self.problem = f"the last write was not valid JSON ({exc}), so it saved nothing"
-            return f"Not valid JSON: {exc}. Nothing saved."
+            self.problem = f"the last write was {broken}, so it saved nothing"
+            return f"{broken[0].upper()}{broken[1:]}. Nothing saved."
         if not isinstance(data, dict):
             self.writes.append(contract)
             self.problem = "the last write was not a JSON object, so it saved nothing"
@@ -373,10 +373,9 @@ def _unplayable(participants: Any, policies: list[str]) -> str:
 
 def _arguments(params: dict[str, Any], arguments: str) -> tuple[dict[str, Any], str]:
     """A tool call's arguments, and what is wrong with them for ``params`` ("" when nothing is)."""
-    try:
-        args = json.loads(arguments)
-    except json.JSONDecodeError as exc:
-        return {}, f"its arguments are not valid JSON ({exc})"
+    args, broken = parse_arguments(arguments)
+    if broken:
+        return {}, f"its arguments are {broken}"
     if not isinstance(args, dict):
         return {}, "its arguments must be a JSON object"
     missing = [p for p in params.get("required", []) if p not in args]
