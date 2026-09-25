@@ -259,3 +259,19 @@ def test_an_action_named_with_a_trailing_underscore_reads_as_plain_words():
 
     fg_env.run(contract, play, seed=1)
     assert told[0].startswith("Done: pass."), told
+
+
+def test_a_turn_that_took_no_action_is_told_as_such_in_the_next_update():
+    """Passed, forfeited or refused every time, a turn with no action opens the next update saying so, so an agent is
+    never left to assume it did something (audit 12 agentif A-L1)."""
+    contract = {"name": "Idle", "clock": {"rounds": 2}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"ann": {"type": "p"}}, "actions": {"bump": {"by": "p", "do": "$actor.n += 1"}},
+                "outputs": {"n": "$sum(p, $it.n)"}}
+    updates = []
+
+    def play(wake):
+        updates.append(wake.update)
+        wake.end()
+
+    fg_env.run(contract, play, seed=1)
+    assert "Your last turn: You took no action." in updates[1]

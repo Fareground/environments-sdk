@@ -325,10 +325,11 @@ class Turn:
     @property
     def last_outcome(self) -> str | None:
         """What this turn's actions did, for the agent's next update: what each action that applied returned, in
-        order, then the refusal of any call made after the last of them; an undone turn says so first."""
+        order, then the refusal of any call made after the last of them; an undone turn says so first, and a turn that
+        took none says that (a sealed turn's choices are told as they commit)."""
         refused = self._refused_after
-        if refused is None:
-            return " ".join(self._done) or None
+        if refused is None:  # a turn that took no action (passed, forfeited, out of time) says so too
+            return " ".join(self._done) or (None if self.staged else "You took no action.")
         return " ".join([*self._done, f"Then: {refused}"]) if self._done else refused
 
     def _outcome(self, result: ToolResult) -> None:

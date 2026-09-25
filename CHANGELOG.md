@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A turn that took no action (passed, forfeited, out of time) opens the agent's next update with "Your last turn:
+    You took no action.", as a turn that acted says what it did.
   - Mechanism polish: an auction's "You have no …" names its `currency`; a ballot's `weight` may be a number (`2`);
     the approval ballot says to abstain to approve of none; the order book's page says `_mid` falls back to the one
     side left and that `idle` idles its coded crowd too; the market reference examples give their traders cash.
