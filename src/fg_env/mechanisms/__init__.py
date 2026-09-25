@@ -584,7 +584,8 @@ def merge_sections(data: dict[str, Any], fragment: Mapping[str, Any]) -> None:
 
 def _merge_stages(stages: list[Any], generated: Sequence[Mapping[str, Any]]) -> None:
     """Add generated stages to the declared ones. A declared stage of the same name refines the generated one: it keeps
-    the generated fields it does not set, and the generated stages around it keep their order (a declared `flop` still
+    the generated fields it does not set, it is held only when both `when`s hold (the mechanism's is its own rule, as a
+    ballot's "hold the vote only when"), and the generated stages around it keep their order (a declared `flop` still
     deals, and still comes after `preflop`). Without such a stage the generated ones follow the declared ones."""
     names = [s.get("name") if isinstance(s, Mapping) else None for s in stages]
     shared = [stage.get("name") for stage in generated if stage.get("name") in names]
@@ -592,6 +593,9 @@ def _merge_stages(stages: list[Any], generated: Sequence[Mapping[str, Any]]) -> 
     for stage in generated:
         if stage.get("name") in names:
             at = names.index(stage.get("name"))
+            own, rule = stages[at].get("when"), stage.get("when")
+            if isinstance(own, str) and isinstance(rule, str) and own.strip() != rule.strip():
+                stages[at]["when"] = f"({own}) and ({rule})"
             for key, item in stage.items():
                 stages[at].setdefault(key, copy.deepcopy(item))
             at += 1

@@ -102,3 +102,17 @@ def test_declaring_a_world_property_a_mechanism_keeps_is_an_error_naming_the_fix
     assert "rename" in found[0].fix
     expanded = fg_env.expand({**contract, "world": {}}, mechanisms=True)  # an expanded contract loads again unchanged
     assert [i for i in fg_env.check(expanded) if i.severity == "error"] == []
+
+
+def test_a_declared_stage_refining_a_generated_one_is_held_only_when_both_whens_hold():
+    """The ballot's own `when` (never) must not be dropped by the author's stage of the same name (always)."""
+    c = {"name": "r", "clock": {"rounds": 2}, "types": {"v": {"agent": True}},
+         "entities": {"v": {"type": "v", "count": 3}},
+         "mechanisms": {"poll": {"kind": "decision", "mode": "ballot", "who": "v", "options": ["a", "b"],
+                                 "when": "$round == 99"}},
+         "stages": [{"name": "poll", "turns": "simultaneous", "when": "$round >= 1"}],
+         "outputs": {"r": "$world.poll_result"}}
+    expanded, issues = expand_mechanisms(c)
+    assert not issues and expanded["stages"][0]["when"] == "($round >= 1) and ($round == 99)"
+    result = fg_env.run(c, "random", seed=1)
+    assert [e for e in result.events if e["kind"] == "poll"] == []

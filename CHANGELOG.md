@@ -262,6 +262,9 @@ worlds stay fast, and the package is organised by feature.
     the protocol, or when they are more than a tenth of that host's requests; a few declines or failures are reported
     as `host_sometimes_unusable`. Before, a judge that scored every speech out of range left a run "completed" and
     healthy, naming a winner on all-zero scores. The host tape marks an out-of-protocol outcome (`outside`).
+  - A declared stage that refines a mechanism's generated stage of the same name is held only when both `when`s
+    hold. Before, the author's `when` replaced the mechanism's, so a ballot's "hold the vote only when" was silently
+    dropped and the vote was offered, counted and announced anyway.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
