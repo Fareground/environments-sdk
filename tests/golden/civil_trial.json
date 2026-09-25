@@ -1,23 +1,23 @@
 {
   "actions": 8,
   "events": 12,
-  "events_sha256": "bf12b0f13a8f0ab2a556bdf7d1e4b1c3ecdc6f0fc32d16f34962794242ca4fca",
+  "events_sha256": "13b08390aa933942029b52ae0f04f26724ba4667dd4735579d35aeed10be6ca4",
   "first_events": [
     "r1 action p_counsel: Plaintiff's counsel delivered an opening statement.",
     "r1 action d_counsel: Defense counsel delivered an opening statement.",
-    "r2 action p_counsel: Plaintiff's counsel offered P-1 Master Supply Agreement into evidence, claiming credibility 100%.",
-    "r2 outcome p_counsel: You offered P-1 Master Supply Agreement (claimed credibility 100%).",
-    "r2 action d_counsel: Defense counsel offered D-1 Independent weld inspection report into evidence, claiming credibility 80%.",
-    "r2 outcome d_counsel: You offered D-1 Independent weld inspection report (claimed credibility 80%).",
-    "r3 action d_counsel: Defense counsel offered D-2 Delivery log into evidence, claiming credibility 47%.",
-    "r3 outcome d_counsel: You offered D-2 Delivery log (claimed credibility 47%).",
+    "r2 action p_counsel: Plaintiff's counsel offered P-1 Master Supply Agreement into evidence, claiming credibility 91%.",
+    "r2 outcome p_counsel: You offered P-1 Master Supply Agreement (claimed credibility 91%).",
+    "r2 action d_counsel: Defense counsel offered D-1 Independent weld inspection report into evidence, claiming credibility 93%.",
+    "r2 outcome d_counsel: You offered D-1 Independent weld inspection report (claimed credibility 93%).",
+    "r3 action d_counsel: Defense counsel offered D-2 Delivery log into evidence, claiming credibility 52%.",
+    "r3 outcome d_counsel: You offered D-2 Delivery log (claimed credibility 52%).",
     "r3 action p_counsel: Plaintiff's counsel offered P-2 Delivery acceptance email into evidence, claiming credibility 79%.",
     "r3 outcome p_counsel: You offered P-2 Delivery acceptance email (claimed credibility 79%)."
   ],
   "metrics": {
     "admitted": 4,
     "excluded": 0,
-    "net_admitted_strength": 0.5266519298
+    "net_admitted_strength": 0.2668878686
   },
   "rounds": 4,
   "status": "running",

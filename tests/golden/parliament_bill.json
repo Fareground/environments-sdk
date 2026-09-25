@@ -1,21 +1,21 @@
 {
-  "actions": 5,
-  "events": 13,
-  "events_sha256": "7f1f8bafaf4d5e2c0295d266d1e3204a9cee0e01dc60cdd465450e1b5d41054a",
+  "actions": 30,
+  "events": 63,
+  "events_sha256": "bd306fdb530a1f4b0c1579601aebe77eecd1c8cbab731aa5c8d63c6f15b3c634",
   "first_events": [
     "r1 bill: First reading of the Clean Rivers Bill.",
-    "r1 action mp_3: {\"action\": \"vote\", \"params\": {\"choice\": \"no\"}, \"private\": true, \"success\": true}",
-    "r1 outcome mp_3: You voted no.",
-    "r1 action mp_5: {\"action\": \"vote\", \"params\": {\"choice\": \"no\"}, \"private\": true, \"success\": true}",
-    "r1 outcome mp_5: You voted no.",
+    "r1 action mp_3: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_3: You voted aye.",
+    "r1 action mp_5: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_5: You voted aye.",
     "r1 action mp_4: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}",
     "r1 outcome mp_4: You voted aye.",
-    "r1 action mp_2: {\"action\": \"vote\", \"params\": {\"choice\": \"no\"}, \"private\": true, \"success\": true}",
-    "r1 outcome mp_2: You voted no.",
+    "r1 action mp_2: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}",
+    "r1 outcome mp_2: You voted aye.",
     "r1 action mp_1: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}"
   ],
   "metrics": {},
-  "rounds": 1,
+  "rounds": 4,
   "status": "ended",
-  "wakes": 5
+  "wakes": 30
 }

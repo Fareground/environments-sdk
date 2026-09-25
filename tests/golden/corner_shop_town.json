@@ -15,7 +15,7 @@
     "r1 action home_10: {\"action\": \"coffee_subscribe\", \"params\": {\"plan\": \"coffee_club\"}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "avg_hunger": 6.333333333,
+    "avg_hunger": 5.166666667,
     "coffee_members": 10,
     "coffee_revenue": 0,
     "dining_revenue": 90.0,

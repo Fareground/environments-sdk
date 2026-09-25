@@ -305,3 +305,26 @@ def test_a_preview_shows_the_noisy_view_the_turn_will_show():
     updates = []
     env.run(lambda wake: updates.append(wake.update), rounds=1)
     assert previewed.splitlines()[-1] == updates[0].splitlines()[-1]
+
+
+def _traders(buyers, buyer_props):
+    rolled = {"type": "int", "default": "$randint(1, 1000)"}
+    return {"name": "Luck", "clock": {"rounds": 1},
+            "world": {"weather": rolled},
+            "types": {"buyer": {"agent": True, "props": {**buyer_props, "value": rolled}},
+                      "seller": {"agent": True, "props": {"cost": rolled}}},
+            "entities": {"buyer": {"type": "buyer", "count": buyers}, "seller": {"type": "seller", "count": 2}},
+            "actions": {"wait": {"by": ["buyer", "seller"], "do": []}},
+            "outputs": {"value": "$dict(buyer, $it.id, $it.value)", "cost": "$dict(seller, $it.id, $it.cost)",
+                        "weather": "$world.weather"}}
+
+
+def test_adding_an_entity_or_a_random_prop_never_re_deals_the_others_starting_luck():
+    """Each starting value drawn at build is keyed by the entity (or the world) and the prop, as luck drawn during
+    the run is keyed by where it is written: an experiment arm that adds a buyer, or gives buyers a new trait, leaves
+    every other starting value as it was."""
+    base = fg_env.run(_traders(3, {}), "idle", seed=1).outputs
+    more = fg_env.run(_traders(4, {}), "idle", seed=1).outputs
+    trait = fg_env.run(_traders(3, {"mood": {"type": "int", "default": "$randint(1, 9)"}}), "idle", seed=1).outputs
+    assert more["cost"] == trait["cost"] == base["cost"] and more["weather"] == trait["weather"] == base["weather"]
+    assert {k: more["value"][k] for k in base["value"]} == base["value"] == trait["value"]

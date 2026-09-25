@@ -1,25 +1,25 @@
 {
-  "actions": 12,
-  "events": 19,
-  "events_sha256": "df0e69252cd87f747a19a68d07cd9a4053da2e6beeac8ed685da1213e0930651",
+  "actions": 20,
+  "events": 35,
+  "events_sha256": "4229a2b18ef15411d4fb9433cb3c50e5c9b64d1b17e4b03ac1ec97e5acce70e0",
   "first_events": [
     "r1 action trust_safety: The platform set its misinformation policy to none.",
     "r1 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_transit\"}, \"private\": true, \"success\": true}",
+    "r1 action u111: {\"action\": \"share\", \"params\": {\"post\": \"post_1\"}, \"private\": true, \"success\": true}",
+    "r1 outcome u111: You shared user190's post.",
     "r2 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_ballots\"}, \"private\": true, \"success\": true}",
-    "r2 action u53: {\"action\": \"post\", \"params\": {\"comment\": \"\", \"story\": \"story_transit\"}, \"private\": true, \"success\": true}",
-    "r2 outcome u53: You posted about \u00abCity council approves late-night bus routes\u00bb.",
-    "r3 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_heatwave\"}, \"private\": true, \"success\": true}",
-    "r3 action u14: {\"action\": \"share\", \"params\": {\"post\": \"post_2\"}, \"private\": true, \"success\": true}",
-    "r3 outcome u14: You shared user168's post.",
-    "r4 research_done checker: Research back on \u00abCity council approves late-night bus routes\u00bb: the evidence supports it.",
-    "r4 action checker: {\"action\": \"label\", \"params\": {\"story\": \"story_transit\", \"verdict\": \"accurate\"}, \"private\": true, \"success\": true}"
+    "r2 action u189: {\"action\": \"share\", \"params\": {\"post\": \"post_1\"}, \"private\": true, \"success\": true}",
+    "r2 outcome u189: You shared user190's post.",
+    "r2 action u9: {\"action\": \"like\", \"params\": {\"post\": \"post_1\"}, \"private\": true, \"success\": true}",
+    "r2 outcome u9: You liked user190's post.",
+    "r3 action checker: {\"action\": \"research\", \"params\": {\"story\": \"story_heatwave\"}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "exposed_false_share": 0.045,
-    "false_reach": 9,
-    "false_shares": 2,
-    "true_reach": 11,
-    "true_shares": 1
+    "exposed_false_share": 0.1,
+    "false_reach": 21,
+    "false_shares": 6,
+    "true_reach": 15,
+    "true_shares": 3
   },
   "rounds": 4,
   "status": "running",

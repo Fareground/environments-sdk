@@ -1,7 +1,7 @@
 {
-  "actions": 94,
-  "events": 94,
-  "events_sha256": "3b48dc56a60860c1b26b707c95e65047f81fcdc38933b8d53af0603fbcab9af7",
+  "actions": 115,
+  "events": 115,
+  "events_sha256": "44ff6688827ebbbb41200b6df20969b50cd014d9f6550458692a385661e7951f",
   "first_events": [
     "r1 action mm_1: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
     "r1 action mm_1: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
@@ -11,18 +11,18 @@
     "r1 action mm_3: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
     "r1 action mm_4: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
     "r1 action mm_4: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
-    "r1 action val_3: {\"action\": \"place_order\", \"params\": {\"price\": 50.24, \"qty\": 15, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
-    "r1 action val_1: {\"action\": \"place_order\", \"params\": {\"price\": 49.86, \"qty\": 15, \"side\": \"sell\"}, \"private\": true, \"success\": true}"
+    "r1 action val_5: {\"action\": \"place_order\", \"params\": {\"price\": 49.54, \"qty\": 15, \"side\": \"sell\"}, \"private\": true, \"success\": true}",
+    "r1 action val_7: {\"action\": \"place_order\", \"params\": {\"price\": 50.6, \"qty\": 15, \"side\": \"buy\"}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
     "fair_value": 50,
     "halted": 0,
-    "last_price": 50.69,
-    "pnl_market_maker": 1142.6904,
-    "pnl_momentum": 1061.3855,
-    "pnl_value": 1078.53125,
-    "resting_orders": 5,
-    "round_volume": 110
+    "last_price": 51.16,
+    "pnl_market_maker": 1809.88965,
+    "pnl_momentum": 1886.341425,
+    "pnl_value": 1839.252325,
+    "resting_orders": 9,
+    "round_volume": 180
   },
   "rounds": 4,
   "status": "running",

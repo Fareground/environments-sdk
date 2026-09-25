@@ -1,27 +1,27 @@
 {
   "actions": 601,
   "events": 1203,
-  "events_sha256": "7c214fd14bf06b982c0327d4374cdfb52a2eccfd8f41e321797f56f09f60c0f8",
+  "events_sha256": "86dbfc9bb44ca8b144bd8c433e67ab91958c02766c6d6acd5e3000b09053b229",
   "first_events": [
     "r1 news: Doctors confirm 3 cases of a new respiratory virus in town.",
     "r3 action mayor: The mayor has ordered a lockdown.",
     "r3 action r267: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
     "r3 outcome r267: Done: comply.",
-    "r3 action r99: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r3 outcome r99: Done: comply.",
-    "r3 action r126: {\"action\": \"defy\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r3 outcome r126: Done: defy.",
-    "r3 action r183: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r3 outcome r183: Done: comply."
+    "r3 action r99: {\"action\": \"defy\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r99: Done: defy.",
+    "r3 action r126: {\"action\": \"comply\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r126: Done: comply.",
+    "r3 action r183: {\"action\": \"defy\", \"params\": {}, \"private\": true, \"success\": true}",
+    "r3 outcome r183: Done: defy."
   ],
   "metrics": {
-    "active": 7,
+    "active": 8,
     "budget": 58200,
-    "compliance": 0.7692307692,
+    "compliance": 0.8026755853,
     "dead": 1,
-    "hospital_load": 0.2600223912,
+    "hospital_load": 0.2385388561,
     "lockdown": 1,
-    "new_cases": 0,
+    "new_cases": 1,
     "recovered": 4
   },
   "rounds": 4,

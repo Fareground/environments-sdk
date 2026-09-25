@@ -55,7 +55,7 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
                 continue
             evaluation = world.evaluation
             name = render(world, named.name, {}, viewer=None) if named.name else entity_id  # a template, as generated
-            evaluation.create(named.type, entity_id, name, named.props, _value(world, named.at, {}),
+            evaluation.create(named.type, entity_id, name, named.props, _placed(world, entity_id, named.at, {}),
                               evaluation.scope(), f"entities.{entity_id}")
             if named.brief:
                 pending_briefs.append((entity_id, named.brief, {}, f"entities.{entity_id}.brief"))
@@ -95,6 +95,12 @@ def _build_hooks(world: World) -> None:
 def _value(world: World, raw: Any, vars: dict[str, Any]) -> Any:
     # Literal lists and maps are copied, so a run never shares (or mutates) the contract's objects.
     return compile_expr(raw)(world.evaluation.scope(**vars)) if is_expr(raw) else copy.deepcopy(raw)
+
+
+def _placed(world: World, entity_id: str, raw: Any, vars: dict[str, Any]) -> Any:
+    """Where entity ``entity_id`` starts, drawn (`$random_empty(…)`) from a stream of its own."""
+    with world.luck.stream("build", "entity", entity_id, "at"):
+        return _value(world, raw, vars)
 
 
 def _rounds(world: World) -> int:
@@ -188,7 +194,8 @@ def _world_props(world: World, after_entities: bool = False) -> None:
         if (name in late) != after_entities:
             continue
         try:
-            value = _value(world, spec.default, {})
+            with world.luck.stream("build", "world", name):  # its own luck, which no other default shifts
+                value = _value(world, spec.default, {})
         except ExprError as exc:
             raise RunError(str(exc), f"world.{name}") from None
         world.props[name] = world.coerce(spec, value, f"world.{name}")
@@ -229,8 +236,8 @@ def _generate(world: World, key: str, spec: EntitySpec, ordinal: int,
             name = row["name"]
         else:
             name = f"{title} {n}"
-        created = world.evaluation.create(spec.type, entity_id, name, spec.props, _value(world, spec.at, vars), scope,
-                                          f"{path}[{n}]")
+        created = world.evaluation.create(spec.type, entity_id, name, spec.props,
+                                          _placed(world, entity_id, spec.at, vars), scope, f"{path}[{n}]")
         if spec.brief:
             pending_briefs.append((created.id, spec.brief, vars, f"{path}.brief"))
 

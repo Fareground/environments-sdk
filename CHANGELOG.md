@@ -263,6 +263,10 @@ worlds stay fast, and the package is organised by feature.
     requires (`physics`; a mode that must have one name declares it, and the name is checked in one place for every
     mode), and the `game.cards` example turns a first card onto the discard pile before its `play` rule reads it. An
     `economy.replenishment` over a demand mechanism whose own config is invalid reports that, not a crash.
+  - Starting values drawn at build (a type's or entity's random default, a world default, a random `at`) are keyed
+    by the entity (or the world) and the prop, as luck during the run is keyed by where it is written. Before, they
+    came from one stream in order, so adding a buyer re-dealt every seller's cost. Contracts with random starting
+    values start differently (22 goldens changed for this reason alone).
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

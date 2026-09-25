@@ -4,9 +4,9 @@
   "events_sha256": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "first_events": [],
   "metrics": {
-    "gini": 0.262598668,
-    "metabolism": 2.303571429,
-    "population": 56
+    "gini": 0.2742419269,
+    "metabolism": 2.2,
+    "population": 55
   },
   "rounds": 4,
   "status": "running",

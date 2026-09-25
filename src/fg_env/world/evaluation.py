@@ -233,7 +233,9 @@ class EvalContext:
                props: dict[str, Any], at: Any, scope: Scope, where: str, evaluate: bool = True) -> Entity:
         """Create an entity. ``props`` values that are expressions are evaluated when ``evaluate`` is
         true (contract text); runtime values from native ops pass ``evaluate=False``. Participant text
-        is never evaluated, whatever it looks like. The type's defaults for the rest are evaluated in ``scope``."""
+        is never evaluated, whatever it looks like. The type's defaults for the rest are evaluated in ``scope``. Outside any
+        block of logic (the build) each prop draws from a stream keyed by the entity and the prop, so adding an entity
+        or a prop never re-deals another's."""
         world = self.world
         entity = world.new_entity(type_name, entity_id, name, props, at, where)
         declared = world.type_props[type_name]
@@ -243,10 +245,18 @@ class EvalContext:
         expressions = {prop: raw for prop, raw in raws.items() if is_expr(raw) and (
             prop not in props or (evaluate and not isinstance(raw, Untrusted)))}
         order = _prop_order(raws, expressions, where)
+        luck = world.luck
+        keyed = luck.here().rng is None  # the build: each prop's luck is its own, which no other entity or prop shifts
         for prop in order:
             raw = raws[prop]
             try:
-                value = compile_expr(raw)(own) if prop in expressions else copy_value(raw)
+                if prop not in expressions:
+                    value = copy_value(raw)
+                elif keyed:
+                    with luck.stream("build", "entity", entity.id, prop):
+                        value = compile_expr(raw)(own)
+                else:
+                    value = compile_expr(raw)(own)
             except ExprError as exc:
                 raise RunError(str(exc), f"{where}.props.{prop}") from None
             entity.properties[prop] = world.coerce(declared[prop], plain_value(value), f"{where}.props.{prop}",

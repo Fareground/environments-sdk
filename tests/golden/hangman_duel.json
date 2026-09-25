@@ -1,15 +1,15 @@
 {
   "actions": 8,
   "events": 9,
-  "events_sha256": "8c69fd178373a9dae325cad2b96834f14d7a869988a0045999a6d47b7d1135ca",
+  "events_sha256": "15a9547a5ac8a436a6a8b47a274ef412cf00074545c04c1449a354e51e95dfc5",
   "first_events": [
     "r1 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
     "r1 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
     "r2 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"r\"}, \"private\": true, \"success\": true}",
-    "r2 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"n\"}, \"private\": true, \"success\": true}",
-    "r3 action cora: {\"action\": \"solve\", \"params\": {\"answer\": \"saffron\"}, \"private\": true, \"success\": true}",
-    "r3 action dev: {\"action\": \"solve\", \"params\": {\"answer\": \"jigsaw\"}, \"private\": true, \"success\": true}",
-    "r3 game_over: Game 1: Cora uncovered the word with 0 strikes. The words were Cora held JIGSAW, Dev held SAFFRON.",
+    "r2 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"o\"}, \"private\": true, \"success\": true}",
+    "r3 action cora: {\"action\": \"solve\", \"params\": {\"answer\": \"hammock\"}, \"private\": true, \"success\": true}",
+    "r3 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"l\"}, \"private\": true, \"success\": true}",
+    "r3 game_over: Game 1: Cora uncovered the word with 1 strikes. The words were Cora held MARBLE, Dev held HAMMOCK.",
     "r4 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
     "r4 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}"
   ],
