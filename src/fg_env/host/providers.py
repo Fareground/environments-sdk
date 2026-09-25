@@ -5,12 +5,13 @@ from __future__ import annotations
 
 import inspect
 import random
+from collections.abc import Mapping
 from typing import Any
 
 from ..errors import RunError
 
-__all__ = ["PROVIDER_CALLS", "MAX_BACKOFF_SECONDS", "REQUEST_TIMEOUT", "EmptyReply", "retryable", "too_long",
-           "refuse_awaitable", "provider_failure", "backoff", "retry_after", "request_timeout"]
+__all__ = ["field_of", "block_dict", "PROVIDER_CALLS", "MAX_BACKOFF_SECONDS", "REQUEST_TIMEOUT", "EmptyReply",
+           "retryable", "too_long", "refuse_awaitable", "provider_failure", "backoff", "retry_after", "request_timeout"]
 
 
 #: Per provider: the call every built-in client of it makes, and its sync client (named in failures).
@@ -122,3 +123,24 @@ def retry_after(exc: BaseException) -> float | None:
 def request_timeout(left: float | None) -> float:
     """The ``timeout`` of one provider request, given the seconds ``left`` in the turn (None: no limit)."""
     return REQUEST_TIMEOUT if left is None else min(left, REQUEST_TIMEOUT)
+
+
+def field_of(owner: Any, name: str) -> Any:
+    """``owner``'s ``name``: an attribute of a client's response object, or a key of the plain dict some clients and
+    proxies return instead; None for none."""
+    if owner is None:
+        return None
+    return owner.get(name) if isinstance(owner, Mapping) else getattr(owner, name, None)
+
+
+def block_dict(block: Any) -> dict[str, Any]:
+    """An Anthropic content block (an object, or a plain dict) as the plain dict a later request sends back."""
+    kind = field_of(block, "type") or ""
+    if kind == "text":
+        return {"type": "text", "text": field_of(block, "text") or ""}
+    if kind == "tool_use":
+        return {"type": "tool_use", "id": field_of(block, "id"), "name": field_of(block, "name"),
+                "input": field_of(block, "input") or {}}
+    if hasattr(block, "model_dump"):
+        return dict(block.model_dump())
+    return dict(block) if isinstance(block, Mapping) else {"type": str(kind)}

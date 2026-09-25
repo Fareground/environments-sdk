@@ -44,6 +44,8 @@ from ..host.providers import (
     MAX_BACKOFF_SECONDS,
     PROVIDER_CALLS,
     EmptyReply,
+    block_dict,
+    field_of,
     provider_failure,
     request_timeout,
     retry_after,
@@ -432,23 +434,25 @@ def _openai(client: Any, model: str) -> Request:
 
     def ask(messages: list[Message], timeout: float) -> tuple[Message, dict[str, Any]]:
         response = client.chat.completions.create(model=model, messages=messages, tools=tools, timeout=timeout)
-        if not getattr(response, "choices", None):  # OpenRouter does this now and then, with the reason in `error`
-            error = getattr(response, "error", None)
+        # read as the participants and hosts read a response: objects or the plain dicts some proxies return
+        used, choices = field_of(response, "usage"), field_of(response, "choices")
+        reply = field_of(choices[0], "message") if choices else None
+        if reply is None:  # OpenRouter does this now and then, with the reason in `error`
+            error = field_of(response, "error")
             raise SpentEmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""),
-                             _spent_on(getattr(response, "usage", None), "openai", messages))
-        choice = response.choices[0]
-        reply = choice.message
-        calls = [{"id": c.id, "type": "function", "function": {"name": c.function.name,
-                                                               "arguments": c.function.arguments}}
-                 for c in reply.tool_calls or []]
-        message: Message = {"role": "assistant", "content": reply.content or ""}
+                                  _spent_on(used, "openai", messages))
+        choice = choices[0]
+        calls = [{"id": field_of(c, "id"), "type": "function",
+                  "function": {"name": field_of(field_of(c, "function"), "name"),
+                               "arguments": field_of(field_of(c, "function"), "arguments")}}
+                 for c in field_of(reply, "tool_calls") or []]
+        message: Message = {"role": "assistant", "content": field_of(reply, "content") or ""}
         if calls:
             message["tool_calls"] = calls
-        used = getattr(response, "usage", None)
-        refused = getattr(choice, "finish_reason", None) == "content_filter" or bool(getattr(reply, "refusal", None))
-        counts = {**_spent_on(used, "openai", messages),
-                  "truncated": int(getattr(choice, "finish_reason", None) == "length"), "refused": int(refused)}
-        cost = getattr(used, "cost", None)  # OpenRouter reports it; OpenAI does not
+        finish = field_of(choice, "finish_reason")
+        refused = finish == "content_filter" or bool(field_of(reply, "refusal"))
+        counts = {**_spent_on(used, "openai", messages), "truncated": int(finish == "length"), "refused": int(refused)}
+        cost = field_of(used, "cost")  # OpenRouter reports it; OpenAI does not
         return message, {**counts, "cost": float(cost)} if isinstance(cost, (int, float)) else counts
 
     return ask
@@ -468,17 +472,20 @@ def _anthropic(client: Any, model: str) -> Request:
         last["content"][-1] = {**last["content"][-1], "cache_control": {"type": "ephemeral"}}
         response = client.messages.create(model=model, system=system, messages=conversation,
                                           tools=tools, max_tokens=ANTHROPIC_MAX_TOKENS, timeout=timeout)
-        text = "".join(b.text for b in response.content if b.type == "text")
-        calls = [{"id": b.id, "type": "function", "function": {"name": b.name, "arguments": json.dumps(b.input)}}
-                 for b in response.content if b.type == "tool_use"]
-        stop = getattr(response, "stop_reason", None)
+        # read as the participants and hosts read a response: objects or the plain dicts some proxies return
+        blocks = [block_dict(block) for block in field_of(response, "content") or []]
+        text = "".join(b["text"] for b in blocks if b["type"] == "text")
+        calls = [{"id": b["id"], "type": "function",
+                  "function": {"name": b["name"], "arguments": json.dumps(b["input"])}}
+                 for b in blocks if b["type"] == "tool_use"]
+        stop, used = field_of(response, "stop_reason"), field_of(response, "usage")
         if not calls and not text.strip() and stop not in ("max_tokens", "refusal"):
             raise SpentEmptyReply(f"the provider sent a reply with nothing in it (stop_reason {stop!r})",
-                             _spent_on(getattr(response, "usage", None), "anthropic", messages))
+                                  _spent_on(used, "anthropic", messages))
         message: Message = {"role": "assistant", "content": text}
         if calls:
             message["tool_calls"] = calls
-        return message, {**_spent_on(getattr(response, "usage", None), "anthropic", messages),
+        return message, {**_spent_on(used, "anthropic", messages),
                          "truncated": int(stop == "max_tokens"), "refused": int(stop == "refusal")}
 
     return ask

@@ -345,6 +345,9 @@ worlds stay fast, and the package is organised by feature.
   - A host request longer than its model reads leaves that one request unanswered (`host_unusable`), as a
     participant forfeits that turn, instead of failing the run; the provider-error fix no longer mentions a
     participant's `extra` to hosts.
+  - The author loop reads a provider's reply with the reader the participants and hosts use (one
+    `field_of`/`block_dict`), so Anthropic content blocks as plain dicts, an OpenAI reply with no message, and a
+    `cost` in a usage dict are read, not an `AttributeError` told as "pass the sync client".
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

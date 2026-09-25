@@ -34,6 +34,7 @@ from .protocols import HostError, HostUnavailable
 from .providers import (
     PROVIDER_CALLS,
     backoff,
+    field_of,
     provider_failure,
     refuse_awaitable,
     request_timeout,
@@ -79,10 +80,6 @@ def parse_json(text: str) -> Any:
             except ValueError:
                 continue
     raise HostError(f"the model did not answer with JSON: {text[:200]!r}")
-
-
-def _field(block: Any, name: str) -> Any:
-    return block.get(name) if isinstance(block, Mapping) else getattr(block, name, None)
 
 
 class _Provider:
@@ -211,8 +208,8 @@ class LLMHost(_Provider):
                 raise HostError("the model declined the request")
             if stop == "max_tokens":
                 raise HostError(self._cut_off())
-            return "".join(_field(b, "text") or "" for b in getattr(response, "content", None) or []
-                           if _field(b, "type") == "text")
+            return "".join(field_of(b, "text") or "" for b in getattr(response, "content", None) or []
+                           if field_of(b, "type") == "text")
         parts = openai_parts(files, OPENAI_MEDIA)
         user: Any = [{"type": "text", "text": content}, *parts] if parts else content
         response = self._retrying(lambda timeout: self.client.chat.completions.create(
@@ -262,14 +259,14 @@ class AnthropicWebSearch(_Provider):
                 raise HostError("the model declined the search")
             blocks = list(getattr(response, "content", None) or [])
             for block in blocks:
-                kind = _field(block, "type")
+                kind = field_of(block, "type")
                 if kind == "text":
-                    texts.append(_field(block, "text") or "")
-                elif kind == "web_search_tool_result" and isinstance(_field(block, "content"), list):
-                    for result in _field(block, "content"):
-                        url = _field(result, "url")
+                    texts.append(field_of(block, "text") or "")
+                elif kind == "web_search_tool_result" and isinstance(field_of(block, "content"), list):
+                    for result in field_of(block, "content"):
+                        url = field_of(result, "url")
                         if isinstance(url, str) and url not in sources:
-                            sources[url] = str(_field(result, "title") or url)
+                            sources[url] = str(field_of(result, "title") or url)
             if stop != "pause_turn":
                 break
             messages = messages + [{"role": "assistant", "content": blocks}]

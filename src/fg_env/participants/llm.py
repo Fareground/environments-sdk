@@ -23,6 +23,7 @@ from ..host.providers import (
     PROVIDER_CALLS,
     EmptyReply,
     backoff,
+    block_dict,
     provider_failure,
     refuse_awaitable,
     request_timeout,
@@ -474,26 +475,10 @@ def _cached(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _reply_blocks(blocks: Any, truncated: bool) -> list[dict[str, Any]]:
     """A reply's content blocks as they are sent back: without empty text (the API refuses it), and — for a reply cut
     off at ``max_tokens`` — without its tool calls, whose arguments may be cut off too (none of them is made)."""
-    content = [_block_dict(block) for block in blocks]
+    content = [block_dict(block) for block in blocks]
     return [block for block in content
             if not (block.get("type") == "text" and not block.get("text", "").strip())
             and not (truncated and block.get("type") == "tool_use")]
-
-
-def _block_dict(block: Any) -> dict[str, Any]:
-    kind = getattr(block, "type", None) or (block.get("type") if isinstance(block, Mapping) else "")
-    if kind == "text":
-        return {"type": "text", "text": _field(block, "text") or ""}
-    if kind == "tool_use":
-        return {"type": "tool_use", "id": _field(block, "id"), "name": _field(block, "name"),
-                "input": _field(block, "input") or {}}
-    if hasattr(block, "model_dump"):
-        return dict(block.model_dump())
-    return dict(block) if isinstance(block, Mapping) else {"type": str(kind)}
-
-
-def _field(block: Any, name: str) -> Any:
-    return block.get(name) if isinstance(block, Mapping) else getattr(block, name, None)
 
 
 def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: int = 8, system: str = "",
