@@ -102,7 +102,8 @@ def test_a_printed_preview_reads_as_the_cli_shows_it(capsys):
     view = fg_env.load("examples/contracts/kuhn_poker.json", seed=1).preview("p0")
     text = str(view)
     assert text.startswith("=== brief ===\n# Kuhn poker") and "\n\n=== update ===\n" in text
-    assert "- bet: Bet 1, or call a bet.  {}" in text and text.endswith(f"tools {view['tokens']['tools']}")
+    assert "- bet: Bet 1, or call a bet. Ends your turn.  {}" in text  # its one action ends the turn (audit 14)
+    assert text.endswith(f"tools {view['tokens']['tools']}")
     assert json.loads(json.dumps(view))["brief"] == view["brief"]  # still the mapping it was
     main(["preview", "examples/contracts/kuhn_poker.json", "p0", "--seed", "1"])
     assert capsys.readouterr().out.strip().endswith(text)
