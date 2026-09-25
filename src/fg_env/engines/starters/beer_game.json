@@ -97,8 +97,11 @@
       "inputs": {"share_demand": true}
     }
   },
+  "invariants": [
+    {"expr": "$len($inputs.demand) >= 1", "why": "The customers need an order to place: give inputs.demand at least one week."}
+  ],
   "defs": {
-    "flow": {"description": "Steady weekly flow the chain starts in.", "expr": "$first($inputs.demand)"},
+    "flow": {"description": "Steady weekly flow the chain starts in.", "expr": "$coalesce($first($inputs.demand), 0)"},
     "last_unstable_week": {"description": "Index (0-based) of the last unstable week, or null.", "expr": "$last($filter($range($len($series.stable)), $series.stable[$it] == 0))"},
     "shock_week": {"description": "Index (0-based) of the first week whose demand differs from week 1, or 0.", "expr": "$get($filter($range($len($series.customer_demand)), $series.customer_demand[$it] != $series.customer_demand[0]), 0, 0)"}
   },

@@ -300,6 +300,9 @@ worlds stay fast, and the package is organised by feature.
   - `start_from` shows a starter whose data inputs would overflow a tool result with those inputs cut to their first
     rows, marked so that writing it back as shown is refused; the saved contract keeps every row. Before,
     `start_from contact_centre` put 331,000 characters into the conversation, resent with every later call.
+  - The `supply_chain` engine refuses an empty `demand` and `contact_centre` a `staffing` list that is not 24 half-hours
+    (or empty), each with an invariant saying what to give. Before, the first crashed while building its world and
+    the second failed at its second interval.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

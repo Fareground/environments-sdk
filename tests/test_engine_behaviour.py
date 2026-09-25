@@ -525,3 +525,12 @@ def test_the_hidden_roles_engine_deals_as_many_werewolves_as_the_table_allows():
     assert sum(p.properties["role"] == "werewolf" for p in env.world.entities_of("player")) == 4
     with pytest.raises(fg_env.RunError, match="give inputs.players more rows"):
         fg_env.run(path, seed=1, inputs={"werewolves": 7})
+
+
+@pytest.mark.parametrize("engine_id, inputs, fix", [
+    ("supply_chain", {"demand": []}, "give inputs.demand at least one week"),
+    ("contact_centre", {"staffing": [1]}, "give it 24 numbers or none"),
+])
+def test_an_engine_refuses_inputs_it_cannot_run_on_before_it_runs(engine_id, inputs, fix):
+    with pytest.raises(fg_env.InvariantViolation, match=fix):
+        fg_env.engines.load(engine_id, inputs=inputs)

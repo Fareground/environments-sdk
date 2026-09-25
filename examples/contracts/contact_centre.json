@@ -186,6 +186,9 @@
       }
     }
   },
+  "invariants": [
+    {"expr": "$len($inputs.staffing) == 0 or $len($inputs.staffing) == 24", "why": "inputs.staffing lists the agents on duty in each of the 24 half-hours from 08:00, or is empty for the manager's rule: give it 24 numbers or none."}
+  ],
   "mechanisms": {
     "centre": {
       "kind": "economy",
