@@ -130,7 +130,7 @@ def test_the_engine_refuses_the_post_so_no_other_agent_ever_reads_it():
         seen.append(wake.update)
 
     unchecked = copy.deepcopy(LEAKY_POST)  # a read check cannot pin to one agent: the engine still refuses it
-    unchecked["actions"]["poke"]["do"][0]["text"] = "{$params.who.name} holds {$entity($params.who.id).secret}"
+    unchecked["actions"]["poke"]["do"][0]["text"] = "{$params.who.name} holds {$get($params.who, secret)}"
     result = fg_env.run(unchecked, {"a": poke, "b": "idle", "c": watch}, seed=1)
     assert not any("222" in text for text in seen)
     [refused] = [d for d in result.diagnostics if d["code"] == "action_rule_failed"]
@@ -178,7 +178,8 @@ DOORS = {
     "stages": [{"name": "s", "max_actions": 2, "valid": [{"expr": "$actor.moves == 2", "why": "Open two doors."}]}],
     "actions": {"open": {"by": "p", "description": "Open a door; one of 1-3 hides a trap costing 5.",
                          "params": {"n": {"type": "int", "min": 1, "max": 3}},
-                         "do": ["$actor.moves += 1", {"if": "$params.n == $world.trap", "then": ["$actor.coins -= 5"]}]}},
+                         "do": ["$actor.moves += 1",
+                                {"if": "$params.n == $world.trap", "then": ["$actor.coins -= 5"]}]}},
     "views": {"purse": {"show": "You have {coins} coins.", "look": True}},
     "outputs": {"coins": "$entity(a).coins"},
 }

@@ -88,3 +88,22 @@ def test_a_worked_out_reveal_is_announced_and_a_private_action_announces_nothing
         assert result.ok, result.summary()
         lines, _ = env.information.news(env.world.entities["b"], 0)
         assert any("Balance: 137" in line for line in lines) == (not private)
+
+
+def _fetched(**sections):
+    return {"name": "Fetched", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True, "props": {"secret": {"default": 0, "private": True}, "coins": 10}}},
+            "entities": {"a": {"type": "p", "props": {"secret": 7}}, "b": {"type": "p", "props": {"secret": 3}}},
+            "actions": {"g": {"by": "p", "do": "$actor.coins += 1"}}, **sections}
+
+
+def test_a_fetched_private_read_in_an_outcome_or_an_invariant_why_is_a_check_error():
+    """An outcome is shown to its actor and an invariant's `why` to whoever broke it: another agent's private property
+    fetched into either is refused at run time, so check says so as an error, as for views."""
+    outcome = _fetched()
+    outcome["actions"]["g"]["outcome"] = "B has {$entity(b).secret}"
+    invariant = _fetched(invariants=[{"expr": "$entity(a).coins >= 0", "why": "b holds {$entity(b).secret}"}])
+    for contract, path in ((outcome, "actions.g.outcome"), (invariant, "invariants[0].why")):
+        found = [i for i in fg_env.check(contract, rounds=0) if i.path == path]
+        assert [i.severity for i in found] == ["error"], (path, [str(i) for i in found])
+        assert "$entity(…).secret" in found[0].message

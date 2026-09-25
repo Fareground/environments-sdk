@@ -64,10 +64,10 @@ class PrivacyChecks(Checker):
                        "work out what the actor may learn in `do` (`\"$seen = $params.target.role\"`) and show "
                        "`{$seen}`, or read only what it may know")
         elif fetched := self._fetched_reads(expressions):
-            self.warn(path, f"reads private {', '.join(sorted(fetched))}: what the actor is shown or offered is "
-                            "refused it at run time unless it is the actor's own",
-                      "read the actor's own through `$actor`, or work out what it may learn in game logic and show "
-                      "that")
+            self.error(path, f"reads private {', '.join(sorted(fetched))}: what the actor is shown or offered is "
+                             "refused it at run time for every actor but its owner",
+                       "read the actor's own through `$actor`, or work out what it may learn in game logic and show "
+                       "that")
 
     def _private_who(self, stage: C.StageSpec, path: str) -> None:
         """A `who` that reads a hidden value, in a stage whose actions are announced: everyone learns whom it woke."""
@@ -120,7 +120,8 @@ class PrivacyChecks(Checker):
                      params: Mapping[str, C.ParamSpec] | None = None) -> None:
         """Text sent to several agents (an announcement, news, an entry every agent reads) may read no private
         property, not even the actor's own: the engine refuses it."""
-        read = self._hidden_reads(_expressions(source), types, params or {})
+        expressions = _expressions(source)
+        read = self._hidden_reads(expressions, types, params or {}) | self._fetched_reads(expressions)
         if read:
             self.error(path, f"reads private {', '.join(sorted(read))}, and this text is sent to more than one agent: "
                              "the engine refuses it at run time",

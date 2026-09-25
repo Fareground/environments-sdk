@@ -4,7 +4,8 @@ Each text here was once rendered in the true state, as game logic reads it: a st
 (a condition's or an `end` effect's), a `wake`'s why, a status's news, a procedure's news and its stack's items, a
 card reveal's `say`, a pot's showdown labels, a ballot's announcement and a chance node's labels. Ana and Bo each keep
 a private `secret`; a template that reads Bo's where Ana (or everyone) reads it fails like every other agent-facing
-text, and Bo's secret appears nowhere. What static analysis can see is refused before the run.
+text, and Bo's secret appears nowhere. What static analysis can see is refused before the run; the probes that test
+the run's own gate fetch Bo's secret with `$get`, which it cannot follow (a plain `$entity(b).secret` is a check error).
 """
 import pytest
 
@@ -80,7 +81,7 @@ def test_a_valid_why_shows_the_actor_its_own_private_value():
 
 
 def test_a_valid_why_is_refused_another_agents_private_value():
-    refused_at_runtime(_valid("{$entity(b).secret}"), {"a": [("poke", {})]})
+    refused_at_runtime(_valid("{$get($entity(b), secret)}"), {"a": [("poke", {})]})
 
 
 def test_a_valid_why_reading_a_private_world_value_is_refused_by_the_check():
@@ -90,7 +91,7 @@ def test_a_valid_why_reading_a_private_world_value_is_refused_by_the_check():
 # -- an end's `say`: the run's last news, to everyone --------------------------------------------------------------
 
 def test_an_end_conditions_say_is_refused_a_private_value():
-    c = contract(end=[{"when": "$round >= 1", "say": "Over: {$entity(b).secret}"}])
+    c = contract(end=[{"when": "$round >= 1", "say": "Over: {$get($entity(b), secret)}"}])
     assert refused_at_runtime(c).status == "failed"
 
 
@@ -99,7 +100,7 @@ def test_an_end_conditions_say_reading_a_private_world_value_is_refused_by_the_c
 
 
 def test_an_end_effects_say_is_refused_a_private_value():
-    c = contract(actions={"poke": {"by": "p", "do": [{"end": "quit", "say": "{$entity(b).secret}"}]}})
+    c = contract(actions={"poke": {"by": "p", "do": [{"end": "quit", "say": "{$get($entity(b), secret)}"}]}})
     refused_at_runtime(c, {"a": [("poke", {})]})
 
 
@@ -115,7 +116,8 @@ def test_an_invariants_why_reading_a_private_world_value_is_refused_by_the_check
 # -- a `wake`'s why: the woken agent reads it ----------------------------------------------------------------------
 
 def test_a_wake_why_shows_the_woken_agent_its_own_private_value_and_no_other():
-    wake = {"poke": {"by": "p", "do": [{"wake": "$entity(b)", "now": True, "why": "{$entity(b).secret} is yours"}]}}
+    wake = {"poke": {"by": "p", "do": [{"wake": "$entity(b)", "now": True,
+                                        "why": "{$get($entity(b), secret)} is yours"}]}}
     c = contract(actions=wake, stages=[{"name": "act", "actions": ["poke"], "who": "$it.id == a"}])
     result, read = play(c, {"a": [("poke", {})]})
     assert result.status == "completed", result.error
@@ -135,7 +137,7 @@ def _status(say):
 
 
 def test_a_status_say_is_refused_a_private_value():
-    refused_at_runtime(_status("{$it.name} is hurt ({$entity(b).secret})"), {"a": [("poke", {})]})
+    refused_at_runtime(_status("{$it.name} is hurt ({$get($entity(b), secret)})"), {"a": [("poke", {})]})
 
 
 def test_a_status_say_reading_its_carriers_private_value_is_refused_by_the_check():
@@ -149,7 +151,7 @@ def _procedure(say):
 
 
 def test_a_procedure_phases_say_is_refused_a_private_value():
-    refused_at_runtime(_procedure("Open: {$entity(b).secret}"))
+    refused_at_runtime(_procedure("Open: {$get($entity(b), secret)}"))
 
 
 def test_a_procedure_phases_say_reading_a_private_world_value_is_refused_by_the_check():
@@ -164,7 +166,7 @@ def _stack(show):
 
 
 def test_a_stack_items_show_is_refused_a_private_value_in_the_news_and_the_view():
-    refused_at_runtime(_stack("n {$params.n} ({$entity(b).secret})"), {"a": [("trial_claim", {"n": 3})]})
+    refused_at_runtime(_stack("n {$params.n} ({$get($entity(b), secret)})"), {"a": [("trial_claim", {"n": 3})]})
 
 
 def test_a_stack_items_show_reading_its_pushers_private_value_is_refused_by_the_check():
@@ -172,7 +174,7 @@ def test_a_stack_items_show_reading_its_pushers_private_value_is_refused_by_the_
 
 
 def _cards(to=None):
-    reveal = {"game": "cards", "action": "reveal", "cards": "$hand($actor)", "say": "{$entity(b).secret}"}
+    reveal = {"game": "cards", "action": "reveal", "cards": "$hand($actor)", "say": "{$get($entity(b), secret)}"}
     if to is not None:
         reveal["to"] = to
     return contract(mechanisms={"cards": {"kind": "game", "mode": "cards", "who": "p", "hand_size": 1}},
@@ -199,14 +201,14 @@ def test_a_card_reveals_say_to_everyone_reading_a_private_world_value_is_refused
 
 def test_a_pots_showdown_label_is_refused_a_private_value():
     c = contract(mechanisms={"table": {"kind": "game", "mode": "pot", "who": "p", "seat": "$it.seat", "stack": 100,
-                                       "score": "$it.seat", "label": "$entity(b).secret",
+                                       "score": "$it.seat", "label": "$get($entity(b), secret)",
                                        "streets": {"betting": []}, "blinds": [1, 2]}}, stages=[], actions={})
     refused_at_runtime(c, {pid: [("table_call", {}), ("table_check", {})] for pid in ("a", "b")})
 
 
 def test_a_ballots_announcement_is_refused_a_private_value():
     c = contract(mechanisms={"poll": {"kind": "decision", "mode": "ballot", "who": "p", "options": ["yes", "no"],
-                                      "announce": "Decided ({$entity(b).secret})"}}, stages=[])
+                                      "announce": "Decided ({$get($entity(b), secret)})"}}, stages=[])
     refused_at_runtime(c, {pid: [("poll_vote", {"choice": "yes"})] for pid in ("a", "b")})
 
 
@@ -216,7 +218,7 @@ def _chance(label):
 
 
 def test_a_chance_label_is_refused_a_private_value():
-    refused_at_runtime(_chance("{$entity(b).secret}"), {"a": [("poke", {})]})
+    refused_at_runtime(_chance("{$get($entity(b), secret)}"), {"a": [("poke", {})]})
 
 
 def test_a_chance_label_reading_the_actors_private_value_is_refused_by_the_check():

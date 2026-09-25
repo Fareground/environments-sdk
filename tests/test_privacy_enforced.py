@@ -171,6 +171,8 @@ def test_an_announcement_cannot_read_an_agents_private_property_not_even_the_act
     assert any(i.path == "actions.brag.announce" and i.severity == "error" and "$actor.cash" in i.message
                for i in fg_env.check(own))
     theirs = with_(actions={"brag": {"by": "player", "do": [], "announce": "Bob holds {$entity(bob).cash}."}})
+    assert any(i.path == "actions.brag.announce" and i.severity == "error" for i in fg_env.check(theirs))
+    theirs["actions"]["brag"]["announce"] = "Bob holds {$get($entity(bob), cash)}."  # a read check cannot follow
     result, seen = play(theirs, [("brag", {})])
     assert "could not be worked out" in seen["calls"][0] and "Bob holds" not in json.dumps(result.events)
 
@@ -186,9 +188,9 @@ def test_an_announcement_reveals_what_game_logic_worked_out():
 
 def test_news_cannot_read_an_agents_private_property_unless_sent_only_to_that_agent():
     event_say = with_()
-    event_say["events"] = [{"phase": "start", "do": [], "say": "Bob holds {$entity(bob).cash}."}]
+    event_say["events"] = [{"phase": "start", "do": [], "say": "Bob holds {$get($entity(bob), cash)}."}]
     to_everyone = with_(actions={"wave": {"by": "player",
-                                          "do": [{"emit": "x", "say": "Bob holds {$entity(bob).cash}."}]}})
+                                          "do": [{"emit": "x", "say": "Bob holds {$get($entity(bob), cash)}."}]}})
     own_to_everyone = with_(actions={"wave": {"by": "player", "do": [{"emit": "x", "say": "I hold {$actor.cash}."}]}})
     to_bob = with_(actions={"wave": {"by": "player", "do": [
         {"emit": "x", "say": "You hold {$entity(bob).cash}.", "to": "$entity(bob)"}]}})
@@ -203,14 +205,14 @@ def test_news_cannot_read_an_agents_private_property_unless_sent_only_to_that_ag
     assert any(e.get("text") == "You hold 3." for e in result.events)
 
 
-def test_the_default_announcement_leaves_out_arguments_kept_in_a_private_property():
+def test_the_default_announcement_of_an_action_that_writes_a_private_property_leaves_out_its_arguments():
     c = contract()
     c["types"]["player"]["props"]["vote"] = {"default": "", "private": True}
     c["actions"]["accuse"] = {"by": "player", "do": ["$actor.vote = $params.target.id"], "params": {
         "target": {"type": "entity", "of": "player"}, "note": {"type": "text", "max_len": 20}}}
     result, _ = play(c, [("accuse", {"target": "bob", "note": "hunch"})])
     line = next(e for e in result.events if e.get("kind") == "action")
-    assert line["text"] == "ann: accuse (note=«hunch»)." and "bob" not in json.dumps(line)
+    assert line["text"] == "ann: accuse." and "bob" not in json.dumps(line)  # it writes a private property
 
 
 def test_a_requirement_reading_a_chosen_agents_private_property_is_a_warning():
@@ -281,13 +283,13 @@ def test_a_bound_read_through_entity_of_another_agents_private_property_is_an_er
     c = _secrets(actions={"guess": {"by": "p", "do": [],
                                     "params": {"x": {"type": "int", "min": 0, "max": "$entity(ann).secret"}}}})
     errors = [i for i in fg_env.check(c) if i.severity == "error"]
-    assert [i.path for i in errors] == ["actions.guess.params.x.max"] and "ann's secret is private" in errors[0].message
+    assert [i.path for i in errors] == ["actions.guess.params.x.max"] and "$entity(…).secret" in errors[0].message
 
     def participant(wake):
         list(wake.tools)
         wake.end()
 
-    result = fg_env.load(c, seed=1).run(participant)
+    result = Env(parse_contract(c), {}, 1).run(participant)  # the run refuses it too
     assert result.status == "failed" and "actions.guess.params.x.max" in result.error
 
 
@@ -336,7 +338,8 @@ def test_an_invariants_why_is_a_template_that_shows_only_what_everyone_may_know(
     c = _secrets(invariants=[{"expr": "$entity(bob).secret >= 0", "why": why}],
                  actions={"steal": {"by": "p", "do": ["$entity(bob).secret -= 1"]}})
     replies = []
-    fg_env.run(c, lambda wake: replies.append(wake.call("steal")) if wake.entity_id == "ann" else None, seed=1)
+    Env(parse_contract(c), {}, 1).run(  # the run refuses what check does
+        lambda wake: replies.append(wake.call("steal")) if wake.entity_id == "ann" else None)
     assert replies[0].text.startswith(f"Your steal was not done: {told}"), replies[0].text
     broken = _secrets(invariants=[{"expr": "$entity(bob).secret >= 0", "why": "{$actor.name} broke it"}])
     assert any(i.severity == "error" and i.path == "invariants[0].why" for i in fg_env.check(broken))

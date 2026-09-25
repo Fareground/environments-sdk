@@ -252,6 +252,9 @@ worlds stay fast, and the package is organised by feature.
     `stage.<s>.end`, not in the deprecated `on_exit`.
   - `make test-slow` runs the whole suite with its longest tier on (`FG_ENV_SLOW=1`), which no target ran before;
     CONTRIBUTING and the `gate` target say when to run it.
+  - Another entity's private property fetched into what an actor is shown (an outcome, a `why`, a bound) or into text
+    sent to several agents (an announcement, news, an invariant's `why`) is a check error, as in a view: the run
+    refuses it for every reader but its owner. Before, it was a warning and every such action was refused at run time.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
