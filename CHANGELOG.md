@@ -299,6 +299,14 @@ worlds stay fast, and the package is organised by feature.
   - Every rule failure reaches the agent in one sentence ("the environment's rules could not be worked out for
     it"), or in the author's own words for a broken invariant or a refusal: "it would divide by zero" and "a number
     would grow too large" are gone, since what failed could tell a hidden divisor or amount (L7).
+  - No mechanism rounds a fraction away without a word. A supply chain's `demand`, `initial_flow`, `max_order` and
+    `default_order` are whole numbers ≥ 0 (a literal fraction is a check error at the field; an expression giving
+    one fails the run at the field), where `demand: 4.5` used to play as 4 and 5.5 as 6. A replenishment
+    `case_pack`, a return `delay` and a booking's `patience` are refused as fractions instead of rounded or cut, and
+    a ledger balance of an `int` account is only cleaned of float noise. Every mechanism counts through one helper
+    (mechanism H1).
+  - The beer_game engine's `demand` input is a list of whole numbers ≥ 0: `[4, 4.5]`, `["4", "8"]` and `[4, -3]`
+    are refused at `inputs.demand` (engines EH1, EL5).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

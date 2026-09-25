@@ -224,7 +224,7 @@ def _holds(runner: Any, mech: str, phase: str, index: int, transition: Transitio
     at = f"mechanisms.{mech}.phases.{phase}.next[{index}]"
     props = world.props
     if transition.after is not None:
-        needed = common.whole(common.evaluate(world, transition.after, f"{at}.after"), f"{at}.after", low=0)
+        needed = common.whole(common.evaluate(world, transition.after, f"{at}.after"), f"{at}.after", "after")
         if props[f"{mech}_round"] < needed:
             return False
     since = props[f"{mech}_since"]

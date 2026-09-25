@@ -16,7 +16,7 @@ from ..expr.objects import Entity
 from ..patterns.runtime import key_text
 from ..registry import family_action
 from ..world.abort import Abort
-from ._common import entity_of
+from ._common import entity_of, whole
 from .econ_assets import balance, burn_money, credit_of
 from .econ_base import DEMAND, REPLENISHMENT, config_of, props
 from .econ_demand import DemandConfig
@@ -169,7 +169,8 @@ def _fitted(runner: Any, config: ReplenishmentConfig, item: Entity, qty: int, po
             base: str) -> tuple[int, str]:
     """``qty`` within the case pack, minimum and maximum order and capacity; 0 and why when nothing fits."""
     scope = {"it": item}
-    pack = max(1, round(number_of(runner, config.case_pack, scope, f"{base}.case_pack", low=0)))
+    pack = whole(number_of(runner, config.case_pack, scope, f"{base}.case_pack", low=0), f"{base}.case_pack",
+                 "case_pack", low=1)
     minimum = number_of(runner, config.min_order, scope, f"{base}.min_order", low=0)
     if qty <= 0:
         return 0, "Nothing to order."

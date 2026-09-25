@@ -19,6 +19,7 @@ from ..expr import EXPRESSION_WORDS
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, mechanism_config, use_key
 from ..world.abort import Abort
+from ._common import whole
 
 T = TypeVar("T")
 
@@ -223,14 +224,6 @@ def to_ids(value: Any) -> list[str]:
         return []
     items = value if isinstance(value, (list, tuple)) else [value]
     return [item.id if isinstance(item, Entity) else str(item) for item in items]
-
-
-def whole(value: Any, where: str, what: str = "a quantity") -> int:
-    if isinstance(value, float) and value.is_integer():
-        value = int(value)
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise RunError(f"{what} must be a whole number ≥ 0, got {value!r}", where)
-    return value
 
 
 def amount(value: Any, where: str, what: str = "an amount") -> float:

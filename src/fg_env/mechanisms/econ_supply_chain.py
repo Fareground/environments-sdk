@@ -12,7 +12,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import declared_entity, entity_of
+from ._common import Whole, declared_entity, entity_of
 from .econ_assets import destroy_items, held, put_items, take_items
 from .econ_base import (
     INVENTORY,
@@ -39,16 +39,18 @@ class SupplyChainConfig(BaseModel):
     inventory: str = Field(..., description="Inventory holding the chain's stock.")
     item: str = Field(..., description="The item that flows down the chain.")
     nodes: list[str] = Field(..., min_length=1, description="Entity ids from the customer-facing node to the producer.")
-    demand: float | str = Field(...,
-                                description="Customers' order at the first node each round (number or expression).")
+    demand: Whole = Field(...,
+                                description="Customers' order at the first node each round: a whole number ≥ 0, or an "
+                                            "expression giving one.")
     order_delay: int | str = Field(1, description="Rounds for an order to reach the node upstream.")
     lead_time: int | str = Field(2, description="Rounds for a shipment to reach the node downstream.")
     production_delay: int | str = Field(2, description="Rounds for the producer's batch to be ready.")
-    initial_flow: float | str = Field(0.0, description="Steady flow already in every pipeline when the run starts.")
+    initial_flow: Whole = Field(0, description="Steady flow already in every pipeline when the run starts (whole "
+                                                     "units).")
     holding_cost: float | str = Field(0.0, description="Cost per unit in stock per round.")
     backlog_cost: float | str = Field(0.0, description="Cost per unit of backlog per round.")
-    max_order: int | str = Field(1000, description="Largest order in one round.")
-    default_order: int | str = Field(0,
+    max_order: Whole = Field(1000, description="Largest order in one round.")
+    default_order: Whole = Field(0,
                                      description="Order placed for a node that placed none this round (expression over "
                                                  "$it).")
     actions: list[Literal["order"]] = Field(["order"],
@@ -104,7 +106,7 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
         f"{name}_received": {**whole_int, "description": "Units that arrived this round."},
         f"{name}_shipped": {**whole_int, "description": "Units shipped this round."},
         f"{name}_ordered": {"type": "bool", "default": False},
-        f"{name}_last_order": {"type": "int", "default": f"$round({config.initial_flow})", "min": 0},
+        f"{name}_last_order": {"type": "int", "default": config.initial_flow, "min": 0},
         f"{name}_recent": {"type": "list", "default": [], "description": "Your last four orders, oldest first."},
         f"{name}_round_cost": {"type": "number", "default": 0, "min": 0},
         f"{name}_cost": {"type": "number", "default": 0, "min": 0},
@@ -112,8 +114,8 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
     pipes = []
     for index, node in enumerate(config.nodes):
         last = index == len(config.nodes) - 1
-        inbound = _filled(config.production_delay if last else config.lead_time, f"$round({config.initial_flow})")
-        orders = _filled(config.order_delay, f"$round({config.initial_flow})") if index > 0 else "[]"
+        inbound = _filled(config.production_delay if last else config.lead_time, str(config.initial_flow))
+        orders = _filled(config.order_delay, str(config.initial_flow)) if index > 0 else "[]"
         pipes.append(f"'{node}': {{'inbound': {inbound}, 'orders': {orders}}}")
     fragment: dict[str, Any] = {
         "types": {t: {"props": node_props} for t in types},
@@ -158,14 +160,23 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
 # ---------------------------------------------------------------------------
 
 
-def _number(runner: Any, value: Any, vars: dict[str, Any], where: str, integer: bool = False) -> float:
+def _number(runner: Any, value: Any, vars: dict[str, Any], where: str) -> float:
     try:
         result = runner.eval(value, vars)
     except ExprError as exc:
         raise RunError(str(exc), where) from None
     if isinstance(result, bool) or not isinstance(result, (int, float)) or result < 0:
         raise RunError(f"must give a number ≥ 0, got {result!r}", where)
-    return float(round(result)) if integer else float(result)
+    return float(result)
+
+
+def _units(runner: Any, value: Any, vars: dict[str, Any], where: str) -> int:
+    """A config value counting units, worked out: a whole number ≥ 0 (a fraction is an error, never rounded)."""
+    try:
+        result = runner.eval(value, vars)
+    except ExprError as exc:
+        raise RunError(str(exc), where) from None
+    return whole(result, where, "the value it gives")
 
 
 def _pipeline(world: Any, name: str, node_id: str) -> list[int]:
@@ -210,7 +221,7 @@ def _supply_chain_tick(runner: Any, effect: dict[str, Any], vars: dict[str, Any]
     name = effect["economy"]
     config: SupplyChainConfig = config_of(world, name, SUPPLY_CHAIN, where)
     base = f"mechanisms.{name}"
-    demand = int(_number(runner, config.demand, {}, f"{base}.demand", integer=True))
+    demand = _units(runner, config.demand, {}, f"{base}.demand")
     world.set_world(f"{name}_demand", demand)
     pipes = {k: {"inbound": list(v.get("inbound") or []), "orders": list(v.get("orders") or [])}
              for k, v in (world.props.get(f"{name}_pipes") or {}).items()}
@@ -259,7 +270,7 @@ def _place(runner: Any, name: str, config: SupplyChainConfig, node: Any, qty: in
         raise RunError(f"{node.id} is not a node of supply chain {name}", where)
     if props(node)[f"{name}_ordered"]:
         raise Abort("You already ordered this round.")
-    limit = int(_number(runner, config.max_order, {}, f"mechanisms.{name}.max_order", integer=True))
+    limit = _units(runner, config.max_order, {}, f"mechanisms.{name}.max_order")
     if qty > limit:
         raise Abort(f"An order is at most {limit} units.")
     pipes = {k: {"inbound": list(v.get("inbound") or []), "orders": list(v.get("orders") or [])}
@@ -300,6 +311,5 @@ def _supply_chain_close(runner: Any, effect: dict[str, Any], vars: dict[str, Any
     for node_id in config.nodes:
         node = entity_of(world, node_id, where, "a chain node")
         if not props(node)[f"{name}_ordered"]:
-            qty = int(_number(runner, config.default_order, {"it": node}, f"mechanisms.{name}.default_order",
-                              integer=True))
+            qty = _units(runner, config.default_order, {"it": node}, f"mechanisms.{name}.default_order")
             _place(runner, name, config, node, qty, where)

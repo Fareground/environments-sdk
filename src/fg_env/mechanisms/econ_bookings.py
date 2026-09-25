@@ -324,7 +324,8 @@ def _book(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str)
     if config.priority:
         values["priority"] = _number(world, config.priority, guest, f"mechanisms.{name}.priority")
     if config.patience is not None:
-        values["gives_up"] = world.round + int(_number(world, config.patience, guest, f"mechanisms.{name}.patience"))
+        values["gives_up"] = world.round + whole(_number(world, config.patience, guest, f"mechanisms.{name}.patience"),
+                                                 f"mechanisms.{name}.patience", "patience")
     free = int(props(resource)["capacity"]) - taken(world, name, resource.id, slot)
     if config.format == "slots" and party <= free:
         values.update(status="booked", paid=_pay(world, config, guest, resource, party, where))

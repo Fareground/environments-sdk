@@ -461,7 +461,7 @@ def _schedule_returns(runner: Any, name: str, tallies: dict[str, _Tally], base: 
             rate = number_of(runner, spec.rate, scope, f"{path}.rate", 0, 1)
             back = binomial(stream(world, name, "returns", segment, item_id, world.round), int(units), rate)
             if back:
-                delay = whole(round(number_of(runner, spec.delay, scope, f"{path}.delay", low=0)), f"{path}.delay")
+                delay = whole(number_of(runner, spec.delay, scope, f"{path}.delay", low=0), f"{path}.delay", "delay")
                 pending.append([world.round + max(1, delay), item_id, segment, back, round(price, 6)])
                 added = True
     if added:

@@ -84,8 +84,9 @@ def _store(world: Any, account: Account, value: float) -> None:
     number: Any = clean(value)
     spec = (world.prop_spec(account.entity, account.prop) if account.entity is not None
             else world.contract.world.get(account.prop))
-    if spec is not None and (spec.type == "int" or (spec.type is None and isinstance(spec.default, int)
-                                                    and not isinstance(spec.default, bool) and whole(number))):
+    counts_whole = spec is not None and (spec.type == "int" or (spec.type is None and isinstance(spec.default, int)
+                                                                 and not isinstance(spec.default, bool)))
+    if counts_whole and whole(number):  # float noise on a whole balance; a fraction is refused as the prop is set
         number = int(round(number))
     if account.entity is not None:
         world.set_prop(account.entity, account.prop, number)

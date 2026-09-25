@@ -14,9 +14,9 @@ import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from difflib import get_close_matches
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import RunError
@@ -26,7 +26,7 @@ from ..expr.template import format_value
 from ..registry import MechanismError, use_key
 
 __all__ = [
-    "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
+    "Config", "Number", "Whole", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt", "pct",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
@@ -37,6 +37,17 @@ __all__ = [
 
 #: A number, or an expression giving one.
 Number = float | str
+
+
+def _not_a_flag(value: Any) -> Any:
+    if isinstance(value, bool):
+        raise ValueError(f"must be a whole number ≥ 0, got {str(value).lower()}")
+    return value
+
+
+#: A whole number ≥ 0 (a count of units, lots, people), or an expression giving one: a fraction is an error at the
+#: field, never rounded. What an expression gives is held to the same rule where it is worked out.
+Whole = Annotated[int, BeforeValidator(_not_a_flag), Field(ge=0)] | str
 #: When a market checks the invariant that it holds exactly what its traders put in.
 Conserve = bool | Literal["action", "round", "end"]
 
@@ -259,11 +270,13 @@ def number_of(world: Any, raw: Any, where: str, **roots: Any) -> float:
     return float(number(evaluate(world, raw, where, **roots), where))
 
 
-def whole(value: Any, where: str, low: int = 1) -> int:
+def whole(value: Any, where: str, what: str = "it", low: int = 0) -> int:
+    """``value`` as a whole number ≥ ``low``: the one rule for every count a mechanism works out (units, rounds,
+    stacks …). A fraction is an error naming ``what`` at ``where``, never rounded."""
     if isinstance(value, float) and value.is_integer():
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int) or value < low:
-        raise RunError(f"must be a whole number ≥ {low}, got {value!r}", where)
+        raise RunError(f"{what} must be a whole number ≥ {low}, got {format_value(value)}", where)
     return value
 
 

@@ -196,7 +196,7 @@ def apply_status(runner: Any, mech: str, cfg: StatusConfig, status: str, target:
         return False
     now = world.round
     duration = spec.duration if rounds is DEFAULT_ROUNDS else rounds
-    until = None if duration is None else now + common.whole(duration, f"{where}.rounds")
+    until = None if duration is None else now + common.whole(duration, f"{where}.rounds", "rounds", low=1)
     current = state.get(status)
     source_id = source.id if isinstance(source, Entity) else None
     if current is None:
@@ -273,7 +273,7 @@ def _apply_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
                        f"{where}.status")
     targets = common.entities_of(world, runner.eval(effect["who"], vars), f"{where}.who")
     rounds = runner.eval(effect["rounds"], vars) if "rounds" in effect else DEFAULT_ROUNDS
-    stacks = common.whole(runner.eval(effect.get("stacks", 1), vars), f"{where}.stacks")
+    stacks = common.whole(runner.eval(effect.get("stacks", 1), vars), f"{where}.stacks", "stacks", low=1)
     source = runner.eval(effect["source"], vars) if "source" in effect else vars.get("actor")
     source_entity = world.entity(source) if source is not None else None
     for target in targets:

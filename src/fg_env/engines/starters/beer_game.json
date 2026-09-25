@@ -11,7 +11,8 @@
     "demand": {
       "type": "list",
       "default": [4, 4, 4, 4, 8],
-      "description": "Customer demand at the retailer, one value per week; the last value repeats for the rest of the run."
+      "items": {"type": "int", "min": 0, "unit": "unit", "required": true},
+      "description": "Customer demand at the retailer, one whole number of units per week; the last value repeats for the rest of the run."
     },
     "weeks": {"type": "int", "default": 36, "min": 1, "unit": "week", "description": "Length of the run."},
     "order_delay": {"type": "int", "default": 1, "min": 1, "unit": "week", "description": "Weeks for an order to reach the tier upstream."},

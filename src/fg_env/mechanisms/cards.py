@@ -28,6 +28,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function, is_expr
 from ..expr.objects import Entity
 from ..registry import config_data, family_action
+from ._common import whole
 from .card_scoring import RANK_LABELS, SUIT_LETTERS, SUIT_SYMBOLS, SUITS
 from .contract_cache import parse_kind, per_contract
 from .expressions import Expr
@@ -442,10 +443,7 @@ def _cards(runner: Any, effect: dict[str, Any], vars: dict[str, Any], deck: Deck
 
 
 def _qty(runner: Any, raw: Any, vars: dict[str, Any], where: str) -> int:
-    value = runner.eval(raw, vars)
-    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or float(value) != int(value):
-        raise RunError(f"qty must be a whole number ≥ 0, got {value!r}", where)
-    return int(value)
+    return whole(runner.eval(raw, vars), where, "qty")
 
 
 def _name(runner: Any, raw: Any, vars: dict[str, Any], where: str, what: str) -> str:
