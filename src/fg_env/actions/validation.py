@@ -144,7 +144,8 @@ class ActionValidation:
                     raise RunError(f"the {label} bound must be a number, got {format_value(limit)}",
                                    f"actions.{action}.params.{pname}")
                 if limit is not None and bad(value, limit):
-                    return None, f"must be {label} {preview(limit)} (got {preview(value)})"
+                    shown = int(limit) if kind == "int" and float(limit).is_integer() else limit  # 10, not 10.0
+                    return None, f"must be {label} {preview(shown)} (got {preview(value)})"
             if param.step is not None:
                 base = compile_expr(param.min)(
                     scope or self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \

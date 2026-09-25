@@ -95,6 +95,10 @@ def _node(runner: EffectRunner, effect: dict[str, Any], vars: dict[str, Any], wh
     items = runner.eval(effect.get("outcomes"), vars)
     if isinstance(items, str) and runner.world.is_type(items):
         items = runner.world.entities_of(items)
+    if isinstance(items, str):
+        raise RunError(f"`outcomes` must give a non-empty list, got the text {format_value(items)!r}: write the list "
+                       "itself in the JSON, without quotes ([1, 2, 3]), or an expression ($range(1, 11))",
+                       f"{where}.outcomes")
     if not isinstance(items, (list, tuple)) or not items:
         raise RunError(f"`outcomes` must give a non-empty list, got {format_value(items)}", f"{where}.outcomes")
     weights = [_number(runner.eval(effect["weight"], {**vars, "it": item, "i": position}), f"{where}.weight",

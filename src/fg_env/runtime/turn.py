@@ -388,7 +388,7 @@ class Turn:
         if applied:
             if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
                 env.rules.react(self.stage)
-            if result.ended or env.world.end_request is not None:
+            if result.ended or env.world.end_request is not None or not self.actor.alive:  # a removed actor is done
                 result.ended = True
                 undo = self.settle()
                 if undo is not None:

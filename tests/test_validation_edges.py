@@ -162,3 +162,28 @@ def test_json_schema_type_words_are_accepted_as_their_sdk_types():
 
     assert fg_env.run(contract, play, seed=1).outputs["x"] == 2
     assert seen["n"]["type"] == "integer" and seen["f"]["type"] == "number"
+
+
+def _counter(**action):
+    return {"name": "Counter", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+            "entities": {"p": {"type": "p", "count": 2}}, "actions": {"act": {"by": "p", **action}}}
+
+
+def test_a_whole_number_parameter_states_its_bounds_as_whole_numbers():
+    said = []
+    contract = _counter(params={"x": {"type": "int", "min": 0, "max": "$actor.n + 10"}}, do="$actor.n = $params.x")
+    fg_env.run(contract, lambda wake: said.extend(wake.call("act", {"x": x}).text for x in (-1, 11)), seed=1)
+    assert "at least 0 (got -1)" in said[0] and "at most 10 (got 11)" in said[1]
+
+
+def test_chance_outcomes_written_as_quoted_text_say_so():
+    contract = _counter(do={"chance": "deal", "outcomes": "[1, 2, 3]", "as": "x", "do": "$actor.n += $x"})
+    found = [d["message"] for d in fg_env.run(contract, lambda wake: wake.call("act", {}), seed=1).diagnostics]
+    assert any("got the text '[1, 2, 3]'" in message and "without quotes" in message for message in found)
+
+
+def test_an_action_that_removes_its_own_actor_ends_its_turn():
+    contract = _counter(do={"remove": "$actor"})
+    ended = []
+    fg_env.run(contract, lambda wake: ended.append(wake.call("act", {}).ended), seed=1)
+    assert ended == [True, True]
