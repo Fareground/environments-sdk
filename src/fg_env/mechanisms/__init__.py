@@ -38,7 +38,7 @@ from ..errors import Issue
 from ..expr import ExprError, compile_expr
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 from ._common import raw_is_a
-from .expressions import bare_words, each_root, expression_fields
+from .expressions import bare_words, each_root, expression_fields, quoted_numbers
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES",
            "at_config"]
@@ -382,6 +382,8 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
     broken = [Issue(f"{path}.{field}", exc.detail, f"expression: {source}")
               for field, source, exc in _broken_expressions(config)]
     broken += _forgotten_items(config, out, path)
+    broken += [Issue(f"{path}.{field}", f"is the text '{text}', not a number",
+                     f"write the number without quotes: {text.strip()}") for field, text in quoted_numbers(config)]
     if broken:
         return broken
     try:

@@ -329,6 +329,8 @@ worlds stay fast, and the package is organised by feature.
     demand profile covers every hour of the shift) to refuse a table too short to run with the fix, as the other
     engines do; before, a one-row history, an empty café table or a one-row demand profile failed the run with an
     error pointing at the rules.
+  - A number written as text in a mechanism field that takes a number (`"reserve": "45"`) is a config error at its
+    field; before, only a play found it.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

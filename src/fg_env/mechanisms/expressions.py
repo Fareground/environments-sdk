@@ -18,7 +18,8 @@ from pydantic import BaseModel
 
 from ..expr import is_expr
 
-__all__ = ["Expr", "EXPRESSION", "Each", "EachCrowd", "EachWho", "expression_fields", "bare_words", "each_root"]
+__all__ = ["Expr", "EXPRESSION", "Each", "EachCrowd", "EachWho", "expression_fields", "bare_words", "each_root",
+           "quoted_numbers"]
 
 #: Marks text that is always an expression (``Annotated[str, EXPRESSION]``).
 EXPRESSION = "expression"
@@ -72,6 +73,27 @@ def bare_words(config: BaseModel, path: str = "") -> Iterator[tuple[str, str]]:
               and _holds_expression(Annotated[field.annotation, EXPRESSION] if EXPRESSION in field.metadata
                                     else field.annotation, marked_only=True)):
             yield where, value.strip()
+
+
+def quoted_numbers(config: BaseModel, path: str = "") -> Iterator[tuple[str, str]]:
+    """``(path, text)`` of every field that takes a number or an expression with a `$` holding a number written as
+    text (``"reserve": "45"``): text, not the number, which the run then refuses. (A field that is always an
+    expression reads ``"45"`` as the number.)"""
+    for name, field in type(config).model_fields.items():
+        value, where = getattr(config, name), f"{path}{field.alias or name}"
+        if isinstance(value, BaseModel):
+            yield from quoted_numbers(value, f"{where}.")
+        elif isinstance(value, str) and EXPRESSION not in field.metadata and _number_text(value) \
+                and _holds_expression(field.annotation) and not _holds_expression(field.annotation, marked_only=True):
+            yield where, value
+
+
+def _number_text(text: str) -> bool:
+    try:
+        float(text)
+    except ValueError:
+        return False
+    return True
 
 
 def _written(value: Any, annotation: Any, path: str) -> Iterator[tuple[str, str]]:

@@ -1115,3 +1115,16 @@ def test_an_auctions_revenue_counts_what_its_house_is_paid():
     result = fg_env.run(contract, bid, seed=1)
     assert result.status == "completed", result.error
     assert result.outputs["house_cash"] == result.outputs["t_revenue"] == result.outputs["read"] == 80
+
+
+def test_a_number_written_as_text_in_a_config_field_is_refused_where_it_is_written():
+    """`"reserve": "45"` is text, which the run refused only once it read it: the config says so (audit 11 mechanisms
+    LOW-2). A field that is always an expression still reads "2" as two."""
+    contract = {"name": "Reserve", "clock": {"rounds": 1}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"bidder": {"type": "bidder", "count": 2}},
+                "mechanisms": {"t": {"kind": "market", "mode": "auction", "format": "second_price", "who": "bidder",
+                                     "reserve": "45"}}}
+    found = [i for i in fg_env.check(contract, rounds=0) if i.path == "mechanisms.t.reserve"]
+    assert [i.severity for i in found] == ["error"] and "write the number without quotes: 45" in str(found[0])
+    contract["mechanisms"]["t"]["reserve"] = 45
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
