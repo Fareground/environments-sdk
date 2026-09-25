@@ -56,8 +56,8 @@ contract = {
 
 print(fg_env.check(contract))                 # [] — every problem comes with its path and a fix
 print(fg_env.load(contract).preview("ann"))   # exactly what ann reads, and her tools
-result = fg_env.run(contract, seed=1)          # random agents; the same seed gives the same run
-print(result.outputs)
+result = fg_env.run(contract, seed=2)          # random agents; the same seed gives the same run
+print(result.outputs)                         # {'coins': {'ann': 19, 'bob': 19}}
 ```
 
 A participant is any function that takes the agent's turn, or a language model:
@@ -66,7 +66,8 @@ A participant is any function that takes the agent's turn, or a language model:
 def cautious(wake):          # wake.update is the text an LLM would read this turn
     wake.call("bet", {"amount": 1})
 
-print(fg_env.run(contract, {"ann": cautious}, seed=1).outputs)
+print(fg_env.run(contract, {"ann": cautious}, seed=2).outputs)
+# {'coins': {'ann': 13, 'bob': 19}}: ann bet 1 a round; bob's luck is his own
 # fg_env.run(contract, {"player": "anthropic:<model>"}) plays every player with a model (ANTHROPIC_API_KEY)
 ```
 
@@ -95,11 +96,13 @@ Then:
 
 Every random draw comes from one seed tree per run, each block of logic from its own stream keyed by where it is
 written and the round. The same seed and contract give the same world draws whatever the participants choose, one
-agent's actions never shift another's luck, and a refused action gives its draws back. Runs snapshot to JSON between
+agent's actions never shift another's luck, and a refused action that drew is spent (calling again draws fresh luck, so
+luck cannot be rerolled for free). Runs snapshot to JSON between
 rounds and resume identically. Reproducing an LLM run also needs the same model decisions: record a trace
 (`exposures=True`) to replay it.
 
-[`examples/contracts/`](examples/README.md) holds more complete contracts, each pinned by a golden-run test.
+[`examples/contracts/`](examples/README.md) holds more complete contracts; each one at its top level is pinned by a
+golden-run test.
 
 ## Contributing
 
