@@ -402,7 +402,7 @@ class _Anthropic(_LLMParticipant):
         repeated = self._openings.get(wake.entity_id) == prefix
         self._openings[wake.entity_id] = prefix
         asked = False
-        for _ in range(self.max_steps):
+        for step in range(self.max_steps):
             if wake.done:
                 return
             tools = offered.definitions
@@ -423,6 +423,9 @@ class _Anthropic(_LLMParticipant):
                 self._record(wake, truncated=1)
             content = _reply_blocks(field_of(response, "content"), truncated)
             calls = [block for block in content if block.get("type") == "tool_use"]
+            for index, block in enumerate(calls):  # a proxy may drop a call's id: its result must answer one
+                if not block.get("id"):
+                    block["id"] = f"toolu_fg_{step}_{index}"
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
                 if follow is None:

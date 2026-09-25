@@ -312,6 +312,11 @@ worlds stay fast, and the package is organised by feature.
     character (the emoji one after a symbol stays); a turn's recap leaves out the advice to call again, which was
     for that turn; a turn that ran out of time is recapped as such; `turns_forfeited` names what the provider last
     answered (`Wake.record_usage` takes it as `error`).
+  - A provider's 413 (`request_too_large`) forfeits the turn as too long; a web search quotes the agent's query as a
+    participant's text, never instructions; a tool call a proxy sent without an id is given one its result answers;
+    a judge's answer is read whole when it is one JSON value, else by the last one in it (never a quoted
+    participant's); the `agents_often_failed` finding no longer repeats itself; the trade-negotiation, tavern and
+    Kuhn poker briefs say what an agent is after and leave out a zero penalty and a raw place id.
   - **A contract's `name` is optional** (mech H1): left out, a contract read from a file is named after the file, any
     other `Environment`; so every mechanism reference example works as pasted. The judge and game-master examples
     declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract

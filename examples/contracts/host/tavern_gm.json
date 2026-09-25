@@ -3,7 +3,7 @@
   "name": "Tavern with a game master",
   "description": "Adventurers in a tavern describe what they try in their own words; a game master resolves each attempt, but only within the contract's allow-list.",
   "brief": {
-    "situation": "A rainy night at the Crooked Lantern tavern. Old Tomas keeps the bar.",
+    "situation": "A rainy night at the Crooked Lantern tavern. Old Tomas keeps the bar. You are adventurers passing through: leave with more gold than you came with, and in one piece.",
     "rules": "On your turn, say what you try with attempt. A game master decides what happens. It can only hurt or heal people in your room by a little, move gold between you and the innkeeper, walk you to a neighbouring room, raise or calm the alarm, and spread news."
   },
   "clock": {"rounds": 4, "unit": "hour"},
@@ -31,7 +31,7 @@
   },
   "stages": [{"name": "act", "turns": "sequential", "must_act": true}],
   "views": {
-    "you": {"for": "adventurer", "show": "You are in the {at}, with health {health} and {gold} gold."},
+    "you": {"for": "adventurer", "show": "You are in the {$replace($actor.at, '_', ' ')}, with health {health} and {gold} gold."},
     "alarm": {"for": "adventurer", "when": "$world.alarm", "show": "The alarm bell is ringing."}
   },
   "outputs": {

@@ -279,3 +279,24 @@ def test_participants_read_plain_dict_responses_as_they_read_objects():
     result = fg_env.run(AUCTION, {"ann": agent, "bo": "idle", "cy": "idle"}, seed=1)
     assert result.ok and result.outputs == {"winner": "Ann", "price": 30}, result.summary()
     assert agent.usage.input_tokens == 50 * agent.usage.calls
+
+
+class _NoIds(FakeAnthropic):
+    """A proxy that drops the ids of the model's tool calls."""
+
+    def create(self, **request):
+        response = super().create(**request)
+        for block in response.content:
+            if block.type == "tool_use":
+                block.id = None
+        return response
+
+
+def test_a_tool_call_without_an_id_is_given_one_its_result_answers():
+    """(audit 14 agentif LOW-7)"""
+    client = _NoIds([[("buy", {"offer": "espresso", "qty": 1})], [("end_turn", {})]])
+    result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(client, "m"), rounds=1)
+    assert result.status != "failed", result.error
+    answered = [block for message in client.requests[-1]["messages"] if isinstance(message["content"], list)
+                for block in message["content"] if isinstance(block, dict) and block.get("type") == "tool_result"]
+    assert answered and all(block["tool_use_id"] for block in answered)

@@ -216,9 +216,8 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
         listed = ", ".join(f"{agent} {s.failed_turns} of {s.wakes}" for agent, s in failing[:_LISTED])
         out.append(_finding("agents_often_failed", "participants",
                             f"too many turns of {_named(failing)} failed: they ended with no action though one was "
-                            "available, after invalid or refused calls, a model refusal, a reply cut off or with no "
-                            f"tool call, or the model calls used up, or out of time, or a model reply was refused or "
-                            f"cut off ({listed}"
+                            "available — after invalid or refused calls, a model refusal, a reply cut off or with no "
+                            f"tool call, the model calls used up, or time running out ({listed}"
                             f"); {_attempts(failing)}; this run does not show how they play",
                             "read what those agents were shown and did (load with exposures=True, then "
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
