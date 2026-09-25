@@ -28,3 +28,8 @@ def test_brackets_inside_quoted_text_are_not_counted():
 
 def test_a_single_equals_still_suggests_double_equals():
     assert "compare with `==`" in _error("$entity(a).c = 2")
+
+
+def test_a_reserved_word_written_as_a_map_key_says_to_quote_it():
+    assert "`not` is a word the language itself uses, so as a map key it must be quoted: 'not'" in \
+        _error("$get({eager: 3, not: 0}, eager, 1)")

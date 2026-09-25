@@ -1,12 +1,15 @@
 """Expression syntax errors in plain words: which bracket or quote is unbalanced, where, and what to write."""
 from __future__ import annotations
 
+import keyword
 import re
 
 __all__ = ["syntax_message"]
 
 _CLOSING = {"(": ")", "[": "]", "{": "}"}
 _OPENING = {close: open_ for open_, close in _CLOSING.items()}
+#: A word the language keeps for itself written as a map key (``{eager: 3, not: 0}``).
+_RESERVED_KEY = re.compile(r"[{,]\s*(" + "|".join(sorted(keyword.kwlist, key=len, reverse=True)) + r")\s*:")
 #: Characters of the expression quoted before a bracket to show where it is.
 _CONTEXT = 24
 
@@ -21,6 +24,11 @@ def syntax_message(source: str, python_message: str) -> str:
     if unbalanced is not None:
         return f"syntax error: {unbalanced}"
     bare = re.sub(r"'[^']*'|\"[^\"]*\"", "''", source)
+    word = _RESERVED_KEY.search(bare)
+    if word is not None:
+        key = word.group(1)
+        return (f"syntax error: {python_message} — `{key}` is a word the language itself uses, so as a map key it must "
+                f"be quoted: '{key}': …")
     if re.search(r"(?<![=!<>])=(?!=)", bare):
         return f"syntax error: {python_message} — compare with `==` (a single `=` assigns, and only in effects)"
     return f"syntax error: {python_message}"
