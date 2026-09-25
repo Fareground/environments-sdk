@@ -78,6 +78,13 @@ def test_an_order_book_needs_a_start_price_above_zero_said_at_the_field(price, s
     assert [i.path for i in issues] == ["mechanisms.acme.start_price"] and says in issues[0].message
 
 
+def test_the_books_accounting_is_audited_each_round_unless_asked_for_every_action():
+    """An audit after every action goes over every trader: a round then costs the square of the crowd, so it is the
+    choice, not the default (audit 9 mech M3)."""
+    checks = lambda contract: [i.check for i in fg_env.load(contract, seed=1).contract.invariants]  # noqa: E731
+    assert checks(book()) == ["round"] and checks(book(conserve=True)) == ["action"]
+
+
 def test_price_time_priority_and_partial_fills():
     env, replies = play(book(), {
         (1, "a"): [("acme_sell", {"qty": 10, "price": 50})],

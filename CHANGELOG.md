@@ -283,6 +283,10 @@ worlds stay fast, and the package is organised by feature.
   - An order book's `start_price` must be above 0 (a number, or an expression with `$`), reported at the field; it
     made a dead market before. A mechanism field that takes a number or an expression, given a number that does not
     fit, reports only why the number does not fit (not also "Input should be a valid string").
+  - An order book audits its accounting each round by default (`conserve: "round"`); `conserve: true` still audits
+    after every action, which goes over every trader each time (2,000 traders: 16 s for 5 rounds). When a check's
+    smoke play runs out of time and invariants are checked after every action, the advice says to check them each
+    round.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

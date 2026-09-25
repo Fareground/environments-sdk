@@ -36,7 +36,7 @@ Config:
 - `crowd` (default {}): Coded traders by strategy: {market_maker: {count, cash, shares, params}}.
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the book.
 - `max_actions` (default 4): Actions per turn in the generated stage.
-- `conserve` (default true): Declare the invariant that reserves match the book and balances stay within limits: true or action (checked after every action), round (after every round: much cheaper for big crowds), end (once, when the run finishes), or false.
+- `conserve` (default "round"): Declare the invariant that reserves match the book and balances stay within limits: round (the default: after every round), true or action (after every action: each check goes over every trader, so a round costs the square of the crowd), end (once, when the run finishes), or false.
 
 Nested config:
 **CrowdSpec** — A group of coded traders generated for the book.

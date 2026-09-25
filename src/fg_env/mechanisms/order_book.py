@@ -161,9 +161,10 @@ class OrderBookConfig(BaseModel):
                                           "the book.")
     max_actions: int = Field(4, ge=1, description="Actions per turn in the generated stage.")
     conserve: bool | Literal["action", "round", "end"] = Field(
-        True, description="Declare the invariant that reserves match the book and balances stay within limits: true "
-                          "or action (checked after every action), round (after every round: much cheaper for big "
-                          "crowds), end (once, when the run finishes), or false.")
+        "round", description="Declare the invariant that reserves match the book and balances stay within limits: "
+                             "round (the default: after every round), true or action (after every action: each check "
+                             "goes over every trader, so a round costs the square of the crowd), end (once, when the "
+                             "run finishes), or false.")
 
     @field_validator("start_price")
     @classmethod

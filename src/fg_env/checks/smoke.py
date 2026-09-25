@@ -114,11 +114,15 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     warnings.extend(issue for issue in _never_succeeded(contract, played) if issue.path not in reported)
     cut = [env for env in played + [idle_env] if env.status == "stopped"]
     if cut:
+        per_action = any(invariant.check == "action" for invariant in contract.invariants)
         warnings.append(Issue("(check)", f"a smoke play was cut short by the time guard ({seconds:.0f} s a play) in "
                                          f"round {min(env.round for env in cut)} of {rounds}, so later rounds went "
                                          "unchecked: the contract plays slowly",
                               "check a smaller population or fewer rounds (`rounds=`), or profile the rules each "
-                              "round runs", "warning"))
+                              "round runs" + ("; invariants checked after every action (`check: action`, an order "
+                                              "book's `conserve: true`) go over the world each time: check them each "
+                                              "round (`check: round`, `conserve: round`)" if per_action else ""),
+                              "warning"))
     return errors, warnings
 
 
