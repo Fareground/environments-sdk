@@ -328,6 +328,11 @@ worlds stay fast, and the package is organised by feature.
   - `Contract.notes` (the rewrites reading it made) replaces reaching into `_notes` from other packages, and the
     parameter helpers the tool schemas share with validation (`item_spec`, `list_bounds`, `tidy` …) are public in
     `fg_env.actions.params`.
+  - Docs and CLI polish: a run's summary heads its series outputs "series" (it said "metrics"); `check` says it
+    played "up to 12 rounds (fewer when the run is shorter …)"; the API page shows annotations unquoted;
+    `conformance --help` shows its defaults; the assets page's JSON sample is valid JSON; the authoring guide says
+    where a series lands in Python (`result.series`); the release workflow names `make gate` and `make test-slow`; a
+    test holds every mechanism example on the reference pages valid.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

@@ -112,14 +112,12 @@ Every section is optional except `name` and `types`; `guide('<section>')` has ea
    `when` is the condition: `"$round == 5"`, `"$round % 7 == 1"`, `"$chance(0.1)"`.
 7. **Information** — `brief` (`{situation, rules, roles: {type: text}}`) is read first; `views`
    (`{v: {for, title, of, where, sort, desc, limit, show}}`) are read every turn: `of` omitted is one line about
-   `$actor`, and a list includes the viewer unless `where: "$it.id != $actor.id"`. A `private` prop may be read only by
-   the entity itself, its owner (a type's `owner` names the prop holding the owner's id: `"owner": "seller"`) and
-   the agent types it lists (`"private": ["chair"]`) — and an agent learns it only where a view, its brief or a
-   tool shows it; a record's `visible` says who reads each entry; `announce` is the line others read when an action
-   happens (`false`: nobody learns of it).
+   `$actor`, and a list includes the viewer unless `where: "$it.id != $actor.id"`. A `private` prop is read only by its
+   entity, its type's `owner` and the types it lists; a record's `visible` says who reads each entry; `announce` is
+   the line others read when an action happens (`false`: nobody learns of it).
 8. **Outcomes** — `outputs`: `{name: expr}` or `{name: {expr, type, series}}`; `series: true` samples it every round
-   (`$series.name`). `end`: `[{when, winner, say}]` stops the run early. `invariants`: `[expr or {expr, why}]` must
-   always hold; an action that breaks one is refused. A player type's `score` names what each seat earns.
+   (`$series.name`; `result.series`). `end`: `[{when, winner, say}]` stops the run early. `invariants`: `[expr or
+   {expr, why}]` must always hold; an action that breaks one is refused. A player type's `score` names what each seat earns.
 9. **Randomness** — no section: `$chance(0.3)`, `$randint(1, 6)`, `$normal(0, 1)`, `$choice(list)` draw from
    the run's seed, so a seed replays the run exactly.
 10. **Reuse** — `defs` name an expression (`$utility(...)`) or an effect list (`{"call": name, "with": {...}}`);
@@ -140,8 +138,8 @@ A string with `$name` in it is an expression; other strings are text.
 * Operators: `+ - * / // % **`, `== != < <= > >=`, `and or not`, `in`, `a if cond else b`, lists `[1, 2]`, maps
   `{price: 3}`. Bare words are text: `$actor.role == wolf`.
 * Functions take `$`: `$count(buyer, $it.cash > 0)`, `$sum(player, $it.coins)`, `$avg`, `$min`, `$max`,
-  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict(player, $it.id, $it.cash)`,
-  `$top(offer, $it.price, 3)`, `$sort`, `$best(player, $it.score)`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
+  `$filter(player, $it.alive)`, `$map(player, $it.name)`, `$dict`,
+  `$top`, `$sort`, `$best`, `$any`, `$all`, `$len`, `$get(list, i, 0)`,
   `$records`, `$round(x, 2)`, `$floor`, `$clamp`. `$min` `$max` `$sum` `$avg` take a collection and a value
   (`$min(stand, $it.price)`) or a list; `$min` and `$max` also take numbers (`$min(3, $x)`).
 * Templates (`show`, `outcome`, `announce`, `say`, `brief`, `name`): `"{name} has {coins} coins"` reads the subject

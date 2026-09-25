@@ -61,13 +61,14 @@ def add_game_commands(sub: Any) -> None:
     p = sub.add_parser("conformance", help="random playouts that check every decision of a game: legal calls apply, "
                                            "clones, serialization, chance, returns, replay, resume and leaks")
     p.add_argument("file", help="contract JSON file")
-    p.add_argument("--sims", type=int, default=20, help="random playouts")
-    p.add_argument("--seed", type=int, default=0)
+    p.add_argument("--sims", type=int, default=20, help="random playouts (default 20)")
+    p.add_argument("--seed", type=int, default=0, help="seed for the game and the playouts (default 0)")
     p.add_argument("--input", action="append", metavar="NAME=VALUE", help="set an input (JSON value or text)")
     p.add_argument("--inputs-file", help="JSON file of inputs")
     p.add_argument("--turn-based", action="store_true", help="play simultaneous stages one seat at a time")
-    p.add_argument("--leak-branches", type=int, default=2, help="changed steps per playout for the leak test")
-    p.add_argument("--max-steps", type=int, default=1000, help="longest playout")
+    p.add_argument("--leak-branches", type=int, default=2,
+                   help="changed steps per playout for the leak test (default 2)")
+    p.add_argument("--max-steps", type=int, default=1000, help="longest playout, in steps (default 1000)")
     p.add_argument("--no-resume", action="store_true", help="skip the whole-run resume check")
     p.add_argument("--json", action="store_true", help="print the report as JSON")
     p.set_defaults(func=_guarded(cmd_conformance))

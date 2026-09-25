@@ -10,17 +10,21 @@ An environment can carry real files — product photos, evidence, contracts, rec
 contract and delivered to agents under the same visibility rules as everything else.
 
 ```json
-"inputs": {
-  "supply_agreement": {"type": "file", "source": "evidence/agreement.pdf", "caption": "The signed supply agreement",
-                       "tags": ["exhibit"]},
-  "weld_photos": {"type": "file", "source": "evidence/welds", "caption": "Weld photo {name}", "describe": "vision"}
-},
-"types": {"exhibit": {"props": {"file": {"type": "asset"}, "revealed": false}}},
-"records": {"evidence": {"fields": {"text": "text", "file": "asset"}}},
-"views": {"exhibits": {"of": "exhibit", "where": "$it.revealed", "show": "{name}", "attach": "$it.file"}},
-"actions": {"file_photo": {"by": "attorney", "params": {"photo": {"type": "file", "kinds": ["image"]}},
-                           "do": {"post": "evidence", "text": "New photo", "file": "$params.photo"}}}
+{
+  "inputs": {
+    "supply_agreement": {"type": "file", "source": "evidence/agreement.pdf", "caption": "The signed supply agreement",
+                         "tags": ["exhibit"]},
+    "weld_photos": {"type": "file", "source": "evidence/welds", "caption": "Weld photo {name}", "describe": "vision"}
+  },
+  "types": {"exhibit": {"props": {"file": {"type": "asset"}, "revealed": false}}},
+  "records": {"evidence": {"fields": {"text": "text", "file": "asset"}}},
+  "views": {"exhibits": {"of": "exhibit", "where": "$it.revealed", "show": "{name}", "attach": "$it.file"}},
+  "actions": {"file_photo": {"by": "attorney", "params": {"photo": {"type": "file", "kinds": ["image"]}},
+                             "do": {"post": "evidence", "text": "New photo", "file": "$params.photo"}}}
+}
 ```
+
+(These are sections of a contract, shown together.)
 
 **Declaring.** Each file is an input of type `file` whose `source` is a file or a folder inside the contract's folder
 (or `data_dir=`; a path supplied as the input at load replaces it): its id is the input's name, and a folder's

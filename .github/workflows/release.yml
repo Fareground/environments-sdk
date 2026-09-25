@@ -7,8 +7,8 @@ on:
 permissions:
   contents: read
 
-# Publishes the tagged commit as it is: nothing here runs the tests. Run the local gate on that commit first
-# (`make test`, `ruff check src tests scripts`, `mypy`, `make check-schema`, `make check-docs`; see CONTRIBUTING.md).
+# Publishes the tagged commit as it is: nothing here runs the tests. Run the release checks on that commit first:
+# `make gate` and `make test-slow` (see CONTRIBUTING.md).
 jobs:
   publish:
     runs-on: ubuntu-latest

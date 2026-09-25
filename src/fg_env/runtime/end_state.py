@@ -40,10 +40,10 @@ def end_state(contract: Contract, world: World) -> dict[str, Any]:
 
 
 def state_lines(state: dict[str, Any], series: dict[str, list[Any]]) -> list[str]:
-    """The summary's last lines: each metric's recent values, then the end state."""
+    """The summary's last lines: each series output's recent values, then the end state."""
     lines: list[str] = []
     if series:
-        lines.append(f"metrics (last {SERIES_TAIL} values):")
+        lines.append(f"series (last {SERIES_TAIL} values):")
         lines += [_cut(f"  {name}: " + " → ".join(shown(v) for v in values[-SERIES_TAIL:]))
                   for name, values in series.items()]
     if not state:

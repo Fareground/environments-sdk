@@ -35,6 +35,12 @@ ENV_METHODS = ["preview", "run", "arun", "step", "snapshot", "restore", "clone",
 OWN_PAGES = {"authoring": "authoring.md", "cookbook": "cookbook.md", "engines": "engines.md"}
 
 
+
+def _signature(obj) -> str:
+    """``obj``'s signature as its source reads: annotations as written, not quoted (the package postpones them)."""
+    text = str(inspect.signature(obj))
+    return re.sub(r"(: |-> )'([^']*)'", r"\1\2", text)
+
 def page_name(part: str) -> str:
     return OWN_PAGES.get(part) or f"reference-{part.replace('.', '-')}.md"
 
@@ -83,7 +89,7 @@ def _is_public(obj: Any) -> bool:
 def _entry(heading: str, name: str, obj: Any) -> list[str]:
     lines = [f"{heading} `{name}`", ""]
     try:
-        lines += ["```pyi", f"{name.rpartition('.')[2]}{inspect.signature(obj)}", "```", ""]
+        lines += ["```pyi", f"{name.rpartition('.')[2]}{_signature(obj)}", "```", ""]
     except (ValueError, TypeError):
         pass
     doc = inspect.getdoc(obj)
@@ -110,7 +116,7 @@ def api_page() -> str:
     lines += ["## Environment methods", ""]
     for name in ENV_METHODS:
         method = getattr(fg_env.Env, name)
-        lines += [f"### `Env.{name}`", "", "```pyi", f"{name}{inspect.signature(method)}", "```", "",
+        lines += [f"### `Env.{name}`", "", "```pyi", f"{name}{_signature(method)}", "```", "",
                   inspect.getdoc(method) or "", ""]
     lines += ["## Detailed runtime behavior", "",
               "See [running](reference-running.md) for participants, budgets, traces, snapshots and experiments."]
