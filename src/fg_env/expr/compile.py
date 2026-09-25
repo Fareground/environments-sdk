@@ -264,6 +264,25 @@ def item_conditions(source: str) -> tuple[tuple[str, Expr], ...] | None:
 
 
 @lru_cache(maxsize=1_024)
+def item_words(source: str) -> tuple[tuple[str, str, str], ...]:
+    """``(function, type word, bare word)`` for each call of a function over a type (``$sum(fisher, caught)``) that is
+    passed a bare word after the type: text, where a per-item value (``$it.caught``) is almost always meant. An invalid
+    expression raises as :func:`compile_expr` does."""
+    compile_expr(source)
+    tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
+    _restore_words(list(ast.walk(tree)))
+    found = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX)
+                and node.args and isinstance(node.args[0], ast.Name) and not node.args[0].id.startswith("__")):
+            continue
+        for arg in node.args[1:]:
+            if isinstance(arg, ast.Name) and not arg.id.startswith("__") and arg.id not in _LITERAL_NAMES:
+                found.append((node.func.id[len(_FUNC_PREFIX):], node.args[0].id, arg.id))
+    return tuple(found)
+
+
+@lru_cache(maxsize=1_024)
 def and_terms(source: str) -> tuple[str, ...]:
     """The terms an expression joins by a top-level ``and``, in order, each in the language's spelling (the whole
     expression as its one term when it is no such chain). An invalid expression raises as :func:`compile_expr`

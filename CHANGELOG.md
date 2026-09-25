@@ -320,6 +320,9 @@ worlds stay fast, and the package is organised by feature.
     `reserve` must be 0 or more.
   - "`$x` is not available here" also says, where it helps, that inside a per-item function `$it` is each item and
     `$outer` the one around it, and that a local lasts only to the end of the `do` that sets it.
+  - A bare property name given as a per-item value (`$sum(fisher, caught)`, the text 'caught') is a check error
+    whose fix is `$it.caught`; an output that fails at the end of a run no longer suggests only guarding it (a bare
+    word is text is said first).
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

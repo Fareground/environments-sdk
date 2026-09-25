@@ -73,7 +73,8 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
     rules = _Rules(env)
     failed = [issue for issue in issues if issue["path"].startswith("outputs.")]
     return [*(_finding("output_failed", issue["path"], issue["message"],
-                       issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
+                       issue.get("fix") or "fix the expression (a bare word is text: a property is read as "
+                       "`$it.<name>` or `$world.<name>`), or guard the case it fails in") for issue in failed),
             *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_nobody_played(env), *_never_acted(env),
             *_out_of_steps(env),
             *_arm_inputs(env),

@@ -501,3 +501,13 @@ def test_a_root_not_available_here_says_what_per_item_functions_and_locals_offer
     fixes = {i.path: i.fix for i in fg_env.check(lake, rounds=0)}
     assert "$outer the $it around it" in fixes["outputs.ahead"]
     assert "lasts only to the end of the `do` that sets it" in fixes["outputs.tally"]
+
+
+def test_a_bare_property_name_as_a_per_item_value_is_an_error_naming_the_fix():
+    """`$sum(fisher, caught)` sums the text 'caught', not each fisher's catch: found without running anything."""
+    lake = {"name": "Lake", "clock": {"rounds": 1}, "types": {"fisher": {"agent": True, "props": {"caught": 0}}},
+            "entities": {"fisher": {"type": "fisher", "count": 2}},
+            "actions": {"fish": {"by": "fisher", "do": "$actor.caught += 1"}},
+            "outputs": {"total": "$sum(fisher, caught)", "fine": "$sum(fisher, $it.caught)"}}
+    errors = [i for i in fg_env.check(lake, rounds=0) if i.severity == "error"]
+    assert [(i.path, i.fix.split(" — ")[0]) for i in errors] == [("outputs.total", "write $it.caught")]

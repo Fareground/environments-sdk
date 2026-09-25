@@ -154,8 +154,9 @@ def _outputs(play: RunResult, errors: list[Issue], warnings: list[Issue]) -> Non
         message = f"{problem['message']} after {play.rounds} smoke round(s)"
         if finished and problem["path"].startswith("outputs."):
             errors.append(Issue(problem["path"], f"{message}, at the end of the run",
-                                "fix the expression, or guard the case it fails in: `<value> if <it can be worked out> "
-                                "else null` (null means no value)"))
+                                problem.get("fix") or "fix the expression (a bare word is text: a property is read "
+                                "as `$it.<name>` or `$world.<name>`); if it can be worked out only sometimes, guard it: "
+                                "`<value> if <it can be worked out> else null` (null means no value)"))
         else:
             warnings.append(Issue(problem["path"], message,
                                   "fine if it only has a value later in a run; otherwise guard it", "warning"))
