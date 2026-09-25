@@ -7,7 +7,7 @@ from types import SimpleNamespace as NS
 import pytest
 from test_exposures import TOWN, reader
 from test_host_tape import PITCH, _with, pitcher
-from test_llm_participants import FakeAnthropic
+from test_llm_participants import FakeAnthropic, FakeOpenAI
 from test_runtime import SHOP
 
 import fg_env
@@ -172,9 +172,41 @@ def test_parallel_model_calls_wait_while_the_calls_under_way_may_spend_the_token
              "stages": [{"name": "talk", "turns": "simultaneous"}]}
     client = CacheWriting([[("say", {"text": "hi"})]] * 40, pause=0.05)
     result = fg_env.run(crowd, participants.anthropic(client, "m"), seed=1, budget={"tokens": 1_000})
-    # The first calls each hold the size of their prompt, so only the few that fit in what is left run at once — not one
-    # call per agent in flight; later calls hold what the last one really spent.
+    # The first calls each hold their prompt and the most a reply may write, so only the few that fit in what is left
+    # run at once — not one call per agent in flight; later calls hold what the last one really spent.
     assert result.ended_by == "budget" and len(client.requests) < len(crowd["entities"])
+
+
+class LongThinker(FakeAnthropic):
+    """Every reply writes 5,000 tokens, as a model that thinks before it acts does."""
+
+    def create(self, **request):
+        time.sleep(0.02)
+        reply = super().create(**request)
+        reply.usage = type(reply.usage)(input_tokens=100, output_tokens=5_000, cache_read_input_tokens=0,
+                                        cache_creation_input_tokens=0)
+        return reply
+
+
+class LongThinkerOpenAI(FakeOpenAI):
+    def create(self, **request):
+        time.sleep(0.02)
+        reply = super().create(**request)
+        reply.usage = NS(prompt_tokens=100, completion_tokens=5_000)
+        return reply
+
+
+@pytest.mark.parametrize("make", [lambda: participants.anthropic(LongThinker([[("say", {"text": "hi"})]] * 40), "m",
+                                                                 max_tokens=5_000),
+                                  lambda: participants.openai(LongThinkerOpenAI([[("say", '{"text": "hi"}')]] * 40),
+                                                              "m")])
+def test_the_first_wave_of_parallel_turns_overshoots_a_token_budget_by_at_most_one_call(make):
+    crowd = {**TOWN, "entities": {f"c{i}": {"type": "citizen", "name": f"C{i}"} for i in range(20)},
+             "stages": [{"name": "talk", "turns": "simultaneous"}]}
+    result = fg_env.run(crowd, make(), seed=1, budget={"tokens": 20_000})
+    # A first call holds its prompt and the most its reply may write (max_tokens; with none set, all that is left), so
+    # twenty sealed turns starting together cannot all go through on their prompts alone.
+    assert result.ended_by == "budget" and result.budget["used"]["tokens"] <= 20_000 + 5_100
 
 
 def test_a_host_models_cache_tokens_count_toward_the_run_budget():

@@ -10,6 +10,7 @@ import hashlib
 import importlib
 import inspect
 import json
+import math
 import os
 import random
 import threading
@@ -293,8 +294,10 @@ class _LLMParticipant:
         self.usage = _LLMUsage()
         self._usage_lock = threading.Lock()
         #: The budget tokens this participant's latest model call spent: what the next call reserves of a token budget
-        #: (0 before its first, which reserves the size of its prompt).
+        #: (0 before its first, which reserves its prompt and the most the reply may write: :meth:`_expected`).
         self._last_cost = 0
+        #: The most one reply may write (``max_tokens``), or None when the request sets no limit.
+        self.output_cap: int | None = None
 
     def __call__(self, wake: Wake) -> None:
         if any(tool.kind == "act" for tool in wake.tools):  # with nothing to do, the model is not asked
@@ -361,12 +364,12 @@ class _LLMParticipant:
         raise AssertionError("unreachable")
 
     def _call(self, wake: Wake, request: Callable[[], Any], prompt: int) -> Any:
-        """Make one model call and count its usage. Under a token budget the call first reserves what the previous call
-        spent (the first, the size of its prompt), waiting while the calls under way may spend what is left, so
-        parallel turns do not all overshoot it."""
+        """Make one model call and count its usage. Under a token budget the call first reserves what it is expected to
+        spend (:meth:`_expected`), waiting while the calls under way may spend what is left, so parallel turns do not
+        all overshoot it."""
         turn = wake._turn
         budget = turn.env.budget
-        held = budget.reserve(turn.env, turn, self._last_cost or prompt) if budget is not None else 0
+        held = budget.reserve(turn.env, turn, lambda: self._expected(prompt)) if budget is not None else 0
         if held is None:
             raise _Over()
         try:
@@ -388,6 +391,15 @@ class _LLMParticipant:
         if self._empty(response):
             raise _EmptyReply(getattr(response, "error", None) or "the provider sent no reply")
         return response
+
+    def _expected(self, prompt: int) -> float:
+        """What a model call with a ``prompt`` of this many tokens is expected to spend: what this participant's
+        previous call spent; before any, the prompt and the most the reply may write (unknown, ``math.inf``, when no
+        ``max_tokens`` is set, so the first call runs alone). So the first wave of parallel turns cannot all go through
+        on their prompts alone and overshoot a budget by a call each."""
+        if self._last_cost:
+            return self._last_cost
+        return prompt + self.output_cap if self.output_cap is not None else math.inf
 
     def _count(self, wake: Wake, usage: Any) -> None:
         raise NotImplementedError
@@ -424,7 +436,7 @@ class _Anthropic(_LLMParticipant):
                  media: frozenset, retry_truncated: bool, extra: Mapping[str, Any] | None):
         sent = ("model", "messages", "tools", "system", "max_tokens", "timeout")
         super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
-        self.max_tokens = max_tokens
+        self.max_tokens = self.output_cap = max_tokens
         #: A digest of the tools and system prompt each agent's latest turn opened with: a turn opening with the same
         #: prefix reads it from the prompt cache, so it is worth a breakpoint even when the turn makes one call.
         self._openings: dict[str, str] = {}
@@ -613,6 +625,8 @@ class _OpenAI(_LLMParticipant):
         sent = ["model", "messages", "tools", "timeout", *self.options,
                 *(["max_tokens"] if max_tokens is not None else [])]
         super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
+        cap = max_tokens if max_tokens is not None else self.extra.get("max_tokens")  # the older field, via extra
+        self.output_cap = cap if isinstance(cap, int) and not isinstance(cap, bool) and cap > 0 else None
 
     def _turn(self, wake: Wake) -> None:
         parts = openai_parts(wake.attachments, self.media) if self.media else []

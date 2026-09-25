@@ -271,6 +271,10 @@ worlds stay fast, and the package is organised by feature.
     only in a turn that may make several calls, and on the system prompt in such a turn or when the agent's turn opens
     with the same tools and brief as its previous one. Before, a turn that ends on its one action (every poker bet)
     paid the cache-write premium on its whole prompt, and tools that change every turn re-wrote the brief each time.
+  - Under a token budget, an LLM participant's first model call holds its prompt and the most its reply may write
+    (`max_tokens`; with none set, all that is left, so that call runs alone), so the first wave of simultaneous turns
+    overshoots the budget by at most about one call, as documented. Before, each first call held only its prompt: 20
+    sealed turns writing 5,000 tokens each spent 43,296 tokens of a 20,000 budget.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

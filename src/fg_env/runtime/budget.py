@@ -12,11 +12,12 @@ participants, the run stops at the same point on every replay (``seconds`` is wa
 that is not deterministic). ``tokens`` is also checked each time a participant reports usage, counting the turns still
 in play: once it is reached, every turn in play ends there (calls made after that are refused). The built-in LLM
 participants also hold back a model call while the calls already under way may spend what is left (each reserves what
-the participant's previous call used; its first call, the size of its prompt), so parallel turns overshoot the limit by
-about one call, not one call per turn in flight, and a budget far from its limit never makes parallel turns wait for
-each other. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs computed
-as for any ended run) and ``"idle"`` keeps the world running while every agent's later turns are idle. ``result.budget``
-reports the limits, what was used and which limit ran out; snapshots carry it.
+the participant's previous call used; its first call, its prompt and the most it may write — its ``max_tokens``, or
+all that is left when none is set, so that one call runs alone), so parallel turns overshoot the limit by at most
+about one call, not one call per turn in flight, and a budget far from its limit never makes their later calls wait
+for each other. Once a limit is reached, ``on_exhaust: "end"`` ends the run there (``ended_by: "budget"``, outputs
+computed as for any ended run) and ``"idle"`` keeps the world running while every agent's later turns are idle.
+``result.budget`` reports the limits, what was used and which limit ran out; snapshots carry it.
 
 Usage a participant reports after its turn is over (it ran out of time) still counts: it is added to the run's
 statistics when it arrives and the next safe point sees it, though that participant takes no further action
@@ -28,7 +29,7 @@ from __future__ import annotations
 
 import math
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..contract.base import TAPE
@@ -144,11 +145,12 @@ class Budget:
         playing = {id(t): t for t in (*env.state.staged, turn) if not t.tallied}
         return limit - tokens_of(env.state.stats) - sum(tokens_of(t.stats) for t in playing.values())
 
-    def reserve(self, env: Env, turn: Turn, tokens: float) -> float | None:
-        """Hold ``tokens`` of the token limit (what a model call ``turn`` is about to make is expected to spend),
-        waiting while the calls already under way may spend what is left. Returns what was held, to :meth:`release` once
-        the call's usage is recorded, or None when the turn is over first (the limit ran out, or its time did). A call
-        waits only for others, so a limit is overshot by about one call."""
+    def reserve(self, env: Env, turn: Turn, expected: Callable[[], float]) -> float | None:
+        """Hold what a model call ``turn`` is about to make is ``expected`` to spend of the token limit (asked again
+        each time the call is woken, since calls that finish meanwhile may tell more; ``math.inf``: unknown, so the
+        call runs alone), waiting while the calls already under way may spend what is left. Returns what was held, to
+        :meth:`release` once the call's usage is recorded, or None when the turn is over first (the limit ran out, or
+        its time did). A call waits only for others, so a limit is overshot by about one call."""
         if "tokens" not in self.limits:
             return 0
         gate = env.gate
@@ -157,9 +159,11 @@ class Budget:
                 left = self.tokens_left(env, turn)
                 if left <= 0:
                     return None
+                tokens = expected()
                 if not self._reserved or tokens <= left - self._reserved:
-                    self._reserved += tokens
-                    return tokens
+                    held = min(tokens, left)
+                    self._reserved += held
+                    return held
                 time_left = turn.time_left()
                 if time_left is not None and time_left <= 0:
                     return None
