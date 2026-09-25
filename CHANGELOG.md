@@ -343,6 +343,8 @@ worlds stay fast, and the package is organised by feature.
   - `$top` keeps listing order for ties, as `$sort` does, and both say so. Before, `$top` put the later of tied items
     first, so the last-listed tied candidate won a "highest first" pick (two goldens changed where a tie decided:
     hangman_duel, sugarscape_lite).
+  - A type's literal default that does not fit its declared type (`{"type": "int", "default": 0.5}`) is a check error
+    at `types.<t>.props.<p>.default`. Before, a smoke run reported it at the first entity that started with it.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

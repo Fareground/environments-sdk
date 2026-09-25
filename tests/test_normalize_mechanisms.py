@@ -85,7 +85,7 @@ def test_a_mechanism_function_needs_a_mechanism_of_its_family():
     assert issue.message == "$pot_total reads a `game` mechanism, and this contract declares none"
     assert issue.fix.startswith("declare one (guide('game'))")
     table = {**POT, "outputs": {"pot": "$pot_total(table)"}, "mechanisms": {"table": {
-        "kind": "game", "mode": "pot", "who": "player", "stack": "chips", "blinds": [1, 2], "score": "$it.chips"}}}
+        "kind": "game", "mode": "pot", "who": "player", "stack": 100, "blinds": [1, 2], "score": "$it.chips"}}}
     assert _errors(table) == []
 
 

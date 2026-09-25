@@ -117,6 +117,11 @@ class WorldChecks(Checker):
                       f"write {spec.default.strip()} without quotes for a number, or declare "
                       f'{{"type": "text", "default": "{spec.default}"}} to keep text')
         self.value(spec.default, f"{path}.default", roots, types or {})
+        literal = spec.default is not None and not (isinstance(spec.default, str) and is_expr(spec.default))
+        if literal and spec.type in ("number", "int", "bool", "text", "list", "map"):
+            problem = check_value(spec.type, spec.default)
+            if problem:  # every entity would start with it: a static error here, not a smoke run's at each entity
+                self.error(f"{path}.default", problem, f"give it a default of type {spec.type}")
 
     def _keyword_names(self) -> None:
         """Names expressions read cannot be the language's own words (`$count(in)`, `$it.not`)."""

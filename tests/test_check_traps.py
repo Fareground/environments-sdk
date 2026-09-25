@@ -444,3 +444,11 @@ def test_top_and_sort_keep_listing_order_for_ties():
          "actions": {"go": {"by": "p", "description": "g", "do": []}},
          "outputs": {"top": "$map($top(p, $it.s), $it.id)", "sort": "$map($sort(p, $it.s), $it.id)"}}
     assert fg_env.run(c, "idle", seed=1).outputs == {"top": ["a", "b", "c"], "sort": ["c", "a", "b"]}
+
+
+def test_a_type_default_that_does_not_fit_its_type_is_a_static_error_at_the_type():
+    c = {"name": "x", "clock": {"rounds": 1}, "types": {"a": {"agent": True, "props": {"clicks": {"type": "int",
+                                                                                              "default": 0.5}}}},
+         "entities": {"advertiser": {"type": "a", "count": 2}},
+         "actions": {"go": {"by": "a", "description": "g", "do": []}}, "outputs": {"n": "$count(a)"}}
+    assert [i.path for i in _errors(c, rounds=0)] == ["types.a.props.clicks.default"]
