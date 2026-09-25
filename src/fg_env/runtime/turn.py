@@ -184,6 +184,16 @@ class Turn:
             exposure=None if self.exposure is None else self.exposure.copy(world.exposures, world))
         return turn
 
+    def restart(self) -> None:
+        """Forget how this sealed turn was played, as if it had not begun, so a search copy's own participant chooses
+        for its agent: the choices it submitted (uncommitted, so nothing in the world undoes), its accounting, its
+        steps and its stream (a fresh one is derived from the copy's luck)."""
+        ledger = self.ledger
+        self.ledger = AttemptLedger(self.env.world, self.actor.id, ledger.max_actions, ledger.max_calls, atomic=False)
+        self.started = self.done = self.closed = self.timed_out = self.did_not_act = False
+        self.deadline, self.rng, self.steps, self._reads, self._tools = None, None, [], [], None
+        self.stats = Stats()
+
     # Brief and update render on first read, so coded participants that never read them cost nothing.
 
     @property

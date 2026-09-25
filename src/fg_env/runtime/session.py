@@ -181,8 +181,9 @@ class Wake:
         Try tool calls on it (``branch.call``), let it play on (``branch.run`` or ``branch.advance``) and
         read the outcome; the real run's state, random streams, turn numbers and log never change. The
         copy pauses for this agent's turns; everyone else is played by ``participants`` (default: the
-        run's named participants, else each type's policy, else random). Wall-clock time limits do not
-        apply in a copy.
+        run's named participants, else each type's policy, else random). In a simultaneous stage the others'
+        sealed choices not yet committed are not in the copy: its participants choose for them. Wall-clock time
+        limits do not apply in a copy.
 
         Its luck is fresh: draws from here on come from a stream derived from this turn (or ``seed``), so
         looking ahead never reveals the real run's future draws, and every clone taken in this turn shares

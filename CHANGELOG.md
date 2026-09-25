@@ -225,6 +225,9 @@ worlds stay fast, and the package is organised by feature.
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
     (`who` reading a private role, as the docs allow) told the village who the wolves were.
+  - A `wake.clone()` taken in a simultaneous stage holds none of the other agents' sealed choices not yet committed:
+    the copy's participants choose for them. Before, the copy kept the real choices, so a search that only read
+    public scores still played against the opponent's actual hand.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

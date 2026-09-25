@@ -241,6 +241,9 @@ def clone_turn(turn: Turn, *, participants: Any = None, seed: int | None = None,
                        "cannot begin; clone the turn it reacts to, or the run between turns", "clone")
     pilot = piloted(source, controlled={turn.actor.id} | set(controlled or ()), participants=participants,
                     waiting=turn)
+    for other in pilot.env.state.staged:  # the others' sealed choices are not the searcher's to see: the copy's
+        if other.number != turn.number:  # participants choose for them
+            other.restart()
     pilot.start()
     env = pilot.env
     if explicit:

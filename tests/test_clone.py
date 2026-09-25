@@ -107,7 +107,7 @@ def test_env_clone_between_rounds_and_mid_round_continues_identically():
         assert twin.run("random").events == stopped.run("random").events
 
 
-def test_a_clone_inside_a_simultaneous_stage_continues_from_the_sealed_choices():
+def test_a_clone_inside_a_simultaneous_stage_leaves_the_real_run_unchanged():
     pending = []
 
     def bidder(wake):
@@ -122,6 +122,36 @@ def test_a_clone_inside_a_simultaneous_stage_continues_from_the_sealed_choices()
     cloned = fg_env.load(AUCTION, seed=2).run(bidder)
     assert pending[0].simultaneous and pending[0].actor == "bo"
     assert cloned.events == plain.events
+
+
+RPS = {
+    "name": "RPS", "clock": {"rounds": 1},
+    "types": {"player": {"agent": True, "props": {"pick": {"default": "", "private": True}}}},
+    "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+    "actions": {"throw": {"by": "player", "description": "throw", "announce": False,
+                          "params": {"hand": {"type": "enum", "values": ["r", "p", "s"]}},
+                          "do": ["$actor.pick = $params.hand"]}},
+    "stages": [{"name": "s", "turns": "simultaneous", "must_act": True}],
+}
+
+
+def test_a_clone_inside_a_simultaneous_stage_never_holds_the_others_sealed_choices():
+    """ann chooses first; bob's copy must not keep her real choice: its own participants choose for her."""
+    seen = []
+
+    def ann(wake):
+        wake.call("throw", {"hand": "r"})
+
+    def bob(wake):
+        with wake.clone(participants={"ann": lambda w: w.call("throw", {"hand": "s"})}) as branch:
+            branch.call("throw", {"hand": "p"})
+            branch.run()
+            seen.append({e["id"]: e["props"]["pick"] for e in branch.entities("player")})
+        wake.call("throw", {"hand": "p"})
+
+    result = fg_env.run(RPS, {"ann": ann, "bob": bob}, seed=1)
+    assert result.status == "completed", result.error
+    assert seen == [{"ann": "s", "bob": "p"}]
 
 
 def test_recorded_timeouts_replay_in_a_copy():
