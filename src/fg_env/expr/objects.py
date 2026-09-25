@@ -19,11 +19,13 @@ __all__ = ["Entity", "PropertyValue", "PropsView"]
 PropertyValue = float | int | str | bool | list[str] | None
 
 
-@dataclass
+@dataclass(repr=False)
 class Entity:
     """
     A concrete entity within the world state.
     Properties are stored as a mutable dict keyed by property name.
+    Its repr names it and nothing else, so no message that shows one (an author's diagnostic, an error) ever prints
+    its properties, private ones included.
     """
     id: str
     name: str
@@ -34,6 +36,9 @@ class Entity:
     #: What its luck is keyed by, when not its id: an entity created during a run is keyed by the block that created
     #: it (see ``Randomness.birth``), since its id comes from a counter every creator shares.
     luck: str | None = None
+
+    def __repr__(self) -> str:
+        return f"<entity {self.id}>"
 
     def get(self, prop_name: str, default: PropertyValue = None) -> PropertyValue:
         """Get a property value."""

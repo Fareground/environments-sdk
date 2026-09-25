@@ -24,3 +24,16 @@ class TestEntity:
         assert d["properties"]["health"] == 100.0
         assert d["location_id"] == "town"
         assert d["alive"] is True
+
+
+def test_an_entity_s_repr_names_it_and_shows_none_of_its_properties():
+    """audit 13 L1: a message that shows an entity (a `$fmt` error in an author's diagnostics) never prints its
+    properties, private ones included."""
+    import fg_env
+
+    entity = Entity(id="e1", name="Bob", entity_type="warrior", properties={"card": 7_654_321})
+    assert repr(entity) == "<entity e1>"
+    contract = {"name": "F", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"card": {"default": 7654321, "private": True}}}},
+                "entities": {"a": {"type": "p"}}, "outputs": {"x": "$fmt(1, $entity(a))"}}
+    assert not any("7654321" in str(issue) for issue in fg_env.check(contract))

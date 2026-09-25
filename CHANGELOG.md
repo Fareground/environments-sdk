@@ -285,6 +285,8 @@ worlds stay fast, and the package is organised by feature.
   - A record with `keep` indexes the notifications of the entries it keeps only (they were kept for every entry
     ever posted), and an undo pops the newest notification from the end instead of scanning: 100 agents posting
     for 500 rounds with `keep: 50` index 50 notifications instead of 29,000 (M4).
+  - An entity's `repr` is `<entity id>`: no message that shows one (a `$fmt` error in the author's diagnostics)
+    prints its properties, private ones included (L1).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
