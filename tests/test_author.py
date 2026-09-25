@@ -48,7 +48,7 @@ class FakeOpenAI:
         self.turns, self.tokens, self.cost, self.cached, self.sent = list(turns), tokens, cost, cached, []
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self.create))
 
-    def create(self, model, messages, tools):
+    def create(self, model, messages, tools, timeout=None):
         self.sent.append([dict(m) for m in messages])
         calls = self.turns.pop(0) if self.turns else []
         if isinstance(calls, BaseException):
@@ -175,6 +175,24 @@ def test_a_provider_error_that_persists_stops_and_keeps_what_works(monkeypatch):
 
     assert result.stop == "error: ConnectionError: provider down" and result.ok
     assert waits == [1.0, 2.0, 4.0, 8.0]  # retried with backoff first
+
+
+def test_the_anthropic_path_passes_a_timeout_so_the_official_client_accepts_its_max_tokens():
+    def create(model, max_tokens, timeout=None, **request):
+        # The official client does this before sending anything: without a timeout, a max_tokens above the model's
+        # non-streaming cap (8,192 on claude-opus-4-1) is refused as possibly longer than ten minutes.
+        if timeout is None and max_tokens > 8192:
+            raise ValueError("Streaming is required for operations that may take longer than 10 minutes.")
+        assert 0 < timeout <= 600
+        blocks = [SimpleNamespace(type="tool_use", id="t1", name="write_contract",
+                                  input={"contract": json.dumps(WORKING)})] if "tool_result" not in json.dumps(
+            request["messages"]) else [SimpleNamespace(type="text", text="Done.")]
+        return SimpleNamespace(content=blocks, usage=SimpleNamespace(input_tokens=5, output_tokens=5))
+
+    client = SimpleNamespace(messages=SimpleNamespace(create=create))
+    result = fg_env.author("A game.", "anthropic:claude-opus-4-1-20250805", client=client, budget={"seconds": 120})
+
+    assert result.ok and result.stop == "done", result.stop
 
 
 def test_anthropic_client_gets_anthropic_messages():

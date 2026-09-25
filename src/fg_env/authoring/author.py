@@ -40,7 +40,14 @@ from ..actions.params import parse_arguments
 from ..api import load, parse
 from ..engines import list_engines
 from ..guides import guide
-from ..participants.llm import _MAX_BACKOFF_SECONDS, PROVIDERS, _retry_after, _retryable, official_client
+from ..participants.llm import (
+    _MAX_BACKOFF_SECONDS,
+    PROVIDERS,
+    _retry_after,
+    _retryable,
+    official_client,
+    request_timeout,
+)
 from ..runtime.budget import CACHED_WEIGHT, is_seconds
 from .testing import TEST_SECONDS, Tested
 from .workbench import MAX_REVISIONS, TOOLS, Workbench, describe_changes, removed_parts
@@ -55,8 +62,9 @@ DEFAULT_BUDGET = {"tokens": 600_000, "calls": 30, "seconds": 1800}
 RETRIES = 4
 #: How often a model that stops before any saved contract works is sent back.
 MAX_NUDGES = 2
-#: The reply cap on Anthropic, which requires one: the most a non-streaming call may ask for. OpenAI-compatible
-#: servers get none, so a model writes as long a contract as it can.
+#: The reply cap on Anthropic, which requires one (each request passes a timeout, so the official client does not
+#: refuse it as too long for a call that does not stream). OpenAI-compatible servers get none, so a model writes as
+#: long a contract as it can.
 ANTHROPIC_MAX_TOKENS = 20_000
 
 
@@ -84,6 +92,8 @@ CUT_REPLY = "Your reply was cut off at the output limit. Keep replies short; put
 
 Message = dict[str, Any]
 Ask = Callable[[list[Message]], tuple[Message, dict[str, Any]]]
+#: One provider request: the conversation, and the request's ``timeout`` in seconds (the time left in the session).
+Request = Callable[[list[Message], float], tuple[Message, dict[str, Any]]]
 
 
 class EmptyReply(Exception):
@@ -338,15 +348,15 @@ def _answer(calls: list[dict[str, Any]], truncated: bool, bench: Workbench) -> l
     return results
 
 
-def _retrying(ask: Ask, progress: Callable[[str], None] | None, deadline: float) -> Ask:
-    """``ask``, retrying rate limits, overload, timeouts, server errors and empty replies with backoff (honouring
-    retry-after), never waiting past ``deadline`` (a ``time.time()``): a wait that would is not made, and the error
-    stands."""
+def _retrying(ask: Request, progress: Callable[[str], None] | None, deadline: float) -> Ask:
+    """``ask``, each request given the time left before ``deadline`` (a ``time.time()``) as its timeout, retrying rate
+    limits, overload, timeouts, server errors and empty replies with backoff (honouring retry-after), never waiting
+    past ``deadline``: a wait that would is not made, and the error stands."""
 
     def retried(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         for attempt in range(RETRIES + 1):
             try:
-                return ask(messages)
+                return ask(messages, request_timeout(max(0.0, deadline - time.time())))
             except Exception as exc:
                 if attempt >= RETRIES or not (isinstance(exc, EmptyReply) or _retryable(exc)):
                     raise
@@ -383,11 +393,11 @@ def _budget(budget: Mapping[str, float] | None) -> dict[str, float]:
     return limits
 
 
-def _openai(client: Any, model: str) -> Ask:
+def _openai(client: Any, model: str) -> Request:
     tools = [{"type": "function", "function": tool} for tool in TOOLS]
 
-    def ask(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
-        response = client.chat.completions.create(model=model, messages=messages, tools=tools)
+    def ask(messages: list[Message], timeout: float) -> tuple[Message, dict[str, Any]]:
+        response = client.chat.completions.create(model=model, messages=messages, tools=tools, timeout=timeout)
         if not getattr(response, "choices", None):  # OpenRouter does this now and then, with the reason in `error`
             error = getattr(response, "error", None)
             raise EmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""))
@@ -411,10 +421,12 @@ def _openai(client: Any, model: str) -> Ask:
     return ask
 
 
-def _anthropic(client: Any, model: str) -> Ask:
+def _anthropic(client: Any, model: str) -> Request:
+    """Each request passes its ``timeout``: without one, the official client refuses a ``max_tokens`` above a model's
+    non-streaming cap (8,192 on some) before sending anything, asking for streaming."""
     tools = [{"name": t["name"], "description": t["description"], "input_schema": t["parameters"]} for t in TOOLS]
 
-    def ask(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
+    def ask(messages: list[Message], timeout: float) -> tuple[Message, dict[str, Any]]:
         system = [{"type": "text", "text": messages[0]["content"], "cache_control": {"type": "ephemeral"}}]
         conversation = _to_anthropic(messages[1:])
         last = conversation[-1]  # a cache breakpoint on the latest turn: the next call reads all of this from cache
@@ -422,7 +434,7 @@ def _anthropic(client: Any, model: str) -> Ask:
             last["content"] = [{"type": "text", "text": last["content"]}]
         last["content"][-1] = {**last["content"][-1], "cache_control": {"type": "ephemeral"}}
         response = client.messages.create(model=model, system=system, messages=conversation,
-                                          tools=tools, max_tokens=ANTHROPIC_MAX_TOKENS)
+                                          tools=tools, max_tokens=ANTHROPIC_MAX_TOKENS, timeout=timeout)
         text = "".join(b.text for b in response.content if b.type == "text")
         calls = [{"id": b.id, "type": "function", "function": {"name": b.name, "arguments": json.dumps(b.input)}}
                  for b in response.content if b.type == "tool_use"]

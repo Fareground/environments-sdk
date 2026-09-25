@@ -280,6 +280,9 @@ worlds stay fast, and the package is organised by feature.
     decide what happens"), the outcome is on the tape so replays match, and the run's diagnostics report it
     (`host_unusable`, with the host's last reason). Before, it failed the whole run, so a participant could void a
     judged match by writing what the judge declines. Other hosts (memory, tools, feeds, writers) still stop the run.
+  - `fg_env.author` gives every model request a timeout of the time left in its session, on both providers. Before,
+    the Anthropic path sent none, so the official client refused its 20,000-token cap on models with a smaller
+    non-streaming cap (Opus 4 and 4.1) before sending anything, and the session ended at once.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
