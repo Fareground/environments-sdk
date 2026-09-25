@@ -364,7 +364,9 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     name = effect["decision"]
     world = runner.world
     config = mechanism_config(world, name, KEY, BallotConfig, where)
-    ballots = dict(world.props.get(f"{name}_ballots") or {})
+    prop = f"{name}_ballot"
+    cast = [voter for voter in world.entities_of(config.who) if voter.properties.get(prop) is not None]
+    ballots = {voter.id: voter.properties[prop] for voter in cast}
     voters = _voters_in_game(world, config.who)
     weights = ({v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters}
                if config.weight else None)
@@ -378,7 +380,8 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
         raise RunError(f"tally {name}: {exc}", where) from None
     result["round"] = world.round
     world.set_world(f"{name}_result", result)
-    world.set_world(f"{name}_ballots", {})
+    for voter in cast:  # a fresh ballot for the next vote
+        world.set_prop(voter, prop, None)
     text = (runner.text(config.announce, {**vars, "result": result}, EVERYONE) if config.announce
             else _announcement(world, config, result))
     world.emit(name, text, data={"mechanism": "ballot", "result": result})
@@ -454,10 +457,11 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     if config.threshold_of == "members" and config.method not in ("majority", "supermajority"):
         raise MechanismError("threshold_of: members needs a threshold, so method majority or supermajority",
                              'set "method": "supermajority"', "threshold_of")
-    ballots, result = f"{name}_ballots", f"{name}_result"
+    # Each voter's ballot is its own property, so casting one costs the same however many have voted.
+    ballot, result = f"{name}_ballot", f"{name}_result"
     vote, abstain = f"{name}_vote", f"{name}_abstain"
     question = f" on: {config.question}" if config.question else ""
-    open_ballot = f"not ($actor.id in $world.{ballots})"
+    open_ballot = f"$actor.{ballot} == null"
     ballot_param: dict[str, Any]
     if config.method in SINGLE:
         ballot_param = {"choice": {"type": "enum", "values": config.options, "description": "Your choice."}}
@@ -475,20 +479,21 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
         vote: {"by": config.who, "description": f"{how}{question}.",
                "params": ballot_param,
                "when": [{"expr": open_ballot, "why": "You have already voted."}],
-               "do": [f"$world.{ballots}[$actor.id] = {cast}"],
+               "do": [f"$actor.{ballot} = {cast}"],
                "outcome": told if config.private else None,
                "private": config.private, "terminal": True},
     }
     if config.abstain:
         actions[abstain] = {"by": config.who, "description": f"Abstain{question}.",
                             "when": [{"expr": open_ballot, "why": "You have already voted."}],
-                            "do": [f"$world.{ballots}[$actor.id] = '{ABSTAIN}'"], "outcome": "You abstained.",
+                            "do": [f"$actor.{ballot} = '{ABSTAIN}'"], "outcome": "You abstained.",
                             "private": config.private, "terminal": True}
     for action in actions.values():
         if action.get("outcome") is None:
             action.pop("outcome", None)
     fragment: dict[str, Any] = {
-        "world": {ballots: {"type": "map", "default": {}}, result: {"type": "map", "default": {}}},
+        "world": {result: {"type": "map", "default": {}}},
+        "types": {config.who: {"props": {ballot: {"type": "any", "default": None, "private": config.private}}}},
         "actions": actions,
     }
     names = list(actions)

@@ -288,6 +288,10 @@ worlds stay fast, and the package is organised by feature.
     holds, an `if` on false, a hook that never fires — and a self-assignment (`$it.earned = $it.earned`) as doing
     nothing; the new revision is kept only once saved again. Before, only `+= 0`, `*= 1` and an empty `do` were
     caught, and a gutted payout replaced the working revision with `ok=True`.
+  - A ballot records each vote on its voter (`<name>_ballot`, private when the ballot is), so casting one costs the
+    same however many have voted. Before, every vote copied one shared `$world.<name>_ballots` map: memory and time
+    grew with the square of the voters (237 MB at 3,000). **BREAKING** for an author's own `<name>_vote` action that
+    wrote `$world.<name>_ballots[$actor.id]`: write `$actor.<name>_ballot` instead.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

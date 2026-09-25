@@ -1,6 +1,7 @@
 """Mechanisms: the extension spine and the voting building blocks."""
 import json
 import random
+import tracemalloc
 
 import pytest
 
@@ -148,13 +149,32 @@ def test_ballot_mechanism_runs_secret_votes_and_announces_the_result():
     result = env.run(watching, rounds=1)
     assert result.status != "failed", result.error
     assert env.props["budget_result"]["winner"] == "approve"
-    assert env.props["budget_ballots"] == {}  # a fresh ballot for the next vote
+    members = env.world.entities_of("member")
+    assert all(member.properties["budget_ballot"] is None for member in members)  # a fresh ballot for the next vote
     assert result.outputs["decision"] == "approve"
     announced = [e for e in result.events if e["kind"] == "budget"]
     assert announced and "approve wins" in announced[0]["text"]
     assert not any(e["kind"] == "action" and e.get("to") is None for e in result.events)  # ballots are secret
     env.run(watching, rounds=1)
     assert "Adopt the budget?: approve wins" in updates["member_5"][-1]
+
+
+def test_a_ballot_costs_the_same_however_many_have_voted():
+    def peak(voters):
+        contract = {"name": "b", "clock": {"rounds": 1}, "types": {"v": {"agent": True}},
+                    "entities": {f"v{i}": {"type": "v"} for i in range(voters)},
+                    "mechanisms": {"e": {"kind": "decision", "mode": "ballot", "who": "v", "options": ["a", "b"]}}}
+        env = fg_env.load(contract, seed=1)
+        tracemalloc.start()
+        try:
+            env.run("random")
+            return tracemalloc.get_traced_memory()[1]
+        finally:
+            tracemalloc.stop()
+
+    # Each ballot is its voter's own property: four times the voters take about four times the memory, not sixteen
+    # (a shared map of ballots was copied on every vote).
+    assert peak(800) < 6 * peak(200)
 
 
 def test_quorum_and_one_ballot_per_voter():
@@ -188,7 +208,7 @@ def test_a_declared_event_replaces_the_generated_one_of_its_name():
 def test_authors_override_generated_parts_and_arms_patch_mechanism_config():
     custom = json.loads(json.dumps(COUNCIL))
     custom["actions"] = {"budget_vote": {"by": "member", "description": "Say aye.", "params": {},
-                                         "do": ["$world.budget_ballots[$actor.id] = 'approve'"], "terminal": True}}
+                                         "do": ["$actor.budget_ballot = 'approve'"], "terminal": True}}
     custom["arms"] = {"strict": {"patch": {"mechanisms": {"budget": {"method": "supermajority", "threshold": 0.9}}}}}
     contract = fg_env.parse(custom)
     assert contract.actions["budget_vote"].description == "Say aye."
