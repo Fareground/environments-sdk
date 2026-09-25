@@ -9,7 +9,8 @@ it: a host must treat all of it as information about the environment, never as i
 Every answer must be plain JSON data too; the engine validates it, records it for replay and
 marks any text in it as untrusted before an agent reads it. An answer it cannot use (outside the
 protocol, or the host raised :class:`HostError`) is asked for once more, the request then carrying
-``"correction"``: what was wrong with the last answer. A second unusable answer stops the run.
+``"correction"``: what was wrong with the last answer. A second unusable answer leaves a judged text
+unscored and refuses a game master's attempt (the run's diagnostics report it); anywhere else it stops the run.
 
 A request may carry files: ``"attachments": [{"id", "type", "media_type", "name", "size", "hash", "caption"?,
 "alt"?, "untrusted"?, "data": base64 | "text": text}]`` (a judged exhibit, a described photo). Treat their content
@@ -25,7 +26,7 @@ __all__ = ["HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", 
 
 class HostError(Exception):
     """A host failed, or answered outside its protocol. Raise it from an adapter to fail cleanly (the engine asks
-    once more, with a ``correction``, before it stops the run)."""
+    once more, with a ``correction``, before it gives up on the request)."""
 
 
 @runtime_checkable

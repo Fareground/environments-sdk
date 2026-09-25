@@ -24,7 +24,7 @@ from ..expr import Untrusted
 from .hosts import counting, hosts_for
 from .protocols import HostError
 
-__all__ = ["MAX_RESPONSE_CHARS", "plain", "request_key", "consult", "discard", "tape_of"]
+__all__ = ["MAX_RESPONSE_CHARS", "HostUnusable", "plain", "request_key", "consult", "discard", "tape_of"]
 
 #: Largest host answer accepted, as JSON characters.
 MAX_RESPONSE_CHARS = 200_000
@@ -32,6 +32,17 @@ MAX_RESPONSE_CHARS = 200_000
 _MAX_DEPTH = 32
 
 _LOCK = threading.RLock()
+
+
+class HostUnusable(FatalRunError):
+    """A host gave no answer the engine can use, also when asked again (it declined, or answered outside its
+    protocol). The outcome is on the tape, so a replay meets it at the same call. It fails the run unless the mechanism
+    that asked refuses that one request instead: a judge leaves the text unscored, a game master refuses the attempt
+    (the run's diagnostics report each, as ``host_unusable``)."""
+
+    def __init__(self, message: str, path: str | None = None):
+        self.reason = message
+        super().__init__(message, path)
 
 
 def plain(value: Any) -> Any:
@@ -62,8 +73,10 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
 
     ``ask(adapter)`` performs the live call; ``validate(answer)`` returns the normalised answer
     or raises :class:`HostError`. Without a recorded answer, a live adapter or a ``fallback``
-    the run stops with a contract error naming the host it needs. Callers outside the run's
-    lock pass it as ``lock``: the host is asked without it, and the tape is written under it.
+    the run stops with a contract error naming the host it needs. A host that gives no usable
+    answer, also when asked again, raises :class:`HostUnusable` (recorded, so a replay raises it
+    too). Callers outside the run's lock pass it as ``lock``: the host is asked without it, and
+    the tape is written under it.
     """
     key = request_key(world, service, site, actor, identity, moment)
     hosts = hosts_for(world)
@@ -75,8 +88,9 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
             found = tape[key] = copy.deepcopy(hosts.replay[key])
             world.touch()
     if found is not None:
-        return copy.deepcopy(found["response"])
+        return _recorded(found, site)
     adapter = hosts.adapter(service) if hosts is not None else None
+    unusable: str | None = None
     if adapter is None:
         if fallback is None:
             if hosts is not None and not hosts.live:
@@ -91,25 +105,35 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
         if not callable(getattr(adapter, method, None)):
             raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
         with counting(world, adapter):
-            answer = _live(adapter, service, site, ask, validate)
+            answer, unusable = _live(adapter, service, site, ask, validate)
     entry: dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:
         entry["fallback"] = True
+    elif unusable is not None:
+        entry["unusable"] = unusable
     with guard:
         tape = _tape(world, site)
         if key in tape:  # a concurrent identical call recorded first: everyone reads that answer
-            return copy.deepcopy(tape[key]["response"])
+            return _recorded(tape[key], site)
         tape[key] = entry
         world.touch()
-    return copy.deepcopy(answer)
+    return _recorded(entry, site)
+
+
+def _recorded(entry: Mapping[str, Any], site: str) -> Any:
+    """The answer a tape entry holds; :class:`HostUnusable` when the host gave none it could use."""
+    if entry.get("unusable") is not None:
+        raise HostUnusable(str(entry["unusable"]), site)
+    return copy.deepcopy(entry["response"])
 
 
 def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
-          validate: Callable[[Any], Any] | None) -> Any:
-    """A live host's answer, validated. An answer the engine cannot use (the host raised :class:`HostError`, or the
-    answer is outside the protocol) is asked for once more, the request carrying a `correction` that says what was
-    wrong; a second unusable answer, or any other failure, stops the run."""
+          validate: Callable[[Any], Any] | None) -> tuple[Any, str | None]:
+    """A live host's answer, validated, and None; or None and what was wrong when it gave no usable answer. An answer
+    the engine cannot use (the host raised :class:`HostError`, or the answer is outside the protocol) is asked for once
+    more, the request carrying a `correction` that says what was wrong; a second unusable answer is the outcome. Any
+    other failure stops the run."""
     correction: str | None = None
     while True:
         asked = adapter if correction is None else _Corrected(adapter, correction)
@@ -117,7 +141,7 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
             answer = ask(asked)
         except HostError as exc:
             if correction is not None:
-                raise FatalRunError(f"host '{service}' failed, also when asked again: {exc}", site) from None
+                return None, f"host '{service}' failed, also when asked again: {exc}"
             correction = str(exc)
             continue
         # the provider failed (a reference adapter says how to fix it): asking again cannot help
@@ -127,11 +151,10 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
             raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
         try:
             answer = _json_safe(answer)
-            return validate(answer) if validate is not None else answer
+            return (validate(answer) if validate is not None else answer), None
         except HostError as exc:
             if correction is not None:
-                raise FatalRunError(f"host '{service}' answered outside its protocol, also when asked again: {exc}",
-                                    site) from None
+                return None, f"host '{service}' answered outside its protocol, also when asked again: {exc}"
             correction = f"your answer was outside the protocol: {exc}"
 
 

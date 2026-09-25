@@ -1,6 +1,8 @@
 """Host plumbing: the tape records answers once, replays without the host, and fails clearly without one;
 the reference adapters drive user-supplied clients."""
+import json
 import math
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -9,7 +11,7 @@ import fg_env
 from fg_env import host
 from fg_env.host.adapters import AnthropicWebSearch, LLMHost, parse_json
 from fg_env.host.protocols import HostError
-from fg_env.host.stubs import StubEvaluator
+from fg_env.host.stubs import StubEvaluator, StubGameMaster
 
 PITCH = {
     "name": "Pitch",
@@ -23,6 +25,9 @@ PITCH = {
                              "criteria": {"quality": {}}}},
     "outputs": {"points": "$entity(ana).points"},
 }
+
+
+TAVERN = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "tavern_gm.json").read_text())
 
 
 def pitcher(wake):
@@ -64,13 +69,38 @@ def test_a_declared_fallback_is_deterministic_and_recorded():
     assert all(entry.get("fallback") for entry in host.tape_of(env).values())
 
 
-def test_answers_outside_the_protocol_fail_the_run_clearly():
+def _unusable(result):
+    return [d["message"] for d in result.diagnostics if d["code"] == "host_unusable"]
+
+
+def test_a_judge_that_never_answers_usably_leaves_that_text_unscored_and_the_run_goes_on():
     bad = host.load(PITCH, hosts={"judge": StubEvaluator(scores=lambda r: {"quality": 11})}, seed=1)
     result = host.run(bad, pitcher)
-    assert result.status == "failed" and "answered outside its protocol" in result.error
-    assert "from 1 to 10" in result.error
+    assert result.status == "completed" and result.outputs["points"] == 0 and not bad.world.records("panel")
+    [message] = _unusable(result)
+    assert message.startswith("2 request(s) got no usable answer") and "answered outside its protocol" in message
+    assert "from 1 to 10" in message
     nan = host.load(PITCH, hosts={"judge": StubEvaluator(scores=lambda r: {"quality": math.nan})}, seed=1)
-    assert "finite" in host.run(nan, pitcher).error
+    assert "finite" in _unusable(host.run(nan, pitcher))[0]
+    # The outcome is on the tape: a replay leaves the same texts unscored without asking anyone.
+    again = host.run(host.load(PITCH, hosts=host.Hosts.replaying(host.tape_of(bad)), seed=1), pitcher)
+    assert again.status == "completed" and again.events == result.events and _unusable(again) == _unusable(result)
+
+
+def test_a_game_master_that_declines_refuses_that_attempt_and_the_run_goes_on():
+    def declines(request):
+        raise HostError("the model declined the request")
+
+    env = host.load(TAVERN, hosts={"game_master": StubGameMaster(declines)}, seed=1)
+    result = host.run(env, lambda wake: wake.call("attempt", {"text": "I pick the lock."}))
+    assert result.status == "completed", result.error
+    attempts = env.world.records("gm")
+    assert attempts and all(entry["refused"] for entry in attempts)
+    assert attempts[0]["reason"] == "it could not decide what happens"
+    assert "failed, also when asked again: the model declined the request" in _unusable(result)[0]
+
+
+def test_answers_outside_the_protocol_elsewhere_fail_the_run_clearly():
 
     class Broken:
         def judge(self, request):

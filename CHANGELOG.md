@@ -275,6 +275,11 @@ worlds stay fast, and the package is organised by feature.
     (`max_tokens`; with none set, all that is left, so that call runs alone), so the first wave of simultaneous turns
     overshoots the budget by at most about one call, as documented. Before, each first call held only its prompt: 20
     sealed turns writing 5,000 tokens each spent 43,296 tokens of a 20,000 budget.
+  - A judge or game master that gives no usable answer, also when asked again (it declines, answers with no JSON, or
+    is cut off), refuses that one request: the judged text is left unscored, the attempt is refused ("it could not
+    decide what happens"), the outcome is on the tape so replays match, and the run's diagnostics report it
+    (`host_unusable`, with the host's last reason). Before, it failed the whole run, so a participant could void a
+    judged match by writing what the judge declines. Other hosts (memory, tools, feeds, writers) still stop the run.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

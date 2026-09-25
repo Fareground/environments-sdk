@@ -259,7 +259,9 @@ def test_a_judge_answer_cut_off_at_its_limit_says_so():
     env = fg_env.host.load("examples/contracts/host/debate_judged.json", hosts={"judge": judge_on(Scripted(cut), "m")},
                            seed=1)
     result = env.run(lambda wake: wake.call("speak", {"text": "Free buses cut congestion."}))
-    assert result.status == "failed" and "cut off at its output limit (max_tokens=16000)" in result.error
+    # Each speech the judge could not score is left unscored, and the diagnostics say why.
+    unusable = [d["message"] for d in result.diagnostics if d["code"] == "host_unusable"]
+    assert result.status == "completed" and "cut off at its output limit (max_tokens=16000)" in unusable[0]
 
 
 def test_a_turn_that_runs_out_of_model_calls_is_counted_and_reported():

@@ -28,7 +28,7 @@ from ..host import allowlist
 from ..host.common import MODEL_HINT, NAME, clip, prop_of, type_list
 from ..host.hosts import hosts_for
 from ..host.protocols import HostError
-from ..host.tape import TAPE, consult, plain
+from ..host.tape import TAPE, HostUnusable, consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
 from ..world.values import plain_value
@@ -275,10 +275,14 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
         request = plain({"judge": seat.name, "model": seat.model or config.model, "instructions": config.instructions,
                          "criteria": criteria, "subject": label, "text": text, "context": context,
                          "blind": config.blind, "out_of": config.out_of, **files})
-        answer = consult(world, service=seat.host or config.host, method="judge", site=f"mechanisms.{name}",
-                         actor=subject_id, identity={"seat": seat.name, "target": item.target, "text": text,
-                                                     "context": context, **hashes},
-                         ask=partial(_ask_judge, request), validate=partial(_verdict, config=config), fallback=fallback)
+        try:
+            answer = consult(world, service=seat.host or config.host, method="judge", site=f"mechanisms.{name}",
+                             actor=subject_id, identity={"seat": seat.name, "target": item.target, "text": text,
+                                                         "context": context, **hashes},
+                             ask=partial(_ask_judge, request), validate=partial(_verdict, config=config),
+                             fallback=fallback)
+        except HostUnusable:
+            return  # the judge declined it or never answered usably: the text stays unscored (the diagnostics say so)
         answers.append((seat.name, answer))
     scores = {key: _aggregate([a["scores"][key] for _, a in answers], config.aggregate) for key in config.criteria}
     total = total_score(scores, config)
@@ -521,10 +525,13 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
                                "props": plain_value(dict(actor.properties))},
                      "attempt": text, "context": context, "allowed": allowlist.describe(rules),
                      "max_effects": config.max_effects, "time": world.clock_label(), **files})
-    proposal = consult(world, service=config.host, method="resolve", site=f"mechanisms.{name}", actor=actor.id,
-                       identity={"attempt": text, **hashes}, ask=lambda adapter: adapter.resolve(request),
-                       fallback=_absent if config.fallback == "refuse" else None)
-    plan, refusal = allowlist.validate(world, rules, proposal, config.max_effects)
+    try:
+        proposal = consult(world, service=config.host, method="resolve", site=f"mechanisms.{name}", actor=actor.id,
+                           identity={"attempt": text, **hashes}, ask=lambda adapter: adapter.resolve(request),
+                           fallback=_absent if config.fallback == "refuse" else None)
+        plan, refusal = allowlist.validate(world, rules, proposal, config.max_effects)
+    except HostUnusable:  # it declined or never answered usably: this attempt is refused (the diagnostics say why)
+        plan, refusal = allowlist.Plan("", []), "it could not decide what happens"
     if refusal is None:
         mark = world.mark()
         try:

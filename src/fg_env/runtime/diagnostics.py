@@ -74,7 +74,7 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
                        issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
             *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_never_acted(env), *_out_of_steps(env),
             *_arm_inputs(env),
-            *_host_fallbacks(env), *_faults(env), *_actions(env), *_policy_rules(env),
+            *_host_fallbacks(env), *_host_unusable(env), *_faults(env), *_actions(env), *_policy_rules(env),
             *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
             *_stuck_measures(env, outputs, rules, {issue["path"] for issue in failed})]
 
@@ -228,6 +228,21 @@ def _host_fallbacks(env: Env) -> list[dict[str, str]]:
                      f"bind the host for real answers (fg_env.host.load(..., hosts={{'{service}': ...}})), or replay "
                      "a recorded tape")
             for (site, service), count in counts.items()]
+
+
+def _host_unusable(env: Env) -> list[dict[str, str]]:
+    tape = env.world.props.get(TAPE)
+    found: dict[str, tuple[int, str]] = {}
+    for entry in tape.values() if isinstance(tape, dict) else ():
+        if isinstance(entry, dict) and entry.get("unusable"):
+            site = str(entry.get("site"))
+            found[site] = (found.get(site, (0, ""))[0] + 1, str(entry["unusable"]))
+    return [_finding("host_unusable", site,
+                     f"{count} request(s) got no usable answer, also when asked again, so each was refused (a judged "
+                     f"text left unscored, a game master's attempt refused); the latest: {reason}",
+                     "if the host declines content participants wrote, that is part of the game; if it answers "
+                     "outside the protocol, give it a model that follows it, or clearer instructions")
+            for site, (count, reason) in found.items()]
 
 
 def _finding(code: str, path: str, message: str, fix: str) -> dict[str, str]:
