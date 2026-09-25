@@ -1,7 +1,7 @@
 {
   "actions": 8,
   "events": 9,
-  "events_sha256": "15a9547a5ac8a436a6a8b47a274ef412cf00074545c04c1449a354e51e95dfc5",
+  "events_sha256": "6f6071746fb02c5e871cd91ebef156355ac3dac1dc5f6fed7d93a786425411f0",
   "first_events": [
     "r1 action cora: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",
     "r1 action dev: {\"action\": \"guess_letter\", \"params\": {\"letter\": \"a\"}, \"private\": true, \"success\": true}",

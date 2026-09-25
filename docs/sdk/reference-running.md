@@ -165,7 +165,8 @@ resends nothing from earlier turns. What carries over is what the environment sh
 views show the world now); for an agent to keep its own notes across rounds, give it a `host.memory` mechanism.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
-`result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is
+`result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` — `text` always (empty when
+the event says nothing), the rest only when set — where kind is
 `action` (data: action, params, success), `outcome` (a sealed action's result, to its actor),
 `record` (data: record, entry, fields), `news` (event `say`), any `emit` name, or `end` (data: ended_by, winner).
 `result.winner` is set by `end` conditions or effects that give `winner`.

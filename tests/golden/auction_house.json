@@ -1,7 +1,7 @@
 {
   "actions": 17,
   "events": 37,
-  "events_sha256": "46549d1d879cd288e569b7b5cc7a5e8b69be45a7f66ac1aaa3689240b812c433",
+  "events_sha256": "1f4921141e94bd3b09ea9f96f0e5dfc3b6264e1717df2b91fd22544da3087b28",
   "first_events": [
     "r1 action collector_3: {\"action\": \"house_bid\", \"params\": {\"price\": 84.63, \"qty\": 1}, \"private\": true, \"success\": true}",
     "r1 outcome collector_3: Your sealed bid of 84.63 for an antique vase is in.",

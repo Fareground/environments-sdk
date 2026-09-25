@@ -1,7 +1,7 @@
 {
   "actions": 7,
   "events": 18,
-  "events_sha256": "6965dce5d84e68cc87502434c8577eea71e7118d25bb2c67a98b8fd2a5477e59",
+  "events_sha256": "aee00d8b6a3f6453614115ccf62ff6bf02cd9de8700a3191c3650439e4e0435f",
   "first_events": [
     "r1 action pat: {\"action\": \"offer\", \"params\": {\"exhibit\": \"p1\"}, \"private\": true, \"success\": true}",
     "r1 action dana: {\"action\": \"offer\", \"params\": {\"exhibit\": \"d2\"}, \"private\": true, \"success\": true}",

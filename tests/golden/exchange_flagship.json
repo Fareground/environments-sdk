@@ -1,7 +1,7 @@
 {
   "actions": 158,
   "events": 158,
-  "events_sha256": "7d5fedd4119ed0c7f185fc1f243506d4e4fe65a33ff95be0a66de626102e7698",
+  "events_sha256": "c2c39a6e1e7558abf7d3a0f427bb8f3c975d2cbb95c3cc67b035b005913dccc3",
   "first_events": [
     "r1 action seat_1: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 99}, \"private\": true, \"success\": true}",
     "r1 action seat_2: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",

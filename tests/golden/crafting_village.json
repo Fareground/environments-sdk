@@ -1,7 +1,7 @@
 {
   "actions": 11,
   "events": 11,
-  "events_sha256": "f0937ec25831eed19f37223334647dfdf62ea7be36236deb1781f5547b5fd31d",
+  "events_sha256": "eebde037ee6081ecb0bd2e1363c88c25797a08304407ed1815caac205f7a98fb",
   "first_events": [
     "r1 action ada: {\"action\": \"move\", \"params\": {\"place\": \"mine\"}, \"private\": true, \"success\": true}",
     "r1 action cora: {\"action\": \"move\", \"params\": {\"place\": \"field\"}, \"private\": true, \"success\": true}",

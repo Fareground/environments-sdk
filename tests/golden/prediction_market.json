@@ -1,7 +1,7 @@
 {
   "actions": 36,
   "events": 36,
-  "events_sha256": "561f5b03a5b376135d59efa166750c45aeca737d2045a9dc7c00884ac97babe9",
+  "events_sha256": "f6ce72d70911c8c309e7fee6bb8ca069afb6fb163cd827d06ea6c38f1915ff04",
   "first_events": [
     "r1 action forecaster_4: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"bo\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",
     "r1 action forecaster_3: {\"action\": \"election_buy\", \"params\": {\"outcome\": \"ada\", \"shares\": null, \"spend\": 5}, \"private\": true, \"success\": true}",

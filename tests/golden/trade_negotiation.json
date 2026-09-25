@@ -1,7 +1,7 @@
 {
   "actions": 5,
   "events": 8,
-  "events_sha256": "9e5610d812cf34749153365dd4e3ad91b0abc64bc6aa97bd45ac8f178b07b35d",
+  "events_sha256": "506b0473837733059a482076a0cd2efaf927b7ae9bd1e96f9b42c5e7287a3509",
   "first_events": [
     "r1 action arland: {\"action\": \"sell_abroad\", \"params\": {\"tons\": 72}, \"private\": true, \"success\": true}",
     "r1 action borin: {\"action\": \"buy_abroad\", \"params\": {\"tons\": 7}, \"private\": true, \"success\": true}",

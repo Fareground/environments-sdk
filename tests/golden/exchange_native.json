@@ -1,7 +1,7 @@
 {
   "actions": 80,
   "events": 80,
-  "events_sha256": "3e2730e0120cb74552330312116ee88d9a381a7586c4f069b97884b1e7df90d1",
+  "events_sha256": "aeaad5ecdd205670c473b429cf0ccc1889ff0189c53cb8100fc0478800d1b428",
   "first_events": [
     "r1 action acme_market_maker_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 action acme_market_maker_2: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",

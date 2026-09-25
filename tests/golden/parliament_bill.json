@@ -1,7 +1,7 @@
 {
   "actions": 30,
   "events": 63,
-  "events_sha256": "bd306fdb530a1f4b0c1579601aebe77eecd1c8cbab731aa5c8d63c6f15b3c634",
+  "events_sha256": "74c799bc6cfa8d5c01d2466ade9090b50573de980e3ece2b113413cb15c8f34d",
   "first_events": [
     "r1 bill: First reading of the Clean Rivers Bill.",
     "r1 action mp_3: {\"action\": \"vote\", \"params\": {\"choice\": \"aye\"}, \"private\": true, \"success\": true}",

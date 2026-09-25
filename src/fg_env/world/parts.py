@@ -94,8 +94,8 @@ class LogEvent:
         raise ExprError(f"event has no field '{name}'", source)
 
     def to_dict(self) -> dict[str, Any]:
-        out = {"seq": self.seq, "round": self.round, "kind": self.kind}
-        for key in ("text", "actor", "stage"):
+        out = {"seq": self.seq, "round": self.round, "kind": self.kind, "text": self.text}
+        for key in ("actor", "stage"):
             value = getattr(self, key)
             if value:
                 out[key] = value

@@ -1,7 +1,7 @@
 {
   "actions": 36,
   "events": 52,
-  "events_sha256": "81160355befda72a3929d6a33ce99a5fb851706a394326af95320e957bb0bfae",
+  "events_sha256": "f67f440af52baf00b6ae3bae9c124d14d7172ab3bc4a3b545ddbfadb9665dcb1",
   "first_events": [
     "r1 news: A new month: allowances are paid.",
     "r1 action home_12: {\"action\": \"buy\", \"params\": {\"item\": \"bread\", \"qty\": 6, \"shop\": \"corner\"}, \"private\": true, \"success\": true}",

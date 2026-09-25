@@ -1,7 +1,7 @@
 {
   "actions": 32,
   "events": 57,
-  "events_sha256": "675b424febf1272ad5c05a84f33601a72a6e40bda3c6826c18f83d6c9b5220bb",
+  "events_sha256": "293c8a9f3f147cd374f1606d45972d9954e7aae9ab2ebc803532164c089e7f91",
   "first_events": [
     "r1 action ana: Ana: market promote (listing=Ana's apples, pct=0.15, rounds=2).",
     "r1 record shopper_6: {\"entry\": 1, \"fields\": {\"item\": \"apples\", \"listing\": \"apples\", \"negotiated\": false, \"qty\": 1, \"unit_price\": 2.72}, \"record\": \"market_ledger\"}",

@@ -1,7 +1,7 @@
 {
   "actions": 115,
   "events": 115,
-  "events_sha256": "44ff6688827ebbbb41200b6df20969b50cd014d9f6550458692a385661e7951f",
+  "events_sha256": "f3996362b7a86fc50d0744a3c3135b7c7b3916b1a8364c1d3aedd0a4594f77cd",
   "first_events": [
     "r1 action mm_1: {\"action\": \"place_order\", \"params\": {\"price\": 49.5, \"qty\": 20, \"side\": \"buy\"}, \"private\": true, \"success\": true}",
     "r1 action mm_1: {\"action\": \"place_order\", \"params\": {\"price\": 50.5, \"qty\": 20, \"side\": \"sell\"}, \"private\": true, \"success\": true}",

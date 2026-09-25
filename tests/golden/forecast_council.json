@@ -1,7 +1,7 @@
 {
   "actions": 41,
   "events": 64,
-  "events_sha256": "495681f49f56f3aaf04f2934d8aaf22dec3c79ee0632668b740a3ae2b4909d02",
+  "events_sha256": "a5e3dfb140874092a1330e67e12fc6612df27305bf0387c52876bdd617979482",
   "first_events": [
     "r1 action watanabe: {\"action\": \"cast_initial\", \"params\": {\"probability\": 41.9, \"rationale\": \"My own reading of the briefing, from my prior.\"}, \"private\": true, \"success\": true}",
     "r1 outcome watanabe: Initial ballot recorded: 41.9%.",

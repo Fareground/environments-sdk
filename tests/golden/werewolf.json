@@ -1,7 +1,7 @@
 {
   "actions": 47,
   "events": 79,
-  "events_sha256": "470bc8dfb765fbdaa97a8d09ecddba6400fbc924f488a2aa9819c2dbcce7bb08",
+  "events_sha256": "e20b5f4c6c1a986dc7dc508c61f10fd03e44a954fa3c62b40d2e7c7db58aeae4",
   "first_events": [
     "r1 action p3: {\"action\": \"choose_victim\", \"params\": {\"target\": \"p1\"}, \"private\": true, \"success\": true}",
     "r1 action p8: {\"action\": \"choose_victim\", \"params\": {\"target\": \"p1\"}, \"private\": true, \"success\": true}",

@@ -47,8 +47,8 @@ is reported even when an earlier one always wins. A population that grows fast e
 the engine's ceiling of 1,000,000 living entities before the run ends is a warning: a run fails when it reaches it.
 `--rounds 30` plays exactly that many for more evidence.
 
-`result.events` is the log in order: `{seq, round, stage, kind, actor, text, data}`. Its kinds are `action`,
-`outcome` (a sealed choice's result), `record`, `news`, `timeout` and `end`. For example:
+`result.events` is the log in order: `{seq, round, kind, text}` always, and `stage`, `actor`, `to`, `data` when set. Its
+kinds are `action`, `outcome` (a sealed choice's result), `record`, `news`, `timeout` and `end`. For example:
 `[e.get("text") for e in result.events if e["round"] == 3]` (keys without a value are left out).
 
 What agents saw:

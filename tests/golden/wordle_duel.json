@@ -1,7 +1,7 @@
 {
   "actions": 8,
   "events": 9,
-  "events_sha256": "bc7d32e11e2d1102943b9694ecb684f4e9a641450562743700539d8f5ecd3fbb",
+  "events_sha256": "819d4363d68b70dc5f4622c0db921c63d56a4cd2272bf92f2ddbc43bc9402f5f",
   "first_events": [
     "r1 action ada: {\"action\": \"guess\", \"params\": {\"word\": \"poems\"}, \"private\": true, \"success\": true}",
     "r1 action ben: {\"action\": \"guess\", \"params\": {\"word\": \"amber\"}, \"private\": true, \"success\": true}",

@@ -1,7 +1,7 @@
 {
   "actions": 4,
   "events": 8,
-  "events_sha256": "81cccf58f015a966713317b1bb2a858bfbd4236554396978b02242f618bceaf8",
+  "events_sha256": "845629c5a947fea7a0e8142a07872363cf1373326094c0de3a8aca721e7c3181",
   "first_events": [
     "r1 action union: The union has called a strike. Both sides lose 4.0 points per round while it lasts.",
     "r1 news: The strike cost each side 4.0 points this round.",
