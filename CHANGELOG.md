@@ -267,6 +267,10 @@ worlds stay fast, and the package is organised by feature.
     dropped and the vote was offered, counted and announced anyway.
   - An action's `terminal` that reads a value hidden from its actor is a check error: the actor learns it from
     whether its turn ended. Before, `"terminal": "$world.code > 5"` leaked one bit of a private code per call.
+  - `check` goes on past malformed events (a mistyped `on`, a `change` event without `when`): it checks the rest of
+    the contract with them set aside, so the other errors come in the same pass. Any other structural error ends the
+    list with a warning that the rest is checked once it is fixed. Before, a single event typo hid every other
+    problem until it was fixed.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

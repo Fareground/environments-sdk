@@ -352,3 +352,16 @@ def test_parameter_fields_on_the_types_that_use_them_pass():
                   {"type": "list", "values": ["a", "b"]}, {"type": "text", "max_len": 20},
                   {"type": "int", "min": 0, "max": 5, "step": 1}):
         assert _errors(_param_contract(param), rounds=0) == [], param
+
+
+def test_malformed_events_do_not_hide_the_rest_of_the_check_and_other_structural_errors_say_more_follows():
+    c = {"name": "x", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+         "entities": {"a": {"type": "p"}},
+         "events": [{"on": "round.begin", "do": ["$world.nn = 1"]}, {"on": "change", "do": ["$actor.n += 1"]},
+                    {"on": "round.end", "do": ["$world.q = 1"]}],
+         "stages": [{"name": "s", "actions": ["nope"]}], "outputs": {"o": "$wrold.x"}}
+    paths = [i.path for i in _errors(c, rounds=0)]
+    assert paths == ["events[0].on", "events[1]", "stages[0].actions", "events[2].do[0]", "outputs.o"]
+    c["types"]["p"]["agent"] = "maybe"
+    issues = _issues(c, rounds=0)
+    assert issues[-1].path == "(contract)" and "checked once these are fixed" in issues[-1].message

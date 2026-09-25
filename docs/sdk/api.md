@@ -47,7 +47,8 @@ check(source: 'ContractLike', rounds: 'int | None' = None, seed: 'int' = 0, *, d
 ```
 
 Every problem in a contract, errors first then warnings. Never raises for contract problems: a missing file
-or text that is not JSON is an issue too.
+or text that is not JSON is an issue too. A malformed event or an unknown field leaves the rest checked; another
+structural error holds the rest of the check back until it is fixed, and a last warning says so.
 
 A contract without errors is also built and played, so problems that only appear with real values (sampling, later
 rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read

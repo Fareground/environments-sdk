@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 import os
+import re
 import sys
 import warnings
 from collections.abc import Mapping
@@ -277,12 +278,24 @@ def expand(source: ContractLike, *, mechanisms: bool = False) -> dict[str, Any]:
     return normalize(expanded)[0]
 
 
-def _without_unknown_fields(data: Any, issues: list[Issue]) -> Any:
-    """Drop fields reported as unknown so the rest of the contract can still be checked."""
-    unknown = [i.path for i in issues if i.message.endswith("is not a field here")]
-    if len(unknown) != len(issues):
+#: What a malformed event is replaced with so the rest of the contract can still be checked (its index kept, so later
+#: issues keep their paths).
+_INERT_EVENT = {"on": "round.end", "do": []}
+_EVENT_PATH = re.compile(r"events\[(\d+)\]")
+
+
+def _checkable(data: Any, issues: list[Issue]) -> Any:
+    """The contract without what its structural ``issues`` are about — unknown fields dropped, malformed events made
+    inert — so the rest of it can still be checked; None when an issue is about a part other parts depend on."""
+    events = {int(match.group(1)) for i in issues if (match := _EVENT_PATH.match(i.path))}
+    unknown = [i.path for i in issues if i.message.endswith("is not a field here") and not _EVENT_PATH.match(i.path)]
+    if len(unknown) + sum(1 for i in issues if _EVENT_PATH.match(i.path)) != len(issues):
         return None
     data = copy.deepcopy(data)
+    listed = data.get("events")
+    for index in events:
+        if isinstance(listed, list) and index < len(listed):
+            listed[index] = dict(_INERT_EVENT)
     for path in unknown:
         node, parts = data, path.replace("[", ".[").split(".")
         for part in parts[:-1]:
@@ -305,14 +318,18 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Contract
         contract = located(_parsed(data, notes), default_data_dir(source, data_dir))
     except ContractError as exc:
         structural = exc.issues + exc.warnings
-        cleaned = _without_unknown_fields(data, exc.issues) if isinstance(data, Mapping) else None
-        if cleaned is None:
-            return None, structural
+        cleaned = _checkable(data, exc.issues) if isinstance(data, Mapping) else None
         try:
-            partial = parse_contract(cleaned)
+            partial = parse_contract(cleaned) if cleaned is not None else None
         except ContractError:
-            return None, structural
-        semantic = check_contract(partial)
+            partial = None
+        if partial is None:
+            return None, [*structural, Issue("(contract)", "the rest of the contract is checked once these are fixed",
+                                             "fix them and check again: names, types, privacy and a play follow",
+                                             "warning")]
+        inert = {match.group(0) for issue in exc.issues if (match := _EVENT_PATH.match(issue.path))}
+        semantic = [issue for issue in check_contract(partial)  # not what the inert stand-ins for broken events say
+                    if not (match := _EVENT_PATH.match(issue.path)) or match.group(0) not in inert]
         return None, structural + semantic
     earlier = earlier_form(source, contract)
     return contract, check_contract(contract) + ([earlier] if earlier else [])
@@ -321,7 +338,8 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Contract
 def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, data_dir: DataDir = None,
           hosts: Any = None, inputs: Mapping[str, Any] | None = None) -> list[Issue]:
     """Every problem in a contract, errors first then warnings. Never raises for contract problems: a missing file
-    or text that is not JSON is an issue too.
+    or text that is not JSON is an issue too. A malformed event or an unknown field leaves the rest checked; another
+    structural error holds the rest of the check back until it is fixed, and a last warning says so.
 
     A contract without errors is also built and played, so problems that only appear with real values (sampling, later
     rounds, views, outputs, a policy's own rules) are reported the same way: once with random agents that read
