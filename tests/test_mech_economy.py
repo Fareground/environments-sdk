@@ -741,7 +741,7 @@ def test_negotiation_config_errors():
     assert any("'gold' is not a declared currency" in m for m in issues_of(obligations=gold))
     assert any("an enum issue needs `values`" in m for m in issues_of(issues={"flag": {"type": "enum"}}))
     assert any("issue 'note' cannot be used" in m for m in issues_of(issues={"note": {}}))
-    assert any("is not a valid expression" in m for m in issues_of(value="$terms.price +"))
+    assert any("syntax error" in m for m in issues_of(value="$terms.price +"))
 
 
 def test_agreements_actions_check_their_own_keys():

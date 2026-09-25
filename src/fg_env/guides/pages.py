@@ -345,7 +345,8 @@ def _fields(model: type[BaseModel]) -> str:
         default = "" if required or plain else f" = {json.dumps(info.default, default=str)}"
         flag = " (required)" if required else ""
         description = f" — {info.description}" if info.description else ""
-        lines.append(f"- `{key}`: {_type_name(info.annotation, name)}{default}{flag}{description}")
+        kind = "expression" if EXPRESSION in info.metadata else _type_name(info.annotation, name)
+        lines.append(f"- `{key}`: {kind}{default}{flag}{description}")
     return "\n".join(lines)
 
 

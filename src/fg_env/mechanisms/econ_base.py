@@ -15,7 +15,7 @@ from typing import Any, TypeVar, cast
 from pydantic import BaseModel, ValidationError
 
 from ..errors import RunError
-from ..expr import EXPRESSION_WORDS, ExprError, compile_expr
+from ..expr import EXPRESSION_WORDS
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, describe, mechanism_config, use_key
 from ..world.abort import Abort
@@ -29,7 +29,7 @@ __all__ = [
     "maybe_entity", "props", "checked_config", "declared_names", "money_prop",
     "LEDGER", "INVENTORY", "PRODUCTION", "SUPPLY_CHAIN", "DEMAND", "REPLENISHMENT", "NEGOTIATION",
     "SUBSCRIPTIONS", "BOOKINGS",
-    "to_ids", "whole", "amount", "bump", "money", "emit_to", "compiles", "run_hook",
+    "to_ids", "whole", "amount", "bump", "money", "emit_to", "run_hook",
 ]
 
 #: Tolerance for money comparisons (float sums).
@@ -178,15 +178,6 @@ def declared_use(contract: Mapping[str, Any], name: str | None, kind: str, field
                              f"{{\"{name or mode}\": {{\"kind\": \"{family}\", \"mode\": \"{mode}\", ...}}}}"
                              + (f" (declared: {', '.join(declared)})" if declared else ""), field)
     return dict(use)
-
-
-def compiles(value: Any, field: str) -> None:
-    """Fail expansion when a config value that is an expression does not compile."""
-    if isinstance(value, str) and "$" in value:
-        try:
-            compile_expr(value)
-        except ExprError as exc:
-            raise MechanismError(f"is not a valid expression: {exc.detail}", f"in `{value}`", field) from None
 
 
 def guarded(expr: str, *params: str) -> str:

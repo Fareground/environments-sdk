@@ -19,7 +19,6 @@ from .econ_base import (
     SUPPLY_CHAIN,
     bump,
     common_ancestor,
-    compiles,
     config_of,
     declared_use,
     maybe_entity,
@@ -82,9 +81,6 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
     if len(set(config.nodes)) != len(config.nodes):
         raise MechanismError("a node is listed twice", None, "nodes")
     entities = contract.get("entities") or {}
-    for field in ("demand", "order_delay", "lead_time", "production_delay", "initial_flow", "holding_cost",
-                  "backlog_cost", "max_order", "default_order"):
-        compiles(getattr(config, field), field)
     node_types: list[str] = []
     for node in config.nodes:
         if node not in entities:

@@ -28,7 +28,9 @@ _SCALARS = frozenset({int, float, bool})
 def expression_fields(config: BaseModel, path: str = "") -> Iterator[tuple[str, str]]:
     """``(path, source)`` of every expression written in ``config``, nested models, maps and lists included."""
     for name, field in type(config).model_fields.items():
-        yield from _written(getattr(config, name), field.annotation, f"{path}{field.alias or name}")
+        # a field typed `Expr` alone keeps its mark in the field's metadata; in a union, in its annotation
+        annotation = Annotated[field.annotation, EXPRESSION] if EXPRESSION in field.metadata else field.annotation
+        yield from _written(getattr(config, name), annotation, f"{path}{field.alias or name}")
 
 
 def _written(value: Any, annotation: Any, path: str) -> Iterator[tuple[str, str]]:

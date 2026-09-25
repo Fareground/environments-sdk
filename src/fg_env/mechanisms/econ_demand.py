@@ -21,7 +21,6 @@ from ..registry import MechanismError, mode
 from .econ_base import (
     DEMAND,
     EPS,
-    compiles,
     config_of,
     props,
     register_config,
@@ -188,8 +187,6 @@ def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any])
             raise MechanismError(f"segment '{segment}' is not a valid name", "use letters, digits and _",
                                  f"{path}".rstrip(".") or "segment")
         drivers += _check_segment(spec, patterns, path)
-    for field in ("price", "promotion", "cost", "group", "substitutes", "spill", "backorder", "record"):
-        compiles(getattr(config, field), field)
     if (config.account is None) != (config.currency is None):
         raise MechanismError("`account` and `currency` go together",
                              "give both to pay revenue into a ledger, or neither", "account")
@@ -229,7 +226,6 @@ def _check_segment(spec: SegmentSpec, patterns: Mapping[str, Any], path: str) ->
     for field, factor in [("rate", spec.rate), *[(f"factors[{i}]", f) for i, f in enumerate(spec.factors)]]:
         where = f"{path}{field}"
         if isinstance(factor, str) and "$" in factor:
-            compiles(factor, where)
             continue
         if isinstance(factor, (int, float)):
             continue
@@ -239,18 +235,11 @@ def _check_segment(spec: SegmentSpec, patterns: Mapping[str, Any], path: str) ->
             raise MechanismError(f"'{ref.pattern}' is a {kind} pattern, which observes demand rather than scaling it",
                                  "name a counts pattern as `noise`" if kind == "counts"
                                  else "remove it from the factors", where)
-        compiles(ref.key, f"{where}.key")
-        compiles(ref.driver, f"{where}.driver")
         if ref.driver is not None and ref.pattern not in drivers:
             drivers.append(ref.pattern)
     if spec.noise is not None and _pattern_kind(patterns, spec.noise, f"{path}noise") != "counts":
         raise MechanismError(f"'{spec.noise}' is not a counts pattern",
                              "declare {\"kind\": \"counts\", ...} and name it", f"{path}noise")
-    compiles(spec.price, f"{path}price")
-    compiles(spec.where, f"{path}where")
-    if spec.returns is not None:
-        for field in ("rate", "delay", "restock"):
-            compiles(getattr(spec.returns, field), f"{path}returns.{field}")
     return drivers
 
 

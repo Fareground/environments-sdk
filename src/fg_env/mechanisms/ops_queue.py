@@ -19,7 +19,7 @@ from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, family_action, mode, parsed
 from ._common import Config, Number, suggest
-from .econ_base import compiles, valid_name
+from .econ_base import valid_name
 from .ops_engine import Channel, Duration, Pool, empty_state, run_interval
 from .ops_stats import empty_totals, latest, merge_counts, record_for, updated_totals
 
@@ -141,12 +141,6 @@ def _check(config: QueueConfig) -> None:
         for field, spec in durations:
             if spec is not None:
                 _check_duration(spec, f"{path}.{field}")
-        for field, value in (("arrivals", channel.arrivals),
-                             ("callback.when", channel.callback and channel.callback.when),
-                             ("callback.accept", channel.callback and channel.callback.accept),
-                             ("callback.reserve", channel.callback and channel.callback.reserve),
-                             ("retry.chance", channel.retry and channel.retry.chance)):
-            compiles(value, f"{path}.{field}")
     served = set()
     for name, pool in config.servers.items():
         path = f"servers.{name}"
@@ -156,8 +150,6 @@ def _check(config: QueueConfig) -> None:
             if skill not in config.channels:
                 raise MechanismError(f"'{skill}' is not a channel", suggest(skill, config.channels), f"{path}.skills")
         served |= set(config.channels if pool.skills == "all" else pool.skills)
-        for field in ("staff", "cost", "shrinkage"):
-            compiles(getattr(pool, field), f"{path}.{field}")
     unserved = [name for name in config.channels if name not in served]
     if unserved:
         raise MechanismError(f"no server pool serves {', '.join(unserved)}",
@@ -165,8 +157,6 @@ def _check(config: QueueConfig) -> None:
 
 
 def _check_duration(spec: DurationSpec, path: str) -> None:
-    for field in ("mean", "cv", "low", "high"):
-        compiles(getattr(spec, field), f"{path}.{field}")
     if spec.dist == "uniform" and spec.low == spec.high == 0.0:
         raise MechanismError("a uniform duration needs `low` and `high`", "e.g. {\"dist\": \"uniform\", \"low\": 60, "
                                                                           "\"high\": 240, \"mean\": 150}", path)

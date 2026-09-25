@@ -22,14 +22,14 @@ Config:
 Nested config:
 **AllowRule** — One kind of change a game master may make.
 - `effect`: any (required) — The change it allows.
-- `target`: text = "actor" — set/move: 'actor' or an expression over $actor giving the entities it may touch.
+- `target`: expression = "actor" — set/move: 'actor' or an expression over $actor giving the entities it may touch.
 - `prop`: text — set/set_world/transfer: the property.
 - `min`: number — Lowest value a number may become.
 - `max`: number — Highest value a number may become.
 - `delta`: number — Largest change of a number in one attempt.
 - `values`: [any] — The only values it may set.
 - `max_chars`: int = 200 — Longest text it may set or spread as news.
-- `from`: text = "actor" — transfer: 'actor' or an expression giving who may give.
+- `from`: expression = "actor" — transfer: 'actor' or an expression giving who may give.
 - `to`: expression — transfer: expression giving who may receive ('actor' works); move: 'adjacent' or an expression over $actor and $it giving places.
 - `amount`: number — transfer: most that may move from one giver in one attempt.
 - `description`: text — Shown to the game master.

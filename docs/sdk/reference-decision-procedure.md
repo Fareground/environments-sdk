@@ -47,7 +47,7 @@ Nested config:
 - `on`: [text] — Kinds it may be pushed on top of (answer).
 - `when`: expression — Extra condition to push it ($actor, $top: the item it would answer, or null).
 - `why`: text — What the agent is told when it may not push it.
-- `responders`: text = "$it.id != $item.by" — Who owes it an answer while it is on top: an expression over $it (an agent) and $item.
+- `responders`: expression = "$it.id != $item.by" — Who owes it an answer while it is on top: an expression over $it (an agent) and $item.
 - `show`: text — How the item reads after its title (template over $item, $params, $actor).
 - `on_push`: [any] — Effects when it is pushed, e.g. paying a cost ($actor, $params, $item, $below).
 - `resolve`: [any] — Effects when it resolves ($actor = who pushed it, $params, $item, $below).

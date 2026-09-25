@@ -89,7 +89,7 @@ def test_transfer_config_mistakes_are_reported_at_their_path():
     contract = copy.deepcopy(LOTS)
     contract["mechanisms"]["wholesale"]["transfers"][0]["items"] = "$filter(phone,"
     [issue] = _errors(contract)
-    assert issue.path.endswith("transfers[0].items") and "not a valid expression" in issue.message
+    assert issue.path.endswith("transfers[0].items") and "syntax error" in issue.message
 
 
 def test_the_negotiation_guide_describes_transfers_and_on_sign():

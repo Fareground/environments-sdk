@@ -20,7 +20,6 @@ from ..registry import MechanismError, mode
 from .econ_base import (
     DEMAND,
     REPLENISHMENT,
-    compiles,
     declared_use,
     register_config,
     require_currency,
@@ -81,7 +80,7 @@ class ReplenishmentConfig(BaseModel):
     review_every: int | str = Field(1, description="Rounds between reviews (number or expression over $it).")
     service_level: float | str = Field(0.95, description="Chance of not running out before the next order can arrive "
                                                          "(the service policy, and $safety and $target).")
-    forecast: str = Field("model", description="Demand per round the policies read: model (the demand mechanism's "
+    forecast: Expr = Field("model", description="Demand per round the policies read: model (the demand mechanism's "
                                                "expected demand and its variance, averaged over its kept rounds, so "
                                                "one promotion week does not swing it) | recent (the average and "
                                                "spread of kept sales) | an expression over $it.")
@@ -146,12 +145,6 @@ def _expand_replenishment(name: str, config: ReplenishmentConfig, contract: Mapp
     if demand.stock is None:
         raise MechanismError(f"'{config.demand}' keeps no stock", f"set \"stock\" on '{config.demand}'", "demand")
     _check_policy(config)
-    for field in ("policy", "reorder_point", "order_up_to", "order_qty", "decide", "review_every", "service_level",
-                  "forecast_sd", "case_pack", "min_order", "max_order", "capacity", "budget", "unit_cost",
-                  "holding_cost", "order_cost", "stockout_cost", "backorder_cost", "record"):
-        compiles(getattr(config, field), field)
-    if config.forecast not in ("model", "recent"):
-        compiles(config.forecast, "forecast")
     _check_lead_time(config, contract)
     account, currency = config.account or demand.account, config.currency or demand.currency
     if (account is None) != (currency is None):
@@ -209,7 +202,6 @@ def _check_policy(config: ReplenishmentConfig) -> None:
 def _check_lead_time(config: ReplenishmentConfig, contract: Mapping[str, Any]) -> None:
     lead = config.lead_time
     if not isinstance(lead, LeadTimeRef):
-        compiles(lead, "lead_time")
         return
     spec = declared(contract).get(lead.pattern)
     if not isinstance(spec, Mapping):
@@ -219,8 +211,6 @@ def _check_lead_time(config: ReplenishmentConfig, contract: Mapping[str, Any]) -
         raise MechanismError(f"'{lead.pattern}' is not a noise pattern",
                              "a lead time is drawn per order from {\"kind\": \"noise\", \"dist\": \"lognormal\", ...}",
                              "lead_time.pattern")
-    compiles(lead.key, "lead_time.key")
-    compiles(lead.scale, "lead_time.scale")
 
 
 def _item_props(name: str) -> dict[str, Any]:

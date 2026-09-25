@@ -29,10 +29,10 @@ Nested config:
 - `description`: text
 **ObligationSpec** — What a signed deal makes someone pay or deliver, in installments.
 - `label`: text
-- `from`: text (required) — Who owes it: expression over $proposer, $acceptor, $parties, $terms.
-- `to`: text (required) — Who receives it (same roots).
-- `pay`: text — Currency paid.
-- `give`: text — Item delivered.
+- `from`: expression (required) — Who owes it: expression over $proposer, $acceptor, $parties, $terms.
+- `to`: expression (required) — Who receives it (same roots).
+- `pay`: expression — Currency paid.
+- `give`: expression — Item delivered.
 - `amount`: number | text (required) — Per installment: number or expression over $terms and $k (1, 2, …).
 - `times`: int | text = 1 — Installments (number or expression over $terms).
 - `every`: int = 1 — Rounds between installments.
@@ -40,9 +40,9 @@ Nested config:
 - `manual`: bool = false — The obligor must fulfil it with a tool by its due round; otherwise it is automatic.
 **TransferSpec** — Unique entities a signed deal hands over (a lot of phones, a house): each one's `field` is set to the recipient.
 - `label`: text — What moves, in words ("phones").
-- `items`: text (required) — The entities on offer, in order: expression over $proposer, $acceptor, $parties and $terms, e.g. `$filter(phone, $it.owner == $proposer.id)`.
+- `items`: expression (required) — The entities on offer, in order: expression over $proposer, $acceptor, $parties and $terms, e.g. `$filter(phone, $it.owner == $proposer.id)`.
 - `count`: int | text — How many of them move: number or expression over $terms (default all). Fewer on offer refuses the signing.
-- `to`: text (required) — Who receives them (same roots).
+- `to`: expression (required) — Who receives them (same roots).
 - `field`: text = "owner" — The property of each item set to the recipient's id.
 **BreachSpec** — 
 - `penalty`: number | text = 0.0 — Owed to the other side on each breach: number or expression over $terms and $duty.

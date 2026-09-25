@@ -21,7 +21,6 @@ from .econ_base import (
     NEGOTIATION,
     bump,
     choice_param,
-    compiles,
     config_of,
     declared_names,
     emit_to,
@@ -70,9 +69,9 @@ class ObligationSpec(BaseModel):
     label: str = ""
     from_: Expr = Field(..., alias="from",
                        description="Who owes it: expression over $proposer, $acceptor, $parties, $terms.")
-    to: str = Field(..., description="Who receives it (same roots).")
-    pay: str | None = Field(None, description="Currency paid.")
-    give: str | None = Field(None, description="Item delivered.")
+    to: Expr = Field(..., description="Who receives it (same roots).")
+    pay: Expr | None = Field(None, description="Currency paid.")
+    give: Expr | None = Field(None, description="Item delivered.")
     amount: float | str = Field(..., description="Per installment: number or expression over $terms and $k (1, 2, …).")
     times: int | str = Field(1, description="Installments (number or expression over $terms).")
     every: int = Field(1, ge=1, description="Rounds between installments.")
@@ -98,7 +97,7 @@ class TransferSpec(BaseModel):
                                         "$parties and $terms, e.g. `$filter(phone, $it.owner == $proposer.id)`.")
     count: int | str | None = Field(None, description="How many of them move: number or expression over $terms "
                                                       "(default all). Fewer on offer refuses the signing.")
-    to: str = Field(..., description="Who receives them (same roots).")
+    to: Expr = Field(..., description="Who receives them (same roots).")
     field: str = Field("owner", description="The property of each item set to the recipient's id.")
 
 
@@ -193,8 +192,6 @@ def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[
     items = declared_names(contract, INVENTORY, "items")
     for index, duty in enumerate(config.obligations):
         path = f"obligations[{index}]"
-        for field in ("from_", "to", "amount", "times", "pay", "give"):
-            compiles(getattr(duty, field), f"{path}.{field.rstrip('_')}")
         if duty.pay is not None and "$" not in duty.pay and duty.pay not in currencies:
             raise MechanismError(f"'{duty.pay}' is not a declared currency", "declare a ledger with it", f"{path}.pay")
         if duty.give is not None and "$" not in duty.give and duty.give not in items:
@@ -202,14 +199,9 @@ def _expand_negotiation(name: str, config: NegotiationConfig, contract: Mapping[
                                  f"{path}.give")
     for index, transfer in enumerate(config.transfers):
         path = f"transfers[{index}]"
-        for field in ("items", "count", "to"):
-            compiles(getattr(transfer, field), f"{path}.{field}")
         if not valid_name(transfer.field):
             raise MechanismError(f"'{transfer.field}' cannot be a property name", "use letters, digits and _",
                                  f"{path}.field")
-    for field in ("deadline", "reservation", "value"):
-        compiles(getattr(config, field), field)
-    compiles(config.breach.penalty, "breach.penalty")
     if config.breach.currency is not None and config.breach.currency not in currencies:
         raise MechanismError(f"'{config.breach.currency}' is not a declared currency", None, "breach.currency")
     return _fragment(name, config, parties, agents)
