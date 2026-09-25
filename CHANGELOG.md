@@ -361,6 +361,8 @@ worlds stay fast, and the package is organised by feature.
   - Wording: the supply-chain order tool says what it does for every node once; labor_negotiation's deadline counts
     the rounds left with this one included; coffee_market's receipt formats its money as money ("paid $3.40", not
     "$3.4"); the coffee_market golden changes with that text (agentif LOWs).
+  - A turn an LLM participant forfeited (the provider never answered) ends with its return instead of an
+    `end_turn` of its own, which the run's statistics counted as a tool call (agentif LOW).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

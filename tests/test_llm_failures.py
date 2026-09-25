@@ -227,3 +227,16 @@ def test_an_anthropic_reply_with_nothing_in_it_is_asked_again_like_an_empty_open
     client = NS(messages=NS(create=create))
     result = fg_env.load(SHOP, seed=1, inputs=ONE_SHOPPER).run(participants.anthropic(client, "claude-x"), rounds=1)
     assert result.stats["llm_retries"] == 1 and result.stats["no_tool_replies"] == 0
+
+
+def test_a_forfeited_turn_counts_no_tool_call():
+    """audit 13 agentif LOW: a turn the provider never answered ends with the participant's return, not an end_turn
+    of its own that the run's statistics would count as a call."""
+    class Down(Exception):
+        status_code = 529
+
+    client = NS(messages=NS(create=lambda **request: (_ for _ in ()).throw(Down("overloaded"))))
+    contract = {"name": "S", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": "$actor.n += 1"}}}
+    result = fg_env.run(contract, {"a": participants.anthropic(client, "m", retries=0)}, seed=1)
+    assert "turns_forfeited" in result.degraded and result.stats["calls"] == 0

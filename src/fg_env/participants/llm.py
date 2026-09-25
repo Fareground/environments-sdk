@@ -255,6 +255,7 @@ class _LLMParticipant:
                 self._turn(wake)
             except _Forfeit as lost:
                 self._record(wake, forfeits=1, too_long=int(lost.too_long))
+                return  # returning ends a forfeited turn: an end_turn of its own would count as a call it never made
             except _Over:
                 pass
         if not wake.done and _may_end(wake):
