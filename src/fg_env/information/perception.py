@@ -328,7 +328,7 @@ class Perception:
         index = self._news_index()
         addressed: list[LogEvent] = []
         private_news: list[LogEvent] = []  # world news only some agents may learn of: record entries
-        for event in index.reader_dependent(since):
+        for event in index.reader_dependent(since, actor.id):
             if event.kind == "record" and event.data.get("record") in self._silent_records:
                 continue
             if self.world.evaluation.event_visible(event, actor) and self._would_show(event, actor):

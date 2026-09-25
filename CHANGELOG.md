@@ -253,6 +253,9 @@ worlds stay fast, and the package is organised by feature.
     false, `weight: "2"` is two), and one holding the bare name of a declared property (`veto: "perm"`) is a check
     error pointing at `$it.perm`. Before, such text was kept as a literal string, which counts as true: a veto
     written without `$it.` gave every voter a veto, silently.
+  - An agent's news goes through only the events sent to it, not every event sent to anyone: in a simultaneous
+    stage, where each agent's outcome is sent to it alone, a round cost the square of the crowd (3,000 agents: 1.0 s
+    a round, now 0.29 s).
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

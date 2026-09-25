@@ -48,3 +48,22 @@ def test_news_follows_undone_and_forgotten_events():
     lines, hidden = env.information.news(a, 0)
     assert hidden == 0 and not any(line.startswith("b acted ") and line != "b acted last" for line in lines)
     assert env.information.news(a, 0, 3) == (["Notice 2", "Psst", "Kept"], 3)
+
+
+def test_an_agent_goes_through_only_the_events_sent_to_it_not_everyone_elses():
+    """In a simultaneous stage every agent's outcome is sent to it alone: reading news must not scan them all, or a
+    round costs the square of the crowd (audit 9 core M1)."""
+    crowd = {"name": "Crowd", "clock": {"rounds": 1}, "types": {"t": {"agent": True}},
+             "entities": {"t": {"type": "t", "count": 300}}, "stages": [{"name": "s", "turns": "simultaneous"}],
+             "actions": {"go": {"by": "t", "do": [], "outcome": "Done."}}}
+    env = fg_env.load(crowd, seed=1)
+    env.run(lambda w: (w.call("go"), w.end()))
+    for i in range(300):
+        env.world.emit("notice", f"to t_{i + 1}", to=(f"t_{i + 1}",))
+    checked = []
+    evaluation = env.world.evaluation
+    visible = evaluation.event_visible
+    evaluation.event_visible = lambda event, viewer: checked.append(event) or visible(event, viewer)
+    lines, _ = env.information.news(env.world.entities["t_7"], 0)
+    assert "to t_7" in lines and "to t_8" not in lines
+    assert len(checked) <= 2  # its own outcome and its own notice

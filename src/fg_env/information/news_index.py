@@ -3,11 +3,13 @@
 Most events are public — every agent may learn of them, as the same text — so which of them an agent's news shows
 depends on the agent only through its own actions, which are never its news. Those events are kept in two lists in
 log order (world news, and other agents' actions), so a reader counts and picks the newest of them without reading
-the rest. The events whose visibility depends on the reader — sent to a few, a record entry, or an action that posted
-one not every agent may see — are kept in a third list, which each reader goes through itself.
+the rest. The events whose visibility depends on the reader are kept apart too: those sent to a few, under each of
+their recipients (in a simultaneous stage every agent's outcome is one, and nobody else goes through them), and a
+record entry or an action that posted one not every agent may see in a list each reader goes through itself.
 """
 from __future__ import annotations
 
+import heapq
 from bisect import bisect_right
 from collections.abc import Iterator
 from itertools import islice
@@ -38,11 +40,13 @@ class _Kind:
 class NewsIndex:
     """The public news (world news, actions) and the reader-dependent events of one log, in log order."""
 
-    __slots__ = ("log", "world", "actions", "own", "private", "_count", "_last", "_last_seq", "_first")
+    __slots__ = ("log", "world", "actions", "own", "private", "sent", "_count", "_last", "_last_seq", "_first")
 
     def __init__(self, log: list[LogEvent]):
         self.log = log
         self.world, self.actions, self.private = _Kind(), _Kind(), _Kind()
+        #: recipient id → the events sent to a few that name it
+        self.sent: dict[str, _Kind] = {}
         #: actor → the log positions (seq) of its public actions
         self.own: dict[str, list[int]] = {}
         self._count = 0
@@ -62,7 +66,10 @@ class NewsIndex:
         """Index the events added to the log since the last read."""
         log = self.log
         for event in log[self._count:]:
-            if event.to is not None or event.kind == "record" or event.data.get("posted"):
+            if event.to is not None:
+                for recipient in event.to:
+                    self.sent.setdefault(recipient, _Kind()).add(event)
+            elif event.kind == "record" or event.data.get("posted"):
                 self.private.add(event)
             elif not event.text:
                 continue  # public, but says nothing: never news
@@ -76,9 +83,15 @@ class NewsIndex:
         if log:
             self._first, self._last, self._last_seq = log[0], log[-1], log[-1].seq
 
-    def reader_dependent(self, since: int) -> list[LogEvent]:
-        """The events after ``since`` whose news depends on the reader, in log order."""
-        return self.private.events[self.private.start(since):]
+    def reader_dependent(self, since: int, reader: str) -> list[LogEvent]:
+        """The events after ``since`` whose news depends on the reader, and that the reader with id ``reader`` may be
+        sent, in log order."""
+        shared = self.private.events[self.private.start(since):]
+        mine = self.sent.get(reader)
+        if mine is None:
+            return shared
+        own = mine.events[mine.start(since):]
+        return list(heapq.merge(shared, own, key=lambda event: event.seq)) if shared else own
 
     def world_news(self, since: int, newest: int) -> tuple[list[LogEvent], int]:
         """The ``newest`` public world news after ``since`` (newest first), and how many there are."""
