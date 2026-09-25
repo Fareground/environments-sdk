@@ -22,7 +22,7 @@ Nested config:
 - `to`: text (required) — Type that receives it.
 - `amount`: number | text (required) — Amount per recipient (number or expression over $it).
 - `currency`: text — Currency (needed when the ledger has several).
-- `where`: text — Which recipients ($it).
+- `where`: expression — Which recipients ($it).
 - `every`: int = 1 — Rounds between payments.
 - `start`: int = 1 — First round it pays.
 - `mode`: any = "add" — add | top_up (up to amount) | reset (unspent money expires, then amount).

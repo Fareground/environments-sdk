@@ -35,8 +35,8 @@ Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $ar
 - `max_len`: int — Maximum length (type text).
 - `overflow`: any = "refuse" — Type text: text longer than `max_len` is refused (the agent is told to shorten it), or with `truncate` cut after the last full sentence that fits (the agent is told what was cut).
 - `items`: ParamSpec — Type list: the spec every element follows (e.g. {"type": "enum", "values": [...]}). Shorthand: `of` makes entity items, `values` enum items.
-- `min_items`: any | text — Type list: fewest elements (a number or an expression, like `min`).
-- `max_items`: any | text — Type list: most elements (a number or an expression, like `max`).
+- `min_items`: int | text — Type list: fewest elements (a number or an expression, like `min`).
+- `max_items`: int | text — Type list: most elements (a number or an expression, like `max`).
 - `unique`: bool = true — Type list: no element twice (rankings, hands of cards).
 - `default`: any
 - `required`: bool — Defaults to true unless a default is given.

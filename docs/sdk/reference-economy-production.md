@@ -20,7 +20,7 @@ Nested config:
 - `xp`: number = 0 — Experience per batch.
 - `tools`: object — Goods that must be held but are not used up {item: qty}.
 - `at`: text | [text] — Place(s) where it can be made.
-- `when`: text — Extra requirement over $actor.
+- `when`: expression — Extra requirement over $actor.
 - `cost`: object — Money per batch {currency: amount}, leaving to the recipe's sink.
 - `description`: text
 **SkillSpec** — 

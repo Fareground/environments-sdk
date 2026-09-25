@@ -20,7 +20,7 @@ Nested config:
 - `blocks`: any | [text] — Actions the carrier cannot take while it is active.
 - `blocked_why`: text — Why a blocked action is refused.
 - `immune`: [text] — Statuses that cannot be applied while this one is active.
-- `unless`: text — Expression over $it: when true the status cannot be applied to it.
+- `unless`: expression — Expression over $it: when true the status cannot be applied to it.
 - `on_apply`: [any] — Effects each time it is applied ($it, $stacks, $source).
 - `on_expire`: [any] — Effects when it runs out ($it, $stacks, $source).
 - `say`: text — News when it is applied (template over $it, $stacks).

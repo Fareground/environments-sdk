@@ -28,7 +28,7 @@ every kind of trader).
 In a type that ``extends`` another, a property the parent declares is overridden field by
 field: only the fields written here change (a bare value changes only the default), so the
 parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.
-- `type`: any — One of: number, int, bool, text, enum, list, map, any, asset (inferred from default: any number default, 10 as much as 2.5, is a number, which may hold fractions; int only when declared) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).
+- `type`: text — One of: number, int, bool, text, enum, list, map, any, asset (inferred from default: any number default, 10 as much as 2.5, is a number, which may hold fractions; int only when declared) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).
 - `default`: any — Literal or expression (evaluated when the entity is created).
 - `min`: number — Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).
 - `max`: number — Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).
@@ -45,7 +45,7 @@ With `each`, the rule is tried once per item ($it): "for each of my armies, hold
 - `when`: text
 - `do`: effects (required) — Action name, or 'pass'.
 - `with`: object — Params as values or expressions.
-- `chance`: any | text
+- `chance`: number | text
 **ScoreSpec** — What each agent of this type (a seat) scores, for `RunResult.returns`, tournaments, `fg_env.rl.game` and
 `fg_env.rl.gym`. The seats are the entities of every type with a score, in creation order unless `seat` orders
 them; a reward is the change in a seat's value since its previous step.

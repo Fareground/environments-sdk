@@ -42,7 +42,7 @@ Nested config:
 **CardActionConfig** — A generated card tool. ``true`` takes every default.
 - `description`: text
 - `to`: text — Zone the card goes to (play: default discard).
-- `where`: text — Which cards of your hand qualify ($it the card, $actor): only these are offered.
+- `where`: expression — Which cards of your hand qualify ($it the card, $actor): only these are offered.
 - `when`: [any] — Extra requirements for the tool, as in actions.
 - `params`: object — Extra tool arguments.
 - `do`: effects — Effects after the card moves ($params.card is the card).

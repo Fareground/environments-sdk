@@ -19,6 +19,7 @@ from ..checks.roots import BASE
 from ..effects.runner import EFFECT_OPS
 from ..expr import FUNCTIONS, FunctionSpec
 from ..expr.calls import CORE_FUNCTIONS
+from ..mechanisms.expressions import EXPRESSION
 from ..registry import FAMILIES, OPS, FamilySpec, ModeSpec
 from .text import EFFECT_EXAMPLES, EFFECTS, EXPRESSIONS
 
@@ -321,6 +322,8 @@ def _type_name(annotation: Any, field: str) -> str:
         return "effects"
     origin = typing.get_origin(annotation)
     args = typing.get_args(annotation)
+    if origin is typing.Annotated:
+        return "expression" if EXPRESSION in annotation.__metadata__ else _type_name(args[0], field)
     if origin in (typing.Union, types.UnionType):
         names = [_type_name(a, field) for a in args if a is not type(None)]
         return " | ".join(dict.fromkeys(names))

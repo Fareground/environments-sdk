@@ -19,10 +19,10 @@ Nested config:
 - `say`: text — News when the phase begins (template).
 - `next`: text | [Transition] — A phase name, or transitions tried in order.
 - `terminal`: bool = false — The run ends at the end of the phase's first round (at once if it has no stages).
-- `winner`: text — Terminal phases: expression naming the winner(s).
+- `winner`: expression — Terminal phases: expression naming the winner(s).
 **Transition** — A way out of a phase. Every condition given must hold; none given = after one round.
 - `to`: text (required) — The next phase.
-- `when`: text — An expression that must hold.
+- `when`: expression — An expression that must hold.
 - `after`: int | text — At least this many rounds in the phase.
 - `event`: text — An event of this kind happened during the phase (an emit, a record, a vote).
 - `all_did`: text — Every living entity of the action's `by` types took it during the phase, in any stage. Action conditions and stage filters do not narrow this group; other procedures using the same action can share completion evidence.
@@ -45,7 +45,7 @@ Nested config:
 - `params`: object — Tool params (ordinary param specs), kept on the item as $params.
 - `starts`: bool = true — It may be pushed onto an empty stack.
 - `on`: [text] — Kinds it may be pushed on top of (answer).
-- `when`: text — Extra condition to push it ($actor, $top: the item it would answer, or null).
+- `when`: expression — Extra condition to push it ($actor, $top: the item it would answer, or null).
 - `why`: text — What the agent is told when it may not push it.
 - `responders`: text = "$it.id != $item.by" — Who owes it an answer while it is on top: an expression over $it (an agent) and $item.
 - `show`: text — How the item reads after its title (template over $item, $params, $actor).

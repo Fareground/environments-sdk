@@ -18,4 +18,4 @@ shown to agents: `$outputs`/`$series` reads of it in what they are shown are ref
 - `description`: text
 - `unit`: text
 - `format`: text — How result.summary() and the CLI show it: a template format (money, pct, pct1, int, 0-4 decimals …); the stored value stays exact. Unset: numbers to 4 decimals.
-- `series`: any | text = false — Also sample it every round: true samples `expr` (the result is the last sample); an expression samples that instead, when the per-round figure differs from the final one (sales each round, total sales at the end).
+- `series`: bool | text = false — Also sample it every round: true samples `expr` (the result is the last sample); an expression samples that instead, when the per-round figure differs from the final one (sales each round, total sales at the end).

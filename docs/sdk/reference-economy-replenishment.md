@@ -33,7 +33,7 @@ Config:
 Nested config:
 **LeadTimeRef** — A lead time drawn for every order from a noise pattern (fitted from purchase orders, say).
 - `pattern`: text (required) — A noise pattern (normal, lognormal, uniform or laplace), drawn once per order.
-- `key`: text — Its key as an expression over $it, for a keyed pattern (default: the item).
+- `key`: expression — Its key as an expression over $it, for a keyed pattern (default: the item).
 - `scale`: number | text = 1.0 — Multiplies the draw (expression over $it): "$it.lead_weeks" with a lognormal factor around 1.
 
 Actions of the `economy` op:

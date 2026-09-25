@@ -27,8 +27,8 @@ Config:
 Nested config:
 **FactorRef** — A pattern read for each item: its key, and for a response what it answers.
 - `pattern`: text (required) — A declared pattern.
-- `key`: text — Its key, as an expression over $it (default: the item, for a pattern with keys).
-- `driver`: text — For a response (elasticity, saturation …): what it is called with, as an expression over $it and $price (default: $price, the price paid).
+- `key`: expression — Its key, as an expression over $it (default: the item, for a pattern with keys).
+- `driver`: expression — For a response (elasticity, saturation …): what it is called with, as an expression over $it and $price (default: $price, the price paid).
 **ReturnsSpec** — Units a segment sends back.
 - `rate`: number | text (required) — Share of units sold that come back (number or expression over $it).
 - `delay`: int | text = 1 — Rounds until they come back (number or expression over $it).
@@ -37,8 +37,8 @@ Nested config:
 - `rate`: number | text | FactorRef (required) — Expected units a round for each item before its factors: a number, an expression over $it, or a pattern (its name, or {pattern, key}; a keyed pattern reads the item).
 - `factors`: [number | text | FactorRef] — Multipliers of the rate, each a pattern name, {pattern, key, driver} or an expression over $it and $price: a response (elasticity) is called with its driver (default $price), a cross_price pattern with every item's price, any other pattern (season, promotion, trend) is read for the item.
 - `noise`: text — A counts pattern drawing whole units around the expected demand (Poisson when omitted). An unkeyed one gives every item and segment its own draw.
-- `price`: text — What the segment pays per unit, as an expression over $it and $price (the item's price): "$price * 0.85". Default $price.
-- `where`: text — Only items where this holds ($it).
+- `price`: expression — What the segment pays per unit, as an expression over $it and $price (the item's price): "$price * 0.85". Default $price.
+- `where`: expression — Only items where this holds ($it).
 - `returns`: ReturnsSpec — Units this segment sends back: {rate, delay, restock}.
 
 Actions of the `economy` op:
