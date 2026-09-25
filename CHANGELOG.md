@@ -289,6 +289,8 @@ worlds stay fast, and the package is organised by feature.
     prints its properties, private ones included (L1).
   - A `{$...}` placeholder in plain text is warned in the same words wherever it is written: an action's or an
     argument's description and a view's `empty` (L2).
+  - The warning that a simultaneous stage announces each sealed choice quotes one of the contract's agents
+    ("Vera: yes.") instead of a made-up "Ann" (L3).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

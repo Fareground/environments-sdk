@@ -167,7 +167,9 @@ class PrivacyChecks(Checker):
             named = [name for name in stage_actions(self.c, stage, kind)
                      if self.c.actions[name].announce is None]
             if len(named) > 1:
-                self.warn(path, f"announces each sealed choice to everyone by name as it commits (\"Ann: "
+                who = next((key if spec.name is None else spec.name for key, spec in self.c.named_entities().items()
+                            if spec.type == kind), f"a {kind}")
+                self.warn(path, f"announces each sealed choice to everyone by name as it commits (\"{who}: "
                                 f"{named[0].replace('_', ' ')}.\"), so which of {', '.join(named)} each agent chose "
                                 "is public",
                           "if the choice is secret (a ballot), give those actions `announce: false` and announce only "

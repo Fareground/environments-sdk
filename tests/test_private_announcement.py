@@ -154,3 +154,13 @@ def test_an_announcement_reading_an_argument_with_a_worked_out_default_is_a_chec
     assert [i.severity for i in found] == ["error"] and "$params.n" in found[0].message
     with pytest.raises(fg_env.ContractError):
         fg_env.load(contract)
+
+
+def test_the_sealed_announcement_warning_quotes_a_real_agent():
+    """audit 13 L3: the example line names an agent of the contract, not a made-up one."""
+    contract = {"name": "V", "clock": {"rounds": 1}, "types": {"voter": {"agent": True}},
+                "entities": {"v1": {"type": "voter", "name": "Vera"}, "v2": {"type": "voter"}},
+                "stages": [{"name": "vote", "turns": "simultaneous"}],
+                "actions": {"yes": {"by": "voter", "do": []}, "no": {"by": "voter", "do": []}}}
+    warned = [str(issue) for issue in fg_env.check(contract, rounds=0) if "sealed choice" in issue.message]
+    assert warned and '("Vera: yes.")' in warned[0]
