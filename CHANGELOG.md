@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - `market.posted`'s `<name>_avg_price` metric is what a unit sold for on average (turnover ÷ units sold, null before
+    a sale); it was the plain average of the listings' current asking prices. farmers_market's golden changes with it.
   - A crowd's strategy `params` may name only that strategy's parameters (every one, `stop_loss` included, is listed
     with its default): a misspelt one is an error with a suggestion, not silently ignored.
   - A sealed bid ends the turn only on the auction's own stage; on a declared stage it shares with other mechanisms,

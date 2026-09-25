@@ -2,6 +2,7 @@
 import json
 import math
 import statistics
+from pathlib import Path
 
 import pytest
 
@@ -1140,3 +1141,11 @@ def test_a_misspelt_crowd_strategy_parameter_is_an_error_with_a_suggestion():
     issues = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
     assert [(i.path, i.fix) for i in issues] == [("mechanisms.bk.crowd.noise.params.activty",
                                                   "did you mean 'activity'?")]
+
+
+def test_a_posted_markets_average_price_is_what_its_units_sold_for():
+    """`<name>_avg_price` is turnover ÷ units sold, offers and counter-offers included — not the average asking price
+    of the listings (audit 12 mech M5)."""
+    result = fg_env.run(Path(__file__).parents[1] / "examples" / "contracts" / "farmers_market.json", seed=1)
+    metrics = {name: values[-1] for name, values in result.series.items()}
+    assert metrics["market_avg_price"] == pytest.approx(metrics["market_turnover"] / metrics["market_sales"])

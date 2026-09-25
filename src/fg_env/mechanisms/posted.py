@@ -543,7 +543,9 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                                               f"{{$join($map($keys($actor.{name}_basket), $it + ' × ' + "
                                               f"$text($get($actor.{name}_basket, $it))), ', ') or 'empty'}}")}},
         "metrics": {f"{name}_sales": f"$world.{name}_sales", f"{name}_turnover": f"$world.{name}_turnover",
-                    f"{name}_avg_price": f"$avg({listing}, $posted_price({name}, $it))"},
+                    # what a unit sold for on average, offers and counter-offers included; null before a sale
+                    f"{name}_avg_price": f"($world.{name}_turnover / $world.{name}_sales) if $world.{name}_sales > 0 "
+                                         "else null"},
         "outputs": {f"{name}_sales": {"expr": f"$world.{name}_sales", "type": "int", "description": "Units sold."},
                     f"{name}_turnover": {"expr": f"$round($world.{name}_turnover, 2)", "type": "number",
                                          "description": "Money spent."}},

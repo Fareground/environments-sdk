@@ -15,7 +15,7 @@
     "r1 record shopper_8: {\"entry\": 5, \"fields\": {\"item\": \"apples\", \"listing\": \"apples\", \"negotiated\": true, \"qty\": 1, \"unit_price\": 2.49}, \"record\": \"market_ledger\"}"
   ],
   "metrics": {
-    "market_avg_price": 4.873333333,
+    "market_avg_price": 3.7448,
     "market_sales": 25,
     "market_turnover": 93.62
   },
