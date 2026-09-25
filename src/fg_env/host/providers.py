@@ -56,14 +56,17 @@ def retryable(exc: BaseException) -> bool:
 
 
 #: What providers say when a request holds more than the model's context (Anthropic, OpenAI and compatible servers).
-_TOO_LONG = ("prompt is too long", "context length", "context_length_exceeded", "maximum context", "too many tokens")
+_TOO_LONG = ("prompt is too long", "context length", "context_length_exceeded", "maximum context", "too many tokens",
+             "request_too_large", "request too large", "request exceeds the maximum size")
 
 
 def too_long(exc: BaseException) -> bool:
     """Whether a provider refused a request for holding more than the model's context: that turn cannot be played by
     this model, but the next one (with a fresh, shorter conversation) may be."""
     text = str(exc).lower()
-    return getattr(exc, "status_code", None) in (400, 413) and any(part in text for part in _TOO_LONG)
+    status = getattr(exc, "status_code", None)
+    # a 413 is a request too large whatever its text says (Anthropic's `request_too_large`)
+    return status == 413 or (status == 400 and any(part in text for part in _TOO_LONG))
 
 
 def refuse_awaitable(response: Any, call: str, client: str, where: str) -> None:

@@ -206,9 +206,16 @@ class PromptTooLong(Exception):
     status_code = 400
 
 
-def test_a_prompt_too_long_for_the_model_is_diagnosed_as_such_not_as_a_failing_provider():
-    """No retry can shorten a prompt: the finding says so and points at what the agent reads (audit 9 LLM M1)."""
-    client = FailingAnthropic([], [PromptTooLong("prompt is too long: 250000 tokens > 200000 maximum")] * 20)
+class RequestTooLarge(Exception):
+    status_code = 413
+
+
+@pytest.mark.parametrize("error", [PromptTooLong("prompt is too long: 250000 tokens > 200000 maximum"),
+                                   RequestTooLarge("request_too_large: Request exceeds the maximum size")])
+def test_a_prompt_too_long_for_the_model_is_diagnosed_as_such_not_as_a_failing_provider(error):
+    """No retry can shorten a prompt: the finding says so and points at what the agent reads (audit 9 LLM M1); a 413
+    (Anthropic's `request_too_large`) is one too (audit 14 agentif LOW-5)."""
+    client = FailingAnthropic([], [error] * 20)
     result = fg_env.load(SHOP, seed=1, inputs=ONE_SHOPPER).run(participants.anthropic(client, "claude-x"), rounds=1)
     assert result.stats["forfeits"] == result.stats["too_long"] == 1 and result.stats["llm_retries"] == 0
     [found] = [d for d in result.diagnostics if d["code"] == "turns_forfeited"]
