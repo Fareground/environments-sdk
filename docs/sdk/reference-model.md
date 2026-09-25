@@ -128,7 +128,7 @@ value in anything worked out for one agent (views and their where/sort/attach, t
 outcome text, whether an action ends the turn (`terminal`), briefs, policies, defs they call, series outputs worked out
 from private props) is an error,
 however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
-stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
+stage whose actions are announced (a stage `when` that reads one is warned: everyone sees whether the stage ran). Reveal what an agent may learn by working it out in game logic
 (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
 several agents — an `announce`, an event's `say`, an emit's `say` without a lone `to` — may read no
 private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
