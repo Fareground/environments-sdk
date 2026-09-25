@@ -234,3 +234,13 @@ def test_an_engine_refuses_a_table_too_short_to_run_with_the_fix(starter, inputs
     path = Path(fg_env.__file__).parent / "engines" / "starters" / starter
     with pytest.raises((fg_env.InputError, fg_env.RunError), match=said):
         fg_env.load(path, inputs=inputs)
+
+
+def test_the_retail_market_shares_leave_out_a_cafe_that_never_opened():
+    """In the base arm the chain café never opens, so it has no share to list (audit 11 engines LOW-3)."""
+    env = fg_env.load(Path(fg_env.__file__).parent / "engines" / "starters" / "coffee_market.json", seed=1)
+    result = env.run()
+    cafes = [entity for entity in env.entities("cafe", alive=False)]
+    opened = {cafe["name"] for cafe in cafes if cafe["props"]["open"] or cafe["props"]["cups_total"]}
+    assert len(opened) < len(cafes)  # the chain stays closed
+    assert {name for name, _ in result.outputs["market_shares"]} == opened

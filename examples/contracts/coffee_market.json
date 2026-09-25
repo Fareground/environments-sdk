@@ -581,7 +581,7 @@
     }
   ],
   "outputs": {
-    "market_shares": {"type": "list", "description": "[café, share of all cups sold over the run], largest first.", "expr": "$map($top(cafe, $it.cups_total), [$it.name, $round($pct($it.cups_total, $world.cups_total), 4)])"},
+    "market_shares": {"type": "list", "description": "[café, share of all cups sold over the run] of each café that opened, largest first.", "expr": "$map($top(cafe, $it.cups_total, null, $it.open or $it.cups_total > 0), [$it.name, $round($pct($it.cups_total, $world.cups_total), 4)])"},
     "revenue_by_cafe": {"type": "list", "description": "[café, revenue USD incl. subscription fees, profit USD] over the run, at city scale.", "expr": "$map($top(cafe, $it.revenue), [$it.name, $round($it.revenue * $represents, 2), $round(($it.revenue - $it.cost) * $represents, 2)])"},
     "leader": {"type": "text", "expr": "$top(cafe, $it.cups_total, 1)[0].name"},
     "subscription_uptake": {"type": "number", "description": "Share of households that subscribed at any point (null without households).", "expr": "$round($count(household, $it.ever_subscribed) / $count(household), 4) if $count(household) > 0 else null"},

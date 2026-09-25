@@ -333,6 +333,8 @@ worlds stay fast, and the package is organised by feature.
     field; before, only a play found it.
   - A call written without its `$` suggests only a function there is (`entities(player)`: "did you mean
     $entity(...)?"); it used to say "write $entities(...)", a function that does not exist.
+  - The retail engine's `market_shares` leaves out a café that never opened (the chain in the base arm), which it
+    listed at 0.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
