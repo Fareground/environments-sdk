@@ -340,6 +340,9 @@ worlds stay fast, and the package is organised by feature.
     "12 rounds (or to the last scheduled event)" whatever the contract's length.
   - Indexing text (`$inputs.plan[r][c]`) says to read its characters with `$chars(text)[i]`, or cut a part with
     `$substr`.
+  - `$top` keeps listing order for ties, as `$sort` does, and both say so. Before, `$top` put the later of tied items
+    first, so the last-listed tied candidate won a "highest first" pick (two goldens changed where a tie decided:
+    hangman_duel, sugarscape_lite).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

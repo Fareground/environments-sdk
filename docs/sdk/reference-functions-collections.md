@@ -27,10 +27,10 @@
 - `$range(n) | range(start, end)` — Whole numbers 0..n-1, or start..end-1.
 - `$reverse(list)` — The list in reverse order.
 - `$slice(list, start, end?)` — Elements from `start` up to (not including) `end`; negative counts from the end.
-- `$sort(items, by?, n?, where?)` — Items sorted by `by` (a value or a list of values; default the items themselves), lowest first; the first `n` when given. $top is the same, highest first.
+- `$sort(items, by?, n?, where?)` — Items sorted by `by` (a value or a list of values; default the items themselves), lowest first; the first `n` when given; ties keep listing order. $top is the same, highest first.
 - `$stdev(items, value?, where?)` — Sample standard deviation of `value`, or of a list; null when fewer than two.
 - `$sum(items, value?, where?)` — Total of `value` over items matching `where`; $sum(list) adds a list of numbers.
 - `$tally(list)` — Counts of each distinct value, as a {value: count} map (order of first appearance; keys are text, as in every map).
-- `$top(items, by, n?, where?)` — Items sorted by `by` (a value or a list of values), highest first; the first `n` when given. $sort is the same, lowest first.
+- `$top(items, by, n?, where?)` — Items sorted by `by` (a value or a list of values), highest first; the first `n` when given; ties keep listing order. $sort is the same, lowest first.
 - `$unique(list)` — The list with duplicates removed, order kept.
 - `$values(map)` — The values of a map.

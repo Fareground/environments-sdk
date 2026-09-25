@@ -116,7 +116,7 @@ def _sorted(call: Call, descending: bool) -> list[Any]:
         keyed = [(_sort_key(call, it), i, it) for i, it in enumerate(items)]
     else:
         keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
-    keyed.sort(key=lambda t: (t[0], t[1]), reverse=descending)
+    keyed.sort(key=lambda t: t[0], reverse=descending)  # stable: ties keep listing order, highest first or lowest
     ordered = [it for _, _, it in keyed]
     if len(call) > 2 and call.arg(2) is not None:
         ordered = ordered[: int(call.number(2))]
@@ -214,7 +214,7 @@ def _map_values(call: Call) -> list[Any]:
 
 
 @function("top(items, by, n?, where?)", "Items sorted by `by` (a value or a list of values), highest first; the first "
-          "`n` when given. $sort is the same, lowest first.",
+          "`n` when given; ties keep listing order. $sort is the same, lowest first.",
           min_args=2, max_args=4, lazy=[1, 3])
 def _top(call: Call) -> list[Any]:
     return _sorted(call, True)
@@ -690,7 +690,8 @@ def _join(call: Call) -> str:
 
 
 @function("sort(items, by?, n?, where?)", "Items sorted by `by` (a value or a list of values; default the items "
-          "themselves), lowest first; the first `n` when given. $top is the same, highest first.",
+          "themselves), lowest first; the first `n` when given; ties keep listing order. $top is the same, highest "
+          "first.",
           min_args=1, max_args=4, lazy=[1, 3])
 def _sort(call: Call) -> list[Any]:
     return _sorted(call, False)

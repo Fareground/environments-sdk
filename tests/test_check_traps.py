@@ -435,3 +435,12 @@ def test_indexing_text_says_how_to_read_its_characters():
     assert "$chars(text)" in issue["message"]
     c["outputs"]["c"] = "$chars($inputs.plan[0])[1]"
     assert fg_env.run(c, "idle", seed=1).outputs["c"] == "."
+
+
+def test_top_and_sort_keep_listing_order_for_ties():
+    c = {"name": "x", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"s": 0}}},
+         "entities": {"a": {"type": "p", "props": {"s": 5}}, "b": {"type": "p", "props": {"s": 5}},
+                      "c": {"type": "p", "props": {"s": 1}}},
+         "actions": {"go": {"by": "p", "description": "g", "do": []}},
+         "outputs": {"top": "$map($top(p, $it.s), $it.id)", "sort": "$map($sort(p, $it.s), $it.id)"}}
+    assert fg_env.run(c, "idle", seed=1).outputs == {"top": ["a", "b", "c"], "sort": ["c", "a", "b"]}
