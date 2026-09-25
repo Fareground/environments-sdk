@@ -116,7 +116,11 @@ def _sorted(call: Call, descending: bool) -> list[Any]:
         keyed = [(_sort_key(call, it), i, it) for i, it in enumerate(items)]
     else:
         keyed = [(_sort_key(call, call.each(1, it, i)), i, it) for i, it in enumerate(items)]
-    keyed.sort(key=lambda t: t[0], reverse=descending)  # stable: ties keep listing order, highest first or lowest
+    try:
+        keyed.sort(key=lambda t: t[0], reverse=descending)  # stable: ties keep listing order, highest first or lowest
+    except TypeError:  # a number and a text in the same place of two keys: neither comes first
+        raise ExprError(f"${call.name}: the sort keys mix numbers and text, which have no order between them; sort "
+                        "by one kind (`$text(x)` makes a number text)", call.source) from None
     ordered = [it for _, _, it in keyed]
     if len(call) > 2 and call.arg(2) is not None:
         ordered = ordered[: int(call.number(2))]

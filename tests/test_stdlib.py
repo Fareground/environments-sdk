@@ -535,3 +535,11 @@ def test_draw_supports_and_shapes():
 def test_randomness_needs_the_run_generator():
     with pytest.raises(ExprError, match="needs randomness"):
         evaluate("$dice('d6')")
+
+
+def test_sorting_numbers_and_text_together_says_so_in_the_languages_words():
+    """Numbers and text have no order between them: the author is told that, not Python's TypeError (audit 11 L1)."""
+    for source in ("$sort(['b', 'a', 1])", "$top([[1, 'a'], [1, 2]], $it)"):
+        with pytest.raises(ExprError, match="mix numbers and text") as refused:
+            evaluate(source)
+        assert "TypeError" not in str(refused.value)
