@@ -318,6 +318,10 @@ worlds stay fast, and the package is organised by feature.
   - An auction bid no longer deep-copies every bid of the lot and copies them again as it saves the lot: the bids
     are shared, never changed in place. 5,000 sealed bidders run in 2.2 s instead of 8.5 s, 10,000 in 5.3 s
     (mechanism M3).
+  - A ballot nobody cast or abstained on is not counted, the first time too: the result stays an empty map until
+    the first count, as documented, instead of announcing "no decision (no votes were cast)". The werewolf example
+    and engine exile only on this round's count, so a round in which nobody votes no longer re-reads an earlier
+    round's result (mechanism M4).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

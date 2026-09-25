@@ -217,7 +217,7 @@
     {
       "on": "stage.verdict.start",
       "do": [
-        "$out_id = $world.exile_result.winner",
+        "$out_id = $world.exile_result.winner if $get($world.exile_result, 'round', 0) == $round else null",
         {
           "if": "$out_id != null",
           "then": [

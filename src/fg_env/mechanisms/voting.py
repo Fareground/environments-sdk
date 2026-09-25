@@ -374,8 +374,8 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     config = mechanism_config(world, name, KEY, BallotConfig, where)
     prop = f"{name}_ballot"
     cast = [voter for voter in world.entities_of(config.who) if voter.properties.get(prop) is not None]
-    if not cast and world.props.get(f"{name}_result"):
-        return  # a ballot nobody cast (nor abstained on) decides nothing: the last result stands
+    if not cast:
+        return  # a ballot nobody cast (nor abstained on) decides nothing: the last result, or none yet, stands
     ballots = {voter.id: voter.properties[prop] for voter in cast}
     voters = _voters_in_game(world, config.who)
     weights = ({v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters}

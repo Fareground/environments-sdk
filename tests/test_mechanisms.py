@@ -265,7 +265,7 @@ def test_ballot_weights_votes_measures_the_threshold_over_members_and_honours_a_
     held = result(shareholders, {"p1": "adopt", "p2": "adopt", "e1": "adopt", "e2": "adopt", "e3": "reject"})
     assert held["winner"] == "reject" and held["counts"] == {"reject": 10, "adopt": 4}
     words = fg_env.load({**shareholders, "mechanisms": {"resolution": {**shareholders["mechanisms"]["resolution"],
-                                                                     "weight": "$it.name"}}}, seed=1).run(_votes({}))
+                                                                     "weight": "$it.name"}}}, seed=1).run(_votes({"p1": "adopt"}))
     assert words.status == "failed" and "a voter's weight must be a number ≥ 0, got 'p1'" in words.error
 
 
@@ -610,7 +610,7 @@ def test_a_negative_ballot_weight_fails_the_count_naming_the_voter():
                 "entities": {"a": {"type": "member", "props": {"shares": -5}}, "b": {"type": "member"}},
                 "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["yes", "no"],
                                      "weight": "$it.shares"}}}
-    result = fg_env.load(contract, seed=1).run("idle")
+    result = fg_env.load(contract, seed=1).run(lambda wake: (wake.call("v_vote", {"choice": "yes"}), wake.end()))
     assert result.status == "failed" and "a voter's weight must be a number ≥ 0, got -5 for a" in result.error
 
 
@@ -660,3 +660,13 @@ def test_a_config_error_is_told_at_the_one_field_that_holds_what_it_quotes():
                      "setup": [{"game": "dek", "action": "collect"}]}}}
     errors = [i for i in fg_env.check(pot) if i.severity == "error"]
     assert [i.path for i in errors] == ["mechanisms.t.setup[0].game"] and "did you mean 'deck'" in str(errors[0])
+
+
+def test_a_ballot_nobody_touched_is_not_counted_even_the_first_time():
+    """audit 13 mechanisms M4: the result stays an empty map until the first count, as the page says."""
+    contract = {"name": "Quiet", "clock": {"rounds": 2}, "types": {"m": {"agent": True}},
+                "entities": {"m": {"type": "m", "count": 2}},
+                "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "m", "options": ["a", "b"]}},
+                "outputs": {"result": "$world.v_result"}}
+    result = fg_env.run(contract, "idle", seed=1)
+    assert result.outputs["result"] == {} and not any("no votes" in (e.get("text") or "") for e in result.events)
