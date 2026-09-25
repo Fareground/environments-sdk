@@ -7,14 +7,15 @@ a run hits them.
 """
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from typing import TYPE_CHECKING
 
 from .. import contract as C
 from ..actions.book import announces, stage_actions
 from ..expr import Expr, ExprError, compile_expr
 from ..expr.compile import call_roots
-from ..expr.hidden import reveals
+from ..expr.hidden import readers, reveals
 from ..expr.template import compile_template
 from ..information.reads import inspect_rule
 from .core import Checker
@@ -28,6 +29,24 @@ __all__ = ["PrivacyChecks"]
 class PrivacyChecks(Checker):
     """Hidden values in views, tools, outcomes, announcements, news and `who` (a part of the contract checker)."""
 
+    #: The agent types that read what is being checked (a view's readers, an action's actors): a property whose
+    #: `private` lists every one of them is theirs to read. Empty for text sent to several and anything else.
+    readers: frozenset[str] = frozenset()
+
+    @contextmanager
+    def _reading(self, kinds: Iterable[str]) -> Iterator[None]:
+        """Check what agents of ``kinds`` read."""
+        previous, self.readers = self.readers, frozenset(kinds)
+        try:
+            yield
+        finally:
+            self.readers = previous
+
+    def _readable(self, spec: C.PropSpec) -> bool:
+        """Whether every reader being checked is of a type ``spec``'s `private` lists."""
+        allowed = readers(spec.private)
+        return bool(allowed and self.readers) and all(set(self.c.lineage(kind)) & allowed for kind in self.readers)
+
     def _private_action(self, spec: C.ActionSpec, types: Types, path: str) -> None:
         """An action's announcement is sent to everyone; its outcome, `why`s, parameters' bounds, defaults and
         choices, and whether it ends the turn (`terminal`) are what its actor is shown or offered, where a value hidden
@@ -35,6 +54,10 @@ class PrivacyChecks(Checker):
         that reads one decides by what the actor cannot know."""
         if isinstance(spec.announce, str):
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
+        with self._reading(types.get("actor", ())):
+            self._actor_texts(spec, path)
+
+    def _actor_texts(self, spec: C.ActionSpec, path: str) -> None:
         texts = {"outcome": spec.outcome, "terminal": spec.terminal}
         for pname, param in spec.params.items():
             texts.update({f"params.{pname}.{key}": getattr(param, key)
@@ -135,7 +158,7 @@ class PrivacyChecks(Checker):
         """The reads of a private property in ``expressions``: of the world, from a typed root (``types``), a chosen
         entity (``$params.<name>.<prop>``) or (``items``) the items of a type (``$sum(player, $it.cash)``), which may
         be guarded to the reader's own."""
-        world = {name for name, spec in self.c.world.items() if spec.private}
+        world = {name for name, spec in self.c.world.items() if spec.private and not self._readable(spec)}
         read: set[str] = set()
         for expr in expressions:
             for chain in expr.paths:
@@ -161,7 +184,7 @@ class PrivacyChecks(Checker):
 
     def _private(self, kinds: Iterable[str], field: str) -> bool:
         return any(kind in self.c.types and (prop := self.c.props_of(kind).get(field)) is not None and prop.private
-                   for kind in kinds)
+                   and not self._readable(prop) for kind in kinds)
 
     def _private_view(self, view: C.ViewSpec, path: str) -> None:
         """A view is what its reader is shown: a private world property, or a private property of every entity of a
@@ -259,7 +282,8 @@ class PrivacyChecks(Checker):
         """The private properties of ``of`` that ``expressions`` read from ``$it``."""
         specs = self.c.props_of(of)
         return sorted({chain[1] for expr in expressions for chain in expr.paths
-                       if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
+                       if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private
+                       and not self._readable(specs[chain[1]])})
 
 
 def _def_calls(defs: Mapping[str, C.DefSpec], expr: Expr, reader: frozenset[str]) -> list[tuple[str, frozenset[str]]]:

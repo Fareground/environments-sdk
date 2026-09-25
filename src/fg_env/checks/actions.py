@@ -61,7 +61,8 @@ class ActionChecks(EffectChecks):
                     elif self._type(param.of, f"{ppath}.of"):
                         self.condition(param.where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                                   {"actor": by_types, "it": {param.of}}, spec.params)
-                        self._private_filter(param.where, param.of, f"{ppath}.where")
+                        with self._reading(by_types):
+                            self._private_filter(param.where, param.of, f"{ppath}.where")
                 elif param.type == "list":
                     self._list_param(param, ppath, by_types, types, spec.params)
                 elif param.type == "enum":
@@ -180,7 +181,8 @@ class ActionChecks(EffectChecks):
             elif self._type(entity_of, f"{ppath}.of"):
                 self.condition(where, f"{ppath}.where", BASE | {"actor", "it", "i", "params"},
                           {"actor": by_types, "it": {entity_of}}, params)
-                self._private_filter(where, entity_of, f"{ppath}.where")
+                with self._reading(by_types):
+                    self._private_filter(where, entity_of, f"{ppath}.where")
         values = item.values if item is not None and item.type == "enum" else (param.values if item is None else None)
         if item is not None and item.type == "enum" and values is None:
             self.error(f"{ppath}.items", "enum items need `values`")
@@ -256,7 +258,8 @@ class ActionChecks(EffectChecks):
                            else {t for t in targets if self._type(t, f"{path}.for", agent=True)})
             types: Types = {"actor": actor_types}
             self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
-            self._private_view(view, path)
+            with self._reading(actor_types):
+                self._private_view(view, path)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue
@@ -279,7 +282,8 @@ class ActionChecks(EffectChecks):
                            "for highest first)")
             self.template(view.show, f"{path}.show", "it", item_roots, types)
             if view.of in self.c.types:
-                self._private_listing(view, f"{path}.show")
+                with self._reading(actor_types):
+                    self._private_listing(view, f"{path}.show")
             if view.limit is not None and view.limit < 1:
                 self.error(f"{path}.limit", "must be at least 1")
 

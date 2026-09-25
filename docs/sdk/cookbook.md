@@ -883,3 +883,10 @@ Try it: `fg-env new grid && fg-env run grid.json --agent policy:greedy --seed 1`
 ```
 
 Try it: `fg-env new simulation && fg-env run simulation.json --seed 1`.
+
+## Notes
+
+**A reader above the rest.** A value only its owner and one role may see — reviewers' scores the area chair reads,
+countries' case counts the health agency reads — stays `private`, naming that role: `"score": {"type": "int",
+"default": 0, "private": ["chair"]}`. The chair's views and tools may show every score; any other reviewer reading one
+is refused, as for any private prop. Removing `private` instead leaves hiding the value to the views alone.

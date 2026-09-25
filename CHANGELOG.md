@@ -170,6 +170,11 @@ worlds stay fast, and the package is organised by feature.
 
 ### Added
 
+- **`private` may name the agent types that also read a property** (`"private": ["chair"]`): an area chair reads every
+  review's score, a health agency every country's case count, while every other agent is refused it as for any
+  private property — in views, tools, outcomes and every other channel, by `check` and at run time. Before, authors
+  had to drop `private` and leave hiding the value to their views. The cookbook notes the pattern.
+
 - `$coalesce(value, default)`: a default for a missing (null) value that keeps 0, false and '' — the documented default
   idiom now; `value or default` replaced a real 0 too (an exit-seeking agent standing on the exit read distance 999).
 - **`fg-env migrate FILE… [--write]` and `fg_env.migrate(contract)`**: a contract written for an earlier release in

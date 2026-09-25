@@ -428,3 +428,38 @@ def test_a_policy_filter_that_picks_the_agents_own_items_may_also_test_their_pri
     result = fg_env.run(c, "policy:p", seed=1)
     assert result.status == "completed", result.error
     assert result.outputs["secrets"] == [1, 10, 10, 0]
+
+
+def _review():
+    return {"name": "Review", "clock": {"rounds": 1},
+            "types": {"reviewer": {"agent": True, "props": {"score": {"type": "int", "default": 0,
+                                                                      "private": ["chair"]}}},
+                      "chair": {"agent": True}},
+            "entities": {"r1": {"type": "reviewer", "props": {"score": 7}},
+                         "r2": {"type": "reviewer", "props": {"score": 3}}, "c": {"type": "chair"}},
+            "actions": {"accept": {"by": "chair", "description": "a", "do": []},
+                        "rate": {"by": "reviewer", "description": "r", "do": []}},
+            "views": {"scores": {"for": "chair", "of": "reviewer", "show": "{name}: {score}"},
+                      "mine": {"for": "reviewer", "show": "You gave {score}."}},
+            "outputs": {"n": "$count(reviewer)"}}
+
+
+def test_a_private_prop_may_name_the_agent_types_that_also_read_it():
+    """The chair reads every review's score; each reviewer only its own; nobody else, by any channel."""
+    c = _review()
+    assert not [i for i in fg_env.check(c) if i.severity == "error"]
+    seen = {}
+
+    def participant(wake):
+        seen[wake.entity_id] = wake.update
+        wake.end()
+
+    assert fg_env.run(c, participant, seed=1).status == "completed"
+    assert "r1: 7" in seen["c"] and "r2: 3" in seen["c"]
+    assert "You gave 7." in seen["r1"] and "3" not in seen["r1"]
+    c["views"]["leak"] = {"for": "reviewer", "of": "reviewer", "show": "{name}: {score}"}
+    assert [i.path for i in fg_env.check(c) if i.severity == "error"] == ["views.leak.show"]
+    c = _review()
+    c["types"]["reviewer"]["props"]["score"]["private"] = ["chairman"]
+    errors = [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+    assert errors[0].path == "types.reviewer.props.score.private" and "did you mean 'chair'" in (errors[0].fix or "")

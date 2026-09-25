@@ -181,7 +181,7 @@ class World(ExpressionWorld):
 
     def hides(self, owner: Any, prop: str, agent: Any) -> bool:
         if owner is self.evaluation.props_view:
-            return prop in self.hidden.world
+            return self.hidden.world_hides(prop, agent)
         return type(owner) is Entity and self.hidden.entity_hides(owner, prop, agent)
 
     def read_hidden(self) -> None:

@@ -99,6 +99,15 @@ class WorldChecks(Checker):
             check_space(self, self.c.space)
 
     def _prop_spec(self, spec: C.PropSpec, path: str, roots: Iterable[str], types: Types | None = None) -> None:
+        if isinstance(spec.private, list):
+            agents = set(self.c.agent_types())
+            if not spec.private:
+                self.error(f"{path}.private", "lists no agent type that may read it",
+                           "write true to hide it from all but its owner, or name the agent types that read it")
+            for kind in spec.private:
+                if kind not in agents:
+                    self.error(f"{path}.private", f"'{kind}' is not an agent type",
+                               self._suggest(kind, sorted(agents)) or f"agent types: {', '.join(sorted(agents))}")
         if spec.type is not None and spec.type not in C.PROP_TYPES:
             self.error(f"{path}.type", f"unknown type '{spec.type}'", self._suggest_type(spec.type, C.PROP_TYPES))
         if spec.type == "enum" and not spec.values:

@@ -23,10 +23,18 @@ policy (`--agent policy:<name>` plays it for every agent).
 """
 
 
+_NOTES = """## Notes
+
+**A reader above the rest.** A value only its owner and one role may see — reviewers' scores the area chair reads,
+countries' case counts the health agency reads — stays `private`, naming that role: `"score": {"type": "int",
+"default": 0, "private": ["chair"]}`. The chair's views and tools may show every score; any other reviewer reading one
+is refused, as for any private prop. Removing `private` instead leaves hiding the value to the views alone."""
+
+
 def cookbook_page() -> str:
-    """Every recipe, in order, after a table of them."""
+    """Every recipe, in order, after a table of them, then notes on patterns that are a field, not a recipe."""
     rows = "\n".join(f"| [`{name}`](#{name}) | {spec.about} |" for name, spec in RECIPES.items())
-    return _INTRO + rows + "\n\n" + "\n\n".join(recipe_page(name) for name in RECIPES)
+    return _INTRO + rows + "\n\n" + "\n\n".join(recipe_page(name) for name in RECIPES) + "\n\n" + _NOTES
 
 
 def recipe_page(name: str) -> str:

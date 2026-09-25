@@ -118,7 +118,9 @@ always renders «quoted» on one line, in news, views and outcomes.
 
 An agent learns only what the contract shows it: `private` props, per-type views, record `visible` rules, `to` on
 posts and emits, and `announce: false` on actions (nobody else learns they happened) say what each one sees. Agents get `inspect` only for types that set `inspect`.
-A `private` prop is hidden from every agent but its owner: an agent owns its own; the world's and any other
+A `private` prop is hidden from every agent but its owner: an agent owns its own; a list of agent types in place of
+`true` (`"private": ["chair"]`) also shows it to agents of those types — an area chair reading every review's score,
+an auditor every ledger — enforced like any private prop for everyone else. The world's and any other
 entity's are hidden from every agent unless a view's or entity choice's `where`, or a policy rule's
 `each: $filter(<type>, <condition>)`, picks the items by the reader and a prop of theirs (`$it.owner == $actor.id`) —
 the reader owns what it picks (by id names no owner). Reading a hidden
