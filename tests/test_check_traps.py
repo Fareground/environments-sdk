@@ -540,3 +540,13 @@ def test_comparing_a_property_that_always_holds_a_value_with_null_is_warned_abou
                                                 {"if": "$world.catch == null", "then": ["$actor.n += 1"]}]}}}
     found = [i for i in fg_env.check(lake, rounds=0) if "never null" in i.message]
     assert [i.path for i in found] == ["actions.a.do[0].if"] and '"default": null' in found[0].fix
+
+
+def test_a_placeholder_in_plain_text_is_warned_wherever_it_is_written():
+    """audit 13 L2: a view's `empty`, like a description, is shown as written."""
+    contract = {"name": "Plain", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"n": 0}}}, "entities": {"a": {"type": "p"}},
+                "actions": {"go": {"by": "p", "description": "Go {$actor.n}.", "do": "$actor.n += 1"}},
+                "views": {"list": {"of": "p", "show": "{name}", "where": "false", "empty": "None for {$actor.name}."}}}
+    warned = {issue.path for issue in fg_env.check(contract) if "plain text" in issue.message}
+    assert warned == {"actions.go.description", "views.list.empty"}

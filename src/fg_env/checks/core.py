@@ -195,6 +195,12 @@ class Checker:
             for key, item in raw.items():
                 self.value(item, f"{path}.{key}", roots, types, params)
 
+    def plain_text(self, text: str | None, path: str, what: str,
+                   fix: str = "put what changes in a view's show or a brief, which are templates") -> None:
+        """``text`` is shown as written, never filled in: a placeholder in it would reach its reader literally."""
+        if text and "{$" in text:
+            self.warn(path, f"{what} is plain text: {{$...}} stays literal", fix)
+
     def template(self, source: str | None, path: str, subject: str | None, roots: Iterable[str],
                  types: Types | None = None, params: Mapping[str, C.ParamSpec] | None = None) -> None:
         if source is None:

@@ -36,6 +36,11 @@ _PARAM_FIELDS = {"of": ("entity", "list"), "where": ("entity", "list"), "values"
                  "max_bytes": ("file",)}
 
 
+#: Where dynamic instructions go instead of a description.
+_DYNAMIC = ("put dynamic instructions in brief.roles.<actor type> or a view's show; inspect env.preview(actor_id) to "
+            "verify the actual text")
+
+
 class ActionChecks(EffectChecks):
     """The action, stage and view sections of a contract (a part of the contract checker)."""
 
@@ -43,20 +48,14 @@ class ActionChecks(EffectChecks):
         reactions = _reaction_actions(self.c.model_dump(by_alias=True))
         for name, spec in self.c.actions.items():
             path = f"actions.{name}"
-            if "{$" in spec.description:
-                self.warn(f"{path}.description", "action descriptions are static: {$...} remains literal",
-                          "Put dynamic instructions in brief.roles.<actor type> or views.show; inspect "
-                          "env.preview(actor_id) to verify the actual text")
+            self.plain_text(spec.description, f"{path}.description", "an action's description", _DYNAMIC)
             by = [spec.by] if isinstance(spec.by, str) else spec.by
             by_types = {t for t in by if self._type(t, f"{path}.by", agent=True)}
             types: Types = {"actor": by_types}
             self._tool_name(name, path)
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
-                if "{$" in (param.description or ""):
-                    self.warn(f"{ppath}.description", "argument descriptions are static: {$...} remains literal",
-                              "Put dynamic instructions in brief.roles.<actor type> or views.show; inspect "
-                              "env.preview(actor_id) to verify the actual text")
+                self.plain_text(param.description, f"{ppath}.description", "an argument's description", _DYNAMIC)
                 if param.type not in C.PARAM_TYPES:
                     self.error(f"{ppath}.type", f"unknown type '{param.type}'",
                                self._suggest_type(param.type, C.PARAM_TYPES))
@@ -290,6 +289,7 @@ class ActionChecks(EffectChecks):
                           "remove the view, or give it a `when` that reads the state it waits for")
             with self._reading(actor_types):
                 self._private_view(view, path)
+            self.plain_text(view.empty, f"{path}.empty", "a view's `empty`")
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue
