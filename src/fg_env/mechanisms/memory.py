@@ -18,7 +18,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from ..contract.base import tape_prop
+from ..contract.base import spoken, tape_prop
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
 from ..expr.objects import Entity
@@ -291,7 +291,7 @@ def _capture(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: s
 
 
 def _did(event: Any) -> str:
-    action = str(event.data.get("action") or "act").replace("_", " ")
+    action = spoken(str(event.data.get("action") or "act"))
     params = event.data.get("params") or {}
     args = ", ".join(f"{key}={format_value(value)}" for key, value in params.items() if value is not None)
     failed = "" if event.data.get("success", True) else " (it failed)"

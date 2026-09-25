@@ -13,7 +13,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..contract.base import TAPE, tape_prop
+from ..contract.base import TAPE, spoken, tape_prop
 from ..errors import RunError
 from ..expr import Untrusted
 from ..expr.objects import Entity
@@ -65,7 +65,7 @@ def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, 
     calls, evidence = f"{name}_calls", f"{name}_evidence"
     action: dict[str, Any] = {
         "by": who,
-        "description": (config.description or f"Use {name.replace('_', ' ')}.")
+        "description": (config.description or f"Use {spoken(name)}.")
         + " The result is kept as evidence only you can see.",
         "params": config.params, "private": True, "per_turn": config.max_calls_per_turn,
         "do": [{"host": name, "action": "call", "args": "$params"}], "outcome": f"{{$last($actor.{evidence}).text}}",

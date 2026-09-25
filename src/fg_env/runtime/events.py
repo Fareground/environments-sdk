@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from ..actions.book import ACTION_BUDGET
 from ..actions.faults import world_logic_refused
 from ..contract import EventSpec
+from ..contract.base import spoken
 from ..effects.captures import thaw
 from ..effects.delivery import deliver
 from ..effects.runner import each_items, removed_since, select_ops
@@ -94,7 +95,7 @@ class Events:
             if why is None:
                 return
             if actor is not None and actor.alive:
-                world.emit("outcome", f"What your {name.replace('_', ' ')} set for later did not happen: {why}.",
+                world.emit("outcome", f"What your {spoken(name)} set for later did not happen: {why}.",
                            actor=by, to=(by,), data={"action": name, "ok": False})
             rules.facts.emit(CommitRefused(name, why, faulted=faulted))
             world.commit()

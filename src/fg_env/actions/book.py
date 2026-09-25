@@ -13,6 +13,7 @@ from typing import Any
 
 from ..assets.delivery import attached_ids
 from ..contract import ActionSpec, Contract, ParamSpec, StageSpec
+from ..contract.base import spoken
 from ..effects.runner import EffectRunner
 from ..errors import RunError
 from ..expr import (
@@ -440,7 +441,7 @@ class ActionBook:
         return f" ({', '.join(parts)})" if parts else ""
 
     def default_outcome(self, name: str, params: dict[str, Any]) -> str:
-        return f"Done: {name.replace('_', ' ')}{self._args_text(params)}."
+        return f"Done: {spoken(name)}{self._args_text(params)}."
 
     def _default_announce(self, actor: Entity, name: str, params: dict[str, Any]) -> str:
-        return f"{actor.name}: {name.replace('_', ' ')}{self._args_text(params)}."
+        return f"{actor.name}: {spoken(name)}{self._args_text(params)}."

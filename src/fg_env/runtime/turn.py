@@ -16,6 +16,7 @@ from ..actions.faults import RETRY, refused_text
 from ..actions.params import REFUSED_ARGS, parse_arguments
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
+from ..contract.base import spoken
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..information.exposure import Shown
@@ -467,7 +468,7 @@ class Turn:
                 return self._refused(name, refusal, observed, _REJECTED), False, False
             ended = env.actions.ends_turn(self.actor, name, params)
             self.ledger.submitted(name, dict(args or {}), {"action": name, **plain_value(params)})
-            text = f"Submitted {name.replace('_', ' ')}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
+            text = f"Submitted {spoken(name)}{_args_text(params)}; it resolves when everyone has chosen.{cut}"
             return ToolResult(True, text, ended or self.ledger.actions_left <= 0), False, False
         outcome = rules.apply(self.actor, name, params)
         spent = attempt_cost(observed) == "spent"  # what checking and applying the call drew or read
@@ -560,7 +561,7 @@ class Turn:
         the turn is over, since playing it again would retry the luck or probe the hidden value for free."""
         why = undo.why
         self._undo_outcome(why)
-        stood = self._stands.replace("_", " ").strip() if self._stands is not None else None
+        stood = spoken(self._stands) if self._stands is not None else None
         undone = (f"what you did after {stood} was undone ({stood} and what came before it stand)" if stood
                   else "everything you did this turn was undone")
         if settled_by is None and not undo.spent:
@@ -573,7 +574,7 @@ class Turn:
                                      f"something hidden from you, so {undone}, and your turn is over.", True,
                               dict(_UNDONE))
         before = f"what you did after {stood}" if stood else "what you did before it this turn"
-        return ToolResult(False, f"That turn is not allowed: {why}. {settled_by.replace('_', ' ').capitalize()} "
+        return ToolResult(False, f"That turn is not allowed: {why}. {spoken(settled_by).capitalize()} "
                                  "turned on chance or on something hidden from you, which settles a turn at once, so "
                                  f"it was undone with {before}, and your turn is over.", True, dict(_UNDONE))
 

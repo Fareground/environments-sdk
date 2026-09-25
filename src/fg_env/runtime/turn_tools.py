@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET
 from ..actions.faults import RETRY, refused_text
+from ..contract.base import spoken
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..host.tape import discard
@@ -116,7 +117,7 @@ class HostWake(Wake):
             if why or problem:
                 self._spend(step)
                 turn.note(INVALID)
-                text = f"You cannot {name.replace('_', ' ')} now: {why}." if why else \
+                text = f"You cannot {spoken(name)} now: {why}." if why else \
                     f"{name} was not done: {problem}. Correct the arguments and call again."
                 return turn._after(ToolResult(False, text, data=dict(_INVALID)))
         tool = self._extras[name]

@@ -244,3 +244,18 @@ def test_an_undone_turn_says_what_stands_when_luck_settled_part_of_it():
     result = fg_env.run(contract, play, seed=1)
     assert result.outputs["s"] == [1, 0, 0]
     assert "What you did after B was undone (B and what came before it stand); play the rest of your turn" in told[0]
+
+
+def test_an_action_named_with_a_trailing_underscore_reads_as_plain_words():
+    """`pass_` (a name that dodges a keyword) is told as "pass", not "pass " (audit 12 L5)."""
+    contract = {"name": "P", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"ann": {"type": "p"}}, "actions": {"pass_": {"by": "p", "do": "$actor.n += 1"}},
+                "outputs": {"n": "$sum(p, $it.n)"}}
+    told = []
+
+    def play(wake):
+        told.append(wake.call("pass_", {}).text)
+        wake.end()
+
+    fg_env.run(contract, play, seed=1)
+    assert told[0].startswith("Done: pass."), told

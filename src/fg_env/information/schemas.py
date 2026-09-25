@@ -21,6 +21,7 @@ from ..actions.params import (
 )
 from ..assets.intake import file_schema
 from ..contract import ParamSpec
+from ..contract.base import spoken
 from ..errors import RunError
 from ..expr import ExprError, is_expr, resolve
 from ..expr.objects import Entity
@@ -98,7 +99,7 @@ class ToolSchemas:
         schema: dict[str, Any] = {"type": "object", "properties": properties, "additionalProperties": False}
         if required:
             schema["required"] = required
-        description = spec.description or name.replace("_", " ").capitalize() + "."
+        description = spec.description or spoken(name).capitalize() + "."
         if staged:
             description += " (Committed when everyone has chosen.)"
         if spec.terminal is True and "ends your turn" not in description.lower():  # never said twice

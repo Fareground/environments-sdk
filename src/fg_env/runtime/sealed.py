@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from ..contract.base import spoken
 from .facts import CommitRefused, Committed, Undone
 
 if TYPE_CHECKING:
@@ -75,7 +76,7 @@ def _commit_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], de
         applied, fault = rules.guarded(lambda: _apply_intent(rules, turn, name, args, deferred), action=name)
         if applied is None:
             assert fault is not None
-            world.emit("outcome", f"Your {name.replace('_', ' ')} did not happen: {fault}.",
+            world.emit("outcome", f"Your {spoken(name)} did not happen: {fault}.",
                        actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})
             rules.facts.emit(CommitRefused(name, fault, faulted=True), turn)
             if not deferred:
@@ -90,7 +91,7 @@ def _apply_intent(rules: Rules, turn: Turn, name: str, args: dict[str, Any], def
     actor, world = turn.actor, rules.world
     blocked = rules.blocked(actor, name, {}, {}) if actor.alive else "you are no longer active"
     params, problem = ({}, blocked) if blocked else rules.validate(actor, name, args)
-    verb = name.replace("_", " ")
+    verb = spoken(name)
     if problem:
         world.emit("outcome", f"Your {verb} did not happen: {str(problem).rstrip('.')}.",
                    actor=actor.id, to=(actor.id,), data={"action": name, "ok": False})

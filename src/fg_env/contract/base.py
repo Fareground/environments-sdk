@@ -7,7 +7,7 @@ from typing import Annotated, Any
 from pydantic import BaseModel, BeforeValidator, ConfigDict, WithJsonSchema, model_validator
 from pydantic_core import PydanticCustomError
 
-__all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_LIST_ITEMS", "OUTPUT_TYPES",
+__all__ = ["spoken", "CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_LIST_ITEMS", "OUTPUT_TYPES",
            "one_or_many", "Effects", "TYPE_SYNONYMS", "SPELLINGS", "TypeName", "MAX_ROUNDS", "MAX_STAGE_PASSES",
            "MAX_TURN_CALLS", "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS",
            "TAPE", "tape_prop"]
@@ -22,6 +22,11 @@ MAX_LIST_ITEMS = 1_000
 OUTPUT_TYPES = ("number", "int", "bool", "text", "list", "map", "any")
 #: The world property that records host answers for replay (see :mod:`fg_env.host.tape`).
 TAPE = "host_tape"
+
+
+def spoken(name: str) -> str:
+    """A name as words agents read: ``set_price`` → ``set price``, ``pass_`` → ``pass``."""
+    return " ".join(name.replace("_", " ").split())
 
 
 def tape_prop() -> dict[str, Any]:
