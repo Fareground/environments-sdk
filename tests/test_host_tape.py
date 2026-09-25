@@ -78,13 +78,34 @@ def test_a_judge_that_never_answers_usably_leaves_that_text_unscored_and_the_run
     result = host.run(bad, pitcher)
     assert result.status == "completed" and result.outputs["points"] == 0 and not bad.world.records("panel")
     [message] = _unusable(result)
-    assert message.startswith("2 request(s) got no usable answer") and "answered outside its protocol" in message
+    assert message.startswith("2 of 2 request(s) got no usable answer") and "answered outside its protocol" in message
     assert "from 1 to 10" in message
     nan = host.load(PITCH, hosts={"judge": StubEvaluator(scores=lambda r: {"quality": math.nan})}, seed=1)
     assert "finite" in _unusable(host.run(nan, pitcher))[0]
     # The outcome is on the tape: a replay leaves the same texts unscored without asking anyone.
     again = host.run(host.load(PITCH, hosts=host.Hosts.replaying(host.tape_of(bad)), seed=1), pitcher)
     assert again.status == "completed" and again.events == result.events and _unusable(again) == _unusable(result)
+
+
+def test_a_run_whose_host_answers_go_unused_is_degraded_unless_a_few_were_declined():
+    """Every answer outside the protocol degrades the run, and so do failures past a small share of the requests; one
+    declined request of twenty is part of the game, reported but not degrading."""
+    def once_out_of_range(request):
+        return {"quality": 11} if "Round 1:" in request["text"] else {"quality": 7}
+
+    def declines_once(request):
+        if "Round 3:" in request["text"]:
+            raise HostError("the model declined the request")
+        return {"quality": 7}
+
+    contract = {**PITCH, "clock": {"rounds": 20}}
+    outside = host.run(host.load(contract, hosts={"judge": StubEvaluator(scores=once_out_of_range)}, seed=1), pitcher)
+    assert outside.status == "completed" and "host_unusable" in outside.degraded
+    declined = host.run(host.load(contract, hosts={"judge": StubEvaluator(scores=declines_once)}, seed=1), pitcher)
+    assert declined.degraded == [] and [d["code"] for d in declined.diagnostics] == ["host_sometimes_unusable"]
+    always = host.run(host.load(contract, hosts={"judge": StubEvaluator(scores=lambda r: {"quality": 11})}, seed=1),
+                      pitcher)
+    assert "host_unusable" in always.degraded
 
 
 def test_a_game_master_that_declines_refuses_that_attempt_and_the_run_goes_on():

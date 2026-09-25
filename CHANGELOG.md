@@ -258,6 +258,10 @@ worlds stay fast, and the package is organised by feature.
     action. Before, a turn-ending action's result (a game master's narration and changes, a terminal action's outcome)
     went only into a tool result the built-in LLM participants never send, since they stop when the turn ends, so the
     agent never learned what its own move did. A sealed choice's result still arrives as news when it commits.
+  - Requests a host could not answer usably degrade the run (`host_unusable` is degrading) when an answer was outside
+    the protocol, or when they are more than a tenth of that host's requests; a few declines or failures are reported
+    as `host_sometimes_unusable`. Before, a judge that scored every speech out of range left a run "completed" and
+    healthy, naming a winner on all-zero scores. The host tape marks an out-of-protocol outcome (`outside`).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

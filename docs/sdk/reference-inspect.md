@@ -26,7 +26,9 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
   budget cut short (`budget_cut`) — both degrade the run; requests a host gave no usable answer to, also when asked
-  again, each refused — a judged text left unscored, a game master's attempt refused (`host_unusable`);
+  again, each refused — a judged text left unscored, a game master's attempt refused (`host_unusable`, degrading when
+  an answer was outside the protocol or more than a tenth of the host's requests failed; a few declines are
+  `host_sometimes_unusable`);
 * with model participants, an action that was mostly refused; an action a model or coded policy chose several times
   and was refused every time (`action_never_succeeded`, degrading: what it does, and any mechanism it feeds, never ran
   — a policy's arguments the tool does not accept count as refused calls; random agents' blind calls do not count).

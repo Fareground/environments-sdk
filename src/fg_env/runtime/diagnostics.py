@@ -41,10 +41,11 @@ ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, or that
 #: never did (every call refused, so nothing it feeds ran), agents that never acted or too many of whose turns failed,
 #: agents that never had an action to take, turns lost to a failing provider, an output that raised an error, a run
-#: its budget cut short, host answers that were the contract's stand-ins. ``RunResult.degraded`` lists them, and such
-#: a run is not ``ok``.
+#: its budget cut short, host answers that were the contract's stand-ins or that it could not use. ``RunResult.degraded``
+#: lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
-                       "agents_never_able_to_act", "turns_forfeited", "output_failed", "budget_cut", "host_fallback"})
+                       "agents_never_able_to_act", "turns_forfeited", "output_failed", "budget_cut", "host_fallback",
+                       "host_unusable"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
 #: The same for a model participant, held to a much lower share: every failed turn of a model is a move it never made
@@ -232,18 +233,33 @@ def _host_fallbacks(env: Env) -> list[dict[str, str]]:
 
 
 def _host_unusable(env: Env) -> list[dict[str, str]]:
+    """Requests a host gave no usable answer to, also when asked again, by site. An answer outside the protocol, or
+    unusable answers to more than a small share of a site's requests (the share a model participant's turns may fail),
+    degrade the run (`host_unusable`): its judged texts or attempts were decided by nobody. A few declines or failures
+    are reported (`host_sometimes_unusable`): a host declining content participants wrote is part of the game."""
     tape = env.world.props.get(TAPE)
-    found: dict[str, tuple[int, str]] = {}
+    asked: dict[str, int] = {}
+    found: dict[str, list[Any]] = {}  # site → [unusable, any outside the protocol, the latest reason]
     for entry in tape.values() if isinstance(tape, dict) else ():
-        if isinstance(entry, dict) and entry.get("unusable"):
-            site = str(entry.get("site"))
-            found[site] = (found.get(site, (0, ""))[0] + 1, str(entry["unusable"]))
-    return [_finding("host_unusable", site,
-                     f"{count} request(s) got no usable answer, also when asked again, so each was refused (a judged "
-                     f"text left unscored, a game master's attempt refused); the latest: {reason}",
-                     "if the host declines content participants wrote, that is part of the game; if it answers "
-                     "outside the protocol, give it a model that follows it, or clearer instructions")
-            for site, (count, reason) in found.items()]
+        if not isinstance(entry, dict):
+            continue
+        site = str(entry.get("site"))
+        asked[site] = asked.get(site, 0) + 1
+        if entry.get("unusable"):
+            counts = found.setdefault(site, [0, False, ""])
+            counts[0] += 1
+            counts[1] = counts[1] or bool(entry.get("outside"))
+            counts[2] = str(entry["unusable"])
+    out = []
+    for site, (count, outside, reason) in found.items():
+        degrading = outside or count > MODEL_FAILED_SHARE * asked[site]
+        out.append(_finding("host_unusable" if degrading else "host_sometimes_unusable", site,
+                            f"{count} of {asked[site]} request(s) got no usable answer, also when asked again, so "
+                            "each was refused (a judged text left unscored, a game master's attempt refused); the "
+                            f"latest: {reason}",
+                            "if it answers outside the protocol, give it a model that follows it, or clearer "
+                            "instructions; if it declines content participants wrote, that is part of the game"))
+    return out
 
 
 def _finding(code: str, path: str, message: str, fix: str) -> dict[str, str]:
