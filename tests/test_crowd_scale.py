@@ -6,6 +6,7 @@ import pytest
 import fg_env
 from fg_env import expr
 from fg_env.actions import book as actions
+from fg_env.actions.validation import ActionValidation
 from fg_env.world.store import World
 
 HERD = {
@@ -126,7 +127,7 @@ def _validation_listings(monkeypatch, contract):
 def test_a_policy_choice_is_validated_without_listing_every_candidate(monkeypatch):
     result, listings = _validation_listings(monkeypatch, GUARDED)
     assert listings == 0 and result["stats"]["actions"] > 0
-    monkeypatch.setattr(actions.ActionBook, "_chosen", lambda self, *args: None)
+    monkeypatch.setattr(ActionValidation, "_chosen", lambda self, *args: None)
     assert _fingerprint(GUARDED, "policy:seller") == result
 
 

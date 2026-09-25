@@ -149,7 +149,7 @@ class World(ExpressionWorld):
     def seeds(self) -> SeedTree:
         return self.luck.seeds
 
-    @property
+    @property  # type: ignore[override]
     def rng(self) -> Any:
         """The random stream expressions and mechanisms draw from now (:meth:`Randomness.current`)."""
         return self.luck.current(self.round)
