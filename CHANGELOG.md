@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - The author loop counts as removed a view its test runs showed before and never show now (a `when` that never
+    holds), a type's `score`, and an action's `announce` or `when`; `check` warns on a view whose `when` is a constant
+    that is false.
   - The Anthropic and OpenAI participants read a response, its content blocks and its tool calls whether the client
     returns objects or the plain dicts some proxies do, as hosts and `fg_env.author` already did: a dict reply used to
     forfeit every turn as a provider failure, and dict tool calls crashed the run.

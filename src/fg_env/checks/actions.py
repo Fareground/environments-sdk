@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, Any
 from .. import contract as C
 from ..actions.params import choice_list
 from ..contract import Contract
-from ..expr import ExprError, compile_expr, is_expr
+from ..expr import ExprError, Scope, compile_expr, is_expr, truthy
 from ..information.perception import SPECTATOR
 from ..information.reads import READS, inspect_rule
 from ..runtime.session import END_TURN
@@ -285,6 +285,9 @@ class ActionChecks(EffectChecks):
                            else {t for t in targets if self._type(t, f"{path}.for", agent=True)})
             types: Types = {"actor": actor_types}
             self.condition(view.when, f"{path}.when", BASE | {"actor"}, types)
+            if _never_holds(view.when):
+                self.warn(f"{path}.when", f"`{view.when}` never holds, so no agent is ever shown this view",
+                          "remove the view, or give it a `when` that reads the state it waits for")
             with self._reading(actor_types):
                 self._private_view(view, path)
             if view.of is None:
@@ -314,6 +317,17 @@ class ActionChecks(EffectChecks):
             if view.limit is not None and view.limit < 1:
                 self.error(f"{path}.limit", "must be at least 1")
 
+
+
+def _never_holds(when: Any) -> bool:
+    """Whether a condition is a constant that is false (`false`, `1 > 2`): it reads nothing, so it never holds."""
+    if when is None or isinstance(when, bool):
+        return when is False
+    try:
+        compiled = compile_expr(when)
+        return not compiled.roots and not compiled.functions and not truthy(compiled(Scope()))
+    except ExprError:
+        return False  # reported by the condition's check
 
 
 def _same_for_every_item(expr: str) -> bool:

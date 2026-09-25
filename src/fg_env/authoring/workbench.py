@@ -114,7 +114,7 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
     and those whose effects ``after`` rewrote to do nothing, e.g. ``events.0 (its do now does nothing)``. With
     ``tests`` — what testing ``before`` and ``after`` found — a rule whose effects changed something in ``before``'s
     test runs and nothing in any of ``after``'s does nothing too, however it was rewritten (a `when` that never holds,
-    an `if` on false, `$x = $x * 1 + 0`)."""
+    an `if` on false, `$x = $x * 1 + 0`), and so does a view shown in ``before``'s runs and in none of ``after``'s."""
     old_parts, new_parts = _parts(before), _parts(after)
     gone = [f"{key}.{name}" for key, names in old_parts.items()
             for name in sorted(names.keys() - new_parts.get(key, {}).keys())]
@@ -136,6 +136,10 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
         constant += [f"outputs.{name} (came out the same in every test run, where it varied before)"
                      for name in tests[1].flat if name not in tests[0].flat and name in old_parts["outputs"]
                      and f"outputs.{name}" not in said]
+    if tests is not None:  # a view shown in before's test runs and in none of after's (a `when` that never holds)
+        constant += [f"views.{name} (shown to no agent in any test run, where it was before)"
+                     for name in old_parts["views"] if name in new_parts["views"] and name in tests[0].views
+                     and name not in tests[1].views]
     outermost = [path for path in gone if not any(path.startswith(other + ".") for other in gone)]
     return outermost + gutted + shrunk + constant + _cut(before, after)
 
@@ -180,6 +184,10 @@ _SHOWN = 80
 #: A text agents read this long or longer that a revision cuts to less than a :data:`_CUT_TO`-th of it is gutted.
 _SUBSTANTIAL = 40
 _CUT_TO = 8
+#: What an action or a type holds that a revision taking it away removes: who hears of an action and when it may be
+#: taken; what a type's agents are after.
+_ACTION_PARTS = ("announce", "when")
+_TYPE_PARTS = ("score",)
 #: The sections whose parts are rules with effects (`do`).
 _RULES = ("actions", "events")
 #: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1, assigning a value to itself.
@@ -187,8 +195,9 @@ _IDENTITY = re.compile(r"\s*(\$[\w.\[\]'\"]+)\s*(?:[-+]=\s*0(?:\.0*)?|[*/]=\s*1(
 
 
 def _parts(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    """The parts of each of :data:`_SECTIONS` by name (a list's item by its name, else its position), and each
-    action's params, read in the current form (a revision may be written in an earlier one)."""
+    """The parts of each of :data:`_SECTIONS` by name (a list's item by its name, else its position), each action's
+    params and :data:`_ACTION_PARTS`, and each type's props and :data:`_TYPE_PARTS`, read in the current form (a
+    revision may be written in an earlier one)."""
     try:
         contract = normalize(contract)[0]
     except ContractError:
@@ -201,6 +210,13 @@ def _parts(contract: dict[str, Any]) -> dict[str, dict[str, Any]]:
     for name, action in (contract.get("actions") or {}).items():
         if isinstance(action, dict) and isinstance(action.get("params"), dict):
             parts[f"actions.{name}.params"] = dict(action["params"])
+        if isinstance(action, dict):
+            parts[f"actions.{name}"] = {key: action[key] for key in _ACTION_PARTS if key in action}
+    for name, spec in (contract.get("types") or {}).items():
+        if isinstance(spec, dict):
+            parts[f"types.{name}"] = {key: spec[key] for key in _TYPE_PARTS if key in spec}
+            if isinstance(spec.get("props"), dict):
+                parts[f"types.{name}.props"] = dict(spec["props"])
     return parts
 
 

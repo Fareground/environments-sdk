@@ -10,6 +10,7 @@ from test_author_honest import LEMONADE, authored, lemonade
 
 import fg_env
 from fg_env.__main__ import main
+from fg_env.authoring.workbench import removed_parts
 
 BROKEN_VIEW = {"for": "seller", "look": True, "show": "{1 / ($round - $round)}"}
 #: The lemonade stand with a goal in its sellers' brief.
@@ -255,3 +256,23 @@ def test_the_check_tool_says_what_the_saves_test_showed_too():
     saved, checked = tool_replies(client)[:2]
     flat = '[warning] outputs.winner: came out "Ana" in every test run'
     assert flat in saved and flat in checked
+
+
+def test_a_view_shown_before_and_never_now_counts_as_removed():
+    """A view kept but disabled (a `when` that never holds) hides as much as a deleted one (audit 12 agentif M2)."""
+    hidden = lemonade(views={"market": {**LEMONADE["views"]["market"], "when": "$round < 0"}})
+    client = FakeOpenAI([write(LEMONADE)], [write(hidden)], [])
+
+    result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
+
+    assert "views.market (shown to no agent in any test run, where it was before)" in tool_replies(client)[1]
+    assert result.contract == LEMONADE and result.kept == 1
+
+
+def test_taking_away_a_type_s_score_or_an_action_s_announce_or_when_counts_as_removed():
+    """What agents are after, who hears of an action and when it may be taken are parts too (audit 12 agentif M3)."""
+    before = lemonade(types={"seller": {**LEMONADE["types"]["seller"], "score": {"value": "$it.earned"}}},
+                      actions={"set_price": {**LEMONADE["actions"]["set_price"], "announce": False,
+                                             "when": "$round > 0"}})
+    assert removed_parts(before, LEMONADE) == ["actions.set_price.announce", "actions.set_price.when",
+                                               "types.seller.score"]

@@ -57,6 +57,8 @@ class Tested(NamedTuple):
     fired: tuple[str, ...] = ()
     #: The outputs that came out the same in every test run.
     flat: tuple[str, ...] = ()
+    #: The views some test run showed an agent (their `when` held); a view missing from it was never shown.
+    views: tuple[str, ...] = ()
 
 
 def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.inf) -> Tested:
@@ -100,7 +102,7 @@ def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.
     except RuntimeError as exc:  # the child died: a contract can break the engine in any way
         return Tested(str(exc))
     return Tested(found["problem"], found["untested"], tuple(found["warnings"]), found["seeds"], tuple(found["hosts"]),
-                  tuple(found["prompt"]), tuple(found["fired"]), tuple(found["flat"]))
+                  tuple(found["prompt"]), tuple(found["fired"]), tuple(found["flat"]), tuple(found["views"]))
 
 
 def contract_problem(source: ContractLike) -> str:
@@ -119,7 +121,7 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
     """:func:`tested`'s work, in the child process: its findings as JSON data."""
     hosts, deadline, seen = StubHosts(source), time.monotonic() + seconds, Seen()
     found: dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": [], "prompt": [0, 0],
-                             "fired": [], "flat": []}
+                             "fired": [], "flat": [], "views": []}
     try:
         step("checking it")
         issues = check(source, hosts=hosts)
@@ -138,6 +140,7 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
             found["warnings"] += [str(i) for i in seen.warnings(contract) if i.path not in warned]
             found["prompt"] = list(seen.prompt)
             found["fired"] = _fired_parts(contract, seen.fired)
+            found["views"] = sorted(seen.views)
             found["flat"] = [issue.path.removeprefix("outputs.") for issue in flat_measures(contract, seen.runs)]
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
         found["problem"] = f"{type(exc).__name__}: {exc}"
@@ -187,7 +190,7 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
     for n, (participant, who, seed, exempt) in enumerate(plays):
         step(f"the run with {who} (seed {seed})")
         env = load(source, seed=seed, hosts=hosts)
-        env.effects.fired = seen.fired
+        env.effects.fired, env.information.perception.rendered = seen.fired, seen.views
         share = (deadline - time.monotonic()) / (len(plays) - n)
         result = env.run({"*": participant}, budget={"seconds": max(share, 0.001)})  # every run plays a round
         problem = _run_problem(result, f"{who} (seed {seed})", exempt)
@@ -215,7 +218,7 @@ def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], mo
         step(f"the run with random agents (seed {seed})")
         began = time.monotonic()
         env = load(source, seed=seed, hosts=hosts)
-        env.effects.fired = seen.fired
+        env.effects.fired, env.information.perception.rendered = seen.fired, seen.views
         result = env.run({"*": Reading(RandomAgent(seed), seen.read)}, budget={"seconds": deadline - began})
         problem = _run_problem(result, f"random agents (seed {seed})", frozenset())
         if problem:

@@ -72,6 +72,8 @@ class Perception:
         #: view → (world state, its items, the work they took)
         self._selections: dict[str, tuple[Any, list[Any], int]] = {}
         self._news = NewsIndex(world.log)
+        #: When a set (``fg_env.author``'s test runs), the views shown to someone: their `when` held as they rendered.
+        self.rendered: set[str] | None = None
         if like is not None:
             self._takes_text, self._shared = like._takes_text, like._shared
             self._silent_records = like._silent_records
@@ -190,6 +192,8 @@ class Perception:
         try:
             if view.when is not None and not truthy(compile_expr(view.when)(scope)):
                 return None
+            if self.rendered is not None:
+                self.rendered.add(name)
             if view.of is None:
                 body = compile_template(view.show, "actor" if actor is not None else None).render(scope)
                 body = self._attach(view, scope, None, body, files, path)
