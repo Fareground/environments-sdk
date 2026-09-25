@@ -150,7 +150,6 @@ DEFERRED_UPWARD = frozenset({
     "fg_env.experiments.experiment -> fg_env.analysis.draws",
     "fg_env.expr.codegen -> fg_env.stdlib.core",
     "fg_env.host -> fg_env.runtime.hosted",  # the package's run-level calls, re-exported on first use
-    "fg_env.host.adapters -> fg_env.participants.llm",
     "fg_env.host.hosts -> fg_env.runtime.facts",
     "fg_env.host.tape -> fg_env.copying.snapshot",
     "fg_env.mechanisms._common -> fg_env.checks",

@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from statistics import median
 from typing import Any
 
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 from ..sampling.seeds import SeedTree
 from .stats import is_number, numeric
 
@@ -130,7 +130,7 @@ def _features(run: RunResult, output: str, groups: Sequence[str]) -> dict[str, f
             if path and all(n is not None for n in nums) and name != output:
                 row[f"metrics.{name}.peak"] = max(n for n in nums if n is not None)
     if "outputs" in groups:
-        _flat("outputs", {k: v for k, v in run.outputs.items() if k != output and _usable_output(run, k)}, row)
+        _flat("outputs", {k: v for k, v in run.outputs.items() if k != output and usable_output(run, k)}, row)
     if "actions" in groups:
         for event in run.events:
             data = event.get("data") or {}
@@ -183,7 +183,7 @@ def drivers(runs: Any, output: str, *, focus: Any = None, threshold: float | Non
         raise ValueError("permutations must be ≥ 1 and alpha between 0 and 1")
     completed = [r for r in collect_runs(runs) if r.status != "failed"]
     rows = [(r, r.outputs[output] if output in r.outputs else r.metrics.get(output)) for r in completed
-            if output not in r.outputs or _usable_output(r, output)]
+            if output not in r.outputs or usable_output(r, output)]
     rows = [(r, v) for r, v in rows if v is not None]
     if len(rows) < 4:
         raise ValueError(f"drivers needs at least 4 completed runs with a value for '{output}', got {len(rows)}")

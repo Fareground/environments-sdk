@@ -10,7 +10,7 @@ from typing import Any
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
 from ..runtime.clock_words import plural, unit_word
-from ..runtime.measure import _usable_output
+from ..runtime.measure import usable_output
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
 from .demand import demand_lines
@@ -226,7 +226,7 @@ def _representative(option: Option | None, choice: Choice, measures: Sequence[st
     if measure is None:
         return option.runs[0]
     scored = [(r.outputs.get(measure), i) for i, r in enumerate(option.runs)
-              if _usable_output(r, measure) and isinstance(r.outputs.get(measure), (int, float))]
+              if usable_output(r, measure) and isinstance(r.outputs.get(measure), (int, float))]
     if not scored:
         return option.runs[0]
     scored.sort()

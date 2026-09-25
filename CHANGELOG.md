@@ -330,6 +330,11 @@ worlds stay fast, and the package is organised by feature.
     true"), not a pydantic "Input should be False" beside a second message.
   - Comparing a property that always holds a value with null (`$world.fish == None`: `None` is null) is warned
     about, with the fix: it gives the same answer every time.
+  - Structure: the run no longer loads every mechanism for its side effects (the api layer registers them);
+    `ContractLike` and `DataDir` live with the contract; the provider-call helpers the LLM participants, host
+    adapters and author loop share (which failures to retry, how long to wait, what a failure says) are one public
+    module, `fg_env.host.providers`, so the host layer no longer reaches up into participants; and the cross-package
+    private helpers others used are public (`usable_output`, `CompiledExpr`, `read_source`).
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

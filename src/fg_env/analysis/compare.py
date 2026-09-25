@@ -15,7 +15,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..api import ContractLike
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 from . import runner
 from .drivers import collect_runs
 from .stats import Estimate, estimate, mean, numeric, quantile, sd, t_quantile
@@ -108,8 +108,8 @@ def compare(a: Any, b: Any, *, labels: tuple[str, str] = ("a", "b"), level: floa
     names_b = {key for run in runs_b for key in run.outputs}
     names = dict.fromkeys(key for run in runs_a for key in run.outputs if key in names_b)
     for name in names:
-        valid_a = [r for r in runs_a if _usable_output(r, name) and r.outputs.get(name) is not None]
-        valid_b = [r for r in runs_b if _usable_output(r, name) and r.outputs.get(name) is not None]
+        valid_a = [r for r in runs_a if usable_output(r, name) and r.outputs.get(name) is not None]
+        valid_b = [r for r in runs_b if usable_output(r, name) and r.outputs.get(name) is not None]
         if paired:
             usable_b = {r.seed: r for r in valid_b}
             valid_a = [r for r in valid_a if r.seed in usable_b]

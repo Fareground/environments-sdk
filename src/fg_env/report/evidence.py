@@ -14,7 +14,7 @@ from ..analysis.validate import ValidationResult
 from ..api import ContractLike, parse
 from ..contract import Contract
 from ..experiments.experiment import ExperimentResult
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 
 __all__ = ["Option", "Summary", "Goal", "Requirement", "Evidence", "Choice", "gather", "choose", "summary",
            "parse_goal", "parse_requirements"]
@@ -35,7 +35,7 @@ class Option:
     rounds: int | None = None
 
     def values(self, measure: str) -> list[float]:
-        return [float(v) for r in self.runs if _usable_output(r, measure) for v in [r.outputs.get(measure)]
+        return [float(v) for r in self.runs if usable_output(r, measure) for v in [r.outputs.get(measure)]
                 if isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)]
 
 

@@ -18,7 +18,7 @@ from ..expr import ExprError, compile_expr, truthy
 from ..expr.objects import Entity
 from ..world.props import prop_type
 from .integration import integrate
-from .model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
+from .model import _CONSTS, _FUNCS, CompiledExpr, PhysicsExprError
 from .stochastic import exact_transition
 from .stochastic_integration import integrate_noise
 
@@ -33,9 +33,9 @@ Bounds = tuple[float | None, float | None]
 MATH_NAMES: frozenset[str] = frozenset(_FUNCS) | frozenset(_CONSTS) | {"t"}
 
 
-def compile_math(source: str, path: str) -> _CompiledExpr:
+def compile_math(source: str, path: str) -> CompiledExpr:
     try:
-        return _CompiledExpr(source)
+        return CompiledExpr(source)
     except PhysicsExprError as exc:
         raise RunError(str(exc), path) from None
 

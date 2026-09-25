@@ -14,7 +14,7 @@ from typing import Any
 
 from ..analysis.decompose import decompose
 from ..runtime.clock_words import plural, span_label, unit_word
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 from .evidence import Option, summary
 from .words import Namer
 
@@ -81,7 +81,7 @@ class QueueView:
     def staff(self, option: Option) -> list[int]:
         key = f"{self.name}_staff_by_interval"
         plan = next((run.outputs[key] for run in option.runs
-                     if _usable_output(run, key) and isinstance(run.outputs.get(key), list)), None)
+                     if usable_output(run, key) and isinstance(run.outputs.get(key), list)), None)
         return [int(v) for v in plan] if isinstance(plan, list) else []
 
     @classmethod
@@ -129,7 +129,7 @@ class QueueView:
         columns: list[list[float]] = []
         key = f"{self.name}_{output}"
         for run in option.runs:
-            if not _usable_output(run, key):
+            if not usable_output(run, key):
                 continue
             values = run.outputs.get(key)
             for index, value in enumerate(values if isinstance(values, list) else []):

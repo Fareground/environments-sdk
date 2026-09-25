@@ -686,8 +686,9 @@ def trip(world: Any, name: str, px: float, ref: float, what: str) -> None:
                  "rolling": f"the price {v.halt_window or 1} round(s) back"}[cfg.halt_reference]
     lasts = "the rest of this bar" if to_bar_end else "the rest of this round" + (
         f" and {v.halt_rounds} more round(s)" if v.halt_rounds else "")
+    beyond = "at least" if cfg.halt_check == "round_end" else "more than"
     world.emit(f"{name}_halt", f"CIRCUIT BREAKER on {cfg.instrument or name}: {what} {fmt(px, 4)} moved "
-                               f"{'at least' if cfg.halt_check == 'round_end' else 'more than'} {pct(v.halt_pct)} from "
+                               f"{beyond} {pct(v.halt_pct or 0)} from "
                                f"{reference} {fmt(ref, 4)}. Trading is halted for {lasts}.",
                data={"mechanism": KEY, "price": px, "until": until})
 

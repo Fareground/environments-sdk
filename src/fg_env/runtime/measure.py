@@ -14,7 +14,7 @@ from ..expr.template import apply_format
 from ..world.store import World
 from ..world.values import plain_value
 
-__all__ = ["RunResult", "sample_metrics", "compute_outputs", "ending"]
+__all__ = ["RunResult", "sample_metrics", "compute_outputs", "ending", "usable_output"]
 
 
 @dataclass
@@ -216,7 +216,7 @@ def compute_outputs(contract: Contract, world: World) -> tuple[dict[str, Any], l
     return outputs, issues
 
 
-def _usable_output(result: RunResult, name: str) -> bool:
+def usable_output(result: RunResult, name: str) -> bool:
     """A healthy output can still be used when a different output failed."""
     return result.status != "failed" and not any(
         issue.get("path") == f"outputs.{name}" for issue in result.output_issues)

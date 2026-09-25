@@ -17,7 +17,7 @@ from ..api import ContractLike, contract_source, default_data_dir, load, located
 from ..contract import Contract
 from ..errors import ContractError, Issue, RunError
 from ..runtime.budget import Budget, is_seconds
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 from ..sampling.seeds import SeedTree
 from . import workers as pools
 from .arm_inputs import arm_input_overrides, override_message
@@ -142,7 +142,7 @@ class ExperimentResult:
             for key in base.outputs:
                 diffs = []
                 for mine, theirs in zip(arm.runs, base.runs):
-                    if not _usable_output(mine, key) or not _usable_output(theirs, key):
+                    if not usable_output(mine, key) or not usable_output(theirs, key):
                         continue
                     a, b = mine.outputs.get(key), theirs.outputs.get(key)
                     if isinstance(a, bool) and isinstance(b, bool):
@@ -543,7 +543,7 @@ def experiment(source: ContractLike, *, runs: int = 10, arms: list[str] | None =
     out: dict[str, ArmResult] = {}
     for arm in labels:
         arm_runs = [r for job, r in zip(jobs, results) if job.arm == arm]
-        summary = {name: _describe([r.outputs.get(name) for r in arm_runs if _usable_output(r, name)])
+        summary = {name: _describe([r.outputs.get(name) for r in arm_runs if usable_output(r, name)])
                    for name in contract.outputs}
         overridden = [override_message(arm, name, arm_value, given)
                       for name, arm_value, given in arm_input_overrides(contract, arm, inputs or {})] if arm else []

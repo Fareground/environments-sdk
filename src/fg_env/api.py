@@ -10,26 +10,25 @@ import warnings
 from collections.abc import Mapping
 from pathlib import Path
 from types import FrameType
-from typing import Any, Union
+from typing import Any
 
 from .assets.catalog import resolve_assets
 from .checks import check_contract, parse_contract
 from .checks.smoke import run_issue, smoke_issues
-from .contract import Contract
+from .contract import Contract, ContractLike, DataDir
 from .contract.inputs import resolve_inputs
 from .contract.layout import ordered
 from .contract.normalize import normalize
 from .contract.normalize_state import macros_expanded
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
-from .mechanisms import at_config
+from .mechanisms import at_config  # loading it registers every mechanism a contract may use
 from .runtime.env import Env
 from .runtime.measure import RunResult
 from .sampling.seeds import mint_seed
 
 __all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand", "migrate"]
 
-ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
 
 
 _SOURCES = "pass a path to a contract file, a dict, JSON text, or a Contract"
@@ -37,7 +36,7 @@ _SOURCES = "pass a path to a contract file, a dict, JSON text, or a Contract"
 _SHOWN = 120
 
 
-def _read(source: ContractLike) -> Any:
+def read_source(source: ContractLike) -> Any:
     """The contract data behind ``source``, in the current form with its imports merged in.
 
     A string is JSON text when it starts (after whitespace) with ``{`` or ``[`` and a file path
@@ -46,7 +45,7 @@ def _read(source: ContractLike) -> Any:
 
 
 def _read_noted(source: ContractLike) -> tuple[Any, list[str]]:
-    """:func:`_read`, and a note of every earlier form it rewrote (its imports' too)."""
+    """:func:`read_source`, and a note of every earlier form it rewrote (its imports' too)."""
     if isinstance(source, Contract):
         return source, source.notes
     if isinstance(source, Mapping):
@@ -176,7 +175,6 @@ def _json(text: str, where: str) -> Any:
                                    f"cannot read this JSON: {str(exc)[:_SHOWN] or 'nested too deeply'}")]) from None
 
 
-DataDir = Union[str, "os.PathLike[str]", None]
 
 
 def parse(source: ContractLike, data_dir: DataDir = None) -> Contract:
@@ -268,7 +266,7 @@ def expand(source: ContractLike, *, mechanisms: bool = False) -> dict[str, Any]:
     Raises :class:`ContractError` for problems found while expanding; ``check`` reports the rest."""
     from .mechanisms import expand_mechanisms
 
-    data = contract_source(source) if isinstance(source, Contract) else _read(source)
+    data = contract_source(source) if isinstance(source, Contract) else read_source(source)
     if not isinstance(data, Mapping):
         raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
     if not mechanisms:

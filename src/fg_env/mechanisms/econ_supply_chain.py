@@ -82,7 +82,7 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
         raise MechanismError("a node is listed twice", None, "nodes")
     node_types: list[str] = []
     for node in config.nodes:
-        kind = declared_entity(contract, node, "nodes", "node").get("type")
+        kind = str(declared_entity(contract, node, "nodes", "node").get("type"))
         if kind not in node_types:
             node_types.append(kind)
     # Node props go on the most specific type all nodes share, so expressions over that type can read them.

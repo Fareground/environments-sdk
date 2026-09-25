@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from _collections_abc import dict_items, dict_values
 
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 
 
 class RejectedOutput(Exception):
@@ -23,7 +23,7 @@ class OutputScope(dict[str, Any]):
 
     def __init__(self, result: RunResult):
         super().__init__(result.outputs)
-        self._rejected = {name for name in self if not _usable_output(result, name)}
+        self._rejected = {name for name in self if not usable_output(result, name)}
 
     def _check(self) -> None:
         if self._rejected:

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..analysis.stats import estimate
-from ..runtime.measure import _usable_output
+from ..runtime.measure import usable_output
 from .evidence import Option
 
 __all__ = ["Paired", "paired", "MEANINGFUL_SHARE"]
@@ -59,7 +59,7 @@ class Paired:
 def _by_seed(option: Option, measure: str) -> dict[int, float]:
     out: dict[int, float] = {}
     for run in option.runs:
-        if not _usable_output(run, measure):
+        if not usable_output(run, measure):
             continue
         value = run.outputs.get(measure)
         if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):

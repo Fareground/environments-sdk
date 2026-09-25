@@ -31,6 +31,7 @@ from ..errors import RunError
 from ..expr.base import visible
 from .hosts import credit_tokens, time_left
 from .protocols import HostError, HostUnavailable
+from .providers import PROVIDER_CALLS, backoff, provider_failure, refuse_awaitable, request_timeout, retryable
 from .usage import call_usage, rough_tokens
 
 __all__ = ["LLMHost", "AnthropicWebSearch", "HistoricalFeed", "anthropic", "openai", "anthropic_web_search",
@@ -100,27 +101,18 @@ class _Provider:
         A failure is never a :class:`HostError` that asks the model again with a correction: nothing was wrong with its
         answer, there was none. One retrying could fix that still fails is :class:`HostUnavailable` (that request goes
         unanswered); any other stops the run."""
-        from ..participants.llm import (
-            PROVIDER_CALLS,
-            _backoff,
-            _retryable,
-            provider_failure,
-            refuse_awaitable,
-            request_timeout,
-        )
-
         call, client = PROVIDER_CALLS[self.provider]
         for attempt in range(self.retries + 1):
             try:
                 response = request(request_timeout(time_left()))
             except Exception as exc:
-                wait, left = _backoff(attempt, exc), time_left()
-                retry = attempt < self.retries and _retryable(exc)
+                wait, left = backoff(attempt, exc), time_left()
+                retry = attempt < self.retries and retryable(exc)
                 late = retry and left is not None and left < wait
                 if not retry or late:
                     text = provider_failure(exc, call, client, self.model, attempt)
                     text += " (The turn's time ran out before another try.)" if late else ""
-                    raise (HostUnavailable(text) if _retryable(exc) else RunError(text)) from exc
+                    raise (HostUnavailable(text) if retryable(exc) else RunError(text)) from exc
                 self._add(retries=1)
                 time.sleep(wait)
                 continue

@@ -5,7 +5,7 @@ import statistics
 import pytest
 
 import fg_env
-from fg_env.physics.model import _CompiledExpr
+from fg_env.physics.model import CompiledExpr
 from fg_env.physics.stochastic import affine, exact_transition
 
 
@@ -15,7 +15,7 @@ def test_nonlinear_rates_are_not_misclassified_as_affine(rate):
 
 
 def test_affine_transition_has_exact_conditional_mean_and_variance():
-    rate, noise = _CompiledExpr("-k*(x-target)"), _CompiledExpr("sigma")
+    rate, noise = CompiledExpr("-k*(x-target)"), CompiledExpr("sigma")
     ns = {"k": 20, "target": 3, "sigma": 2}
     mean = 3 + (5-3)*math.exp(-20)
     sd = 2*math.sqrt((1-math.exp(-40))/40)
@@ -24,7 +24,7 @@ def test_affine_transition_has_exact_conditional_mean_and_variance():
 
 
 def test_geometric_transition_includes_ito_correction():
-    actual = exact_transition(_CompiledExpr("mu*x"), _CompiledExpr("sigma*x"), "x",
+    actual = exact_transition(CompiledExpr("mu*x"), CompiledExpr("sigma*x"), "x",
                               {"mu": 0.2, "sigma": 0.8}, 2, 1, -0.5)
     assert actual == pytest.approx(2*math.exp(0.2-0.8**2/2-0.8*0.5))
 

@@ -21,7 +21,7 @@ from ..expr import World as ExpressionWorld
 from ..expr.hidden import Hidden
 from ..expr.objects import Entity
 from ..patterns.runtime import PatternRuntime
-from ..physics.model import PhysicsModel, _CompiledExpr
+from ..physics.model import CompiledExpr, PhysicsModel
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import calendar_date
 from . import links as _links
@@ -76,7 +76,7 @@ class World(ExpressionWorld):
         self.log: list[LogEvent] = []
         self.record_events = RecordEvents((), self.entry_by_seq, contract)
         self.physics: PhysicsModel | None = None
-        self.physics_writes: list[tuple[str, _CompiledExpr]] = []
+        self.physics_writes: list[tuple[str, CompiledExpr]] = []
         self.entity_dynamics: list[Any] = []
         self.round = 0
         self.stage: str | None = None

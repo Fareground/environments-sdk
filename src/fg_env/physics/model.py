@@ -77,7 +77,7 @@ class PhysicsExprError(ValueError):
     """A rate expression is malformed or uses a forbidden construct."""
 
 
-class _CompiledExpr:
+class CompiledExpr:
     """A rate expression compiled once and evaluated against a namespace.
 
     Comparisons and boolean ops evaluate to 1.0/0.0 so they compose into
@@ -296,19 +296,19 @@ class PhysicsModel:
         self.substeps: int = max(1, min(int(substeps), self.MAX_SUBSTEPS))
         self.time: float = float(time)
         # Compile each integrated variable's rate expression once.
-        self._compiled: dict[str, _CompiledExpr] = {
-            name: _CompiledExpr(v.rate)
+        self._compiled: dict[str, CompiledExpr] = {
+            name: CompiledExpr(v.rate)
             for name, v in self.variables.items()
             if v.rate is not None
         }
-        self._noise: dict[str, _CompiledExpr] = {}
+        self._noise: dict[str, CompiledExpr] = {}
         for name, v in self.variables.items():
             if v.noise is None:
                 continue
             if v.rate is None:
                 raise PhysicsExprError(f"variable {name!r} has noise but no rate — give it a rate (\"0\" for pure "
                                        "noise)")
-            self._noise[name] = _CompiledExpr(v.noise)
+            self._noise[name] = CompiledExpr(v.noise)
         self._validate_names()
         # A variable can be integrated (rate) OR algebraically bound to the
         # entity graph (source), not both — a source refresh each step would
@@ -537,4 +537,5 @@ __all__ = [
     "EntitySource",
     "EntityWriteback",
     "PhysicsExprError",
+    "CompiledExpr",
 ]

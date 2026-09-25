@@ -312,11 +312,11 @@ class EffectChecks(PrivacyChecks):
                 self._reaction_actions(effect, path)
         elif op == "transfer":
             prop = effect["transfer"]
-            known = sorted({name for props in self.type_props.values() for name in props})
+            declared = sorted({name for props in self.type_props.values() for name in props})
             for key, name in (("transfer", prop), ("into", effect.get("into"))):
-                if name is not None and name not in known:
+                if name is not None and name not in declared:
                     self.error(f"{path}.{key}", f"no type has a property '{name}'",
-                               self._suggest(name, known) or "a transfer moves a number property its entities hold: "
+                               self._suggest(name, declared) or "a transfer moves a number property its entities hold: "
                                                              "declare it under the type's props")
             for key in ("from", "to", "amount"):
                 if key not in effect:

@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from ..api import ContractLike, _read, contract_source, default_data_dir, load
+from ..api import ContractLike, contract_source, default_data_dir, load, read_source
 from ..contract import Contract
 from ..errors import ContractError, Issue
 from ..expr import ExprError, Scope, compile_expr
@@ -149,7 +149,7 @@ def fit_patterns(contract: ContractLike, *, data_dir: str | Path | None = None,
 
     Data files are read from ``data_dir`` (default: the contract file's folder). ``inputs`` are used while fitting
     (e.g. which history table to read) and are not written into the result."""
-    source = contract_source(contract) if isinstance(contract, Contract) else _read(contract)
+    source = contract_source(contract) if isinstance(contract, Contract) else read_source(contract)
     if not isinstance(source, Mapping):
         raise ContractError([Issue("(contract)", "a contract is a JSON object")])
     folder = default_data_dir(contract, data_dir)

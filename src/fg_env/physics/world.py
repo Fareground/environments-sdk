@@ -8,7 +8,7 @@ from ..expr import ExprError, compile_expr, is_expr
 from ..world.abort import Abort
 from ..world.props import finite_number, shown_value
 from .entities import EntityDynamicsStep
-from .model import _CONSTS, _FUNCS, PhysicsExprError, PhysicsModel, PhysicsVariable, _CompiledExpr
+from .model import _CONSTS, _FUNCS, CompiledExpr, PhysicsExprError, PhysicsModel, PhysicsVariable
 
 if TYPE_CHECKING:
     from ..world.store import World
@@ -36,7 +36,7 @@ def build_physics(world: World) -> None:
                                          rate=var.rate, noise=var.noise, min=var.min, max=var.max))
     try:
         world.physics = PhysicsModel(variables=variables, params=params, substeps=spec.substeps)
-        world.physics_writes = [(target, _CompiledExpr(src)) for target, src in spec.write.items()]
+        world.physics_writes = [(target, CompiledExpr(src)) for target, src in spec.write.items()]
     except PhysicsExprError as exc:
         raise RunError(str(exc), "mechanisms.physics") from None
     world.entity_dynamics = []

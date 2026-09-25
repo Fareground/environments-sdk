@@ -11,11 +11,11 @@ import math
 from functools import lru_cache
 from typing import Any
 
-from .model import _CompiledExpr
+from .model import CompiledExpr
 
 
 @lru_cache(maxsize=4096)
-def affine(source: str, variable: str) -> tuple[_CompiledExpr, _CompiledExpr] | None:
+def affine(source: str, variable: str) -> tuple[CompiledExpr, CompiledExpr] | None:
     def parts(node: ast.AST) -> tuple[str, str] | None:
         if not any(isinstance(n, ast.Name) and n.id == variable for n in ast.walk(node)):
             return "0", ast.unparse(node)
@@ -50,10 +50,10 @@ def affine(source: str, variable: str) -> tuple[_CompiledExpr, _CompiledExpr] | 
     result = parts(ast.parse(source, mode="eval").body)
     if result is None:
         return None
-    return _CompiledExpr(result[0]), _CompiledExpr(result[1])
+    return CompiledExpr(result[0]), CompiledExpr(result[1])
 
 
-def exact_transition(rate: _CompiledExpr, noise: _CompiledExpr, variable: str,
+def exact_transition(rate: CompiledExpr, noise: CompiledExpr, variable: str,
                      namespace: dict[str, Any], value: float, h: float, normal: float) -> float | None:
     drift, diffusion = affine(rate.source, variable), affine(noise.source, variable)
     if drift is None or diffusion is None:

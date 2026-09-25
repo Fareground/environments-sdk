@@ -127,7 +127,7 @@ def consulted(contract: Any) -> set[str]:
 
     names: set[str] = set()
     for use in contract.mechanisms.values():
-        family = FAMILIES.get(use.get("kind")) if isinstance(use, Mapping) else None
+        family = FAMILIES.get(str(use.get("kind"))) if isinstance(use, Mapping) else None
         spec = family.modes.get(use.get("mode")) if family is not None else None
         if spec is not None:
             try:

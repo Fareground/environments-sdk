@@ -40,17 +40,17 @@ from ..actions.params import parse_arguments
 from ..api import load, parse
 from ..engines import list_engines
 from ..guides import guide
-from ..host.usage import call_usage, rough_tokens
-from ..participants.llm import (
-    _MAX_BACKOFF_SECONDS,
+from ..host.providers import (
+    MAX_BACKOFF_SECONDS,
     PROVIDER_CALLS,
-    PROVIDERS,
-    _retry_after,
-    _retryable,
-    official_client,
+    EmptyReply,
     provider_failure,
     request_timeout,
+    retry_after,
+    retryable,
 )
+from ..host.usage import call_usage, rough_tokens
+from ..participants.llm import PROVIDERS, official_client
 from ..runtime.budget import CACHED_WEIGHT, is_seconds
 from .testing import TEST_SECONDS, Tested
 from .workbench import MAX_REVISIONS, TOOLS, Workbench, describe_changes, removed_parts
@@ -99,9 +99,9 @@ Ask = Callable[[list[Message]], tuple[Message, dict[str, Any]]]
 Request = Callable[[list[Message], float], tuple[Message, dict[str, Any]]]
 
 
-class EmptyReply(Exception):
-    """A provider response with no reply in it; retried like overload. ``spent``: what the call spent all the same,
-    which the session counts."""
+class SpentEmptyReply(EmptyReply):
+    """A provider response with no reply in it (retried like overload) that spent ``spent`` all the same, which the
+    session counts."""
 
     def __init__(self, message: str, spent: Mapping[str, int] | None = None):
         super().__init__(message)
@@ -386,13 +386,13 @@ def _retrying(ask: Request, provider: str, model: str, progress: Callable[[str],
                 message, used = ask(messages, request_timeout(max(0.0, deadline - time.time())))
                 return message, {key: used.get(key, 0) + wasted.get(key, 0) for key in {*used, *wasted}}
             except Exception as exc:
-                if isinstance(exc, EmptyReply):
+                if isinstance(exc, SpentEmptyReply):
                     wasted = {key: wasted.get(key, 0) + exc.spent.get(key, 0) for key in {*wasted, *exc.spent}}
                     wasted["calls"] = wasted.get("calls", 0) + 1
-                if attempt >= RETRIES or not (isinstance(exc, EmptyReply) or _retryable(exc)):
+                if attempt >= RETRIES or not retryable(exc):
                     raise failed(exc, attempt) from exc
-                delay = _retry_after(exc)
-                wait = min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt)
+                delay = retry_after(exc)
+                wait = min(MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt)
                 if time.time() + wait >= deadline:
                     raise ProviderFailed(f"{call} failed with {type(exc).__name__}: {exc}, and retrying means waiting "
                                          f"{wait:.0f}s, past the session's time budget: give it more seconds "
@@ -434,7 +434,7 @@ def _openai(client: Any, model: str) -> Request:
         response = client.chat.completions.create(model=model, messages=messages, tools=tools, timeout=timeout)
         if not getattr(response, "choices", None):  # OpenRouter does this now and then, with the reason in `error`
             error = getattr(response, "error", None)
-            raise EmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""),
+            raise SpentEmptyReply("the provider sent a response with no reply in it" + (f": {error}" if error else ""),
                              _spent_on(getattr(response, "usage", None), "openai", messages))
         choice = response.choices[0]
         reply = choice.message
@@ -473,7 +473,7 @@ def _anthropic(client: Any, model: str) -> Request:
                  for b in response.content if b.type == "tool_use"]
         stop = getattr(response, "stop_reason", None)
         if not calls and not text.strip() and stop not in ("max_tokens", "refusal"):
-            raise EmptyReply(f"the provider sent a reply with nothing in it (stop_reason {stop!r})",
+            raise SpentEmptyReply(f"the provider sent a reply with nothing in it (stop_reason {stop!r})",
                              _spent_on(getattr(response, "usage", None), "anthropic", messages))
         message: Message = {"role": "assistant", "content": text}
         if calls:

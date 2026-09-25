@@ -10,7 +10,9 @@ exports every one of them.
 """
 from __future__ import annotations
 
-from typing import Any
+import os
+from collections.abc import Mapping
+from typing import Any, Union
 
 from pydantic import Field, PrivateAttr, model_validator
 
@@ -82,6 +84,8 @@ from .world import (
 __all__ = [
     "CONTRACT_VERSION",
     "Contract",
+    "ContractLike",
+    "DataDir",
     "InputSpec",
     "Brief",
     "Clock",
@@ -333,3 +337,10 @@ class Contract(_Model):
     def stage_list(self) -> list[StageSpec]:
         """Declared stages, or the default single stage where every action is available."""
         return list(self.stages) or [_PLAY]
+
+
+#: What every call that reads a contract takes: a parsed :class:`Contract`, its data, JSON text, or a file's path.
+ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
+#: Where a contract's data files are read from: a folder, or None for the contract file's own.
+DataDir = Union[str, "os.PathLike[str]", None]
+

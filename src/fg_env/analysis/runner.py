@@ -17,7 +17,7 @@ from ..contract import Contract
 from ..experiments.experiment import Job, failed_run, run_job, worker_pool
 from ..experiments.experiment import run_jobs as _run_jobs
 from ..experiments.workers import Pool
-from ..runtime.measure import RunResult, _usable_output
+from ..runtime.measure import RunResult, usable_output
 from ..sampling.seeds import SeedTree
 from .stats import numeric
 
@@ -90,7 +90,7 @@ def resolve_measure(contract: Contract, name: str) -> tuple[str, str]:
 
 def raw_value(result: RunResult, measure: tuple[str, str]) -> Any:
     section, key = measure
-    if section == "outputs" and not _usable_output(result, key):
+    if section == "outputs" and not usable_output(result, key):
         return None
     return (result.outputs if section == "outputs" else result.metrics).get(key)
 

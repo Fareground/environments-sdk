@@ -13,7 +13,7 @@ from .. import contract as C
 from ..contract.inputs import DATA_SUFFIXES, check_value
 from ..effects.runner import POST_KEYS
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr, is_expr
-from ..physics.model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
+from ..physics.model import _CONSTS, _FUNCS, CompiledExpr, PhysicsExprError
 from ..world.defaults import default_order
 from .core import Checker
 from .roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
@@ -319,7 +319,7 @@ class WorldChecks(Checker):
 
     def _physics_expr(self, source: str, path: str, names: set[str]) -> None:
         try:
-            compiled = _CompiledExpr(source)
+            compiled = CompiledExpr(source)
         except PhysicsExprError as exc:
             self.error(path, str(exc), "physics math uses bare names: beta*S*I/N")
             return
