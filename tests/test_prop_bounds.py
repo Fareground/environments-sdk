@@ -3,7 +3,9 @@ never silently clamped."""
 import pytest
 
 import fg_env
+from fg_env.checks import parse_contract
 from fg_env.errors import RunError
+from fg_env.runtime.env import Env
 
 SHOP = {
     "name": "Shop",
@@ -116,8 +118,10 @@ def test_saturating_is_written_with_clamp():
 
 def test_a_starting_value_outside_the_bounds_fails_the_build():
     bad = {**SHOP, "entities": {"a": {"type": "buyer", "props": {"coins": -1}}}}
+    with pytest.raises(fg_env.ContractError, match="entities.a.props.coins: coins cannot go below 0"):
+        fg_env.load(bad, seed=1)  # the check refuses it as the build would (audit 14 L1)
     with pytest.raises(RunError, match="coins cannot go below 0"):
-        fg_env.load(bad, seed=1)
+        Env(parse_contract(bad), {}, 1)  # and so does the build
 
 
 LINKED = {**SHOP, "relations": {"trusts": {"min": 0, "max": 1}},
