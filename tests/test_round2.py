@@ -172,3 +172,10 @@ def test_degree_is_the_mean_number_of_neighbours_in_every_graph(graph, one_way):
 
 def test_quote_marker_is_accepted_inside_expressions():
     assert evaluate("($'yes' if $x else 'no') + $'!'", Scope({"x": True})) == "yes!"
+
+
+def test_a_preview_reads_as_attributes_as_well_as_a_mapping():
+    view = fg_env.load("examples/contracts/kuhn_poker.json", seed=1).preview("p0")
+    assert view.update == view["update"] and isinstance(view.update, str)
+    assert view.brief == view["brief"] and view.tools == view["tools"] and view.tokens == view["tokens"]
+    assert view.time_limit is None

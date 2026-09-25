@@ -176,6 +176,8 @@ worlds stay fast, and the package is organised by feature.
 
 ### Added
 
+- `Preview` reads as attributes too: `preview.brief`, `.update`, `.tools`, `.time_limit`, `.tokens` (it stays a
+  mapping, JSON as it is; `.update` is the text, not `dict.update`) (audit 10).
 - `tournament(..., lookahead=False)` and `evaluate(..., lookahead=False)` refuse `wake.clone` to entrants given as
   callables (every entrant; the focal participant), so an entrant written by someone else cannot read the run's hidden
   state or future luck through a copy of it (audit 10).

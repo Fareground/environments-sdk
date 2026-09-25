@@ -19,8 +19,30 @@ __all__ = ["Preview", "Previews"]
 
 
 class Preview(dict):
-    """What an agent would receive on its next turn: ``brief``, ``update``, ``tools``, ``time_limit`` and rough
-    ``tokens`` per part. A mapping; printed, it reads as ``fg-env preview`` shows it."""
+    """What an agent would receive on its next turn: ``preview.brief``, ``.update`` and ``.tools`` (as the agent reads
+    them), ``.time_limit`` and rough ``.tokens`` per part — attributes, and the same as a mapping (JSON as it is).
+    Printed, it reads as ``fg-env preview`` shows it. A record of a turn, not to be changed (``.update`` is the text
+    the agent reads, not ``dict.update``)."""
+
+    @property
+    def brief(self) -> str:
+        return str(self["brief"])
+
+    @property
+    def update(self) -> str:  # type: ignore[override]  # the text, not dict.update
+        return str(self["update"])
+
+    @property
+    def tools(self) -> list[dict[str, Any]]:
+        return list(self["tools"])
+
+    @property
+    def time_limit(self) -> float | None:
+        return self["time_limit"]  # type: ignore[no-any-return]
+
+    @property
+    def tokens(self) -> dict[str, int]:
+        return dict(self["tokens"])
 
     def __str__(self) -> str:
         tools = "\n".join(f"- {tool['name']}: {tool['description']}  {json.dumps(tool['input_schema']['properties'])}"
