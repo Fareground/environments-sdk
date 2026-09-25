@@ -205,13 +205,7 @@ def cmd_preview(args: argparse.Namespace) -> int:
         print(json.dumps(view, indent=2, ensure_ascii=False))
         return 0
     _print_generated(args.file)
-    print("=== brief ===\n" + view["brief"])
-    print("\n=== update ===\n" + view["update"])
-    print("\n=== tools ===")
-    for tool in view["tools"]:
-        print(f"- {tool['name']}: {tool['description']}  {json.dumps(tool['input_schema']['properties'])}")
-    tokens = view["tokens"]
-    print(f"\n~tokens: brief {tokens['brief']}, update {tokens['update']}, tools {tokens['tools']}")
+    print(view)
     return 0
 
 

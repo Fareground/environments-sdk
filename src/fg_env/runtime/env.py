@@ -16,7 +16,7 @@ from typing import Any, TypeVar
 from ..actions.book import ActionBook
 from ..assets.store import AssetStore
 from ..contract import MAX_ROUNDS, Contract
-from ..copying.previews import Previews
+from ..copying.previews import Preview, Previews
 from ..copying.snapshot import SNAPSHOT_VERSION, restore_env, take_snapshot
 from ..effects.runner import EffectRunner
 from ..errors import RunError
@@ -344,8 +344,9 @@ class Env:
         nothing: views that draw randomness use a stream of their own."""
         return self.information.spectate()
 
-    def preview(self, entity_id: str, stage: str | None = None, participants: Any = None) -> dict[str, Any]:
-        """What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
+    def preview(self, entity_id: str, stage: str | None = None, participants: Any = None) -> Preview:
+        """What the agent would receive on its next turn: brief, update, tools and time limit — a mapping that prints
+        as ``fg-env preview`` shows it (``print(env.preview("ann"))``). Changes nothing.
 
         Between rounds this plays the next round on a copy up to the agent's turn — scheduled
         effects, start events, physics and the turns of agents before it — so the preview shows the

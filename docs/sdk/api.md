@@ -1298,10 +1298,11 @@ records' own weights, else 1). Pass the result as a table input and sample it wi
 ### `Env.preview`
 
 ```pyi
-preview(self, entity_id: 'str', stage: 'str | None' = None, participants: 'Any' = None) -> 'dict[str, Any]'
+preview(self, entity_id: 'str', stage: 'str | None' = None, participants: 'Any' = None) -> 'Preview'
 ```
 
-What the agent would receive on its next turn: brief, update, tools and time limit. Changes nothing.
+What the agent would receive on its next turn: brief, update, tools and time limit — a mapping that prints
+as ``fg-env preview`` shows it (``print(env.preview("ann"))``). Changes nothing.
 
 Between rounds this plays the next round on a copy up to the agent's turn — scheduled
 effects, start events, physics and the turns of agents before it — so the preview shows the

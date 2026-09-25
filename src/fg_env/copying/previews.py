@@ -15,7 +15,19 @@ from ..runtime.turn_tools import HostWake
 if TYPE_CHECKING:
     from ..runtime.env import Env
 
-__all__ = ["Previews"]
+__all__ = ["Preview", "Previews"]
+
+
+class Preview(dict):
+    """What an agent would receive on its next turn: ``brief``, ``update``, ``tools``, ``time_limit`` and rough
+    ``tokens`` per part. A mapping; printed, it reads as ``fg-env preview`` shows it."""
+
+    def __str__(self) -> str:
+        tools = "\n".join(f"- {tool['name']}: {tool['description']}  {json.dumps(tool['input_schema']['properties'])}"
+                          for tool in self["tools"])
+        tokens = self["tokens"]
+        return (f"=== brief ===\n{self['brief']}\n\n=== update ===\n{self['update']}\n\n=== tools ===\n{tools}\n\n"
+                f"~tokens: brief {tokens['brief']}, update {tokens['update']}, tools {tokens['tools']}")
 
 
 class Previews:
@@ -26,7 +38,7 @@ class Previews:
 
     # -- preview -------------------------------------------------------------------------
 
-    def preview(self, entity_id: str, stage: str | None, participants: Any = None) -> dict[str, Any]:
+    def preview(self, entity_id: str, stage: str | None, participants: Any = None) -> Preview:
         env = self.env
         if env.world.entity(entity_id) is None:
             agents = [e.id for e in env.world.entities.values() if env.contract.is_agent(e.entity_type)]
@@ -60,7 +72,7 @@ class Previews:
         probe.time_limit = env.time_limit
         return probe
 
-    def now(self, entity_id: str, stage: str | None) -> dict[str, Any]:
+    def now(self, entity_id: str, stage: str | None) -> Preview:
         """The turn as it would look in the current state, without playing anything."""
         env = self.env
         actor = env.world.entity(entity_id)
@@ -80,7 +92,7 @@ class Previews:
             reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
         return self.turn(entity_id, spec, reason)
 
-    def turn(self, entity_id: str, spec: StageSpec, reason: str) -> dict[str, Any]:
+    def turn(self, entity_id: str, spec: StageSpec, reason: str) -> Preview:
         env = self.env
         actor = env.world.entities[entity_id]
         turn = Turn(env, actor, spec, reason, spec.turns == "simultaneous", peek=True)
@@ -89,10 +101,10 @@ class Previews:
             tools = HostWake(turn, extras).tools
         else:
             tools = turn.tools()
-        return {"brief": turn.brief, "update": turn.update, "tools": [t.to_dict() for t in tools],
-                "time_limit": turn.time_limit,
-                "tokens": {"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
-                           "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4}}
+        return Preview(brief=turn.brief, update=turn.update, tools=[t.to_dict() for t in tools],
+                       time_limit=turn.time_limit,
+                       tokens={"brief": len(turn.brief) // 4, "update": len(turn.update) // 4,
+                               "tools": len(json.dumps([t.to_anthropic() for t in tools])) // 4})
 
 
 def _plays_free(participant: Any, policies: list[str]) -> bool:

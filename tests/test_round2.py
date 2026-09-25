@@ -4,6 +4,7 @@ import json
 import pytest
 
 import fg_env
+from fg_env.__main__ import main
 from fg_env.expr import Scope, evaluate
 
 CHAIN = {
@@ -95,6 +96,16 @@ def test_preview_shows_the_next_real_turn():
     env.run(rounds=1)
     assert env.preview("s")["update"].startswith("Year 2 of 3 (2030)")
     assert env.props["now"] == 1  # the preview played round 2's start on a copy only
+
+
+def test_a_printed_preview_reads_as_the_cli_shows_it(capsys):
+    view = fg_env.load("examples/contracts/kuhn_poker.json", seed=1).preview("p0")
+    text = str(view)
+    assert text.startswith("=== brief ===\n# Kuhn poker") and "\n\n=== update ===\n" in text
+    assert "- bet: Bet 1, or call a bet.  {}" in text and text.endswith(f"tools {view['tokens']['tools']}")
+    assert json.loads(json.dumps(view))["brief"] == view["brief"]  # still the mapping it was
+    main(["preview", "examples/contracts/kuhn_poker.json", "p0", "--seed", "1"])
+    assert capsys.readouterr().out.strip().endswith(text)
 
 
 def test_zero_argument_defs_values_and_or_defaults():

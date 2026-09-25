@@ -314,6 +314,8 @@ worlds stay fast, and the package is organised by feature.
     12.5 too; `"type": "int"` holds whole numbers only. (Inferring `int` from a whole default was tried and not
     taken: the lemonade stand, farmers market, auction house and prediction market examples fail their first run when
     `"earned": 0` refuses a fractional payment.)
+  - `print(env.preview("ann"))` prints the turn as `fg-env preview` shows it: the preview is a `Preview`, a mapping
+    (brief, update, tools, time_limit, tokens) whose text is that layout. Before, it printed a raw dict.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
