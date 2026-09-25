@@ -188,3 +188,22 @@ def test_whatever_a_models_contract_raises_is_its_problem_not_a_crash(monkeypatc
     tool = "check" if broken == "check" else "preview"
     assert _tool(tool, str(path), {} if tool == "check" else {"agent": "north"}) == \
         "TypeError: 'int' object is not iterable"
+
+
+def hog(megabytes):
+    """Hold ``megabytes`` of memory for a moment (run in the test process by the sandbox test below)."""
+    import time
+
+    held = b"x" * (megabytes * 1024 * 1024)
+    time.sleep(1)
+    return len(held)
+
+
+def test_the_test_process_stops_itself_past_its_memory_ceiling_and_the_next_call_starts_afresh():
+    """A contract too big to test must not push the machine into swap (audit 9 author M7)."""
+    from fg_env.authoring.sandbox import Sandbox, TooBig
+
+    with Sandbox(memory_mb=200) as box:
+        with pytest.raises(TooBig, match="more than 200 MB"):
+            box.call("test_author_safety:hog", {"megabytes": 400}, seconds=30)
+        assert box.call("test_author_safety:hog", {"megabytes": 10}, seconds=30) == 10 * 1024 * 1024

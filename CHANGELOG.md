@@ -309,6 +309,9 @@ worlds stay fast, and the package is organised by feature.
     treats a revision that shortens the run (`clock.rounds`) or rewrites an output to a constant like one that removes
     a part: it keeps the earlier revision until the model saves again to confirm. Before, a working edit cutting the
     run from 5 seasons to 1 was kept with no change mentioned.
+  - `fg_env.author`'s test process stops itself once it holds more than 1 GB and says the contract is too big to
+    test (with fewer entities as the fix), and the next call starts a fresh one. Before, it had a time limit only, so
+    a population of a hundred thousand with a list on each passed 1.4 GB.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

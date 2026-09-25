@@ -1,9 +1,11 @@
-"""Where :func:`fg_env.author` evaluates the model's contract: in a child process with a hard time limit.
+"""Where :func:`fg_env.author` evaluates the model's contract: in a child process with a hard time and memory limit.
 
 A contract can make the engine slow without bound — a view over every entity, read by every agent, grows with the
-square of their number — and no deadline inside the engine can interrupt one long turn. Checking, testing, running and
-previewing a saved contract run in a child Python process that is killed when a call's time is up (and started again
-for the next call), so the author's session always goes on and says which step was too slow::
+square of their number — or big without bound (a "city of a million" with a list on every citizen), and no deadline
+inside the engine can interrupt one long turn. Checking, testing, running and previewing a saved contract run in a
+child Python process that is killed when a call's time is up, or that stops itself once it holds more than
+:data:`MEMORY_MB` (and is started again for the next call), so the author's session always goes on and says which step
+was too slow or too big::
 
     with Sandbox() as box:
         text = box.call("fg_env.authoring.workbench:_tool", {"name": "check", "path": "contract.json", "args": {}},
@@ -25,12 +27,18 @@ import time
 from collections.abc import Mapping
 from typing import IO, Any
 
-__all__ = ["Sandbox", "step", "TooSlow", "GRACE_SECONDS", "START_SECONDS"]
+__all__ = ["Sandbox", "step", "TooSlow", "TooBig", "GRACE_SECONDS", "START_SECONDS", "MEMORY_MB"]
 
 #: What a call may take beyond its budget: a run passing the safe point its own time budget stops it at.
 GRACE_SECONDS = 10.0
 #: Longest a new child may take to start Python and import the SDK (not counted in any call's budget).
 START_SECONDS = 120.0
+#: The most memory the child may hold, in megabytes: past it, it stops itself rather than push the machine into swap.
+MEMORY_MB = 1024
+#: The environment variable that tells the child its memory ceiling.
+_MEMORY_VARIABLE = "FG_ENV_AUTHOR_MEMORY_MB"
+#: How often the child looks at the memory it holds, in seconds.
+_WATCH_SECONDS = 0.1
 #: What starts each line the child writes for the parent; any other output (a print in a model's code) is not read.
 _MARK = "\x1efg-author "
 #: Whether this process is the child (:func:`step` then reports to the parent).
@@ -45,10 +53,20 @@ class TooSlow(Exception):
         self.step, self.seconds = step, seconds
 
 
-class Sandbox:
-    """One child process, started on the first :meth:`call` and again after one is killed; :meth:`close` ends it."""
+class TooBig(Exception):
+    """A call held more than ``megabytes`` of memory; ``step`` is what it was doing."""
 
-    def __init__(self) -> None:
+    def __init__(self, step: str, megabytes: int):
+        super().__init__(f"{step or 'starting'} held more than {megabytes:,} MB of memory")
+        self.step, self.megabytes = step, megabytes
+
+
+class Sandbox:
+    """One child process, started on the first :meth:`call` and again after one is killed; :meth:`close` ends it.
+    ``memory_mb``: the most memory the child may hold."""
+
+    def __init__(self, memory_mb: int = MEMORY_MB) -> None:
+        self.memory_mb = memory_mb
         self._process: subprocess.Popen | None = None
         self._lines: queue.Queue[str | None] = queue.Queue()
         self._ready = False
@@ -74,6 +92,9 @@ class Sandbox:
             message = self._next(process, deadline, current, seconds)
             if "step" in message:
                 current = message["step"]
+            elif "too_big" in message:
+                self.close()  # it has stopped itself: the next call starts a fresh one
+                raise TooBig(current, self.memory_mb)
             elif "error" in message:
                 raise RuntimeError(message["error"])
             else:
@@ -109,7 +130,8 @@ class Sandbox:
         """Start the child now (it takes a moment to import the SDK); :meth:`call` starts it when needed."""
         # A new queue: nothing a killed child wrote reaches the next call.
         self._lines, self._ready = queue.Queue(), False
-        env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}  # the same fg_env and packages
+        env = {**os.environ, "PYTHONPATH": os.pathsep.join(p for p in sys.path if p),  # the same fg_env and packages
+               _MEMORY_VARIABLE: str(self.memory_mb)}
         process = subprocess.Popen([sys.executable, "-c", "from fg_env.authoring.sandbox import main; main()"],
                                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                    text=True, env=env)
@@ -128,6 +150,8 @@ def main() -> None:
     """The child: answer each request line on stdin with ``{"value": ...}`` or ``{"error": ...}``."""
     global _IN_CHILD
     _IN_CHILD = True
+    threading.Thread(target=_watch_memory, args=(int(os.environ.get(_MEMORY_VARIABLE, MEMORY_MB)),),
+                     daemon=True).start()
     _say({"ready": True})  # the SDK is imported (this module's package)
     while True:
         line = sys.stdin.readline()
@@ -140,6 +164,18 @@ def main() -> None:
         except Exception as exc:  # the caller reads it as the problem
             answer = {"error": f"{type(exc).__name__}: {exc}"}
         _say(answer)
+
+
+def _watch_memory(megabytes: int) -> None:
+    """In the child: once it has held more than ``megabytes``, tell the parent and stop at once."""
+    import resource
+
+    unit = 1 if sys.platform == "darwin" else 1024  # ru_maxrss is in bytes on macOS, kilobytes on Linux
+    while True:
+        if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * unit > megabytes * 1024 * 1024:
+            _say({"too_big": True})
+            os._exit(3)
+        time.sleep(_WATCH_SECONDS)
 
 
 def _say(message: dict[str, Any]) -> None:

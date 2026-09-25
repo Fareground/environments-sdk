@@ -21,7 +21,7 @@ from ..runtime.measure import RunResult
 from ..runtime.session import Wake
 from ..runtime.turn import Turn
 from .findings import Seen
-from .sandbox import Sandbox, TooSlow, step
+from .sandbox import Sandbox, TooBig, TooSlow, step
 
 __all__ = ["TEST_SEEDS", "MOST_SEEDS", "TEST_SECONDS", "Tested", "tested", "contract_problem", "StubHosts"]
 
@@ -92,6 +92,10 @@ def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.
         return Tested(f"too slow to test: {exc.step or 'starting'} was still going when the {TEST_SECONDS:g}s test "
                       "budget ran out → make each round cheaper: fewer entities, or views and rules that do not go "
                       "over every entity for every agent (such a view grows with the square of their number)")
+    except TooBig as exc:
+        return Tested(f"too big to test: {exc.step or 'building it'} held more than {exc.megabytes:,} MB → test it "
+                      "with fewer entities (an input for the population, set small while authoring) or smaller "
+                      "properties")
     except RuntimeError as exc:  # the child died: a contract can break the engine in any way
         return Tested(str(exc))
     return Tested(found["problem"], found["untested"], tuple(found["warnings"]), found["seeds"], tuple(found["hosts"]),

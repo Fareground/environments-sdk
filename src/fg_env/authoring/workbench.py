@@ -22,7 +22,7 @@ from ..errors import ContractError
 from ..guides import guide
 from ..host.hosts import Hosts
 from ..participants.builtin import policy_names
-from .sandbox import Sandbox, TooSlow
+from .sandbox import Sandbox, TooBig, TooSlow
 from .testing import TEST_SEEDS, StubHosts, Tested, tested
 
 __all__ = ["TOOLS", "Workbench", "describe_changes", "removed_parts"]
@@ -415,6 +415,8 @@ class Workbench:
             if seconds < RUN_SECONDS:
                 return f"Not done: the session's time ran out while {name} was going ({exc.step or 'building it'})."
             return f"Too slow: {name} was still going after {RUN_SECONDS:g}s ({exc.step or 'building it'})."
+        except TooBig as exc:
+            return f"Too big: {name} held more than {exc.megabytes:,} MB ({exc.step or 'building it'})."
         return text
 
     def _left(self) -> float:
