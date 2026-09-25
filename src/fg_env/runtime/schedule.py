@@ -455,7 +455,8 @@ class Schedule:
             return
         if not (timed_out or acted) and actor.alive and turn.did_not_act:
             with rules.gate:
-                rules.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, data={"stage": stage.name})
+                rules.world.emit("idle", f"{actor.name} did not act.", actor=actor.id, to=self._told(stage, actor),
+                                 data={"stage": stage.name})
                 rules.world.commit()
         if actor.alive and not rules.ended():
             rules.fire(f"stage.{stage.name}.turn", {"actor": actor, "acted": acted, "timed_out": timed_out},
@@ -467,10 +468,16 @@ class Schedule:
             return False
         actor, world = turn.actor, self.rules.world
         with self.rules.gate:
-            world.emit("timeout", f"{actor.name} ran out of time.", actor=actor.id,
+            world.emit("timeout", f"{actor.name} ran out of time.", actor=actor.id, to=self._told(turn.stage, actor),
                        data={"stage": turn.stage.name, "limit": turn.time_limit})
             world.commit()
         return True
+
+    def _told(self, stage: StageSpec, actor: Entity) -> tuple[str, ...] | None:
+        """Who is told that ``actor`` did not act or ran out of time in ``stage``: everyone when the stage's actions are
+        announced (everyone learns who acts in it anyway), else the actor alone, so the news never tells the others
+        whom a secret `who` woke."""
+        return None if announces(self.env.contract, stage) else (actor.id,)
 
     def _remember(self, actor: Entity) -> None:
         """``actor`` has had a turn: its next news starts after what is logged now."""

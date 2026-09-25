@@ -221,6 +221,10 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 8.**
+  - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
+    announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
+    (`who` reading a private role, as the docs allow) told the village who the wolves were.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

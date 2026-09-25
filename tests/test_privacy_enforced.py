@@ -355,3 +355,43 @@ def test_a_view_calling_a_def_with_the_reader_itself_reads_its_own_private_prope
     theirs = with_(views={"them": {"of": "player", "where": "$it.alive", "show": "{$it.name}{$' !' if $bad($it) "
                                                                                "else ''}"}})
     assert any(i.path == "views.them.show" and "role (in $bad)" in i.message for i in fg_env.check(theirs))
+
+
+def _night_contract():
+    """Only the wolf is woken at night (`who` reads the private role; the kill is not announced)."""
+    return {
+        "name": "Wolf", "clock": {"rounds": 1},
+        "types": {"player": {"agent": True, "props": {"role": {"default": "villager", "private": True, "type": "text"},
+                                                      "dead": False}}},
+        "entities": {"ann": {"type": "player", "props": {"role": "wolf"}}, "bob": {"type": "player"},
+                     "cat": {"type": "player"}},
+        "actions": {"kill": {"by": "player", "description": "kill", "announce": False,
+                             "params": {"t": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
+                             "do": ["$params.t.dead = True"]},
+                    "talk": {"by": "player", "description": "talk", "params": {"text": "text"}, "do": []}},
+        "stages": [{"name": "night", "who": "$it.role == 'wolf'", "actions": ["kill"], "must_act": True},
+                   {"name": "day", "actions": ["talk"]}],
+    }
+
+
+@pytest.mark.parametrize("how", ["idle", "slow"])
+def test_nobody_else_learns_who_a_secret_stage_woke_from_its_idle_or_timeout_news(how):
+    import time
+
+    c = _night_contract()
+    if how == "slow":
+        c["stages"][0]["must_act"] = False
+    day = {}
+
+    def participant(wake):
+        if wake.stage == "day":
+            day[wake.entity_id] = wake.update
+        elif how == "slow":
+            time.sleep(0.3)
+            wake.call("kill", {"t": "bob"})
+        wake.end()
+
+    result = fg_env.run(c, participant, seed=1, time_limit=0.1 if how == "slow" else None)
+    assert result.status == "completed", result.error
+    assert "ann did not act" not in day["bob"] + day["cat"]
+    assert "ann ran out of time" not in day["bob"] + day["cat"]
