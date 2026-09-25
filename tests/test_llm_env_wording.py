@@ -341,3 +341,20 @@ def test_a_moderators_label_tool_offers_exactly_the_posts_its_review_queue_shows
     fg_env.run(_example("social_network.json"), {"fact_checker": checker}, seed=1, rounds=3)
     assert seen and all(offered == listed for offered, listed in seen), seen
     assert any(offered for offered, _ in seen)
+
+
+def test_so_far_heads_only_an_agents_first_turn_even_when_nothing_was_logged_before_it():
+    contract = {"name": "Quiet", "clock": {"rounds": 2}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "stages": [{"name": "s", "turns": "simultaneous"}],
+                "actions": {"go": {"by": "p", "do": [], "outcome": "Went."}}}
+    heads = []
+
+    def play(wake):
+        if wake.entity_id == "a":
+            heads.append("So far:" in wake.update)
+        wake.call("go")
+        wake.end()
+
+    fg_env.run(contract, play, seed=1)
+    assert heads == [False, False]  # nothing to report on the first turn; its second reports since its last

@@ -224,3 +224,16 @@ def test_a_chance_label_is_refused_a_private_value():
 def test_a_chance_label_reading_the_actors_private_value_is_refused_by_the_check():
     refused_by_check(_chance("{$actor.secret}"), "actions.poke.do[0].chance[0].label")
 
+
+
+def test_an_emit_to_someone_else_reading_the_actors_private_prop_is_a_check_error():
+    contract = {"name": "Tell", "clock": {"rounds": 1},
+                "types": {"player": {"agent": True, "props": {"role": {"type": "text", "default": "x",
+                                                                       "private": True}}}},
+                "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+                "actions": {"tell": {"by": "player", "do": {"emit": "note", "say": "I am {$actor.role}",
+                                                              "to": "$entity(bob)"}}}}
+    errors = [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert [i.path for i in errors] == ["actions.tell.do[0].say"] and "only its one reader's" in errors[0].message
+    contract["actions"]["tell"]["do"]["to"] = "$actor"
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]

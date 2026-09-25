@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from collections.abc import Mapping
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .. import contract as C
 from ..actions.params import choice_list
@@ -39,6 +39,7 @@ class ActionChecks(EffectChecks):
     """The action, stage and view sections of a contract (a part of the contract checker)."""
 
     def _actions(self) -> None:
+        reactions = _reaction_actions(self.c.model_dump(by_alias=True))
         for name, spec in self.c.actions.items():
             path = f"actions.{name}"
             if "{$" in spec.description:
@@ -92,8 +93,9 @@ class ActionChecks(EffectChecks):
                                "use it on a parameter of type text with a max_len")
                 self.template(param.invalid, f"{path}.params.{pname}.invalid", None,
                               BASE | {"actor", "params", "value"}, types, spec.params)
-            if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
-                self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
+            if name not in reactions and not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
+                self.warn(path, "is not available in any stage", "add it to a stage's `actions`, or offer it to a "
+                                                                 "reaction (a `wake` with `now` and `actions`)")
 
     def _unused_fields(self, param: C.ParamSpec, ppath: str) -> None:
         """A field the parameter's type does not use would be ignored — an int's `values` would let 7 through — so it
@@ -297,6 +299,20 @@ def _same_for_every_item(expr: str) -> bool:
     except ExprError:
         return False  # reported by the expression check
     return not {"it", "i"} & set(compiled.roots)
+
+
+def _reaction_actions(data: Any) -> set[str]:
+    """The actions some reaction (a `wake` effect's `actions`) offers, anywhere in the contract ``data``."""
+    found: set[str] = set()
+    if isinstance(data, dict):
+        if "wake" in data and isinstance(data.get("actions"), list):
+            found.update(name for name in data["actions"] if isinstance(name, str))
+        for value in data.values():
+            found |= _reaction_actions(value)
+    elif isinstance(data, list):
+        for value in data:
+            found |= _reaction_actions(value)
+    return found
 
 
 def _stage_action_names(stage: C.StageSpec, contract: Contract, raw: bool = False) -> list[str]:

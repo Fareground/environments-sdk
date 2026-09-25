@@ -131,11 +131,12 @@ class Perception:
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
                time_limit: float | None = None, shown: Shown | None = None,
                attached: list[str] | None = None, calls: int | None = None, reads: bool = False,
-               last: str | None = None) -> str:
+               last: str | None = None, first: bool = False) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
         calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect;
         ``last``: what the agent's last action of its previous turn returned — the built-in LLM participants stop when
-        a turn ends, so a turn-ending action's result reaches the model only here."""
+        a turn ends, so a turn-ending action's result reaches the model only here; ``first``: whether this is the
+        agent's first turn (its news is then everything "so far")."""
         lines: list[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if last:
             lines.append(f"Your last turn: {last}")
@@ -150,7 +151,7 @@ class Perception:
             lines.append(f"You have {calls} tool calls this turn{free}.")
         news, hidden = self.news(actor, since, DELTA_LIMIT, shown, attached)
         if news or hidden:
-            lines += ["", "Since your last turn:" if since else "So far:"]
+            lines += ["", "So far:" if first else "Since your last turn:"]
             if hidden:
                 lines.append(f"- ({hidden} more items not shown)")
             lines += [f"- {line}" for line in news]

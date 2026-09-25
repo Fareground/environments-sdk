@@ -83,6 +83,7 @@ class Turn:
         memory = env.state.memories.get(actor.id) if peek else env.state.memory(actor.id)
         memory = memory or Memory()
         self._since = memory.cursor
+        self._first = memory.turns == 0
         #: What the agent's last action of its previous turn returned (shown atop the update), and of this turn.
         self._last: str | None = memory.last
         self.last_outcome: str | None = None
@@ -226,7 +227,7 @@ class Turn:
                                            self.time_limit, shown, attached,
                                            self.ledger.calls_left if self.call_limit else None,
                                            self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls),
-                                           self._last)
+                                           self._last, self._first)
                 self.note(Read("update", len(self._update)))
                 self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
@@ -396,13 +397,14 @@ class Turn:
         """The world as this turn's next sealed choice will meet it when it commits (:meth:`Rules.replay_intents`)."""
         return self.env.rules.replay_intents(self.actor, self.ledger.intents)
 
-    def _refused(self, name: str, text: str, observed: Observation, free: dict[str, Any]) -> ToolResult:
+    def _refused(self, name: str, text: str, observed: Observation, free: dict[str, Any],
+                 retry: str = "") -> ToolResult:
         """The result of a refused call to ``name``, ``observed`` from the call's start: spent for good when working it
         out drew luck or read a value hidden from the actor (:func:`~fg_env.runtime.ledger.attempt_cost`), else free
-        (its ``free`` data: an invalid call or a rejected one)."""
+        (its ``free`` data: an invalid call or a rejected one), when the ``retry`` advice is added."""
         if not self.ledger.refused(name, observed):
-            return ToolResult(False, text, data=free)
-        return ToolResult(False, text, self.ledger.actions_left <= 0, dict(_SPENT))
+            return ToolResult(False, text + retry, data=free)
+        return ToolResult(False, text + " It used up this action.", self.ledger.actions_left <= 0, dict(_SPENT))
 
     def _checked_act(self, name: str, spec: ActionSpec, args: Any,
                      observed: Observation) -> tuple[ToolResult, bool, bool]:
@@ -416,8 +418,8 @@ class Turn:
         params, problem = rules.validate(self.actor, name, args)
         if problem:
             self.note(INVALID)
-            return (self._refused(name, f"{name} was not done: {problem}. Correct the arguments and call again.",
-                                  observed, _INVALID), False, False)
+            return (self._refused(name, f"{name} was not done: {problem}.", observed, _INVALID,
+                                  " Correct the arguments and call again."), False, False)
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
             refusal = _names_unborn(params, rules.trial_born) or rules.trial(self.actor, name, params)
             if refusal is not None:

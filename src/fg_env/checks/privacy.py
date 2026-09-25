@@ -164,6 +164,22 @@ class PrivacyChecks(Checker):
                        "$actor.cash\"` in `do`, then `{$shown}`; in an event, a property that is not private), or "
                        "send it `to` the owner alone")
 
+    def _said_to(self, source: str | None, to: object, path: str, types: Types) -> None:
+        """Text sent `to` others than the actor may not read the actor's own private properties (those no agent type
+        reads besides it): only its one reader's may show."""
+        if isinstance(to, str) and to.strip() in ("$actor", "$actor.id"):
+            return
+        actor = types.get("actor", set())
+        read = sorted({"$" + ".".join(chain) for expr in _expressions(source) for chain in expr.paths
+                       if len(chain) > 1 and chain[0] == "actor"
+                       and any(kind in self.c.types and (spec := self.c.props_of(kind).get(chain[1])) is not None
+                               and spec.private is True for kind in actor)})
+        if read:
+            self.error(path, f"reads the actor's private {', '.join(read)} in text sent to {to}: only its one reader's "
+                             "private properties may show, and the engine refuses it at run time",
+                       "send it `to` the actor, or work out what the recipient may learn in `do` (`\"$shown = "
+                       "$actor.card\"`) and show `{$shown}`")
+
     def _hidden_reads(self, expressions: Iterable[Expr], types: Types,
                       params: Mapping[str, C.ParamSpec], items: bool = True) -> set[str]:
         """The reads of a private property in ``expressions``: of the world, from a typed root (``types``), a chosen

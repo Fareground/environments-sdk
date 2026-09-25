@@ -140,7 +140,8 @@ however it is spelled; so is a stage `order` that reads one, since every agent s
 stage whose actions are announced (a stage `when` that reads one is warned: everyone sees whether the stage ran). Reveal what an agent may learn by working it out in game logic
 (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
 several agents — an `announce`, an event's `say`, an emit's `say` without a lone `to` — may read no
-private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`). Text sent
+`to` one agent may show only what that agent may read, so the actor's private props only when it goes to the actor.
 A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
 wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
 The engine's own refusals (a transfer that does not fit, a bound) never show a hidden value. A `when` that reads a

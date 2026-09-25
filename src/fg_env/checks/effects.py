@@ -351,6 +351,8 @@ class EffectChecks(PrivacyChecks):
             self.template(effect.get("say"), f"{path}.say", None, roots, types, params)
             if "to" not in effect:
                 self._shared_text(effect.get("say"), f"{path}.say", types, params)
+            else:
+                self._said_to(effect.get("say"), effect["to"], f"{path}.say", types)
             v("to")
             v("data")
             v("delay")

@@ -58,6 +58,17 @@ def test_a_when_requirement_reading_params_and_a_hidden_value_spends_the_action(
     assert len(log) == 1 and log[0][2].get("spent") is True  # one probe, and the turn's only action is gone
 
 
+def test_a_spent_refusal_does_not_invite_the_agent_to_try_again():
+    seen = []
+
+    def once(wake):
+        seen.append(wake.call("guess", {"g": 99}))
+        wake.end()
+
+    fg_env.run(GUESS, {"ann": once, "bob": "idle"}, seed=5)
+    assert "call again" not in seen[0].text and "used up this action" in seen[0].text
+
+
 def test_a_fault_after_reading_a_hidden_value_spends_the_action():
     faulting = copy.deepcopy(GUESS)
     faulting["actions"]["guess"] = {

@@ -261,6 +261,12 @@ worlds stay fast, and the package is organised by feature.
   - In a simultaneous stage a choice naming an entity the agent's own earlier choice this turn creates is refused
     (it exists only once the choices commit). Before, it was accepted against the trial and, when another agent's
     choice committed first and took that id, landed on the other agent's entity.
+  - Smaller fixes: an `emit` sent `to` someone other than the actor that reads the actor's private property is a
+    check error (the run refused it with a vague message); "So far:" heads only an agent's first turn (a
+    simultaneous-stage agent read it again when nothing was logged before its first turn); an invariant broken by the
+    round's start no longer says "after physics" in a contract without physics; an action offered only to a reaction
+    is not reported as unavailable in every stage; a refusal that used up the action no longer says to correct the
+    arguments and call again.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

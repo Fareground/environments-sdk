@@ -158,8 +158,9 @@ class Schedule:
         with rules.gate:
             step_physics(world)
             world.commit()
-        rules.check_invariants("physics")
-        rules.check_changes("physics")
+        moved = "physics" if world.physics is not None or world.entity_dynamics else "the round's start"
+        rules.check_invariants(moved)
+        rules.check_changes(moved)
         if rules.ended():
             self.finish()
             return False

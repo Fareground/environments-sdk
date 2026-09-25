@@ -301,3 +301,22 @@ def test_an_entity_named_from_participant_text_keeps_the_text_and_renders_it_quo
     resumed = fg_env.Env.restore(contract, json.loads(json.dumps(env.snapshot())))
     resumed.run(play)
     assert "- «The hello»" in seen[1]
+
+
+def test_an_action_offered_only_to_a_reaction_is_not_reported_unavailable():
+    contract = {"name": "Answer", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "actions": {"ask": {"by": "p", "do": [{"wake": "$entity(b)", "why": "Asked.", "now": True,
+                                                       "actions": ["answer"]}]},
+                            "answer": {"by": "p", "do": []}},
+                "stages": [{"name": "s", "actions": ["ask"]}]}
+    assert not [i for i in fg_env.check(contract) if "not available in any stage" in i.message]
+
+
+def test_an_invariant_broken_before_the_round_names_no_physics_the_contract_lacks():
+    contract = {"name": "Broken", "clock": {"rounds": 3}, "world": {"n": 8},
+                "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+                "actions": {"wait": {"by": "p", "do": []}},
+                "invariants": ["$world.n <= 20 - $round * 6"]}  # broken by the round's number alone
+    with pytest.raises(fg_env.RunError, match="no longer holds after the round's start"):
+        fg_env.run(contract, "idle", seed=1)
