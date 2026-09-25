@@ -43,4 +43,5 @@ def test_a_revision_that_narrows_what_agents_do_is_found_by_its_runs(narrow, los
     assert not before.problem and not after.problem
     found = collapsed(before.profile, after.profile, PARTS)
     assert any(item.startswith(lost) for item in found), found
-    assert not collapsed(before.profile, testing.tested(copy.deepcopy(LEMONADE)).profile, PARTS)  # the same plays the same
+    again = testing.tested(copy.deepcopy(LEMONADE))
+    assert not collapsed(before.profile, again.profile, PARTS)  # the same contract plays the same
