@@ -326,6 +326,10 @@ worlds stay fast, and the package is organised by feature.
     read text the run renders (views, briefs, a `why`, news, receipts) — `{$inputs.item}` or a bare `$inputs.item`
     shows its value; a tool's description, which is never worked out, shows a plain stand-in instead of the source.
     `Bid for $inputs.r` and `$inputs.bill` shown literally are gone.
+  - An invariant that reads only the inputs is a law of the inputs, held before anything is built from them: a bad
+    input fails with the invariant's own `why` naming it, not with whatever the build first trips on. The contact
+    centre starter requires its demand profiles and their standard errors to be of one, non-zero length, and the
+    retail (coffee market) starter a household table with rows (mech M4).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

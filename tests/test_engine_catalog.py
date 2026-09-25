@@ -260,3 +260,17 @@ def test_a_contact_centre_with_no_calls_runs_on_every_seed():
     """`calls_scale: 0` drew a negative scale from its uncertainty; arrivals are never below zero (engines M2)."""
     runs = [fg_env.engines.load("contact_centre", inputs={"calls_scale": 0}, seed=seed).run() for seed in range(6)]
     assert {result.status for result in runs} == {"completed"}
+
+
+@pytest.mark.parametrize("name, inputs, why", [
+    ("coffee_market.json", {"households": []}, "inputs.households"),
+    ("contact_centre.json", {"weekday_profile": []}, "inputs.weekday_profile"),
+    ("contact_centre.json", {"hours_profile_se": [1.0]}, "inputs.hours_profile"),
+])
+def test_an_empty_or_mismatched_input_table_fails_up_front_naming_the_input(name, inputs, why):
+    """An invariant that reads only the inputs is a law of the inputs, held before anything is built from them, so a
+    bad table fails with its own `why` naming the input (audit 14 mech M4)."""
+    starter = Path(__file__).resolve().parents[1] / "src" / "fg_env" / "engines" / "starters" / name
+    with pytest.raises(fg_env.RunError, match="does not hold for these inputs") as failed:
+        fg_env.load(starter, inputs=inputs, seed=1)
+    assert why in str(failed.value)

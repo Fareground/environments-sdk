@@ -608,6 +608,7 @@
     "chain_launch": {"description": "The chain café opens on launch_day with a launch promotion."}
   },
   "invariants": [
+    {"expr": "$len($inputs.households) > 0", "why": "inputs.households is the survey the sampled households are drawn from: give it one or more rows."},
     {"expr": "$all(cafe, $it.cups_today <= $it.capacity + 1e-9)", "why": "A café cannot serve beyond its daily capacity."},
     {"expr": "$abs($sum(cafe, $it.revenue) - $sum(household, $it.spend)) < 0.01", "why": "Every dollar a café earns is a dollar a household spent.", "check": "round"},
     {"expr": "$sum(cafe, $it.subscribers) == $count(household, $it.sub != 'none')", "why": "Subscriber counts match household subscriptions.", "check": "round"},

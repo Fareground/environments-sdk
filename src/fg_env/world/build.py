@@ -18,7 +18,7 @@ from ..contract import (
     LinkSpec,
 )
 from ..effects.runner import EffectRunner
-from ..errors import RunError
+from ..errors import InvariantViolation, RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from ..expr.objects import Entity
 from ..information.gate import render, viewer_for
@@ -41,6 +41,7 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
     world.luck.main = seeds.rng("build")
     pending_briefs: list[tuple[str, str, dict[str, Any], str]] = []
     try:
+        _input_laws(world)
         world.rounds = _rounds(world)
         world.start = _clock_start(world)
         _count_settings(world)
@@ -242,6 +243,27 @@ def _generate(world: World, key: str, spec: EntitySpec, ordinal: int,
                                           _placed(world, entity_id, spec.at, vars), scope, f"{path}[{n}]")
         if spec.brief:
             pending_briefs.append((created.id, spec.brief, vars, f"{path}.brief"))
+
+
+def _input_laws(world: World) -> None:
+    """The invariants that read nothing but the inputs, held before anything is built from them: a law of the inputs
+    (a profile and its errors of one length, a table with rows) fails with its own `why`, naming the input, rather
+    than as whatever the build first trips on."""
+    contract = world.contract
+    for index, invariant in enumerate(contract.invariants):
+        expr = compile_expr(invariant.expr)
+        # a call naming a type, a record or an entity by a bare word, or a def, reads the world, which is not built
+        if expr.roots != {"inputs"} or expr.methods or any(name in contract.defs or symbol is not None
+                                                               for name, symbol in expr.calls):
+            continue
+        try:
+            holds = truthy(expr(world.evaluation.scope()))
+        except ExprError:
+            continue  # it reads what the build makes (an entity by its id): checked once it is built
+        if not holds:
+            why = invariant.why.strip()
+            raise InvariantViolation(f"invariant `{invariant.expr}` does not hold for these inputs"
+                                     f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
 
 
 def _whole(value: Any, where: str) -> float:

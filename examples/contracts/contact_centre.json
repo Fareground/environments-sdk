@@ -187,6 +187,8 @@
     }
   },
   "invariants": [
+    {"expr": "$len($inputs.weekday_profile) > 0 and $len($inputs.weekday_profile_se) == $len($inputs.weekday_profile)", "why": "inputs.weekday_profile and inputs.weekday_profile_se are the demand factor of each weekday and its standard error: give both, of one length."},
+    {"expr": "$len($inputs.hours_profile) > 0 and $len($inputs.hours_profile_se) == $len($inputs.hours_profile)", "why": "inputs.hours_profile and inputs.hours_profile_se are the demand factor of each half-hour and its standard error: give both, of one length."},
     {"expr": "$len($inputs.staffing) == 0 or $len($inputs.staffing) == 24", "why": "inputs.staffing lists the agents on duty in each of the 24 half-hours from 08:00, or is empty for the manager's rule: give it 24 numbers or none."},
     {"expr": "$ends_with($inputs.day, 'T08:00')", "why": "inputs.day is the opening of the day simulated, and the half-hours of history, staffing and the demand profile start at 08:00: give it as YYYY-MM-DDT08:00."}
   ],
