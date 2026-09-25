@@ -103,3 +103,9 @@ def test_the_owner_report_names_the_plan_the_monday_peak_and_the_outage():
     assert "day of the week (Monday) adds" in text
     assert "A network outage at 09:30 with the recommended plan: service level −" in text
     assert "round" not in text.lower()
+
+
+def test_a_day_that_does_not_open_at_eight_is_refused():
+    """audit 13 engines EM1: the half-hours start at 08:00, so another opening would silently give 08:00's results."""
+    errors = [i for i in fg_env.check(CONTRACT, inputs={"day": "2026-09-14T09:00"}, rounds=1) if i.severity == "error"]
+    assert errors and "T08:00" in str(errors[0])

@@ -331,6 +331,8 @@ worlds stay fast, and the package is organised by feature.
     winners, a double auction's what buyers paid sellers (both used to stay 0) (mechanism L4).
   - An order book's market makers given neither cash nor shares are a check error at `crowd`: they could never
     quote (mechanism L5).
+  - The contact_centre engine refuses a `day` that does not open at 08:00, which its half-hours assume, instead of
+    silently giving 08:00's results (engines EM1).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
