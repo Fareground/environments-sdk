@@ -271,6 +271,9 @@ worlds stay fast, and the package is organised by feature.
     or a private world property), and a series output worked out from private properties read in a view, outcome or
     any other text an agent is shown. Before, both passed `check(rounds=0)` and `load` and failed the run at its first
     render.
+  - `Env.restore` holds a snapshot's property values to their declarations, as `fork` does, and refuses a
+    non-finite number anywhere (no rule can make one): a tampered snapshot with `cash = NaN`, text in a number or a
+    value past its bound is a `SnapshotError` naming the property. Before, NaN restored and the run completed.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

@@ -13,19 +13,24 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..contract import Contract
-from ..errors import ContractError, SnapshotError
+from ..errors import ContractError, Issue, RunError, SnapshotError
 from ..expr import Untrusted
 from ..runtime.budget import Budget
+from ..sampling.seeds import SeedTree
+from ..world.store import World
 
 if TYPE_CHECKING:
+    from ..contract import PropSpec
     from ..runtime.env import Env
 
 __all__ = ["SNAPSHOT_VERSION", "KEEP_ARM", "contract_hash", "run_identity", "encode", "decode", "take_snapshot",
-           "restore_env", "restore_state", "matching_contract", "check_snapshot", "recording_start"]
+           "restore_env", "restore_state", "matching_contract", "check_snapshot", "recording_start", "held_values",
+           "refused_values"]
 
 SNAPSHOT_VERSION = 5
 
@@ -228,6 +233,11 @@ def restore_state(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any]
 
 
 def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], parallel: int) -> _E:
+    refused = refused_values(contract, snapshot)
+    if refused:
+        raise SnapshotError("the snapshot holds values its contract refuses (was it edited?): "
+                            + "; ".join(f"{issue.path}: {issue.message}" for issue in refused[:5])
+                            + (f"; and {len(refused) - 5} more" if len(refused) > 5 else ""))
     env = cls(contract, decode(snapshot["inputs"]), int(snapshot["seed"]), snapshot.get("arm"), parallel,
               events=snapshot.get("events", True) is not False)
     env.state.decode(snapshot)
@@ -243,3 +253,64 @@ def _restore(cls: type[_E], contract: Contract, snapshot: Mapping[str, Any], par
     env.state.diagnosis.load(snapshot.get("diagnosis"))
     env.state.emitted = len(env.world.log)
     return env
+
+
+def refused_values(contract: Contract, snapshot: Mapping[str, Any]) -> list[Issue]:
+    """Every property value in ``snapshot`` that ``contract`` refuses, as :meth:`World.coerce` would refuse it: a
+    restore holds the snapshot to its contract as a fork holds it to the new one."""
+    probe = World(contract, decode(snapshot["inputs"]), SeedTree(0))
+    issues: list[Issue] = []
+    for row in snapshot["entities"]:
+        if row["type"] in contract.types:
+            issues += held_values(contract.props_of(row["type"]), decode(row["props"]), f"types.{row['type']}.props",
+                                  row["id"], probe, "its declaration")
+    return issues + held_values(contract.world, decode(snapshot["props"]), "world", "the world", probe,
+                                "its declaration")
+
+
+def held_values(specs: Mapping[str, PropSpec], values: Mapping[str, Any], path: str, owner: str, probe: World,
+                declaration: str) -> list[Issue]:
+    """The values ``owner`` holds (``values``, by property) that their declarations (``specs``) refuse, and the
+    properties it holds a value for that are not declared; ``declaration`` names whose they are in the messages."""
+    issues = []
+    for prop, value in values.items():
+        spec = specs.get(prop)
+        if spec is None:
+            issues.append(Issue(f"{path}.{prop}", f"is gone, but {owner} holds a value for it",
+                                "keep the property (the state still has it)"))
+            continue
+        problem = _refused(probe, spec, value)
+        if problem:
+            issues.append(Issue(f"{path}.{prop}", f"{owner} holds {_shown(value)}, which {declaration} refuses: "
+                                                  f"{problem}", "keep a declaration that accepts the current value"))
+    return issues
+
+
+def _refused(probe: World, spec: PropSpec, value: Any) -> str | None:
+    if _non_finite(value):  # no rule can make one, whatever the declaration
+        return f"{_shown(value)} is not a finite number"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        if spec.min is not None and value < spec.min:
+            return f"below the minimum {spec.min:g}"
+        if spec.max is not None and value > spec.max:
+            return f"above the maximum {spec.max:g}"
+    try:
+        probe.coerce(spec, value, "restore")
+    except RunError as exc:
+        return str(exc).split(": ", 1)[-1]
+    return None
+
+
+def _non_finite(value: Any) -> bool:
+    if isinstance(value, float):
+        return not math.isfinite(value)
+    if isinstance(value, (list, tuple)):
+        return any(_non_finite(item) for item in value)
+    if isinstance(value, Mapping):
+        return any(_non_finite(item) for item in value.values())
+    return False
+
+
+def _shown(value: Any) -> str:
+    text = repr(value)
+    return text if len(text) <= 60 else text[:57] + "..."

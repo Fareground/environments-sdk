@@ -65,7 +65,7 @@ def test_check_judges_an_until_by_the_contracts_own_policies_not_by_random_agent
 
 
 @pytest.mark.parametrize("value, problem",
-                         [("lots", "finite number"), (90, r"entities\.a\.props\.x: a's x cannot go above 50"),
+                         [("lots", "finite number"), (90, r"types\.p\.props\.x: a holds 90, .* above the maximum 50"),
                           (1.5, "whole number")])
 def test_a_snapshot_holding_a_value_its_contract_does_not_allow_is_refused(value, problem):
     env = fg_env.load(CAPPED, seed=1)

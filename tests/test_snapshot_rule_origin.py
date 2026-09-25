@@ -168,3 +168,19 @@ def test_serialized_rule_origin_does_not_expand_saved_import_paths(tmp_path):
     # new file-reading instructions; checksum rejection is the expected error.
     with pytest.raises(SnapshotError, match='rule_origin.*changed'):
         fg_env.Env.restore(env.contract, snap)
+
+
+@pytest.mark.parametrize("value", [float("nan"), "abc", None, 150])
+def test_a_snapshot_holding_a_value_its_declaration_refuses_is_refused_on_restore(value):
+    """A restore holds the snapshot's property values to their declarations, as a fork does (audit 11 M5): a NaN no
+    rule can make, text or null in a number, a number past its bound."""
+    contract = {"name": "Kept", "clock": {"rounds": 3},
+                "types": {"p": {"agent": True, "props": {"cash": {"type": "number", "default": 5, "max": 100}}}},
+                "entities": {"a": {"type": "p"}}, "actions": {"noop": {"by": "p", "do": []}}}
+    env = fg_env.load(contract, seed=1)
+    env.run("idle", rounds=1)
+    snapshot = json.loads(json.dumps(env.snapshot()))
+    assert fg_env.Env.restore(contract, snapshot).run("idle").status == "completed"
+    snapshot["entities"][0]["props"]["cash"] = value
+    with pytest.raises(SnapshotError, match="types.p.props.cash"):
+        fg_env.Env.restore(contract, snapshot)

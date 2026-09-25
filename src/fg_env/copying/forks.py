@@ -30,7 +30,16 @@ from ..world.defaults import default_order
 from ..world.links import _fields as link_fields
 from ..world.store import World
 from ..world.values import copy_value
-from .snapshot import KEEP_ARM, decode, encode, matching_contract, recording_start, restore_state, take_snapshot
+from .snapshot import (
+    KEEP_ARM,
+    decode,
+    encode,
+    held_values,
+    matching_contract,
+    recording_start,
+    restore_state,
+    take_snapshot,
+)
 
 if TYPE_CHECKING:
     from ..runtime.env import Env
@@ -167,7 +176,8 @@ def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> 
         if kind not in new.types:
             missing_types.setdefault(kind, []).append(row["id"])
             continue
-        _values(issues, new.props_of(kind), decode(row["props"]), f"types.{kind}.props", row["id"], probe)
+        issues += held_values(new.props_of(kind), decode(row["props"]), f"types.{kind}.props", row["id"], probe,
+                              "the new declaration")
         if row.get("at") is not None:
             try:
                 probe.place(row["at"], "space")
@@ -177,7 +187,7 @@ def compatibility(old: Contract, new: Contract, snapshot: Mapping[str, Any]) -> 
     for kind, ids in missing_types.items():
         issues.append(Issue(f"types.{kind}", f"is gone, but {len(ids)} entities of it exist ({_named(ids)})",
                             "keep the type, or remove those entities before forking"))
-    _values(issues, new.world, decode(snapshot["props"]), "world", "the world", probe)
+    issues += held_values(new.world, decode(snapshot["props"]), "world", "the world", probe, "the new declaration")
     for kind, edges in snapshot["links"].items():
         if not edges:
             continue
@@ -222,33 +232,6 @@ def _pending(issues: list[Issue], old: Contract, new: Contract, snapshot: Mappin
                                     f"pending rule from {item.get('path', 'an earlier rule')}: {issue.message}",
                                     "keep its dependencies until the pending work finishes" +
                                     (f"; {issue.fix}" if issue.fix else "")))
-
-
-def _values(issues: list[Issue], specs: Mapping[str, PropSpec], values: Mapping[str, Any], path: str, owner: str,
-            probe: World) -> None:
-    for prop, value in values.items():
-        spec = specs.get(prop)
-        if spec is None:
-            issues.append(Issue(f"{path}.{prop}", f"is gone, but {owner} holds a value for it",
-                                "keep the property (the state still has it)"))
-            continue
-        problem = _refused(probe, spec, value)
-        if problem:
-            issues.append(Issue(f"{path}.{prop}", f"{owner} holds {_shown(value)}, which the new declaration refuses: "
-                                                  f"{problem}", "keep a declaration that accepts the current value"))
-
-
-def _refused(probe: World, spec: PropSpec, value: Any) -> str | None:
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
-        if spec.min is not None and value < spec.min:
-            return f"below the minimum {spec.min:g}"
-        if spec.max is not None and value > spec.max:
-            return f"above the maximum {spec.max:g}"
-    try:
-        probe.coerce(spec, value, "fork")
-    except RunError as exc:
-        return str(exc).split(": ", 1)[-1]
-    return None
 
 
 def _records(issues: list[Issue], new: Contract, snapshot: Mapping[str, Any]) -> None:
@@ -401,8 +384,3 @@ def _remap(old: Sequence[Any], new: Sequence[Any], indices: Sequence[int]) -> li
 def _named(ids: Sequence[str]) -> str:
     shown = ", ".join(ids[:_NAMED_IDS])
     return shown + (f" and {len(ids) - _NAMED_IDS} more" if len(ids) > _NAMED_IDS else "")
-
-
-def _shown(value: Any) -> str:
-    text = repr(value)
-    return text if len(text) <= 60 else text[:57] + "..."
