@@ -96,3 +96,12 @@ def test_cli_new_writes_a_contract_that_checks(tmp_path, capsys):
     assert main(["check", str(path)]) == 0
     assert "contract OK" in capsys.readouterr().out
     assert main(["new", "auction", str(path)]) == 1
+
+
+def test_a_clean_check_says_how_many_rounds_it_played(tmp_path, capsys):
+    short = {"name": "Short", "clock": {"rounds": 4}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+             "actions": {"go": {"by": "p", "description": "g", "do": []}}, "outputs": {"n": "$round"}}
+    path = tmp_path / "short.json"
+    path.write_text(json.dumps(short))
+    assert main(["check", str(path)]) == 0
+    assert "played all 4 round(s) with random agents" in capsys.readouterr().out

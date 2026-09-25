@@ -336,6 +336,8 @@ worlds stay fast, and the package is organised by feature.
     stopped with "has no id" on such a contract, and flagged every contract with a `create` as not serializable.
   - A named entity's `name` is a template, as a generated entity's is (`"Ann of {$inputs.town}"`), and checked like
     one. Before, it stayed literal without a word.
+  - `fg-env check` says how many rounds its plays covered: "all 4 round(s)" for a 4-round contract. Before, it said
+    "12 rounds (or to the last scheduled event)" whatever the contract's length.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
