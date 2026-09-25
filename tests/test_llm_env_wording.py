@@ -323,3 +323,21 @@ def test_an_agents_update_opens_with_what_its_last_action_returned_even_when_tha
     assert "Your last turn" not in updates[0]
     assert updates[1].splitlines()[1] == "Your last turn: You dig up 2 coins; you have 2."
     assert updates[2].splitlines()[1] == "Your last turn: You dig up 2 coins; you have 4."
+
+
+def test_a_moderators_label_tool_offers_exactly_the_posts_its_review_queue_shows():
+    """Before, the tool offered every post while the queue listed only engaged ones: the model labelled blind."""
+    import re
+
+    seen = []
+
+    def checker(wake):
+        label = next((tool for tool in wake.tools if tool.name == "net_label"), None)
+        offered = set(label.input_schema["properties"]["post"]["enum"]) if label else set()
+        queue = wake.update.split("Most engaged recent posts", 1)[-1] if "Most engaged" in wake.update else ""
+        seen.append((offered, set(re.findall(r"\[(net_post_\d+)\]", queue))))
+        wake.end()
+
+    fg_env.run(_example("social_network.json"), {"fact_checker": checker}, seed=1, rounds=3)
+    assert seen and all(offered == listed for offered, listed in seen), seen
+    assert any(offered for offered, _ in seen)

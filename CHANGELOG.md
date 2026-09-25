@@ -288,6 +288,9 @@ worlds stay fast, and the package is organised by feature.
     did not fit (a health of 10.5 against a maximum of 10 is corrected), and a second answer that still does not fit
     refuses the attempt as one it could not decide (`host_unusable`). Before, every near-miss refused the attempt
     without asking again, though the adapters promise a correction.
+  - A moderator's label tool offers exactly the posts its review queue lists. Before, it offered every post while the
+    queue showed only engaged ones, so a model labelled posts it could not read (the social_network golden changed:
+    its fact-checker now labels only posts in its queue).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

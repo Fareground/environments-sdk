@@ -548,6 +548,8 @@ def _relate(world: Any, name: str, config: FeedConfig, actor: Entity, act: str, 
 # ---------------------------------------------------------------------------
 
 
+#: The posts a moderator reviews: its queue view lists them, and its label tool offers exactly these.
+_QUEUE = "$trending(10, '{name}')"
 _FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.origin)) if $it.kind == 'repost' "
               "else ($' replied to [' + $it.parent + ']' if $it.kind == 'reply' else '')}: {text} · {reacts} "
               "reactions · {reposts} reposts · {replies} replies{$' · labelled ' + $join($it.labels) if "
@@ -632,7 +634,8 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
     if config.moderators:
         actions[f"{name}_label"] = {"by": config.moderators, "description": "Label a post (and its reposts).",
                                     "params": {"post": {"type": "entity", "of": post_type,
-                                                        "description": "The post id."},
+                                                        "where": f"$it.id in $map({_QUEUE.format(name=name)}, $it.id)",
+                                                        "description": "A post in your review queue."},
                                                "label": {"type": "enum", "values": list(config.labels)}},
                                     "do": [{"social": name, "action": "label", "target": "$params.post",
                                             "label": "$params.label"}],
@@ -673,7 +676,7 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
     }
     if config.moderators:
         fragment["views"][f"{name}_queue"] = {"for": config.moderators, "title": "Most engaged recent posts",
-                                              "of": f"$trending(10, '{name}')", "show": _FEED_LINE,
+                                              "of": _QUEUE.format(name=name), "show": _FEED_LINE,
                                               "empty": "Nothing to review."}
     names = list(actions)
     if not names:

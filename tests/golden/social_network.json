@@ -1,7 +1,7 @@
 {
-  "actions": 81,
-  "events": 171,
-  "events_sha256": "e9a56bb3c29f083e8030c96f4e0ea9aa658ba2b1184a8b67bc4a04fa9e01a4bb",
+  "actions": 77,
+  "events": 159,
+  "events_sha256": "ed8099ee6af3d4b118f712de7a823715644e25d98afb3878f3290efe9c9de40f",
   "first_events": [
     "r1 action u139: {\"action\": \"net_post\", \"params\": {\"text\": \"Traffic on the east bridge again.\"}, \"private\": true, \"success\": true}",
     "r1 outcome u139: Posted.",
