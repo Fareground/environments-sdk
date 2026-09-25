@@ -310,7 +310,7 @@ def test_a_series_output_worked_out_from_a_private_property_is_not_shown_to_agen
     c = _secrets(outputs={"held": {"expr": "$entity(ann).secret", "series": True},
                           "count": {"expr": "$count(p)", "series": True}},
                  views={"v": {"show": show}}, clock={"rounds": 2})
-    assert any(i.severity == "error" and i.path == "views.v" and "output held" in i.message for i in fg_env.check(c))
+    assert any(i.severity == "error" and i.path == "views.v.show" and "held" in i.message for i in fg_env.check(c))
     seen = []
 
     def participant(wake):
@@ -476,3 +476,26 @@ def test_a_stage_when_that_reads_a_hidden_value_is_warned():
     assert warned and warned[0].severity == "warning" and "role" in warned[0].message
     c["stages"][0]["when"] = "$round == 1"
     assert not [i for i in fg_env.check(c, rounds=0) if i.path == "stages[0].when"]
+
+
+def test_an_inspect_rule_or_a_view_reading_what_readers_may_not_see_is_a_check_error():
+    """What the engine refuses the first time an agent is shown it — an inspect rule over another's private property,
+    a series output worked out from private properties in a view — is refused by check before a run (audit 11 M4)."""
+    inspecting = {"name": "Inspect", "clock": {"rounds": 1},
+                  "types": {"p": {"agent": True, "props": {"s": {"default": 0, "private": True}, "pub": 1},
+                                  "inspect": "$it.s > 3"}},
+                  "entities": {"a": {"type": "p", "props": {"s": 5}}, "b": {"type": "p"}},
+                  "actions": {"noop": {"by": "p", "do": []}}, "stages": [{"name": "s"}]}
+    shown = {"name": "Series", "clock": {"rounds": 2},
+             "types": {"p": {"agent": True, "props": {"cash": {"default": 0, "private": True}}}},
+             "entities": {"a": {"type": "p", "props": {"cash": 37}}, "b": {"type": "p"}},
+             "actions": {"noop": {"by": "p", "do": []}}, "stages": [{"name": "s"}],
+             "views": {"v": {"show": "total {$outputs.a_cash}"}},
+             "outputs": {"a_cash": {"expr": "$entity(a).cash", "series": True}}}
+    for contract, path, read in ((inspecting, "types.p.inspect", "$it.s"), (shown, "views.v.show", "$outputs.a_cash")):
+        found = [i for i in fg_env.check(contract, rounds=0) if i.path == path]
+        assert [i.severity for i in found] == ["error"] and read in found[0].message, [str(i) for i in found]
+        with pytest.raises(fg_env.ContractError):
+            fg_env.load(contract)
+    inspecting["types"]["p"]["inspect"] = "$it.pub > 0"
+    assert not [i for i in fg_env.check(inspecting, rounds=0) if i.path == "types.p.inspect"]

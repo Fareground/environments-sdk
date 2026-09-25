@@ -104,6 +104,9 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
         self._stages()
         self._views()
         self._secret_subtypes()
+        for kind, spec in c.types.items():
+            if isinstance(spec.inspect, str):
+                self._private_inspect(kind, spec.inspect, f"types.{kind}.inspect")
         self._unshown_private()
         self._events()
         self._policies()

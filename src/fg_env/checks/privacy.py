@@ -20,6 +20,7 @@ from ..expr.compile import and_terms, call_roots
 from ..expr.hidden import Hidden, readers
 from ..expr.template import compile_template
 from ..information.reads import inspect_rule
+from ..world.parts import private_metrics
 from .core import Checker
 
 if TYPE_CHECKING:
@@ -253,7 +254,8 @@ class PrivacyChecks(Checker):
                     kinds, field = types.get(chain[0], set()), chain[1]
                 else:
                     continue
-                if self._private(kinds, field) or (chain[0] == "world" and field in world):
+                if self._private(kinds, field) or (chain[0] == "world" and field in world) \
+                        or (chain[0] in ("outputs", "series") and field in self._private_outputs):
                     read.add("$" + ".".join(chain))
             for function, kind, chain in expr.item_paths if items else ():
                 if kind is not None and len(chain) > 1 and self._private({kind}, chain[1]):
@@ -278,6 +280,14 @@ class PrivacyChecks(Checker):
                 elif function == "events" and hidden.events_hide(symbol):
                     read.add(f"$events({symbol or '…'}) (events not every agent sees)")
         return read
+
+    @property
+    def _private_outputs(self) -> frozenset[str]:
+        """The series outputs worked out from private properties: an agent may not be shown one."""
+        found = getattr(self, "_private_outputs_found", None)
+        if found is None:
+            found = self._private_outputs_found = private_metrics(self.c, self._hidden.names)
+        return found
 
     @property
     def _hidden(self) -> Hidden:
@@ -337,21 +347,37 @@ class PrivacyChecks(Checker):
                        "`$it.<its owner property> == $actor.id and ...`)")
         self._private_via_defs(read, path)  # a def may read another entity's: whose shows only at run time
 
-    def _unguarded(self, where: str, of: str) -> list[str]:
-        """The private properties of ``of`` a view's ``where`` reads before a term that picks the reader's own items
-        (``$it.id`` or ``$it.<owner>`` against ``$actor``): the terms of an `and` are read in order and stop at the
-        first false one, so what is read before that term (or in a `where` with none) is read for items the reader
-        does not own."""
+    def _unguarded(self, where: str, of: str, reader: str = "actor") -> list[str]:
+        """The private properties of ``of`` a view's ``where`` (or an inspect rule) reads before a term that picks the
+        reader's own items (``$it.id`` or ``$it.<owner>`` against ``$actor``, or ``reader``): the terms of an `and`
+        are read in order and stop at the first false one, so what is read before that term (or in a `where` with
+        none) is read for items the reader does not own."""
         ownership = {"id", self.c.owner_of(of)}
         read: list[str] = []
         for term in and_terms(where):
             expr = compile_expr(term)
             private = self._private_fields([expr], of)
-            if not private and "actor" in expr.roots \
+            if not private and reader in expr.roots \
                     and any(len(chain) == 2 and chain[0] == "it" and chain[1] in ownership for chain in expr.paths):
                 return read
             read += [name for name in private if name not in read]
         return read
+
+    def _private_inspect(self, kind: str, rule: str, path: str) -> None:
+        """An inspect rule is read for each reader over every entity of ``kind`` it might inspect: a private property
+        of the entity read before picking the reader's own, another's fetched, a private world property or an output
+        worked out from private ones is refused at run time, the first time an agent's tools are listed."""
+        try:
+            compiled = compile_expr(rule)
+        except ExprError:
+            return  # reported by the condition check
+        with self._reading(self.agents):
+            read = [f"$it.{name}" for name in self._unguarded(rule, kind, "viewer")]
+            read += sorted(self._hidden_reads([compiled], {}, {}, items=False) | self._fetched_reads([compiled]))
+        if read:
+            self.error(path, f"reads private {', '.join(read)} for entities the reader does not own: the engine "
+                             "refuses it at run time", "decide by what every reader may know, or test ownership first "
+                                                       "(`$it.<owner> == $viewer.id and ...`)")
 
     def _ownable(self, kind: str) -> bool:
         """Whether some agent owns each entity of ``kind``: an agent owns itself; any other entity has an owner when

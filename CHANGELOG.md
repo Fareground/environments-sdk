@@ -266,6 +266,11 @@ worlds stay fast, and the package is organised by feature.
     without end grows by each one it removed, and how to avoid that.
   - A record with `keep` that entries are sent `to` agents is a check warning: `keep` drops the oldest entries as
     new ones come, so a message dropped before its addressee's next turn never reaches it.
+  - Check reports, as errors at their path, what the engine refuses the first time an agent is shown it: an inspect
+    rule that reads the inspected entity's private property before picking the reader's own (or another's fetched,
+    or a private world property), and a series output worked out from private properties read in a view, outcome or
+    any other text an agent is shown. Before, both passed `check(rounds=0)` and `load` and failed the run at its first
+    render.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
