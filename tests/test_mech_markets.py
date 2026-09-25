@@ -952,3 +952,15 @@ def test_a_declared_stage_named_after_a_book_refines_its_generated_stage():
     [stage] = fg_env.expand(contract, mechanisms=True)["stages"]
     assert stage["turns"] == "simultaneous" and stage["max_actions"] == 4
     assert {"acme_buy", "acme_sell", "acme_cancel"} <= set(stage["actions"])
+
+
+def test_the_spread_metric_is_null_while_a_side_of_the_book_is_empty():
+    """An ask and no bid has no spread; zero would say the book is perfectly liquid."""
+    c = {"fg_env": "2", "name": "S", "clock": {"rounds": 2},
+         "types": {"trader": {"agent": True, "props": {"cash": 10000, "x_shares": 50}}},
+         "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}},
+         "mechanisms": {"x": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 100}}}
+    plan = {(1, "a"): [("x_sell", {"qty": 5, "price": 105})], (2, "b"): [("x_buy", {"qty": 1, "price": 101})]}
+    participant, _ = scripted(plan)
+    result = fg_env.load(c, seed=1).run(participant)
+    assert result.series["x_spread"] == [None, 4]

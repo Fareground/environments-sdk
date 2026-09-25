@@ -168,7 +168,7 @@ def _views(name: str, cfg: OrderBookConfig) -> dict[str, Any]:
            "$book(name).flow is the last round's aggressive quantity by trader kind. Fundamentalists estimate "
            "`fair_value`, by default $world.<name>_value: a random walk from the start price at the book's "
            "`volatility`. Metrics <name>_price (last trade), _mid (mid quote: returns without the bid-ask bounce), "
-           "_volume, _spread, _orders feed $market_realism.",
+           "_volume, _spread (null while a side of the book is empty), _orders feed $market_realism.",
            example={"who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5,
                     "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400},
                                                "noise": {"count": 6, "cash": 5000, "shares": 100}}})
@@ -245,7 +245,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
         "policies": {f"{name}_algo": {"rules": [{"do": f"{name}_algo"}, {"do": "pass"}]}},
         "metrics": {f"{name}_price": f"$world.{name}_last", f"{name}_mid": f"$book({name}).mid",
                     f"{name}_volume": f"$get($world.{name}_bar, volume, 0)",
-                    f"{name}_spread": f"$book({name}).spread or 0", f"{name}_orders": f"$book({name}).orders"},
+                    f"{name}_spread": f"$book({name}).spread", f"{name}_orders": f"$book({name}).orders"},
         "outputs": {
             f"{name}_last_price": {"expr": f"$world.{name}_last", "type": "number",
                                    "description": f"Last {unit} price."},

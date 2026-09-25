@@ -238,6 +238,8 @@ worlds stay fast, and the package is organised by feature.
     and `of` outside entity and list (and `where` on a list whose items are not entities), `min`/`max`/`step` outside
     number and int, `max_len` outside text, list and file fields elsewhere, and `of`/`values`/`where` beside a list's
     `items`. Before, they were silently ignored, so `{"type": "int", "values": [1, 2, 3]}` accepted 7.
+  - An order book's `<name>_spread` metric is null while a side of the book is empty. Before, it read 0 — perfectly
+    liquid — exactly when there was no market on one side.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
