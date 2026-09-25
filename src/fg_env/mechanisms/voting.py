@@ -438,7 +438,7 @@ def _announcement(world: Any, config: BallotConfig, result: dict[str, Any]) -> s
         entity = world.entity(option) if isinstance(option, str) else None
         return str(entity.name or entity.id) if entity is not None else str(option)
 
-    subject = config.question or "The vote"
+    subject = _common.shown(world, config.question) or "The vote"
     counts = ", ".join(f"{label(k)} {v}" for k, v in result["counts"].items())
     if result.get("reason") == "no quorum":
         return f"{subject}: no quorum ({result['cast']} ballot(s) cast)."
@@ -481,8 +481,8 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     ballot, result = f"{name}_ballot", f"{name}_result"
     vote, abstain = f"{name}_vote", f"{name}_abstain"
     # A tool's description is plain text: a question that is a template (`{$world.bill}`) is shown in the stage's brief
-    # and the result, rendered, and left out here rather than shown with its braces.
-    plain = config.question.strip() if "{" not in config.question else ""
+    # and the result, rendered, and left out here rather than shown with its braces (see _common.display).
+    plain = _common.in_words(config.question, "").strip()
     question = f" on: {plain.rstrip('.')}" if plain else ""
     open_ballot = f"$actor.{ballot} == null"
     # In a declared stage the vote is one of the turn's moves, not its end: the stage gives each mechanism hooked into
@@ -525,7 +525,8 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     }
     names = list(actions)
     if config.stage is None:
-        stage: dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names, "brief": config.question}
+        stage: dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names,
+                                 "brief": _common.display(config.question)}
         if config.when:
             stage["when"] = config.when
         fragment["stages"] = [stage]

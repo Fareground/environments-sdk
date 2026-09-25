@@ -63,8 +63,9 @@ anthropic:<model>` (`fg_env.author`); it keeps the best contract that checks wit
 
 ## Core sections
 
-Every section is optional except `types` (`name` defaults to the file's name); `guide('<section>')` has its fields and the roots available in
-each. The core sections and functions are enough for most environments; the start page teaches them.
+Every section is optional except `types` (`name` defaults to the file's name); `guide('<section>')` has its fields
+and the roots available in each. The core sections and functions are enough for most environments; the start page
+teaches them.
 
 CORE
 

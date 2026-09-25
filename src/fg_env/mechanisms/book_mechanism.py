@@ -14,7 +14,7 @@ from typing import Any
 
 from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
-from ._common import conserve_invariant, fmt, pct, suggest
+from ._common import conserve_invariant, display, fmt, in_words, pct, suggest
 from .book_rules import rules_default
 from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
@@ -30,7 +30,7 @@ def _who(name: str, cfg: OrderBookConfig) -> Any:
 
 
 def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> dict[str, Any]:
-    unit = cfg.instrument or name
+    unit = in_words(cfg.instrument or name, name)  # a tool's description is never worked out
     who = _who(name, cfg)
     p = props_for(name)
     lot: Any = (f"$book({name}).lot" if isinstance(cfg.lot_size, str) else int(cfg.lot_size) if qty_type == "int"
@@ -105,7 +105,7 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> dict[str, Any]:
 
 
 def _views(name: str, cfg: OrderBookConfig) -> dict[str, Any]:
-    unit = cfg.instrument or name
+    unit = display(cfg.instrument or name)
     who = _who(name, cfg)
     book = f"$book({name})"
     acct = f"$book_account({name}, $actor)"
@@ -189,7 +189,7 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
                                  suggest(unknown, DEFAULTS[strategy]), f"crowd.{strategy}.params.{unknown}")
     p = props_for(name)
     qty_type = "int" if not isinstance(cfg.lot_size, str) and float(cfg.lot_size).is_integer() else "number"
-    unit = cfg.instrument or name
+    unit, shown_unit = in_words(cfg.instrument or name, name), display(cfg.instrument or name)
     fragment: dict[str, Any] = {
         "types": {cfg.who: {"props": {
             **money_prop(contract, cfg.who, cfg.currency, "Free cash."),
@@ -275,11 +275,11 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
         fragment["stages"] = [{"name": name, "turns": "sequential", "actions": names, "max_actions": cfg.max_actions,
                                "order": f"0 if $it.type == '{name}_market_maker' else 1 + "
                                         "$uniform(0, 1)",  # a type is public
-                               "brief": f"Trade {unit}: buy, sell, cancel, or end your turn."}]
+                               "brief": f"Trade {shown_unit}: buy, sell, cancel, or end your turn."}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}
     invariants = conserve_invariant(cfg.conserve, f"$book_ok({name})",
-                                    f"The {unit} book's reserves match its resting orders, balances stay within "
+                                    f"The {shown_unit} book's reserves match its resting orders, balances stay within "
                                     "limits and the book is never crossed.")
     if invariants:
         fragment["invariants"] = invariants

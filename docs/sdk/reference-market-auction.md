@@ -8,7 +8,7 @@ Config:
 - `who` (required): Agent type that bids (subtypes included).
 - `sellers` (default null): double: agent type that asks (default: `who`).
 - `currency` (default "cash"): Property holding money.
-- `item` (default "lot"): What is sold, in plain words.
+- `item` (default "lot"): What is sold, in words; a template (`{$inputs.item}`) shows its value where agents read it worked out.
 - `house` (default null): Entity id of the auction house: sells its units and is paid (with `reverse`: buys and pays); default: the mechanism itself (stock and revenue in world props).
 - `stock` (default 1): Units the mechanism has to sell (number or expression); a `house` sells the units it holds in `<name>_units` instead (and with `reverse` buys this many), and a double auction's sellers the units they hold.
 - `units` (default 1): Units in each lot (uniform; the last lot sells what is left), or the most units one bid or ask may carry (double).

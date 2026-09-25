@@ -8,7 +8,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ._common import conserve_invariant, declared_entity, entity_of, fmt, stage_event
+from ._common import conserve_invariant, declared_entity, display, entity_of, fmt, in_words, stage_event
 from ._social import check_expr
 from .auctions import FORMATS, MIN_PRICE, SEALED, AuctionConfig, bid, close_sealed, open_lot, tick
 from .econ_base import money_prop
@@ -83,7 +83,8 @@ _register_actions()
 
 def _party_props(name: str, cfg: AuctionConfig, contract: Mapping[str, Any], holder: str) -> dict[str, Any]:
     props = {**money_prop(contract, holder, cfg.currency),
-             f"{name}_units": {"type": "int", "default": 0, "description": f"Units of {cfg.item} held."},
+             f"{name}_units": {"type": "int", "default": 0,
+                               "description": f"Units of {in_words(cfg.item, 'the lot')} held."},
              f"{name}_escrow": {"type": "number", "default": 0, "private": True,
                                 "description": "Cash held for open bids."},
              f"{name}_escrow_units": {"type": "int", "default": 0, "private": True},
@@ -238,11 +239,13 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                  "description": "Price per unit you want to be paid."}
         when = when[:1]
         if cfg.deliver_from:
-            when.append({"expr": f"$actor.{cfg.deliver_from} >= 1", "why": f"You have no {cfg.item} in stock."})
+            when.append({"expr": f"$actor.{cfg.deliver_from} >= 1",
+                         "why": f"You have no {display(cfg.item)} in stock."})
     actions: dict[str, Any] = {
         f"{name}_bid": {
             "by": cfg.who,
-            "description": f"{'Offer to supply' if cfg.reverse else 'Bid for'} {cfg.item}. {rules}{escrow}",
+            "description": f"{'Offer to supply' if cfg.reverse else 'Bid for'} {in_words(cfg.item, 'the lot')}. "
+                           f"{rules}{escrow}",
             "params": {**amount, "price": price}, "when": when,
             "do": [{"market": name, "action": "bid", "price": "$params.price",
                     **({"package": "$params.package"} if packaged else {"qty": "$params.qty"})}],
@@ -257,7 +260,8 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     if cfg.format == "double":
         actions[f"{name}_ask"] = {
             "by": cfg.sellers or cfg.who,
-            "description": f"Offer {cfg.item} for sale. {rules} Your units are held until the lot closes.",
+            "description": f"Offer {in_words(cfg.item, 'the lot')} for sale. {rules} Your units are held until the "
+                           "lot closes.",
             "params": {"price": {"type": "number", "min": MIN_PRICE,
                                  "description": "Lowest price per unit you accept."},
                        "qty": {"type": "int", "min": 1, "max": f"$min($actor.{name}_units, {cfg.units})", "default": 1,

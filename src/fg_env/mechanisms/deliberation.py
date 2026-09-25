@@ -37,7 +37,7 @@ from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import stage_event
+from ._common import shown, stage_event
 from ._social import check_expr, entity, named_use, props, require_type
 from .expressions import Expr
 from .voting import tally
@@ -175,7 +175,7 @@ def _house(world: Any, name: str, config: DeliberationConfig, viewer: Entity | N
     state = world.props.get(name) or _fresh()
     lines: list[str] = []
     if config.question:
-        lines.append(f"Question: {config.question}")
+        lines.append(f"Question: {shown(world, config.question)}")
     stack = state["stack"]
     if not stack:
         lines.append("No motion is before the body." + (" Any member may propose one." if config.motions else ""))

@@ -28,7 +28,7 @@ from ..registry import MechanismError, use_key
 __all__ = [
     "Config", "Number", "Whole", "Positive", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
-    "entities_of", "lot_floor", "fmt", "pct",
+    "entities_of", "lot_floor", "fmt", "pct", "display", "in_words", "shown",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
     "is_agent_type", "stage_event", "declared_entity", "setting_kept", "Conserve", "conserve_field",
     "conserve_invariant",
@@ -415,3 +415,33 @@ def _effective(call: Call) -> Any:
     if isinstance(value, float) and value.is_integer() and isinstance(base, int):
         value = int(value)
     return value
+
+
+# -- display text: what a mechanism's config names in words ---------------------------------------------------------
+#
+# One rule for every display-text config field (an auction's `item`, a book's `instrument`, a ballot's or a market's
+# `question`): it is a template, shown worked out wherever agents read text the run renders (a view, a brief, a `why`,
+# news, a receipt) — words stay words, `{$inputs.bill}` shows the bill, and a bare expression (`$inputs.bill`) shows
+# its value as that template would. A tool's description is never worked out, so there a template shows its plain
+# stand-in instead of its source.
+
+
+def display(text: str) -> str:
+    """A display-text field as the template it is (a bare expression becomes ``{...}``)."""
+    bare = text.strip()
+    return "{" + bare + "}" if is_expr(bare) and "{" not in bare else text
+
+
+def in_words(text: str, instead: str) -> str:
+    """A display-text field where nothing is worked out (a tool's description): its words, or ``instead`` when it is
+    worked out as the run plays."""
+    return instead if "{" in display(text) else text
+
+
+def shown(world: Any, text: str) -> str:
+    """A display-text field worked out now, for everyone (no private value may show in it)."""
+    from ..expr import EVERYONE
+    from ..information.gate import render
+
+    template = display(text)
+    return render(world, template, {}, viewer=EVERYONE) if "{" in template else text

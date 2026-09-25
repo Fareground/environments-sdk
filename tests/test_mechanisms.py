@@ -6,9 +6,8 @@ import tracemalloc
 import pytest
 
 import fg_env
-from fg_env.mechanisms.voting import UNCOUNTED
 from fg_env.errors import ContractError
-from fg_env.mechanisms.voting import tally
+from fg_env.mechanisms.voting import UNCOUNTED, tally
 
 
 def test_tally_methods():

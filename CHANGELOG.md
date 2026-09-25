@@ -321,6 +321,11 @@ worlds stay fast, and the package is organised by feature.
     entity or a group, a rate written as text); a mechanism's config fields inside a map or a list of specs are held
     to the number rule too. An action the smoke run found never happening names, in the error itself, the rule that
     failed and its error (mech M2).
+  - **One rule for display text in a mechanism's config** (mech M3): an auction's `item`, a book's `instrument`, a
+    ballot's, a deliberation's and a prediction market's `question` are templates, shown worked out wherever agents
+    read text the run renders (views, briefs, a `why`, news, receipts) — `{$inputs.item}` or a bare `$inputs.item`
+    shows its value; a tool's description, which is never worked out, shows a plain stand-in instead of the source.
+    `Bid for $inputs.r` and `$inputs.bill` shown literally are gone.
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

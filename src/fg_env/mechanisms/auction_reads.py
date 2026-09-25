@@ -10,7 +10,7 @@ from typing import Any
 from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
-from ._common import fmt
+from ._common import fmt, shown
 from .auctions import _item_reserves, _reserve, auction_config, audit, min_bid
 
 __all__ = ["describe", "last_result"]
@@ -37,7 +37,7 @@ def describe(world: Any, name: str, viewer: Entity | None) -> str:
     if not lot.get("open"):
         return f"{label}: no lot is open right now."
     reserve = _reserve(world, name, cfg)
-    parts = [f"{label}: lot {lot['number']}, {cfg.item}"]
+    parts = [f"{label}: lot {lot['number']}, {shown(world, cfg.item)}"]
     if cfg.format == "combinatorial":
         reserves = _item_reserves(world, name, cfg)
         left = world.props.get(f"{name}_items") or []

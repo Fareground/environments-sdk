@@ -44,7 +44,7 @@ from ..expr import compile_expr, truthy
 from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
-from ._common import Conserve, Whole, conserve_field, entity_of, fmt, number_of
+from ._common import Conserve, Whole, conserve_field, entity_of, fmt, number_of, shown
 from .expressions import Expr
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
@@ -68,7 +68,8 @@ class AuctionConfig(BaseModel):
     who: str = Field(..., description="Agent type that bids (subtypes included).")
     sellers: str | None = Field(None, description="double: agent type that asks (default: `who`).")
     currency: str = Field("cash", description="Property holding money.")
-    item: str = Field("lot", description="What is sold, in plain words.")
+    item: str = Field("lot", description="What is sold, in words; a template (`{$inputs.item}`) shows its value where "
+                                         "agents read it worked out.")
     house: str | None = Field(None, description="Entity id of the auction house: sells its units and is paid (with "
                                                 "`reverse`: buys and pays); default: the mechanism itself (stock and "
                                                 "revenue in world props).")
@@ -237,9 +238,9 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
     if cfg.reverse and price > _reserve(world, name, cfg) + 1e-9:
         raise Abort(f"Your offer must be at most {fmt(_reserve(world, name, cfg), 4)}, the most the house pays.")
     if cfg.deliver_from and not _in_stock(world, cfg, trader):
-        raise Abort(f"You have no {cfg.item} in stock to supply ({cfg.deliver_from} is 0).")
+        raise Abort(f"You have no {shown(world, cfg.item)} in stock to supply ({cfg.deliver_from} is 0).")
     cash, escrow = Account(trader, cfg.currency), Account(trader, f"{name}_escrow")
-    item = f"{cfg.item}"
+    item = shown(world, cfg.item)
     if cfg.format == "dutch":
         clock = float(lot["price"])
         _, source = _payee(world, name, cfg)

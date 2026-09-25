@@ -18,8 +18,8 @@ mechanisms' actions and sets no ``max_actions`` allows, per turn, what each mech
 ``max_actions``, default 1). A mechanism whose choices are sealed (a sealed-bid auction's bids) makes a declared stage
 it attaches to play as `turns: simultaneous`: its choices are held until everyone has chosen, since in turn order a
 later agent would see what an earlier one changed (the cash a bid holds). A mechanism's tools attached to a stage are
-that stage's own: another stage offers them only by listing them. A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
-which each type using it already acts.
+that stage's own: another stage offers them only by listing them. A generated tool that no stage offers (a ledger's
+`pay`, loans) joins the first stage in which each type using it already acts.
 """
 from __future__ import annotations
 

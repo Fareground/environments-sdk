@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import Conserve, conserve_field, conserve_invariant, entity_of, fmt, pct
+from ._common import Conserve, conserve_field, conserve_invariant, display, entity_of, fmt, in_words, pct, shown
 from .econ_base import money_prop
 from .expressions import Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -296,7 +296,7 @@ def resolve(world: Any, name: str, winner: Any) -> None:
             world.set_prop(trader, f"{name}_shares", {})
     world.set_world(f"{name}_resolved", winner)
     world.set_world(f"{name}_payout", clean(paid))
-    subject = cfg.question or "The market"
+    subject = shown(world, cfg.question) or "The market"
     world.emit(name, f"{subject}: {winner} won. Each {winner} share paid 1 ({fmt(paid, 2)} in total).",
                data={"mechanism": KEY, "winner": winner, "paid": paid})
 
@@ -349,7 +349,7 @@ def _amm_function(call: Call) -> dict[str, Any]:
             "fees": world.props.get(f"{name}_fees"),
             "volume": world.props.get(f"{name}_volume"), "resolved": world.props.get(f"{name}_resolved") or None,
             "payout": world.props.get(f"{name}_payout"), "maker": cfg.maker, "liquidity": cfg.liquidity,
-            "question": cfg.question}
+            "question": shown(world, cfg.question)}
 
 
 @function("amm_outcomes(name, viewer?)",
@@ -473,7 +473,8 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
                                  "outcome")
     subsidy = cfg.liquidity * math.log(len(cfg.outcomes)) if cfg.maker == "lmsr" else cfg.liquidity
     start_q = {o: 0.0 if cfg.maker == "lmsr" else cfg.liquidity for o in cfg.outcomes}
-    question = f" on: {cfg.question}" if cfg.question else ""
+    words = in_words(cfg.question, "")  # a tool's description is never worked out: a template shows in the view
+    question = f" on: {words}" if words else ""
     open_now = {"expr": f"$world.{name}_resolved == ''", "why": "The market has resolved."}
     receipt = f"{{$world.{name}_receipt}}"
     pricing = ("Prices are probabilities set by a logarithmic market scoring rule" if cfg.maker == "lmsr"
@@ -523,7 +524,7 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
         "actions": actions,
         "events": [],
         "views": {
-            f"{name}_prices": {"for": cfg.who, "title": cfg.question or f"{name} market",
+            f"{name}_prices": {"for": cfg.who, "title": display(cfg.question) or f"{name} market",
                                "of": f"$amm_outcomes({name}, $actor)", "show": "{outcome}: {price|pct1}{$' · you "
                                        "hold ' + $text($round($it.held, 2)) if $it.held > 0 else ''}"},
             f"{name}_status": {"for": cfg.who, "when": f"$world.{name}_resolved != ''",

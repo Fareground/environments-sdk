@@ -38,7 +38,7 @@ from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
 from ..world.props import prop_type
-from ._common import Conserve, Positive, Whole, conserve_field, entity_of, fmt, lot_floor, pct
+from ._common import Conserve, Positive, Whole, conserve_field, entity_of, fmt, lot_floor, pct, shown
 from .book_rules import Venue, venue
 from .expressions import EachCrowd, Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -80,7 +80,8 @@ class OrderBookConfig(BaseModel):
     who: str = Field(..., description="Agent type that trades (subtypes included).")
     start_price: _Positive | str = Field(..., description="Opening reference price, above 0 (number or expression).")
     currency: str = Field("cash", description="Trader property holding money (added with 0 if the type lacks it).")
-    instrument: str = Field("", description="Display name of the instrument (default: the book's name).")
+    instrument: str = Field("", description="Display name of the instrument (default: the book's name); a template "
+                                            "(`{$inputs.ticker}`) shows its value where agents read it worked out.")
     tick_size: _Positive | str = Field(0.01, description="Minimum price increment" + _EXPR + ".")
     lot_size: _Positive | str = Field(1.0, description="Minimum quantity; orders are whole multiples of it" + _EXPR
                                       + ". A literal whole lot makes order quantities integers.")
@@ -251,7 +252,7 @@ def quote(world: Any, name: str) -> dict[str, Any]:
         mid = bid if bid is not None else ask if ask is not None else last
     low, high = band(v, band_anchor(world, name))
     return {
-        "instrument": cfg.instrument or name, "last": last, "bid": bid, "ask": ask, "mid": mid,
+        "instrument": shown(world, cfg.instrument or name), "last": last, "bid": bid, "ask": ask, "mid": mid,
         "spread": round(ask - bid, 10) if bid is not None and ask is not None else None,
         "bid_qty": _touch_qty(bids), "ask_qty": _touch_qty(asks),
         "ref": float(world.props.get(f"{name}_ref") or last), "halted": halted,
@@ -517,7 +518,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
     cfg = book_config(world, name)
     v = venue(world, name)
     p = props_for(name)
-    unit = cfg.instrument or name
+    unit = shown(world, cfg.instrument or name)
     if side not in ("buy", "sell"):
         raise Abort(f"side must be buy or sell, not {side!r}.")
     if world.props.get(f"{name}_halted"):
@@ -692,7 +693,7 @@ def trip(world: Any, name: str, px: float, ref: float, what: str) -> None:
     lasts = "the rest of this bar" if to_bar_end else "the rest of this round" + (
         f" and {v.halt_rounds} more round(s)" if v.halt_rounds else "")
     beyond = "at least" if cfg.halt_check == "round_end" else "more than"
-    world.emit(f"{name}_halt", f"CIRCUIT BREAKER on {cfg.instrument or name}: {what} {fmt(px, 4)} moved "
+    world.emit(f"{name}_halt", f"CIRCUIT BREAKER on {shown(world, cfg.instrument or name)}: {what} {fmt(px, 4)} moved "
                                f"{beyond} {pct(v.halt_pct or 0)} from "
                                f"{reference} {fmt(ref, 4)}. Trading is halted for {lasts}.",
                data={"mechanism": KEY, "price": px, "until": until})
@@ -711,7 +712,7 @@ def cancel(world: Any, name: str, trader: Entity, order_id: Any) -> str:
                 _reconcile_reservations(world, cfg, v, name, {trader.id})
                 return _receipt(world, name,
                                 f"Cancelled {order['side']} {fmt(order['qty'], 6)} @ {fmt(order['price'], 4)}.")
-    raise Abort(f"You have no resting order {order_id!r} in {cfg.instrument or name}.")
+    raise Abort(f"You have no resting order {order_id!r} in {shown(world, cfg.instrument or name)}.")
 
 
 def cancel_all(world: Any, name: str, trader: Entity) -> str:

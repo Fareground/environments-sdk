@@ -1193,3 +1193,18 @@ def test_market_makers_with_nothing_to_quote_are_a_check_error():
                 "mechanisms": {"bk": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
                                       "crowd": {"market_maker": {"count": 2}}}}}
     assert [i.path for i in fg_env.check(contract, rounds=0) if i.severity == "error"] == ["mechanisms.bk.crowd"]
+
+
+def test_display_text_is_a_template_shown_worked_out_wherever_agents_read_it():
+    """An auction's `item`, a book's `instrument`, a ballot's question: one rule — words stay words, a template or a
+    bare expression shows its value where agents read text the run works out, and a tool's description, never
+    worked out, shows a plain stand-in rather than the source (audit 14 mech M3)."""
+    c = {"inputs": {"r": {"type": "text", "default": "a vase"}},
+         "types": {"b": {"agent": True, "props": {"cash": 100}}}, "entities": {"b": {"type": "b", "count": 2}},
+         "mechanisms": {"art": {"kind": "market", "mode": "auction", "format": "first_price", "who": "b",
+                                "item": "$inputs.r"},
+                        "bk": {"kind": "market", "mode": "order_book", "who": "b", "start_price": 10,
+                               "instrument": "{$inputs.r} shares"}}}
+    preview = fg_env.load(c, seed=1).preview("b_1")
+    assert "lot 1, a vase" in preview["update"] and "a vase shares order book" in preview["update"]
+    assert "$inputs" not in json.dumps(preview)
