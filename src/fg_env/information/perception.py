@@ -139,8 +139,8 @@ class Perception:
                last: str | None = None) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
         calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect;
-        ``last``: what the agent's last action of its previous turn returned — an action that ended the turn told the
-        agent nothing before (the built-in LLM participants stop at the end of a turn), so every update opens with it."""
+        ``last``: what the agent's last action of its previous turn returned — the built-in LLM participants stop when
+        a turn ends, so a turn-ending action's result reaches the model only here."""
         lines: list[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if last:
             lines.append(f"Your last turn: {last}")
