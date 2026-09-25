@@ -171,9 +171,9 @@ def _abridged(source: dict[str, Any]) -> str:
     saved with the data lost) and named after it. The saved contract keeps every row."""
     text = json.dumps(source, ensure_ascii=False)
     shown, cuts = copy.deepcopy(source), []
-    inputs = shown.get("inputs") if isinstance(shown.get("inputs"), dict) else {}
-    tables = [name for name, spec in inputs.items()
-              if isinstance(spec, dict) and isinstance(spec.get("default"), list) and len(spec["default"]) > _SHOWN_ROWS]
+    inputs: dict[str, Any] = shown["inputs"] if isinstance(shown.get("inputs"), dict) else {}
+    tables = [name for name, spec in inputs.items() if isinstance(spec, dict)
+              and isinstance(spec.get("default"), list) and len(spec["default"]) > _SHOWN_ROWS]
     for name in sorted(tables, key=lambda n: -len(json.dumps(inputs[n]["default"], ensure_ascii=False))):
         if len(text) <= MAX_RESULT:
             break
