@@ -436,7 +436,8 @@ aec = fg_env.rl.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (
 ```
 The leak check changes one step of a playout — a chance outcome, a seat's call, a sealed choice — and compares what
 each other seat reads: it finds what a seat's moves reveal, not what the starting hidden state does (a rule that
-announces news because another's private value is high shows no difference to it); `check` warns about those.
+announces news because another's private value is high shows no difference to it); `check` warns about those. It
+also holds every seat to perfect recall: two playouts a seat was told apart are two of its information states.
 Games transform into ordinary contracts: `fg_env.game.repeated(contract, 10)`, `misere`, `zerosum`;
 `game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
 CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,
