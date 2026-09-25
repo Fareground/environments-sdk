@@ -314,6 +314,11 @@ worlds stay fast, and the package is organised by feature.
     mechanism holds it, a bare number last, once; and a value an effect op in the config holds (a pot's `setup`) is
     told at its field (`mechanisms.t.setup[0].game`) rather than at a generated `events[…]` path. Before, an unknown
     `$if` in one mechanism was also blamed on another's `start_price: 50`.
+  - A declared stage with no `max_actions` gives each mechanism attached to it the actions it allows per turn, plus
+    one for the author's own actions when it offers any (one rule; before, a stage with any action of the author's
+    kept one action a turn, so six agents trading left a ballot on the same stage with no votes). The mechanisms
+    page states the rule and that a mechanism with no `stage` gets a stage of its own, after the author's, in
+    declaration order.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

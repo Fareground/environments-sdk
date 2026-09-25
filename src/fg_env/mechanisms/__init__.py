@@ -154,9 +154,10 @@ def _stage_orphans(out: dict[str, Any], owners: Mapping[tuple[str, str], str], s
 
 
 def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mapping[str, int]) -> None:
-    """A stage the author declared for mechanisms only, without ``max_actions``, gives each mechanism attached to it
-    the actions it allows per turn, so a chat message never ends a turn meant for trading and voting too. A stage
-    with actions of the author's own keeps its budget: only the author knows how many of their moves a turn holds."""
+    """A stage the author declared without ``max_actions`` gives each mechanism attached to it the actions it allows
+    per turn, and one more for the author's own actions when it offers any, so a chat message never ends a turn
+    meant for trading and voting too, and trading never leaves the ballot no action. A stage with ``max_actions``
+    keeps it: the author said how many moves a turn holds."""
     authored = {s.get("name"): s for s in declared.get("stages") or [] if isinstance(s, Mapping)}
     for stage in out.get("stages") or []:
         mine = authored.get(stage.get("name")) if isinstance(stage, dict) else None
@@ -165,9 +166,7 @@ def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mappi
         offered = mine.get("actions", "all")
         own = offered == "all" and bool(declared.get("actions")) or isinstance(offered, list) and bool(offered) \
             or isinstance(offered, Mapping) and any(offered.values())
-        if own:
-            continue
-        stage["max_actions"] = shares[stage["name"]]
+        stage["max_actions"] = shares[stage["name"]] + (1 if own else 0)
         calls = StageSpec.model_fields["max_calls"].default
         if "max_calls" not in mine and stage["max_actions"] >= calls:  # room to retry a refused call
             stage["max_calls"] = stage["max_actions"] + calls // 2

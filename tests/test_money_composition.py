@@ -135,7 +135,8 @@ def test_mechanisms_attached_to_one_declared_stage_share_its_turn():
     game = json.loads(json.dumps(contract))
     game["actions"] = {"move": {"by": "trader", "do": []}}
     _, replies = play(game, {(1, "a"): [("move", {}), ("move", {})]})
-    assert [reply.ok for _, reply in replies] == [True, False]  # a stage with the author's own moves keeps one per turn
+    # a stage with the author's own moves too: the mechanisms' budgets and one more (audit 11 mechanisms M3)
+    assert [reply.ok for _, reply in replies] == [True, True]
 
 
 def test_check_warns_when_one_agent_type_takes_a_separate_turn_per_mechanism():

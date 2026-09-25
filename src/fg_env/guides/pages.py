@@ -254,8 +254,10 @@ def mechanisms_page() -> str:
              "ordinary actions, stages, world props and events you can read, preview and override (declare the same",
              "name yourself to replace a generated part, a named event or end entry included, but not a world",
              "property: that is the mechanism's state; two mechanisms generating one name is an error). A declared "
-             "stage that offers only mechanisms' actions and sets no",
-             "`max_actions` gives each attached mechanism the actions per turn it has in its own stage. Combine",
+             "stage that sets no `max_actions`",
+             "gives each attached mechanism the actions per turn it has in its own stage, and one more for your own "
+             "actions when it offers any. A mechanism with no `stage` gets a stage of its own, which runs after your "
+             "stages, in the order the mechanisms are declared. Combine",
              "them freely, several of one mode included: a function reading a mechanism takes its name as the last",
              "argument (`$decisions('committee')`), optional while the contract has only one of that mode. Only a",
              "mechanism made to end the run does (a board's game over, a terminal phase, a deliberation with",

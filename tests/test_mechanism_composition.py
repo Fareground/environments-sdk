@@ -151,3 +151,25 @@ def test_voting_in_a_shared_stage_leaves_the_rest_of_the_turn_to_the_other_mecha
     assert result.status == "completed", result.error
     assert said == {"a": [True, True], "b": [True, True]}
     assert result.stats["actions"] == 4
+
+
+def test_a_declared_stage_gives_each_attached_mechanism_its_actions_and_the_author_one_more():
+    """One rule for a stage's budget when it sets no `max_actions` (audit 11 mechanisms M3): the sum of what its
+    attached mechanisms allow per turn, plus one for the author's own actions when it offers any — so trading cannot
+    use up the turn the ballot needs. A stage with `max_actions` keeps it."""
+    contract = {"name": "One stage", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "actions": {"talk": {"by": "p", "do": []}}, "stages": [{"name": "day"}],
+                "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "p", "options": ["x", "y"],
+                                     "stage": "day"},
+                               "x": {"kind": "market", "mode": "order_book", "who": "p", "start_price": 50,
+                                     "stage": "day"}}}
+    alone = {name: spec.max_actions for name, spec in
+             ((s.name, s) for s in fg_env.load({**contract, "stages": [], "mechanisms": {
+                 key: {k: v for k, v in use.items() if k != "stage"} for key, use in contract["mechanisms"].items()}}
+                                                ).contract.stage_list())}
+    day = fg_env.load(contract).contract.stage_list()[0]
+    assert day.max_actions == alone["v"] + alone["x"] + 1
+    contract["stages"][0]["max_actions"] = 2
+    assert fg_env.load(contract).contract.stage_list()[0].max_actions == 2
