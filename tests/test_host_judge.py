@@ -40,9 +40,9 @@ def test_every_speech_is_scored_and_the_scores_decide_the_winner():
         assert verdict["total"] == total_score(verdict["scores"], config)
         assert isinstance(verdict["rationale"], Untrusted)
     for debater in ("avery", "blake"):
-        earned = sum(v["total"] for v in verdicts if v["subject"] == debater)
-        assert env.entity(debater)["props"]["score"] == pytest.approx(earned)
-        assert env.props["judge_totals"][debater] == pytest.approx(earned)
+        earned = sum(v["total"] for v in verdicts if v["subject"] == debater)  # each shown to 4 decimals
+        assert env.entity(debater)["props"]["score"] == pytest.approx(earned, abs=1e-3)  # the exact sum
+        assert env.props["judge_totals"][debater] == env.entity(debater)["props"]["score"]
     best = max(("avery", "blake"), key=lambda d: env.entity(d)["props"]["score"])
     assert result.outputs["winner"] == env.entity(best)["name"]
     assert any("Judged Avery:" in u and "«Scored by the stub evaluator.»" in u for u in updates)
@@ -211,3 +211,28 @@ def test_an_async_host_method_fails_the_run_saying_so():
 
     result = host.load(_DEBATE, hosts={"judge": AsyncJudge()}, seed=1).run(_speak)
     assert result.status == "failed" and "answered with an awaitable" in result.error
+
+
+def test_judged_totals_add_up_exactly():
+    """Three texts each worth 35/6 make 17.5, not the 17.4999 of summing each total as shown (audit 11)."""
+    evaluator = StubEvaluator(lambda request: {"logic": 7, "evidence": 6, "rebuttal": 5})
+    env = host.load(DEBATE, hosts={"judge": evaluator}, seed=1)
+    result = host.run(env, speaker)
+    assert result.outputs["pro_score"] == result.outputs["con_score"] == 17.5
+
+
+def test_a_declined_request_is_not_asked_again():
+    """A provider's content filter declines like the model does, and asking again would only be declined (and paid for)
+    again (audit 11)."""
+    calls = []
+
+    def create(**request):
+        calls.append(request)
+        return SimpleNamespace(choices=[SimpleNamespace(finish_reason="content_filter",
+                                                        message=SimpleNamespace(content="", refusal=None))],
+                               usage=SimpleNamespace(prompt_tokens=10, completion_tokens=0))
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    judge = host.adapters.openai(client, "judge-m", retries=0)
+    result = host.load(_DEBATE, hosts={"judge": judge}, seed=1).run(_speak, rounds=1)
+    assert "host_unusable" in result.degraded and len(calls) == 2  # one per speech, none asked again

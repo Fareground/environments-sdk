@@ -204,8 +204,8 @@ class LLMHost(_Provider):
                 messages=[{"role": "user", "content": message}], timeout=timeout))
             self._add_call(response, [system, content])
             stop = getattr(response, "stop_reason", None)
-            if stop == "refusal":
-                raise HostError("the model declined the request")
+            if stop == "refusal":  # asking again with a correction would only be declined again, and paid for
+                raise HostUnavailable("the model declined the request")
             if stop == "max_tokens":
                 raise HostError(self._cut_off())
             return "".join(field_of(b, "text") or "" for b in getattr(response, "content", None) or []
@@ -216,14 +216,15 @@ class LLMHost(_Provider):
             model=model, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             timeout=timeout))
         self._add_call(response, [system, content])
-        choices = getattr(response, "choices", None) or []
+        choices = field_of(response, "choices") or []
         if not choices:
             raise HostError("the model answered with no choices")
-        if getattr(choices[0], "finish_reason", None) == "length":
+        finish, reply = field_of(choices[0], "finish_reason"), field_of(choices[0], "message")
+        if finish == "length":
             raise HostError(self._cut_off())
-        if getattr(choices[0].message, "refusal", None):
-            raise HostError("the model declined the request")
-        return getattr(choices[0].message, "content", None) or ""
+        if finish == "content_filter" or field_of(reply, "refusal"):  # the provider's filter declines like the model
+            raise HostUnavailable("the model declined the request")
+        return field_of(reply, "content") or ""
 
     def _cut_off(self) -> str:
         return (f"the model's answer was cut off at its output limit (max_tokens={self.max_tokens}) before it "

@@ -188,8 +188,11 @@ class Budget:
         return self._mark + limit - self.seconds
 
     def host_refusal(self, env: Env) -> str | None:
-        """Why a live host call may not be made now — the token limit (counting what host calls spent so far) or the
-        host-call limit is reached — or None."""
+        """Why a live host call may not be made now — the token limit (counting what host calls spent so far), the
+        host-call limit or the seconds limit is reached — or None."""
+        deadline = self.deadline()
+        if deadline is not None and time.monotonic() >= deadline:
+            return f"the run's {_WHAT['seconds']} budget ran out ({self.limits['seconds']:g}s)"
         count_host_tokens(env)
         used = self.used(env)
         key = next((key for key in ("tokens", "host_calls") if key in self.limits and used[key] >= self.limits[key]),

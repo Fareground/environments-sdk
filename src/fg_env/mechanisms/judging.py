@@ -12,6 +12,7 @@ import re
 import statistics
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from fractions import Fraction
 from functools import partial
 from typing import Any, Literal
 
@@ -294,7 +295,8 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
             return
         answers.append((seat.name, answer))
     scores = {key: _aggregate([a["scores"][key] for _, a in answers], config.aggregate) for key in config.criteria}
-    total = total_score(scores, config)
+    exact = _exact_total(scores, config)
+    total = round(float(exact), 4)
     rationale = Untrusted(answers[0][1]["rationale"] if len(answers) == 1
                           else " | ".join(f"{seat}: {a['rationale']}" for seat, a in answers))
     world.post(name, {"subject": subject_id, "name": item.subject.name if item.subject is not None else None,
@@ -303,10 +305,10 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
                       "stand_in": any(bool(a.get("stand_in")) for _, a in answers)}, None, None, where)
     if item.subject is not None:
         totals = dict(world.props.get(f"{name}_totals") or {})
-        totals[item.subject.id] = round(float(totals.get(item.subject.id, 0)) + total, 6)
+        totals[item.subject.id] = _added(totals.get(item.subject.id), exact)
         world.set_world(f"{name}_totals", totals)
         if config.into is not None:
-            world.set_prop(item.subject, config.into, round(prop_of(item.subject, config.into, 0) + total, 6))
+            world.set_prop(item.subject, config.into, _added(prop_of(item.subject, config.into, 0), exact))
 
 
 def _files(world: Any, ids: list[str]) -> tuple[dict[str, Any], dict[str, Any]]:
@@ -324,10 +326,21 @@ def _ask_judge(request: dict[str, Any], adapter: Any) -> Any:
 
 def total_score(scores: Mapping[str, float], config: JudgeConfig) -> float:
     """The weighted rubric score on a 0..out_of scale."""
-    weight = sum(c.weight for c in config.criteria.values())
-    earned = sum(c.weight * (scores[key] - c.scale[0]) / (c.scale[1] - c.scale[0])
-                 for key, c in config.criteria.items())
-    return round(config.out_of * earned / weight, 4)
+    return round(float(_exact_total(scores, config)), 4)
+
+
+def _exact_total(scores: Mapping[str, float], config: JudgeConfig) -> Fraction:
+    """:func:`total_score` exactly, so that totals over many texts add up exactly (three 35/6 make 17.5)."""
+    weight = sum(Fraction(c.weight) for c in config.criteria.values())
+    earned = sum(Fraction(c.weight) * (Fraction(scores[key]) - Fraction(c.scale[0]))
+                 / (Fraction(c.scale[1]) - Fraction(c.scale[0])) for key, c in config.criteria.items())
+    return Fraction(config.out_of) * earned / weight
+
+
+def _added(total: Any, exact: Fraction) -> float:
+    """A running ``total`` (a float, as the world holds it) plus ``exact``: the float read back as the fraction it
+    stands for, so rounding never piles up."""
+    return float(Fraction(float(total or 0)).limit_denominator(10 ** 6) + exact)
 
 
 def _verdict(answer: Any, config: JudgeConfig) -> dict[str, Any]:

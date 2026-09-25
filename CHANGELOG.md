@@ -353,6 +353,9 @@ worlds stay fast, and the package is organised by feature.
   - Tool schemas list each enum choice once and leave out a default the call would refuse (outside its bounds or
     choices); check warns about `{$…}` in an argument's description, which is shown as written, as it does for an
     action's.
+  - A host model that declines a request (Anthropic `refusal`, OpenAI `refusal` or `content_filter`) leaves that
+    request unanswered without a second, paid correction call; a host call is not started once the run's seconds
+    budget is spent; judged totals add up exactly (three texts worth 35/6 make 17.5, not 17.4999).
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
