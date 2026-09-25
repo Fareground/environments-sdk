@@ -295,6 +295,10 @@ worlds stay fast, and the package is organised by feature.
   - A vote (and an abstention) in a ballot hooked into a declared stage no longer ends the turn: it is one of the
     turn's moves, so a citizen who votes first can still trade in the same turn, as the stage's share of the turn for
     each mechanism promises. A ballot with its own stage still ends the turn on the vote.
+  - The ride-hailing engine (and the `ride_hailing` example) dispatches: each step the platform offers every open
+    request, oldest first, to the nearest free driver not offered another. Mean waits now fall with the fleet
+    (about 10.5 / 7.4 / 6.3 minutes at 30 / 80 / 150 drivers); before, the first driver in turn order took any request
+    within the pickup radius and waits stayed at 10.9 minutes whatever the fleet. The example's golden changes with it.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

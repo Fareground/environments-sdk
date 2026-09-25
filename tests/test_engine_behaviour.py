@@ -490,6 +490,7 @@ DIRECTIONS = [
     ("auction", "house_revenue", ({"collectors": 3}, {"collectors": 20}), True),
     ("contact_centre", "centre_service_level", ({"staffing": [8] * 24}, {"staffing": [25] * 24}), True),
     ("ride_hailing", "cancellation_rate", ({"drivers": 10}, {"drivers": 60}), False),
+    ("ride_hailing", "avg_wait_min", ({"drivers": 15, "hours": 4}, {"drivers": 80, "hours": 4}), False),  # dispatch
     ("epidemic", "ever_infected_share", ({"transmissibility": 0.1}, {"transmissibility": 0.4}), True),
     ("hidden_roles", "winning_side", ({"werewolves": 1}, {"werewolves": 3}), True),
 ]

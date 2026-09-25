@@ -133,7 +133,7 @@ Inputs: `day`, `history`, `staffing`, `agent_cost`, `shrinkage`, `aht_sec`, `aht
 
 ## `ride_hailing` — Ride hailing
 
-Simulates drivers serving ride requests on a city grid in five-minute steps: demand follows an hourly profile with rush hours downtown (a table input), riders drop out as prices rise, and the platform can price each zone by surge; fleet size, fares and pricing are inputs. Coded drivers take the nearest reachable request and chase surge zones when idle; arms compare no surge with surge on trips, waits, cancellations, driver earnings and utilisation. More drivers cut cancellations.
+Simulates drivers serving ride requests on a city grid in five-minute steps: demand follows an hourly profile with rush hours downtown (a table input), riders drop out as prices rise, and the platform can price each zone by surge; fleet size, fares and pricing are inputs. The platform offers each request to the nearest free driver; coded drivers take the nearest request offered to them and chase surge zones when idle; arms compare no surge with surge on trips, waits, cancellations, driver earnings and utilisation. More drivers cut cancellations and waits.
 
 Clone: `fg-env new --engine ride_hailing my_env.json`. Roles: `driver` (policies: `surge_chaser`, `nearest_only`).
 Inputs: `drivers`, `start_hour`, `hours`, `demand_profile`, `surge`, `surge_sensitivity`, `surge_cap`, `rider_price_sensitivity`, `base_fare`, `fare_per_cell`, `driver_share`, `pickup_radius`, `cancel_after_min`.

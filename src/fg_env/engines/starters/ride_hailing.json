@@ -4,7 +4,7 @@
   "description": "Thirty drivers serve ride requests on a 10x10 city grid in 5-minute steps. Demand follows an hourly profile with downtown rush hours; the platform can price each zone by surge. Compares no surge against surge on trips, waits, cancellations, driver earnings and utilization.",
   "brief": {
     "situation": "A city laid out as a 10x10 grid of blocks, played in 5-minute steps starting at {$inputs.start_hour}:00. Riders request trips all day; demand peaks downtown in the morning and evening rush. You are one of {$inputs.drivers} drivers working for the platform.",
-    "rules": "Positions are (row, col); downtown is rows 3-6, cols 3-6, and the rest of the city is split into North (rows 0-2), South (rows 7-9), West and East. You drive one block per step, never diagonally. When you are free you may accept one open request you can reach before the rider gives up, drive toward a zone, go offline, or wait. After accepting you drive to the pickup and then to the destination automatically; you are paid your share ({$inputs.driver_share|pct}) of the fare when the rider is dropped off. A fare is {$inputs.base_fare|money} plus {$inputs.fare_per_cell|money} per block of trip, times the surge of the pickup zone when the ride was requested. Riders cancel if not picked up within {$inputs.cancel_after_min} minutes of requesting, even if you are on your way.",
+    "rules": "Positions are (row, col); downtown is rows 3-6, cols 3-6, and the rest of the city is split into North (rows 0-2), South (rows 7-9), West and East. You drive one block per step, never diagonally. The platform offers each open request to the nearest free driver. When you are free you may accept one request offered to you that you can reach before the rider gives up, drive toward a zone, go offline, or wait. After accepting you drive to the pickup and then to the destination automatically; you are paid your share ({$inputs.driver_share|pct}) of the fare when the rider is dropped off. A fare is {$inputs.base_fare|money} plus {$inputs.fare_per_cell|money} per block of trip, times the surge of the pickup zone when the ride was requested. Riders cancel if not picked up within {$inputs.cancel_after_min} minutes of requesting, even if you are on your way.",
     "roles": {"driver": "You want to earn as much as you can over the shift. Short pickups waste less time; surge zones pay more but may be far."}
   },
   "inputs": {
@@ -128,7 +128,8 @@
         "surge": {"type": "number", "default": 1, "min": 1},
         "zone": {"type": "text", "default": "downtown"},
         "created": {"type": "int", "default": 0},
-        "deadline": {"type": "int", "default": 0, "description": "Last step in which the rider can still be picked up."}
+        "deadline": {"type": "int", "default": 0, "description": "Last step in which the rider can still be picked up."},
+        "offered": {"type": "text", "default": "none", "description": "The free driver the platform offers it to this step: the nearest one not offered another, oldest request first."}
       }
     }
   },
@@ -145,7 +146,7 @@
       "by": "driver",
       "description": "Accept one open ride request. You then drive one block per step to the pickup and on to the destination automatically, and are paid when the rider is dropped off.",
       "params": {
-        "request": {"type": "entity", "of": "request", "where": "$reachable($actor, $it)", "description": "Request id from 'Open requests you can reach'."}
+        "request": {"type": "entity", "of": "request", "where": "$reachable($actor, $it)", "description": "Request id from 'Requests offered to you'."}
       },
       "when": [
         {"expr": "$actor.status == 'idle'", "why": "You can only accept a request while you are online and free."}
@@ -194,7 +195,7 @@
   ],
   "views": {
     "you": {"for": "driver", "title": "You", "show": "{name} at ({$actor.at[0]}, {$actor.at[1]}) in {$entity($zone_of($actor.at)).name} · {$get({idle: 'free', to_pickup: 'driving to a pickup', on_trip: 'carrying a rider', offline: 'offline'}, $actor.status)}{$', heading to ' + $entity($actor.heading).name if $actor.heading != 'none' else ''} · earned {earnings|money} from {trips} {$'trip' if $actor.trips == 1 else 'trips'}"},
-    "requests": {"for": "driver", "title": "Open requests you can reach (nearest first)", "when": "$actor.status == 'idle'", "of": "request", "where": "$reachable($actor, $it)", "sort": "[$distance($actor, $it), -$it.fare]", "limit": 6, "show": "[{id}] pickup {$distance($actor, $it)} {$'block' if $distance($actor, $it) == 1 else 'blocks'} at ({$it.at[0]}, {$it.at[1]}) in {$entity($it.zone).name} → {trip}-block trip · you earn {$round($it.fare * $inputs.driver_share, 2)|money}{$' (surge ×' + $fmt($it.surge, '1') + ')' if $it.surge > 1 else ''} · rider cancels in {($it.deadline - $round + 1) * 5} min", "empty": "No open request you can reach before its rider cancels."},
+    "requests": {"for": "driver", "title": "Requests offered to you (nearest first)", "when": "$actor.status == 'idle'", "of": "request", "where": "$reachable($actor, $it)", "sort": "[$distance($actor, $it), -$it.fare]", "limit": 6, "show": "[{id}] pickup {$distance($actor, $it)} {$'block' if $distance($actor, $it) == 1 else 'blocks'} at ({$it.at[0]}, {$it.at[1]}) in {$entity($it.zone).name} → {trip}-block trip · you earn {$round($it.fare * $inputs.driver_share, 2)|money}{$' (surge ×' + $fmt($it.surge, '1') + ')' if $it.surge > 1 else ''} · rider cancels in {($it.deadline - $round + 1) * 5} min", "empty": "No request is offered to you that you can reach before its rider cancels."},
     "zones": {"for": "driver", "title": "Zones (open requests / idle drivers now)", "of": "zone", "sort": "[$it.surge, $count(request, $it.status == 'open' and $it.zone == $outer.id)]", "desc": true, "show": "{name}: {$count(request, $it.status == 'open' and $it.zone == $outer.id)} open / {$count(driver, $it.status == 'idle' and $zone_of($it.at) == $outer.id)} idle · {$'surge ×' + $fmt($it.surge, '1') if $inputs.surge else 'no surge pricing'} · center ({$it.center[0]}, {$it.center[1]}), {$distance($actor, $it)} {$'block' if $distance($actor, $it) == 1 else 'blocks'} away"}
   },
   "events": [
@@ -248,6 +249,21 @@
               ],
               "else": ["$world.priced_out += 1"]
             }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dispatch",
+      "on": "round.start",
+      "do": [
+        {"each": "request", "do": ["$it.offered = 'none'"]},
+        {
+          "each": "request",
+          "where": "$it.status == 'open'",
+          "do": [
+            "$d = $nearest($it, driver, $it.status == 'idle' and $count(request, $it.offered == $outer.id) == 0)",
+            "$it.offered = $d.id if $d != null else 'none'"
           ]
         }
       ]
@@ -384,8 +400,8 @@
     "demand_now": {"expr": "$pick($inputs.demand_profile, $it.hour == $hour())", "description": "The demand profile row for this hour."},
     "reachable": {
       "args": ["d", "r"],
-      "description": "Driver d can reach open request r before its rider cancels.",
-      "expr": "$r.status == 'open' and $distance($d, $r) <= $inputs.pickup_radius and $distance($d, $r) <= $r.deadline - $round + 1"
+      "description": "Open request r is offered to driver d, who can reach it before its rider cancels.",
+      "expr": "$r.status == 'open' and $r.offered == $d.id and $distance($d, $r) <= $inputs.pickup_radius and $distance($d, $r) <= $r.deadline - $round + 1"
     },
     "cancel_steps": {"expr": "$max(1, $inputs.cancel_after_min // 5)"},
     "step_toward": {

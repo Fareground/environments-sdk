@@ -134,7 +134,7 @@
       "id": "ride_hailing",
       "title": "Ride hailing",
       "summary": "drivers serve ride requests on a city grid while the platform can price zones by surge",
-      "description": "Simulates drivers serving ride requests on a city grid in five-minute steps: demand follows an hourly profile with rush hours downtown (a table input), riders drop out as prices rise, and the platform can price each zone by surge; fleet size, fares and pricing are inputs. Coded drivers take the nearest reachable request and chase surge zones when idle; arms compare no surge with surge on trips, waits, cancellations, driver earnings and utilisation. More drivers cut cancellations.",
+      "description": "Simulates drivers serving ride requests on a city grid in five-minute steps: demand follows an hourly profile with rush hours downtown (a table input), riders drop out as prices rise, and the platform can price each zone by surge; fleet size, fares and pricing are inputs. The platform offers each request to the nearest free driver; coded drivers take the nearest request offered to them and chase surge zones when idle; arms compare no surge with surge on trips, waits, cancellations, driver earnings and utilisation. More drivers cut cancellations and waits.",
       "status": "native",
       "path": "starters/ride_hailing.json"
     },

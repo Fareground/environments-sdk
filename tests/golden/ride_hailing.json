@@ -1,18 +1,18 @@
 {
   "actions": 7,
-  "events": 13,
-  "events_sha256": "aa0359e70b51b08b8e032106053c86a122ca46942acd49b57c57269c56f8613c",
+  "events": 15,
+  "events_sha256": "c21b546e4dbe640c974de3d6db16d347098c252fe522f112a0a4f3a9ed2e0777",
   "first_events": [
-    "r1 action driver_28: {\"action\": \"accept\", \"params\": {\"request\": \"request_2\"}, \"private\": true, \"success\": true}",
-    "r1 action driver_26: {\"action\": \"accept\", \"params\": {\"request\": \"request_1\"}, \"private\": true, \"success\": true}",
+    "r1 action driver_6: {\"action\": \"accept\", \"params\": {\"request\": \"request_1\"}, \"private\": true, \"success\": true}",
+    "r1 action driver_14: {\"action\": \"accept\", \"params\": {\"request\": \"request_2\"}, \"private\": true, \"success\": true}",
     "r1 pickup: Picked up the rider for request_1 after a 5-minute wait; 3 blocks to go.",
-    "r2 action driver_12: {\"action\": \"accept\", \"params\": {\"request\": \"request_3\"}, \"private\": true, \"success\": true}",
-    "r2 pickup: Picked up the rider for request_2 after a 10-minute wait; 4 blocks to go.",
-    "r3 action driver_3: {\"action\": \"accept\", \"params\": {\"request\": \"request_6\"}, \"private\": true, \"success\": true}",
-    "r3 action driver_10: {\"action\": \"accept\", \"params\": {\"request\": \"request_5\"}, \"private\": true, \"success\": true}",
-    "r4 action driver_20: {\"action\": \"accept\", \"params\": {\"request\": \"request_8\"}, \"private\": true, \"success\": true}",
-    "r4 action driver_24: {\"action\": \"accept\", \"params\": {\"request\": \"request_7\"}, \"private\": true, \"success\": true}",
-    "r4 dropoff: You dropped off your rider from request_1 and earned $5.25."
+    "r1 pickup: Picked up the rider for request_2 after a 5-minute wait; 4 blocks to go.",
+    "r2 action driver_3: {\"action\": \"accept\", \"params\": {\"request\": \"request_3\"}, \"private\": true, \"success\": true}",
+    "r3 action driver_12: {\"action\": \"accept\", \"params\": {\"request\": \"request_5\"}, \"private\": true, \"success\": true}",
+    "r3 action driver_30: {\"action\": \"accept\", \"params\": {\"request\": \"request_6\"}, \"private\": true, \"success\": true}",
+    "r3 pickup: Picked up the rider for request_3 after a 10-minute wait; 6 blocks to go.",
+    "r3 pickup: Picked up the rider for request_5 after a 5-minute wait; 7 blocks to go.",
+    "r3 pickup: Picked up the rider for request_6 after a 5-minute wait; 7 blocks to go."
   ],
   "metrics": {
     "busy_drivers": 6,
