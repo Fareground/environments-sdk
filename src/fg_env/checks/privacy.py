@@ -7,6 +7,8 @@ a run hits them.
 """
 from __future__ import annotations
 
+import json
+import re
 from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
@@ -150,6 +152,38 @@ class PrivacyChecks(Checker):
                                            f"though nobody else learns of its action {name}",
                           f"if being a {kind} is a secret, keep it in a private property of {root} instead of a "
                           "subtype (the roles mechanism deals out hidden roles)")
+
+    def _unshown_private(self) -> None:
+        """An agent's own fixed private trait that nothing it reads ever shows — no view, brief, outcome, tool or
+        policy, and no inspect of itself — is something its agent can never learn: a haggler that never sees its own
+        value. Only properties the author declared on the type itself (a mechanism's bookkeeping is its business) that
+        no rule writes (a tally the rules keep, such as attacks this night, is theirs), of types no coded policy plays
+        by default (a crowd's hidden traits are its code's)."""
+        if any(spec.inspect for spec in self.c.types.values()):
+            return  # an agent may inspect itself, private properties and all
+        written = (self.c._source or {}).get("types") if isinstance(self.c._source, dict) else None
+        corpus = json.dumps({"views": self.c.model_dump(by_alias=True).get("views"),
+                             "brief": self.c.brief.model_dump(), "defs": {n: d.expr for n, d in self.c.defs.items()},
+                             "stages": [stage.brief for stage in self.c.stage_list()],
+                             "entities": {n: e.brief for n, e in self.c.entities.items()},
+                             "actions": {n: a.model_dump(by_alias=True, exclude={"do"}) for n, a in
+                                         self.c.actions.items()},
+                             "policies": {kind: self.c.policies_of(kind) for kind in self.c.agent_types()},
+                             "said": _said(self.c.model_dump(by_alias=True))}, default=str)
+        rules = json.dumps(self.c.model_dump(by_alias=True, exclude={"views", "brief", "outputs"}), default=str)
+        for kind in self.c.agent_types():
+            if any(self.c.types[name].policy for name in self.c.lineage(kind)):
+                continue  # coded by default: its hidden traits are the code's to read
+            declared = ((written or {}).get(kind) or {}).get("props") or {} if isinstance(written, dict) else {}
+            for prop, spec in self.c.types[kind].props.items():
+                if spec.private and prop in declared and not re.search(rf"\b{re.escape(prop)}\b", corpus) \
+                        and not re.search(rf"\.{re.escape(prop)}\s*(?:\[[^\]]*\]\s*)*[-+*/]?=(?!=)", rules):
+                    self.warn(f"types.{kind}.props.{prop}",
+                              f"is private to each {kind}, but nothing a {kind} reads shows it (no view, brief, "
+                              "outcome or tool), so its agent can never learn it",
+                              f"show it to its owner, e.g. a view {{\"for\": \"{kind}\", \"show\": \"Your "
+                              f"{prop}: {{{prop}}}\"}}, or say it in brief.roles.{kind}; if agents need not know it, "
+                              "it need not be private")
 
     def _shared_text(self, source: str | None, path: str, types: Types,
                      params: Mapping[str, C.ParamSpec] | None = None) -> None:
@@ -331,6 +365,17 @@ class PrivacyChecks(Checker):
         return sorted({chain[1] for expr in expressions for chain in expr.paths
                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private
                        and not self._readable(specs[chain[1]])})
+
+
+def _said(data: object) -> list[str]:
+    """Every text the rules post or send (a `post`'s `text`, an `emit`'s `say`): what agents may read of them."""
+    if isinstance(data, dict):
+        own = [data[key] for key in ("text", "say") if isinstance(data.get(key), str) and ("post" in data or
+                                                                                           "emit" in data)]
+        return own + [text for value in data.values() for text in _said(value)]
+    if isinstance(data, list):
+        return [text for value in data for text in _said(value)]
+    return []
 
 
 def _def_calls(defs: Mapping[str, C.DefSpec], expr: Expr, reader: frozenset[str]) -> list[tuple[str, frozenset[str]]]:

@@ -104,6 +104,7 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
         self._stages()
         self._views()
         self._secret_subtypes()
+        self._unshown_private()
         self._events()
         self._policies()
         self._measure()
