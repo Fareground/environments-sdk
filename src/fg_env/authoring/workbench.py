@@ -161,6 +161,32 @@ def _changes(effects: Any) -> bool:
     return False
 
 
+#: Rows of a long data input a starter's contract shows when the whole would not fit in one tool result.
+_SHOWN_ROWS = 3
+
+
+def _abridged(source: dict[str, Any]) -> str:
+    """A starter's contract as the model reads it: whole when it fits in one tool result, else with its longest data
+    inputs cut to their first rows, each cut marked where the rows were (so writing it back as shown is refused, never
+    saved with the data lost) and named after it. The saved contract keeps every row."""
+    text = json.dumps(source, ensure_ascii=False)
+    shown, cuts = copy.deepcopy(source), []
+    inputs = shown.get("inputs") if isinstance(shown.get("inputs"), dict) else {}
+    tables = [name for name, spec in inputs.items()
+              if isinstance(spec, dict) and isinstance(spec.get("default"), list) and len(spec["default"]) > _SHOWN_ROWS]
+    for name in sorted(tables, key=lambda n: -len(json.dumps(inputs[n]["default"], ensure_ascii=False))):
+        if len(text) <= MAX_RESULT:
+            break
+        rows = inputs[name]["default"]
+        inputs[name]["default"] = [*rows[:_SHOWN_ROWS], f"... {len(rows) - _SHOWN_ROWS:,} more rows, not shown"]
+        cuts.append(f"inputs.{name} ({len(rows):,} rows)")
+        text = json.dumps(shown, ensure_ascii=False)
+    if cuts:
+        text += (f"\n[shown with only the first {_SHOWN_ROWS} rows of {', '.join(cuts)}: the saved contract holds "
+                 "them all; change it with edit_contract, which keeps them, rather than writing it all again]")
+    return text
+
+
 def _tool(name: str, path: str, args: dict[str, Any]) -> str:
     """The model's ``check``, ``run`` or ``preview`` tool on the saved contract at ``path``, in the child process."""
     hosts = StubHosts(path)
@@ -249,7 +275,7 @@ class Workbench:
             text = str(getattr(self, "tool_" + name)(**args))
         except Exception as exc:  # the SDK's own errors are what the author reads
             text = f"{type(exc).__name__}: {exc}"
-        if len(text) <= MAX_RESULT or name == "start_from":  # a starter is adapted from the whole of it
+        if len(text) <= MAX_RESULT or name == "start_from":  # a starter is adapted from all its rules
             return text
         more = (f": read on with guide({args['part']!r}, start={int(args.get('start') or 0) + MAX_RESULT})"
                 if name == "guide" else "")
@@ -289,7 +315,7 @@ class Workbench:
 
     def tool_start_from(self, engine: str) -> str:
         source = engine_spec(engine).materialized_source()
-        return self._save(source) + "\n\nThe contract:\n" + json.dumps(source, ensure_ascii=False)
+        return self._save(source) + "\n\nThe contract:\n" + _abridged(source)
 
     def _save(self, data: dict[str, Any]) -> str:
         if data == self.latest:

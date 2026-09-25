@@ -208,3 +208,16 @@ def test_a_seconds_budget_bounds_the_tool_calls_of_a_reply_and_the_tests_they_st
 
     assert time.monotonic() - started < 20 and result.stop == "seconds"
     assert all(reply.startswith("Not done") for reply in tool_replies(client)[1:])
+
+
+def test_a_starter_with_big_data_inputs_is_shown_abridged_and_writing_it_back_as_shown_is_refused():
+    """contact_centre embeds 330,000 characters of input history; each later model call would resend them all."""
+    from fg_env.authoring.workbench import MAX_RESULT, _abridged
+
+    source = fg_env.engines.get("contact_centre").materialized_source()
+    shown = _abridged(source)
+    assert len(shown) < 2 * MAX_RESULT and "the saved contract holds them all" in shown
+    as_shown = json.loads(shown.split("\n[shown with only")[0])
+    assert [i for i in fg_env.check(as_shown, rounds=0) if i.severity == "error"]
+    small = fg_env.engines.get("negotiation").materialized_source()
+    assert json.loads(_abridged(small)) == small

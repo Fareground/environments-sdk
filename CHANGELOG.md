@@ -297,6 +297,9 @@ worlds stay fast, and the package is organised by feature.
   - `fg_env.author`'s `seconds` budget holds within a reply: no tool call starts once it is up, and each test, check
     or run in the child process gets at most the time left. Before, one reply could save and run a slow contract
     several times, a minute each (a 5-second budget took 113 s).
+  - `start_from` shows a starter whose data inputs would overflow a tool result with those inputs cut to their first
+    rows, marked so that writing it back as shown is refused; the saved contract keeps every row. Before,
+    `start_from contact_centre` put 331,000 characters into the conversation, resent with every later call.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
