@@ -89,6 +89,8 @@ class Checker:
         self.issues.append(Issue(path, message, fix, "warning"))
 
     def _suggest(self, name: str, options: Iterable[str]) -> str | None:
+        if not isinstance(name, str):  # a key a Python caller wrote as a number: nothing reads like it
+            return None
         hint = get_close_matches(name, list(options), n=1)
         return f"did you mean '{hint[0]}'?" if hint else None
 

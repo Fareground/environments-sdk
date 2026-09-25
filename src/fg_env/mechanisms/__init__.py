@@ -33,6 +33,7 @@ from pydantic import BaseModel, ValidationError
 
 from ..contract.parse_errors import error_message, shape_issue
 from ..contract.rules import StageSpec
+from ..contract.shape import malformed
 from ..errors import Issue
 from ..expr import ExprError, compile_expr
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
@@ -75,9 +76,9 @@ def expand_mechanisms(data: Mapping[str, Any], generated: dict[str, dict[str, li
         return dict(data), []
     if not isinstance(uses, Mapping):
         return dict(data), [Issue("mechanisms", "must be an object of {name: {kind, mode, ...config}}")]
-    malformed = _malformed_sections(data)
-    if malformed:  # mechanisms read and extend these sections: expanding into a malformed one only obscures it
-        return dict(data), malformed
+    wrong = malformed(data)
+    if wrong:  # mechanisms read and extend these sections: expanding into a malformed one only obscures it
+        return dict(data), wrong
     out: dict[str, Any] = copy.deepcopy(dict(data))
     issues: list[Issue] = []
     expanded: list[str] = []
@@ -152,17 +153,6 @@ def _stage_orphans(out: dict[str, Any], owners: Mapping[tuple[str, str], str], s
                 shares[stage["name"]] += 1
 
 
-def _malformed_sections(data: Mapping[str, Any]) -> list[Issue]:
-    """The sections mechanisms read or extend that are not the JSON shape the contract gives them."""
-    issues = []
-    for section in (*_KEYED, *_LISTED, "types", "entities", "stages", "brief", "clock", "game"):
-        value = data.get(section)
-        listed = section in (*_LISTED, "stages")
-        if value is not None and not isinstance(value, list if listed else Mapping):
-            issues.append(shape_issue(section, ["a list" if listed else "an object"], value))
-    return issues
-
-
 def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mapping[str, int]) -> None:
     """A stage the author declared for mechanisms only, without ``max_actions``, gives each mechanism attached to it
     the actions it allows per turn, so a chat message never ends a turn meant for trading and voting too. A stage
@@ -170,7 +160,7 @@ def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mappi
     authored = {s.get("name"): s for s in declared.get("stages") or [] if isinstance(s, Mapping)}
     for stage in out.get("stages") or []:
         mine = authored.get(stage.get("name")) if isinstance(stage, dict) else None
-        if mine is None or stage["name"] not in shares or "max_actions" in mine:
+        if mine is None or stage.get("name") not in shares or "max_actions" in mine:
             continue
         offered = mine.get("actions", "all")
         own = offered == "all" and bool(declared.get("actions")) or isinstance(offered, list) and bool(offered) \

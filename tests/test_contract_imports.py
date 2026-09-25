@@ -68,4 +68,4 @@ def test_cycles_escapes_missing_files_and_bad_shapes_are_contract_errors(tmp_pat
     _write(project / "bad.json", {"actions": ["not", "a", "map"]})
     with pytest.raises(ContractError) as shape:
         fg_env.load(_main(project, ["bad.json"]))
-    assert "imports[0]" in _problems(shape) and "cannot merge" in _problems(shape)
+    assert "imports[0]" in _problems(shape) and "actions: must be an object" in _problems(shape)

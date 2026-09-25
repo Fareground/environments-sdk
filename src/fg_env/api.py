@@ -116,7 +116,11 @@ def _resolve_imports(data: Mapping[str, Any], folder: Path, root: Path, stack: t
         fragment = _json(_file_text(target), _shown(str(target)))
         if not isinstance(fragment, dict):
             raise ContractError([Issue(path, f"'{_shown(relative)}' must hold a JSON object of contract sections")])
-        fragment, found = normalize(fragment)  # its macros first: the first rule
+        try:
+            fragment, found = normalize(fragment)  # its macros first: the first rule
+        except ContractError as exc:  # a part of the file is not the shape the language gives it
+            raise ContractError([Issue(path, f"'{_shown(relative)}': {issue.path}: {issue.message}", issue.fix)
+                                 for issue in exc.issues]) from None
         notes += [f"{path} ({_shown(relative)}): {note}" for note in found]
         fragment = _resolve_imports(fragment, target.parent, root, (*stack, target), count, f"{path}.imports", notes)
         for key in ("fg_env", "name", "description"):

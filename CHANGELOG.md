@@ -257,6 +257,10 @@ worlds stay fast, and the package is organised by feature.
     the live engine does: applying it spends the action. Before, the dry run dropped it, so the legal set of a guess
     at the opponent's hidden code named the code. `rl.conformance`'s leak test no longer compares a seat across
     playouts in which it made different calls.
+  - A malformed contract is told where it is wrong: the parts reading it walks (sections, entries, a type's `props`,
+    a stage's `name` and `actions`, a mechanism's `kind` and `mode`, an arm's `patch`, and an effect's names, texts
+    and objects) are shape-checked first, so every such field is a `ContractError` issue at its path. Before, a
+    `"post": ["chat"]` or a mechanism `"mode": ["auction"]` crashed `check` and `load` with a Python `TypeError`.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

@@ -9,7 +9,9 @@ import copy
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from ..errors import ContractError
 from .base import CONTRACT_VERSION
+from .shape import malformed
 
 __all__ = ["normalize", "rule", "RULES"]
 
@@ -28,12 +30,18 @@ def rule(fn: Rule) -> Rule:
 
 def normalize(data: Any) -> tuple[Any, list[str]]:
     """``data`` in the current contract form, and the notes of every rewrite; anything but an object is returned as
-    is (the parser reports it)."""
+    is (the parser reports it). A part the rules walk that is not the shape the language gives it raises
+    :class:`~fg_env.errors.ContractError` naming it (see :mod:`.shape`)."""
     if not isinstance(data, Mapping):
         return data, []
+    from .normalize_state import macros_expanded
+
     out: dict[str, Any] = copy.deepcopy(dict(data))
-    notes: list[str] = []
-    for fn in _rules():
+    notes = macros_expanded(out)  # the macros write parts of any section, so they are expanded before the check
+    wrong = malformed(out)
+    if wrong:  # the other rules walk these parts: say where they are wrong rather than fail inside a rule
+        raise ContractError(wrong)
+    for fn in _rules():  # the macro rule again finds nothing left to expand
         notes.extend(fn(out))
     notes.extend(_arm_patches(out))
     if out.get("fg_env") == EARLIER_VERSION:
