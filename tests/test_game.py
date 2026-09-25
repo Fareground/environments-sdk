@@ -1,5 +1,7 @@
 """`fg_env.rl.game`: contracts as OpenSpiel-style games, proven with search and a solver."""
 import copy
+import random
+from pathlib import Path
 
 import pytest
 from game_contracts import KUHN, MATCHING_PENNIES, NIM, TIC_TAC_TOE
@@ -322,3 +324,19 @@ def test_a_game_without_returns_says_what_to_declare():
     state = fg_env.rl.game(plain).new_initial_state()
     with pytest.raises(ContractError, match="no type has a `score`"):
         state.returns()
+
+
+def test_a_domain_worked_out_from_state_the_rules_raise_is_parametric_so_play_never_hits_an_unlisted_value():
+    """holdem's `raise.to` is bounded by the actor's stack, which winning a pot raises: listing it from the start would
+    miss later values mid-game (audit 12 M3). A domain that only shrinks (nim's stones) keeps its ids."""
+    root = Path(__file__).parents[1] / "examples" / "contracts"
+    game = fg_env.rl.game(root / "holdem_lite.json")
+    assert "raise" in game.space.parametric and "stack" in game.space.parametric["raise"]
+    assert not fg_env.rl.game(root / "games" / "nim.json").space.parametric
+    rng = random.Random(0)
+    for _ in range(3):
+        state, moves = game.new_initial_state(), 0
+        while not state.is_terminal() and moves < 300:
+            options = [a for a, _ in state.chance_outcomes()] if state.is_chance_node() else state.legal_actions()
+            state, moves = state.child(rng.choice(options)), moves + 1
+        assert state.is_terminal()

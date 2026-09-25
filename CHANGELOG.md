@@ -254,6 +254,10 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - `fg_env.rl.game` makes an action parametric when a domain of its arguments is worked out from a property the
+    rules may raise (assign, add to, multiply, create with or transfer into; any property when a mechanism op runs):
+    listing it from the start missed later values, so holdem's `raise` raised "legal now but has no id" mid-game. A
+    domain that only shrinks (nim's stones, goofspiel's hand) keeps its ids.
   - An atomic (`valid`) turn that luck or a hidden read settled part of says what it undid: what came after that
     action, not "everything you did this turn".
   - The author loop counts as removed a view its test runs showed before and never show now (a `when` that never

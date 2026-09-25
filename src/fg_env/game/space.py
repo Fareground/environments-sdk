@@ -16,6 +16,7 @@ from __future__ import annotations
 import bisect
 import math
 import random
+import re
 from collections.abc import Iterator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -24,6 +25,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..contract import ParamSpec
 from ..describe import walk
+from ..effects.statements import statement_parts
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
 from ..expr.objects import Entity
@@ -79,6 +81,7 @@ class ActionSpace:
         data = walk.dumped(contract)
         created = {node["create"] for path, node in walk.effect_nodes(data)
                    if "create" in node and walk.in_effects(path)}
+        raised = _raised(data)
         for name, spec in contract.actions.items():
             by = [spec.by] if isinstance(spec.by, str) else spec.by
             actors = [e for e in world.entities.values() if e.alive
@@ -87,7 +90,7 @@ class ActionSpace:
             reason: str | None = None
             size = 1
             for pname, param in spec.params.items():
-                universe, why = _universe(env, param, actors, limit, created)
+                universe, why = _universe(env, param, actors, limit, created, raised)
                 if universe is None:
                     reason = f"{pname}: {why}"
                     break
@@ -149,8 +152,8 @@ class ActionSpace:
         return Action(self.encode(tool, args), tool, MappingProxyType(dict(args)))
 
 
-def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int,
-              created: set[str]) -> tuple[list[Any] | None, str]:
+def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int, created: set[str],
+              raised: frozenset[str] | None) -> tuple[list[Any] | None, str]:
     world, contract = env.world, env.contract
     kind = param.type
     if kind == "bool":
@@ -165,13 +168,13 @@ def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int,
         if not isinstance(param.values, str):
             return _unique(plain_value(value) for value in param.values or []), ""
         return _per_actor(world, param.values, actors,
-                          lambda value, out: out.extend(plain_value(v) for v in value or []))
+                          lambda value, out: out.extend(plain_value(v) for v in value or []), raised)
     if kind in ("int", "number"):
         step = param.step if param.step is not None else (1 if kind == "int" else None)
         if step is None:
             return None, "a number without a `step` has no finite set of values"
-        lows, why = _per_actor(world, param.min, actors, lambda value, out: out.append(value))
-        highs, why_high = _per_actor(world, param.max, actors, lambda value, out: out.append(value))
+        lows, why = _per_actor(world, param.min, actors, lambda value, out: out.append(value), raised)
+        highs, why_high = _per_actor(world, param.max, actors, lambda value, out: out.append(value), raised)
         if lows is None or highs is None:
             return None, why or why_high
         numbers = [v for v in lows + highs if isinstance(v, (int, float)) and not isinstance(v, bool)]
@@ -181,7 +184,8 @@ def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int,
     return None, "free text" if kind == "text" else "a list argument"
 
 
-def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> tuple[list[Any] | None, str]:
+def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any,
+               raised: frozenset[str] | None) -> tuple[list[Any] | None, str]:
     if raw is None:
         return [], ""
     if not is_expr(raw):
@@ -191,6 +195,10 @@ def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> tupl
     expr = compile_expr(raw)
     if "params" in expr.roots:
         return None, "its choices depend on other arguments"
+    read = {name for chain in _FIELDS.findall(raw) for name in chain.split(".") if name}
+    grows = sorted(read) if raised is None and read else sorted(read & raised) if raised is not None else []
+    if grows:  # the start's values would not list every value a later state allows
+        return None, f"its choices are worked out from {', '.join(grows)}, which the rules may raise as the game plays"
     out = []
     for actor in actors:
         try:
@@ -198,6 +206,38 @@ def _per_actor(world: Any, raw: Any, actors: Sequence[Entity], add: Any) -> tupl
         except ExprError:
             return None, "its choices cannot be worked out at the start of the game"
     return _unique(out), ""
+
+
+#: The fields an expression reads off a root or a call: ``$actor.stack`` → ``.stack``.
+_FIELDS = re.compile(r"(?:\$[A-Za-z_]\w*|\))((?:\.[A-Za-z_]\w*)+)")
+#: Assignments that may leave a property larger (or a list longer) than it was.
+_RAISING = ("=", "+=", "*=")
+
+
+def _raised(data: Mapping[str, Any]) -> frozenset[str] | None:
+    """The properties some rule may raise — assign, add to or multiply, create an entity with, or transfer into — as
+    the game plays: a domain worked out from one at the start would miss later values. None when a mechanism's op
+    runs, which may write any property."""
+    raised: set[str] = set()
+    for path, text in walk.texts(data):
+        if not walk.in_effects(path):
+            continue
+        try:
+            base, steps, local, op, _ = statement_parts(text)
+        except ExprError:
+            continue  # a template or a value, not an assignment
+        if local is None and op in _RAISING and steps and steps[0][0] == "field":
+            raised.add(steps[0][1])
+    for path, node in walk.effect_nodes(data):
+        if not walk.in_effects(path):
+            continue
+        if walk.ops_in(node):
+            return None
+        if isinstance(node.get("transfer"), str):
+            raised.add(node["into"] if isinstance(node.get("into"), str) else node["transfer"])
+        if isinstance(node.get("props"), dict) and "create" in node:
+            raised.update(node["props"])
+    return frozenset(raised)
 
 
 def _steps(low: float, high: float, step: float, kind: str, limit: int) -> tuple[list[Any] | None, str]:
