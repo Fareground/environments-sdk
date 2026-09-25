@@ -67,12 +67,11 @@ class RuleChecks(EffectChecks):
             if stage not in names:
                 self.error(path, f"there is no stage '{stage}'", self._hint(stage, names, "stages"))
             if point == "turn":
-                return BASE | {"actor", "acted", "timed_out"}, {"actor": set(self.agents)}
+                return BASE | set(C.anchor_roots(anchor)), {"actor": set(self.agents)}
         elif kind in ("create", "remove"):
             if self._type(rest, path):
-                return BASE | {"it"}, {"it": set(self.c.subtypes(rest))}
-            return BASE | {"it"}, {}
-        return BASE, {}
+                return BASE | set(C.anchor_roots(anchor)), {"it": set(self.c.subtypes(rest))}
+        return BASE | set(C.anchor_roots(anchor)), {}
 
     def _after_the_clock(self, when: str | None, name: str | None, path: str) -> None:
         """An event whose `when` holds only on rounds past the clock's last never fires in a run of the clock's

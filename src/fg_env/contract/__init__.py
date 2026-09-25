@@ -58,6 +58,7 @@ from .rules import (
     RecordSpec,
     StageSpec,
     ViewSpec,
+    anchor_roots,
 )
 from .world import (
     LAYER_TYPES,
@@ -112,6 +113,7 @@ __all__ = [
     "ViewSpec",
     "EventSpec",
     "ANCHORS",
+    "anchor_roots",
     "PolicyRule",
     "PolicySpec",
     "OutputSpec",

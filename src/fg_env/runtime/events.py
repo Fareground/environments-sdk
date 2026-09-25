@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET
 from ..actions.faults import world_logic_refused
-from ..contract import EventSpec
+from ..contract import EventSpec, anchor_roots
 from ..contract.base import spoken
 from ..effects.captures import thaw
 from ..effects.delivery import deliver
@@ -117,13 +117,15 @@ class Events:
         """Fire the events on ``anchor`` whose `when` holds, in order, with ``vars`` (a turn's $actor, $acted,
         $timed_out) and drawing as ``owner``. It stops once the run ends, or once ``owner`` is gone."""
         rules, world = self.rules, self.rules.world
+        bound = dict(vars or {})
+        assert set(bound) == set(anchor_roots(anchor)), (anchor, sorted(bound))  # what the checker allowed it to read
         for index, event in rules.contract.events_on(anchor):
             if event.once and index in world.fired_once:
                 continue
             path = f"events[{index}]"
             when, do = self._streams[index]
             with world.luck.at(when, owner):
-                if event.when is not None and not self._holds(event.when, vars or {}, f"{path}.when"):
+                if event.when is not None and not self._holds(event.when, bound, f"{path}.when"):
                     continue
                 if event.once:
                     world.mark_fired(index)
@@ -131,8 +133,8 @@ class Events:
                 if loop is not None:
                     self._each(loop, path, when, do)
                 else:
-                    rules.run_block(event.do, dict(vars or {}), f"{path}.do", owner=owner, luck=do)
-            self._say(index, event)
+                    rules.run_block(event.do, dict(bound), f"{path}.do", owner=owner, luck=do)
+            self._say(index, event, bound)
             world.commit()  # the event has run: its firing commits with it
             if rules.ended() or (owner is not None and not owner.alive):
                 return
@@ -208,11 +210,12 @@ class Events:
                 rules.commit(body)
                 rules.react(rules.stage_spec())
 
-    def _say(self, index: int, event: EventSpec) -> None:
+    def _say(self, index: int, event: EventSpec, vars: dict[str, Any]) -> None:
+        """Tell everyone the event's `say`, read with what the event binds (``vars``) as its `when` and `do` are."""
         if not event.say:
             return
         world = self.rules.world
-        text = self.rules.information.render(event.say, {}, viewer=EVERYONE, path=f"events[{index}].say")
+        text = self.rules.information.render(event.say, vars, viewer=EVERYONE, path=f"events[{index}].say")
         if text.strip():
             world.emit("news", text, data={"event": event.name or index})
         world.commit()
@@ -258,6 +261,6 @@ class Events:
                 world.mark_fired(index)
             rules.check_invariants(path)  # a change event never acts on a broken world (an `each` item checks late)
             rules.run_block(event.do, {}, f"events[{index}].do", luck=do)
-            self._say(index, event)
+            self._say(index, event, {})
             if rules.ended():
                 return

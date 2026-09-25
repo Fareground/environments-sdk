@@ -257,6 +257,10 @@ worlds stay fast, and the package is organised by feature.
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
     entity before failing no longer shifts the luck of the next one (H3).
+  - An event's `say` reads what its `when` and `do` read: `$actor`, `$acted` and `$timed_out` after a turn (so the
+    default move `"when": "not $acted"` can say who passed, and a `$timed_out` forfeit no longer fails the run when
+    a participant runs out of time), `$it` on a creation or removal. One table of what each anchor binds
+    (`fg_env.contract.anchor_roots`) is what the checker allows and what the run binds (H4).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

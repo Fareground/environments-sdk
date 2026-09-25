@@ -22,7 +22,7 @@ from .base import (
 )
 
 __all__ = ["RecordSpec", "ParamSpec", "Condition", "ActionSpec", "StageSpec", "ViewSpec", "EventSpec", "ANCHORS",
-           "PolicyRule", "PolicySpec"]
+           "anchor_roots", "PolicyRule", "PolicySpec"]
 # ---------------------------------------------------------------------------
 # Records, actions, stages, views, events, policies
 # ---------------------------------------------------------------------------
@@ -239,6 +239,17 @@ class ViewSpec(_Model):
 ANCHORS = ("round.start", "round.end", "stage.<s>.start", "stage.<s>.end", "stage.<s>.turn", "create.<t>",
            "remove.<t>", "change")
 _ANCHOR = re.compile(r"(round\.(start|end)|change|stage\.[^\s]+\.(start|end|turn)|(create|remove)\.[^\s.]+)$")
+
+#: What an event binds beyond the roots every expression reads, by its anchor's kind: the names its `when`, `do` and
+#: `say` may read. The checker allows exactly these and the run binds exactly these, so the two cannot disagree.
+_ANCHOR_ROOTS: dict[str, tuple[str, ...]] = {"turn": ("actor", "acted", "timed_out"), "create": ("it",),
+                                             "remove": ("it",)}
+
+
+def anchor_roots(anchor: str) -> tuple[str, ...]:
+    """The names an event on ``anchor`` binds for its `when`, `do` and `say` (beyond the roots read everywhere)."""
+    kind, _, rest = anchor.partition(".")
+    return _ANCHOR_ROOTS.get(rest.rpartition(".")[2] if kind == "stage" else kind, ())
 
 
 class EventSpec(_Model):
