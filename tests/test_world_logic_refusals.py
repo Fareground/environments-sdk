@@ -101,5 +101,5 @@ def test_a_fail_in_a_change_event_an_action_set_off_tells_its_agent_the_fail_tex
 
     result = fg_env.run(contract, play, seed=1)
     assert result.status == "completed", result.error
-    assert replies == ["Your set was not done: The flag stays down. Nothing changed; try other arguments or another "
+    assert replies == ["Your set was not done: The flag stays down. Nothing changed. Try other arguments or another "
                        "action."]

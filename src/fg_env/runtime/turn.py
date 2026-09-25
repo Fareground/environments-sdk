@@ -12,7 +12,7 @@ from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..actions.book import stage_actions
-from ..actions.faults import refused_text
+from ..actions.faults import RETRY, refused_text
 from ..actions.params import REFUSED_ARGS, parse_arguments
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
@@ -407,7 +407,7 @@ class Turn:
             assert fault is not None
             self.note(FAULTED)
             spent = attempt_cost(observed) == "spent"
-            result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED), False
+            result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED, RETRY), False
         else:
             result, applied, spent = acted
         if spent and self.ledger.part_open:  # luck or a hidden read settles an atomic turn: nothing may undo it

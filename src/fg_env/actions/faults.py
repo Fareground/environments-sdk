@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from ..errors import InvariantViolation, RunError
 
-__all__ = ["LogicRefused", "refused_text", "fault_reason", "world_logic_refused"]
+__all__ = ["LogicRefused", "RETRY", "refused_text", "fault_reason", "world_logic_refused"]
 
 
 class LogicRefused(RunError):
@@ -25,10 +25,14 @@ class LogicRefused(RunError):
         super().__init__(message, path)
 
 
+#: What a refusal that cost nothing advises.
+RETRY = " Try other arguments or another action."
+
+
 def refused_text(name: str, reason: str) -> str:
-    """What the agent is told when its action was refused because of :meth:`~fg_env.runtime.rules.Rules.guarded`."""
-    return (f"Your {name.replace('_', ' ')} was not done: {reason}. Nothing changed; try other arguments or another "
-            "action.")
+    """What the agent is told when its action was refused because of :meth:`~fg_env.runtime.rules.Rules.guarded`;
+    whether it may simply try again (:data:`RETRY`) or the attempt was spent is the caller's to add."""
+    return f"Your {name.replace('_', ' ')} was not done: {reason}. Nothing changed."
 
 
 def world_logic_refused(reason: str) -> str:

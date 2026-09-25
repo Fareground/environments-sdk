@@ -391,3 +391,22 @@ def test_whether_a_call_ends_the_turn_reads_the_records_as_its_actor_sees_them()
 
         fg_env.run(contract, play, seed=1)
     assert ended == {"dm": False, None: False}
+
+
+def test_a_spent_refusal_never_also_says_to_simply_try_again():
+    """A rule that failed after reading a hidden value spends the action: the reply says so, and only so (audit 12
+    L1)."""
+    contract = {"name": "Div", "clock": {"rounds": 1}, "world": {"x": 0},
+                "types": {"p": {"agent": True, "props": {"secret": {"default": 5, "private": True}}}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "actions": {"poke": {"by": "p", "do": "$world.x = 1 / ($entity(b).secret - 5)"}},
+                "outputs": {"x": "$world.x"}}
+    replies = []
+
+    def play(wake):
+        if wake.entity_id == "a":
+            replies.append(wake.call("poke", {}).text)
+        wake.end()
+
+    fg_env.run(contract, play, seed=1)
+    assert "It used up this action." in replies[0] and "Try other" not in replies[0], replies

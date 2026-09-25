@@ -18,7 +18,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET
-from ..actions.faults import refused_text
+from ..actions.faults import RETRY, refused_text
 from ..errors import RunError
 from ..expr import ExprError, shared_budget
 from ..host.tape import discard
@@ -164,7 +164,7 @@ class HostWake(Wake):
         if result is None:
             assert fault is not None
             turn.note(FAULTED)
-            return ToolResult(False, refused_text(name, fault), data={"error": "rejected"})
+            return ToolResult(False, refused_text(name, fault) + RETRY, data={"error": "rejected"})
         return result
 
     def _commit(self, name: str, params: dict[str, Any]) -> ToolResult:
