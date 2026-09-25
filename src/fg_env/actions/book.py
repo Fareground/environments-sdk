@@ -57,6 +57,9 @@ class Outcome:
     params: dict[str, Any] = field(default_factory=dict)
     #: The assets the action's `attach` delivers to its actor.
     assets: list[str] = field(default_factory=list)
+    #: The action's own `outcome` worked out again as the world is now, with what its `do` worked out (None without
+    #: one): what the actor is told once the reactions its action set off right away (`wake` with `now`) have run.
+    retold: Callable[[], str] | None = None
 
 
 def stage_actions(contract: Contract, stage: StageSpec, type_name: str) -> list[str]:
@@ -370,7 +373,10 @@ class ActionBook:
         except RunError:
             world.rollback(mark)
             raise
-        return Outcome(True, text, params, assets)
+        template = spec.outcome
+        retold = None if template is None else lambda: render(
+            world, template, vars, viewer=viewer_for("ActionSpec.outcome", actor), path=f"{path}.outcome")
+        return Outcome(True, text, params, assets, retold)
 
     def ends_turn(self, actor: Entity, name: str, params: dict[str, Any]) -> bool:
         """Whether the call ends the actor's turn (`terminal`): something its actor is shown, so read as it sees."""

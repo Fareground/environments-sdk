@@ -7,7 +7,7 @@ and invariants wait, and a turn that breaks the rules is undone as a whole.
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -118,6 +118,8 @@ class Turn:
         #: (set when the turn is finished).
         self.did_not_act = False
         self.done = False
+        #: The last applied action's outcome, to tell again once the reactions it set off have run (see Outcome).
+        self._retold: Callable[[], str] | None = None
         #: The last action that settled part of an atomic turn (it drew luck or read something hidden): what the turn
         #: did up to it stands, whatever `valid` says of the rest.
         self._stands: str | None = None
@@ -424,6 +426,9 @@ class Turn:
         if applied:
             if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
                 env.rules.react(self.stage)
+                retold, self._retold = self._retold, None
+                if retold is not None:  # its outcome tells the world the reactions left
+                    result.text = retold()
             if result.ended or env.world.end_request is not None or not self.actor.alive:  # a removed actor is done
                 result.ended = True
                 undo = self.settle()
@@ -500,6 +505,9 @@ class Turn:
         if self.ledger.part_open and not settles and (spec.outcome or files):
             self.ledger.hold(text, files)
             text, files = f"{env.actions.default_outcome(name, params)} {_HELD}", []
+        elif outcome.retold is not None and env.world.reactions:  # told once the reactions it set off have run
+            told = outcome.retold
+            self._retold = lambda: _with_references(told(), files) + cut
         return ToolResult(True, text + cut, closes, attachments=files), True, spent
 
     def _must_act(self) -> bool:

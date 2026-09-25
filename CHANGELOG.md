@@ -293,6 +293,8 @@ worlds stay fast, and the package is organised by feature.
     that no entity has that id (L3).
   - A `transfer` whose `from` or `to` names an entity of a type without the property (`$actor`, an entity argument, a
     named entity) is a check error, not a smoke-run failure (L4).
+  - An action's `outcome` is worked out once the reactions it set off right away (`wake` with `now`) have run, so it no
+    longer reports the state before them (L5).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

@@ -103,3 +103,27 @@ def test_two_triggers_that_undo_each_other_settle_instead_of_looping():
                       {"when": "$world.x == 0 && $world.hits > 0", "do": "$world.x = 1"}]}
     result = fg_env.load(c, seed=1).run(lambda wake: wake.call("poke", {}))
     assert result.status == "completed", result.error
+
+
+def test_an_outcome_tells_the_world_the_reactions_it_set_off_left():
+    """An action's `outcome` is worked out once the reactions it set off right away (`wake` with `now`) have run,
+    so it never reports the state before them (audit 14 L5)."""
+    c = {"name": "Offer", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"offer": 0}}},
+         "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+         "stages": [{"name": "s", "actions": ["ask"]}],
+         "actions": {"ask": {"by": "p", "params": {"t": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
+                             "do": ["$params.t.offer = 5", {"wake": "$params.t", "now": True, "actions": ["reject"]}],
+                             "outcome": "Their offer is now {$params.t.offer}."},
+                     "reject": {"by": "p", "do": ["$actor.offer = 0"]}}}
+    told = {}
+
+    def play(wake):
+        if wake.entity_id == "a" and "ask" not in told:
+            told["ask"] = wake.call("ask", {"t": "b"}).text
+        elif wake.entity_id == "b" and any(tool.name == "reject" for tool in wake.tools):
+            wake.call("reject", {})
+        if not wake.done:
+            wake.end()
+
+    fg_env.load(c, seed=1).run(play)
+    assert told["ask"].startswith("Their offer is now 0.")
