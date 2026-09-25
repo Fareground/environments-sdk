@@ -1,20 +1,26 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Dungeon skirmish",
   "description": "Three heroes and three monsters fight on a 6x6 dungeon floor with forest cover, a swamp, lava and a wall: poison, stuns and shields, cooldowns and charges, channeled fireballs, initiative by speed, and victory to the last team standing or the healthier team when time runs out.",
+  "brief": {
+    "situation": "A torch-lit dungeon floor, six squares by six. The heroes (knight, rogue, mage) entered from the south; the orc warband (orc chief, goblin, shaman) holds the north. Forest squares give cover, the swamp slows, lava burns and a wall blocks the middle.",
+    "rules": "Each round units act in order of speed. On your turn you may move one square and take one combat action. Damage is attack minus the target's armor (at least 1). Poison hurts every round and stacks; a stun costs the target its next round; a shield adds armor. Some actions need to cool down or use charges. A fireball takes a round to channel and is lost if the caster is stunned. A unit at 0 health falls. The last team standing wins; after the last round the team with more health left wins.",
+    "roles": {"unit": "You fight for your team ({team}). Keep your allies alive and bring the enemy down."}
+  },
   "inputs": {
     "rounds": {"type": "int", "default": 15, "min": 3, "max": 60, "description": "Rounds before the healthier team wins"},
     "fireball_damage": {"type": "number", "default": 6, "min": 1, "description": "Damage to the fireball's target"}
   },
-  "brief": {
-    "situation": "A torch-lit dungeon floor, six squares by six. The heroes (knight, rogue, mage) entered from the south; the orc warband (orc chief, goblin, shaman) holds the north. Forest squares give cover, the swamp slows, lava burns and a wall blocks the middle.",
-    "rules": "Each round units act in order of speed. On your turn you may move one square and take one combat action. Damage is attack minus the target's armor (at least 1). Poison hurts every round and stacks; a stun costs the target its next round; a shield adds armor. Some actions need to cool down or use charges. A fireball takes a round to channel and is lost if the caster is stunned. A unit at 0 health falls. The last team standing wins; after the last round the team with more health left wins.",
-    "roles": {
-      "unit": "You fight for your team ({team}). Keep your allies alive and bring the enemy down."
+  "clock": {"rounds": "$inputs.rounds", "unit": "round"},
+  "space": {
+    "grid": {"rows": 6, "cols": 6},
+    "layers": {
+      "forest": {"type": "bool", "default": "$cell in [[2, 0], [2, 1], [3, 0], [3, 1]]", "description": "Cover: +1 armor."},
+      "swamp": {"type": "bool", "default": "$cell in [[2, 3], [3, 3]]", "description": "Slow going: -2 speed."},
+      "lava": {"type": "bool", "default": "$cell in [[2, 5], [3, 5]]", "description": "Burns 3 health a round."},
+      "wall": {"type": "bool", "default": "$cell in [[2, 2], [3, 2]]", "description": "Solid rock: nobody enters."}
     }
   },
-  "clock": {"rounds": "$inputs.rounds", "unit": "round"},
-  "space": {"grid": {"rows": 6, "cols": 6}},
   "types": {
     "unit": {
       "agent": true,
@@ -27,33 +33,91 @@
         "attack": 4,
         "armor": 1,
         "speed": 3,
-        "mana": {"type": "int", "default": 6, "min": 0}
+        "mana": {"type": "int", "default": 6, "min": 0},
+        "channeling": {"type": "text", "default": "", "description": "Id of the enemy this caster's fireball is channeled at, or empty."}
+      },
+      "score": {"value": "1 if $result.winner == $it.team else 0"},
+      "policies": {
+        "tactician": {
+          "repeat": true,
+          "rules": [
+            {
+              "when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 4)",
+              "do": "fireball",
+              "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 4)[0]"}
+            },
+            {
+              "when": "$any(unit, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp <= $it.max_hp - 5)",
+              "do": "heal",
+              "with": {"ally": "$sort(unit, $it.hp, 1, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp)[0]"}
+            },
+            {
+              "when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)",
+              "do": "shield_bash",
+              "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}
+            },
+            {
+              "when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1) and not $has_status($sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0], 'poison')",
+              "do": "poison_blade",
+              "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}
+            },
+            {
+              "when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)",
+              "do": "strike",
+              "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}
+            },
+            {
+              "when": "$actor.hp < $actor.max_hp and $any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 2)",
+              "do": "raise_shield",
+              "with": {"ally": "$actor"}
+            },
+            {
+              "when": "$any(unit, $enemy($actor, $it)) and $len($steps($actor)) > 0 and $distance($best_step($actor), $nearest_enemy($actor)) < $distance($actor, $nearest_enemy($actor))",
+              "do": "move",
+              "with": {"row": "$best_step($actor)[0]", "col": "$best_step($actor)[1]"}
+            },
+            {"do": "hold"}
+          ]
+        }
       }
     }
   },
   "entities": {
-    "knight": {"type": "unit", "name": "Sir Bran (knight)", "at": [5, 2], "props": {"role": "fighter", "hp": 26, "max_hp": 26, "attack": 5, "armor": 3, "speed": 2}},
-    "rogue": {"type": "unit", "name": "Vess (rogue)", "at": [5, 3], "props": {"role": "skirmisher", "hp": 18, "max_hp": 18, "attack": 5, "armor": 1, "speed": 5}},
-    "mage": {"type": "unit", "name": "Ilora (mage)", "at": [5, 1], "props": {"role": "caster", "hp": 15, "max_hp": 15, "attack": 2, "armor": 0, "speed": 3, "mana": 9}},
-    "orc": {"type": "unit", "name": "Grasht (orc chief)", "at": [0, 2], "props": {"team": "monsters", "role": "fighter", "hp": 28, "max_hp": 28, "attack": 6, "armor": 2, "speed": 2}},
-    "goblin": {"type": "unit", "name": "Nikk (goblin)", "at": [0, 3], "props": {"team": "monsters", "role": "skirmisher", "hp": 14, "max_hp": 14, "attack": 4, "armor": 1, "speed": 6}},
-    "shaman": {"type": "unit", "name": "Oma (shaman)", "at": [0, 4], "props": {"team": "monsters", "role": "caster", "hp": 16, "max_hp": 16, "attack": 2, "armor": 0, "speed": 3, "mana": 9}}
-  },
-  "defs": {
-    "enemy": {"args": ["a", "b"], "expr": "$a.team != $b.team", "description": "b fights against a."},
-    "damage": {"args": ["by", "to"], "expr": "$max(1, $effective($by, 'attack') - $effective($to, 'armor'))"},
-    "nearest_enemy": {"args": ["u"], "expr": "$sort(unit, $distance($u, $it), 1, $enemy($u, $it))[0]"},
-    "steps": {
-      "args": ["u"],
-      "expr": "$filter([[$u.at[0] - 1, $u.at[1]], [$u.at[0] + 1, $u.at[1]], [$u.at[0], $u.at[1] - 1], [$u.at[0], $u.at[1] + 1]], $it[0] >= 0 and $it[0] < 6 and $it[1] >= 0 and $it[1] < 6 and not $any(unit, $it.at == $outer) and $can_enter($u, $it))",
-      "description": "Free squares one step away that the unit may enter."
+    "knight": {
+      "type": "unit",
+      "name": "Sir Bran (knight)",
+      "at": [5, 2],
+      "props": {"role": "fighter", "hp": 26, "max_hp": 26, "attack": 5, "armor": 3, "speed": 2}
     },
-    "best_step": {"args": ["u"], "expr": "$sort($steps($u), $distance($it, $nearest_enemy($u)), 1)[0]"}
-  },
-  "blocks": {
-    "fall": {
-      "args": ["unit"],
-      "do": [{"if": "$unit.alive and $unit.hp <= 0", "then": [{"emit": "fall", "say": "{$unit.name} falls."}, {"remove": "$unit"}]}]
+    "rogue": {
+      "type": "unit",
+      "name": "Vess (rogue)",
+      "at": [5, 3],
+      "props": {"role": "skirmisher", "hp": 18, "max_hp": 18, "attack": 5, "armor": 1, "speed": 5}
+    },
+    "mage": {
+      "type": "unit",
+      "name": "Ilora (mage)",
+      "at": [5, 1],
+      "props": {"role": "caster", "hp": 15, "max_hp": 15, "attack": 2, "armor": 0, "speed": 3, "mana": 9}
+    },
+    "orc": {
+      "type": "unit",
+      "name": "Grasht (orc chief)",
+      "at": [0, 2],
+      "props": {"team": "monsters", "role": "fighter", "hp": 28, "max_hp": 28, "attack": 6, "armor": 2, "speed": 2}
+    },
+    "goblin": {
+      "type": "unit",
+      "name": "Nikk (goblin)",
+      "at": [0, 3],
+      "props": {"team": "monsters", "role": "skirmisher", "hp": 14, "max_hp": 14, "attack": 4, "armor": 1, "speed": 6}
+    },
+    "shaman": {
+      "type": "unit",
+      "name": "Oma (shaman)",
+      "at": [0, 4],
+      "props": {"team": "monsters", "role": "caster", "hp": 16, "max_hp": 16, "attack": 2, "armor": 0, "speed": 3, "mana": 9}
     }
   },
   "actions": {
@@ -62,9 +126,17 @@
       "description": "Step one square north, south, east or west into a free square.",
       "params": {"row": {"type": "int", "min": 0, "max": 5}, "col": {"type": "int", "min": 0, "max": 5}},
       "do": [
-        {"if": "$distance($actor, [$params.row, $params.col]) != 1", "then": [{"fail": "You can move exactly one square north, south, east or west."}]},
+        {
+          "if": "$distance($actor, [$params.row, $params.col]) != 1",
+          "then": [{"fail": "You can move exactly one square north, south, east or west."}]
+        },
         {"if": "$any(unit, $it.at == [$params.row, $params.col])", "then": [{"fail": "That square is occupied."}]},
-        {"conditions": "terrain", "action": "enter", "who": "$actor", "to": "[$params.row, $params.col]"}
+        {"if": "$layer('wall', [$params.row, $params.col])", "then": [{"fail": "A wall blocks the way."}]},
+        {
+          "if": "not $enterable($actor, [$params.row, $params.col])",
+          "then": [{"fail": "The lava would kill you at this health."}]
+        },
+        {"move": "$actor", "to": "[$params.row, $params.col]"}
       ],
       "outcome": "You move to {$params.row}, {$params.col}.",
       "per_turn": 1
@@ -72,8 +144,14 @@
     "strike": {
       "by": "unit",
       "description": "Hit an adjacent enemy for your attack minus its armor.",
-      "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$dealt = $damage($actor, $params.target)", "$params.target.hp = $max(0, $params.target.hp - $dealt)", {"block": "fall", "with": {"unit": "$params.target"}}],
+      "params": {
+        "target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}
+      },
+      "do": [
+        "$dealt = $damage($actor, $params.target)",
+        "$params.target.hp = $max(0, $params.target.hp - $dealt)",
+        {"call": "fall", "with": {"unit": "$params.target"}}
+      ],
       "outcome": "You hit {$params.target.name} for {$dealt}.",
       "announce": "{$actor.name} hits {$params.target.name} for {$dealt}.",
       "per_turn": 1,
@@ -82,9 +160,19 @@
     "poison_blade": {
       "by": "unit",
       "description": "Skirmishers: a light cut that poisons an adjacent enemy (stacks up to 3).",
-      "when": [{"expr": "$actor.role == skirmisher", "why": "Only skirmishers carry poisoned blades."}],
-      "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$params.target.hp = $max(0, $params.target.hp - 1)", {"conditions": "conditions", "action": "apply", "status": "poison", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
+      "when": [
+        {"expr": "$actor.role == skirmisher", "why": "Only skirmishers carry poisoned blades."},
+        {"expr": "not $has_status($actor, 'blade_cooldown')", "why": "Your blade needs a round to be poisoned again."}
+      ],
+      "params": {
+        "target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}
+      },
+      "do": [
+        "$params.target.hp = $max(0, $params.target.hp - 1)",
+        {"game": "conditions", "action": "apply", "status": "poison", "who": "$params.target"},
+        {"call": "fall", "with": {"unit": "$params.target"}},
+        {"game": "conditions", "action": "apply", "status": "blade_cooldown", "who": "$actor"}
+      ],
       "announce": "{$actor.name} poisons {$params.target.name}.",
       "per_turn": 1,
       "terminal": true
@@ -92,9 +180,19 @@
     "shield_bash": {
       "by": "unit",
       "description": "Fighters: slam an adjacent enemy for 2 damage and stun it for its next round.",
-      "when": [{"expr": "$actor.role == fighter", "why": "Only fighters can shield bash."}],
-      "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": ["$params.target.hp = $max(0, $params.target.hp - 2)", {"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}, {"conditions": "spells", "action": "interrupt", "who": "$params.target"}, {"block": "fall", "with": {"unit": "$params.target"}}],
+      "when": [
+        {"expr": "$actor.role == fighter", "why": "Only fighters can shield bash."},
+        {"expr": "not $has_status($actor, 'bash_cooldown')", "why": "You need 3 rounds to recover before bashing again."}
+      ],
+      "params": {
+        "target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 1"}
+      },
+      "do": [
+        "$params.target.hp = $max(0, $params.target.hp - 2)",
+        {"game": "conditions", "action": "apply", "status": "stun", "who": "$params.target"},
+        {"call": "fall", "with": {"unit": "$params.target"}},
+        {"game": "conditions", "action": "apply", "status": "bash_cooldown", "who": "$actor"}
+      ],
       "announce": "{$actor.name} shield-bashes {$params.target.name}.",
       "per_turn": 1,
       "terminal": true
@@ -102,9 +200,17 @@
     "raise_shield": {
       "by": "unit",
       "description": "Fighters: raise a shield over yourself or an adjacent ally (+3 armor for 2 rounds).",
-      "when": [{"expr": "$actor.role == fighter", "why": "Only fighters carry shields."}],
-      "params": {"ally": {"type": "entity", "of": "unit", "where": "not $enemy($actor, $it) and $distance($actor, $it) <= 1"}},
-      "do": [{"conditions": "conditions", "action": "apply", "status": "shield", "who": "$params.ally"}],
+      "when": [
+        {"expr": "$actor.role == fighter", "why": "Only fighters carry shields."},
+        {"expr": "$status_stacks($actor, 'shield_spent') < 2", "why": "Both shield charges are spent; each comes back 3 rounds after it was used."}
+      ],
+      "params": {
+        "ally": {"type": "entity", "of": "unit", "where": "not $enemy($actor, $it) and $distance($actor, $it) <= 1"}
+      },
+      "do": [
+        {"game": "conditions", "action": "apply", "status": "shield", "who": "$params.ally"},
+        {"game": "conditions", "action": "apply", "status": "shield_spent", "who": "$actor"}
+      ],
       "announce": "{$actor.name} shields {$params.ally.name}.",
       "per_turn": 1,
       "terminal": true
@@ -112,9 +218,20 @@
     "fireball": {
       "by": "unit",
       "description": "Casters: spend 3 mana to channel a fireball at an enemy within 4 squares. It explodes at the start of next round (target and adjacent enemies) unless you are stunned first.",
-      "when": [{"expr": "$actor.role == caster", "why": "Only casters know the spell."}, {"expr": "$actor.mana >= 3", "why": "You need 3 mana."}],
-      "params": {"target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 4"}},
-      "do": ["$actor.mana -= 3"],
+      "when": [
+        {"expr": "$actor.role == caster", "why": "Only casters know the spell."},
+        {"expr": "$actor.mana >= 3", "why": "You need 3 mana."},
+        {"expr": "not $has_status($actor, 'fireball_cooldown')", "why": "You need 2 rounds to gather power for another fireball."},
+        {"expr": "$actor.channeling == ''", "why": "You are already channeling a fireball."}
+      ],
+      "params": {
+        "target": {"type": "entity", "of": "unit", "where": "$enemy($actor, $it) and $distance($actor, $it) <= 4"}
+      },
+      "do": [
+        "$actor.mana -= 3",
+        "$actor.channeling = $params.target.id",
+        {"game": "conditions", "action": "apply", "status": "fireball_cooldown", "who": "$actor"}
+      ],
       "outcome": "You begin channeling a fireball at {$params.target.name}.",
       "announce": "{$actor.name} begins channeling a fireball at {$params.target.name}!",
       "terminal": true
@@ -122,125 +239,162 @@
     "heal": {
       "by": "unit",
       "description": "Casters: restore 5 health to yourself or an ally within 3 squares.",
-      "when": [{"expr": "$actor.role == caster", "why": "Only casters can heal."}],
-      "params": {"ally": {"type": "entity", "of": "unit", "where": "not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp"}},
-      "do": ["$params.ally.hp = $min($params.ally.max_hp, $params.ally.hp + 5)", {"conditions": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"}],
+      "when": [
+        {"expr": "$actor.role == caster", "why": "Only casters can heal."},
+        {"expr": "$status_stacks($actor, 'heal_spent') < 2", "why": "Both heals are spent; each comes back 2 rounds after it was used."}
+      ],
+      "params": {
+        "ally": {"type": "entity", "of": "unit", "where": "not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp"}
+      },
+      "do": [
+        "$params.ally.hp = $min($params.ally.max_hp, $params.ally.hp + 5)",
+        {"game": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"},
+        {"game": "conditions", "action": "apply", "status": "heal_spent", "who": "$actor"}
+      ],
       "announce": "{$actor.name} heals {$params.ally.name}.",
       "per_turn": 1,
       "terminal": true
     },
-    "hold": {"by": "unit", "description": "Hold your position this round.", "do": [], "private": true, "terminal": true}
+    "hold": {"by": "unit", "description": "Hold your position this round.", "do": [], "announce": false, "terminal": true}
   },
-  "mechanisms": {
-    "conditions": {
-      "kind": "conditions",
-      "mode": "status",
-      "who": "unit",
-      "statuses": {
-        "poison": {"duration": 3, "stacking": "refresh", "max_stacks": 3, "tick": ["$it.hp = $max(0, $it.hp - 2 * $stacks)", {"block": "fall", "with": {"unit": "$it"}}], "expire_say": "The poison in {$it.name} wears off."},
-        "stun": {"duration": 1, "blocks": ["move", "strike", "poison_blade", "shield_bash", "raise_shield", "fireball", "heal"], "blocked_why": "you are stunned", "say": "{$it.name} is stunned."},
-        "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["stun"]}
-      }
-    },
-    "abilities": {
-      "kind": "conditions",
-      "mode": "cooldowns",
-      "actions": {
-        "poison_blade": {"cooldown": 1},
-        "shield_bash": {"cooldown": 3},
-        "raise_shield": {"charges": 2, "recharge": 3},
-        "fireball": {"cooldown": 2},
-        "heal": {"charges": 2, "recharge": 2}
-      }
-    },
-    "spells": {
-      "kind": "conditions",
-      "mode": "channeling",
-      "actions": {
-        "fireball": {
-          "rounds": 1,
-          "interrupt": "$has_status($actor, 'stun')",
-          "interrupt_say": "{$actor.name}'s fireball fizzles out.",
-          "resolve": [
-            {"if": "not $params.target.alive", "then": [{"fail": "the target is already gone"}]},
-            "$params.target.hp = $max(0, $params.target.hp - $inputs.fireball_damage)",
-            {"each": "unit", "where": "$it.id != $params.target.id and $enemy($actor, $it) and $distance($it, $params.target) <= 1", "do": ["$it.hp = $max(0, $it.hp - 2)", {"block": "fall", "with": {"unit": "$it"}}]},
-            {"block": "fall", "with": {"unit": "$params.target"}}
-          ],
-          "say": "{$actor.name}'s fireball explodes on {$params.target.name}!"
-        }
-      }
-    },
-    "terrain": {
-      "kind": "conditions",
-      "mode": "terrain",
-      "who": "unit",
-      "places": {
-        "forest": {"description": "cover: +1 armor", "area": [[2, 0], [3, 1]], "modifiers": {"armor": 1}},
-        "swamp": {"description": "slow going: -2 speed", "at": [[2, 3], [3, 3]], "modifiers": {"speed": -2}},
-        "lava": {"description": "burns 3 health a round", "at": [[2, 5], [3, 5]], "tick": ["$it.hp = $max(0, $it.hp - 3)", {"block": "fall", "with": {"unit": "$it"}}], "enter": [{"expr": "$it.hp > 8", "why": "The lava would kill you at this health."}]},
-        "wall": {"description": "solid rock", "at": [[2, 2], [3, 2]], "enter": [{"expr": "false", "why": "A wall blocks the way."}]}
-      }
-    },
-    "initiative": {
-      "kind": "flow",
-      "mode": "order",
-      "who": "unit",
-      "by": "$effective($it, 'speed')",
-      "stage": {"actions": "all", "turns": "sequential", "max_actions": 2, "max_calls": 8, "brief": "Your turn: move a square and/or take one combat action."}
-    },
-    "victory": {
-      "kind": "flow",
-      "mode": "victory",
-      "who": "unit",
-      "conditions": [
-        {"last_team": "$it.team", "name": "last_team_standing"},
-        {"most": "$sum(unit, $it.hp, $it.team == $outer.team)", "name": "time_up", "say": "Time is up: the {$best(unit, $sum(unit, $it.hp, $it.team == $outer.team)).team} have more health left."}
-      ]
-    }
-  },
+  "stages": [
+    {"name": "fight", "turns": "sequential", "order": "-$speed($it)", "max_actions": 2, "max_calls": 8, "brief": "Your turn: move a square and/or take one combat action."}
+  ],
   "views": {
-    "battlefield": {
-      "title": "Units (row, col)",
-      "of": "unit",
-      "sort": "$turn_rank($it, 'initiative')",
-      "show": "[{id}] {name} · {team} · hp {hp}/{max_hp} · at {at} · attack {$effective($it, 'attack')}, armor {$effective($it, 'armor')}, speed {$effective($it, 'speed')}{' · mana ' + $text($it.mana) if $it.role == caster else ''}"
-    },
-    "moves": {
-      "for": "unit",
-      "title": "Squares you can step to",
-      "show": "{$join($map($steps($actor), $text($it[0]) + ',' + $text($it[1])), '; ') or 'none'}"
-    }
+    "battlefield": {"title": "Units (row, col)", "of": "unit", "sort": "-$speed($it)", "show": "[{id}] {name} · {team} · hp {hp}/{max_hp} · at {at} · attack {$effective($it, 'attack')}, armor {$armor($it)}, speed {$speed($it)}{' · mana ' + $text($it.mana) if $it.role == caster else ''}"},
+    "moves": {"for": "unit", "title": "Squares you can step to", "show": "{$join($map($steps($actor), $text($it[0]) + ',' + $text($it[1])), '; ') or 'none'}"},
+    "terrain": {"title": "Terrain", "show": "Forest (+1 armor) at 2,0 2,1 3,0 3,1; swamp (-2 speed) at 2,3 3,3; lava (3 damage a round; enter only above 8 health) at 2,5 3,5; wall at 2,2 3,2."}
   },
-  "policies": {
-    "tactician": {
-      "repeat": true,
-      "rules": [
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 4)", "do": "fireball", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 4)[0]"}},
-        {"when": "$any(unit, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp <= $it.max_hp - 5)", "do": "heal", "with": {"ally": "$sort(unit, $it.hp, 1, not $enemy($actor, $it) and $distance($actor, $it) <= 3 and $it.hp < $it.max_hp)[0]"}},
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)", "do": "shield_bash", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1) and not $has_status($sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0], 'poison')", "do": "poison_blade", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
-        {"when": "$any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 1)", "do": "strike", "with": {"target": "$sort(unit, $it.hp, 1, $enemy($actor, $it) and $distance($actor, $it) <= 1)[0]"}},
-        {"when": "$actor.hp < $actor.max_hp and $any(unit, $enemy($actor, $it) and $distance($actor, $it) <= 2)", "do": "raise_shield", "with": {"ally": "$actor"}},
-        {"when": "$any(unit, $enemy($actor, $it)) and $len($steps($actor)) > 0 and $distance($best_step($actor), $nearest_enemy($actor)) < $distance($actor, $nearest_enemy($actor))", "do": "move", "with": {"row": "$best_step($actor)[0]", "col": "$best_step($actor)[1]"}},
-        {"do": "hold"}
+  "events": [
+    {
+      "name": "fireballs",
+      "do": [
+        {
+          "each": "unit",
+          "where": "$it.channeling != ''",
+          "do": [
+            {
+              "if": "$has_status($it, 'stun')",
+              "then": [{"emit": "fizzle", "say": "{$it.name}'s fireball fizzles out."}],
+              "else": [
+                "$caster = $it", "$target = $entity($it.channeling)",
+                {
+                  "if": "$target != null and $target.alive",
+                  "then": [
+                    {"emit": "fireball", "say": "{$it.name}'s fireball explodes on {$target.name}!"},
+                    "$target.hp = $max(0, $target.hp - $inputs.fireball_damage)",
+                    {
+                      "each": "unit",
+                      "where": "$it.id != $target.id and $enemy($caster, $it) and $distance($it, $target) <= 1",
+                      "do": ["$it.hp = $max(0, $it.hp - 2)", {"call": "fall", "with": {"unit": "$it"}}]
+                    },
+                    {"call": "fall", "with": {"unit": "$target"}}
+                  ]
+                }
+              ]
+            },
+            "$it.channeling = ''"
+          ]
+        }
       ]
+    },
+    {
+      "name": "lava",
+      "do": [
+        {
+          "each": "unit",
+          "where": "$layer('lava', $it.at)",
+          "do": ["$it.hp = $max(0, $it.hp - 3)", {"call": "fall", "with": {"unit": "$it"}}]
+        }
+      ]
+    },
+    {
+      "name": "time_up",
+      "on": "round.end",
+      "when": "$round == $inputs.rounds",
+      "do": {"end": "time_up", "winner": "$team_ahead()", "say": "Time is up: {'the ' + $team_ahead() + ' have' if $team_ahead() else 'both teams have'} more health left."}
     }
-  },
-  "metrics": {
-    "heroes_hp": "$sum(unit, $it.hp, $it.team == heroes)",
-    "monsters_hp": "$sum(unit, $it.hp, $it.team == monsters)",
-    "poisoned": "$count(unit, $has_status($it, 'poison'))"
-  },
+  ],
   "outputs": {
     "winning_team": {"expr": "$first($unique($map(unit, $it.team))) if $len($unique($map(unit, $it.team))) == 1 else 'undecided'", "type": "text", "description": "heroes, monsters, or undecided while both still fight."},
     "heroes_left": {"expr": "$count(unit, $it.team == heroes)", "type": "int"},
     "monsters_left": {"expr": "$count(unit, $it.team == monsters)", "type": "int"},
-    "heroes_hp": {"expr": "$metrics.heroes_hp", "type": "int"},
-    "monsters_hp": {"expr": "$metrics.monsters_hp", "type": "int"},
-    "peak_poisoned": {"expr": "$max($series.poisoned, $it) or 0", "type": "int"}
+    "heroes_hp": {"expr": "$sum(unit, $it.hp, $it.team == heroes)", "type": "int", "series": true},
+    "monsters_hp": {"expr": "$sum(unit, $it.hp, $it.team == monsters)", "type": "int", "series": true},
+    "peak_poisoned": {"expr": "$max($series.poisoned, $it) or 0", "type": "int"},
+    "poisoned": {"expr": "$count(unit, $has_status($it, 'poison'))", "series": true}
   },
-  "invariants": [
-    {"expr": "$all(unit, $it.hp <= $it.max_hp)", "why": "Healing never raises health above the maximum."}
-  ]
+  "end": [
+    {"name": "last_team_standing", "when": "$len($unique($map(unit, $it.team))) <= 1", "winner": "$first($unique($map(unit, $it.team)))", "say": "The {$first($unique($map(unit, $it.team)))} are the last team standing."}
+  ],
+  "invariants": [{"expr": "$all(unit, $it.hp <= $it.max_hp)", "why": "Healing never raises health above the maximum."}],
+  "defs": {
+    "enemy": {"args": ["a", "b"], "expr": "$a.team != $b.team", "description": "b fights against a."},
+    "armor": {
+      "args": ["u"],
+      "expr": "$effective($u, 'armor') + (1 if $layer('forest', $u.at) else 0)",
+      "description": "Armor with statuses and forest cover."
+    },
+    "speed": {
+      "args": ["u"],
+      "expr": "$effective($u, 'speed') - (2 if $layer('swamp', $u.at) else 0)",
+      "description": "Speed with statuses and the swamp's drag."
+    },
+    "damage": {"args": ["by", "to"], "expr": "$max(1, $effective($by, 'attack') - $armor($to))"},
+    "enterable": {
+      "args": ["u", "cell"],
+      "expr": "not $layer('wall', $cell) and ($u.hp > 8 or not $layer('lava', $cell))",
+      "description": "Whether the unit may step onto the cell: never a wall, and lava only above 8 health."
+    },
+    "nearest_enemy": {"args": ["u"], "expr": "$sort(unit, $distance($u, $it), 1, $enemy($u, $it))[0]"},
+    "steps": {
+      "args": ["u"],
+      "expr": "$filter([[$u.at[0] - 1, $u.at[1]], [$u.at[0] + 1, $u.at[1]], [$u.at[0], $u.at[1] - 1], [$u.at[0], $u.at[1] + 1]], $it[0] >= 0 and $it[0] < 6 and $it[1] >= 0 and $it[1] < 6 and not $any(unit, $it.at == $outer) and $enterable($u, $it))",
+      "description": "Free squares one step away that the unit may enter."
+    },
+    "best_step": {"args": ["u"], "expr": "$sort($steps($u), $distance($it, $nearest_enemy($u)), 1)[0]"},
+    "team_hp": {
+      "args": ["team"],
+      "expr": "$sum(unit, $it.hp, $it.team == $team)",
+      "description": "Health the team has left."
+    },
+    "team_ahead": {"args": [], "expr": "'heroes' if $team_hp('heroes') > $team_hp('monsters') else 'monsters' if $team_hp('monsters') > $team_hp('heroes') else null", "description": "The team with more health left, or null when level."},
+    "fall": {
+      "args": ["unit"],
+      "do": [
+        {
+          "if": "$unit.alive and $unit.hp <= 0",
+          "then": [{"emit": "fall", "say": "{$unit.name} falls."}, {"remove": "$unit"}]
+        }
+      ]
+    }
+  },
+  "mechanisms": {
+    "conditions": {
+      "kind": "game",
+      "mode": "status",
+      "who": "unit",
+      "statuses": {
+        "poison": {
+          "duration": 3,
+          "stacking": "refresh",
+          "max_stacks": 3,
+          "tick": ["$it.hp = $max(0, $it.hp - 2 * $stacks)", {"call": "fall", "with": {"unit": "$it"}}],
+          "expire_say": "The poison in {$it.name} wears off."
+        },
+        "stun": {
+          "duration": 1,
+          "blocks": ["move", "strike", "poison_blade", "shield_bash", "raise_shield", "fireball", "heal"],
+          "blocked_why": "you are stunned",
+          "say": "{$it.name} is stunned."
+        },
+        "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["stun"]},
+        "blade_cooldown": {"duration": 1, "description": "The poisoned blade cannot be used again yet."},
+        "bash_cooldown": {"duration": 3, "description": "Shield bash cannot be used again yet."},
+        "fireball_cooldown": {"duration": 2, "description": "No fireball can be cast yet."},
+        "shield_spent": {"duration": 3, "stacking": "independent", "max_stacks": 2, "description": "A spent shield charge; it comes back when this runs out."},
+        "heal_spent": {"duration": 2, "stacking": "independent", "max_stacks": 2, "description": "A spent heal; it comes back when this runs out."}
+      }
+    }
+  }
 }

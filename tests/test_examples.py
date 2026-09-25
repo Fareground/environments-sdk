@@ -11,14 +11,10 @@ import pytest
 
 import fg_env
 
-#: Examples that use removed mechanism modes, which loading refuses, until they are rewritten by hand (T-839).
-REWRITE_BY_HAND = {"dungeon_skirmish"}
-
 
 def example_params(paths):
-    """``paths`` as test parameters named by their stem; one to be rewritten by hand is expected to fail."""
-    refused = pytest.mark.xfail(strict=True, reason="uses removed mechanism modes; rewritten by hand (T-839)")
-    return [pytest.param(path, id=path.stem, marks=refused if path.stem in REWRITE_BY_HAND else ()) for path in paths]
+    """``paths`` as test parameters named by their stem."""
+    return [pytest.param(path, id=path.stem) for path in paths]
 
 
 EXAMPLES = example_params(sorted((Path(__file__).parents[1] / "examples" / "contracts").glob("*.json")))

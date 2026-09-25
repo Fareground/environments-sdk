@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import pytest
-from test_examples import REWRITE_BY_HAND
 
 import fg_env
 from fg_env.__main__ import main
@@ -147,8 +146,6 @@ def test_a_spectator_view_does_not_show_state_to_agents():
 
 def test_every_example_contract_is_described():
     for path in sorted(EXAMPLES.glob("*.json")):
-        if path.stem in REWRITE_BY_HAND:
-            continue
         description = describe(path)
         for heading in ("## 1. Purpose", "## 2. Entities", "## 3. Process", "## 4. Design concepts",
                         "## 5. Initialisation", "## 6. Input data", "## 7. Submodels", "## Game-theoretic summary"):

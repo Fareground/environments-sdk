@@ -1,7 +1,7 @@
 {
   "actions": 33,
   "events": 35,
-  "events_sha256": "8cfdbe10f656d7afd199ea1a454db86cab1ff009f9d5f7f40880677d26ae1ccf",
+  "events_sha256": "4524f9795ab5b3e1515ebbe07c32a9e854bed90a16962742cd9a87f60e6b0b4e",
   "first_events": [
     "r1 action goblin: Nikk (goblin): move (row=1, col=3).",
     "r1 action goblin: {\"action\": \"hold\", \"params\": {}, \"private\": true, \"success\": true}",
