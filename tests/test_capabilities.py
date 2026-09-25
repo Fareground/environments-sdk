@@ -148,3 +148,22 @@ def test_checker_refuses_a_number_compared_with_a_bare_word():
          "actions": {"buy": {"by": "buyer", "when": "$actor.cash > price", "do": "$actor.cash -= $world.price"}}}
     with pytest.raises(ContractError, match="is a number, compared with the text 'price'"):
         fg_env.load(c)
+
+
+def test_a_read_called_with_the_wrong_argument_name_says_which_one_it_takes():
+    """`inspect` with `entity` in place of `id` used to answer that no entity had that id, while listing it (audit 14
+    L3); both reads name the argument they take."""
+    c = {"name": "Reads", "types": {"p": {"agent": True, "inspect": True}},
+         "entities": {"a": {"type": "p"}, "b": {"type": "p"}}, "actions": {"go": {"by": "p", "do": []}},
+         "views": {"v": {"look": True, "show": "x"}}}
+    told = {}
+
+    def play(wake):
+        if wake.entity_id == "a":
+            told["inspect"] = wake.call("inspect", {"entity": "b"}).text
+            told["look"] = wake.call("look", {"name": "v"}).text
+        wake.end()
+
+    fg_env.load(c, seed=1).step(play)
+    assert told["inspect"].startswith("inspect takes one argument, `id`") and "`entity`" in told["inspect"]
+    assert told["look"].startswith("look takes one argument, `view`") and "`name`" in told["look"]

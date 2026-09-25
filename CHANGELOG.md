@@ -289,6 +289,8 @@ worlds stay fast, and the package is organised by feature.
     values, a value of the wrong kind, and a min above its max are errors at their field, not only in a smoke run (L1).
   - A constant invariant that is not true or false (`"5"`), an `if` with neither `then` nor `else`, and a `per_turn` or
     `per_round` below 1 are check errors (L2).
+  - `inspect` or `look` called with another argument name (`{"entity": "b"}`) says which argument it takes, instead of
+    that no entity has that id (L3).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

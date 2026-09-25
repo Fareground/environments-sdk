@@ -631,8 +631,11 @@ class Turn:
 
     def _look(self, args: Mapping[str, Any] | None) -> ToolResult:
         info = self.env.information
-        name = (args or {}).get("view")
         looks = info.look_views(self.actor)
+        name, wrong = _read_argument(args, "look", "view", "the view's name")
+        if wrong:
+            self.note(INVALID)
+            return ToolResult(False, wrong, data=_INVALID)
         if not isinstance(name, str) or name not in looks:
             self.note(INVALID)
             return ToolResult(False, f"view must be one of: {', '.join(looks) or 'none'}.", data=_INVALID)
@@ -645,11 +648,25 @@ class Turn:
         return ToolResult(True, text or "Nothing to show.", attachments=self.attachments(attached))
 
     def _inspect(self, args: Mapping[str, Any] | None) -> ToolResult:
-        found, text, files = self.env.information.inspect(self.actor, (args or {}).get("id"))
+        wanted, wrong = _read_argument(args, "inspect", "id", "the entity's id")
+        if wrong:
+            self.note(INVALID)
+            return ToolResult(False, wrong, data=_INVALID)
+        found, text, files = self.env.information.inspect(self.actor, wanted)
         if not found:
             self.note(INVALID)
             return ToolResult(False, text, data=_INVALID)
         return ToolResult(True, text, attachments=self.attachments(files))
+
+
+def _read_argument(args: Mapping[str, Any] | None, tool: str, name: str, what: str) -> tuple[Any, str]:
+    """The one argument a read (look, inspect) takes, or why the call named others instead."""
+    given = dict(args or {})
+    others = sorted(str(key) for key in given if key != name)
+    if others and name not in given:
+        wrong = ", ".join(f"`{key}`" for key in others)
+        return None, f"{tool} takes one argument, `{name}` ({what}), not {wrong}: call it again with `{name}`."
+    return given.get(name), ""
 
 
 def entity_dict(entity: Entity) -> dict[str, Any]:
