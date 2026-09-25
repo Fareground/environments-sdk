@@ -163,3 +163,20 @@ def test_an_action_that_posted_a_private_entry_is_seen_only_by_who_may_see_the_e
     for reader in ("a", "c"):  # the author and the recipient see the entry, so they see the action that posted it
         assert [e.data["action"] for e in world.events("action", world.entities[reader])] == ["whisper"]
     assert len(world.events("action")) == 1  # the full log keeps it
+
+
+def test_keeping_few_entries_of_a_record_sent_to_agents_is_a_check_warning():
+    """`keep` drops the oldest entries as new ones come, addressed ones too: a message to b dropped before b's turn
+    never reaches it (audit 11 M3), so check says so."""
+    contract = {"name": "Kept DMs", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}, "c": {"type": "p"}},
+                "records": {"dm": {"fields": {"text": "text"}, "keep": 1}},
+                "actions": {"dm": {"by": "p", "params": {"to": {"type": "entity", "of": "p"},
+                                                         "text": {"type": "text", "max_len": 20}},
+                                   "do": [{"post": "dm", "text": "$params.text", "to": ["$params.to"]}]}},
+                "stages": [{"name": "s", "max_actions": 2}]}
+    found = [i for i in fg_env.check(contract, rounds=0) if i.path == "records.dm.keep"]
+    assert [i.severity for i in found] == ["warning"] and "never reaches it" in found[0].message
+    del contract["records"]["dm"]["keep"]
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.path == "records.dm.keep"]

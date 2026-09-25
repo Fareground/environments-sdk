@@ -340,6 +340,10 @@ class WorldChecks(Checker):
                 elif field in POST_KEYS:
                     self.error(f"{path}.fields.{field}", f"'{field}' is a `post` option, so a post cannot set it",
                                "rename the field")
+            if spec.keep is not None and name in self.c.addressed_records():
+                self.warn(f"{path}.keep", f"keeps only the latest {spec.keep} entries, and entries are sent `to` "
+                                          "agents: one dropped before its addressee's next turn never reaches it",
+                          "keep more entries than can arrive between two turns of an addressee, or leave `keep` out")
             if spec.visible != "all":
                 self.condition(spec.visible, f"{path}.visible", BASE | {"viewer", "it"}, {"viewer": set(self.agents)},
                                fix='"all" shows every entry to everyone; otherwise write an expression over $viewer '

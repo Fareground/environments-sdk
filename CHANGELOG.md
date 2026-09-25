@@ -264,6 +264,8 @@ worlds stay fast, and the package is organised by feature.
   - The running guide no longer promises flat memory for `events=False`: the event log stays flat, and it says that
     the world keeps each removed entity (dead) so whatever names it still reads it, so a run that creates and removes
     without end grows by each one it removed, and how to avoid that.
+  - A record with `keep` that entries are sent `to` agents is a check warning: `keep` drops the oldest entries as
+    new ones come, so a message dropped before its addressee's next turn never reaches it.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

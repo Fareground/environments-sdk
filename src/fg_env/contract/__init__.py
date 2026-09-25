@@ -187,8 +187,8 @@ class Contract(_Model):
     _notes: list[str] = PrivateAttr(default_factory=list)
     #: Events by anchor (see :meth:`events_on`), built on first use.
     _anchored: dict[str, list[tuple[int, EventSpec]]] | None = PrivateAttr(default=None)
-    #: The records that may hold an entry some agent may not see (see :meth:`hiding_records`), found on first use.
-    _hiding: frozenset[str] | None = PrivateAttr(default=None)
+    #: The records some `post` sends `to` someone (see :meth:`addressed_records`), found on first use.
+    _addressed: frozenset[str] | None = PrivateAttr(default=None)
 
     @model_validator(mode="before")
     @classmethod
@@ -265,17 +265,21 @@ class Contract(_Model):
                 by_anchor.setdefault(event.on, []).append((index, event))
         return by_anchor.get(anchor, [])
 
+    def addressed_records(self) -> frozenset[str]:
+        """The records a `post` anywhere in the rules sends `to` someone."""
+        addressed = self._addressed
+        if addressed is None:
+            found: set[str] = set()
+            _addressed_posts(self.model_dump(mode="json", exclude={"records", "entities"}), found)
+            addressed = self._addressed = frozenset(found & set(self.records))
+        return addressed
+
     def hiding_records(self) -> frozenset[str]:
         """The records that may hold an entry some agent may not see: those whose `visible` is a rule, and those a
-        `post` anywhere in the rules sends `to` someone. Decided by what the contract says, never by what the records
-        hold now, so that whether reading one counts as reading something hidden reveals nothing itself."""
-        hiding = self._hiding
-        if hiding is None:
-            addressed: set[str] = set()
-            _addressed_posts(self.model_dump(mode="json", exclude={"records", "entities"}), addressed)
-            hiding = self._hiding = frozenset(name for name, spec in self.records.items()
-                                              if spec.visible != "all" or name in addressed)
-        return hiding
+        `post` sends `to` someone. Decided by what the contract says, never by what the records hold now, so that
+        whether reading one counts as reading something hidden reveals nothing itself."""
+        return frozenset(name for name, spec in self.records.items()
+                         if spec.visible != "all" or name in self.addressed_records())
 
     def policies_of(self, type_name: str) -> dict[str, tuple[str, PolicySpec]]:
         """``{policy: (declaring type, spec)}`` for the policies agents of ``type_name`` may play: its own and its
