@@ -107,7 +107,7 @@
       "id": "supply_chain",
       "title": "Supply chain",
       "summary": "tiers of a supply chain order upstream and ship downstream with delays (the beer game)",
-      "description": "Simulates a four-tier supply chain (retailer, wholesaler, distributor, factory) in which each tier sees only its own stock, backlog and incoming orders and orders from the tier above, with order, shipping and brewing delays; customer demand, delays and costs are inputs. Coded tiers order what they were asked for plus part of the gap to their target stock (base-stock and pass-through policies are included), so a demand step ripples upstream as the bullwhip effect; sharing real demand with every tier (share_demand) damps it. Reports cost, the bullwhip ratio, backlog and how long the chain takes to settle.",
+      "description": "Simulates a four-tier supply chain (retailer, wholesaler, distributor, factory) in which each tier sees only its own stock, backlog and incoming orders and orders from the tier above, with order, shipping and brewing delays; customer demand, delays and costs are inputs. Coded tiers order what they were asked for plus a quarter of the gap to their target stock and a third as much of the gap in what is already on its way, the weights people show in the beer game (base-stock and pass-through policies are included), so a demand step ripples upstream as the bullwhip effect; sharing real demand with every tier (share_demand) damps it. Reports cost, the bullwhip ratio, backlog and how long the chain takes to settle.",
       "status": "native",
       "path": "starters/beer_game.json"
     },

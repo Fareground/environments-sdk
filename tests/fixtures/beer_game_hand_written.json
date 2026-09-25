@@ -535,7 +535,7 @@
         {
           "do": "order",
           "with": {
-            "qty": "$clamp($round(($world.customer_demand if $inputs.share_demand else $actor.incoming_order) + 0.5 * ($inputs.initial_inventory - $actor.inventory + $actor.backlog)), 0, $inputs.max_order)"
+            "qty": "$clamp($round(($world.customer_demand if $inputs.share_demand else $actor.incoming_order) + 0.25 * ($inputs.initial_inventory - $actor.inventory + $actor.backlog + (($world.customer_demand if $inputs.share_demand else $actor.incoming_order) * $len($actor.ship_pipe) - $sum($actor.ship_pipe)) / 3)), 0, $inputs.max_order)"
           }
         }
       ]

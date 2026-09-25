@@ -303,6 +303,11 @@ worlds stay fast, and the package is organised by feature.
   - The `supply_chain` engine refuses an empty `demand` and `contact_centre` a `staffing` list that is not 24 half-hours
     (or empty), each with an invariant saying what to give. Before, the first crashed while building its world and
     the second failed at its second interval.
+  - The `supply_chain` engine's default ordering policy (`anchor`) adjusts a quarter of the stock gap and a third as
+    much of the supply-line gap, the weights fitted to people playing the beer game (Sterman 1989). Before, it
+    ignored what was already on order, so a step from 4 to 8 drove factory orders to 99 (bullwhip 570); now they
+    peak at 34 (bullwhip 64), in the range people reach, and sharing demand still damps it (peak 11, stable by week
+    14).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

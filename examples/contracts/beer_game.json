@@ -38,7 +38,7 @@
           "rules": [
             {
               "do": "beer_order",
-              "with": {"qty": "$clamp($round(($world.beer_demand if $inputs.share_demand else $actor.beer_incoming) + 0.5 * ($inputs.initial_inventory - $count_items($actor, 'beer') + $actor.beer_backlog)), 0, $inputs.max_order)"}
+              "with": {"qty": "$clamp($round(($world.beer_demand if $inputs.share_demand else $actor.beer_incoming) + 0.25 * ($inputs.initial_inventory - $count_items($actor, 'beer') + $actor.beer_backlog + (($world.beer_demand if $inputs.share_demand else $actor.beer_incoming) * $len($pipeline($actor, 'beer')) - $sum($pipeline($actor, 'beer'))) / 3)), 0, $inputs.max_order)"}
             }
           ]
         },
