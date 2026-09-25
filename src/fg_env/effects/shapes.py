@@ -43,8 +43,9 @@ CONDITION = Shape("a condition (an expression text, or true / false)", (str, boo
 #: What an `each` goes over.
 ITEMS = Shape("a type name, an expression or a list", (str, list))
 EFFECTS = Shape("an effect list (or one effect)", (str, Mapping, list))
-WHOLE = Shape("a whole number or an expression", (int, str))
-NUMBER = Shape("a number or an expression", (int, float, str))
+ROUNDS = Shape("a whole number of rounds ≥ 1, or an expression", (int, str))
+COUNT = Shape("a whole number ≥ 0, or an expression", (int, str))
+CHANCE = Shape("a probability from 0 to 1, or an expression", (int, float, str))
 FLAG = Shape("true or false", (bool,))
 NAMES = Shape("a list of names", (list,))
 BRANCHES = Shape("a list of branches, or the name of a draw", (list, str))
@@ -54,19 +55,19 @@ VALUE = Shape("a value")
 EFFECT_FIELDS: dict[str, dict[str, Shape]] = {
     "if": {"if": CONDITION, "then": EFFECTS, "else": EFFECTS},
     "each": {"each": ITEMS, "where": CONDITION, "do": EFFECTS, "as": NAME, "sync": FLAG},
-    "create": {"create": NAME, "count": WHOLE, "id": TEXT, "name": TEXT, "props": OBJECT, "at": VALUE, "as": NAME},
+    "create": {"create": NAME, "count": COUNT, "id": TEXT, "name": TEXT, "props": OBJECT, "at": VALUE, "as": NAME},
     "remove": {"remove": VALUE},
     "transfer": {"transfer": NAME, "from": VALUE, "to": VALUE, "amount": VALUE, "into": NAME},
     "link": {"link": NAME, "from": VALUE, "to": VALUE, "value": VALUE, "props": OBJECT},
     "unlink": {"unlink": NAME, "from": VALUE, "to": VALUE},
     "move": {"move": VALUE, "to": VALUE},
-    "post": {"post": NAME, "to": VALUE, "author": VALUE, "delay": WHOLE, "drop": NUMBER},
-    "emit": {"emit": NAME, "say": TEXT, "to": VALUE, "data": DATA, "delay": WHOLE, "drop": NUMBER},
+    "post": {"post": NAME, "to": VALUE, "author": VALUE, "delay": ROUNDS, "drop": CHANCE},
+    "emit": {"emit": NAME, "say": TEXT, "to": VALUE, "data": DATA, "delay": ROUNDS, "drop": CHANCE},
     "fail": {"fail": TEXT},
     "end": {"end": TEXT, "winner": VALUE, "say": TEXT},
-    "after": {"after": WHOLE, "do": EFFECTS},
+    "after": {"after": ROUNDS, "do": EFFECTS},
     "wake": {"wake": VALUE, "why": TEXT, "now": CONDITION, "actions": NAMES},
-    "repeat": {"repeat": WHOLE, "while": CONDITION, "do": EFFECTS},
+    "repeat": {"repeat": COUNT, "while": CONDITION, "do": EFFECTS},
     "call": {"call": NAME, "with": OBJECT},
     "chance": {"chance": BRANCHES, "outcomes": VALUE, "weight": VALUE, "as": NAME, "do": EFFECTS},
 }
