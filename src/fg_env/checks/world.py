@@ -175,7 +175,13 @@ class WorldChecks(Checker):
             if not generated:
                 self.template(spec.brief, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": {spec.type}})
                 continue
-            self.value(spec.count, f"{path}.count", BASE)
+            count = spec.count
+            if isinstance(count, str) and not is_expr(count) or isinstance(count, bool) \
+                    or isinstance(count, (int, float)) and (count < 0 or count != int(count)):
+                self.error(f"{path}.count", f"must be a whole number ≥ 0 or an expression with $, got {count!r}",
+                           'e.g. 12 or "$inputs.households"')
+            else:
+                self.value(count, f"{path}.count", BASE)
             self.expr(spec.from_, f"{path}.from", BASE)
             self.condition(spec.where, f"{path}.where", BASE | {"row"})
             self.expr(spec.weight, f"{path}.weight", BASE | {"row"})

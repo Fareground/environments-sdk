@@ -258,6 +258,10 @@ worlds stay fast, and the package is organised by feature.
   - An assignment to a named entity (`$entity(a).vv = 1`) is checked like one to `$actor`: a misspelt property or a
     value of the wrong kind is a check error at the rule's path, with a "did you mean". Before, only a smoke run found
     it, blaming `p.vv`.
+  - A value a property refuses at run time (a fraction into an `int`, text into a number) is reported at the rule that
+    wrote it, naming the property and where it is declared (`events[0].do[0]: \`$entity(a).n += 0.5\`: a's n
+    (types.p.props.n) must be a whole number`); before, the path was `p.n`. An entity `count` that is not a number is
+    a check error before anything runs.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

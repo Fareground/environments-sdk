@@ -291,3 +291,20 @@ def test_a_misspelt_property_of_a_named_entity_is_caught_before_running_at_the_r
     errors = {i.path: i for i in _errors(contract, rounds=0)}
     assert "$entity(a).vv" in errors["events[0].do[0]"].message and "'v'" in errors["events[0].do[0]"].fix
     assert "declared as" in errors["events[0].do[1]"].message
+
+
+def test_a_write_of_the_wrong_kind_found_at_run_time_names_the_rule_and_the_property():
+    contract = {"name": "Kinds", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"n": {"type": "int", "default": 0}}}},
+                "entities": {"a": {"type": "p"}},
+                "events": [{"on": "round.start", "do": ["$entity(a).n += 0.5"]}]}
+    [issue] = [i for i in _errors(contract) if "whole number" in i.message]
+    assert issue.path == "events[0].do[0]"
+    assert "a's n (types.p.props.n)" in issue.message and "`$entity(a).n += 0.5`" in issue.message
+
+
+def test_an_entity_count_that_is_not_a_number_is_caught_before_running():
+    contract = {"name": "Count", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"p": {"type": "p", "count": "three"}}}
+    [issue] = [i for i in _errors(contract, rounds=0) if i.path == "entities.p.count"]
+    assert "whole number" in issue.message

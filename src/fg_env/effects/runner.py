@@ -35,7 +35,7 @@ from difflib import get_close_matches
 from typing import Any
 
 from ..contract import MAX_CREATE, one_or_many
-from ..errors import RunError
+from ..errors import FatalRunError, RunError
 from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, map_key, resolve, truthy
 from ..expr.objects import Entity, PropsView
 from ..expr.template import format_value
@@ -226,14 +226,33 @@ class EffectRunner:
             value = self._combine(stmt.op, attr(owner, prop, source), value, source)
         if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
             self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
+        try:
+            if isinstance(owner, Entity):
+                self.world.set_prop(owner, prop, value)
+            elif isinstance(owner, Link):
+                self.world.set_link_field(owner, prop, value, f"{path}[{index}]")
+            elif isinstance(owner, PropsView):
+                self.world.set_world(prop, value)
+            else:
+                self.world.set_physics(prop, value)
+        except FatalRunError:
+            raise
+        except RunError as exc:  # the property refused the value: the rule that wrote it is where to fix it
+            raise self._refused_write(exc, owner, prop, source, f"{path}[{index}]") from None
+
+    def _refused_write(self, exc: RunError, owner: Any, prop: str, source: str, where: str) -> RunError:
+        """``exc``, raised where a property refused a value, told at the rule ``where`` that wrote it: which
+        property (and where it is declared), and the rule's text."""
+        if exc.path == where:
+            return exc
+        detail = str(exc).removeprefix(f"{exc.path}: ") if exc.path else str(exc)
         if isinstance(owner, Entity):
-            self.world.set_prop(owner, prop, value)
-        elif isinstance(owner, Link):
-            self.world.set_link_field(owner, prop, value, f"{path}[{index}]")
-        elif isinstance(owner, PropsView):
-            self.world.set_world(prop, value)
+            declared = next((kind for kind in reversed(self.world.contract.lineage(owner.entity_type))
+                             if prop in self.world.contract.types[kind].props), owner.entity_type)
+            subject = f"{owner.id}'s {prop} (types.{declared}.props.{prop})"
         else:
-            self.world.set_physics(prop, value)
+            subject = exc.path or prop
+        return RunError(f"`{source}`: {subject} {detail}", where)
 
     def _owner(self, stmt: Statement, scope: Any, source: str, where: str) -> tuple[Any, str, list[tuple[str, Any]]]:
         """The deepest entity / link / $world / $physics on the target path, the property written on it, and
