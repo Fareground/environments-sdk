@@ -466,7 +466,7 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
 
         use_chance(env, chance)
     if hosts is not None:
-        from .host.api import attach
+        from .runtime.hosted import attach
 
         attach(env, hosts)
     return env

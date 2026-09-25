@@ -93,7 +93,7 @@ class GymEnv(_Base):  # type: ignore[misc]
                      exposures=root.world.exposures is not None, assets=root.world.assets.catalog())
         source.origin.unarmed = root.origin.unarmed
         if self._hosts is not None:
-            from ..host.api import attach
+            from ..runtime.hosted import attach
 
             attach(source, self._hosts)
         pilot = piloted(source, controlled={self.agent}, participants=self._others)

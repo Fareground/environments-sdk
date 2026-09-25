@@ -60,7 +60,8 @@ the contract (`contract/`), then the expression language (`expr/`), then the wor
 `effects/`, `actions/`, `information/`, `mechanisms/`, `host/` …), then runs (`runtime/`, `participants/`,
 `copying/`, `checks/`, `api.py`), then the tools built on runs (`analysis/`, `report/`, `game/`, `authoring/`,
 `guides/`, `cli/` …).
-`tests/test_import_cycles.py` holds the exact list and fails on an import that points up.
+`tests/test_import_cycles.py` holds the exact list and fails on an import that points up; an import inside a function
+that points up is allowed only where its `DEFERRED_UPWARD` list names it, and that list only shrinks.
 
 Every module opens with a docstring saying what it is for: read those rather than a map here, which would go stale.
 To find the code behind a behaviour, search for the error message or guide text it produces.

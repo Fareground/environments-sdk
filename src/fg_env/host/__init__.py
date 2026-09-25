@@ -17,15 +17,32 @@ previews and replays without the host are identical::
     replay = host.load("debate_judged.json", hosts=host.Hosts.replaying(host.tape_of(env)), seed=1)
     assert host.run(replay, {"debater": my_llm}).outputs == result.outputs
 """
+from typing import TYPE_CHECKING, Any
+
 from ..contract.base import TAPE
 from . import adapters, stubs
-from .api import load, restore, run, wrap
 from .hosts import Hosts, bind, hosts_for
 from .protocols import Describer, Evaluator, Feed, GameMaster, HostError, Ranker, Tools, Writer
 from .tape import consult, tape_of
+
+if TYPE_CHECKING:
+    from ..runtime.hosted import load, restore, run, wrap
 
 __all__ = [
     "Hosts", "HostError", "Evaluator", "GameMaster", "Tools", "Writer", "Ranker", "Feed", "Describer",
     "load", "restore", "run", "wrap", "bind", "hosts_for", "tape_of", "consult", "TAPE",
     "adapters", "stubs",
 ]
+
+
+#: The run-level calls, kept with runs (:mod:`fg_env.runtime.hosted`): loaded on first use, since this package sits
+#: below runs.
+_RUN_LEVEL = ("load", "restore", "run", "wrap")
+
+
+def __getattr__(name: str) -> Any:
+    if name in _RUN_LEVEL:
+        from ..runtime import hosted
+
+        return getattr(hosted, name)
+    raise AttributeError(f"module 'fg_env.host' has no attribute {name!r}")

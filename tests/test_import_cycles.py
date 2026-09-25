@@ -141,6 +141,57 @@ def test_load_time_imports_only_point_down_the_layers():
         + ". Move what the lower module needs down to its layer, or pass it in from above.")
 
 
+#: Imports inside functions that point up the layers: each is a lower part reaching into a higher one, a dependency
+#: the load-time rule cannot see. The list only shrinks: a new one fails, and so does one that is gone.
+DEFERRED_UPWARD = frozenset({
+    "fg_env.checks.actions -> fg_env.describe.walk",
+    "fg_env.effects.chance -> fg_env.checks.roots",
+    "fg_env.effects.runner -> fg_env.runtime.diagnosis",
+    "fg_env.experiments.experiment -> fg_env.analysis.draws",
+    "fg_env.expr.codegen -> fg_env.stdlib.core",
+    "fg_env.host -> fg_env.runtime.hosted",  # the package's run-level calls, re-exported on first use
+    "fg_env.host.adapters -> fg_env.participants.llm",
+    "fg_env.host.hosts -> fg_env.runtime.facts",
+    "fg_env.host.tape -> fg_env.copying.snapshot",
+    "fg_env.mechanisms._common -> fg_env.checks",
+    "fg_env.participants.builtin -> fg_env.game.algorithms.participants",
+    "fg_env.participants.builtin -> fg_env.trace.rerun",
+    "fg_env.patterns.check -> fg_env.describe.walk",
+    "fg_env.registry -> fg_env.expr",
+    "fg_env.registry -> fg_env.world.abort",
+    "fg_env.runtime.returns -> fg_env.describe.claims",
+    "fg_env.runtime.returns -> fg_env.describe.metadata",
+})
+
+
+def _deferred_imports(tree):
+    """Import statements inside functions (run on first use, not at load)."""
+    functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
+    found = {id(node): node for function in functions for node in ast.walk(function)
+             if isinstance(node, (ast.Import, ast.ImportFrom))}
+    return list(found.values())
+
+
+def test_imports_inside_functions_point_up_the_layers_only_where_listed():
+    layer = {part: rank for rank, parts in enumerate(LAYERS) for part in parts}
+    modules = _modules()
+    upward = set()
+    for name, path in modules.items():
+        if name in ("fg_env", "fg_env.__main__"):
+            continue
+        part = name.split(".")[1]
+        for node in _deferred_imports(ast.parse(path.read_text())):
+            for target in _targets(name, path, node, modules):
+                other = target.split(".")[1] if target.startswith("fg_env.") and target.count(".") else None
+                if other in layer and layer[other] > layer[part]:
+                    upward.add(f"{name} -> {target}")
+    assert not upward - DEFERRED_UPWARD, (
+        f"new imports inside functions that point up the layers: {sorted(upward - DEFERRED_UPWARD)}. Move what the "
+        "lower module needs down to its layer, or pass it in from above.")
+    assert not DEFERRED_UPWARD - upward, (
+        f"gone, so remove them from DEFERRED_UPWARD: {sorted(DEFERRED_UPWARD - upward)}")
+
+
 @pytest.mark.slow
 def test_every_module_imports_on_its_own():
     # `import fg_env` loads almost nothing, so a module leaning on another having been imported first breaks here.
