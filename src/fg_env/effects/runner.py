@@ -239,8 +239,10 @@ class EffectRunner:
             value = self._combine(stmt.op, attr(owner, prop, source, scope), value, source)
         if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
             self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
-        if isinstance(owner, Entity) and prop in _ENTITY_FIELDS:
-            raise RunError(f"`{source}`: {prop} is built into every entity, so no rule assigns it ({READ_ONLY})",
+        if isinstance(owner, Entity) and (prop in _ENTITY_FIELDS or not owner.alive):
+            raise RunError(f"`{source}`: {prop} is built into every entity, so no rule assigns it ({READ_ONLY})"
+                           if prop in _ENTITY_FIELDS else f"`{source}`: {owner.id} has been removed, so nothing it "
+                           "held changes any more (guard the write with `$x.alive`, or write before the `remove`)",
                            f"{path}[{index}]")
         before = copy.deepcopy(attr(owner, prop, source)) if self.fired is not None else None
         try:
@@ -519,6 +521,10 @@ class EffectRunner:
         prop = effect["transfer"]
         source = _entity(self._eval(effect.get("from"), vars), self.world, where, "a `from` entity")
         target = _entity(self._eval(effect.get("to"), vars), self.world, where, "a `to` entity")
+        gone = next((entity.id for entity in (source, target) if not entity.alive), None)
+        if gone is not None:
+            raise RunError(f"{gone} has been removed, so nothing it held changes any more (guard the transfer with "
+                           "`$x.alive`, or make it before the `remove`)", where)
         amount = self._eval(effect.get("amount"), vars)
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
             raise RunError(f"transfer amount must be a number ≥ 0, got {amount!r}", where)

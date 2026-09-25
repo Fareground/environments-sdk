@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A rule's write or transfer to an entity already removed is an error naming it, instead of changing a value no
+    one will read.
   - `fg_env.rl.game`'s information state includes everything the seat knows of itself — its own private values
     too — whether or not a view shows them, as `wake.me` and `observation(seat, "struct")` do: solvers no longer
     merge states a coded policy can tell apart. Every information-state key changes (playthrough goldens regenerated).

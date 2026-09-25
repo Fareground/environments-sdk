@@ -112,3 +112,18 @@ def test_the_checker_checks_hook_effects_over_it():
     issues = [(i.path, i.message, i.severity) for i in fg_env.check(contract)]
     assert ("events[0].do[0]", "$it.nope: bank/firm has no property 'nope'", "error") in issues
     assert any(path == "events[0].do[1]" and "$actor is not available" in message for path, message, _ in issues)
+
+
+def test_a_rule_writing_to_an_entity_it_removed_is_told_so_rather_than_writing_to_it_silently():
+    """Once removed an entity holds what it held (audit 12 L4): a later write or transfer in the same rule is an
+    error naming it, as the rule's own mistake."""
+    for later in ("$params.t.x += 50", {"transfer": "x", "from": "$actor", "to": "$params.t", "amount": 1}):
+        contract = {"name": "Gone", "clock": {"rounds": 1},
+                    "types": {"p": {"agent": True, "props": {"x": 1}}},
+                    "entities": {"ann": {"type": "p"}, "bob": {"type": "p"}},
+                    "actions": {"kill": {"by": "p", "params": {"t": {"type": "entity", "of": "p",
+                                                                    "where": "$it.id != $actor.id"}},
+                                         "do": [{"remove": "$params.t"}, later]}},
+                    "outputs": {"x": "$sum(p, $it.x)"}}
+        issues = fg_env.check(contract)
+        assert any("has been removed" in i.message for i in issues), [str(i) for i in issues]
