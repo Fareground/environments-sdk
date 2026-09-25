@@ -278,6 +278,8 @@ worlds stay fast, and the package is organised by feature.
   - A crowd's market makers quote at least their share of one side of last round's crowd flow. Before, their quotes
     were sized by `base_qty` alone, so a large crowd emptied one side of the book at most round ends (100 traders,
     2 makers: 54 of 90; 1,000 and 10: 69 of 90; now 19 and 15).
+  - An LLM participant whose prompt is too long for its model forfeits that turn, as with a provider that stays down;
+    the next turn starts a fresh conversation. Before, the provider's "prompt is too long" failed the whole run.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

@@ -180,6 +180,17 @@ def _retryable(exc: BaseException) -> bool:
     return any(part in type(exc).__name__ for part in _RETRY_NAMES)
 
 
+#: What providers say when a request holds more than the model's context (Anthropic, OpenAI and compatible servers).
+_TOO_LONG = ("prompt is too long", "context length", "context_length_exceeded", "maximum context", "too many tokens")
+
+
+def too_long(exc: BaseException) -> bool:
+    """Whether a provider refused a request for holding more than the model's context: that turn cannot be played by
+    this model, but the next one (with a fresh, shorter conversation) may be."""
+    text = str(exc).lower()
+    return getattr(exc, "status_code", None) in (400, 413) and any(part in text for part in _TOO_LONG)
+
+
 def provider_failure(exc: BaseException, call: str, client: str, model: str, retries: int = 0) -> str:
     """What a failed provider call (``call`` on a ``client``) says: the error, and how to fix it — for an error retrying
     could fix that still failed after ``retries``, to try again later."""
@@ -343,9 +354,9 @@ class _LLMParticipant:
     def _create(self, wake: Wake, request: Callable[[], Any], prompt: int) -> Any:
         """One provider call (``prompt``: its rough input tokens), its usage counted. Rate limits, timeouts, overload,
         server errors and empty replies are retried while the turn lasts, never sleeping past its deadline; when the
-        retries run out the turn is forfeited.
-        Any other error fails the run: retrying would send the same request again. Once the turn is over no call is
-        made (:class:`_Over`)."""
+        retries run out the turn is forfeited, and so is one whose prompt is too long for the model (the next turn starts
+        a fresh conversation). Any other error fails the run: retrying would send the same request again. Once the turn
+        is over no call is made (:class:`_Over`)."""
         for attempt in range(self.retries + 1):
             if _over(wake):
                 raise _Over()
@@ -354,6 +365,8 @@ class _LLMParticipant:
             except (RunError, _Over):
                 raise
             except Exception as exc:
+                if too_long(exc):
+                    raise _Forfeit() from exc
                 if not _retryable(exc):
                     raise self._failure(wake, exc) from exc
                 if attempt >= self.retries:

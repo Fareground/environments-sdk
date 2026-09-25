@@ -229,3 +229,18 @@ def test_retries_stop_at_the_turn_deadline_and_no_call_is_made_after_the_run_ret
     time.sleep(1.2)  # a retry would have come after the 0.5 s wait; the turn ended at 0.3 s
     # Under load the first call may not even start within 0.3 s; what matters is that none comes after the run returns.
     assert len(client.requests) == made <= 1 and result.stats["timeouts"] == 1
+
+
+class TooLong(Exception):
+    status_code = 400
+
+    def __init__(self):
+        super().__init__("prompt is too long: 212000 tokens > 200000 maximum")
+        self.response = NS(headers={})
+
+
+def test_a_prompt_too_long_for_the_model_forfeits_that_turn_not_the_run():
+    client = FailingAnthropic([[("buy", {"offer": "espresso", "qty": 1})], [("end_turn", {})]], [TooLong()])
+    result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(client, "m"), rounds=2)
+    assert result.status != "failed", result.error
+    assert result.stats["forfeits"] == 1 and result.stats["actions"] == 1
