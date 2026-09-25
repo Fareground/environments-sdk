@@ -361,7 +361,7 @@ def _unnamed_creates(contract: Contract, kind: str) -> bool:
 
     def found(data: Any) -> bool:
         if isinstance(data, dict):
-            if data.get("create") in kinds and not data.get("name"):
+            if isinstance(data.get("create"), str) and data["create"] in kinds and not data.get("name"):
                 return True
             return any(found(value) for value in data.values())
         return isinstance(data, list) and any(found(value) for value in data)

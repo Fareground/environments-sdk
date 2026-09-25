@@ -41,7 +41,7 @@ from ..errors import FatalRunError, RunError
 from ..expr import EVERYONE, MAX_INT_BITS, ExprError, attr, check_size, compile_expr, map_key, resolve, truthy
 from ..expr.objects import Entity, PropsView
 from ..expr.template import compile_template, format_value
-from ..expr.values import _eq, _Everyone
+from ..expr.values import _ENTITY_FIELDS, _eq, _Everyone
 from ..information.gate import render
 from ..registry import OPS, OpSpec, family_action_hint
 from ..world.abort import Abort
@@ -49,30 +49,14 @@ from ..world.links import Link
 from ..world.parts import PhysicsView
 from ..world.store import World
 from .delivery import dropped, send
+from .shapes import CONDITION, EFFECT_FIELDS, READ_ONLY
 from .statements import Statement, capture_roots, compile_statement, structured_capture_roots
 from .sync import run_synced
 
 __all__ = ["EFFECT_OPS", "EffectRunner"]
 
-EFFECT_OPS: dict[str, tuple[str, ...]] = {
-    "if": ("if", "then", "else"),
-    "each": ("each", "where", "do", "as", "sync"),
-    "create": ("create", "count", "id", "name", "props", "at", "as"),
-    "remove": ("remove",),
-    "transfer": ("transfer", "from", "to", "amount", "into"),
-    "link": ("link", "from", "to", "value", "props"),
-    "unlink": ("unlink", "from", "to"),
-    "move": ("move", "to"),
-    "post": ("post", "to", "author", "delay", "drop"),  # plus the record's fields
-    "emit": ("emit", "say", "to", "data", "delay", "drop"),
-    "fail": ("fail",),
-    "end": ("end", "winner", "say"),
-    "after": ("after", "do"),
-    "wake": ("wake", "why", "now", "actions"),
-    "repeat": ("repeat", "while", "do"),
-    "call": ("call", "with"),
-    "chance": ("chance", "outcomes", "weight", "as", "do"),
-}
+#: Every core operation and the keys it takes (their shapes: :data:`.shapes.EFFECT_FIELDS`).
+EFFECT_OPS: dict[str, tuple[str, ...]] = {op: tuple(fields) for op, fields in EFFECT_FIELDS.items()}
 
 #: ``post`` keys that are not record fields.
 POST_KEYS = frozenset(EFFECT_OPS["post"])
@@ -255,6 +239,9 @@ class EffectRunner:
             value = self._combine(stmt.op, attr(owner, prop, source, scope), value, source)
         if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
             self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
+        if isinstance(owner, Entity) and prop in _ENTITY_FIELDS:
+            raise RunError(f"`{source}`: {prop} is built into every entity, so no rule assigns it ({READ_ONLY})",
+                           f"{path}[{index}]")
         before = copy.deepcopy(attr(owner, prop, source)) if self.fired is not None else None
         try:
             if isinstance(owner, Entity):
@@ -457,8 +444,13 @@ class EffectRunner:
     _text = text
 
     def _condition(self, value: Any, vars: dict[str, Any]) -> bool:
-        # These fields are checked as expressions, even without a $ reference.
-        return truthy(compile_expr(value)(self.world.evaluation.scope(**vars)) if isinstance(value, str) else value)
+        """A condition's truth: its text is always an expression (even without a `$`); a constant is itself. Any other
+        value is refused, as the checker refuses it, rather than taken as true or false."""
+        if isinstance(value, str):
+            return truthy(compile_expr(value)(self.world.evaluation.scope(**vars)))
+        if not CONDITION.fits(value):
+            raise ExprError(f"a condition must be {CONDITION.word}, got {format_value(value)}")
+        return bool(value)
 
     def _op_if(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         branch = "then" if self._condition(effect["if"], vars) else "else"
@@ -599,6 +591,8 @@ class EffectRunner:
         to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
         actor = vars.get("actor")
         data = self._eval(effect.get("data") or {}, vars)
+        if not isinstance(data, dict):
+            raise RunError(f"`data` must give an object, got {format_value(data)}", where)
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
              {"kind": "emit", "event": str(effect["emit"]), "text": self.said(effect.get("say"), vars, to),
               "actor": actor.id if isinstance(actor, Entity) else None, "to": list(to) if to is not None else None,
@@ -643,7 +637,7 @@ class EffectRunner:
         if not woken:
             return
         why = self.said(effect.get("why"), vars, woken) or "You were asked to act."  # what each woken agent is told
-        now = truthy(self._eval(effect["now"], vars)) if "now" in effect else False
+        now = self._condition(effect["now"], vars) if "now" in effect else False
         for entity_id in woken:
             if now:
                 self.world.request_reaction(entity_id, why, effect.get("actions"))

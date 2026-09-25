@@ -17,7 +17,7 @@ from ..errors import RunError
 if TYPE_CHECKING:
     from ..contract import Space
 
-__all__ = ["Geometry", "SpaceError", "NEIGHBORHOODS", "MAX_CELLS"]
+__all__ = ["EDGE_SHAPE", "Geometry", "SpaceError", "NEIGHBORHOODS", "MAX_CELLS", "graph_edge"]
 
 NEIGHBORHOODS = ("von_neumann", "moore", "hex")
 #: Most cells a grid may have.
@@ -31,6 +31,27 @@ Resolve = Callable[[Any, str], Any]
 
 class SpaceError(ValueError):
     """A position or query does not fit the space; the message says what to fix."""
+
+
+#: The one shape of a graph edge, as its messages name it.
+EDGE_SHAPE = "[a, b] or {from, to, weight}: a and b name places, weight is a number ≥ 0 (1 when left out)"
+
+
+def graph_edge(edge: Any) -> tuple[str, str, float] | str:
+    """A graph edge's two ends and weight, or what is wrong with its shape: the one reading the checker and the built
+    space share."""
+    if isinstance(edge, dict) and set(edge) <= {"from", "to", "weight"}:
+        ends, weight = (edge.get("from"), edge.get("to")), edge.get("weight", 1)
+    elif isinstance(edge, list) and len(edge) == 2:
+        ends, weight = (edge[0], edge[1]), 1
+    else:
+        return f"an edge is [a, b] or {{from, to, weight}}, got {edge!r}"
+    a, b = ends
+    if not isinstance(a, str) or not isinstance(b, str):
+        return f"an edge's ends are place names (text), got {a!r} and {b!r}"
+    if isinstance(weight, bool) or not isinstance(weight, (int, float)) or not 0 <= weight < math.inf:
+        return f"an edge's weight is a number ≥ 0, got {weight!r}"
+    return a, b, float(weight)
 
 
 class Geometry:
@@ -76,21 +97,19 @@ class Geometry:
         self._node_index = {node: index for index, node in enumerate(self.nodes)}
         self._adjacent = {node: [] for node in self.nodes}
         for index, edge in enumerate(edges):
-            if isinstance(edge, dict):
-                ends, weight = (edge.get("from"), edge.get("to")), float(edge.get("weight", 1))
-            elif isinstance(edge, (list, tuple)) and len(edge) == 2:
-                ends, weight = (edge[0], edge[1]), 1.0
-            else:
-                raise SpaceError(f"an edge is [a, b] or {{from, to, weight}}, got {edge!r}")
+            parts = graph_edge(edge)
+            if isinstance(parts, str):
+                raise RunError(parts, f"space.graph.edges[{index}]")
+            *ends, weight = parts
             a, b = (self._place_of_edge(end, index) for end in ends)
             self._adjacent[a].append((b, weight))
             self._adjacent[b].append((a, weight))
 
-    def _place_of_edge(self, end: Any, index: int) -> str:
+    def _place_of_edge(self, end: str, index: int) -> str:
         """``end`` of edge ``index``, refused when the nodes lack it (checked at build: either may be an expression)."""
         if end in self._adjacent:
-            return str(end)
-        hint = get_close_matches(str(end), self.nodes, n=1)
+            return end
+        hint = get_close_matches(end, self.nodes, n=1)
         raise RunError(f"'{end}' is not a place (places: {', '.join(self.nodes)}); "
                        f"{f'did you mean {hint[0]!r}? ' if hint else ''}add it to the nodes or fix the edge",
                        f"space.graph.edges[{index}]")

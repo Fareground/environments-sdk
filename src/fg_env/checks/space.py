@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 from ..contract import LAYER_TYPES, Space
 from ..effects.runner import select_ops
 from ..expr import is_expr
-from ..world.geometry import MAX_CELLS, NEIGHBORHOODS
+from ..world.geometry import EDGE_SHAPE, MAX_CELLS, NEIGHBORHOODS, graph_edge
 
 if TYPE_CHECKING:
     from .core import Checker
@@ -75,12 +75,11 @@ def _size(checker: Checker, raw: Any, path: str, whole: bool) -> Any:
 def _edges(checker: Checker, nodes: list[str], edges: list[Any]) -> None:
     known = set(nodes)
     for index, edge in enumerate(edges):
-        ends = ([edge.get("from"), edge.get("to")] if isinstance(edge, dict) else list(edge) if isinstance(edge, list)
-                else [])
-        if len(ends) != 2:
-            checker.error(f"space.graph.edges[{index}]", "an edge is [a, b] or {from, to, weight}")
+        parts = graph_edge(edge)
+        if isinstance(parts, str):
+            checker.error(f"space.graph.edges[{index}]", parts, f"write it as {EDGE_SHAPE}")
             continue
-        for end in ends:
+        for end in parts[:2]:
             if end not in known:
                 checker.error(f"space.graph.edges[{index}]", f"'{end}' is not a place",
                               checker._suggest(str(end), nodes))

@@ -10,12 +10,13 @@ from .. import contract as C
 from ..contract.parse_errors import shape_issue
 from ..effects.chance import check_chance
 from ..effects.runner import POST_KEYS, REPEAT_CEILING, all_ops, registered_op, select_ops
+from ..effects.shapes import READ_ONLY, misshapen
 from ..effects.statements import RESERVED_ROOTS, statement_parts
 from ..expr import ExprError, compile_expr, is_expr
 from ..registry import family_action_hint
 from .params import check_entity_literals
 from .privacy import PrivacyChecks
-from .roots import merge_types
+from .roots import ENTITY_FIELDS, merge_types
 from .space import check_sync
 from .state import check_delivery, check_link_fields
 
@@ -28,11 +29,6 @@ __all__ = ["EffectChecks", "broadcasts"]
 _REMOVED = {("wake", "in"): "a wake that comes later is a `wake` inside an `after` effect",
             ("wake", "delay"): "a wake that comes later is a `wake` inside an `after` effect",
             ("wake", "drop"): "a wake always arrives; to wake by chance, put it inside {\"if\": \"$chance(p)\"}"}
-#: The shape of the operation keys that name something or hold a text or an object, checked before they are read.
-_NAMES = ("post", "create", "transfer", "into", "link", "unlink", "emit", "call", "as")
-_SHAPES = {**dict.fromkeys(_NAMES, "a name (text)"),
-           **dict.fromkeys(("say", "why", "id", "name", "fail"), "text"), "props": "an object", "with": "an object"}
-_KINDS = {"a name (text)": str, "text": str, "an object": Mapping}
 #: The kinds of value an assignment's text can make plain, as its messages name them.
 _KIND_WORDS = {"number": "a number", "int": "a whole number", "bool": "true or false", "text": "text"}
 
@@ -114,6 +110,10 @@ class EffectChecks(PrivacyChecks):
             return
         if root in ("inputs", "outputs", "series", "clock", "round", "stage", "arm"):
             self.error(path, f"${root} is read-only", "assign to an entity's property, $world.x or $physics.x")
+            return
+        if fields and fields[0] in ENTITY_FIELDS and (named is not None or root in types):
+            self.error(path, f"${root}.{fields[0]} is built into every entity, so no rule assigns it",
+                       f"{READ_ONLY} — in `{source}`")
             return
         self._chain((root, *fields), path, types, params or {}, source)
         if len(fields) == len(steps):  # the property itself, not an element of it
@@ -246,10 +246,9 @@ class EffectChecks(PrivacyChecks):
                 for issue_path, message, fix in findings:
                     self.error(issue_path, message, fix)
             return
-        wrong = [(key, kind) for key, value in effect.items() if (value is not None or key == op)
-                 and (kind := _SHAPES.get(key)) is not None and not isinstance(value, _KINDS[kind])]
-        for key, kind in wrong:
-            self.issues.append(shape_issue(f"{path}.{key}", [kind], effect[key]))
+        wrong = misshapen(op, effect)
+        for key, shape in wrong:
+            self.issues.append(shape_issue(f"{path}.{key}", [shape.word], effect[key]))
         if wrong:
             return
         if op != "post":
@@ -320,7 +319,8 @@ class EffectChecks(PrivacyChecks):
                 v("to")
             if op == "wake":
                 self.template(effect.get("why"), f"{path}.why", None, roots, types, params)
-                v("now")
+                if "now" in effect:
+                    self.condition(effect["now"], f"{path}.now", roots, types, params)
                 self._reaction_actions(effect, path)
         elif op == "transfer":
             prop = effect["transfer"]
@@ -458,7 +458,8 @@ def broadcasts(effects: Any, contract: Any) -> bool:
         return any(broadcasts(effect, contract) for effect in effects)
     if not isinstance(effects, dict):
         return False
-    public = "post" in effects and getattr(contract.records.get(effects["post"]), "visible", None) == "all"
+    record = effects.get("post")
+    public = isinstance(record, str) and getattr(contract.records.get(record), "visible", None) == "all"
     if "to" not in effects and ("emit" in effects or public) or "end" in effects and effects.get("say"):
         return True
     return any(broadcasts(effects.get(key), contract) for key in ("then", "else", "do"))
