@@ -36,6 +36,7 @@ from .econ_base import (
     whole,
 )
 from .econ_inventory import agent_types
+from .expressions import Expr
 
 __all__ = ["NegotiationConfig", "IssueSpec", "ObligationSpec", "TransferSpec", "BreachSpec"]
 
@@ -67,7 +68,7 @@ class ObligationSpec(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     label: str = ""
-    from_: str = Field(..., alias="from",
+    from_: Expr = Field(..., alias="from",
                        description="Who owes it: expression over $proposer, $acceptor, $parties, $terms.")
     to: str = Field(..., description="Who receives it (same roots).")
     pay: str | None = Field(None, description="Currency paid.")
@@ -93,7 +94,7 @@ class TransferSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     label: str = Field("", description="What moves, in words (\"phones\").")
-    items: str = Field(..., description="The entities on offer, in order: expression over $proposer, $acceptor, "
+    items: Expr = Field(..., description="The entities on offer, in order: expression over $proposer, $acceptor, "
                                         "$parties and $terms, e.g. `$filter(phone, $it.owner == $proposer.id)`.")
     count: int | str | None = Field(None, description="How many of them move: number or expression over $terms "
                                                       "(default all). Fewer on offer refuses the signing.")
@@ -130,7 +131,7 @@ class NegotiationConfig(BaseModel):
                                             description="Private walk-away value of each party (prop "
                                                         "`<name>_reservation`); with `value`, no party offers or "
                                                         "accepts terms worth less to it.")
-    value: str | None = Field(None,
+    value: Expr | None = Field(None,
                               description="Worth of terms to a party, shown only to that party: expression over $party "
                                           "and $terms.")
     once: bool = Field(True, description="The first signed deal closes the negotiation.")

@@ -39,6 +39,7 @@ from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
 from ._common import stage_event
 from ._social import check_expr, entity, named_use, props, require_type
+from .expressions import Expr
 from .voting import tally
 
 __all__ = ["DeliberationConfig"]
@@ -87,7 +88,7 @@ class DeliberationConfig(BaseModel):
                                                           description="never (the run goes on) | decision: end the "
                                                                       "run once a main motion is decided | adoption: "
                                                                       "once one passes.")
-    when: str | None = Field(None, description="Hold the discussion only when true (e.g. \"$round <= 5\").")
+    when: Expr | None = Field(None, description="Hold the discussion only when true (e.g. \"$round <= 5\").")
 
 
 # ---------------------------------------------------------------------------

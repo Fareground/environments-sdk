@@ -42,6 +42,7 @@ from ..expr import EVERYONE, Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config, Effects
+from .expressions import Expr
 from .procedure_stack import StackConfig, check_push, check_stack_rules, expand_stack, read_stack, run_step
 
 __all__ = ["Transition", "PhaseDef", "ProcedureConfig"]
@@ -53,7 +54,7 @@ class Transition(Config):
     """A way out of a phase. Every condition given must hold; none given = after one round."""
 
     to: str = Field(..., description="The next phase.")
-    when: str | None = Field(None, description="An expression that must hold.")
+    when: Expr | None = Field(None, description="An expression that must hold.")
     after: int | str | None = Field(None, description="At least this many rounds in the phase.")
     event: str | None = Field(None,
                               description="An event of this kind happened during the phase (an emit, a record, a "
@@ -80,7 +81,7 @@ class PhaseDef(Config):
     terminal: bool = Field(False,
                            description="The run ends at the end of the phase's first round (at once if it has no "
                                        "stages).")
-    winner: str | None = Field(None, description="Terminal phases: expression naming the winner(s).")
+    winner: Expr | None = Field(None, description="Terminal phases: expression naming the winner(s).")
 
     @model_validator(mode="after")
     def _shape(self) -> PhaseDef:

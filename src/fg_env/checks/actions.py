@@ -110,7 +110,7 @@ class ActionChecks(EffectChecks):
             for key in ("of", "values", "where"):
                 if getattr(param, key) is not None:
                     self.error(f"{ppath}.{key}", "a list with `items` reads it from its items, so it would be ignored "
-                                                 "here", f"move it into `items` ({{\"items\": {{..., \"{key}\": ...}}}})")
+                                                 "here", f"move it into `items` ({{\"items\": {{\"{key}\": ...}}}})")
             if param.items.type in C.PARAM_TYPES and param.items.type != "list":
                 self._unused_fields(param.items, f"{ppath}.items")
         elif param.type == "list" and param.where is not None and not entity_items:

@@ -33,6 +33,7 @@ from .econ_base import (
     whole,
 )
 from .econ_inventory import agent_types
+from .expressions import Expr
 
 __all__ = ["LedgerConfig"]
 
@@ -60,7 +61,7 @@ class SourceSpec(BaseModel):
     to: str = Field(..., description="Type that receives it.")
     amount: float | str = Field(..., description="Amount per recipient (number or expression over $it).")
     currency: str | None = Field(None, description="Currency (needed when the ledger has several).")
-    where: str | None = Field(None, description="Which recipients ($it).")
+    where: Expr | None = Field(None, description="Which recipients ($it).")
     every: int = Field(1, ge=1, description="Rounds between payments.")
     start: int = Field(1, ge=1, description="First round it pays.")
     mode: Literal["add", "top_up", "reset"] = Field("add",

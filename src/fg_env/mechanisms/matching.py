@@ -21,6 +21,7 @@ from ..expr import ExprError, compile_expr, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ._common import is_agent_type, number_of, stage_event
 from ._social import check_expr, props, require_type
+from .expressions import Expr
 
 __all__ = ["MatchingConfig", "stable_match"]
 
@@ -36,9 +37,10 @@ class MatchingConfig(BaseModel):
     to: str = Field(..., description="Type that receives proposals (schools, hospitals).")
     seats: int | str = Field(1, description="Proposers one receiver accepts: a number or an expression over $it "
                                             "(the receiver), e.g. \"$it.capacity\".")
-    eligible: str | None = Field(None, description="Which pairs may match: an expression over $proposer and $receiver, "
-                                                   "e.g. \"$receiver.id in $proposer.applied\". Rank tools offer only "
-                                                   "eligible partners, and rankings are cut to them before matching.")
+    eligible: Expr | None = Field(None, description="Which pairs may match: an expression over $proposer and "
+                                                    "$receiver, e.g. \"$receiver.id in $proposer.applied\". Rank tools "
+                                                    "offer only eligible partners, and rankings are cut to them before "
+                                                    "matching.")
     stage: str | None = Field(None, description="Rank during this declared stage and match when it ends, after the "
                                                 "contract's own events on its end (every time); default: a stage named "
                                                 "after the mechanism, once.")

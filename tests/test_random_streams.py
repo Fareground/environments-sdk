@@ -110,7 +110,8 @@ def test_an_each_loop_draws_each_items_luck_on_its_own_so_removing_an_item_shift
                                      "$actor.r += [$randint(1, 1000)]"]}},
          "events": [{"on": "round.end", "do": [{"each": "cell", "do": ["$it.v += [$randint(1, 1000)]"]},
                                                "$world.after += [$randint(1, 1000)]"]}],
-         "outputs": {"bob": {"expr": "$entity(bob).r", "type": "list"}, "after": {"expr": "$world.after", "type": "list"},
+         "outputs": {"bob": {"expr": "$entity(bob).r", "type": "list"},
+                     "after": {"expr": "$world.after", "type": "list"},
                      "cell_3": {"expr": "$entity(cell_3).v", "type": "list"}}}
 
     def bob(wake):

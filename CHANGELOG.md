@@ -240,6 +240,16 @@ worlds stay fast, and the package is organised by feature.
     `items`. Before, they were silently ignored, so `{"type": "int", "values": [1, 2, 3]}` accepted 7.
   - An order book's `<name>_spread` metric is null while a side of the book is empty. Before, it read 0 — perfectly
     liquid — exactly when there was no market on one side.
+  - Every expression in a mechanism's fields is compiled when the mechanism expands and checked for what it reads:
+    a syntax error or an unknown name (`fair_value: "$world.x +"`, `"$world.nothere"`) is a check error at the
+    field. A field is an expression when its type takes a number or text (`start_price`, `reserve` …) or it is
+    always one (`fair_value`, `when`, `eligible`, `score` …). Before, fields only the mechanism's own code reads
+    were first evaluated mid-run, where a broken `fair_value` refused every fundamentalist's action and the crowd
+    silently stopped trading. An expression error while a mechanism expands is reported against the mechanism,
+    not as a bug in it.
+  - An agent type most of whose attempts were refused because a rule failed as they applied degrades the run
+    (`action_always_faulted` at `types.<type>`), also when another type's use of the same action works: a coded
+    population whose actions all fail no longer ends "completed" and healthy.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

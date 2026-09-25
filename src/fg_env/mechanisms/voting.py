@@ -12,6 +12,7 @@ from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, function, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from . import _common
+from .expressions import Expr
 
 __all__ = ["tally", "METHODS"]
 
@@ -310,7 +311,7 @@ class BallotConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     who: str = Field(..., description="Agent type that votes (subtypes included).")
-    options: list[Any] | str = Field(...,
+    options: list[Any] | Expr = Field(...,
                                      description="The choices: a list, or an expression giving a list (e.g. "
                                                  "\"$map(candidate, $it.id)\").")
     method: Literal["plurality", "majority", "supermajority", "approval", "ranked", "borda", "condorcet"] = Field(
@@ -323,9 +324,9 @@ class BallotConfig(BaseModel):
     threshold_of: Literal["votes", "members"] = Field(
         "votes", description="What the threshold is a share of: the votes cast (abstentions aside), or all members "
                              "still in the game (e.g. cloture at 3/5 of the senate).")
-    weight: str | None = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
+    weight: Expr | None = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
                                                  "\"$it.shares\"); default 1. Turnout and quorum count weight too.")
-    veto: str | None = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. "
+    veto: Expr | None = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. "
                                                "\"$it.permanent\"): one of them voting for the second option defeats "
                                                "the first. Needs exactly two options, the motion first.")
     quorum: float | None = Field(None, ge=0, le=1,
@@ -343,7 +344,7 @@ class BallotConfig(BaseModel):
     stage: str | None = Field(None,
                               description="Vote during this declared stage (tally at its end); default: a simultaneous "
                                           "stage named after the vote.")
-    when: str | None = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
+    when: Expr | None = Field(None, description="Hold the vote only when true (e.g. \"$round == 3\").")
     question: str = Field("", description="What is being decided, shown with the ballot.")
     announce: str = Field("",
                           description="Result text (template over $result); default names the winner or says it "

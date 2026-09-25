@@ -32,6 +32,7 @@ from ..information.gate import render
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
 from ._common import Config, Effects, ModifierSpec, Number
+from .expressions import Expr
 
 __all__ = ["StatusDef", "StatusConfig", "active_stacks"]
 
@@ -59,7 +60,7 @@ class StatusDef(Config):
     blocked_why: str = Field("", description="Why a blocked action is refused.")
     immune: list[str] = Field(default_factory=list,
                               description="Statuses that cannot be applied while this one is active.")
-    unless: str | None = Field(None, description="Expression over $it: when true the status cannot be applied to it.")
+    unless: Expr | None = Field(None, description="Expression over $it: when true the status cannot be applied to it.")
     on_apply: Effects = Field(default_factory=list,
                               description="Effects each time it is applied ($it, $stacks, $source).")
     on_expire: Effects = Field(default_factory=list, description="Effects when it runs out ($it, $stacks, $source).")

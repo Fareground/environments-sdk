@@ -27,6 +27,7 @@ from ..host.common import MODEL_HINT, NAME, agents_of, clip, prop_of, type_list
 from ..host.protocols import HostError
 from ..host.tape import consult, plain
 from ..registry import MechanismError, family_action, mechanism_config, mode, use_key
+from .expressions import Expr
 
 __all__ = ["MemoryConfig", "RecapConfig", "lexical_relevance"]
 
@@ -425,7 +426,7 @@ class RecapConfig(BaseModel):
     prompt: str = Field("Summarise the story so far for participants who need to catch up: who did what, what was "
                         "decided, what is still open. Be faithful and brief.", description="What the recap asks for.")
     last: int = Field(50, ge=1, le=500, description="Most new entries one recap reads.")
-    visible: str = Field("all", description="Who reads recaps: 'all' or an expression over $viewer and $it.")
+    visible: Expr = Field("all", description="Who reads recaps: 'all' or an expression over $viewer and $it.")
     max_chars: int = Field(1500, ge=100, le=10_000, description="Longest recap kept.")
     fallback: Literal["extract"] | None = Field(None,
                                                 description="Without a writer: quote the latest entries (default: stop "

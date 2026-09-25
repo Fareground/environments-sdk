@@ -74,7 +74,8 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
                        issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
             *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_never_acted(env), *_out_of_steps(env),
             *_arm_inputs(env),
-            *_host_fallbacks(env), *_host_unusable(env), *_faults(env), *_actions(env), *_policy_rules(env),
+            *_host_fallbacks(env), *_host_unusable(env), *_faults(env), *_faulted_types(env), *_actions(env),
+            *_policy_rules(env),
             *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
             *_stuck_measures(env, outputs, rules, {issue["path"] for issue in failed})]
 
@@ -270,6 +271,26 @@ def _faults(env: Env) -> list[dict[str, str]]:
                                 "make the rule work for every choice agents can make: bound the parameter it reads "
                                 "(min, max, where) or add a `when` requirement with a `why`, so a choice it cannot "
                                 "handle is refused with a reason"))
+    return out
+
+
+def _faulted_types(env: Env) -> list[dict[str, str]]:
+    """Agent types most of whose attempts were refused because a rule failed as they applied — a coded population whose
+    actions fail (another type's use of the same action may still work, so the action alone does not show it)."""
+    kinds: dict[str, list[Any]] = {}
+    for agent, stats in env.state.agent_stats.items():
+        entity = env.world.entities.get(agent)
+        if entity is not None and stats.wakes:
+            kinds.setdefault(entity.entity_type, []).append(stats)
+    out = []
+    for kind, members in sorted(kinds.items()):
+        faulted = sum(stats.faulted_actions for stats in members)
+        tried = faulted + sum(stats.actions for stats in members)
+        if faulted >= ALWAYS_FAULTED and faulted > FAILED_SHARE * tried:
+            out.append(_finding("action_always_faulted", f"types.{kind}",
+                                f"{faulted} of the {tried} attempts by {kind} agents were refused because a rule "
+                                "failed or an invariant broke as it applied, so this run does not show how they play",
+                                "fix the rule that failed (reported with its path and error beside this finding)"))
     return out
 
 

@@ -26,6 +26,7 @@ from .econ_base import (
     type_list,
     valid_name,
 )
+from .expressions import Expr
 
 __all__ = ["InventoryConfig", "ItemSpec", "agent_types", "baseline"]
 
@@ -69,7 +70,7 @@ class InventoryConfig(BaseModel):
         ["give", "consume"],
         description="Tools generated for agent holders: give, consume (consumable items), drop and pickup (needs a "
                     "space).")
-    give_to: str = Field("$it.id != $actor.id", description="Which holders an agent may give goods to ($actor, $it).")
+    give_to: Expr = Field("$it.id != $actor.id", description="Which holders an agent may give goods to ($actor, $it).")
     needs: dict[str, dict[str, int | str]] = Field(
         {}, description="Goods used up every `every` rounds per type: {type: {item: qty or expression over $it}}.")
     on_short: list[Any] = Field([], description="Effects when a need is not met ($it, $item, $short).")

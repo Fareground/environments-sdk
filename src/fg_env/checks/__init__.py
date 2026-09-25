@@ -22,6 +22,7 @@ from ..contract import Contract
 from ..contract.normalize import normalize
 from ..contract.parse_errors import validation_issues
 from ..errors import ContractError, Issue
+from ..expr import compile_expr
 from ..host.common import raw_model_ids
 from ..patterns.check import check_patterns
 from ..runtime.returns import check_game
@@ -111,8 +112,10 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
         check_game(self)
         check_scans(self)
         check_assets(self, BASE)
-        from ..mechanisms import authored_slips, separate_turns
+        from ..mechanisms import authored_expressions, authored_slips, separate_turns
 
+        for path, source in authored_expressions(c._source or {}):  # read by the mechanism's own code as it runs
+            self.expr(source, path, BASE | compile_expr(source).roots)
         self.issues.extend(separate_turns(c._source or {}))
         self.issues.extend(authored_slips(c._source or {}))
         self.issues.extend(raw_model_ids(c._source or {}))

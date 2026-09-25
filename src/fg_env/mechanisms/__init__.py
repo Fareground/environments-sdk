@@ -33,8 +33,10 @@ from pydantic import BaseModel, ValidationError
 from ..contract.parse_errors import error_message, shape_issue
 from ..contract.rules import StageSpec
 from ..errors import Issue
+from ..expr import ExprError, compile_expr
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 from ._common import raw_is_a
+from .expressions import expression_fields
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]
 
@@ -244,6 +246,23 @@ def separate_turns(data: Mapping[str, Any]) -> list[Issue]:
             for kind, names in staged.items() if len(names) > 1]
 
 
+def authored_expressions(data: Mapping[str, Any]) -> list[tuple[str, str]]:
+    """``(path, source)`` of every expression in the declared mechanisms' fields (see :mod:`.expressions`), for
+    ``check`` to check what each reads."""
+    uses = data.get("mechanisms")
+    found: list[tuple[str, str]] = []
+    for name, use in (uses.items() if isinstance(uses, Mapping) else ()):
+        spec = _spec(use, "") if isinstance(use, Mapping) and "kind" in use else None
+        if not isinstance(spec, tuple):
+            continue
+        try:
+            config = spec[0].config.model_validate(config_data(use))
+        except ValidationError:
+            continue
+        found.extend((f"mechanisms.{name}.{field}", source) for field, source in expression_fields(config))
+    return found
+
+
 def authored_slips(data: Mapping[str, Any]) -> list[Issue]:
     """Warnings for parts the author wrote that a mechanism will not see: an action declared under a generated action's
     name without the effects the mechanism gave it (the author's action replaces the generated one whole, so a ballot
@@ -345,6 +364,10 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
         config = spec.config.model_validate(config_data(use))
     except ValidationError as exc:
         return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
+    broken = [Issue(f"{path}.{field}", exc.detail, f"expression: {source}")
+              for field, source, exc in _broken_expressions(config)]
+    if broken:
+        return broken
     try:
         fragment = spec.expand(name, config, out)
         clash = _claim(out, name, fragment, owners)
@@ -356,10 +379,23 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
                 shares[stage] = shares.get(stage, 0) + int(hook.get("max_actions", 1))
     except MechanismError as exc:
         return [Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix)]
+    except ExprError as exc:  # an expression the mechanism built from its fields: the author's, not a bug
+        return [Issue(path, exc.detail, "fix the expression it quotes in the mechanism's fields")]
     except Exception as exc:  # a broken mechanism must not crash parsing: report it against its use
         return [Issue(path, f"the {label} mechanism failed to expand: {type(exc).__name__}: {exc}",
                       "this is a bug in the mechanism; report it with the contract")]
     return []
+
+
+def _broken_expressions(config: BaseModel) -> list[tuple[str, str, ExprError]]:
+    """The expression fields of ``config`` that do not compile, with why."""
+    broken = []
+    for field, source in expression_fields(config):
+        try:
+            compile_expr(source)
+        except ExprError as exc:
+            broken.append((field, source, exc))
+    return broken
 
 
 #: Sections whose generated entries are claimed by name: two mechanisms must not generate different ones alike.

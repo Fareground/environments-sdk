@@ -30,6 +30,7 @@ from ..expr.objects import Entity
 from ..registry import config_data, family_action
 from .card_scoring import RANK_LABELS, SUIT_LETTERS, SUIT_SYMBOLS, SUITS
 from .contract_cache import parse_kind, per_contract
+from .expressions import Expr
 
 __all__ = ["CardsConfig", "CardEntry", "ZoneConfig", "CardActionConfig", "Deck", "Zone", "decks", "zones_for",
            "deck_cards", "cards_in", "card_visible", "card_names", "place", "shuffle", "deal", "collect", "KEY"]
@@ -86,7 +87,7 @@ class CardActionConfig(_Strict):
 
     description: str = ""
     to: str | None = Field(None, description="Zone the card goes to (play: default discard).")
-    where: str | None = Field(None,
+    where: Expr | None = Field(None,
                               description="Which cards of your hand qualify ($it the card, $actor): only these are "
                                           "offered.")
     when: list[Any] = Field(default_factory=list, description="Extra requirements for the tool, as in actions.")
@@ -118,7 +119,7 @@ class CardsConfig(_Strict):
     deal: Literal["start", "round", "never"] = Field(
         "start",
         description="start: shuffle and deal once in round 1 | round: collect, shuffle and deal every round | never.")
-    deal_to: str | None = Field(None, description="Which players are dealt in ($it), e.g. \"$it.chips > 0\".")
+    deal_to: Expr | None = Field(None, description="Which players are dealt in ($it), e.g. \"$it.chips > 0\".")
     after_deal: list[Any] = Field(default_factory=list,
                                   description="Effects right after each deal (flip a starting card …).")
     reshuffle: bool = Field(True, description="An empty draw pile is refilled by shuffling the discard pile.")

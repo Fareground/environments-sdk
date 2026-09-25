@@ -29,6 +29,7 @@ from .econ_base import (
 )
 from .econ_demand import DemandConfig
 from .econ_inventory import agent_types
+from .expressions import Expr
 
 __all__ = ["ReplenishmentConfig", "LeadTimeRef", "POLICIES", "NEEDS"]
 
@@ -46,7 +47,7 @@ class LeadTimeRef(BaseModel):
 
     pattern: str = Field(...,
                          description="A noise pattern (normal, lognormal, uniform or laplace), drawn once per order.")
-    key: str | None = Field(None,
+    key: Expr | None = Field(None,
                             description="Its key as an expression over $it, for a keyed pattern (default: the item).")
     scale: float | str = Field(1.0, description="Multiplies the draw (expression over $it): \"$it.lead_weeks\" with a "
                                                 "lognormal factor around 1.")
@@ -76,7 +77,7 @@ class ReplenishmentConfig(BaseModel):
     reorder_point: float | str | None = Field(None, description=f"s, as an expression over $it and {_LOCALS}.")
     order_up_to: float | str | None = Field(None, description="S, as an expression over the same locals.")
     order_qty: float | str | None = Field(None, description="Q, as an expression over the same locals.")
-    decide: str | None = Field(None, description="custom: units to order now, as an expression over the same locals.")
+    decide: Expr | None = Field(None, description="custom: units to order now, as an expression over the same locals.")
     review_every: int | str = Field(1, description="Rounds between reviews (number or expression over $it).")
     service_level: float | str = Field(0.95, description="Chance of not running out before the next order can arrive "
                                                          "(the service policy, and $safety and $target).")

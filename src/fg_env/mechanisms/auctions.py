@@ -44,6 +44,7 @@ from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
 from ._common import entity_of, fmt, number_of
+from .expressions import Expr
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
 
@@ -83,7 +84,7 @@ class AuctionConfig(BaseModel):
     deliver_from: str | None = Field(None, description="reverse: the bidders' property holding their stock; the "
                                                        "winner's unit comes out of it, so an offer needs one in stock "
                                                        "(default: the unit is a service, made on delivery).")
-    score: str | None = Field(None, description="first_price: award to the acceptable bid with the highest score, an "
+    score: Expr | None = Field(None, description="first_price: award to the acceptable bid with the highest score, an "
                                                 "expression over $price and $it (the bidder), e.g. \"$it.quality * 10 "
                                                 "- $price\".")
     start_price: float | str | None = Field(None, description="dutch: where the clock starts.")
@@ -107,7 +108,7 @@ class AuctionConfig(BaseModel):
     payment: Literal["vcg", "pay_bid"] = Field("vcg",
                                                description="combinatorial: vcg (winners pay the value they displace; "
                                                            "truthful bids are safe) | pay_bid.")
-    when: str | None = Field(None, description="Open lots only when true (e.g. \"$round <= 3\").")
+    when: Expr | None = Field(None, description="Open lots only when true (e.g. \"$round <= 3\").")
     stage: str | None = Field(None,
                               description="Bid during this declared stage; default: a stage named after the auction.")
     conserve: bool = Field(True,

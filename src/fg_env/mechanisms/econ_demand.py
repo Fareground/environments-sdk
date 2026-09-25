@@ -29,6 +29,7 @@ from .econ_base import (
     require_types,
     valid_name,
 )
+from .expressions import Expr
 
 __all__ = ["DemandConfig", "SegmentSpec", "FactorRef", "ReturnsSpec", "segments_of", "RECORD_FIELDS"]
 
@@ -39,10 +40,10 @@ class FactorRef(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     pattern: str = Field(..., description="A declared pattern.")
-    key: str | None = Field(None,
+    key: Expr | None = Field(None,
                             description="Its key, as an expression over $it (default: the item, for a pattern with "
                                         "keys).")
-    driver: str | None = Field(None, description="For a response (elasticity, saturation …): what it is called with, "
+    driver: Expr | None = Field(None, description="For a response (elasticity, saturation …): what it is called with, "
                                                  "as an expression over $it and $price (default: $price, the price "
                                                  "paid).")
 
@@ -77,9 +78,9 @@ class SegmentSpec(BaseModel):
     rate: Factor = Field(..., description=_RATE)
     factors: list[Factor] = Field([], description=_FACTORS)
     noise: str | None = Field(None, description=_NOISE)
-    price: str | None = Field(None, description="What the segment pays per unit, as an expression over $it and $price "
+    price: Expr | None = Field(None, description="What the segment pays per unit, as an expression over $it and $price "
                                                 "(the item's price): \"$price * 0.85\". Default $price.")
-    where: str | None = Field(None, description="Only items where this holds ($it).")
+    where: Expr | None = Field(None, description="Only items where this holds ($it).")
     returns: ReturnsSpec | None = Field(None, description="Units this segment sends back: {rate, delay, restock}.")
 
 
@@ -105,7 +106,7 @@ class DemandConfig(BaseModel):
                                                     "the price and a promotion pattern (input $it.<name>_promo) can "
                                                     "use it.")
     cost: float | str = Field(0.0, description="Unit cost of an item (expression over $it), for margins.")
-    group: str | None = Field(None,
+    group: Expr | None = Field(None,
                               description="Each item's group (a category), as an expression over $it, for totals by "
                                           "group.")
     segment: str = Field("retail", description="Name of the main segment.")
@@ -113,7 +114,7 @@ class DemandConfig(BaseModel):
                                                              "channels: {name: {rate, factors, noise, price, where, "
                                                              "returns}}, served after the main one, in the order "
                                                              "listed.")
-    substitutes: str | None = Field(None, description="Items a customer who finds an item out of stock tries instead, "
+    substitutes: Expr | None = Field(None, description="Items a customer who finds an item out of stock tries instead, "
                                                       "in order: an expression over $it giving ids or entities "
                                                       "([$it.sibling]).")
     spill: float | str = Field(0.0,

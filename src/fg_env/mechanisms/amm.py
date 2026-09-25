@@ -32,6 +32,7 @@ from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
 from ._common import entity_of, fmt
 from .econ_base import money_prop
+from .expressions import Expr
 from .ledger import EPS, Account, balance, clean, move
 
 KEY = "market.prediction"
@@ -156,7 +157,7 @@ class PredictionMarketConfig(BaseModel):
     resolve_at: int | str | None = Field(None,
                                          description="Round at whose end the market resolves (number or expression).")
     resolve_when: str | None = Field(None, description="Resolve at the end of the first round this holds.")
-    outcome: str | None = Field(None, description="Expression giving the winning outcome when the market resolves.")
+    outcome: Expr | None = Field(None, description="Expression giving the winning outcome when the market resolves.")
     stage: str | None = Field(None,
                               description="Trade during this declared stage; default: a sequential stage named after "
                                           "the market.")

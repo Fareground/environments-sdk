@@ -33,6 +33,7 @@ from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
 from ..world.values import plain_value
 from ._common import stage_event
+from .expressions import Expr
 
 __all__ = ["JudgeConfig", "GameMasterConfig", "total_score"]
 
@@ -111,7 +112,7 @@ class JudgeConfig(BaseModel):
                                           "every round).")
     context_last: int = Field(0, ge=0, le=50, description="Earlier `record` entries shown to the judge as context.")
     blind: bool = Field(False, description="The judge sees 'Participant A/B/…' instead of names.")
-    visible: str = Field("all", description="Who reads the scores: 'all' or an expression over $viewer and $it.")
+    visible: Expr = Field("all", description="Who reads the scores: 'all' or an expression over $viewer and $it.")
     notify: bool = Field(True, description="Deliver scores to agents as news.")
     fallback: Literal["midpoint"] | None = Field(None,
                                                  description="Without an evaluator: score every criterion at its "
@@ -400,7 +401,7 @@ class AllowRule(BaseModel):
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     effect: Literal["set", "set_world", "transfer", "move", "news"] = Field(..., description="The change it allows.")
-    target: str = Field("actor",
+    target: Expr = Field("actor",
                         description="set/move: 'actor' or an expression over $actor giving the entities it may touch.")
     prop: str | None = Field(None, description="set/set_world/transfer: the property.")
     min: float | None = Field(None, description="Lowest value a number may become.")
@@ -408,8 +409,8 @@ class AllowRule(BaseModel):
     delta: float | None = Field(None, ge=0, description="Largest change of a number in one attempt.")
     values: list[Any] | None = Field(None, description="The only values it may set.")
     max_chars: int = Field(200, ge=1, le=4000, description="Longest text it may set or spread as news.")
-    giver: str = Field("actor", alias="from", description="transfer: 'actor' or an expression giving who may give.")
-    to: str | None = Field(None,
+    giver: Expr = Field("actor", alias="from", description="transfer: 'actor' or an expression giving who may give.")
+    to: Expr | None = Field(None,
                            description="transfer: expression giving who may receive ('actor' works); move: 'adjacent' "
                                        "or an expression over $actor and $it giving places.")
     amount: float | None = Field(None, gt=0, description="transfer: most that may move from one giver in one attempt.")
@@ -440,12 +441,12 @@ class GameMasterConfig(BaseModel):
     description: str = Field("", description="Tool description (default explains the tool).")
     max_chars: int = Field(500, ge=1, le=4000, description="Longest attempt text, in characters.")
     rules: str = Field("", description="How the world works, for the game master (plain text).")
-    context: dict[str, str] = Field(default_factory=dict,
+    context: dict[str, Expr] = Field(default_factory=dict,
                                     description="{name: expression over $actor} values shown to the game master.")
     max_effects: int = Field(4, ge=1, le=20, description="Most changes one attempt may cause.")
     per_turn: int | None = Field(1, ge=1, description="Attempts per turn.")
     terminal: bool = Field(True, description="An attempt ends the turn.")
-    visible: str = Field("all", description="Who reads the attempt log: 'all' or an expression over $viewer and $it.")
+    visible: Expr = Field("all", description="Who reads the attempt log: 'all' or an expression over $viewer and $it.")
     fallback: Literal["refuse"] | None = Field(None,
                                                description="Without a host: refuse every attempt (default: stop with "
                                                            "an error).")

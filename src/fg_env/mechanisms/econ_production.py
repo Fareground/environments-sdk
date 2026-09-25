@@ -35,6 +35,7 @@ from .econ_base import (
     whole,
 )
 from .econ_inventory import agent_types
+from .expressions import Expr
 
 __all__ = ["ProductionConfig", "RecipeSpec", "SkillSpec", "skill_level"]
 
@@ -56,7 +57,7 @@ class RecipeSpec(BaseModel):
     xp: float = Field(0, ge=0, description="Experience per batch.")
     tools: dict[str, int] = Field({}, description="Goods that must be held but are not used up {item: qty}.")
     at: str | list[str] | None = Field(None, description="Place(s) where it can be made.")
-    when: str | None = Field(None, description="Extra requirement over $actor.")
+    when: Expr | None = Field(None, description="Extra requirement over $actor.")
     cost: dict[str, float | str] = Field({},
                                          description="Money per batch {currency: amount}, leaving to the recipe's "
                                                      "sink.")

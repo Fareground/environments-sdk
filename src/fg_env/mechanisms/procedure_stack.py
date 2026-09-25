@@ -47,6 +47,7 @@ from ..world.abort import Abort
 from . import _common as common
 from ._common import Config, Effects, stage_event
 from ._social import check_expr, require_type
+from .expressions import Expr
 
 __all__ = ["StackConfig", "StackKind", "expand_stack", "run_step", "check_push", "check_stack_rules", "read_stack"]
 
@@ -65,11 +66,11 @@ class StackKind(Config):
                                    description="Tool params (ordinary param specs), kept on the item as $params.")
     starts: bool = Field(True, description="It may be pushed onto an empty stack.")
     on: list[str] = Field(default_factory=list, description="Kinds it may be pushed on top of (answer).")
-    when: str | None = Field(None,
+    when: Expr | None = Field(None,
                              description="Extra condition to push it ($actor, $top: the item it would answer, or "
                                          "null).")
     why: str = Field("", description="What the agent is told when it may not push it.")
-    responders: str = Field("$it.id != $item.by",
+    responders: Expr = Field("$it.id != $item.by",
                             description="Who owes it an answer while it is on top: an expression over $it (an agent) "
                                         "and $item.")
     show: str = Field("", description="How the item reads after its title (template over $item, $params, $actor).")

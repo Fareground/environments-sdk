@@ -964,3 +964,38 @@ def test_the_spread_metric_is_null_while_a_side_of_the_book_is_empty():
     participant, _ = scripted(plan)
     result = fg_env.load(c, seed=1).run(participant)
     assert result.series["x_spread"] == [None, 4]
+
+
+def _crowd_book(fair_value):
+    return {"fg_env": "2", "name": "S", "clock": {"rounds": 4}, "world": {"x": 100, "label": "high"},
+            "types": {"trader": {"agent": True, "props": {"cash": 10000, "x_shares": 50}}},
+            "entities": {"a": {"type": "trader"}},
+            "mechanisms": {"x": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 100,
+                                 "fair_value": fair_value,
+                                 "crowd": {"fundamentalist": {"count": 4, "cash": 10000, "shares": 50},
+                                           "market_maker": {"count": 1, "cash": 100000, "shares": 500}}}}}
+
+
+def test_a_broken_mechanism_expression_is_a_check_error_at_its_field():
+    for fair_value, words in (("$world.x +", "syntax error"), ("$world.nothere", "no such world property")):
+        issues = fg_env.check(_crowd_book(fair_value), rounds=0)
+        assert [(i.path, i.severity) for i in issues] == [("mechanisms.x.fair_value", "error")], issues
+        assert words in issues[0].message
+
+
+def test_a_coded_population_whose_every_action_fails_degrades_the_run():
+    """fair_value reads text, so every fundamentalist's algorithm call fails; the market maker still quotes."""
+    result = fg_env.run(_crowd_book("$world.label"), {"a": "idle"}, seed=1)
+    assert "action_always_faulted" in result.degraded
+    finding = next(d for d in result.diagnostics if d["path"] == "types.x_fundamentalist")
+    assert "fair_value must be a number" not in finding["message"] and "rule failed" in finding["message"]
+
+
+def test_an_authors_syntax_error_in_a_mechanism_field_is_reported_at_the_field_not_as_a_bug():
+    c = {"fg_env": "2", "name": "P", "clock": {"rounds": 2}, "world": {"x": 1},
+         "types": {"t": {"agent": True, "props": {"cash": 100}}}, "entities": {"a": {"type": "t"}},
+         "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "t", "outcomes": ["yes", "no"],
+                              "outcome": "$world.x ??"}}}
+    issues = fg_env.check(c, rounds=0)
+    assert [(i.path, i.severity) for i in issues] == [("mechanisms.m.outcome", "error")]
+    assert "bug" not in issues[0].message + (issues[0].fix or "")

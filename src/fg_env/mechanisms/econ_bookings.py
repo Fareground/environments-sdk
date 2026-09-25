@@ -30,6 +30,7 @@ from .econ_base import (
     whole,
 )
 from .econ_inventory import agent_types
+from .expressions import Expr
 
 __all__ = ["BookingsConfig", "ResourceSpec"]
 
@@ -68,7 +69,7 @@ class BookingsConfig(BaseModel):
     waitlist: bool = Field(True,
                            description="Slots format: a full round puts the guest on its waitlist instead of refusing.")
     order: Literal["fifo", "priority"] = Field("fifo", description="Who is served or promoted first.")
-    priority: str | None = Field(None, description="Priority order: expression over $it (the guest), higher first.")
+    priority: Expr | None = Field(None, description="Priority order: expression over $it (the guest), higher first.")
     patience: int | str | None = Field(None,
                                        description="Rounds a waiting guest waits before giving up (number or "
                                                    "expression over $it).")

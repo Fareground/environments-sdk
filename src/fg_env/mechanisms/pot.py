@@ -28,6 +28,7 @@ from ._common import stage_event
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 from .econ_base import lineage
+from .expressions import Expr
 
 __all__ = ["PotConfig", "side_pots", "uncalled"]
 
@@ -48,7 +49,7 @@ class PotConfig(BaseModel):
 
     who: str = Field(..., description="Agent type that bets (subtypes included).")
     stack: int | str = Field(1000, description="Starting chips (number or expression).")
-    seat: str | None = Field(None,
+    seat: Expr | None = Field(None,
                              description="Seat order: an expression over $it, lowest first (default: declaration "
                                          "order).")
     blinds: list[int | str] | None = Field(None,
@@ -62,10 +63,10 @@ class PotConfig(BaseModel):
                              description="Effects at the start of each hand, before blinds (collect and deal cards).")
     before_showdown: list[Any] = Field(default_factory=list,
                                        description="Effects before a contested showdown (reveal hands).")
-    score: str = Field(...,
+    score: Expr = Field(...,
                        description="A player's showdown score ($it), higher wins, e.g. \"$poker_rank($hand($it) + "
                                    "$zone(board)).score\".")
-    label: str | None = Field(None,
+    label: Expr | None = Field(None,
                               description="Text naming a player's holding at showdown ($it), e.g. "
                                           "\"$poker_rank(...).name\".")
     max_raises: int | None = Field(None, ge=1,
