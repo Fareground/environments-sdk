@@ -136,12 +136,13 @@ class Perception:
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
                time_limit: float | None = None, shown: Shown | None = None,
                attached: list[str] | None = None, calls: int | None = None, reads: bool = False,
-               last: str | None = None, first: bool = False) -> str:
+               last: str | None = None, first: bool = False, actions: int | None = None) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
         calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect;
         ``last``: what the agent's last action of its previous turn returned — the built-in LLM participants stop when
         a turn ends, so a turn-ending action's result reaches the model only here; ``first``: whether this is the
-        agent's first turn (its news is then everything "so far")."""
+        agent's first turn (its news is then everything "so far"); ``actions``: the actions the turn allows, when it
+        offers one."""
         lines: list[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if last:
             lines.append(f"Your last turn: {last}")
@@ -152,6 +153,9 @@ class Perception:
         if time_limit is not None:
             unit = "second" if time_limit == 1 else "seconds"
             lines.append(f"You have {format_value(time_limit)} {unit} for this turn; after that it ends.")
+        if actions is not None:
+            ends = "; it ends your turn" if actions == 1 else "; the last one ends your turn"
+            lines.append(f"You may take {actions} action{'' if actions == 1 else 's'} this turn{ends}.")
         if calls is not None:
             free = f", and up to {calls} free reads (look and inspect) that do not use them" if reads else ""
             lines.append(f"You have {calls} tool calls this turn{free}.")

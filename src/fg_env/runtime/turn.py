@@ -245,7 +245,8 @@ class Turn:
                                            self.time_limit, shown, attached,
                                            self.ledger.calls_left if self.call_limit else None,
                                            self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls),
-                                           self._last, self._first)
+                                           self._last, self._first,
+                                           self.ledger.actions_left if self._legal() else None)
                 self.note(Read("update", len(self._update)))
                 self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
@@ -295,7 +296,8 @@ class Turn:
         with self.gate:  # never while another agent's sealed choices are tried on the world
             tools = env.information.tools(self.actor, self._legal(), staged=self.staged, atomic=self.ledger.atomic,
                                           allowance=self.ledger.max_calls,
-                                          must_act=self.stage.must_act and not self.ledger.acted)
+                                          must_act=self.stage.must_act and not self.ledger.acted,
+                                          actions_left=self.ledger.actions_left)
         if not self._offered:
             self._offered = True
             self.note(Offered(len(tools), any(tool.kind == "act" for tool in tools)))

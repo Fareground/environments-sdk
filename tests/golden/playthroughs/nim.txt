@@ -33,6 +33,7 @@ Legal calls of seat 0: [1] take(count=1); [2] take(count=2); [3] take(count=3)
 Seat 0 (a) reads:
   | Move 1 of 50 · move
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Stones left: 5.
 Seat 0 information state: 9e02fca0027c4614
@@ -57,6 +58,7 @@ Seat 0 information state: 0d1333810032873d
 Seat 1 (b) reads:
   | Move 2 of 50 · move
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | So far:
   | - Ann: take (count=3).
@@ -74,6 +76,7 @@ Seat 0 (a) reads:
   | Move 3 of 50 · move
   | Your last turn: Done: take (count=3).
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Bob: take (count=1).

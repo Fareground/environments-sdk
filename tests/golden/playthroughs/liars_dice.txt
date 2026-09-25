@@ -33,6 +33,7 @@ Current player: chance
 Chance outcomes: roll p0: 1 (p=0.166667), roll p0: 2 (p=0.166667), roll p0: 3 (p=0.166667), roll p0: 4 (p=0.166667), roll p0: 5 (p=0.166667), roll p0: 6 (p=0.166667)
 Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your die: 0. Last bid: none.
 Seat 0 information state: e0270985c98c9234
@@ -50,6 +51,7 @@ Current player: chance
 Chance outcomes: roll p1: 1 (p=0.166667), roll p1: 2 (p=0.166667), roll p1: 3 (p=0.166667), roll p1: 4 (p=0.166667), roll p1: 5 (p=0.166667), roll p1: 6 (p=0.166667)
 Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your die: 4. Last bid: none.
 Seat 0 information state: 066e96605e74dae5
@@ -68,6 +70,7 @@ Legal calls of seat 0: [1] bid(quantity=1, face=1); [2] bid(quantity=1, face=2);
 Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your die: 4. Last bid: none.
 Seat 0 information state: 066e96605e74dae5
@@ -92,6 +95,7 @@ Seat 0 information state: ff227aec5df6ce3f
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | So far:
   | - P0 bids 1 x 5.
@@ -109,6 +113,7 @@ Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
   | Your last turn: Done: bid (quantity=1, face=5).
   | Now: Your turn again.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - P1 bids 2 x 6.

@@ -32,6 +32,7 @@ Current player: chance
 Chance outcomes: deal p0: 1 (p=0.333333), deal p0: 2 (p=0.333333), deal p0: 3 (p=0.333333)
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: 0. Betting so far (P0 first): none.
 Seat 0 information state: 361ab5d212d3416a
@@ -49,6 +50,7 @@ Current player: chance
 Chance outcomes: deal p1: 1 (p=0.5), deal p1: 3 (p=0.5)
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: 2. Betting so far (P0 first): none.
 Seat 0 information state: aa5d86728946741c
@@ -67,6 +69,7 @@ Legal calls of seat 0: [1] pass; [2] bet
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: 2. Betting so far (P0 first): none.
 Seat 0 information state: aa5d86728946741c
@@ -91,6 +94,7 @@ Seat 0 information state: 4b3f61d6ceb054f1
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | So far:
   | - P0: bet.

@@ -36,7 +36,7 @@ def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
                                     "params": {"text": {"type": "text", "max_len": 400,
                                                         "description": "What you say."}}}}}
     say = _first_tools(contract, "ann")["tools"]["say"]
-    assert say.description == "Say. Once per turn and at most 3 times per round."
+    assert say.description == "Say. Once per turn and at most 3 times per round. Ends your turn."  # one action
     assert (say.input_schema["properties"]["text"]["description"]
             == "What you say. Up to 400 characters (about 50 words).")
     from fg_env.information.tool_text import text_limit
@@ -397,3 +397,31 @@ def test_a_tool_schema_lists_each_choice_once_and_no_default_the_call_would_refu
     assert [i.path for i in fg_env.check({**contract, "actions": {"pick": {
         "by": "p", "do": [], "params": {"n": {"type": "int", "description": "Up to {$actor.cash}"}}}}}, rounds=0)
         if "plain text" in i.message] == ["actions.pick.params.n.description"]
+
+
+def test_the_last_action_a_turn_allows_says_it_ends_the_turn_and_the_update_states_the_limit():
+    """With one action left, every action ends the turn: each tool says so (and is marked terminal), and the update
+    states how many actions the turn allows — a model that calls a side action first learns before it calls that the
+    call ends its turn (audit 14 agentif HIGH-1)."""
+    contract = {"name": "Coin", "clock": {"rounds": 1}, "types": {"person": {"agent": True, "props": {"coins": 10}}},
+                "entities": {"ann": {"type": "person"}}, "stages": [{"name": "play", "max_actions": 2}],
+                "actions": {"bet": {"by": "person", "do": ["$actor.coins -= 1"]},
+                            "note": {"by": "person", "params": {"text": {"type": "text"}}, "do": []}}}
+    seen = []
+
+    def agent(wake):
+        seen.append(({tool.name: (tool.terminal, tool.description) for tool in wake.tools}, wake.update))
+        wake.call("note", {"text": "plan"})
+        seen.append(({tool.name: (tool.terminal, tool.description) for tool in wake.tools}, None))
+        wake.end()
+
+    fg_env.run(contract, {"ann": agent}, seed=1)
+    (first, update), (second, _) = seen
+    assert "You may take 2 actions this turn; the last one ends your turn." in update
+    assert first["bet"] == (False, "Bet.") and second["bet"] == (True, "Bet. Ends your turn.")
+    contract["stages"][0]["max_actions"] = 1
+    seen.clear()
+    fg_env.run(contract, {"ann": agent}, seed=1)
+    (first, update), _ = seen
+    assert "You may take 1 action this turn; it ends your turn." in update
+    assert first["note"][0] and first["note"][1].endswith("Ends your turn.")

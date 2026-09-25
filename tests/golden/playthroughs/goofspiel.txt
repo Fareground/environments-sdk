@@ -32,11 +32,13 @@ Current player: chance
 Chance outcomes: prize: 1 (p=0.25), prize: 2 (p=0.25), prize: 3 (p=0.25), prize: 4 (p=0.25)
 Seat 0 (a) reads:
   | Prize 1 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 0. Your cards: 1 2 3 4. Points: you 0, opponent 0.
 Seat 0 information state: 46432809d7117904
 Seat 1 (b) reads:
   | Prize 1 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 0. Your cards: 1 2 3 4. Points: you 0, opponent 0.
 Seat 1 information state: 4ddf294183fc7417
@@ -51,11 +53,13 @@ Legal calls of seat 1: [1] bid(card=1); [2] bid(card=2); [3] bid(card=3); [4] bi
 Seat 0 (a) reads:
   | Prize 1 of 4 · bid
   | Now: Everyone chooses at the same time.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 3. Your cards: 1 2 3 4. Points: you 0, opponent 0.
 Seat 0 information state: 06b99556afbbb741
 Seat 1 (b) reads:
   | Prize 1 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 3. Your cards: 1 2 3 4. Points: you 0, opponent 0.
 Seat 1 information state: 2efc067e133881fa
@@ -68,6 +72,7 @@ Current player: chance
 Chance outcomes: prize: 1 (p=0.333333), prize: 2 (p=0.333333), prize: 4 (p=0.333333)
 Seat 0 (a) reads:
   | Prize 2 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Done: bid (card=1).
@@ -77,6 +82,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 2add0126d5b1e11c
 Seat 1 (b) reads:
   | Prize 2 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Done: bid (card=3).
@@ -95,11 +101,13 @@ Legal calls of seat 1: [1] bid(card=1); [2] bid(card=2); [4] bid(card=4)
 Seat 0 (a) reads:
   | Prize 2 of 4 · bid
   | Now: Everyone chooses at the same time.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 2. Your cards: 2 3 4. Points: you 0, opponent 3.
 Seat 0 information state: 1d94d260e270a7bb
 Seat 1 (b) reads:
   | Prize 2 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 2. Your cards: 1 2 4. Points: you 3, opponent 0.
 Seat 1 information state: a02152c55cb6d07c
@@ -112,6 +120,7 @@ Current player: chance
 Chance outcomes: prize: 1 (p=0.5), prize: 4 (p=0.5)
 Seat 0 (a) reads:
   | Prize 3 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Done: bid (card=2).
@@ -121,6 +130,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 6a374b65dcc4b7c9
 Seat 1 (b) reads:
   | Prize 3 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Done: bid (card=4).
@@ -139,11 +149,13 @@ Legal calls of seat 1: [1] bid(card=1); [2] bid(card=2)
 Seat 0 (a) reads:
   | Prize 3 of 4 · bid
   | Now: Everyone chooses at the same time.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 4. Your cards: 3 4. Points: you 0, opponent 5.
 Seat 0 information state: f7babb5fdeed16ae
 Seat 1 (b) reads:
   | Prize 3 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 4. Your cards: 1 2. Points: you 5, opponent 0.
 Seat 1 information state: 3fa7cc2d7ed96609
@@ -156,6 +168,7 @@ Current player: chance
 Chance outcomes: prize: 1 (p=1)
 Seat 0 (a) reads:
   | Prize 4 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Done: bid (card=4).
@@ -165,6 +178,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 6de33271d9d947e9
 Seat 1 (b) reads:
   | Prize 4 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - Done: bid (card=1).
@@ -183,11 +197,13 @@ Legal calls of seat 1: [2] bid(card=2)
 Seat 0 (a) reads:
   | Prize 4 of 4 · bid
   | Now: Everyone chooses at the same time.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 1. Your cards: 3. Points: you 4, opponent 5.
 Seat 0 information state: 594c9e42796f1d55
 Seat 1 (b) reads:
   | Prize 4 of 4 · bid
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Prize: 1. Your cards: 2. Points: you 5, opponent 4.
 Seat 1 information state: f8e8689cd0b56fe1

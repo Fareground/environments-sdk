@@ -33,6 +33,7 @@ Current player: chance
 Chance outcomes: deal p0: 1 (p=0.166667), deal p0: 2 (p=0.166667), deal p0: 3 (p=0.166667), deal p0: 4 (p=0.166667), deal p0: 5 (p=0.166667), deal p0: 6 (p=0.166667)
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: none. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
 Seat 0 information state: 2f7873b30f0702de
@@ -50,6 +51,7 @@ Current player: chance
 Chance outcomes: deal p1: 1 (p=0.2), deal p1: 2 (p=0.2), deal p1: 3 (p=0.2), deal p1: 5 (p=0.2), deal p1: 6 (p=0.2)
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: Q. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
 Seat 0 information state: aba7da588a8f77a2
@@ -68,6 +70,7 @@ Legal calls of seat 0: [2] call; [3] raise
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: Q. Public card: none. Betting round 1. Chips in: you 1, opponent 1. Raises this round: 0.
 Seat 0 information state: aba7da588a8f77a2
@@ -92,6 +95,7 @@ Seat 0 information state: ed211a7a882a74c3
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | Now: It is your turn.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | So far:
   | - P0: raise.
@@ -108,6 +112,7 @@ Chance outcomes: public card: 1 (p=0.25), public card: 2 (p=0.25), public card: 
 Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | Your last turn: Done: raise.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Your card: Q. Public card: none. Betting round 2. Chips in: you 3, opponent 3. Raises this round: 0.
 Seat 0 information state: 328f2673e8a2cfcb
@@ -130,6 +135,7 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | Your last turn: Done: raise.
   | Now: Your turn again.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - P1: call.
@@ -160,6 +166,7 @@ Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | Your last turn: Done: call.
   | Now: Your turn again.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - P0: raise.
@@ -177,6 +184,7 @@ Seat 0 (p0) reads:
   | Hand 1 of 1 · betting
   | Your last turn: Done: raise.
   | Now: Your turn again.
+  | You may take 1 action this turn; it ends your turn.
   | 
   | Since your last turn:
   | - P1: raise.

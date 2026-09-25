@@ -89,13 +89,14 @@ class Information:
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int, turn_no: int,
                time_limit: float | None = None, shown: Shown | None = None, attached: list[str] | None = None,
-               calls: int | None = None, reads: bool = False, last: str | None = None, first: bool = False) -> str:
+               calls: int | None = None, reads: bool = False, last: str | None = None, first: bool = False,
+               actions: int | None = None) -> str:
         """``actor``'s update in its turn ``turn_no`` (see :meth:`Perception.update`), its [id] handles shown for
         the entities it may inspect and its views' luck drawn from the turn's own stream."""
         with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self, actor)), \
                 self.world.luck.stream("update", turn_no):
             return self.perception.update(actor, stage, reason, since, time_limit, shown, attached, calls, reads,
-                                          last, first)
+                                          last, first, actions)
 
     # -- views and news --------------------------------------------------------------------------------------------
 
@@ -152,11 +153,16 @@ class Information:
         return self.schemas.tool(actor, name, staged)
 
     def tools(self, actor: Entity, legal: list[str], *, staged: bool, atomic: bool, allowance: int,
-              must_act: bool) -> list[ToolSpec]:
+              must_act: bool, actions_left: int) -> list[ToolSpec]:
         """The tools ``actor`` is offered: one per ``legal`` action, then look and inspect (``allowance`` free
         reads), then end_turn — left out while ``must_act`` holds and an action is offered. ``staged``: its choices
-        are sealed until everyone has chosen; ``atomic``: its actions are checked together when the turn ends."""
+        are sealed until everyone has chosen; ``atomic``: its actions are checked together when the turn ends. With
+        one action left in the turn, every action ends it, and each says so."""
         tools = self.schemas.tools(actor, legal, staged)
+        if actions_left == 1:
+            tools = [tool if tool.kind != "act" or tool.terminal else
+                     ToolSpec(tool.name, tool.description + " Ends your turn.", tool.input_schema, "act", True)
+                     for tool in tools]
         looks = self.look_views(actor)
         if looks:
             tools.append(look_tool([(name, self.contract.views[name].title) for name in looks], allowance))

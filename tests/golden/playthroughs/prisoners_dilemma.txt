@@ -35,9 +35,11 @@ Legal calls of seat 1: [1] choose(move=cooperate); [2] choose(move=defect)
 Seat 0 (a) reads:
   | Round 1 of 1 · choose
   | Now: Everyone chooses at the same time.
+  | You may take 1 action this turn; it ends your turn.
 Seat 0 information state: 8c72645cfbdba7ef
 Seat 1 (b) reads:
   | Round 1 of 1 · choose
+  | You may take 1 action this turn; it ends your turn.
 Seat 1 information state: 5bff0fb42527bf57
 Returns: [0, 0]
 Chosen: seat 0: choose(move=cooperate); seat 1: choose(move=defect)

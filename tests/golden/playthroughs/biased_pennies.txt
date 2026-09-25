@@ -35,9 +35,11 @@ Legal calls of seat 1: [1] show(side=heads); [2] show(side=tails)
 Seat 0 (a) reads:
   | Round 1 of 1 · show
   | Now: Everyone chooses at the same time.
+  | You may take 1 action this turn; it ends your turn.
 Seat 0 information state: 3b765a3703cb83e0
 Seat 1 (b) reads:
   | Round 1 of 1 · show
+  | You may take 1 action this turn; it ends your turn.
 Seat 1 information state: ef747f8b216eceb4
 Returns: [0, 0]
 Chosen: seat 0: show(side=heads); seat 1: show(side=tails)

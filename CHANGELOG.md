@@ -298,6 +298,10 @@ worlds stay fast, and the package is organised by feature.
   - A sealed choice is tried at submit as far as a call made now would go: its `do`, then its commit — the invariants
     it would break and the `change` events it would set off — so it is refused there, not only at commit; and a
     `change` event's `fail` reads the same (its own text) in either kind of stage, at submit and at commit (L6).
+  - **An agent is told how many actions its turn allows** (agentif HIGH-1): the update says so ("You may take 1 action
+    this turn; it ends your turn."), and with one action left every action tool says "Ends your turn." and is marked
+    terminal. With the default `max_actions: 1` a model that called a side action first (a note) ended its turn
+    without knowing it would. The playthrough goldens gain that line; no information state changes.
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
