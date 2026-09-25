@@ -331,11 +331,9 @@ class Perception:
         addressed: list[LogEvent] = []
         private_news: list[LogEvent] = []  # world news only some agents may learn of: record entries
         for event in index.reader_dependent(since):
-            if not event.visible_to(actor.id):
-                continue
             if event.kind == "record" and event.data.get("record") in self._silent_records:
                 continue
-            if self._would_show(event, actor):
+            if self.world.evaluation.event_visible(event, actor) and self._would_show(event, actor):
                 (addressed if self._addressed(event, actor) else private_news).append(event)
         room = max(0, limit - len(addressed)) if limit is not None else len(index.log)
         public_news, public_count = index.world_news(since, room)
@@ -383,8 +381,7 @@ class Perception:
     def _would_show(self, event: LogEvent, actor: Entity) -> bool:
         if event.kind == "record":
             entry = self.world.entry_by_seq.get(event.data.get("entry"))
-            return (entry is not None and entry.get("author") != actor.id
-                    and self.world.evaluation.event_visible(event, actor))
+            return entry is not None and entry.get("author") != actor.id
         if event.kind == "action" and event.actor == actor.id:
             return False
         return bool(event.text)

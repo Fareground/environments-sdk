@@ -74,7 +74,7 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
     lines: list[str] = [env.information.render_brief(actor), "", "History:"]
     with as_turn(env, peek):
         for event in env.world.log:
-            if not event.visible_to(actor.id):
+            if not env.world.evaluation.event_visible(event, actor):
                 continue
             if event.kind == "action" and event.actor == actor.id:
                 data = event.data
@@ -120,7 +120,7 @@ def visible_key(env: Env, actor: Entity, pending: dict[str, Any]) -> str:
     data = _world_data(env, rows, pending)
     data["props"] = encode({key: value for key, value in world.props.items() if key not in world.hidden.world})
     data["log"] = [[event.round, event.kind, event.text, event.actor, encode(event.data)]
-                   for event in world.log if event.visible_to(actor.id)]
+                   for event in world.log if world.evaluation.event_visible(event, actor)]
     return digest(json.dumps(data, sort_keys=True, default=str))
 
 

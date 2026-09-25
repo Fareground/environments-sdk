@@ -349,10 +349,13 @@ class ActionBook:
                     line = ""  # the posted entry itself is the news
                 else:
                     line = self._default_announce(actor, name, public)
-                # Public: every agent may learn of it; the actor's own announcement is
-                # filtered out of its news by perception.
-                announcement = world.emit("action", line, actor=actor.id, to=None,
-                                          data={"action": name, "params": plain_value(public), "success": True})
+                # Public, unless it posted entries not every agent may see and says nothing of its own; the actor's
+                # own announcement is filtered out of its news by perception.
+                data = {"action": name, "params": plain_value(public), "success": True}
+                restricted = self.redaction.restricted_since(world, record_mark) if announce is None else None
+                if restricted:
+                    data["posted"] = restricted  # seen only by the readers who may see these entries
+                announcement = world.emit("action", line, actor=actor.id, to=None, data=data)
                 world.put_first(announcement, log_mark)
             else:
                 world.emit("action", "", actor=actor.id, to=(actor.id,),

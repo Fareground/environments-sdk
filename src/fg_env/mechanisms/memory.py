@@ -268,7 +268,7 @@ def _capture(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: s
     for agent in agents_of(world, config.who):
         items: list[tuple[str, str]] = []
         for event in events:
-            if event.kind == "end" or not event.visible_to(agent.id):
+            if event.kind == "end" or not world.evaluation.event_visible(event, agent):
                 continue
             if event.kind == "action" and event.actor == agent.id:
                 if "did" in config.capture and event.data.get("action") not in tools:

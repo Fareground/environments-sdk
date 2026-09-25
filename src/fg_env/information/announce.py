@@ -33,18 +33,26 @@ class Redaction:
         ``record_mark``."""
         if self._sealed(world):
             return {}
-        return _public_params(params, self._posted_since(world, record_mark), self._kept_secret(world, name))
+        posted = [(spec, entry) for _, spec, entry in self._posted_since(world, record_mark)]
+        return _public_params(params, posted, self._kept_secret(world, name))
 
-    def _posted_since(self, world: World, record_mark: int) -> list[tuple[RecordSpec, dict[str, Any]]]:
-        """Entries posted after ``record_mark``, with their record's spec."""
+    def restricted_since(self, world: World, record_mark: int) -> list[list[Any]]:
+        """``[record, seq]`` of each entry posted after ``record_mark`` that not every agent may see (directed, or
+        its record's `visible` is a rule). The action that posted them carries them, and is seen by exactly the
+        readers who may see them all (see :meth:`~fg_env.world.evaluation.Evaluation.event_visible`)."""
+        return [[name, entry["seq"]] for name, spec, entry in self._posted_since(world, record_mark)
+                if entry.get("to") is not None or spec.visible != "all"]
+
+    def _posted_since(self, world: World, record_mark: int) -> list[tuple[str, RecordSpec, dict[str, Any]]]:
+        """Entries posted after ``record_mark``, with their record's name and spec."""
         if world.record_seq == record_mark:
             return []
-        posted: list[tuple[RecordSpec, dict[str, Any]]] = []
+        posted: list[tuple[str, RecordSpec, dict[str, Any]]] = []
         for name, spec in self.contract.records.items():
             for entry in reversed(world.records_store.get(name, [])):
                 if entry["seq"] <= record_mark:
                     break
-                posted.append((spec, entry))
+                posted.append((name, spec, entry))
         return posted
 
     def _sealed(self, world: World) -> bool:

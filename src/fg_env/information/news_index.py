@@ -3,8 +3,8 @@
 Most events are public — every agent may learn of them, as the same text — so which of them an agent's news shows
 depends on the agent only through its own actions, which are never its news. Those events are kept in two lists in
 log order (world news, and other agents' actions), so a reader counts and picks the newest of them without reading
-the rest. The events whose visibility depends on the reader — sent to a few, or a record entry — are kept in a third
-list, which each reader goes through itself.
+the rest. The events whose visibility depends on the reader — sent to a few, a record entry, or an action that posted
+one not every agent may see — are kept in a third list, which each reader goes through itself.
 """
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ class NewsIndex:
         """Index the events added to the log since the last read."""
         log = self.log
         for event in log[self._count:]:
-            if event.to is not None or event.kind == "record":
+            if event.to is not None or event.kind == "record" or event.data.get("posted"):
                 self.private.add(event)
             elif not event.text:
                 continue  # public, but says nothing: never news

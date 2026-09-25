@@ -210,12 +210,19 @@ class EvalContext:
                 and (seen is None or self.event_visible(e, seen))]
 
     def event_visible(self, event: LogEvent, viewer: Entity) -> bool:
-        """Record notifications carry the same visibility as their retained source entry."""
+        """Whether ``viewer`` may know of ``event``: the one rule for every agent-facing reading of the log. An event
+        addressed to others is hidden; a record notification carries the visibility of its retained source entry,
+        and so does the action that posted entries not every agent may see (its actor always sees it)."""
         if not event.visible_to(viewer.id):
             return False
-        if event.kind != "record":
-            return True
-        record, seq = event.data.get("record"), event.data.get("entry")
+        if event.kind == "record":
+            return self._retained_visible(event.data.get("record"), event.data.get("entry"), viewer)
+        posted = event.data.get("posted") if event.kind == "action" else None
+        return not posted or event.actor == viewer.id or all(
+            self._retained_visible(record, seq, viewer) for record, seq in posted)
+
+    def _retained_visible(self, record: Any, seq: Any, viewer: Entity) -> bool:
+        """Whether entry ``seq`` of ``record`` is still kept and ``viewer`` may see it."""
         entry = self.world.entry_by_seq.get(seq) if seq is not None else None
         return record in self.world.contract.records and entry is not None \
             and self.entry_visible(record, entry, viewer)

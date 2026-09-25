@@ -219,6 +219,12 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 7.**
+  - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
+    is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
+    entries it posted (`data.posted`), and one rule decides both. Before, `$events(action)` showed everyone who
+    whispered to whom.
+
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
   it now gets two guesses). Undoing a change restores which `change` events are armed and which `once` events fired

@@ -132,3 +132,34 @@ def test_circular_event_visibility_fails_at_the_authored_rule_instead_of_leaking
     assert result.status == "failed"
     assert "records.decisions.visible" in result.error
     assert "evaluation nested too deeply" in result.error
+
+
+def whisper_contract(notify=True):
+    return {"name": "Whispers", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True}},
+            "entities": {"a": {"type": "p"}, "b": {"type": "p"}, "c": {"type": "p"}},
+            "records": {"dm": {"fields": {"text": "text"}, "show": "{author}: {text}",
+                               "visible": "$viewer.id in ($it.to or [])", "notify": notify}},
+            "actions": {"whisper": {"by": "p", "params": {"t": {"type": "entity", "of": "p"}, "text": "text"},
+                                    "do": {"post": "dm", "text": "$params.text", "to": "$params.t"}}},
+            "views": {"log": {"of": "$events(action)", "show": "{actor} {$it.action} {$it.params}", "empty": "-"}}}
+
+
+@pytest.mark.parametrize("notify", [True, False])
+def test_an_action_that_posted_a_private_entry_is_seen_only_by_who_may_see_the_entry(notify):
+    updates = {}
+
+    def participant(wake):
+        if wake.entity_id == "a":
+            assert wake.call("whisper", {"t": "c", "text": "meet at noon"}).ok
+        updates[wake.entity_id] = wake.update
+        wake.end()
+
+    env = fg_env.load(whisper_contract(notify), seed=1)
+    assert env.run(participant).status == "completed"
+    world = env.world
+    assert "whisper" not in updates["b"]
+    assert [e.data["action"] for e in world.events("action", world.entities["b"])] == []
+    for reader in ("a", "c"):  # the author and the recipient see the entry, so they see the action that posted it
+        assert [e.data["action"] for e in world.events("action", world.entities[reader])] == ["whisper"]
+    assert len(world.events("action")) == 1  # the full log keeps it
