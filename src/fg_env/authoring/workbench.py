@@ -136,8 +136,8 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
         constant += [f"outputs.{name} (came out the same in every test run, where it varied before)"
                      for name in tests[1].flat if name not in tests[0].flat and name in old_parts["outputs"]
                      and f"outputs.{name}" not in said]
-    return [path for path in gone
-            if not any(path.startswith(other + ".") for other in gone)] + gutted + shrunk + constant + _cut(before, after)
+    outermost = [path for path in gone if not any(path.startswith(other + ".") for other in gone)]
+    return outermost + gutted + shrunk + constant + _cut(before, after)
 
 
 def _cut(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
