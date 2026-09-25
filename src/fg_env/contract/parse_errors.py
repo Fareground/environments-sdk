@@ -111,7 +111,8 @@ def _fix(path: str, expected: list[str], value: Any) -> str | None:
     if "a number" in expected or "a whole number" in expected:
         return ("write a whole number without quotes" if "a whole number" in expected
                 else "write a number without quotes")
-    if expected == ["true or false"]:
+    if expected == ["true or false"] or ("true or false" in expected and isinstance(value, str)
+                                          and value.strip().lower() in ("true", "false")):
         return "write true or false, without quotes"
     return None
 
