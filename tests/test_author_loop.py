@@ -80,7 +80,7 @@ def test_an_output_that_comes_out_the_same_in_every_test_run_is_a_warning_the_mo
 
     result, replies = authored(no_market)
 
-    flat = '[warning] outputs.winner: came out "Ben" in every test run (random, idle and edge-value agents)'
+    flat = '[warning] outputs.winner: came out "Ana" in every test run (random, idle and edge-value agents)'
     assert result.ok and flat in replies[0] and flat in result.summary()
     assert "outputs.avg_price" not in replies[0]  # the agents' prices move it
 
