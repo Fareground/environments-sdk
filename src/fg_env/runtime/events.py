@@ -233,17 +233,26 @@ class Events:
         rules.world.commit()  # the `when`s it found changed commit with the change that moved them
 
     def _fire_changes(self, events: list[tuple[int, EventSpec]], path: str) -> None:
+        """Every `change` event's `when` is read against the state the commit left before any of them runs, so each one
+        sees every edge — a `when` that went false and back true between two reads rises again — and events that set
+        each other off keep doing so until :data:`CHANGE_DEPTH` says they loop. Those that rose then run in order,
+        each still holding when its turn comes (an earlier one's effects may have made it false again)."""
         rules, world = self.rules, self.rules.world
+        risen = []
         for index, event in events:
             if event.once and index in world.fired_once:
                 continue
-            when, do = self._streams[index]
+            when, _ = self._streams[index]
             with world.luck.at(when):
                 holds = self._holds(event.when or "true", {}, f"events[{index}].when")
             was = world.armed.get(index, False)
             world.set_armed(index, holds)
-            if not holds or was:
-                continue
+            if holds and not was:
+                risen.append((index, event))
+        for index, event in risen:
+            if not world.armed.get(index, False) or event.once and index in world.fired_once:
+                continue  # an earlier event's effects made it false again, or it fired in a nested check
+            _, do = self._streams[index]
             if event.once:
                 world.mark_fired(index)
             rules.check_invariants(path)  # a change event never acts on a broken world (an `each` item checks late)

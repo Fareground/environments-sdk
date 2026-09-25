@@ -135,3 +135,21 @@ def test_an_event_needs_a_real_anchor(event, message):
     with pytest.raises(fg_env.ContractError) as caught:
         fg_env.parse(contract)
     assert message in str(caught.value)
+
+
+def test_change_events_that_set_each_other_off_see_every_edge_and_are_stopped_as_a_loop():
+    """e1 (a == 1) sets a = 0, e2 (a == 0) sets a = 1: every `when` is read before any block runs, so e2 sees a go
+    false and true again, and the loop is reported instead of stopping silently one edge short (audit 12 M7)."""
+    contract = {"name": "C", "clock": {"rounds": 1}, "world": {"a": 0},
+                "types": {"p": {"agent": True, "props": {"x": 0}}}, "entities": {"ann": {"type": "p"}},
+                "actions": {"go": {"by": "p", "do": "$world.a = 1"}},
+                "events": [{"on": "change", "when": "$world.a == 1", "do": "$world.a = 0"},
+                           {"on": "change", "when": "$world.a == 0", "do": "$world.a = 1"}],
+                "outputs": {"a": "$world.a"}}
+
+    def go(wake):
+        wake.call("go", {})
+        wake.end()
+
+    result = fg_env.load(contract, seed=1).run(go)
+    assert result.status == "failed" and "set each other off" in result.error

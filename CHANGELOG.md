@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - `change` events read every `when` against what a commit left before any of them runs, so each sees every edge (a
+    condition that went false and true again between two reads rises again) and events that set each other off are
+    reported as a loop instead of stopping silently one edge short.
   - The static luck check follows a def read by its bare name (`"when": "$lucky"`) as it follows `$lucky()`, so a
     requirement that draws through one is reported at load, not when a play reaches it.
   - What an action set for later with `after` is dropped, as documented now, when its agent has left the run by then;
