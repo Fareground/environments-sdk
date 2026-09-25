@@ -121,10 +121,14 @@ def validation_issues(exc: ValidationError) -> list[Issue]:
     """Every structural problem as a plain-worded Issue; a union's alternatives at one path become one Issue."""
     issues: list[Issue] = []
     unions: dict[str, tuple[list[str], Any]] = {}
+    literals: dict[str, Any] = {}  # a literal's error: one alternative of a union where a type error shares its path
     for error in exc.errors():
         loc = _loc(error)
         path = _path(loc)
         kind = error["type"]
+        if kind == "literal_error":
+            literals[path] = error
+            continue
         if kind in _EXPECTED:
             expected, value = unions.setdefault(path, ([], error.get("input")))
             if _EXPECTED[kind][0] not in expected:
@@ -164,6 +168,12 @@ def validation_issues(exc: ValidationError) -> list[Issue]:
             issues.append(Issue(path, f"'{key}' is not a field here", fix))
         elif kind == "missing":
             issues.append(Issue(path, "is required"))
+        else:
+            issues.append(Issue(path, error_message(error), (error.get("ctx") or {}).get("fix")))
+    for path, error in literals.items():
+        if path in unions:  # `announce: true` fails text and false alike: one issue naming both
+            wanted = str((error.get("ctx") or {}).get("expected", ""))
+            unions[path][0].append(wanted.replace("False", "false").replace("True", "true"))
         else:
             issues.append(Issue(path, error_message(error), (error.get("ctx") or {}).get("fix")))
     issues.extend(shape_issue(path, expected, value) for path, (expected, value) in unions.items())

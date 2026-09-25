@@ -522,3 +522,10 @@ def test_a_transfer_to_the_world_or_of_an_unknown_property_is_a_check_error_with
     fixes = {i.path: i.fix for i in fg_env.check(bank, rounds=0) if i.severity == "error"}
     assert "$world.pot" in fixes["actions.pay.do[0].to"] and fixes["actions.give.do[0].transfer"] == \
         "did you mean 'coins'?"
+
+
+def test_announce_true_is_one_issue_naming_what_announce_takes():
+    shout = {"name": "Shout", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+             "entities": {"p": {"type": "p"}}, "actions": {"a": {"by": "p", "announce": True, "do": "$actor.n += 1"}}}
+    found = [i for i in fg_env.check(shout, rounds=0) if i.path == "actions.a.announce"]
+    assert [i.message for i in found] == ["must be text or false, got true"]

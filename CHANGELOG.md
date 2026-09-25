@@ -326,6 +326,8 @@ worlds stay fast, and the package is organised by feature.
   - A `transfer` to or from `$world` (or another view of the run's state) is a check error saying to move a world
     value with statements; before, every action failed with an internal message. An unknown transfer property gets a
     "did you mean".
+  - A field that takes text or a literal (`announce: true`) gets one issue naming both ("must be text or false, got
+    true"), not a pydantic "Input should be False" beside a second message.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
