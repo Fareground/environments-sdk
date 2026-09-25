@@ -53,7 +53,7 @@ def parse_contract(data: Any) -> Contract:
     try:
         contract = Contract.model_validate(expanded)
         contract._source = source
-        contract._notes = notes
+        contract.noting(notes)
         return contract
     except ValidationError as exc:
         raise ContractError(_dedupe(validation_issues(exc))) from None

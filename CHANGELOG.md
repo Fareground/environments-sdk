@@ -325,6 +325,9 @@ worlds stay fast, and the package is organised by feature.
   - The effect runner no longer imports the mechanisms at the bottom of its module to register them: the run
     (`runtime/env.py`) loads them, which takes the mechanisms out of the cycle of packages they formed with the
     effects, and a test fails on any new import that closes a cycle of packages.
+  - `Contract.notes` (the rewrites reading it made) replaces reaching into `_notes` from other packages, and the
+    parameter helpers the tool schemas share with validation (`item_spec`, `list_bounds`, `tidy` …) are public in
+    `fg_env.actions.params`.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

@@ -15,13 +15,13 @@ from ..information.gate import render
 from ..world.values import plain_value
 from .params import (
     _LISTED_UNKNOWN,
-    _STEP_TOLERANCE,
     MAX_SAFE_INT,
+    STEP_TOLERANCE,
     TEXT_MAX_LEN,
-    _item_count,
-    _item_spec,
-    _list_bounds,
-    _preview,
+    item_count,
+    item_spec,
+    list_bounds,
+    preview,
 )
 
 if TYPE_CHECKING:
@@ -56,11 +56,11 @@ class ActionValidation:
         if args is None:
             args = {}
         if not isinstance(args, dict):
-            return {}, f"arguments must be an object of named arguments, got {_preview(args)}"
+            return {}, f"arguments must be an object of named arguments, got {preview(args)}"
         problems: list[str] = []
         unknown = [key for key in args if not isinstance(key, str) or key not in spec.params]
         if unknown:
-            listed = ", ".join(key if isinstance(key, str) and len(key) <= 60 else _preview(key)
+            listed = ", ".join(key if isinstance(key, str) and len(key) <= 60 else preview(key)
                                for key in unknown[:_LISTED_UNKNOWN])
             if len(unknown) > _LISTED_UNKNOWN:
                 listed += f" and {len(unknown) - _LISTED_UNKNOWN} more"
@@ -118,14 +118,14 @@ class ActionValidation:
         if kind in ("number", "int"):
             value = _number_arg(raw)
             if value is None:
-                return None, f"must be a number, got {_preview(raw)}"
+                return None, f"must be a number, got {preview(raw)}"
             if isinstance(value, float) and not math.isfinite(value):
-                return None, f"must be a finite number, got {_preview(raw)}"
+                return None, f"must be a finite number, got {preview(raw)}"
             if abs(value) > MAX_SAFE_INT:
-                return None, f"is far too large ({_preview(raw)}): numbers here stay within ±{MAX_SAFE_INT:,}"
+                return None, f"is far too large ({preview(raw)}): numbers here stay within ±{MAX_SAFE_INT:,}"
             if kind == "int":
                 if isinstance(value, float) and not value.is_integer():
-                    return None, f"must be a whole number, got {_preview(raw) if isinstance(raw, str) else raw}"
+                    return None, f"must be a whole number, got {preview(raw) if isinstance(raw, str) else raw}"
                 value = int(value)
             scope: Scope | None = None  # built only for a bound that is an expression
             for key, label, bound, bad in (("min", "at least", param.min, lambda v, b: v < b),
@@ -144,15 +144,15 @@ class ActionValidation:
                     raise RunError(f"the {label} bound must be a number, got {format_value(limit)}",
                                    f"actions.{action}.params.{pname}")
                 if limit is not None and bad(value, limit):
-                    return None, f"must be {label} {_preview(limit)} (got {_preview(value)})"
+                    return None, f"must be {label} {preview(limit)} (got {preview(value)})"
             if param.step is not None:
                 base = compile_expr(param.min)(
                     scope or self.world.evaluation.scope(actor=actor, viewer=actor, params=params)) \
                     if is_expr(param.min) else param.min
                 offset = (value - (base or 0)) / param.step
-                if abs(offset - round(offset)) > _STEP_TOLERANCE:
-                    return None, f"must go in steps of {_preview(param.step)} from {_preview(base or 0)} " \
-                                 f"(got {_preview(value)})"
+                if abs(offset - round(offset)) > STEP_TOLERANCE:
+                    return None, f"must go in steps of {preview(param.step)} from {preview(base or 0)} " \
+                                 f"(got {preview(value)})"
             return value, None
         if kind == "file":
             return file_value(self.world, param, raw)
@@ -160,13 +160,13 @@ class ActionValidation:
             if isinstance(raw, str) and raw.strip().lower() in ("true", "false"):
                 return raw.strip().lower() == "true", None
             if not isinstance(raw, bool):
-                return None, f"must be true or false, got {_preview(raw)}"
+                return None, f"must be true or false, got {preview(raw)}"
             return raw, None
         if kind == "text":
             if isinstance(raw, bool) or not isinstance(raw, (str, int, float)) \
                     or (isinstance(raw, float) and not math.isfinite(raw)) \
                     or (isinstance(raw, int) and abs(raw) > MAX_SAFE_INT):
-                return None, f"must be text, got {_preview(raw)}"
+                return None, f"must be text, got {preview(raw)}"
             limit = param.max_len if param.max_len is not None else TEXT_MAX_LEN
             if isinstance(raw, str) and len(raw) > limit:
                 return None, f"is {len(raw)} characters; the limit is {limit}"
@@ -180,7 +180,7 @@ class ActionValidation:
                 folded = [v for v in values if isinstance(v, str) and v.lower() == raw.strip().lower()]
                 if len(folded) == 1:
                     return folded[0], None
-            return None, f"must be one of {', '.join(format_value(v) for v in values)} (got {_preview(raw)})"
+            return None, f"must be one of {', '.join(format_value(v) for v in values)} (got {preview(raw)})"
         if kind == "list":
             return self._list_value(actor, action, pname, param, raw, params)
         if kind == "entity":
@@ -191,7 +191,7 @@ class ActionValidation:
             if isinstance(raw, dict) and isinstance(raw.get("id"), str):
                 raw = raw["id"]
             if not isinstance(raw, str):
-                return None, f"must be an id, got {_preview(raw)}"
+                return None, f"must be an id, got {preview(raw)}"
             key = raw.strip()
             for choice in choices:
                 if choice.id == key:
@@ -200,7 +200,7 @@ class ActionValidation:
             if len(by_name) == 1:
                 return by_name[0], None
             listing = ", ".join(c.id for c in choices[:8]) + (" …" if len(choices) > 8 else "")
-            shown = f"'{raw}'" if len(raw) <= 60 else _preview(raw)
+            shown = f"'{raw}'" if len(raw) <= 60 else preview(raw)
             return None, f"{shown} is not a valid {param.of} {_given(param, params)} (valid: {listing or 'none'})"
         raise RunError(f"unknown parameter type '{kind}'", f"actions.{action}.params.{pname}")
 
@@ -250,7 +250,7 @@ class ActionValidation:
                 decoded = None
             raw = decoded if isinstance(decoded, list) else [part.strip() for part in text.split(",") if part.strip()]
         if not isinstance(raw, (list, tuple)):
-            return None, f"must be a list, got {_preview(raw)}"
+            return None, f"must be a list, got {preview(raw)}"
         def count(bound: Any, key: str) -> int | None:
             path = f"actions.{action}.params.{pname}.{key}"
             try:
@@ -258,14 +258,14 @@ class ActionValidation:
                     if is_expr(bound) else bound
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
-            return _item_count(value, path)
+            return item_count(value, path)
 
-        low, high = _list_bounds(param, count)
+        low, high = list_bounds(param, count)
         if len(raw) < low:
             return None, f"needs at least {low} item(s), got {len(raw)}"
         if high is not None and len(raw) > high:
             return None, f"allows at most {high} item(s), got {len(raw)}"
-        item = _item_spec(param)
+        item = item_spec(param)
         values: list[Any] = []
         seen: set = set()
         for index, element in enumerate(raw):

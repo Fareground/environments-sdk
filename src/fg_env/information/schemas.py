@@ -10,13 +10,13 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..actions.params import (
-    _STEP_TOLERANCE,
+    STEP_TOLERANCE,
     TEXT_MAX_LEN,
-    _item_count,
-    _item_spec,
-    _list_bounds,
-    _preview,
-    _tidy,
+    item_count,
+    item_spec,
+    list_bounds,
+    preview,
+    tidy,
 )
 from ..assets.intake import file_schema
 from ..contract import ParamSpec
@@ -116,19 +116,19 @@ class ToolSchemas:
         if param.type in ("number", "int"):
             out["type"] = "integer" if param.type == "int" else "number"
             for key, field in (("minimum", "min"), ("maximum", "max")):
-                value = _tidy(book.static(actor, getattr(param, field), f"actions.{action}.params.{pname}.{field}"))
+                value = tidy(book.static(actor, getattr(param, field), f"actions.{action}.params.{pname}.{field}"))
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     out[key] = math.ceil(value) if (param.type == "int" and key == "minimum") else (
                         math.floor(value) if param.type == "int" else value)
             if param.step is not None:
                 base = out.get("minimum", 0) if param.min is not None else 0
                 if param.min is None or "minimum" in out:
-                    description = (f"{description} In steps of {_preview(_tidy(param.step))} from "
-                                   f"{_preview(_tidy(base))}.").strip()
-                    if abs(base / param.step - round(base / param.step)) <= _STEP_TOLERANCE:
-                        out["multipleOf"] = _tidy(param.step)
+                    description = (f"{description} In steps of {preview(tidy(param.step))} from "
+                                   f"{preview(tidy(base))}.").strip()
+                    if abs(base / param.step - round(base / param.step)) <= STEP_TOLERANCE:
+                        out["multipleOf"] = tidy(param.step)
                 else:
-                    description = (f"{description} In steps of {_preview(_tidy(param.step))} from {param.min} "
+                    description = (f"{description} In steps of {preview(tidy(param.step))} from {param.min} "
                                    "(resolved from the action arguments).").strip()
         elif param.type == "bool":
             out["type"] = "boolean"
@@ -152,14 +152,14 @@ class ToolSchemas:
                 if kind:
                     out["type"] = kind
         elif param.type == "list":
-            item = _item_spec(param)
+            item = item_spec(param)
             item_schema = self._param_schema(actor, action, pname, item)
             item_schema.pop("default", None)
             item_description = item_schema.pop("description", "")
             out["type"] = "array"
             out["items"] = item_schema
             where = f"actions.{action}.params.{pname}"
-            low, high = _list_bounds(param, lambda raw, key: _item_count(book.static(actor, raw, f"{where}.{key}"),
+            low, high = list_bounds(param, lambda raw, key: item_count(book.static(actor, raw, f"{where}.{key}"),
                                                                          f"{where}.{key}"))
             if low:
                 out["minItems"] = low
@@ -235,7 +235,7 @@ class ToolSchemas:
         value = plain_value(raw)
         if isinstance(value, float) and not math.isfinite(value):
             return None
-        return _tidy(value)
+        return tidy(value)
 
 
 def _enum_type(values: Sequence[Any]) -> str | None:

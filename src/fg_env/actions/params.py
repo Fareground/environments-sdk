@@ -11,8 +11,8 @@ from typing import Any
 from ..contract import MAX_LIST_ITEMS, ParamSpec
 from ..errors import RunError
 
-__all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT", "MAX_ARG_DEPTH", "REFUSED_ARGS", "unbounded", "parse_arguments",
-           "choice_list"]
+__all__ = ["TEXT_MAX_LEN", "MAX_SAFE_INT", "MAX_ARG_DEPTH", "REFUSED_ARGS", "STEP_TOLERANCE", "unbounded",
+           "parse_arguments", "choice_list", "preview", "tidy", "item_spec", "item_count", "list_bounds"]
 
 #: Longest text a participant may pass to a text parameter that declares no `max_len`.
 TEXT_MAX_LEN = 4_000
@@ -28,7 +28,7 @@ _LISTED_UNKNOWN = 8
 #: Significant digits kept for schema bounds and defaults (0.1 + 0.2 shows as 0.3).
 _SCHEMA_DIGITS = 12
 #: How far (in steps) a number may sit from a step boundary and still count as on it (float noise).
-_STEP_TOLERANCE = 1e-9
+STEP_TOLERANCE = 1e-9
 
 _SURROGATE = re.compile("[\ud800-\udfff]")
 
@@ -40,7 +40,7 @@ _PREVIEW.maxlist = 6
 _PREVIEW.maxdict = 6
 
 
-def _preview(value: Any) -> str:
+def preview(value: Any) -> str:
     """A short, safe rendering of an argument for a correction message, whatever it is."""
     return _PREVIEW.repr(value)
 
@@ -74,12 +74,12 @@ def parse_arguments(text: str) -> tuple[Any, str | None]:
         return None, f"not valid JSON ({exc})"
 
 
-def _tidy(value: Any) -> Any:
+def tidy(value: Any) -> Any:
     """Drop float noise: 0.30000000000000004 → 0.3."""
     return float(f"{value:.{_SCHEMA_DIGITS}g}") if isinstance(value, float) else value
 
 
-def _item_spec(param: ParamSpec) -> ParamSpec:
+def item_spec(param: ParamSpec) -> ParamSpec:
     """The element spec of a list parameter: explicit `items`, or `of` / `values` shorthand."""
     if param.items is not None:
         return param.items
@@ -90,7 +90,7 @@ def _item_spec(param: ParamSpec) -> ParamSpec:
     return ParamSpec(type="text", max_len=param.max_len)
 
 
-def _list_bounds(param: ParamSpec, count: Callable[[Any, str], int | None]) -> tuple[int, int | None]:
+def list_bounds(param: ParamSpec, count: Callable[[Any, str], int | None]) -> tuple[int, int | None]:
     """A list parameter's fewest and most elements (None: no more than its candidates). ``count(raw, key)`` resolves a
     bound (a number or an expression; None when it cannot be known yet). A list of distinct choices (entities or listed
     values, `unique`) can never hold more than there are candidates, so only its own `max_items` caps it — a ranking of
@@ -104,15 +104,15 @@ def _list_bounds(param: ParamSpec, count: Callable[[Any, str], int | None]) -> t
 
 def choice_list(param: ParamSpec) -> bool:
     """Whether a list parameter holds distinct choices: entities or listed values, each at most once."""
-    return param.unique and _item_spec(param).type in ("entity", "enum")
+    return param.unique and item_spec(param).type in ("entity", "enum")
 
 
-def _item_count(value: Any, path: str) -> int | None:
+def item_count(value: Any, path: str) -> int | None:
     """A resolved `min_items` / `max_items`: a whole number ≥ 0 (None stays unknown)."""
     if value is None:
         return None
     if isinstance(value, float) and value.is_integer():
         value = int(value)
     if isinstance(value, bool) or not isinstance(value, int) or value < 0:
-        raise RunError(f"must be a whole number ≥ 0, got {_preview(value)}", path)
+        raise RunError(f"must be a whole number ≥ 0, got {preview(value)}", path)
     return value

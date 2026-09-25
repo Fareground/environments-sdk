@@ -47,7 +47,7 @@ def _read(source: ContractLike) -> Any:
 def _read_noted(source: ContractLike) -> tuple[Any, list[str]]:
     """:func:`_read`, and a note of every earlier form it rewrote (its imports' too)."""
     if isinstance(source, Contract):
-        return source, list(source._notes)
+        return source, source.notes
     if isinstance(source, Mapping):
         return _with_imports(source, Path.cwd(), ())
     if isinstance(source, str) and source.lstrip().startswith(("{", "[")):
@@ -62,7 +62,7 @@ def _parsed(data: Any, notes: list[str]) -> Contract:
     """The contract read from ``data`` (see :func:`_read_noted`), keeping the notes of what reading it rewrote."""
     contract = parse_contract(data)
     if contract is not data:  # a contract parsed earlier already holds its notes
-        contract._notes = [*notes, *contract._notes]
+        contract.noting(notes)
     return contract
 
 
@@ -198,7 +198,7 @@ def migrate(source: ContractLike) -> tuple[dict[str, Any], list[str]]:
     Loading an earlier form works for now (the same rewrites are made on load, with one warning), but earlier forms
     stop loading in fg-env 1.0."""
     if isinstance(source, Contract):
-        return ordered(contract_source(source)), list(source._notes)
+        return ordered(contract_source(source)), source.notes
     if isinstance(source, Mapping):
         data: Any = source
     elif isinstance(source, str) and source.lstrip().startswith(("{", "[")):
@@ -216,7 +216,7 @@ def migrate(source: ContractLike) -> tuple[dict[str, Any], list[str]]:
 def earlier_form(source: ContractLike, contract: Contract) -> Issue | None:
     """The one warning for a contract written in an earlier form of the language: how many rewrites loading it made,
     and how to save the current form (``None`` when it is current)."""
-    notes = contract._notes
+    notes = contract.notes
     if not notes:
         return None
     named = isinstance(source, (str, os.PathLike)) and not str(source).lstrip().startswith(("{", "["))
@@ -385,7 +385,7 @@ def apply_arm(contract: Contract, arm: str) -> Contract:
     patch = contract.arms[arm].patch
     if not patch:
         return contract
-    return located(_parsed(_merge(contract_source(contract), patch), contract._notes), contract._folder)
+    return located(_parsed(_merge(contract_source(contract), patch), contract.notes), contract._folder)
 
 
 def contract_source(contract: Contract) -> dict[str, Any]:

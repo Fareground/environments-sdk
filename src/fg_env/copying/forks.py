@@ -105,7 +105,7 @@ def _fork(cls: Any, contract: ContractLike, snapshot: Mapping[str, Any], *, arm:
     # A different arm or replacement contract deliberately selects a new rule base.
     new = old if to is None and new_arm == old_arm else (apply_arm(base, new_arm) if new_arm is not None else base)
     if patch:  # a patch may be written in an earlier form: the merged contract is normalized, and the rewrites noted
-        new = located(_parsed(_merge(contract_source(new), dict(patch)), new._notes), new._folder)
+        new = located(_parsed(_merge(contract_source(new), dict(patch)), new.notes), new._folder)
     problems = [issue for issue in check_contract(new) if issue.severity == "error"]
     if problems:
         raise ContractError(problems, title="the forked contract is invalid")

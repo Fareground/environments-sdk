@@ -195,6 +195,18 @@ class Contract(_Model):
             data = {**data, "world": {**(world or {}), TAPE: tape_prop()}}
         return data
 
+    # -- what reading it rewrote -------------------------------------------------
+
+    @property
+    def notes(self) -> list[str]:
+        """A note of every earlier form rewritten when the contract was read (see :mod:`.normalize`), its imports'
+        too."""
+        return list(self._notes)
+
+    def noting(self, notes: list[str]) -> None:
+        """Record ``notes``, rewrites made before the ones already noted (an import's, the file's own)."""
+        self._notes = [*notes, *self._notes]
+
     # -- type lineage ----------------------------------------------------------
 
     def lineage(self, type_name: str) -> list[str]:
