@@ -14,7 +14,7 @@ from typing import Any
 
 from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
-from ._common import fmt, pct
+from ._common import conserve_invariant, fmt, pct
 from .book_rules import rules_default
 from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
@@ -269,11 +269,11 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
                                "brief": f"Trade {unit}: buy, sell, cancel, or end your turn."}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}
-    if cfg.conserve:
-        fragment["invariants"] = [{"expr": f"$book_ok({name})",
-                                   "check": "action" if cfg.conserve is True else cfg.conserve,
-                                   "why": f"The {unit} book's reserves match its resting orders, balances stay within "
-                                          "limits and the book is never crossed."}]
+    invariants = conserve_invariant(cfg.conserve, f"$book_ok({name})",
+                                    f"The {unit} book's reserves match its resting orders, balances stay within "
+                                    "limits and the book is never crossed.")
+    if invariants:
+        fragment["invariants"] = invariants
     if cfg.crowd:
         fragment["population"] = []
         fragment["types"][crowd_type(name)] = {

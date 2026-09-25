@@ -104,8 +104,13 @@ def move(world: Any, source: Account, target: Account, amount: float, *, what: s
     have = balance(world, source)
     if have - amount < floor - EPS:
         available = max(0.0, have - floor)
-        raise Abort(f"{source.label()} has only {format_value(round(available, 6))} {what or source.prop} available; "
-                    f"{format_value(round(amount, 6))} is needed.")
+        told = (f"{source.label()} has only {format_value(round(available, 6))} {what or source.prop} available; "
+                f"{format_value(round(amount, 6))} is needed.")
+        if source.entity is None:
+            raise Abort(told)
+        # a balance hidden from the acting agent (another's escrow) must not refuse it for free: the refusal says
+        # nothing of it and spends the action, as a rule's own refusal on a hidden value does
+        raise world.evaluation.refusal(source.entity, source.prop, told, "That cannot be done now.")
     remaining = have - amount
     if abs(remaining - floor) < EPS:
         remaining = floor

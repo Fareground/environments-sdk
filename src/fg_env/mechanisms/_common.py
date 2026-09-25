@@ -14,7 +14,7 @@ import math
 import re
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from difflib import get_close_matches
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,12 +29,29 @@ __all__ = [
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt", "pct",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
-    "is_agent_type", "stage_event", "declared_entity",
+    "is_agent_type", "stage_event", "declared_entity", "Conserve", "conserve_field", "conserve_invariant",
 ]
 
 
 #: A number, or an expression giving one.
 Number = float | str
+#: When a market checks the invariant that it holds exactly what its traders put in.
+Conserve = bool | Literal["action", "round", "end"]
+
+
+def conserve_field(what: str) -> Any:
+    """The one ``conserve`` setting every market takes: when it checks that ``what`` (default: after every round)."""
+    return Field("round", description=f"Declare the invariant that {what}: round (the default: after every round), "
+                                      "true or action (after every action: each check goes over every trader, so a "
+                                      "round costs the square of the crowd), end (once, when the run finishes), or "
+                                      "false.")
+
+
+def conserve_invariant(conserve: Conserve, expr: str, why: str) -> list[dict[str, Any]]:
+    """The invariant a market's ``conserve`` setting declares: none when false."""
+    if conserve is False:
+        return []
+    return [{"expr": expr, "check": "action" if conserve is True else conserve, "why": why}]
 Effects = list[Any]
 NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 

@@ -44,7 +44,7 @@ from ..expr import compile_expr, truthy
 from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
-from ._common import entity_of, fmt, number_of
+from ._common import Conserve, conserve_field, entity_of, fmt, number_of
 from .expressions import Expr
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
@@ -113,9 +113,7 @@ class AuctionConfig(BaseModel):
     when: Expr | None = Field(None, description="Open lots only when true (e.g. \"$round <= 3\").")
     stage: str | None = Field(None,
                               description="Bid during this declared stage; default: a stage named after the auction.")
-    conserve: bool = Field(True,
-                           description="Declare the invariant that escrow matches open bids and every item is held "
-                                       "once.")
+    conserve: Conserve = conserve_field("escrow matches open bids and every item is held once")
 
 
 def auction_config(world: Any, name: Any) -> AuctionConfig:

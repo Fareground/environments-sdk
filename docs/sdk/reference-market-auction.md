@@ -28,7 +28,7 @@ Config:
 - `payment` (default "vcg"): combinatorial: vcg (winners pay the value they displace; truthful bids are safe) | pay_bid.
 - `when` (default null): Open lots only when true (e.g. "$round <= 3").
 - `stage` (default null): Bid during this declared stage; default: a stage named after the auction.
-- `conserve` (default true): Declare the invariant that escrow matches open bids and every item is held once.
+- `conserve` (default "round"): Declare the invariant that escrow matches open bids and every item is held once: round (the default: after every round), true or action (after every action: each check goes over every trader, so a round costs the square of the crowd), end (once, when the run finishes), or false.
 
 Actions of the `market` op:
 - `bid` — takes `who`, `price`, `qty`, `package` (needs `price`): {"market": "house", "action": "bid", "price": 120}  (bid on the open lot; `qty` for uniform and double, `package` lists the items of a combinatorial bid)

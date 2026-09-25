@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import entity_of, fmt, pct
+from ._common import Conserve, conserve_field, conserve_invariant, entity_of, fmt, pct
 from .econ_base import money_prop
 from .expressions import Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -163,7 +163,7 @@ class PredictionMarketConfig(BaseModel):
                               description="Trade during this declared stage; default: a sequential stage named after "
                                           "the market.")
     max_actions: int = Field(2, ge=1, description="Trades per turn in the generated stage.")
-    conserve: bool = Field(True, description="Declare the invariant that the vault covers every share.")
+    conserve: Conserve = conserve_field("the vault covers every share")
 
 
 def market_config(world: Any, name: Any) -> PredictionMarketConfig:
@@ -548,7 +548,8 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
                                "brief": f"Trade{question}, or end your turn."}]
     else:
         fragment["stage_hooks"] = {cfg.stage: {"actions": names, "max_actions": cfg.max_actions}}
-    if cfg.conserve:
-        fragment["invariants"] = [{"expr": f"$amm_ok({name})",
-                                   "why": f"The {name} market's vault covers every outstanding share."}]
+    invariants = conserve_invariant(cfg.conserve, f"$amm_ok({name})",
+                                    f"The {name} market's vault covers every outstanding share.")
+    if invariants:
+        fragment["invariants"] = invariants
     return fragment

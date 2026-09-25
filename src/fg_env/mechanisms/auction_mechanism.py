@@ -8,7 +8,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ._common import declared_entity, entity_of, fmt, stage_event
+from ._common import conserve_invariant, declared_entity, entity_of, fmt, stage_event
 from ._social import check_expr
 from .auctions import FORMATS, MIN_PRICE, SEALED, AuctionConfig, bid, close_sealed, open_lot, tick
 from .econ_base import money_prop
@@ -321,8 +321,8 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         fragment["stage_hooks"] = {cfg.stage: hook}
     if sealed:
         fragment["events"].append(stage_event(cfg.stage or name, "end", [{"market": name, "action": "close"}]))
-    if cfg.conserve:
-        fragment["invariants"] = [{"expr": f"$auction_ok({name})",
-                                   "why": f"The {name} auction's escrow matches its open bids and every item is held "
-                                          "once."}]
+    invariants = conserve_invariant(cfg.conserve, f"$auction_ok({name})",
+                                    f"The {name} auction's escrow matches its open bids and every item is held once.")
+    if invariants:
+        fragment["invariants"] = invariants
     return fragment

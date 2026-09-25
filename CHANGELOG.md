@@ -254,6 +254,11 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - Every market takes one `conserve` setting — `round` (the default), `true`/`action`, `end` or `false` — so
+    auctions and prediction markets check their escrow and vault once a round, as the order book did, instead of after
+    every action (which went over every trader each time: quadratic in the crowd; a 4,000-bidder uniform auction
+    went from 15 s to 3 s). A market move refused because a balance hidden from the actor (another trader's escrow)
+    falls short now says nothing of it and spends the action, as a rule's own refusal on a hidden value does.
   - An auction with a `house` composes with a ledger: `$world.<name>_revenue` is now only the report of what the
     sales paid, and an auction with no house holds that money in `$world.<name>_proceeds`, the one place a ledger
     counts. The house's proceeds used to be counted twice, so every such run failed the ledger's conservation

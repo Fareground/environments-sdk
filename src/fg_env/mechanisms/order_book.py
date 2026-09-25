@@ -38,7 +38,7 @@ from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
 from ..world.props import prop_type
-from ._common import entity_of, fmt, lot_floor, pct
+from ._common import Conserve, conserve_field, entity_of, fmt, lot_floor, pct
 from .book_rules import Venue, venue
 from .expressions import EachCrowd, Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -160,11 +160,7 @@ class OrderBookConfig(BaseModel):
                               description="Trade during this declared stage; default: a sequential stage named after "
                                           "the book.")
     max_actions: int = Field(4, ge=1, description="Actions per turn in the generated stage.")
-    conserve: bool | Literal["action", "round", "end"] = Field(
-        "round", description="Declare the invariant that reserves match the book and balances stay within limits: "
-                             "round (the default: after every round), true or action (after every action: each check "
-                             "goes over every trader, so a round costs the square of the crowd), end (once, when the "
-                             "run finishes), or false.")
+    conserve: Conserve = conserve_field("reserves match the book and balances stay within limits")
 
     @field_validator("start_price")
     @classmethod

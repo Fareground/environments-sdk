@@ -16,7 +16,7 @@ Config:
 - `outcome` (default null): Expression giving the winning outcome when the market resolves.
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the market.
 - `max_actions` (default 2): Trades per turn in the generated stage.
-- `conserve` (default true): Declare the invariant that the vault covers every share.
+- `conserve` (default "round"): Declare the invariant that the vault covers every share: round (the default: after every round), true or action (after every action: each check goes over every trader, so a round costs the square of the crowd), end (once, when the run finishes), or false.
 
 Actions of the `market` op:
 - `buy` — takes `who`, `outcome`, `shares`, `spend` (needs `outcome`): {"market": "election", "action": "buy", "outcome": "yes", "spend": 20}  (buy one outcome by `shares` or money (`spend`, the most paid when both are given))
