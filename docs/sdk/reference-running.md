@@ -123,8 +123,8 @@ CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --s
 `fg-env bench --game file.json`.
 A copy is a copy of the run's state, so it is exact (state, random streams, turn numbers, log, recorded host
 answers) and costs the same at any depth; turn time limits never run out in a copy. It holds the whole world, hidden state included. Game action ids are fixed
-when the game is created (one per combination of listed argument values; free text and lists are
-parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
+when the game is created (one per combination of listed argument values; free text, lists and entities of a type the
+rules create as it plays are parametric: apply them as `{"tool", "args"}`). `fg_env.load(..., chance=callable)` chooses chance outcomes.
 
 LLM participants: `fg_env.participants.anthropic(anthropic.Anthropic(), "claude-sonnet-5")` or
 `fg_env.participants.openai(client, model)` with the sync client, or the string `anthropic:<model>` / `openai:<model>`

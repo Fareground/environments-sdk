@@ -124,7 +124,10 @@ def _physics_param(world: World, op: Op) -> None:
 
 def _counter(world: World, op: Op) -> None:
     _, type_name, old = op
-    world.counters[type_name] = old
+    if old is None:  # the type had no counter before: an undone create leaves the world as it was
+        world.counters.pop(type_name, None)
+    else:
+        world.counters[type_name] = old
 
 
 def _create(world: World, op: Op) -> None:

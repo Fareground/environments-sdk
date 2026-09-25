@@ -423,7 +423,7 @@ class World(ExpressionWorld):
             candidate = f"{type_name}_{n}"
             if candidate not in self.entities:
                 break
-        self.journal.push(("counter", type_name, self.counters.get(type_name, 0)))
+        self.journal.push(("counter", type_name, self.counters.get(type_name)))  # None: undoing leaves none
         self.counters[type_name] = n
         return candidate
 

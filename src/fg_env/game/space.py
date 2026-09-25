@@ -5,8 +5,8 @@ contract's actions in order) gets a block of ids: one per combination of its par
 enum values, entity ids, booleans, whole numbers (or numbers with a `step`) between their bounds,
 and "left out" for optional parameters. Domains computed from state (``"values": "$actor.hand"``,
 ``"max": "$world.stones"``) use every value they give at the start of the game. An action whose
-arguments cannot be listed — free text, lists, numbers without a step, too many combinations — is
-parametric: it has one id, and a call to it carries its own arguments.
+arguments cannot be listed — free text, lists, numbers without a step, entities of a type the rules create as the game
+plays, too many combinations — is parametric: it has one id, and a call to it carries its own arguments.
 
 Legal calls of a turn are found the way the engine judges an agent's call: the offered actions,
 every combination of the parameters' current choices, validated, and tried without effect.
@@ -23,6 +23,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from ..contract import ParamSpec
+from ..describe import walk
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, is_expr
 from ..expr.objects import Entity
@@ -75,6 +76,9 @@ class ActionSpace:
         self.limit = limit
         blocks: list[_Block] = [_Block(END_TURN, 0, 1)]
         offset = 1
+        data = walk.dumped(contract)
+        created = {node["create"] for path, node in walk.effect_nodes(data)
+                   if "create" in node and walk.in_effects(path)}
         for name, spec in contract.actions.items():
             by = [spec.by] if isinstance(spec.by, str) else spec.by
             actors = [e for e in world.entities.values() if e.alive
@@ -83,7 +87,7 @@ class ActionSpace:
             reason: str | None = None
             size = 1
             for pname, param in spec.params.items():
-                universe, why = _universe(env, param, actors, limit)
+                universe, why = _universe(env, param, actors, limit, created)
                 if universe is None:
                     reason = f"{pname}: {why}"
                     break
@@ -145,14 +149,18 @@ class ActionSpace:
         return Action(self.encode(tool, args), tool, MappingProxyType(dict(args)))
 
 
-def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int) -> tuple[list[Any] | None, str]:
-    world = env.world
+def _universe(env: Env, param: ParamSpec, actors: Sequence[Entity], limit: int,
+              created: set[str]) -> tuple[list[Any] | None, str]:
+    world, contract = env.world, env.contract
     kind = param.type
     if kind == "bool":
         return [False, True], ""
     if kind == "entity":
-        return ([entity.id for entity in world.entities_of(param.of)], "") if param.of in env.contract.types else \
-            (None, "it names no entity type")
+        if param.of not in contract.types:
+            return None, "it names no entity type"
+        if any(isinstance(made, str) and made in contract.types and contract.is_a(made, param.of) for made in created):
+            return None, f"{param.of} entities may be created as the game plays"
+        return [entity.id for entity in world.entities_of(param.of)], ""
     if kind == "enum":
         if not isinstance(param.values, str):
             return _unique(plain_value(value) for value in param.values or []), ""

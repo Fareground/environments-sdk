@@ -98,3 +98,20 @@ def test_the_report_names_the_seed_and_steps_that_reproduce_an_issue():
     assert "zero_sum" in issue.message and issue.history and "seed 0" in str(issue)
     assert issue.to_dict()["steps"] == list(issue.steps)
     assert issue.reproduce(game(broken)).is_terminal()
+
+
+def test_a_game_whose_agents_pick_entities_created_as_it_plays_is_checked():
+    """Papers are submitted during the run and praised by id: the praise action is parametric, and trying a submit
+    while listing legal calls leaves no trace in the state key."""
+    c = {"name": "Papers", "clock": {"rounds": 3},
+         "types": {"author": {"agent": True, "props": {"q": {"type": "int", "default": 0, "private": True}}},
+                   "paper": {"props": {"by": "", "score": 0}}},
+         "entities": {"a1": {"type": "author"}, "a2": {"type": "author"}},
+         "actions": {"submit": {"by": "author", "description": "s",
+                                "do": [{"create": "paper", "props": {"by": "$actor.id"}}]},
+                     "praise": {"by": "author", "description": "p", "params": {"p": {"type": "entity", "of": "paper"}},
+                                "do": ["$params.p.score += 1"]}},
+         "stages": [{"name": "s"}], "outputs": {"papers": "$count(paper)"}}
+    report = fg_env.rl.conformance(c, sims=5)
+    assert report.ok, report.summary()
+    assert "praise" in fg_env.rl.game(c).space.parametric
