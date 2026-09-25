@@ -257,8 +257,10 @@ def mechanisms_page() -> str:
              "name yourself to replace a generated part, a named event or end entry included, but not a world",
              "property: that is the mechanism's state; two mechanisms generating one name is an error). A declared "
              "stage that sets no `max_actions`",
-             "gives each attached mechanism the actions per turn it has in its own stage, and one more for your own "
-             "actions when it offers any. A mechanism with no `stage` gets a stage of its own, which runs after your "
+             "holds one pool of actions per turn: the sum of what each attached mechanism allows in its own stage, "
+             "and one more when the stage offers actions of your own. Any tool may spend it (a trader can spend "
+             "the pool on trades); set `max_actions` to say how many a turn holds. A mechanism with no `stage` "
+             "gets a stage of its own, which runs after your "
              "stages, in the order the mechanisms are declared. Combine",
              "them freely, several of one mode included: a function reading a mechanism takes its name as the last",
              "argument (`$decisions('committee')`), optional while the contract has only one of that mode. Only a",

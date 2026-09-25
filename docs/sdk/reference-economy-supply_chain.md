@@ -7,11 +7,11 @@ Config:
 - `inventory` (required): Inventory holding the chain's stock.
 - `item` (required): The item that flows down the chain.
 - `nodes` (required): Entity ids from the customer-facing node to the producer.
-- `demand` (required): Customers' order at the first node each round (number or expression).
+- `demand` (required): Customers' order at the first node each round: a whole number ≥ 0, or an expression giving one.
 - `order_delay` (default 1): Rounds for an order to reach the node upstream.
 - `lead_time` (default 2): Rounds for a shipment to reach the node downstream.
 - `production_delay` (default 2): Rounds for the producer's batch to be ready.
-- `initial_flow` (default 0.0): Steady flow already in every pipeline when the run starts.
+- `initial_flow` (default 0): Steady flow already in every pipeline when the run starts (whole units).
 - `holding_cost` (default 0.0): Cost per unit in stock per round.
 - `backlog_cost` (default 0.0): Cost per unit of backlog per round.
 - `max_order` (default 1000): Largest order in one round.

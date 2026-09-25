@@ -154,18 +154,20 @@ def _stage_orphans(out: dict[str, Any], owners: Mapping[tuple[str, str], str], s
 
 
 def _share_turns(declared: Mapping[str, Any], out: dict[str, Any], shares: Mapping[str, int]) -> None:
-    """A stage the author declared without ``max_actions`` gives each mechanism attached to it the actions it allows
-    per turn, and one more for the author's own actions when it offers any, so a chat message never ends a turn
-    meant for trading and voting too, and trading never leaves the ballot no action. A stage with ``max_actions``
-    keeps it: the author said how many moves a turn holds."""
+    """A stage the author declared without ``max_actions`` holds one pool of actions per turn: the sum of what each
+    mechanism attached to it allows in its own stage, and one more when it offers actions the author declared, so a
+    chat message never ends a turn meant for trading and voting too. Any tool may spend the pool. A stage with
+    ``max_actions`` keeps it: the author said how many moves a turn holds."""
     authored = {s.get("name"): s for s in declared.get("stages") or [] if isinstance(s, Mapping)}
     for stage in out.get("stages") or []:
         mine = authored.get(stage.get("name")) if isinstance(stage, dict) else None
         if mine is None or stage.get("name") not in shares or "max_actions" in mine:
             continue
         offered = mine.get("actions", "all")
-        own = offered == "all" and bool(declared.get("actions")) or isinstance(offered, list) and bool(offered) \
-            or isinstance(offered, Mapping) and any(offered.values())
+        authored_actions = set(declared.get("actions") or {})
+        listed = [name for names in (offered.values() if isinstance(offered, Mapping) else [offered])
+                  if isinstance(names, list) for name in names]
+        own = bool(authored_actions) if offered == "all" else bool(authored_actions.intersection(listed))
         stage["max_actions"] = shares[stage["name"]] + (1 if own else 0)
         calls = StageSpec.model_fields["max_calls"].default
         if "max_calls" not in mine and stage["max_actions"] >= calls:  # room to retry a refused call

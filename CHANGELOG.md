@@ -307,6 +307,10 @@ worlds stay fast, and the package is organised by feature.
     (mechanism H1).
   - The beer_game engine's `demand` input is a list of whole numbers ≥ 0: `[4, 4.5]`, `["4", "8"]` and `[4, -3]`
     are refused at `inputs.demand` (engines EH1, EL5).
+  - A declared stage without `max_actions` that several mechanisms share is documented as what it is: one pool of
+    actions per turn, the sum of what each allows in its own stage, which any tool may spend. The extra action for
+    the author's own tools is added only when the stage offers actions the author declared; a stage listing only
+    mechanism tools no longer gets one (mechanism M1).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
