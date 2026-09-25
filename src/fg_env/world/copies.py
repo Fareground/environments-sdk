@@ -35,7 +35,7 @@ _SHARED = frozenset({
     "contract", "inputs", "arm", "physics_writes", "entity_dynamics", "start", "type_props", "hidden", "private_names",
     "private_metrics", "_subtypes", "record_specs"})
 #: Wired by the run, or caches: a copy starts without them.
-_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None}
+_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "kept": dict}
 #: Copied by what they are (below).
 _COPIED = frozenset({
     "luck", "entities", "props", "links", "link_fields", "adjacent", "records_store", "entry_by_seq", "entity_briefs",

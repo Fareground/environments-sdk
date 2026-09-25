@@ -214,3 +214,48 @@ def test_an_event_a_reader_reads_is_numbered_in_its_own_view_as_an_entry_is():
     quiet, busy = numbers(0), numbers(3)
     assert quiet[:2] == busy[:2] == ([1, 2], [1])
     assert quiet[2] != busy[2]  # game logic counts every event
+
+
+def _keep_contract(keep=3):
+    return {"name": "Kept", "types": {"p": {"agent": True}},
+            "entities": {"a": {"type": "p"}, "b": {"type": "p"}, "c": {"type": "p"}},
+            "records": {"dm": {"fields": {"text": "text"}, "keep": keep,
+                               "visible": "$it.to == null or $viewer.id in $it.to or $viewer.id == $it.author"}},
+            "stages": [{"name": "s", "max_actions": 20}], "clock": {"rounds": 3},
+            "actions": {"say": {"by": "p", "announce": False,
+                                "params": {"to": {"type": "entity", "of": "p", "required": False},
+                                           "text": {"type": "text"}},
+                                "do": {"post": "dm", "to": "$params.to", "text": "$params.text"}}}}
+
+
+def test_keep_counts_for_each_reader_only_the_entries_it_sees():
+    """With `keep`, each reader keeps its own latest entries: whispers between others never push a reader's entries
+    out of its view, so what it sees does not tell it how many it could not (audit 14 M4). The store keeps an entry
+    while some reader's window holds it, and an undo brings back what a post dropped."""
+    def views(hidden):
+        env = fg_env.load(_keep_contract(), seed=1)
+
+        def play(wake):
+            if wake.entity_id == "a":
+                wake.call("say", {"text": f"public {wake.round}"})
+                for _ in range(hidden):
+                    wake.call("say", {"to": "b", "text": "secret"})
+            wake.end()
+
+        env.run(play)
+        world = env.world
+        seen = {who: [r["text"] for r in world.visible_records("dm", world.entities[who])] for who in "abc"}
+        return seen, len(world.records_store["dm"]), env
+
+    quiet, busy = views(0), views(4)
+    assert quiet[0]["c"] == busy[0]["c"] == ["public 1", "public 2", "public 3"]
+    assert busy[0]["b"] == ["secret", "secret", "secret"]
+    assert busy[1] <= 3 * 3 + 3  # bounded: at most each reader's window and the record's latest
+    world = busy[2].world
+    before = [r["seq"] for r in world.records_store["dm"]]
+    mark = world.mark()
+    for _ in range(4):
+        world.post("dm", {"text": "late"}, "b", ("a",), "probe")
+    world.rollback(mark)
+    assert [r["seq"] for r in world.records_store["dm"]] == before
+    assert [r["text"] for r in world.visible_records("dm", world.entities["c"])] == ["public 1", "public 2", "public 3"]

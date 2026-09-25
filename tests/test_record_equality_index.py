@@ -28,6 +28,8 @@ def read(w, who):
     viewer = w.entities[who]
     rows = w.visible_records('notes', viewer)
     seen = [r for r in w.records('notes') if w.evaluation.entry_visible('notes', r, viewer)]
+    keep = w.contract.records['notes'].keep
+    seen = seen[-keep:] if keep else seen  # each reader keeps its own latest (audit 14 M4)
     assert rows == [r.numbered(n) for n, r in enumerate(seen, 1)]  # a reader numbers what it sees (audit 12 H1)
     events = w.events('record', viewer)
     expected = [e for e in w.log if e.kind == 'record' and w.evaluation.event_visible(e, viewer)]
@@ -61,7 +63,7 @@ def test_retention_rollback_restores_rows_order_and_reused_sequences():
     assert read(w, 'a') == ([0, 2], [0, 2])
     assert read(w, 'b') == ([1], [1])
     post(w, 0, 8)
-    assert read(w, 'a') == ([2, 8], [2, 8])
+    assert read(w, 'a') == ([0, 2, 8], [0, 2, 8])  # each reader keeps its own latest (audit 14 M4)
 
 
 @pytest.mark.parametrize('keep', [None, 2])

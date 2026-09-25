@@ -70,14 +70,18 @@ class RecordAuthors:
             for row in rows.get(name, ()):
                 self.add(name, row)
 
-    def add(self, name: str, row: Entry, *, first: bool = False) -> None:
+    def add(self, name: str, row: Entry) -> None:
+        """Index ``row``: the newest entry, or one an undo brings back (in its place, by its number)."""
         owners = self.by_record.get(name)
         if owners is None:
             return
         entries = owners.setdefault(entry_key(self.rules[name], row), OrderedDict())
-        entries[row["seq"]] = row
-        if first:
-            entries.move_to_end(row["seq"], last=False)
+        seq = row["seq"]
+        newest = next(reversed(entries), None)
+        entries[seq] = row
+        if newest is not None and seq < newest:
+            for later in [key for key in entries if key > seq]:
+                entries.move_to_end(later)
 
     def remove(self, name: str, row: Entry) -> None:
         owners = self.by_record.get(name)

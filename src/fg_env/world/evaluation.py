@@ -178,15 +178,18 @@ class EvalContext:
         game logic reads the world's numbering."""
         world = self.world
         rows = world.records(name)
+        keep = world.contract.records[name].keep
         if viewer is None:
             if name in world.hidden.records:
                 world.read_hidden()
-            return rows
+            return rows if keep is None else rows[-keep:]
         if not isinstance(viewer, Entity):
             seen = rows if name not in world.hidden.records else []
         else:
             indexed = world.record_authors.candidates(name, viewer)
             seen = [row for row in (rows if indexed is None else indexed) if self.entry_visible(name, row, viewer)]
+            if keep is not None:  # each reader keeps its own latest (see world/record_keep.py)
+                seen = seen[-keep:]
         return numbered(seen)
 
     def entry_as_read(self, name: str, entry: Entry, viewer: Entity) -> Entry:
@@ -256,8 +259,13 @@ class EvalContext:
     def _retained_visible(self, record: Any, seq: Any, viewer: Entity) -> bool:
         """Whether entry ``seq`` of ``record`` is still kept and ``viewer`` may see it."""
         entry = self.world.entry_by_seq.get(seq) if seq is not None else None
-        return record in self.world.contract.records and entry is not None \
-            and self.entry_visible(record, entry, viewer)
+        if record not in self.world.contract.records or entry is None or not self.entry_visible(record, entry, viewer):
+            return False
+        if self.world.contract.records[record].keep is None or record not in self.world.hidden.records:
+            return True
+        window = self.remembered(("window", record, viewer.id),  # news of an entry out of the reader's own latest
+                                 lambda: frozenset(row.key for row in self.visible_records(record, viewer)))
+        return entry.key in window
 
     # -- entities from contract text ------------------------------------------------------------------------------
 

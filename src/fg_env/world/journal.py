@@ -200,7 +200,7 @@ def _unlink(world: World, op: Op) -> None:
 
 
 def _post(world: World, op: Op) -> None:
-    _, record, seq, dropped, notices = op
+    _, record, seq, dropped, notices, moves = op
     rows = world.records_store[record]
     for index in range(len(rows) - 1, -1, -1):  # a rolled-back entry sits near the end
         if rows[index]["seq"] == seq:
@@ -208,11 +208,14 @@ def _post(world: World, op: Op) -> None:
             world.record_authors.remove(record, entry)
             break
     world.entry_by_seq.pop(seq, None)
-    rows[:0] = dropped
+    if dropped:  # back in their places: the oldest, or (each reader keeping its own) anywhere among the kept
+        rows[:] = sorted([*rows, *dropped], key=lambda row: row["seq"])
     for old in dropped:
         world.entry_by_seq[old["seq"]] = old
-    for old in reversed(dropped):
-        world.record_authors.add(record, old, first=True)
+        world.record_authors.add(record, old)
+    windows = world.kept.get(record)
+    if windows is not None:
+        windows.undo(seq, moves)
     log = world.log
     for number in notices:  # the dropped entries' notifications, back in the index with them
         at = bisect.bisect_left(log, number, key=lambda event: event.seq)

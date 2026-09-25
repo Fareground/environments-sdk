@@ -50,10 +50,10 @@ def test_retention_and_rollback_with_reused_sequences():
     mark = w.mark()
     post(w, "b", 3)
     post(w, "b", 4)
-    assert read(w, "a") == []
+    assert read(w, "a") == [1]  # each reader keeps its own latest (audit 14 M4)
     w.rollback(mark)
     post(w, "a", 5)
-    assert read(w, "a") == [5]
+    assert read(w, "a") == [1, 5]
     assert read(w, "b") == [2]
 
 
@@ -127,15 +127,16 @@ def _indexed(w):
 
 def test_the_index_holds_only_the_notifications_of_kept_entries_and_an_undo_brings_dropped_ones_back():
     """audit 13 M4: a record with `keep` indexes only what it keeps, so reads and undos cost what is kept, not the
-    run's length; undoing a post puts back the entries it dropped and their notifications."""
+    run's length; undoing a post puts back the entries it dropped and their notifications. Each reader keeps its own
+    latest three, and the record its latest three (audit 14 M4)."""
     w = fg_env.load(contract(keep=3)).world
     for value in range(200):
         post(w, "a" if value % 2 else "b", value)
-    assert _indexed(w) == 3 and read(w, "a") == [197, 199] and read(w, "b") == [198]
+    assert _indexed(w) == 6 and read(w, "a") == [195, 197, 199] and read(w, "b") == [194, 196, 198]
     mark = w.mark()
     post(w, "a", 200)
-    assert _indexed(w) == 3 and read(w, "a") == [199, 200]
+    assert _indexed(w) == 6 and read(w, "a") == [197, 199, 200]
     w.rollback(mark)
-    assert _indexed(w) == 3 and read(w, "a") == [197, 199] and read(w, "b") == [198]
+    assert _indexed(w) == 6 and read(w, "a") == [195, 197, 199] and read(w, "b") == [194, 196, 198]
     w.rebuild_event_index()  # a copy or a restored snapshot indexes the same
-    assert _indexed(w) == 3 and read(w, "a") == [197, 199]
+    assert _indexed(w) == 6 and read(w, "a") == [195, 197, 199]

@@ -259,6 +259,10 @@ worlds stay fast, and the package is organised by feature.
     numbering; `$seen` knows an event by the world's number (H1).
   - An action that writes its own `announce` puts in its event only the arguments that text reads: `$events(action)`
     no longer hands others a bid the words left out (M3). Ten example goldens change their event-log hash only.
+  - A record's `keep` counts, for each reader, only the entries it sees: a reader keeps its latest `keep` visible
+    entries and game logic the record's latest, and the store keeps an entry while some reader's window holds it.
+    Whispers between others no longer push a reader's own entries out of its view, which told it how many it could
+    not see (M4). A record every agent sees in full keeps exactly its latest entries, as before.
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

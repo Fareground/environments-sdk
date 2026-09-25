@@ -37,6 +37,7 @@ from .props import shown_value as _shown_value
 from .randomness import Randomness
 from .record_events import RecordEvents
 from .record_index import RecordAuthors
+from .record_keep import KeptWindows
 from .space import Spatial, position_of
 from .type_index import TypeIndex
 from .values import plain_value
@@ -76,6 +77,9 @@ class World(ExpressionWorld):
                                     for field, kind in spec.fields.items()} for name, spec in contract.records.items()}
         self.record_authors = RecordAuthors(
             {name: spec.visible for name, spec in contract.records.items()}, self.records_store)
+        #: Each reader's window over a record with `keep` whose entries not every agent sees, made as it is first
+        #: needed (see record_keep.py).
+        self.kept: dict[str, KeptWindows] = {}
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
         self.entity_briefs: dict[str, str] = {}
         self.log: list[LogEvent] = []
@@ -309,6 +313,18 @@ class World(ExpressionWorld):
     def rebuild_record_index(self) -> None:
         self.record_authors = RecordAuthors(
             {name: spec.visible for name, spec in self.contract.records.items()}, self.records_store)
+        self.kept = {}  # each reader's window is made again from the entries kept, as it is next needed
+
+    def windows(self, record: str) -> KeptWindows | None:
+        """Each reader's window over ``record`` when it keeps only its latest entries and not every agent sees every
+        one (see record_keep.py); None otherwise, when its latest `keep` are every reader's."""
+        keep = self.contract.records[record].keep
+        if keep is None or record not in self.hidden.records:
+            return None
+        found = self.kept.get(record)
+        if found is None:
+            found = self.kept[record] = KeptWindows(self, record, keep)
+        return found
 
     def rebuild_adjacency(self) -> None:
         _links.rebuild_adjacency(self)
@@ -576,14 +592,18 @@ class World(ExpressionWorld):
         self.record_authors.add(record, entry)
         self.entry_by_seq[entry["seq"]] = entry
         dropped: list[Entry] = []
-        if spec.keep is not None and len(rows) > spec.keep:
+        moves: list[tuple[str, int | None]] = []
+        windows = self.windows(record)
+        if windows is not None:  # each reader counts only the entries it sees
+            moves, dropped = windows.posted(entry)
+        elif spec.keep is not None and len(rows) > spec.keep:
             dropped = rows[: len(rows) - spec.keep]
             del rows[: len(rows) - spec.keep]
-            for old in dropped:
-                self.entry_by_seq.pop(old["seq"], None)
-                self.record_authors.remove(record, old)
+        for old in dropped:
+            self.entry_by_seq.pop(old["seq"], None)
+            self.record_authors.remove(record, old)
         notices = self.record_events.drop(old["seq"] for old in dropped)  # nobody sees a dropped entry
-        self.journal.push(("post", record, entry["seq"], dropped, notices))
+        self.journal.push(("post", record, entry["seq"], dropped, notices, moves))
         if spec.notify:
             self.emit("record", "", actor=author, to=to, data={
                 "record": record, "entry": entry["seq"], "fields": {name: entry[name] for name in spec.fields}})

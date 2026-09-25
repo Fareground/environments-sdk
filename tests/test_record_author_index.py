@@ -26,6 +26,8 @@ def values(env, who):
     viewer = env.world.entities[who]
     rows = env.world.visible_records("notes", viewer)
     seen = [r for r in env.world.records("notes") if env.world.evaluation.entry_visible("notes", r, viewer)]
+    keep = env.contract.records["notes"].keep
+    seen = seen[-keep:] if keep else seen  # each reader keeps its own latest (audit 14 M4)
     expected = [r.numbered(n) for n, r in enumerate(seen, 1)]  # a reader numbers what it sees (audit 12 H1)
     assert rows == expected
     return [row["value"] for row in rows]
@@ -47,8 +49,8 @@ def test_retention_prunes_each_author_without_reordering_remaining_rows():
     env = fg_env.load(contract(keep=3))
     for i, who in enumerate(("a", "b", "a", "c", "b", "a")):
         post(env, who, i)
-    assert values(env, "a") == [5]
-    assert values(env, "b") == [4]
+    assert values(env, "a") == [0, 2, 5]  # each reader keeps its own latest three (audit 14 M4)
+    assert values(env, "b") == [1, 4]
     assert values(env, "c") == [3]
 
 
@@ -59,12 +61,13 @@ def test_rollback_restores_pruned_rows_and_accepts_reused_sequence_numbers():
     mark = env.world.mark()
     for i in range(3, 7):
         post(env, "b", i)
-    assert values(env, "a") == []
+    assert values(env, "a") == [0, 2]
+    assert values(env, "b") == [4, 5, 6]
     env.world.rollback(mark)
     assert values(env, "a") == [0, 2]
     assert values(env, "b") == [1]
     post(env, "c", 10)
-    assert values(env, "a") == [2]
+    assert values(env, "a") == [0, 2]
     assert values(env, "b") == [1]
     assert values(env, "c") == [10]
 
@@ -79,7 +82,7 @@ def test_snapshot_rebuilds_the_derived_index_and_continues_retention():
         assert values(restored, who) == values(env, who)
     for e in (env, restored):
         post(e, "b", 3)
-    assert values(restored, "a") == values(env, "a") == [2]
+    assert values(restored, "a") == values(env, "a") == [0, 2]
     assert values(restored, "b") == values(env, "b") == [1, 3]
 
 
@@ -161,5 +164,5 @@ def test_fast_world_copy_rebuilds_index_with_independent_record_entries():
         assert all(row.world is copied for row in rows)
         assert all(row is not old for row, old in zip(rows, original))
     copied.post("notes", {"value": 3}, "b", None, "probe")
-    assert [r["value"] for r in copied.visible_records("notes", copied.entities["a"])] == [2]
+    assert [r["value"] for r in copied.visible_records("notes", copied.entities["a"])] == [0, 2]
     assert values(env, "a") == [0, 2]
