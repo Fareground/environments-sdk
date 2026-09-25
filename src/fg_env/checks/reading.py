@@ -28,6 +28,7 @@ class Reading:
         self.agent, self.seen = agent, seen
 
     def __call__(self, wake: Wake) -> None:
+        wake.brief, wake.update  # noqa: B018 — read every turn: a text that breaks for this agent is found here
         if self.seen is not None:
             self.seen(wake)
         turn = wake._turn  # read straight from the turn, as its look and inspect tools do, but without their allowance
