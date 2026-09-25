@@ -66,7 +66,7 @@ def test_a_rejected_host_key_fails_the_run_once_with_the_fix_and_no_correction_i
     assert "Check the API key your client was made with" in result.error
 
 
-def test_a_host_still_failing_after_its_retries_says_so_without_asking_again(monkeypatch):
+def test_a_host_still_failing_after_its_retries_says_so_without_asking_again_and_the_run_goes_on(monkeypatch):
     monkeypatch.setattr(time, "sleep", lambda _: None)
 
     class Overloaded(Exception):
@@ -75,8 +75,10 @@ def test_a_host_still_failing_after_its_retries_says_so_without_asking_again(mon
     client = _Anthropic([Overloaded("busy")] * 5)
     env = host.load(PITCH, hosts={"judge": host.adapters.anthropic(client, "claude-x", retries=1)}, seed=1)
     result = host.run(env, pitcher)
-    assert result.status == "failed" and len(client.requests) == 2  # one try, one retry, no correction
-    assert "still failed after 1 retry with Overloaded (HTTP 529): busy" in result.error
+    assert result.status == "completed" and len(client.requests) == 4  # a try and a retry a pitch, no correction
+    assert "host_unusable" in result.degraded
+    assert any("still failed after 1 retry with Overloaded (HTTP 529): busy" in d["message"]
+               for d in result.diagnostics if d["code"] == "host_unusable")
 
 
 def test_host_retries_never_wait_past_the_deadline_of_the_turn_that_asked():
@@ -89,7 +91,8 @@ def test_host_retries_never_wait_past_the_deadline_of_the_turn_that_asked():
     started = time.monotonic()
     result = env.run(pitcher, rounds=1, time_limit=2)
     assert time.monotonic() - started < 5 and len(client.requests) == 1
-    assert result.status == "failed" and "The turn's time ran out before another try." in result.error
+    assert result.status != "failed" and any("The turn's time ran out before another try." in d["message"]
+                                             for d in result.diagnostics)
 
 
 def test_ends_your_turn_follows_the_terminal_flag_not_the_words_of_the_description():
