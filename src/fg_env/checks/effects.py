@@ -312,14 +312,20 @@ class EffectChecks(PrivacyChecks):
                 self._reaction_actions(effect, path)
         elif op == "transfer":
             prop = effect["transfer"]
-            if not any(prop in props for props in self.type_props.values()):
-                self.error(f"{path}.transfer", f"no type has a property '{prop}'")
-            into = effect.get("into")
-            if into is not None and not any(into in props for props in self.type_props.values()):
-                self.error(f"{path}.into", f"no type has a property '{into}'")
+            known = sorted({name for props in self.type_props.values() for name in props})
+            for key, name in (("transfer", prop), ("into", effect.get("into"))):
+                if name is not None and name not in known:
+                    self.error(f"{path}.{key}", f"no type has a property '{name}'",
+                               self._suggest(name, known) or "a transfer moves a number property its entities hold: "
+                                                             "declare it under the type's props")
             for key in ("from", "to", "amount"):
                 if key not in effect:
                     self.error(path, f"`transfer` needs `{key}`")
+                elif key != "amount" and isinstance(effect[key], str) and effect[key].strip() in _VIEWS:
+                    self.error(f"{path}.{key}", f"`{key}` must be an entity, got {effect[key].strip()}, which is not "
+                                                "one: a transfer moves a property between two entities",
+                               f"move a world value with statements instead, e.g. `$world.pot += $params.n` and "
+                               f"`$actor.{prop} -= $params.n`")
                 v(key)
         elif op in ("link", "unlink"):
             if effect[op] not in self.c.relations:
@@ -427,6 +433,10 @@ def _reads_it(raw: Any) -> bool:
     if isinstance(raw, (list, dict)):
         return any(_reads_it(item) for item in (raw.values() if isinstance(raw, dict) else raw))
     return False
+
+
+#: The views of the run's state a rule may read but that are no entity (no party of a transfer).
+_VIEWS = frozenset({"$world", "$physics", "$clock", "$pattern"})
 
 
 def broadcasts(effects: Any, contract: Any) -> bool:

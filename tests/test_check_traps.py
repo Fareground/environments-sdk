@@ -511,3 +511,14 @@ def test_a_bare_property_name_as_a_per_item_value_is_an_error_naming_the_fix():
             "outputs": {"total": "$sum(fisher, caught)", "fine": "$sum(fisher, $it.caught)"}}
     errors = [i for i in fg_env.check(lake, rounds=0) if i.severity == "error"]
     assert [(i.path, i.fix.split(" — ")[0]) for i in errors] == [("outputs.total", "write $it.caught")]
+
+
+def test_a_transfer_to_the_world_or_of_an_unknown_property_is_a_check_error_with_a_fix():
+    bank = {"name": "Bank", "clock": {"rounds": 1}, "world": {"pot": 0},
+            "types": {"p": {"agent": True, "props": {"coins": 5}}}, "entities": {"p": {"type": "p", "count": 2}},
+            "actions": {"pay": {"by": "p", "do": {"transfer": "coins", "from": "$actor", "to": "$world", "amount": 1}},
+                        "give": {"by": "p", "do": {"transfer": "coin", "from": "$actor", "to": "$actor",
+                                                   "amount": 1}}}}
+    fixes = {i.path: i.fix for i in fg_env.check(bank, rounds=0) if i.severity == "error"}
+    assert "$world.pot" in fixes["actions.pay.do[0].to"] and fixes["actions.give.do[0].transfer"] == \
+        "did you mean 'coins'?"
