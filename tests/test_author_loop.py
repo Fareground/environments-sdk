@@ -52,7 +52,7 @@ def test_a_rule_whose_effects_fired_before_and_never_fire_now_does_nothing_howev
 
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
 
-    assert "But it removed events.0 (its effects never fired in any test run), which revision 1 has" in \
+    assert "But it removed events.0 (its effects changed nothing in any test run), which revision 1 has" in \
         tool_replies(client)[1]
     assert result.contract == LEMONADE and result.kept == 1
 
@@ -60,6 +60,19 @@ def test_a_rule_whose_effects_fired_before_and_never_fire_now_does_nothing_howev
     client = FakeOpenAI([write(LEMONADE)], [write(itself)], [])
     assert fg_env.author("A lemonade stand duel.", "openai:m", client=client).kept == 1
     assert "events.0 (its do now does nothing)" in tool_replies(client)[1]
+
+
+def test_a_rule_gutted_by_an_arithmetic_identity_changes_nothing_and_counts_as_removed():
+    """`$x = $x + 0` still runs; what counts is that it never changed anything in the test runs."""
+    event = LEMONADE["events"][0]
+    identity = lemonade(events=[{**event, "do": [{**event["do"][0], "do": ["$it.earned = $it.earned * 1 + 0"]}]}])
+    client = FakeOpenAI([write(LEMONADE)], [write(identity)], [])
+
+    result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
+
+    assert "But it removed events.0 (its effects changed nothing in any test run), which revision 1 has" in \
+        tool_replies(client)[1]
+    assert result.contract == LEMONADE and result.kept == 1
 
 
 def test_an_output_that_comes_out_the_same_in_every_test_run_is_a_warning_the_model_reads():

@@ -291,6 +291,9 @@ worlds stay fast, and the package is organised by feature.
   - A moderator's label tool offers exactly the posts its review queue lists. Before, it offered every post while the
     queue showed only engaged ones, so a model labelled posts it could not read (the social_network golden changed:
     its fact-checker now labels only posts in its queue).
+  - `fg_env.author` counts a rule as doing something in its test runs only when it changed a value (or ran an
+    operation such as a transfer), so a rule gutted by an arithmetic identity (`$world.stones = $world.stones + 0`)
+    is named as removed and not kept. Before, it only had to run.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

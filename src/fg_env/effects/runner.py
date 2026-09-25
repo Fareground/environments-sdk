@@ -29,6 +29,7 @@ rule that never settles is reported instead of silently truncated.
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 from collections.abc import Callable, Sequence
@@ -157,8 +158,9 @@ class EffectRunner:
         self._hooks: dict[tuple[str, str], list[tuple[int, Any]]] = {}
         world.lifecycle = self.lifecycle
         #: When a set (``fg_env.author``'s test runs), the rules — ``actions.<name>``, ``events[<i>]`` — whose effects
-        #: fired: an effect ran for the rule that is not a local's assignment or one that only runs others (`if`,
-        #: `each`, `call` ...). A def's effects fire for the rule that called it.
+        #: fired: an effect ran for the rule that changed something — a write that changed its property's value, or an
+        #: operation other than one that only runs others (`if`, `each`, `call` ...); a local's assignment never
+        #: fires. A def's effects fire for the rule that called it.
         self.fired: set[str] | None = None
         self._rule: str | None = None
 
@@ -236,7 +238,6 @@ class EffectRunner:
                 value = self._combine(stmt.op, scope.root(stmt.local, source), value, source)
             vars[stmt.local] = value
             return
-        self._fire()
         assert stmt.base is not None
         if len(stmt.steps) == 1:  # `$x.prop op value`, the common shape: the base itself owns the property
             owner = stmt.base(scope)
@@ -252,6 +253,7 @@ class EffectRunner:
             value = self._combine(stmt.op, attr(owner, prop, source), value, source)
         if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
             self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
+        before = copy.deepcopy(attr(owner, prop, source)) if self.fired is not None else None
         try:
             if isinstance(owner, Entity):
                 self.world.set_prop(owner, prop, value)
@@ -265,6 +267,8 @@ class EffectRunner:
             raise
         except RunError as exc:  # the property refused the value: the rule that wrote it is where to fix it
             raise self._refused_write(exc, owner, prop, source, f"{path}[{index}]") from None
+        if self.fired is not None and (self.world.buffer is not None or attr(owner, prop, source) != before):
+            self._fire()  # a write that changed nothing (`$x = $x + 0`) is not the rule doing something
 
     def _refused_write(self, exc: RunError, owner: Any, prop: str, source: str, where: str) -> RunError:
         """``exc``, raised where a property refused a value, told at the rule ``where`` that wrote it: which

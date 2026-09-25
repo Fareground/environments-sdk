@@ -96,8 +96,9 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
                   tests: tuple[Tested, Tested] | None = None) -> list[str]:
     """The parts of ``before`` that ``after`` no longer has, e.g. ``actions.take`` or ``actions.take.params.count``,
     and those whose effects ``after`` rewrote to do nothing, e.g. ``events.0 (its do now does nothing)``. With
-    ``tests`` — what testing ``before`` and ``after`` found — a rule whose effects fired in ``before``'s test runs and
-    in none of ``after``'s does nothing too, however it was rewritten (a `when` that never holds, an `if` on false)."""
+    ``tests`` — what testing ``before`` and ``after`` found — a rule whose effects changed something in ``before``'s
+    test runs and nothing in any of ``after``'s does nothing too, however it was rewritten (a `when` that never holds,
+    an `if` on false, `$x = $x * 1 + 0`)."""
     old_parts, new_parts = _parts(before), _parts(after)
     gone = [f"{key}.{name}" for key, names in old_parts.items()
             for name in sorted(names.keys() - new_parts.get(key, {}).keys())]
@@ -106,7 +107,7 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
     if tests is not None:
         said = {path.split(" ")[0] for path in gutted}
         was, now = set(tests[0].fired), set(tests[1].fired)
-        gutted += [f"{key}.{name} (its effects never fired in any test run)" for key in _RULES
+        gutted += [f"{key}.{name} (its effects changed nothing in any test run)" for key in _RULES
                    for name in old_parts[key] if name in new_parts[key] and f"{key}.{name}" not in said
                    and f"{key}.{name}" in was and f"{key}.{name}" not in now]
     return [path for path in gone
