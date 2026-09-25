@@ -6,7 +6,8 @@ none at all of an action whose effects may write a private property (an argument
 condition, a key or a transfer as surely as by being copied into it), and none at all of a simultaneous stage's sealed
 choices — a losing sealed bid stays sealed unless the action's own `announce` says otherwise. Nor does any text sent to
 several repeat an argument whose default is worked out (an expression): it is worked out as its actor sees the world,
-which others may not, so it is the actor's to know (its `announce` may not read it either).
+which others may not, so it is the actor's to know (its `announce` may not read it either). An action that writes its
+own `announce` repeats exactly the arguments that text reads: the event it makes carries no other.
 """
 from __future__ import annotations
 
@@ -16,6 +17,7 @@ from typing import Any
 from ..contract import Contract, DefSpec, RecordSpec
 from ..effects.statements import compile_statement
 from ..expr import ExprError, is_expr
+from ..expr.template import compile_template
 from ..world.store import World
 from ..world.values import plain_value
 
@@ -41,7 +43,12 @@ class Redaction:
 
     def public_params(self, world: World, name: str, params: dict[str, Any], record_mark: int) -> dict[str, Any]:
         """The arguments of action ``name`` its announcement may repeat, the entries it posted being those after
-        ``record_mark``."""
+        ``record_mark``. An announcement the action writes itself repeats exactly the arguments its text reads: what
+        it leaves out stays out of the event too."""
+        announce = self.contract.actions[name].announce
+        if isinstance(announce, str):
+            read = _params_read(announce)
+            return {key: value for key, value in self.shared(name, params).items() if key in read or "*" in read}
         if self._sealed(world):
             return {}
         if self._keeps_secrets(world, name):
@@ -81,6 +88,20 @@ class Redaction:
             known = _writes_private(world.private_names, self.contract.actions[name].do, self.contract.defs)
             self._writes_private[name] = known
         return known
+
+
+def _params_read(template: str) -> frozenset[str]:
+    """The arguments (``$params.<name>``) an announcement's text reads; a text that reads ``$params`` whole reads them
+    all (``"*"``)."""
+    try:
+        expressions = compile_template(template, None).expressions
+    except ExprError:
+        return frozenset()
+    read: set[str] = set()
+    for expr in expressions:
+        fields = {chain[1] for chain in expr.paths if chain[0] == "params" and len(chain) > 1}
+        read |= fields if fields or "params" not in expr.roots else {"*"}
+    return frozenset(read)
 
 
 def _public_params(params: dict[str, Any], posted: Sequence[tuple[RecordSpec, dict[str, Any]]]) -> dict[str, Any]:

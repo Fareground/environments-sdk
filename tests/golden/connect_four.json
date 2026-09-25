@@ -1,7 +1,7 @@
 {
   "actions": 4,
   "events": 4,
-  "events_sha256": "ebf649e7911c793323f730d9db2d57deff0c1d856416e5bec07e5766e2533427",
+  "events_sha256": "e912112f461adce5cab6a0b9de1e9f9cc063392fbe93559d4942a2583cffd14c",
   "first_events": [
     "r1 action red: Red played b1.",
     "r2 action yellow: Yellow played f1.",

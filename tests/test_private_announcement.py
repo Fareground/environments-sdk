@@ -164,3 +164,26 @@ def test_the_sealed_announcement_warning_quotes_a_real_agent():
                 "actions": {"yes": {"by": "voter", "do": []}, "no": {"by": "voter", "do": []}}}
     warned = [str(issue) for issue in fg_env.check(contract, rounds=0) if "sealed choice" in issue.message]
     assert warned and '("Vera: yes.")' in warned[0]
+
+
+@pytest.mark.parametrize("turns", ["sequential", "simultaneous"])
+def test_an_announcement_the_action_writes_repeats_only_the_arguments_it_reads(turns):
+    """The event an announcement makes carries the arguments its own `announce` text reads and no others: `$events`
+    shows another agent no more of a bid than the words everyone was sent (audit 14 M3)."""
+    c = {"name": "Bids", "types": {"p": {"agent": True, "props": {"n": 0}}},
+         "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+         "stages": [{"name": "s", "turns": turns}], "clock": {"rounds": 1},
+         "actions": {"bid": {"by": "p", "params": {"amt": {"type": "int", "min": 0, "max": 100},
+                                                   "lot": {"type": "int", "min": 0, "max": 9}},
+                             "do": ["$actor.n = 1"], "announce": "{$actor.name} bid on lot {$params.lot}."}}}
+    env = fg_env.load(c, seed=1)
+
+    def play(wake):
+        if wake.entity_id == "a":
+            wake.call("bid", {"amt": 73, "lot": 4})
+        wake.end()
+
+    env.step(play)
+    world = env.world
+    events = fg_env.expr.evaluate("$events(action)", world.evaluation.scope(viewer=world.entities["b"]))
+    assert [(e.text, e.data["params"]) for e in events] == [("a bid on lot 4.", {"lot": 4})]

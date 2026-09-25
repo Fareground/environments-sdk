@@ -1,7 +1,7 @@
 {
   "actions": 35,
   "events": 79,
-  "events_sha256": "7ec0aa758a9d03b2944b2f149faae646ae914bfcd913baec7dd78ef48f60f66e",
+  "events_sha256": "79523dfd6f019035251330490554864be346ca864db0e3faf376c6ec7f4c0ef3",
   "first_events": [
     "r2 hall r2: Resident 2 raised a hand and asks for the floor.",
     "r2 action r2: {\"action\": \"hall_raise_hand\", \"params\": {}, \"private\": true, \"success\": true}",

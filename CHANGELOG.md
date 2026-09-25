@@ -257,6 +257,8 @@ worlds stay fast, and the package is organised by feature.
   - An event an agent reads through `$events` is numbered (`seq`) by its place among the events it read, as a record
     entry is: its gaps no longer count the whispers between others it may not know of. Game logic reads the world's
     numbering; `$seen` knows an event by the world's number (H1).
+  - An action that writes its own `announce` puts in its event only the arguments that text reads: `$events(action)`
+    no longer hands others a bid the words left out (M3). Ten example goldens change their event-log hash only.
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
