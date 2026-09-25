@@ -17,7 +17,8 @@ input whose default *is* the brief's value. Keep every stated requirement while 
 3. `fg-env preview lake.json fisher_1` (`env.preview(id)`): exactly what that agent reads and which tools it gets.
    Each role should see what the brief says, nothing more.
 4. `fg-env run lake.json --seed 1` (`fg_env.run`): compare the outputs with an answer worked out by hand for a small
-   case. A clean check proves it runs, not that it is right.
+   case. A clean check means the rules are consistent and short plays did not fail; it proves neither that every
+   choice agents can make works nor that the environment is right.
 
 ## Worked example
 
