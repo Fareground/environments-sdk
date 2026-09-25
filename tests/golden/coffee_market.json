@@ -1,16 +1,16 @@
 {
   "actions": 600,
   "events": 1200,
-  "events_sha256": "f46b241691abec9f363896cce7ee1822b56a5b8869fa567c475c271fbf4f0b27",
+  "events_sha256": "7fe8a9cbeb0e272499084e3da2dd5b98fbd0de32fb68236b5642face7b0d51e4",
   "first_events": [
     "r1 action hh_72: {\"action\": \"skip\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 outcome hh_72: You skip caf\u00e9 coffee today.",
     "r1 action hh_65: {\"action\": \"skip\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 outcome hh_65: You skip caf\u00e9 coffee today.",
     "r1 action hh_125: {\"action\": \"buy\", \"params\": {\"cafe\": \"campus_brew\", \"cups\": 2}, \"private\": true, \"success\": true}",
-    "r1 outcome hh_125: served 2 cup(s) at Campus Brew, paid $7.2",
+    "r1 outcome hh_125: served 2 cup(s) at Campus Brew, paid $7.20",
     "r1 action hh_58: {\"action\": \"buy\", \"params\": {\"cafe\": \"campus_brew\", \"cups\": 1}, \"private\": true, \"success\": true}",
-    "r1 outcome hh_58: served 1 cup(s) at Campus Brew, paid $3.6",
+    "r1 outcome hh_58: served 1 cup(s) at Campus Brew, paid $3.60",
     "r1 action hh_71: {\"action\": \"skip\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 outcome hh_71: You skip caf\u00e9 coffee today."
   ],

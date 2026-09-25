@@ -358,6 +358,9 @@ worlds stay fast, and the package is organised by feature.
     to a constant, a view's text cut) are gone. The change summary names each changed setting's fields with both
     values in full, never cut at 80 characters. `Tested.fired`, `.flat` and `.views` become `Tested.profile`, and
     `AuthorResult.first_tested` holds the first working revision's (agentif B2-B6).
+  - Wording: the supply-chain order tool says what it does for every node once; labor_negotiation's deadline counts
+    the rounds left with this one included; coffee_market's receipt formats its money as money ("paid $3.40", not
+    "$3.4"); the coffee_market golden changes with that text (agentif LOWs).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

@@ -322,7 +322,7 @@
             "$actor.cups += $served",
             "$actor.streak = $actor.streak + 1 if $actor.last_cafe == $params.cafe.id else 1",
             "$actor.last_cafe = $params.cafe.id",
-            "$report = ('served ' + $text($params.cups) + ' cup(s) at ' if $missed == 0 else 'only partly served: nearly full at ') + $params.cafe.name + ', paid $' + $text($round($paid, 2))",
+            "$report = ('served ' + $text($params.cups) + ' cup(s) at ' if $missed == 0 else 'only partly served: nearly full at ') + $params.cafe.name + ', paid ' + $fmt($paid, 'money')",
             {
               "if": "$chance($inputs.review_rate)",
               "then": [
