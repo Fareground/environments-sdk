@@ -265,6 +265,8 @@ worlds stay fast, and the package is organised by feature.
   - A declared stage that refines a mechanism's generated stage of the same name is held only when both `when`s
     hold. Before, the author's `when` replaced the mechanism's, so a ballot's "hold the vote only when" was silently
     dropped and the vote was offered, counted and announced anyway.
+  - An action's `terminal` that reads a value hidden from its actor is a check error: the actor learns it from
+    whether its turn ended. Before, `"terminal": "$world.code > 5"` leaked one bit of a private code per call.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

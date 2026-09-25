@@ -127,7 +127,8 @@ entity's are hidden from every agent unless a view's or entity choice's `where`,
 `each: $filter(<type>, <condition>)`, picks the items by the reader and a prop of theirs (`$it.owner == $actor.id`) —
 the reader owns what it picks (by id names no owner). Reading a hidden
 value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
-outcome text, briefs, policies, defs they call, series outputs worked out from private props) is an error at run time,
+outcome text, whether an action ends the turn (`terminal`), briefs, policies, defs they call, series outputs worked out
+from private props) is an error,
 however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
 stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
 (`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to

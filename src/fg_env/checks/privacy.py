@@ -29,13 +29,13 @@ class PrivacyChecks(Checker):
     """Hidden values in views, tools, outcomes, announcements, news and `who` (a part of the contract checker)."""
 
     def _private_action(self, spec: C.ActionSpec, types: Types, path: str) -> None:
-        """An action's announcement is sent to everyone; its outcome, `why`s and parameters' bounds, defaults and
-        choices are what its actor is shown or offered, where a value hidden from it is refused (another agent's
-        private property whenever the actor chooses another agent). A requirement that reads one decides by what the
-        actor cannot know."""
+        """An action's announcement is sent to everyone; its outcome, `why`s, parameters' bounds, defaults and
+        choices, and whether it ends the turn (`terminal`) are what its actor is shown or offered, where a value hidden
+        from it is refused (another agent's private property whenever the actor chooses another agent). A requirement
+        that reads one decides by what the actor cannot know."""
         if isinstance(spec.announce, str):
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
-        texts = {"outcome": spec.outcome}
+        texts = {"outcome": spec.outcome, "terminal": spec.terminal}
         for pname, param in spec.params.items():
             texts.update({f"params.{pname}.{key}": getattr(param, key)
                           for key in ("min", "max", "min_items", "max_items", "default", "values")})

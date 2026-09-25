@@ -395,3 +395,16 @@ def test_nobody_else_learns_who_a_secret_stage_woke_from_its_idle_or_timeout_new
     assert result.status == "completed", result.error
     assert "ann did not act" not in day["bob"] + day["cat"]
     assert "ann ran out of time" not in day["bob"] + day["cat"]
+
+
+def test_whether_an_action_ends_the_turn_may_not_read_a_hidden_value():
+    """An agent learns `terminal` from whether its turn ended: reading the private code tells it one bit of it."""
+    c = {"name": "T", "clock": {"rounds": 1}, "world": {"code": {"default": 9, "private": True}},
+         "types": {"player": {"agent": True, "props": {"n": 0}}}, "entities": {"ann": {"type": "player"}},
+         "actions": {"probe": {"by": "player", "description": "p", "do": ["$actor.n += 1"],
+                               "terminal": "$world.code > 5"}},
+         "stages": [{"name": "s", "max_actions": 3}]}
+    errors = [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+    assert [e.path for e in errors] == ["actions.probe.terminal"] and "code" in errors[0].message
+    c["actions"]["probe"]["terminal"] = "$actor.n >= 2"
+    assert not [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
