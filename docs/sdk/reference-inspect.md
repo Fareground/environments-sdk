@@ -17,8 +17,9 @@ the first few entities of each type with every prop (`result.state`), so you can
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
 * an agent type that never had an action it could take (`agents_never_able_to_act`, degrading: over two rounds, or a
-  whole run in which no agent ever could), and a run in which no agent had a single turn (`nobody_played`,
-  degrading);
+  whole run in which no agent ever could), and agents a stage offers actions that never had a single turn — none
+  at all, or some of a type whose others did (`agents_never_played`, degrading; agents made during the run, gone by its
+  end or picked by a `who` that draws luck are exempt);
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
 * agents all of whose attempts went wrong, or too many of whose turns failed — more than a tenth for a model

@@ -14,6 +14,11 @@ worlds stay fast, and the package is organised by feature.
 
 ### Breaking
 
+- **`nobody_played` is now `agents_never_played` (audit 12 agentif H1).** The degrading diagnostic also names agents
+  a stage offers actions that never had a turn while other agents of their type did (a `who` that never picks one of
+  two players), not only a run in which no agent had one; so the author loop rejects such a revision. Agents made
+  during the run, gone by its end, or picked by a `who` that draws luck are exempt, and so is a type none of whose
+  agents ever plays. Match the new code where you read `result.degraded` or `diagnostics`.
 - **A property written as an object is always its spec (audit 12 H3).** A bare object used to be taken as a literal map
   default whenever it named neither `type` nor `default` and had a key that is no spec field, so
   `{"private": true, "defualt": 3}` became a public map. Now every unknown key is reported with a suggestion. A map

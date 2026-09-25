@@ -236,11 +236,14 @@ def test_an_engine_refuses_a_table_too_short_to_run_with_the_fix(starter, inputs
         fg_env.load(path, inputs=inputs)
 
 
-def test_the_retail_market_shares_leave_out_a_cafe_that_never_opened():
-    """In the base arm the chain café never opens, so it has no share to list (audit 11 engines LOW-3)."""
-    env = fg_env.load(Path(fg_env.__file__).parent / "engines" / "starters" / "coffee_market.json", seed=1)
-    result = env.run()
-    cafes = [entity for entity in env.entities("cafe", alive=False)]
-    opened = {cafe["name"] for cafe in cafes if cafe["props"]["open"] or cafe["props"]["cups_total"]}
-    assert len(opened) < len(cafes)  # the chain stays closed
-    assert {name for name, _ in result.outputs["market_shares"]} == opened
+def test_the_chain_cafe_is_in_the_market_only_in_its_launch_arm():
+    """In the base arm the chain café never opens, so it is not built at all: no share to list (audit 11 engines LOW-3)
+    and no agent that never plays (audit 12)."""
+    path = Path(fg_env.__file__).parent / "engines" / "starters" / "coffee_market.json"
+    for arm, chain in ((None, False), ("chain_launch", True)):
+        env = fg_env.load(path, seed=1, arm=arm)
+        result = env.run()
+        assert result.ok, result.degraded
+        assert any(cafe["props"]["chain"] for cafe in env.entities("cafe")) is chain
+        assert {name for name, _ in result.outputs["market_shares"]} == {cafe["name"] for cafe in env.entities("cafe")
+                                                                         if cafe["props"]["cups_total"]}

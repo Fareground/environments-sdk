@@ -329,11 +329,14 @@ class Schedule:
         world, who = self.env.world, compile_expr(stage.who)
         # When the stage's actions are announced, everyone learns who was woken: `who` reads what everyone may know.
         shown = {"viewer": EVERYONE} if announces(self.env.contract, stage) else {}
-        woken = []
+        woken, chance = [], self.env.state.diagnosis.chance_woken
         for i, agent in enumerate(agents):
-            with world.luck.stream("who", stage.name, world.round, pass_index, agent.id):
+            stream = world.luck.seeds.lazy_rng("who", stage.name, world.round, pass_index, agent.id)
+            with world.luck.using(stream):
                 if truthy(who(world.evaluation.scope(it=agent, i=i, **shown))):
                     woken.append(agent)
+            if stream.drawn:
+                chance.add(agent.id)
         return woken
 
     def _shuffle(self, stage: StageSpec, agents: list[Any]) -> None:

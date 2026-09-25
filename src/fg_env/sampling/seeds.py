@@ -61,6 +61,11 @@ class LazyStream:
         self._make: Callable[[], random.Random] | None = make
         self._stream: random.Random | None = None
 
+    @property
+    def drawn(self) -> bool:
+        """Whether anything was drawn from it (it was seeded)."""
+        return self._stream is not None
+
     def __getattr__(self, name: str) -> Any:
         if self._stream is None:
             assert self._make is not None

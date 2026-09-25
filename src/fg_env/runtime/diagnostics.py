@@ -41,13 +41,13 @@ MIN_ROUNDS = 2
 ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, or that
 #: never did (every call refused, so nothing it feeds ran), agents that never acted or too many of whose turns failed,
-#: agents that never had an action to take, a run in which no agent ever had a turn, turns lost to a failing provider,
-#: an output that raised an error, a run its budget cut short, host answers that were the contract's stand-ins or that
-#: it could not use.
+#: agents that never had an action to take, agents a stage offers actions that never had a turn, turns lost to a
+#: failing provider, an output that raised an error, a run its budget cut short, host answers that were the contract's
+#: stand-ins or that it could not use.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
-                       "agents_never_able_to_act", "nobody_played", "turns_forfeited", "output_failed", "budget_cut",
-                       "host_fallback", "host_unusable"})
+                       "agents_never_able_to_act", "agents_never_played", "turns_forfeited", "output_failed",
+                       "budget_cut", "host_fallback", "host_unusable"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
 #: The same for a model participant, held to a much lower share: every failed turn of a model is a move it never made
@@ -76,7 +76,7 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
     return [*(_finding("output_failed", issue["path"], issue["message"],
                        issue.get("fix") or "fix the expression (a bare word is text: a property is read as "
                        "`$it.<name>` or `$world.<name>`), or guard the case it fails in") for issue in failed),
-            *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_nobody_played(env), *_never_acted(env),
+            *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_never_played(env), *_never_acted(env),
             *_out_of_steps(env),
             *_arm_inputs(env),
             *_host_fallbacks(env), *_host_unusable(env), *_faults(env), *_faulted_types(env), *_actions(env),
@@ -129,23 +129,37 @@ def _forfeits(env: Env) -> list[dict[str, str]]:
     return out
 
 
-def _nobody_played(env: Env) -> list[dict[str, str]]:
-    """A finished run of a contract whose stages offer agents actions in which no agent ever had a turn: whatever it
-    measured, no agent's choice shaped it. (Turns that never offered an action: ``agents_never_able_to_act``.)"""
+def _never_played(env: Env) -> list[dict[str, str]]:
+    """Agents a stage offers actions that never had a turn in a finished run — none at all, or some of a type whose
+    others did: whatever the run measured, their choices never shaped it. Agents made during the run, agents no longer
+    in it at the end, agents a stage's `who` picks by luck, and a type none of whose agents ever plays (a passive part
+    of the world, like a market's opening liquidity) may rightly never have had one. (Turns that never offered an
+    action: ``agents_never_able_to_act``.)"""
     contract = env.contract
-    if not env.finished or env.state.stats.actions:
+    if not env.finished:
         return []
-    if not any(stage_actions(contract, stage, kind) for stage in contract.stage_list()
-               for kind in contract.agent_types()):
-        return []  # no stage offers agents anything: a world that plays itself (stages of `actions: []`)
-    if any(stats.wakes for stats in env.state.agent_stats.values()):
+    offered = {kind for kind in contract.agent_types()
+               if any(stage_actions(contract, stage, kind) for stage in contract.stage_list())}
+    stats, chance, entities = env.state.agent_stats, env.state.diagnosis.chance_woken, env.world.entities
+    played = {entities[agent].entity_type for agent, entry in stats.items() if entry.wakes and agent in entities}
+    idle = sorted(entity.id for entity in entities.values()
+                  if entity.alive and entity.luck is None and entity.entity_type in offered & played
+                  and entity.id not in chance and not (entity.id in stats and stats[entity.id].wakes))
+    if offered and not any(entry.wakes for entry in stats.values()):
+        return [_finding("agents_never_played", "stages",
+                         f"no agent had a single turn in {env.world.round} round(s): every stage was skipped (its "
+                         "`when` or `who`), the run ended before any stage (an `end` that holds at the start), or no "
+                         "entity is an agent; this run does not show how agents play",
+                         "check each stage's `when` and `who`, and each `end` condition, against the state at the "
+                         "start; fg-env preview shows what the first agent to play is offered")]
+    if not idle:
         return []
-    return [_finding("nobody_played", "stages",
-                     f"no agent had a single turn in {env.world.round} round(s): every stage was skipped (its `when` "
-                     "or `who`), the run ended before any stage (an `end` that holds at the start), or no entity is an "
-                     "agent; this run does not show how agents play",
-                     "check each stage's `when` and `who`, and each `end` condition, against the state at the start; "
-                     "fg-env preview shows what the first agent to play is offered")]
+    named = ", ".join(idle[:_LISTED]) + (f" and {len(idle) - _LISTED} more" if len(idle) > _LISTED else "")
+    return [_finding("agents_never_played", "stages",
+                     f"{named} never had a turn in {env.world.round} round(s), though other agents of their type did: "
+                     "no stage's `who` (or `when`) ever picked them; this run does not show how they play",
+                     "check each stage's `who` and `when` against every agent (fg-env preview shows what an agent is "
+                     "offered), or give the run enough rounds for every agent's turn to come")]
 
 
 def _out_of_steps(env: Env) -> list[dict[str, str]]:

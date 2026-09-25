@@ -109,13 +109,13 @@ def test_a_stage_whose_condition_reads_only_what_no_rule_changes_is_reported():
     contract = _contract(stages=[{"name": "shop", "actions": ["buy"], "when": "$world.phase == 'closed'"}],
                          types={"buyer": {"agent": True, "props": {"cash": 30, "loaves": 0}}})
     found = fg_env.run(contract, seed=1).diagnostics
-    assert [(d["code"], d["message"]) for d in found if d["code"] != "nobody_played"] == [
+    assert [(d["code"], d["message"]) for d in found if d["code"] != "agents_never_played"] == [
         ("stage_never_runs", "never ran and cannot: its `when` is false and it reads only `$world.phase`, which no "
                              "rule changes")]
     changed = _contract(stages=contract["stages"], types=contract["types"],
                         events=[{"at": 9, "do": "$world.phase = 'closed'"}])
     # a rule could open the shop, though not within these rounds: no agent played, and that is all that is said
-    assert [d["code"] for d in fg_env.run(changed, seed=1).diagnostics] == ["nobody_played"]
+    assert [d["code"] for d in fg_env.run(changed, seed=1).diagnostics] == ["agents_never_played"]
 
 
 def test_measures_that_read_only_what_nothing_changes_are_reported_and_ones_rules_could_change_are_not():
@@ -177,7 +177,7 @@ def test_a_run_in_which_no_agent_ever_has_a_turn_is_degraded(patch):
                 "entities": {"p": {"type": "p", "count": 2}}, "actions": {"bump": {"by": "p", "do": "$actor.n += 1"}},
                 "outputs": {"total": "$sum(p, $it.n)"}, **patch}
     result = fg_env.run(contract, "random", seed=1)
-    assert not result.ok and "nobody_played" in result.degraded
+    assert not result.ok and "agents_never_played" in result.degraded
 
 
 def test_a_one_round_run_whose_turns_never_offer_an_action_is_degraded():
@@ -188,3 +188,17 @@ def test_a_one_round_run_whose_turns_never_offer_an_action_is_degraded():
                 "outputs": {"total": "$sum(p, $it.n)"}}
     result = fg_env.run(contract, "random", seed=1)
     assert "agents_never_able_to_act" in result.degraded and "not yet" in str(result.diagnostics)
+
+
+def test_an_agent_a_stage_offers_actions_that_never_has_a_turn_is_degraded():
+    """One player of two never woken (its stage's `who` never picks it) is as broken as none (audit 12 agentif H1)."""
+    contract = {"name": "Half", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"north": {"type": "p"}, "south": {"type": "p"}},
+                "actions": {"bump": {"by": "p", "do": "$actor.n += 1"}},
+                "stages": [{"name": "s", "who": "$it.id == 'north'"}], "outputs": {"total": "$sum(p, $it.n)"}}
+    result = fg_env.run(contract, "random", seed=1)
+    assert not result.ok and "agents_never_played" in result.degraded
+    assert "south never had a turn" in next(d["message"] for d in result.diagnostics
+                                             if d["code"] == "agents_never_played")
+    contract["stages"][0]["who"] = "true"
+    assert fg_env.run(contract, "random", seed=1).ok

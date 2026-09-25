@@ -67,6 +67,8 @@ class Diagnosis:
         self.faults: dict[str, list[Any]] = {}
         #: Policy rule path → [times it acted, times its call was refused, the last refusal]
         self.policy_rules: dict[str, list[Any]] = {}
+        #: Agents some stage's `who` decided by luck (it drew), so never being woken may be the luck of the draw.
+        self.chance_woken: set[str] = set()
         #: Names of properties written since the world was built (shared with the world, which adds to it).
         self.written = written
         #: The turn number and actions already probed in it (not saved: snapshots fall between turns).
@@ -201,6 +203,7 @@ class Diagnosis:
         copied.actions, copied.stages, copied.agents = _copy(self.actions), _copy(self.stages), _copy(self.agents)
         copied.overwrites, copied.loop_overwrites = _copy(self.overwrites), _copy(self.loop_overwrites)
         copied.faults, copied.policy_rules = _copy(self.faults), _copy(self.policy_rules)
+        copied.chance_woken = set(self.chance_woken)
         copied._probed = (self._probed[0], set(self._probed[1]))
         return copied
 
@@ -208,7 +211,7 @@ class Diagnosis:
         return {"actions": _copy(self.actions), "stages": _copy(self.stages), "agents": _copy(self.agents),
                 "overwrites": _copy(self.overwrites), "loop_overwrites": _copy(self.loop_overwrites),
                 "faults": _copy(self.faults), "policy_rules": _copy(self.policy_rules),
-                "written": sorted(self.written)}
+                "chance_woken": sorted(self.chance_woken), "written": sorted(self.written)}
 
     def load(self, data: dict[str, Any] | None) -> None:
         """Take the counts of :meth:`to_dict` (the written names in place: the world holds the same set)."""
@@ -223,6 +226,7 @@ class Diagnosis:
         self.loop_overwrites = _copy(data.get("loop_overwrites", {}))
         self.faults = _copy(data.get("faults", {}))
         self.policy_rules = _copy(data.get("policy_rules", {}))
+        self.chance_woken = set(data.get("chance_woken", []))
         self.written.clear()
         self.written.update(data.get("written", []))
 

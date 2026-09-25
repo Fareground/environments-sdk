@@ -256,6 +256,7 @@
     "cafe": {
       "type": "cafe",
       "from": "$inputs.cafes",
+      "where": "not $row.chain or $arm == 'chain_launch'",
       "id": "{$row.id}",
       "name": "{$row.name}",
       "at": "$row.neighborhood",
