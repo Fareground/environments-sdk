@@ -411,7 +411,7 @@
       "show": "Wage +{$world.prop_wage|1}%, {$world.prop_benefits} benefits, {$world.prop_years}-year job guarantee. It scores {proposal_value|1} points for you (walk-away {reservation|1})."
     },
     "dispute": {"for": "all", "when": "$world.dispute != 'none'", "title": "Industrial action", "show": "A {$world.dispute} has been running since round {$world.dispute_since}; it costs each side {$inputs.strike_cost|1} points per round."},
-    "clock": {"for": "all", "show": "Hard deadline: end of round {$clock.rounds} ({$clock.rounds - $round} round(s) left). {$text('The mediator can table one proposal from round 7.') if not $world.mediator_used else $text('The mediator has used its proposal.')}"}
+    "clock": {"for": "all", "show": "Hard deadline: end of round {$clock.rounds} ({$clock.rounds - $round + 1} round(s) left, this one included). {$text('The mediator can table one proposal from round 7.') if not $world.mediator_used else $text('The mediator has used its proposal.')}"}
   },
   "events": [
     {
