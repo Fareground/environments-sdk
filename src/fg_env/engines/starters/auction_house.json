@@ -90,11 +90,11 @@
     },
     "english": {
       "description": "Open ascending bids with a $5 increment.",
-      "patch": {"mechanisms": {"house": {"format": "english"}}}
+      "patch": {"mechanisms": {"house": {"format": "english"}}, "clock": {"rounds": 60}, "end": [{"name": "sold_out", "when": "$world.house_stock == 0 and not $auction(house).open", "say": "Every vase is sold."}]}
     },
     "dutch": {
       "description": "A clock falling $15 a round from $170.",
-      "patch": {"mechanisms": {"house": {"format": "dutch"}}}
+      "patch": {"mechanisms": {"house": {"format": "dutch"}}, "clock": {"rounds": 60}, "end": [{"name": "sold_out", "when": "$world.house_stock == 0 and not $auction(house).open", "say": "Every vase is sold."}]}
     },
     "uniform": {
       "description": "All three vases in one lot at one clearing price.",

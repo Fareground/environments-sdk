@@ -500,3 +500,14 @@ def test_promoted_engines_move_their_outputs_the_way_the_real_system_does(engine
     seeds = range(2) if engine_id in ("ride_hailing", "epidemic") else range(6)
     low, high = (_mean_output(engine_id, output, inputs, seeds) for inputs in change)
     assert (high > low) if rises else (high < low), (low, high)
+
+
+@pytest.mark.parametrize("arm", ["english", "dutch"])
+@pytest.mark.parametrize("collectors", [2, 6, 40])
+def test_the_auction_engines_open_formats_sell_all_three_lots_like_the_sealed_ones(arm, collectors):
+    """Every format plays the same three lots: the clock formats run until the lots are sold, so revenue and surplus
+    compare formats, not unfinished auctions."""
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("auction").path)))
+    for seed in range(3):
+        result = fg_env.run(path, seed=seed, arm=arm, inputs={"collectors": collectors})
+        assert result.ok and result.outputs["house_sold"] == 3 and result.ended_by == "sold_out", result.summary()
