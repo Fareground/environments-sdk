@@ -340,3 +340,21 @@ def test_a_domain_worked_out_from_state_the_rules_raise_is_parametric_so_play_ne
             options = [a for a, _ in state.chance_outcomes()] if state.is_chance_node() else state.legal_actions()
             state, moves = state.child(rng.choice(options)), moves + 1
         assert state.is_terminal()
+
+
+def test_a_seat_s_own_private_value_is_part_of_its_information_state_whether_or_not_a_view_shows_it():
+    """A coded policy reads its own private props (`wake.me`), so states that differ only there are two information
+    states, never one (audit 12 L3)."""
+    def game(code):
+        return fg_env.rl.game({
+            "name": "G", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True, "props": {"code": {"type": "int", "default": 0, "private": True}, "pts": 0},
+                            "score": {"value": "$it.pts"}}},
+            "entities": {"ann": {"type": "p", "props": {"code": code}}, "bob": {"type": "p"}},
+            "actions": {"go": {"by": "p", "params": {"n": {"type": "int", "min": 0, "max": 1}},
+                               "do": "$actor.pts += $params.n * $actor.code"}},
+            "outputs": {"pts": "$dict(p, $it.id, $it.pts)"}})
+
+    one, two = game(1).new_initial_state(), game(2).new_initial_state()
+    assert one.information_state(0) != two.information_state(0)
+    assert one.information_state(1) == two.information_state(1)  # bob cannot tell them apart

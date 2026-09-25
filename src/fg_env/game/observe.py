@@ -84,6 +84,10 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
             if line:
                 lines.append(f"- round {event.round}: {line}")
         lines += ["", "Now:"]
+        # Everything the seat knows of itself, as a coded policy reads it (`wake.me`), whether or not a view shows it:
+        # two states it can tell apart by its own private value are never one information state.
+        own = {key: value for key, value in actor.properties.items() if not env.world.hides(actor, key, actor)}
+        lines.append("You: " + json.dumps(encode(own), sort_keys=True, default=str))
         for name, view in env.contract.views.items():
             if view.look or not env.information.applies(view, actor):
                 continue

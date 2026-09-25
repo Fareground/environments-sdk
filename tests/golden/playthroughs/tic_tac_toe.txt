@@ -38,7 +38,7 @@ Seat 0 (x) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 8
-Seat 0 information state: f4a4dc0303e50c44
+Seat 0 information state: 62ac97c75c46862c
 Seat 1 (o) reads:
   | Move 1 of 9 · move
   | 
@@ -46,7 +46,7 @@ Seat 1 (o) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 8
-Seat 1 information state: 4f499a954d58d3c2
+Seat 1 information state: f9679240701dc1ab
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=8)
 Step: {"args": {"cell": 8}, "seat": 0, "tool": "mark"}
@@ -62,7 +62,7 @@ Seat 0 (x) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 x
-Seat 0 information state: b4ff8e436f1a19ce
+Seat 0 information state: 6b54a61939628b99
 Seat 1 (o) reads:
   | Move 2 of 9 · move
   | Now: It is your turn.
@@ -74,7 +74,7 @@ Seat 1 (o) reads:
   | 0 1 2
   | 3 4 5
   | 6 7 x
-Seat 1 information state: e210f9aa995bb21b
+Seat 1 information state: 3783bf458c7fb1bf
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=0)
 Step: {"args": {"cell": 0}, "seat": 1, "tool": "mark"}
@@ -94,7 +94,7 @@ Seat 0 (x) reads:
   | o 1 2
   | 3 4 5
   | 6 7 x
-Seat 0 information state: 991188b8f0790a71
+Seat 0 information state: c308e49a1d4d00c1
 Seat 1 (o) reads:
   | Move 3 of 9 · move
   | Your last turn: Done: mark (cell=0).
@@ -103,7 +103,7 @@ Seat 1 (o) reads:
   | o 1 2
   | 3 4 5
   | 6 7 x
-Seat 1 information state: 055fc716110bad98
+Seat 1 information state: f15b9085bc4b4019
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=3)
 Step: {"args": {"cell": 3}, "seat": 0, "tool": "mark"}
@@ -119,7 +119,7 @@ Seat 0 (x) reads:
   | o 1 2
   | x 4 5
   | 6 7 x
-Seat 0 information state: f4ac313f3971fda3
+Seat 0 information state: 1f4832b6078d3860
 Seat 1 (o) reads:
   | Move 4 of 9 · move
   | Your last turn: Done: mark (cell=0).
@@ -132,7 +132,7 @@ Seat 1 (o) reads:
   | o 1 2
   | x 4 5
   | 6 7 x
-Seat 1 information state: 5cb23a6b030d8df7
+Seat 1 information state: c0c0e0a683592e32
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=5)
 Step: {"args": {"cell": 5}, "seat": 1, "tool": "mark"}
@@ -152,7 +152,7 @@ Seat 0 (x) reads:
   | o 1 2
   | x 4 o
   | 6 7 x
-Seat 0 information state: a77ac105983f0717
+Seat 0 information state: 1bb0f0a33daddabe
 Seat 1 (o) reads:
   | Move 5 of 9 · move
   | Your last turn: Done: mark (cell=5).
@@ -161,7 +161,7 @@ Seat 1 (o) reads:
   | o 1 2
   | x 4 o
   | 6 7 x
-Seat 1 information state: ddcca2c3a08c9dec
+Seat 1 information state: 81ac15f3246b9513
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=1)
 Step: {"args": {"cell": 1}, "seat": 0, "tool": "mark"}
@@ -177,7 +177,7 @@ Seat 0 (x) reads:
   | o x 2
   | x 4 o
   | 6 7 x
-Seat 0 information state: e42a0c3ffb394663
+Seat 0 information state: cb8689e629581720
 Seat 1 (o) reads:
   | Move 6 of 9 · move
   | Your last turn: Done: mark (cell=5).
@@ -190,7 +190,7 @@ Seat 1 (o) reads:
   | o x 2
   | x 4 o
   | 6 7 x
-Seat 1 information state: 88237f0bec655320
+Seat 1 information state: 6182299fb6641fb7
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=4)
 Step: {"args": {"cell": 4}, "seat": 1, "tool": "mark"}
@@ -210,7 +210,7 @@ Seat 0 (x) reads:
   | o x 2
   | x o o
   | 6 7 x
-Seat 0 information state: 5fccc1236ed89067
+Seat 0 information state: 8332ce9bf791d440
 Seat 1 (o) reads:
   | Move 7 of 9 · move
   | Your last turn: Done: mark (cell=4).
@@ -219,7 +219,7 @@ Seat 1 (o) reads:
   | o x 2
   | x o o
   | 6 7 x
-Seat 1 information state: 0cb6651389e927b5
+Seat 1 information state: 66de8b38f2f4a356
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=7)
 Step: {"args": {"cell": 7}, "seat": 0, "tool": "mark"}
@@ -235,7 +235,7 @@ Seat 0 (x) reads:
   | o x 2
   | x o o
   | 6 x x
-Seat 0 information state: b0b43046bc767c8c
+Seat 0 information state: 7b6af20ac5c2b152
 Seat 1 (o) reads:
   | Move 8 of 9 · move
   | Your last turn: Done: mark (cell=4).
@@ -248,7 +248,7 @@ Seat 1 (o) reads:
   | o x 2
   | x o o
   | 6 x x
-Seat 1 information state: 0d2e658b5a2314e5
+Seat 1 information state: fc578a806aef88da
 Returns: [0, 0]
 Chosen: seat 1: mark(cell=6)
 Step: {"args": {"cell": 6}, "seat": 1, "tool": "mark"}
@@ -268,7 +268,7 @@ Seat 0 (x) reads:
   | o x 2
   | x o o
   | o x x
-Seat 0 information state: 07f3267723f1bdf6
+Seat 0 information state: a301b3d9f0637c82
 Seat 1 (o) reads:
   | Move 9 of 9 · move
   | Your last turn: Done: mark (cell=6).
@@ -277,7 +277,7 @@ Seat 1 (o) reads:
   | o x 2
   | x o o
   | o x x
-Seat 1 information state: dacd093a313d8603
+Seat 1 information state: 819d1a69ec5c07b2
 Returns: [0, 0]
 Chosen: seat 0: mark(cell=2)
 Step: {"args": {"cell": 2}, "seat": 0, "tool": "mark"}

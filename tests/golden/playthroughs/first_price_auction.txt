@@ -34,12 +34,12 @@ Seat 0 (a) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 0 to you.
-Seat 0 information state: be9e8ee7d79e5ffe
+Seat 0 information state: df57429d2f35e05f
 Seat 1 (b) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 0 to you.
-Seat 1 information state: 8ce1be4c7cba35e8
+Seat 1 information state: 30e1d06bd7c7a5e6
 Returns: [0, 0]
 Chosen: value: 3
 Step: {"chance": 2}
@@ -51,12 +51,12 @@ Seat 0 (a) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 3 to you.
-Seat 0 information state: 2cca317b789a8d16
+Seat 0 information state: 73a03291347ac47a
 Seat 1 (b) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 0 to you.
-Seat 1 information state: 8ce1be4c7cba35e8
+Seat 1 information state: 30e1d06bd7c7a5e6
 Returns: [0, 0]
 Chosen: value: 4
 Step: {"chance": 3}
@@ -70,12 +70,12 @@ Seat 0 (a) reads:
   | Now: Everyone chooses at the same time.
   | 
   | The item is worth 3 to you.
-Seat 0 information state: 2cca317b789a8d16
+Seat 0 information state: 73a03291347ac47a
 Seat 1 (b) reads:
   | Round 1 of 1 · bid
   | 
   | The item is worth 4 to you.
-Seat 1 information state: f9c8daa1a056893b
+Seat 1 information state: 336b6445870a00db
 Returns: [0, 0]
 Chosen: seat 0: bid(amount=2); seat 1: bid(amount=3)
 Step: {"joint": {"0": {"args": {"amount": 2}, "tool": "bid"}, "1": {"args": {"amount": 3}, "tool": "bid"}}}

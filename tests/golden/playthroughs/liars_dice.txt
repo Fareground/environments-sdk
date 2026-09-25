@@ -35,12 +35,12 @@ Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
   | 
   | Your die: 0. Last bid: none.
-Seat 0 information state: 60e9d1ad06406553
+Seat 0 information state: e0270985c98c9234
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | 
   | Your die: 0. Last bid: none.
-Seat 1 information state: 16af87a2afa44173
+Seat 1 information state: 7df541a2fdc18a77
 Returns: [0, 0]
 Chosen: roll p0: 4
 Step: {"chance": 3}
@@ -52,12 +52,12 @@ Seat 0 (p0) reads:
   | Round 1 of 1 · bidding
   | 
   | Your die: 4. Last bid: none.
-Seat 0 information state: a4a17023ce5d111f
+Seat 0 information state: 066e96605e74dae5
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | 
   | Your die: 0. Last bid: none.
-Seat 1 information state: 16af87a2afa44173
+Seat 1 information state: 7df541a2fdc18a77
 Returns: [0, 0]
 Chosen: roll p1: 6
 Step: {"chance": 5}
@@ -70,12 +70,12 @@ Seat 0 (p0) reads:
   | Now: It is your turn.
   | 
   | Your die: 4. Last bid: none.
-Seat 0 information state: a4a17023ce5d111f
+Seat 0 information state: 066e96605e74dae5
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | 
   | Your die: 6. Last bid: none.
-Seat 1 information state: 9701746694d0bfe5
+Seat 1 information state: 194a8fd2f197a175
 Returns: [0, 0]
 Chosen: seat 0: bid(quantity=1, face=5)
 Step: {"args": {"face": 5, "quantity": 1}, "seat": 0, "tool": "bid"}
@@ -88,7 +88,7 @@ Seat 0 (p0) reads:
   | Your last turn: Done: bid (quantity=1, face=5).
   | 
   | Your die: 4. Last bid: 1 x 5.
-Seat 0 information state: a64bda083bdd5cc5
+Seat 0 information state: 92609de2a28bec61
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | Now: It is your turn.
@@ -97,7 +97,7 @@ Seat 1 (p1) reads:
   | - P0 bids 1 x 5.
   | 
   | Your die: 6. Last bid: 1 x 5.
-Seat 1 information state: 3cc3e53edfccd758
+Seat 1 information state: a3c39a7ecedf47ff
 Returns: [0, 0]
 Chosen: seat 1: bid(quantity=2, face=6)
 Step: {"args": {"face": 6, "quantity": 2}, "seat": 1, "tool": "bid"}
@@ -114,13 +114,13 @@ Seat 0 (p0) reads:
   | - P1 bids 2 x 6.
   | 
   | Your die: 4. Last bid: 2 x 6.
-Seat 0 information state: 3c9406b289e701a4
+Seat 0 information state: cee46de3b1836023
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | Your last turn: Done: bid (quantity=2, face=6).
   | 
   | Your die: 6. Last bid: 2 x 6.
-Seat 1 information state: 814bc1c0b101bb02
+Seat 1 information state: 09aea63bb6e2715d
 Returns: [0, 0]
 Chosen: seat 0: liar
 Step: {"args": {}, "seat": 0, "tool": "liar"}

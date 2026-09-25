@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] throw(move=rock); [2] throw(move=paper); [3] throw(mo
 Seat 0 (a) reads:
   | Round 1 of 1 · throw
   | Now: Everyone chooses at the same time.
-Seat 0 information state: 22ff354d43e72e84
+Seat 0 information state: d418ef34ba85f1d0
 Seat 1 (b) reads:
   | Round 1 of 1 · throw
-Seat 1 information state: 71d5cc38bf0402fa
+Seat 1 information state: 09d82dc627351e4b
 Returns: [0, 0]
 Chosen: seat 0: throw(move=scissors); seat 1: throw(move=scissors)
 Step: {"joint": {"0": {"args": {"move": "scissors"}, "tool": "throw"}, "1": {"args": {"move": "scissors"}, "tool": "throw"}}}

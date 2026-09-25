@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] hunt(move=stag); [2] hunt(move=hare)
 Seat 0 (a) reads:
   | Round 1 of 1 · hunt
   | Now: Everyone chooses at the same time.
-Seat 0 information state: f673309a7564959e
+Seat 0 information state: 85e22ac4963db1a8
 Seat 1 (b) reads:
   | Round 1 of 1 · hunt
-Seat 1 information state: 9f65bae780194939
+Seat 1 information state: e61cd1cdba31407c
 Returns: [0, 0]
 Chosen: seat 0: hunt(move=stag); seat 1: hunt(move=hare)
 Step: {"joint": {"0": {"args": {"move": "stag"}, "tool": "hunt"}, "1": {"args": {"move": "hare"}, "tool": "hunt"}}}

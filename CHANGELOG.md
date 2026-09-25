@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - `fg_env.rl.game`'s information state includes everything the seat knows of itself — its own private values
+    too — whether or not a view shows them, as `wake.me` and `observation(seat, "struct")` do: solvers no longer
+    merge states a coded policy can tell apart. Every information-state key changes (playthrough goldens regenerated).
   - `change` events read every `when` against what a commit left before any of them runs, so each sees every edge (a
     condition that went false and true again between two reads rises again) and events that set each other off are
     reported as a loop instead of stopping silently one edge short.

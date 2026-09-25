@@ -35,12 +35,12 @@ Seat 0 (a) reads:
   | Now: It is your turn.
   | 
   | Stones left: 5.
-Seat 0 information state: 613e32d5b80478a3
+Seat 0 information state: 9e02fca0027c4614
 Seat 1 (b) reads:
   | Move 1 of 50 · move
   | 
   | Stones left: 5.
-Seat 1 information state: 1ba5cef0a3de3af7
+Seat 1 information state: 2c1a62d319a4ed82
 Returns: [0, 0]
 Chosen: seat 0: take(count=3)
 Step: {"args": {"count": 3}, "seat": 0, "tool": "take"}
@@ -53,7 +53,7 @@ Seat 0 (a) reads:
   | Your last turn: Done: take (count=3).
   | 
   | Stones left: 2.
-Seat 0 information state: caab43cd765f87da
+Seat 0 information state: 79fae16b17a93557
 Seat 1 (b) reads:
   | Move 2 of 50 · move
   | Now: It is your turn.
@@ -62,7 +62,7 @@ Seat 1 (b) reads:
   | - Ann: take (count=3).
   | 
   | Stones left: 2.
-Seat 1 information state: 959ca42727531268
+Seat 1 information state: 575f021dafd1d8f2
 Returns: [0, 0]
 Chosen: seat 1: take(count=1)
 Step: {"args": {"count": 1}, "seat": 1, "tool": "take"}
@@ -79,13 +79,13 @@ Seat 0 (a) reads:
   | - Bob: take (count=1).
   | 
   | Stones left: 1.
-Seat 0 information state: 4c3e0755b86daaa8
+Seat 0 information state: 8a03451180849175
 Seat 1 (b) reads:
   | Move 3 of 50 · move
   | Your last turn: Done: take (count=1).
   | 
   | Stones left: 1.
-Seat 1 information state: 1991ff7ccc6d10d1
+Seat 1 information state: 6df857a1781eb998
 Returns: [0, 0]
 Chosen: seat 0: take(count=1)
 Step: {"args": {"count": 1}, "seat": 0, "tool": "take"}

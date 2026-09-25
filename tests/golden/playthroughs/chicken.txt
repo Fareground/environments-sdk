@@ -35,10 +35,10 @@ Legal calls of seat 1: [1] drive(move=swerve); [2] drive(move=straight)
 Seat 0 (a) reads:
   | Round 1 of 1 · drive
   | Now: Everyone chooses at the same time.
-Seat 0 information state: 14fd2355cc8e3730
+Seat 0 information state: 79b158ae610d3122
 Seat 1 (b) reads:
   | Round 1 of 1 · drive
-Seat 1 information state: 2eb83081f0c654cb
+Seat 1 information state: 6902acd073f62348
 Returns: [0, 0]
 Chosen: seat 0: drive(move=swerve); seat 1: drive(move=straight)
 Step: {"joint": {"0": {"args": {"move": "swerve"}, "tool": "drive"}, "1": {"args": {"move": "straight"}, "tool": "drive"}}}
