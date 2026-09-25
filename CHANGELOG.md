@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A ballot nobody cast or abstained on is not counted: on a stage that repeats, the last result stands instead of
+    an empty count overwriting a decided one (documented on the ballot's page).
   - Every market takes one `conserve` setting — `round` (the default), `true`/`action`, `end` or `false` — so
     auctions and prediction markets check their escrow and vault once a round, as the order book did, instead of after
     every action (which went over every trader each time: quadratic in the crowd; a 4,000-bidder uniform auction

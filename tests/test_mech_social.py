@@ -490,3 +490,20 @@ def test_a_seed_that_is_no_entity_of_its_group_is_a_contract_error(seed_id, said
     issues = [i for i in fg_env.check(_spread(seed_id), rounds=0) if i.path == "mechanisms.d.seeds.x[0]"]
     assert [i.severity for i in issues] == ["error"] and said in str(issues[0]), [str(i) for i in issues]
     assert fg_env.run(_spread("person_1"), seed=1).outputs["reach"] == 3
+
+
+def test_a_ballot_nobody_casts_leaves_the_last_result_standing():
+    """On a stage that repeats every round, a unanimous vote in round 1 is still the result after two rounds in which
+    nobody voted (audit 12 mech M2)."""
+    contract = {"name": "V", "clock": {"rounds": 3}, "types": {"member": {"agent": True}},
+                "entities": {f"m{i}": {"type": "member"} for i in range(3)},
+                "mechanisms": {"b": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["p", "q"]}},
+                "outputs": {"winner": "$world.b_result.winner", "round": "$world.b_result.round"}}
+
+    def play(wake):
+        if wake.round == 1:
+            wake.call("b_vote", {"choice": "p"})
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    assert result.outputs == {"winner": "p", "round": 1}

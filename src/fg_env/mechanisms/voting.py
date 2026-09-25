@@ -367,6 +367,8 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     config = mechanism_config(world, name, KEY, BallotConfig, where)
     prop = f"{name}_ballot"
     cast = [voter for voter in world.entities_of(config.who) if voter.properties.get(prop) is not None]
+    if not cast and world.props.get(f"{name}_result"):
+        return  # a ballot nobody cast (nor abstained on) decides nothing: the last result stands
     ballots = {voter.id: voter.properties[prop] for voter in cast}
     voters = _voters_in_game(world, config.who)
     weights = ({v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters}
@@ -440,13 +442,14 @@ def _announcement(world: Any, config: BallotConfig, result: dict[str, Any]) -> s
 @mode("decision", "ballot", BallotConfig,
            "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or "
            "supermajority with an optional quorum when the vote's stage ends — after the contract's own events on its "
-           "end, so read the result in a later stage or event, not in an event on the vote stage's end. The "
-           "result is in $world.<name>_result "
-           "({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty map until the first "
-           "count) and is announced, options that are entity ids named: `decided` is true when there is a winner, "
-           "`passed` when the first option won, so list a motion's yes first. Turnout counts the voters still in the "
-           "game. `weight` gives shareholder-style votes, `threshold_of: members` measures the threshold over every "
-           "member (cloture), `veto` lets some voters defeat a motion alone (a security council).",
+           "end, so read the result in a later stage or event, not in an event on the vote stage's end. The result is "
+           "in $world.<name>_result ({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty "
+           "map until the first count) and is announced, options that are entity ids named — every time the vote's "
+           "stage ends with a ballot some voter cast or abstained on; a ballot nobody touched leaves the last result "
+           "standing: `decided` is true when there is a winner, `passed` when the first option won, so list a motion's "
+           "yes first. Turnout counts the voters still in the game. `weight` gives shareholder-style votes, "
+           "`threshold_of: members` measures the threshold over every member (cloture), `veto` lets some voters defeat "
+           "a motion alone (a security council).",
            example={"who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5,
                     "question": "Adopt the budget?"})
 def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
