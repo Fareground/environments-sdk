@@ -454,7 +454,10 @@ class Turn:
     def _checked_act(self, name: str, spec: ActionSpec, args: Any,
                      observed: Observation) -> tuple[ToolResult, bool, bool]:
         env, rules = self.env, self.env.rules
-        blocked = rules.blocked(self.actor, name, self.ledger.used)
+        if self.staged and not self.actor.alive:  # met after its own choices so far: one of them takes it out
+            blocked = "what you already chose this turn takes you out of the game when it resolves"
+        else:
+            blocked = rules.blocked(self.actor, name, self.ledger.used)
         if blocked:
             self.note(INVALID)
             return (self._refused(name, f"You cannot call {name} now: {blocked}.", observed, _INVALID),

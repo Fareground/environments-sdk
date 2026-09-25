@@ -259,3 +259,22 @@ def test_a_sealed_choice_cannot_name_what_the_agents_own_earlier_choice_creates(
     result = fg_env.run(contract, play, seed=1)
     assert not said[0].ok and "cannot be named yet" in said[0].text
     assert result.outputs["chips"] == [["bob", False], ["ann", False]]
+
+
+def test_a_call_after_a_sealed_choice_that_removes_the_agent_says_so_in_the_future_tense():
+    """audit 13 L6: the agent is still in the game while its choices wait; its quit takes it out when they resolve."""
+    contract = {"name": "Quit", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "stages": [{"name": "s", "turns": "simultaneous", "max_actions": 2}],
+                "actions": {"quit": {"by": "p", "do": {"remove": "$actor"}},
+                            "earn": {"by": "p", "do": "$actor.n += 1"}}}
+    seen = []
+
+    def quitter(wake):
+        wake.call("quit", {})
+        seen.append(wake.call("earn", {}))
+        wake.end()
+
+    fg_env.run(contract, {"a": quitter, "b": lambda wake: wake.end()}, seed=1)
+    assert not seen[0].ok and "takes you out of the game when it resolves" in seen[0].text
