@@ -78,12 +78,29 @@ def test_any_effect_outside_the_allow_list_refuses_the_whole_attempt(effect, rea
     env, result = _run(lambda request: proposal, ["I try my luck."])
     assert result.status == "completed", result.error
     entry = env.world.records("gm")[0]
-    told = env.entity("mira")["props"]["gm_told"]
-    assert entry["refused"] and "reason" not in entry and reason in told, told
+    # Outside the allow-list is outside the protocol: asked once more with what did not fit, then refused.
+    unusable = [d["message"] for d in result.diagnostics if d["code"] == "host_unusable"]
+    assert entry["refused"] and "reason" not in entry and reason in unusable[0], unusable
+    assert "it could not decide what happens" in env.entity("mira")["props"]["gm_told"]
     assert not [e for e in result.events if e["kind"] == "news"]
     mira = env.entity("mira")
     assert (_gold(env, "mira"), mira["props"]["health"], mira["at"]) == (10, 8, "common_room")
     assert env.entity("bram")["props"]["health"] == 8 and env.props["alarm"] is False
+
+
+def test_a_near_miss_is_corrected_by_asking_the_game_master_once_more():
+    asked = []
+
+    def resolve(request):
+        asked.append(request.get("correction"))
+        value = 9 if request.get("correction") else 10.5
+        return {"narration": "Mira rests.", "effects": [{"effect": "set", "target": "mira", "prop": "health",
+                                                          "value": value}]}
+
+    env, result = _run(resolve, ["I rest by the fire."])
+    assert asked[0] is None and "at most 10" in asked[1]
+    assert env.entity("mira")["props"]["health"] == 9 and not env.world.records("gm")[0]["refused"]
+    assert result.degraded == []
 
 
 def test_one_news_item_per_attempt_even_with_several_news_rules():
@@ -92,7 +109,8 @@ def test_one_news_item_per_attempt_even_with_several_news_rules():
     twice = {"effects": [{"effect": "news", "text": "A cheer."}, {"effect": "news", "text": "Another cheer."}]}
     env, result = _run(lambda request: twice, ["I sing."], contract=contract)
     entry = env.world.records("gm")[0]
-    assert entry["refused"] and "only one news item is allowed per attempt" in env.entity("mira")["props"]["gm_told"]
+    assert entry["refused"] and any("only one news item is allowed per attempt" in d["message"]
+                                    for d in result.diagnostics)
     assert not [e for e in result.events if e["kind"] == "news"]
 
 

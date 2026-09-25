@@ -284,6 +284,10 @@ worlds stay fast, and the package is organised by feature.
     unanswered (the text unscored, the attempt refused), as a participant forfeits its turn, and is not asked again
     at once. Before, a 429 on a judge after its retries failed the whole run. The adapters raise
     `HostUnavailable` (a `HostError`) for it.
+  - A game master's answer that does not fit its allow-list is outside its protocol: it is asked once more, told what
+    did not fit (a health of 10.5 against a maximum of 10 is corrected), and a second answer that still does not fit
+    refuses the attempt as one it could not decide (`host_unusable`). Before, every near-miss refused the attempt
+    without asking again, though the adapters promise a correction.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

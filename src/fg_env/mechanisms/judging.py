@@ -527,10 +527,18 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
                                "props": plain_value(dict(actor.properties))},
                      "attempt": text, "context": context, "allowed": allowlist.describe(rules),
                      "max_effects": config.max_effects, "time": world.clock_label(), **files})
+    def within_rules(answer: Any) -> Any:
+        """The answer, when every effect fits the allow-list or it refuses: anything else is outside the protocol, so
+        the game master is asked once more, told what did not fit."""
+        why = allowlist.validate(world, rules, answer, config.max_effects)[1]
+        if why is not None and not isinstance(why, Untrusted):  # Untrusted: the game master's own refusal
+            raise HostError(why)
+        return answer
+
     try:
         proposal = consult(world, service=config.host, method="resolve", site=f"mechanisms.{name}", actor=actor.id,
                            identity={"attempt": text, **hashes}, ask=lambda adapter: adapter.resolve(request),
-                           fallback=_absent if config.fallback == "refuse" else None)
+                           validate=within_rules, fallback=_absent if config.fallback == "refuse" else None)
         plan, refusal = allowlist.validate(world, rules, proposal, config.max_effects)
     except HostUnusable:  # it declined or never answered usably: this attempt is refused (the diagnostics say why)
         plan, refusal = allowlist.Plan("", []), "it could not decide what happens"
