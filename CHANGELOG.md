@@ -325,6 +325,8 @@ worlds stay fast, and the package is organised by feature.
   - `$i` inside a function's per-item argument in a generated entity's props (`$dict(xs, $it, $random_for([$i,
     $it]))`) is warned: it is the function's item position, the same for every entity. The fix it names works: give
     the entity its number in a prop (`"n": "$i"`) and read `$outer.n` inside the function.
+  - A stage `when` that reads a hidden value is warned, as a `who` is: every agent learns it from whether the stage
+    was held.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

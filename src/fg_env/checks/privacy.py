@@ -105,6 +105,17 @@ class PrivacyChecks(Checker):
                        "wake by what is not private, or give the stage's actions `announce: false` so nobody learns "
                        "who acted")
 
+    def _private_stage_when(self, stage: C.StageSpec, path: str) -> None:
+        """A stage's `when` that reads a hidden value: every agent learns it from whether the stage was held (the
+        stage's name opens every update in it), as it would from a `who` in an announced stage."""
+        expressions = _expressions(stage.when)
+        read = self._hidden_reads(expressions, {}, {}) | self._fetched_reads(expressions)
+        if read:
+            self.warn(path, f"reads private {', '.join(sorted(read))}, and every agent learns whether {stage.name} "
+                            "was held (it names the stage it plays)",
+                      "decide it by what is not private, or keep a public property that says what everyone may know "
+                      "(\"$world.night = ...\" in game logic) and read that")
+
     def _sealed_announced(self, stage: C.StageSpec, path: str) -> None:
         """A simultaneous stage announces each sealed choice to everyone by its action's name as it commits (unless
         the action has `announce: false` or says what to announce): with more than one to choose from, each agent's

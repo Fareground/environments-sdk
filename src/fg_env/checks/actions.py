@@ -226,6 +226,7 @@ class ActionChecks(EffectChecks):
             check_stage_turns(self, stage, path, BASE)
             self._sealed_announced(stage, path)
             self._private_who(stage, f"{path}.who")
+            self._private_stage_when(stage, f"{path}.when")
         self._open_stages()
 
     def _open_stages(self) -> None:

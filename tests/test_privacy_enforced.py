@@ -463,3 +463,13 @@ def test_a_private_prop_may_name_the_agent_types_that_also_read_it():
     c["types"]["reviewer"]["props"]["score"]["private"] = ["chairman"]
     errors = [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
     assert errors[0].path == "types.reviewer.props.score.private" and "did you mean 'chair'" in (errors[0].fix or "")
+
+
+def test_a_stage_when_that_reads_a_hidden_value_is_warned():
+    """Whether the stage is held shows in every update it plays (its name heads them): `when` tells everyone."""
+    c = contract()
+    c["stages"] = [{"name": "play", "when": "$entity(bob).role == traitor"}, {"name": "other"}]
+    warned = [i for i in fg_env.check(c, rounds=0) if i.path == "stages[0].when"]
+    assert warned and warned[0].severity == "warning" and "role" in warned[0].message
+    c["stages"][0]["when"] = "$round == 1"
+    assert not [i for i in fg_env.check(c, rounds=0) if i.path == "stages[0].when"]
