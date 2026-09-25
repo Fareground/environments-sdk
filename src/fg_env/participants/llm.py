@@ -24,6 +24,7 @@ from ..host.providers import (
     EmptyReply,
     backoff,
     block_dict,
+    field_of,
     provider_failure,
     refuse_awaitable,
     request_timeout,
@@ -324,13 +325,13 @@ class _LLMParticipant:
         try:
             response = request()
             refuse_awaitable(response, self.CALL, self.CLIENT, f"participant:{wake.entity_id}")
-            spent = call_usage(getattr(response, "usage", None), self.PROVIDER, prompt)
+            spent = call_usage(field_of(response, "usage"), self.PROVIDER, prompt)
             self._record(wake, llm_calls=1, **spent.counts(), unreported_usage=int(spent.unreported))
         finally:
             if budget is not None:
                 budget.release(turn.env, held)
         if self._empty(response):
-            raise EmptyReply(getattr(response, "error", None) or "the provider sent no reply")
+            raise EmptyReply(field_of(response, "error") or "the provider sent no reply")
         return response
 
     def _expected(self, prompt: int) -> float:
@@ -373,7 +374,7 @@ class _Anthropic(_LLMParticipant):
     @staticmethod
     def _empty(response: Any) -> bool:
         """No content at all, and not because the reply was cut off or refused (counted as such)."""
-        return not getattr(response, "content", None) and getattr(response, "stop_reason", None) not in (
+        return not field_of(response, "content") and field_of(response, "stop_reason") not in (
             "max_tokens", "refusal")
 
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
@@ -409,13 +410,13 @@ class _Anthropic(_LLMParticipant):
             response = self._create(wake, lambda: self.client.messages.create(
                 model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=sent,  # noqa: B023 — called within this iteration
                 timeout=request_timeout(_time_left(wake)), **self.extra), prompt)
-            if getattr(response, "stop_reason", None) == "refusal":
+            if field_of(response, "stop_reason") == "refusal":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
-            truncated = getattr(response, "stop_reason", None) == "max_tokens"
+            truncated = field_of(response, "stop_reason") == "max_tokens"
             if truncated:
                 self._record(wake, truncated=1)
-            content = _reply_blocks(getattr(response, "content", None) or [], truncated)
+            content = _reply_blocks(field_of(response, "content") or [], truncated)
             calls = [block for block in content if block.get("type") == "tool_use"]
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
@@ -563,18 +564,19 @@ class _OpenAI(_LLMParticipant):
                 model=self.model, messages=messages, tools=tools, timeout=request_timeout(_time_left(wake)),  # noqa: B023 — called within this iteration
                 **self.options, **self.extra),
                 _tokens(tools, messages))
-            choice = response.choices[0]
-            finish = getattr(choice, "finish_reason", None)
-            message = choice.message
-            if getattr(message, "refusal", None) or finish == "content_filter":
+            choice = field_of(response, "choices")[0]
+            finish = field_of(choice, "finish_reason")
+            message = field_of(choice, "message")
+            if field_of(message, "refusal") or finish == "content_filter":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
             truncated = finish == "length"
             if truncated:
                 self._record(wake, truncated=1)
-            calls = [] if truncated else list(getattr(message, "tool_calls", None)
-                                              or [])  # cut-off arguments are not made
-            assistant: dict[str, Any] = {"role": "assistant", "content": getattr(message, "content", None) or ""}
+            calls = [] if truncated else [(field_of(c, "id"), field_of(field_of(c, "function"), "name"),
+                                           field_of(field_of(c, "function"), "arguments"))
+                                          for c in field_of(message, "tool_calls") or []]  # cut-off ones are not made
+            assistant: dict[str, Any] = {"role": "assistant", "content": field_of(message, "content") or ""}
             if not calls:
                 follow = self._follow_up(wake, truncated, asked)
                 if follow is None:
@@ -582,21 +584,20 @@ class _OpenAI(_LLMParticipant):
                 asked = True
                 messages += [assistant, {"role": "user", "content": follow}]
                 continue
-            assistant["tool_calls"] = [{"id": c.id, "type": "function",
-                                        "function": {"name": c.function.name, "arguments": c.function.arguments}}
-                                       for c in calls]
+            assistant["tool_calls"] = [{"id": call_id, "type": "function",
+                                        "function": {"name": name, "arguments": raw}}
+                                       for call_id, name, raw in calls]
             messages.append(assistant)
             files: list[dict[str, Any]] = []
-            for c in calls:
-                raw = c.function.arguments
+            for call_id, name, raw in calls:
                 args, broken = parse_arguments(raw or "{}") if isinstance(raw, str) or raw is None else (raw, "")
                 if broken:
                     args = raw  # not readable: the engine refuses it, saying why, and counts it invalid
-                result = self._dispatch(wake, c.function.name, args)
+                result = self._dispatch(wake, name, args)
                 text = _NOT_RUN if result is None else result.text
                 if result is not None and self.media and result.attachments:
                     files += openai_parts(result.attachments, self.media)
-                messages.append({"role": "tool", "tool_call_id": c.id, "content": text})
+                messages.append({"role": "tool", "tool_call_id": call_id, "content": text})
             messages[-1]["content"] += offered.changes(wake)
             if files:  # tool messages carry text only: the files follow in one user message
                 messages.append({"role": "user",
@@ -606,8 +607,8 @@ class _OpenAI(_LLMParticipant):
 
     @staticmethod
     def _empty(response: Any) -> bool:
-        choices = getattr(response, "choices", None)
-        return not choices or getattr(choices[0], "finish_reason", None) == "error"
+        choices = field_of(response, "choices")
+        return not choices or field_of(choices[0], "finish_reason") == "error"
 
 
 def openai(client: Any, model: str, *, max_tokens: int | None = None, reasoning_effort: str | None = None,

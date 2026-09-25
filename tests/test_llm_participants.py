@@ -254,3 +254,28 @@ def test_a_prompt_too_long_for_the_model_forfeits_that_turn_not_the_run():
     result = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(participants.anthropic(client, "m"), rounds=2)
     assert result.status != "failed", result.error
     assert result.stats["forfeits"] == 1 and result.stats["actions"] == 1
+
+
+def _plain(value):
+    """A fake client's response object as the plain dicts some proxies return."""
+    if isinstance(value, NS):
+        return {key: _plain(item) for key, item in vars(value).items()}
+    if isinstance(value, list):
+        return [_plain(item) for item in value]
+    return value
+
+
+def test_participants_read_plain_dict_responses_as_they_read_objects():
+    """Responses, blocks and tool calls are read as hosts and the author read them (audit 12 agentif M1)."""
+    anthropic = FakeAnthropic([[("buy", {"offer": "espresso", "qty": 2})], [("end_turn", {})]])
+    plain_anthropic = NS(messages=NS(create=lambda **request: _plain(anthropic.create(**request))))
+    agent = participants.anthropic(plain_anthropic, "claude-x")
+    env = fg_env.load(SHOP, seed=1, inputs={"shoppers": 1})
+    env.run(agent, rounds=1)
+    assert env.world.props["revenue"] == 6 and agent.usage.calls == 2 and agent.usage.input_tokens == 200
+    openai = FakeOpenAI([[("bid", json.dumps({"amount": 30}))]])
+    plain_openai = NS(chat=NS(completions=NS(create=lambda **request: _plain(openai.create(**request)))))
+    agent = participants.openai(plain_openai, "gpt-x")
+    result = fg_env.run(AUCTION, {"ann": agent, "bo": "idle", "cy": "idle"}, seed=1)
+    assert result.ok and result.outputs == {"winner": "Ann", "price": 30}, result.summary()
+    assert agent.usage.input_tokens == 50 * agent.usage.calls

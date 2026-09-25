@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - The Anthropic and OpenAI participants read a response, its content blocks and its tool calls whether the client
+    returns objects or the plain dicts some proxies do, as hosts and `fg_env.author` already did: a dict reply used to
+    forfeit every turn as a provider failure, and dict tool calls crashed the run.
   - `check`'s plays and the author's tests read every look view on every agent's every wake. They used to read one
     only for an agent's first wake in a stage and the first agent of its type each round, so a view that broke for
     the second player once its state changed passed both and crashed a real run when that player looked.
