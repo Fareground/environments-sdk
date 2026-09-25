@@ -365,3 +365,19 @@ def test_malformed_events_do_not_hide_the_rest_of_the_check_and_other_structural
     c["types"]["p"]["agent"] = "maybe"
     issues = _issues(c, rounds=0)
     assert issues[-1].path == "(contract)" and "checked once these are fixed" in issues[-1].message
+
+
+def test_a_whole_number_past_the_exact_range_is_refused_with_a_true_message():
+    def run(expr):
+        c = {"name": "BI", "clock": {"rounds": 40}, "world": {"x": {"type": "int", "default": 10}},
+             "types": {"player": {"agent": True}}, "entities": {"ann": {"type": "player"}},
+             "events": [{"on": "round.end", "do": [expr]}], "outputs": {"x": "$world.x"}}
+        return fg_env.load(c, seed=1).run("idle")
+
+    squared = run("$world.x = $world.x * $world.x")
+    assert squared.status == "failed" and "beyond the exact whole-number range" in squared.error
+    assert "must be a whole number" not in squared.error
+    assert "beyond the exact" in run("$world.x = $world.x * 1000000 + 1").error
+    assert run("$world.x = $world.x * 1000").status == "failed"  # 10^39 by round 13, not silently rounded
+    fraction = run("$world.x = $round(10 ** 400 * 1.5)")
+    assert "OverflowError" not in fraction.error and "too large for a fraction" in fraction.error

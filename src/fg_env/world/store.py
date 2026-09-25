@@ -45,6 +45,10 @@ if TYPE_CHECKING:
 
 __all__ = ["World"]
 
+#: The largest whole number an int property holds: every whole number up to it is exact however it was worked out
+#: (2^53, where fractions' whole numbers end); past it, `1e17 + 1` would be stored as 1e17.
+EXACT_INT = 2 ** 53
+
 
 class World(ExpressionWorld):
     """The store of one run. Expressions read it through the :class:`~fg_env.expr.World` interface."""
@@ -332,8 +336,11 @@ class World(ExpressionWorld):
             prop = where.rsplit(".", 1)[-1]
             within_bounds(spec, value, f"{owner}'s {prop}" if owner else prop)
             if kind == "int":
-                if float(value) != int(value):
+                if isinstance(value, float) and not value.is_integer():
                     raise RunError(f"must be a whole number, got {value}", where)
+                if abs(value) > EXACT_INT:  # a whole number there no longer holds every value exactly
+                    raise RunError(f"{_shown_value(value)} is beyond the exact whole-number range (±2^53, "
+                                   f"{EXACT_INT:,})", where)
                 value = int(value)
         elif kind == "bool" and not isinstance(value, bool):
             raise RunError(f"must be true or false, got {value!r}", where)

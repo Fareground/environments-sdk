@@ -147,6 +147,8 @@ class Expr:
             raise
         except RecursionError:
             raise ExprError("evaluation nested too deeply", self.source) from None
+        except OverflowError:  # a whole number past a float's range meets a fraction (its text varies by platform)
+            raise ExprError("a number is too large for a fraction (past about 1.8e308)", self.source) from None
         except (ArithmeticError, IndexError, KeyError, TypeError, ValueError, AttributeError) as exc:
             raise ExprError(f"could not evaluate: {type(exc).__name__}: {str(exc)[:200]}", self.source) from None
 

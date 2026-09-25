@@ -271,6 +271,10 @@ worlds stay fast, and the package is organised by feature.
     the contract with them set aside, so the other errors come in the same pass. Any other structural error ends the
     list with a warning that the rest is checked once it is fixed. Before, a single event typo hid every other
     problem until it was fixed.
+  - An `int` property holds whole numbers up to ±2^53, where every whole number is exact; past it the write is refused
+    as "beyond the exact whole-number range". Before, `$x * $x` was refused as "must be a whole number, got
+    100000000000000000000000000000000" (a whole number), and `1e17 + 1` was stored as 1e17 without a word. A whole
+    number too large to meet a fraction fails with that reason, not a raw `OverflowError`.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
