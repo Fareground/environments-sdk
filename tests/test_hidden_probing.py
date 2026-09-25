@@ -302,11 +302,14 @@ def _bidders(**parts):
                                                     "then": [{"emit": "hint", "say": "A big spender is here."}]}]}]),
      "events[0].do[0].if"),
 ])
-def test_every_condition_that_decides_what_everyone_sees_by_a_hidden_value_is_warned_alike(contract, path):
+def test_every_condition_that_decides_what_everyone_sees_by_a_hidden_value_is_reported_alike(contract, path):
     """A stage held or not, the passes it plays, an event's news or a branch that sends everyone news: each tells
-    every agent a bit of the hidden value it reads, and `check` says so in the same words wherever it is written."""
+    every agent a bit of the hidden value it reads, and `check` says so in the same words wherever it is written. What
+    selects a stage is an error, as a `who` that reads one is (audit 13 M1); news may be the rules revealing a value
+    on purpose (a showdown), so it is warned."""
     found = [i for i in fg_env.check(contract, rounds=0) if i.path == path]
-    assert [i.severity for i in found] == ["warning"] and "and every agent learns" in found[0].message
+    expected = "error" if path.startswith("stages") else "warning"
+    assert [i.severity for i in found] == [expected] and "and every agent learns" in found[0].message
 
 
 def _whispers(**accuse):

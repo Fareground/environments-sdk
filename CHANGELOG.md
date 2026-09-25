@@ -273,6 +273,9 @@ worlds stay fast, and the package is organised by feature.
     branch check now also reports a seat told two playouts apart whose information states are the same. Every
     information state string changes (the playthrough goldens were regenerated); snapshots keep what each agent was
     told under its `memory` (H1).
+  - A stage's `when`, `until` or `passes` that reads a private value is a check error, as a `who` that reads one
+    is: whether a stage is held, or how many passes it plays, is seen by every agent (M1). An event's `when` or an
+    `if` that decides news for everyone stays a warning: the rules may mean to reveal a value (a showdown).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
