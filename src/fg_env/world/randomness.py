@@ -18,15 +18,18 @@ from __future__ import annotations
 
 import random
 import threading
-from collections.abc import Callable, Iterable, Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..expr.base import ExprError
 from ..expr.objects import Entity
 from ..sampling.seeds import DrawSite, LazyStream, PathPart, SeedTree
+
+if TYPE_CHECKING:
+    from .journal import Journal
 
 __all__ = ["Randomness", "Context", "Observation", "LuckAhead", "LEGACY_STREAMS", "event_streams"]
 
@@ -212,17 +215,17 @@ class Randomness:
         others coming or going never shifts."""
         return self.using(DrawSite(f"{site}@{owner.luck or owner.id}" if isinstance(owner, Entity) else site))
 
-    def birth(self, round: int, journal: Callable[[tuple[Any, ...]], None]) -> str | None:
+    def birth(self, round: int, journal: Journal) -> str | None:
         """The key of the luck of an entity created now in ``round``: the block creating it — where it is written and
         whose block it runs as — and how many that block has created this round, so what other agents create never
-        shifts it. The count's change goes to ``journal`` (the world's), so undoing the creation gives it back. None
-        outside a block of logic, or in a trial (see :meth:`forbidden`): the entity is keyed by its id."""
+        shifts it. The count's change is journaled (``journal``, the world's), so undoing the creation gives it back.
+        None outside a block of logic, or in a trial (see :meth:`forbidden`): the entity is keyed by its id."""
         context = self.here()
         rng = context.rng
         if rng.__class__ is not DrawSite or context.forbid is not None:
             return None  # a trial draws nothing, so what it creates needs no luck, and it spends no count
         count = self.births.get(rng.key, 0)
-        journal(("birth", rng.key, count))
+        journal.push(("birth", rng.key, count))
         self.births[rng.key] = count + 1
         return f"{rng.key}#{round}.{count}"
 
