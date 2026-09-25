@@ -71,8 +71,9 @@ class AuctionConfig(BaseModel):
                                                 "`reverse`: buys and pays); default: the mechanism itself (stock and "
                                                 "revenue in world props).")
     stock: int | str = Field(1,
-                             description="Units the house has to sell, or with `reverse` to buy (number or "
-                                         "expression).")
+                             description="Units the mechanism has to sell (number or expression); a `house` sells the "
+                                         "units it holds in `<name>_units` instead (and with `reverse` buys this "
+                                         "many), and a double auction's sellers the units they hold.")
     units: int = Field(1, ge=1, description="Units in each lot (uniform; the last lot sells what is left), or the "
                                             "most units one bid or ask may carry (double).")
     reserve: float | str = Field(0.0, description="Lowest acceptable price per unit (number or expression); with "

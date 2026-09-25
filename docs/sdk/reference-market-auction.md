@@ -10,7 +10,7 @@ Config:
 - `currency` (default "cash"): Property holding money.
 - `item` (default "lot"): What is sold, in plain words.
 - `house` (default null): Entity id of the auction house: sells its units and is paid (with `reverse`: buys and pays); default: the mechanism itself (stock and revenue in world props).
-- `stock` (default 1): Units the house has to sell, or with `reverse` to buy (number or expression).
+- `stock` (default 1): Units the mechanism has to sell (number or expression); a `house` sells the units it holds in `<name>_units` instead (and with `reverse` buys this many), and a double auction's sellers the units they hold.
 - `units` (default 1): Units in each lot (uniform; the last lot sells what is left), or the most units one bid or ask may carry (double).
 - `reserve` (default 0.0): Lowest acceptable price per unit (number or expression); with `reverse`, the highest the house pays.
 - `reverse` (default false): first_price / second_price: a procurement tender: the `house` buys, the lowest offer wins and is paid (its offer, or the second-lowest).

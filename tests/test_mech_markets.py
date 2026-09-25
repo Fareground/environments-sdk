@@ -450,6 +450,17 @@ def house(fmt, **config):
             "entities": {t: {"type": "bidder"} for t in "abc"}, "mechanisms": {"house": mechanism}}
 
 
+def test_a_stock_beside_a_house_is_refused_with_where_the_units_go():
+    """A house sells the units it holds, so a `stock` beside it would silently sell nothing: check refuses it and says
+    where to give the units."""
+    contract = house("first_price", house="c")
+    errors = [i for i in fg_env.check(contract) if i.severity == "error"]
+    assert errors and "house 'c' sells the units it holds in `house_units`" in str(errors[0])
+    assert "entities.c.props" in str(errors[0])
+    del contract["mechanisms"]["house"]["stock"]
+    assert not [i for i in fg_env.check(contract) if i.severity == "error"]
+
+
 @pytest.mark.parametrize("fmt, pays", [("first_price", 50), ("second_price", 40)])
 def test_sealed_auctions_pick_the_highest_bid_and_price_by_format(fmt, pays):
     env, replies = play(house(fmt), {(1, "a"): [("house_bid", {"price": 30})], (1, "b"): [("house_bid", {"price": 50})],

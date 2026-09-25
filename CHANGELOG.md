@@ -240,6 +240,8 @@ worlds stay fast, and the package is organised by feature.
     a `pledge` would take next round.
   - A ballot hooked into a declared stage that repeats is counted at the stage's end only while its `when` holds for
     some voter. Before, every later round counted it again, empty, and overwrote the real result with none.
+  - An auction with a `house` refuses a `stock` beside it (a house sells the units it holds in `<name>_units`), with
+    where to give the house its units. Before, `stock` was silently ignored and no lot ever opened.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

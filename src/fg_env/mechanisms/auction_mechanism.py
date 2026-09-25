@@ -93,8 +93,9 @@ def _party_props(name: str, cfg: AuctionConfig, contract: Mapping[str, Any], hol
     return props
 
 
-def _check_award(cfg: AuctionConfig) -> None:
-    """A tender needs a house that buys and pays, and a most-it-pays reserve; a score ranks first-price bids."""
+def _check_award(name: str, cfg: AuctionConfig) -> None:
+    """A tender needs a house that buys and pays, and a most-it-pays reserve; a score ranks first-price bids; a house
+    sells the units it holds, so a `stock` beside it would be ignored."""
     if cfg.reverse:
         if cfg.format not in ("first_price", "second_price"):
             raise MechanismError(f"a reverse auction is sealed: format first_price or second_price, not {cfg.format}",
@@ -108,6 +109,10 @@ def _check_award(cfg: AuctionConfig) -> None:
     if cfg.deliver_from and not cfg.reverse:
         raise MechanismError("`deliver_from` belongs to a tender: the winner's stock supplies the house",
                              "set reverse: true, or remove deliver_from", "deliver_from")
+    if cfg.house and not cfg.reverse and "stock" in cfg.model_fields_set and cfg.format != "double":
+        raise MechanismError(f"`stock` is not used with a house: house '{cfg.house}' sells the units it holds in "
+                             f"`{name}_units`", f"remove stock and give the house its units under "
+                             f"entities.{cfg.house}.props, e.g. \"{name}_units\": 3", "stock")
     if cfg.score is not None:
         if cfg.format != "first_price":
             raise MechanismError("a scored award pays the winner its own bid, so it needs format first_price, not "
@@ -163,7 +168,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     if cfg.format not in ("uniform", "double") and cfg.units != 1:
         raise MechanismError("only uniform and double auctions trade several units at once", "set units: 1", "units")
     _check_packages(cfg)
-    _check_award(cfg)
+    _check_award(name, cfg)
     stocked = (types[cfg.who].get("props") or {}) if isinstance(types[cfg.who], Mapping) else {}
     if cfg.deliver_from and cfg.deliver_from not in stocked:
         raise MechanismError(f"deliver_from '{cfg.deliver_from}' is not a property of {cfg.who}",
