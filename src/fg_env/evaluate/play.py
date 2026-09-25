@@ -8,6 +8,7 @@ from ..analysis.runner import AnalysisError, check_positive_int, run_seeds
 from ..experiments.experiment import Job, run_jobs, worker_pool
 from ..runtime.budget import Budget
 from ..runtime.measure import RunResult
+from ..runtime.session import without_lookahead
 from ..sampling.seeds import SeedTree
 from ..tournament.scoring import ScoreSpec
 from .result import COST_FIELDS, EvaluationResult, summarize
@@ -20,7 +21,7 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
              score: ScoreSpec = None, modes: Mapping[str, float] | None = None,
              inputs: Mapping[str, Any] | None = None, arm: str | None = None, runs: int = 10,
              rounds: int | None = None, budget: Mapping[str, Any] | None = None, seed: int = 0,
-             workers: int = 1, exposures: bool = False) -> EvaluationResult:
+             workers: int = 1, exposures: bool = False, lookahead: bool = True) -> EvaluationResult:
     """How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
 
     ``suite`` is a contract, a list of scenarios, or a suite file (see :mod:`fg_env.evaluate.suite`); the other
@@ -38,7 +39,8 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     ``budget`` caps each run on its own; ``exposures=True`` records what agents saw in every run. ``results`` keeps
     every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline). Callable participants are
     shared by all their runs; with ``workers > 1`` runs go to threads, or to processes when every participant is
-    given by name.
+    given by name. ``lookahead=False`` refuses `wake.clone` to a callable ``focal``: a copy of the run holds hidden
+    state and future luck, which a participant under evaluation must not read.
     """
     check_positive_int("runs", runs)
     check_positive_int("workers", workers)
@@ -50,6 +52,9 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
         Budget.parse(budget)
     defaults = {"seats": seats, "score": score, "background": background, "baseline": baseline, "modes": modes,
                 "inputs": inputs, "arm": arm}
+    label = _label(focal)
+    if not lookahead:
+        focal = without_lookahead(focal)
     cases = scenarios(suite, defaults, focal)
     seeds = run_seeds(seed, runs)
     named = {str(i): p for i, p in enumerate([focal] + [p for c in cases for p in (c.background, c.baseline)])
@@ -67,7 +72,7 @@ def evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = 
     scored = [pair for pair in pairs if pair["difference"] is not None]
     if not scored:
         raise AnalysisError(f"no run pair could be scored; first problem: {pairs[0]['note']}")
-    return summarize(cases, pairs, focal=_label(focal), runs=runs, seed=seed, results=played)
+    return summarize(cases, pairs, focal=label, runs=runs, seed=seed, results=played)
 
 
 def _jobs(case: Scenario, focal: Any, seeds: Sequence[int], seed: int) -> list[Job]:

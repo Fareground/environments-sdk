@@ -269,3 +269,24 @@ def test_cli_tournament_prints_a_summary_or_json(tmp_path, capsys):
     assert data["pairing"] == "all_play_all" and len(data["standings"]) == 3
     assert main(["tournament", str(path), "--entrant", "rock"]) == 1
     assert "NAME=PARTICIPANT" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("lookahead", [True, False])
+def test_lookahead_false_refuses_wake_clone_to_every_entrant(lookahead):
+    """A copy of the run holds hidden state and future luck: with `lookahead=False` an entrant cannot take one."""
+    cloned = []
+
+    def peeker(wake):
+        try:
+            wake.clone()
+            cloned.append(True)
+        except RuntimeError as refused:
+            cloned.append(str(refused))
+        wake.call("pick", {"choice": 3})
+
+    tournament(NUMBERS, {"peeker": peeker, "bot": "policy:1"}, lookahead=lookahead)
+    assert cloned
+    if lookahead:
+        assert all(c is True for c in cloned)
+    else:
+        assert all(isinstance(c, str) and "lookahead=False" in c for c in cloned)

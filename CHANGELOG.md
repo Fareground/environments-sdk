@@ -176,6 +176,9 @@ worlds stay fast, and the package is organised by feature.
 
 ### Added
 
+- `tournament(..., lookahead=False)` and `evaluate(..., lookahead=False)` refuse `wake.clone` to entrants given as
+  callables (every entrant; the focal participant), so an entrant written by someone else cannot read the run's hidden
+  state or future luck through a copy of it (audit 10).
 - `env.stage`: the stage being played (None between stages), so a test can stop as one begins
   (`env.run(stop=lambda env: env.stage == "rebuttal")`) and try what follows on `env.clone()` part-way through a
   round.

@@ -11,6 +11,7 @@ from ..api import ContractLike, default_data_dir, load, parse
 from ..experiments.experiment import Job, run_jobs, worker_pool
 from ..runtime.budget import Budget
 from ..runtime.measure import RunResult
+from ..runtime.session import without_lookahead
 from .result import TournamentResult
 from .scoring import ScoreSpec, SeatScorer
 from .seating import PAIRINGS, Seating, rotations, schedule, swiss_round
@@ -24,7 +25,7 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Se
                swiss_rounds: int | None = None, others: Any = None, inputs: Mapping[str, Any] | None = None,
                arm: str | None = None, rounds: int | None = None, seed: int = 0, workers: int = 1,
                data_dir: Any = None, budget: Mapping[str, Any] | None = None,
-               exposures: bool = False, time_limit: float | None = None) -> TournamentResult:
+               exposures: bool = False, time_limit: float | None = None, lookahead: bool = True) -> TournamentResult:
     """Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
 
     ``seats`` are agent entity ids (default: every agent the contract starts with). ``pairing``:
@@ -48,9 +49,13 @@ def tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Se
     entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
     its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
     (``result.runs[i].exposures``, events kept), each a trace to read or replay. ``time_limit`` is the wall-clock
-    seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`).
+    seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`). ``lookahead=False`` refuses `wake.clone` to
+    every entrant given as a callable: a copy of the run holds hidden state and future luck, which an entrant written
+    by someone else must not read.
     """
     names = _entrant_names(entrants)
+    if not lookahead:
+        entrants = {name: without_lookahead(entrant) for name, entrant in entrants.items()}
     check_positive_int("games", games)
     check_positive_int("workers", workers)
     if rounds is not None:

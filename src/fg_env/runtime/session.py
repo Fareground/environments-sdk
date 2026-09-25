@@ -33,7 +33,7 @@ if TYPE_CHECKING:
     from ..copying.branch import Branch
     from .turn import Turn
 
-__all__ = ["Wake", "ToolResult", "END_TURN"]
+__all__ = ["Wake", "ToolResult", "END_TURN", "without_lookahead"]
 
 
 @dataclass
@@ -273,3 +273,31 @@ def _copy(value: Any) -> Any:
     if isinstance(value, dict):
         return {key: _copy(item) for key, item in value.items()}
     return value
+
+
+class _NoLookahead(Wake):
+    """A turn whose participant may not look ahead: :meth:`clone` is refused."""
+
+    def clone(self, *, participants: Any = None, seed: int | None = None, same_luck: bool = False) -> Branch:
+        raise RuntimeError("wake.clone is off for this participant (lookahead=False): a copy of the run holds the "
+                           "whole world, hidden state and future luck included")
+
+
+class _WithoutLookahead:
+    """A participant whose turns come as :class:`_NoLookahead` wakes."""
+
+    def __init__(self, participant: Any):
+        from .driving import runs_concurrently
+
+        self.__wrapped__ = participant  # read to tell whether it is async (see runtime/driving.py)
+        self.concurrent = runs_concurrently(participant)
+
+    def __call__(self, wake: Wake) -> Any:
+        return self.__wrapped__(_NoLookahead(wake._turn))
+
+
+def without_lookahead(participant: Any) -> Any:
+    """``participant`` playing with `wake.clone` refused, so an entrant written by someone else cannot read the run's
+    hidden state or future luck through a copy of it; a built-in participant given by name is returned as it is."""
+    return _WithoutLookahead(participant) if callable(participant) else participant
+
