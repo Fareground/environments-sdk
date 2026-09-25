@@ -18,9 +18,9 @@
 - `$last(list)` — Last element, or null for an empty list.
 - `$len(value)` — Length of a list or text.
 - `$map(items, value)` — `value` computed for each item.
-- `$max(items, value, where?) | max(list) | max(a, b, ...)` — Largest `value` over matching items, of a list, or of the numbers given.
+- `$max(items, value, where?) | max(list) | max(a, b, ...)` — Largest `value` over matching items, of a list, or of the numbers given; null when none.
 - `$median(items, value?, where?)` — Median of `value` over matching items, or of a list (nulls skipped); null when none.
-- `$min(items, value, where?) | min(list) | min(a, b, ...)` — Smallest `value` over matching items, of a list, or of the numbers given.
+- `$min(items, value, where?) | min(list) | min(a, b, ...)` — Smallest `value` over matching items, of a list, or of the numbers given; null when none.
 - `$mode(list)` — The most frequent value (first seen wins ties), or null for an empty list.
 - `$pick(items, where)` — The first item for which `where` holds, or null ($first(items) is the first of all).
 - `$quantile(items, value, q, where?)` — The q-quantile (0–1, linear interpolation) of `value`; null when none.

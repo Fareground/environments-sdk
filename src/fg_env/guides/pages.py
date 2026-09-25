@@ -178,10 +178,11 @@ _MODULE_GROUPS = {
 }
 #: What each non-family group holds, in the order the guide lists them.
 FUNCTION_GROUPS = {
-    "collections": "counting, summing, ranking and filtering lists and entity types",
+    "collections": "counting, summing, ranking and filtering lists and entity types; a mean, extreme or pick of no "
+                   "items is null",
     "world": "entities, records, events and what agents were shown",
     "math": "arithmetic, trigonometry, interpolation",
-    "random": "seeded draws and distributions",
+    "random": "seeded draws and distributions; a pick from no items is null",
     "text": "text and formatting",
     "dates": "calendar arithmetic and parts of ISO dates",
     "lists": "list and map manipulation, sets",

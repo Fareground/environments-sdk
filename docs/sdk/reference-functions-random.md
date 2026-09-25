@@ -5,7 +5,7 @@
 - `$beta(a, b)` — Beta-distributed number in [0, 1].
 - `$binomial(n, p)` — Successes in n independent trials with success probability p.
 - `$chance(p)` — True with probability p.
-- `$choice(items, weight?)` — One item picked at random; `weight` is a per-item expression ($it), e.g. $choice([a, b], $it == a and 3 or 1).
+- `$choice(items, weight?)` — One item picked at random, or null when there are none; `weight` is a per-item expression ($it), e.g. $choice([a, b], $it == a and 3 or 1).
 - `$dice(notation)` — Roll dice written like 3d6+2, d20, 2d8-1 or 4d6kh3 (keep highest 3; kl keeps lowest) and return the total.
 - `$dirichlet(alphas)` — Random probabilities (summing to 1) from a Dirichlet with concentration `alphas` (each > 0).
 - `$exponential(rate)` — Exponentially distributed number.

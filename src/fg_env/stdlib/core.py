@@ -87,14 +87,14 @@ def _extreme(call: Call, pick: Any) -> Any:
 
 
 @function("min(items, value, where?) | min(list) | min(a, b, ...)",
-          "Smallest `value` over matching items, of a list, or of the numbers given.",
+          "Smallest `value` over matching items, of a list, or of the numbers given; null when none.",
           min_args=1, lazy=[1, 2])
 def _min(call: Call) -> Any:
     return _extreme(call, min)
 
 
 @function("max(items, value, where?) | max(list) | max(a, b, ...)",
-          "Largest `value` over matching items, of a list, or of the numbers given.",
+          "Largest `value` over matching items, of a list, or of the numbers given; null when none.",
           min_args=1, lazy=[1, 2])
 def _max(call: Call) -> Any:
     return _extreme(call, max)
@@ -623,8 +623,8 @@ def _poisson(call: Call) -> int:
 
 
 @function("choice(items, weight?)",
-          "One item picked at random; `weight` is a per-item expression ($it), e.g. $choice([a, b], $it == a and 3 or "
-          "1).",
+          "One item picked at random, or null when there are none; `weight` is a per-item expression ($it), e.g. "
+          "$choice([a, b], $it == a and 3 or 1).",
           min_args=1, max_args=2, lazy=[1])
 def _choice(call: Call) -> Any:
     if len(call) < 2:

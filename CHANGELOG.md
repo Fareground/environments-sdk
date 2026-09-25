@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - One documented rule for empty lists: a function that summarises or picks items (`$avg`, `$min`, `$max`,
+    `$median`, `$best`, `$first`, `$choice` …) gives null when there are none; `$min`, `$max` and `$choice` now say so.
   - A rule's write or transfer to an entity already removed is an error naming it, instead of changing a value no
     one will read.
   - `fg_env.rl.game`'s information state includes everything the seat knows of itself — its own private values

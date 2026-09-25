@@ -8,10 +8,10 @@ Core (the start page teaches them): $count $sum $avg $min $max $filter $map $dic
 
 General functions, for any contract:
 
-- `collections` (counting, summing, ranking and filtering lists and entity types): $all $any $avg $best $coalesce $count $dict $filter $first $flatten $get $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
+- `collections` (counting, summing, ranking and filtering lists and entity types; a mean, extreme or pick of no items is null): $all $any $avg $best $coalesce $count $dict $filter $first $flatten $get $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
 - `world` (entities, records, events and what agents were shown): $asset $entity $events $records $seen
 - `math` (arithmetic, trigonometry, interpolation): $abs $acos $asin $atan $atan2 $ceil $clamp $comb $cos $erf $exp $factorial $floor $gcd $interp $lcm $log $logit $logsumexp $pct $pi $round $sigmoid $sign $sin $softmax $sqrt $tan $tanh
-- `random` (seeded draws and distributions): $beta $binomial $chance $choice $dice $dirichlet $exponential $gamma $geometric $lognormal $multinomial $mvnormal $normal $poisson $randint $sample $shuffle $triangular $truncnormal $uniform $weibull $zipf
+- `random` (seeded draws and distributions; a pick from no items is null): $beta $binomial $chance $choice $dice $dirichlet $exponential $gamma $geometric $lognormal $multinomial $mvnormal $normal $poisson $randint $sample $shuffle $triangular $truncnormal $uniform $weibull $zipf
 - `text` (text and formatting): $chars $contains $ends_with $fmt $join $lower $matches $pad $replace $similar $split $starts_with $substr $text $title $trim $upper $words
 - `dates` (calendar arithmetic and parts of ISO dates): $date_add $date_part $days_between $is_holiday
 - `lists` (list and map manipulation, sets): $chunk $cumsum $diff $difference $index $insert $intersect $items $lookup $lookup_one $merge $pick_keys $rank $remove_at $rotate $set_at $union $window $without $zip
