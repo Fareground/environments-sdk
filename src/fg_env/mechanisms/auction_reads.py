@@ -11,7 +11,8 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ._common import fmt, shown
-from .auctions import _item_reserves, _reserve, auction_config, audit, min_bid
+from ._social import named_use
+from .auctions import KEY, _item_reserves, _reserve, auction_config, audit, min_bid
 
 __all__ = ["describe", "last_result"]
 
@@ -71,19 +72,21 @@ def describe(world: Any, name: str, viewer: Entity | None) -> str:
 
 
 def _auction(call: Call) -> str:
+    """The auction a function reads: the one it names, else the contract's only one (several: name one)."""
+    name = named_use(call, KEY, 0) if len(call) == 0 or call.arg(0) is None else call.arg(0)
     try:
-        auction_config(call.scope.world, call.arg(0))
+        auction_config(call.scope.world, name)
     except RunError as exc:
         raise ExprError(f"${call.name}: {exc}", call.source) from None
-    return str(call.arg(0))
+    return str(name)
 
 
-@function("auction(name)", "An auction's state: "
+@function("auction(name?)", "An auction's state (the name may be left out while the contract has one auction): "
           "{format, open, lot, price, leader, min_bid, reserve, bids, sold, revenue, stock, items, last}. price, "
           "leader and bids describe the open lot; items what a combinatorial lot still has for sale; last the latest "
           "closed lot's result, sold or not: {lot, winner, winners, price, qty, note} (winner: the first winner's "
           "id, '' when unsold; price: the first winner's price per unit), kept until another lot closes, null before "
-          "any has.", min_args=1, max_args=1, family="market")
+          "any has.", min_args=0, max_args=1, family="market")
 def _auction_function(call: Call) -> dict[str, Any]:
     name = _auction(call)
     world: Any = call.scope.world
