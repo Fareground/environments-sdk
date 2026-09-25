@@ -2,6 +2,9 @@
 PYTHON ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python)
 SCHEMA := schema/contract.schema.json
 RUN := PYTHONPATH=src $(PYTHON)
+# Test worker processes: two keep the suite within a small machine's memory; raise it where there is room
+# (`make test WORKERS=auto`).
+WORKERS ?= 2
 
 .PHONY: gate test test-fast test-slow lint typecheck schema check-schema docs check-docs
 
@@ -11,16 +14,16 @@ gate: test lint typecheck check-schema check-docs
 
 # The whole suite: run it before every push.
 test:
-	$(RUN) -m pytest tests -q -n auto
+	$(RUN) -m pytest tests -q -n $(WORKERS)
 
 # The whole suite with its longest tier on (FG_ENV_SLOW=1): thousands of fuzzed contracts, more seeds and playouts,
 # every adversary everywhere, full engine and exchange sessions. Tens of minutes: before a release.
 test-slow:
-	FG_ENV_SLOW=1 $(RUN) -m pytest tests -q -n auto
+	FG_ENV_SLOW=1 $(RUN) -m pytest tests -q -n $(WORKERS)
 
 # Everything but the tests marked slow (statistical and engine-behaviour checks): the loop while iterating.
 test-fast:
-	$(RUN) -m pytest tests -q -n auto -m "not slow"
+	$(RUN) -m pytest tests -q -n $(WORKERS) -m "not slow"
 
 lint:
 	$(PYTHON) -m ruff check src tests scripts

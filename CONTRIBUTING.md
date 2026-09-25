@@ -18,12 +18,13 @@ pip install -e ".[dev]"
 The suite lives in `tests/`. Run all of it with:
 
 ```bash
-pytest -n auto                                     # with an editable install
-PYTHONPATH=src python -m pytest tests -q -n auto   # straight from a checkout (same as `make test`)
+pytest -n 2                                     # with an editable install
+PYTHONPATH=src python -m pytest tests -q -n 2   # straight from a checkout (same as `make test`)
 ```
 
-`-n auto` spreads the tests over every CPU core with pytest-xdist (part of the `dev` extra); the suite is
-several times faster that way. Leave it off (or use `-n 0`) to debug one test with `pdb` or `print` output.
+`-n 2` spreads the tests over two worker processes with pytest-xdist (part of the `dev` extra), which fits a
+machine with 8 GB of memory; the make targets take `WORKERS` (`make test WORKERS=auto` uses every core where memory
+allows). Leave it off (or use `-n 0`) to debug one test with `pdb` or `print` output.
 
 While iterating, `make test-fast` runs everything except the tests marked `slow` (statistical and engine-behaviour
 checks that take many seconds each) in a minute or two. Run the whole suite, `make test` (part of `make gate`), before
