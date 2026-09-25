@@ -26,13 +26,13 @@ from ..physics.model import CompiledExpr, PhysicsModel
 from ..sampling.seeds import SeedTree
 from ..stdlib.dates import calendar_date
 from . import links as _links
-from .abort import Abort, within_bounds
+from .abort import Abort
 from .evaluation import EvalContext
 from .journal import Journal
 from .links import Link
 from .parts import Entry, LogEvent, private_metrics
 from .props import finite_number as _finite_number
-from .props import prop_type
+from .props import prop_type, stored
 from .props import shown_value as _shown_value
 from .randomness import Randomness
 from .record_events import RecordEvents
@@ -46,11 +46,6 @@ if TYPE_CHECKING:
     from ..effects.sync import WriteBuffer
 
 __all__ = ["World"]
-
-#: The largest whole number an int property holds: every whole number up to it is exact however it was worked out
-#: (2^53, where fractions' whole numbers end); past it, `1e17 + 1` would be stored as 1e17.
-EXACT_INT = 2 ** 53
-
 
 class World(ExpressionWorld):
     """The store of one run. Expressions read it through the :class:`~fg_env.expr.World` interface."""
@@ -370,45 +365,10 @@ class World(ExpressionWorld):
     # -- changes (journaled) --------------------------------------------------
 
     def coerce(self, spec: PropSpec | None, value: Any, where: str, owner: str = "") -> Any:
-        """``value`` as ``spec`` stores it. A number past a declared min or max is refused (:class:`Abort`), never
-        clamped: an action is rolled back and its actor told why, like a transfer that does not fit. ``owner``
-        names who holds the property in that refusal."""
-        if spec is None:
-            return value
-        kind = prop_type(spec)
-        if value is None:
-            if spec.default is None or kind == "any":  # declared without a value: it may be empty
-                return None
-            raise RunError(
-                f"cannot be null: it starts with a value, so it always holds one ({kind}; an empty list's $max, $avg "
-                f"or $first is null — guard it, e.g. `$max(xs) if $len(xs) > 0 else 0`); to let it be empty, "
-                f'declare it with "default": null', where)
-        if kind in ("number", "int"):
-            if not _finite_number(value):
-                raise RunError(f"must be a finite number that fits in a float, got {_shown_value(value)}", where)
-            prop = where.rsplit(".", 1)[-1]
-            within_bounds(spec, value, f"{owner}'s {prop}" if owner else prop)
-            if kind == "int":
-                if isinstance(value, float) and not value.is_integer():
-                    raise RunError(f"must be a whole number, got {value}", where)
-                if abs(value) > EXACT_INT:  # a whole number there no longer holds every value exactly
-                    raise RunError(f"{_shown_value(value)} is beyond the exact whole-number range (±2^53, "
-                                   f"{EXACT_INT:,})", where)
-                value = int(value)
-        elif kind == "bool" and not isinstance(value, bool):
-            raise RunError(f"must be true or false, got {value!r}", where)
-        elif kind == "text" and not isinstance(value, str):
-            hint = ('; property shorthand "bool" is a text default, not a type declaration; '
-                    'use {"type": "bool", "default": false}'
-                    if spec.type is None and spec.default == "bool" and isinstance(value, bool) else '')
-            raise RunError(f"must be text, got {value!r}{hint}", where)
-        elif kind == "enum" and value not in (spec.values or []):
-            raise RunError(f"must be one of {spec.values}, got {value!r}", where)
-        elif kind == "list" and not isinstance(value, list):
-            raise RunError(f"must be a list, got {value!r}", where)
-        elif kind == "map" and not isinstance(value, dict):
-            raise RunError(f"must be an object, got {value!r}", where)
-        elif kind == "asset":
+        """``value`` as ``spec`` stores it (see :func:`~fg_env.world.props.stored`): a number past a declared min or
+        max is refused (:class:`Abort`), never clamped; an asset is resolved to the run's file."""
+        value = stored(spec, value, where, owner)
+        if spec is not None and value is not None and prop_type(spec) == "asset":
             return self.assets.ref(value, where)
         return value
 

@@ -284,6 +284,9 @@ worlds stay fast, and the package is organised by feature.
   - A property written as an object whose keys are all spec settings but that names neither a `type` nor a `default`
     (`"limits": {"min": 1, "max": 5}`) starts as null: `check` warns and says how to write the map it likely meant,
     `{"default": {...}}` (M5).
+  - `check(rounds=0)` holds a literal default and an entity's own value to the one rule every write follows
+    (`world/props.stored`, which the build uses): a NaN, a default past its min or max, an enum default not among its
+    values, a value of the wrong kind, and a min above its max are errors at their field, not only in a smoke run (L1).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

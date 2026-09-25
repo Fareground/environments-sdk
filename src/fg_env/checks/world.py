@@ -12,9 +12,12 @@ from typing import TYPE_CHECKING, Any
 from .. import contract as C
 from ..contract.inputs import DATA_SUFFIXES, check_value
 from ..effects.runner import POST_KEYS
+from ..errors import RunError
 from ..expr import EXPRESSION_WORDS, ExprError, compile_expr, is_expr
 from ..physics.model import _CONSTS, _FUNCS, CompiledExpr, PhysicsExprError
+from ..world.abort import OutOfBounds
 from ..world.defaults import default_order
+from ..world.props import prop_type, stored
 from .core import Checker
 from .roots import BASE, ENTITY_FIELDS, ENTRY_FIELDS, RECORD_FIELD_TYPES
 from .space import check_space
@@ -125,11 +128,31 @@ class WorldChecks(Checker):
                       f"write {spec.default.strip()} without quotes for a number, or declare "
                       f'{{"type": "text", "default": "{spec.default}"}} to keep text')
         self.value(spec.default, f"{path}.default", roots, types or {})
+        if spec.min is not None and spec.max is not None and spec.min > spec.max:
+            self.error(path, f"its min ({_as_written(spec.min)}) is above its max ({_as_written(spec.max)}), so no "
+                             "value fits", "swap them, or remove the one that is wrong")
+            return
         literal = spec.default is not None and not (isinstance(spec.default, str) and is_expr(spec.default))
         if literal and spec.type in ("number", "int", "bool", "text", "list", "map"):
             problem = check_value(spec.type, spec.default)
             if problem:  # every entity would start with it: a static error here, not a smoke run's at each entity
                 self.error(f"{path}.default", problem, f"give it a default of type {spec.type}")
+                return
+        if literal:
+            self.stored_literal(spec, spec.default, f"{path}.default")
+
+    def stored_literal(self, spec: C.PropSpec | None, value: Any, path: str) -> None:
+        """A literal value (a default, an entity's own) the world will store in a property of ``spec``: what the build
+        would refuse is an error here, by the one rule every write follows (world/props.py)."""
+        if spec is None or (isinstance(value, str) and is_expr(value)) or prop_type(spec) == "asset":
+            return
+        prop = path.removesuffix(".default")
+        try:
+            stored(spec, value, prop)
+        except OutOfBounds as refused:
+            self.error(path, refused.reason, "give it a value within the property's min and max")
+        except RunError as refused:
+            self.error(path, str(refused).removeprefix(f"{prop}: "), "give it a value the property holds")
 
     def _keyword_names(self) -> None:
         """Names expressions read cannot be the language's own words (`$count(in)`, `$it.not`)."""
@@ -210,6 +233,7 @@ class WorldChecks(Checker):
                     self.error(f"{path}.props.{prop}", f"'{spec.type}' has no property '{prop}'",
                                self._suggest(prop, self.type_props[spec.type]))
                 self.value(raw, f"{path}.props.{prop}", roots, {"it": {spec.type}} if generated else None)
+                self.stored_literal(self.c.props_of(spec.type).get(prop), raw, f"{path}.props.{prop}")
                 if generated:
                     self._rebound_index(raw, f"{path}.props.{prop}")
             if not generated:

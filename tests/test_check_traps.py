@@ -4,6 +4,8 @@ action, an `end` that cuts the last round, static gaps (a view over an unknown t
 type, a wrong effect shape) and a crash only a boundary value triggers."""
 import copy
 
+import pytest
+
 import fg_env
 
 
@@ -550,3 +552,23 @@ def test_a_placeholder_in_plain_text_is_warned_wherever_it_is_written():
                 "views": {"list": {"of": "p", "show": "{name}", "where": "false", "empty": "None for {$actor.name}."}}}
     warned = {issue.path for issue in fg_env.check(contract) if "plain text" in issue.message}
     assert warned == {"actions.go.description", "views.list.empty"}
+
+
+@pytest.mark.parametrize("prop, path", [
+    ({"default": float("nan")}, "types.p.props.c.default"),
+    ({"default": 1, "min": 5, "max": 2}, "types.p.props.c"),
+    ({"default": 10, "min": 0, "max": 5}, "types.p.props.c.default"),
+    ({"type": "enum", "values": ["a", "b"], "default": "z"}, "types.p.props.c.default"),
+    ({"type": "int", "default": 2.5}, "types.p.props.c.default"),
+])
+def test_a_default_the_build_would_refuse_is_a_static_error(prop, path):
+    """`check(rounds=0)` holds a literal default to the rule every write follows, as the build does (audit 14 L1)."""
+    c = {"name": "Defaults", "types": {"p": {"agent": True, "props": {"c": prop, "k": 0}}},
+         "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": []}}}
+    assert any(i.severity == "error" and i.path == path for i in fg_env.check(c, rounds=0))
+
+
+def test_an_entitys_own_value_of_the_wrong_kind_is_a_static_error():
+    c = {"name": "Own", "types": {"p": {"agent": True, "props": {"k": 0}}},
+         "entities": {"a": {"type": "p", "props": {"k": "text"}}}, "actions": {"go": {"by": "p", "do": []}}}
+    assert any(i.severity == "error" and i.path == "entities.a.props.k" for i in fg_env.check(c, rounds=0))
