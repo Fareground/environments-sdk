@@ -49,7 +49,7 @@ def attr(obj: Any, name: str, source: str | None = None, scope: Any = None) -> A
             return obj.location_id
         if name in props:
             return props[name]
-        known = ", ".join(sorted(k for k in props if not k.startswith("_")))
+        known = ", ".join(sorted(k for k in props if not k.startswith("_"))) or "none yet"
         raise ExprError(f"{obj.entity_type} '{obj.id}' has no property '{name}' (has: {known})", source)
     if isinstance(obj, Mapping):
         if name in obj:

@@ -155,6 +155,18 @@ def test_created_props_are_evaluated_after_the_props_they_read():
     assert fg_env.run(contract, seed=1).outputs == {"d": [6]}
 
 
+def test_a_generated_prop_reading_another_through_outer_is_worked_out_after_it():
+    """`$outer.n` inside a function that rebinds `$it` reads the entity's own `n`, whatever order the type declares
+    them in (audit 9 hands-on M1)."""
+    contract = {"name": "Outer", "inputs": {"cats": {"type": "list", "default": ["a", "b"]}},
+                "types": {"r": {"props": {"likes": {"type": "map", "default": {}}, "n": 0}}},
+                "entities": {"r": {"type": "r", "count": 2,
+                                   "props": {"n": "$i", "likes": "$dict($inputs.cats, $it, $outer.n * 10)"}}},
+                "outputs": {"likes": "$map(r, $it.likes)"}}
+    assert _errors(contract) == []
+    assert fg_env.load(contract, seed=1).run(rounds=0).outputs["likes"] == [{"a": 10, "b": 10}, {"a": 20, "b": 20}]
+
+
 def test_created_props_that_read_each_other_in_a_circle_say_so():
     contract = {"name": "Circle", "clock": {"rounds": 1},
                 "types": {"thing": {"props": {"a": 0, "b": 0}}},

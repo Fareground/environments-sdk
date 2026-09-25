@@ -259,7 +259,7 @@ class EvalContext:
 def _prop_order(raws: dict[str, Any], expressions: dict[str, Any], where: str) -> Iterable[str]:
     """The order a new entity's props are evaluated in: declaration order (``raws`` itself), but each prop after
     the props it reads through `$it`, whichever order they are written in."""
-    if not any("$it." in raw for raw in expressions.values()):
+    if not any("$it." in raw or "$outer." in raw for raw in expressions.values()):
         return raws
     order, circle = default_order({prop: expressions.get(prop) for prop in raws}, "it")
     if circle is not None:

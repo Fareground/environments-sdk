@@ -2,7 +2,8 @@
 
 ``"plan": {"default": "$map($world.rates, $it * 2)"}`` is evaluated after ``rates`` whatever the declaration order;
 defaults that read each other in a circle cannot be ordered and are a contract error. A new entity's props read each
-other through ``$it`` the same way (``"double": "$it.base * 2"``).
+other through ``$it`` the same way (``"double": "$it.base * 2"``), and through ``$outer`` inside a function that binds
+``$it`` to something else (``"likes": "$dict(cats, $it, $outer.base)"``).
 """
 from __future__ import annotations
 
@@ -14,7 +15,8 @@ from ..expr import is_expr
 
 __all__ = ["world_reads", "default_order"]
 
-_READS = {root: re.compile(rf"\${root}\.([A-Za-z_][A-Za-z0-9_]*)") for root in ("world", "it")}
+_READS = {"world": re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)"),
+          "it": re.compile(r"\$(?:it|outer)\.([A-Za-z_][A-Za-z0-9_]*)")}
 
 
 def world_reads(raw: Any, root: str = "world") -> set[str]:

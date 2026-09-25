@@ -267,6 +267,8 @@ worlds stay fast, and the package is organised by feature.
     round's start no longer says "after physics" in a contract without physics; an action offered only to a reaction
     is not reported as unavailable in every stage; a refusal that used up the action no longer says to correct the
     arguments and call again.
+  - A new entity's prop that reads another through `$outer` (inside a function that rebinds `$it`, as check's own
+    advice for `$i` in `$dict` suggests) is worked out after it, whatever order the type declares them in.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
