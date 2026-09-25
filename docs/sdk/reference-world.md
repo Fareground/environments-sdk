@@ -9,7 +9,7 @@ Global properties ($world.x).
 In a type that ``extends`` another, a property the parent declares is overridden field by
 field: only the fields written here change (a bare value changes only the default), so the
 parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.
-- `type`: any — One of: number, int, bool, text, enum, list, map, any, asset (inferred from default) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).
+- `type`: any — One of: number, int, bool, text, enum, list, map, any, asset (inferred from default: any number default, 10 as much as 2.5, is a number, which may hold fractions; int only when declared) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).
 - `default`: any — Literal or expression (evaluated when the entity is created).
 - `min`: number — Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).
 - `max`: number — Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).

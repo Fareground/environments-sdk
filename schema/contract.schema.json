@@ -1617,7 +1617,7 @@
             }
           ],
           "default": null,
-          "description": "One of: number, int, bool, text, enum, list, map, any, asset (inferred from default) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).",
+          "description": "One of: number, int, bool, text, enum, list, map, any, asset (inferred from default: any number default, 10 as much as 2.5, is a number, which may hold fractions; int only when declared) (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool).",
           "title": "Type"
         },
         "default": {

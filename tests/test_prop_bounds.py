@@ -181,3 +181,15 @@ def test_a_fractional_value_written_to_a_whole_number_property_fails_the_run_at_
     at_the_rule = r"events\[0\]\.do\[0\]: .*a's n \(types\.p\.props\.n\) must be a whole number, got 3\.5"
     with pytest.raises(RunError, match=at_the_rule):
         fg_env.run(split, seed=1)
+
+
+def test_a_bare_whole_number_default_holds_any_number_and_int_holds_whole_numbers_only():
+    """`"coins": 10` is a number, as the guide says: money that starts whole may earn a fraction later."""
+    def game(coins):
+        return {"name": "Coins", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"coins": coins}}},
+                "entities": {"a": {"type": "p"}}, "events": [{"on": "round.end", "do": ["$entity(a).coins += 0.5"]}],
+                "outputs": {"coins": "$entity(a).coins"}}
+
+    assert fg_env.run(game(10), seed=1).outputs == {"coins": 10.5}
+    with pytest.raises(RunError, match="must be a whole number"):
+        fg_env.run(game({"type": "int", "default": 10}), seed=1)

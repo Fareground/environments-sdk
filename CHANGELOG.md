@@ -310,6 +310,10 @@ worlds stay fast, and the package is organised by feature.
     it happen), and a def called with the reader itself (`$value($actor, $it.terms)`) may read that argument's private
     properties in what the reader is shown. Before, council, dispute, deliberation, legislature, hidden roles and
     negotiation warned on a fresh clone.
+  - The start page and the property reference say what a bare number default is: `"cash": 100` holds any number,
+    12.5 too; `"type": "int"` holds whole numbers only. (Inferring `int` from a whole default was tried and not
+    taken: the lemonade stand, farmers market, auction house and prediction market examples fail their first run when
+    `"earned": 0` refuses a fractional payment.)
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

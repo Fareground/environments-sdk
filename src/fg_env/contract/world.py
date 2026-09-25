@@ -222,7 +222,9 @@ class PropSpec(_Model):
     parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply."""
 
     type: TypeName | None = Field(None,
-                                  description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default)"
+                                  description="One of: " + ", ".join(PROP_TYPES) + " (inferred from default: any "
+                                  "number default, 10 as much as 2.5, is a number, which may hold fractions; int only "
+                                  "when declared)"
                                   + SPELLINGS + ".")
     default: Any = Field(None, description="Literal or expression (evaluated when the entity is created).")
     min: float | None = Field(None,
