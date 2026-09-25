@@ -302,6 +302,8 @@ worlds stay fast, and the package is organised by feature.
     this turn; it ends your turn."), and with one action left every action tool says "Ends your turn." and is marked
     terminal. With the default `max_actions: 1` a model that called a side action first (a note) ended its turn
     without knowing it would. The playthrough goldens gain that line; no information state changes.
+  - An argument's name is held to the rule tool names are (letters, digits, `_` and `-`, at most 64): `check` reports
+    one a model provider would refuse, instead of the first model call failing (agentif MEDIUM-1).
   - **A contract's `name` is optional** (mech H1): left out, a contract read from a file is named after the file, any
     other `Environment`; so every mechanism reference example works as pasted. The judge and game-master examples
     declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract

@@ -59,6 +59,7 @@ class ActionChecks(EffectChecks):
                                f"give it a limit of 1 or more, or leave `{limit}` out for no limit")
             for pname, param in spec.params.items():
                 ppath = f"{path}.params.{pname}"
+                self._provider_word(pname, ppath, "an argument name")
                 self.plain_text(param.description, f"{ppath}.description", "an argument's description", _DYNAMIC)
                 if param.type not in C.PARAM_TYPES:
                     self.error(f"{ppath}.type", f"unknown type '{param.type}'",
@@ -152,8 +153,13 @@ class ActionChecks(EffectChecks):
         if name in BUILT_IN_TOOLS:
             self.error(path, f"'{name}' is a built-in tool, so a model could never call this one",
                        f"rename it, e.g. '{name}_action'")
-        elif not _PROVIDER_NAME.fullmatch(name):
-            self.error(path, f"'{name}' is not a tool name model providers accept: letters, digits, _ and - only, at "
+        else:
+            self._provider_word(name, path, "a tool name")
+
+    def _provider_word(self, name: str, path: str, what: str) -> None:
+        """A name a model provider reads in a tool's schema (a tool's, an argument's): one every provider accepts."""
+        if not _PROVIDER_NAME.fullmatch(name):
+            self.error(path, f"'{name}' is not {what} model providers accept: letters, digits, _ and - only, at "
                              "most 64 characters", f"rename it, e.g. '{_provider_name(name)}'")
 
     def _list_param(self, param: C.ParamSpec, ppath: str, by_types: set[str],

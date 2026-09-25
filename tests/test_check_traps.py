@@ -599,3 +599,12 @@ def test_a_transfer_to_an_entity_of_a_type_without_the_property_is_a_static_erro
     assert any(i.severity == "error" and i.path == "actions.go.do[0].to" for i in fg_env.check(c, rounds=0))
     c["types"]["box"]["props"]["cash"] = 0
     assert not [i for i in fg_env.check(c, rounds=0) if i.path.startswith("actions.go.do[0]")]
+
+
+@pytest.mark.parametrize("name", ["a mount", "montant_€", "a/b", "x" * 80])
+def test_an_argument_name_a_model_provider_refuses_is_a_check_error(name):
+    """An argument's name is a key of the tool's schema, which providers hold to the rule they hold tool names to: the
+    check says so, rather than the first model call failing (audit 14 agentif MEDIUM-1)."""
+    c = {"types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"go": {"by": "p", "params": {name: {"type": "int"}}, "do": []}}}
+    assert any(i.severity == "error" and i.path == f"actions.go.params.{name}" for i in fg_env.check(c, rounds=0))
