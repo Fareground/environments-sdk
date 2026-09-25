@@ -311,6 +311,10 @@ worlds stay fast, and the package is organised by feature.
     actions per turn, the sum of what each allows in its own stage, which any tool may spend. The extra action for
     the author's own tools is added only when the stage offers actions the author declared; a stage listing only
     mechanism tools no longer gets one (mechanism M1).
+  - A mechanism's number field given a word (`"stock": "lots"`) is an error at `mechanisms.<name>.<field>`, not at
+    the part generated from it (`world.au_stock.default`) or only after a smoke run; the fields whose text may be
+    a name or a date (a demand `rate` naming a pattern, a pattern's `origin`) say so in their type. A crowd's
+    `count` is a whole number ≥ 0 and a book's `volatility` above 0, both checked at the field (mechanism M2).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

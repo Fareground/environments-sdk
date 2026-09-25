@@ -18,15 +18,20 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-__all__ = ["Number", "PatternConfig", "FitSpec", "KindSpec", "KINDS", "GROUPS", "SHAPES", "kind", "MEMORY_STATE",
-           "declared"]
+__all__ = ["Number", "WORDS", "Moment", "PatternConfig", "FitSpec", "KindSpec", "KINDS", "GROUPS", "SHAPES", "kind",
+           "MEMORY_STATE", "declared"]
 
 #: A number, or an expression over ``$inputs`` (and ``$key``/``$row`` for keyed patterns) giving one.
 Number = float | str
+#: Marks the text of a number's field that may also be a word — a name or a date (``Annotated[str, WORDS]``); other
+#: text in a number's field must be an expression (see mechanisms/expressions.py).
+WORDS = "words"
+#: A time: clock units, or an ISO date.
+Moment = float | Annotated[str, WORDS]
 
 #: The world property holding memory patterns' state between rounds (managed by the engine).
 MEMORY_STATE = "patterns_memory"

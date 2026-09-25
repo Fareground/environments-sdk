@@ -26,7 +26,7 @@ from ..expr.template import format_value
 from ..registry import MechanismError, use_key
 
 __all__ = [
-    "Config", "Number", "Whole", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
+    "Config", "Number", "Whole", "Positive", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt", "pct",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
@@ -39,15 +39,33 @@ __all__ = [
 Number = float | str
 
 
-def _not_a_flag(value: Any) -> Any:
-    if isinstance(value, bool):
-        raise ValueError(f"must be a whole number ≥ 0, got {str(value).lower()}")
-    return value
+def _counted(low: float, whole: bool) -> Callable[[Any], Any]:
+    """A config field's check for a number ≥ ``low`` (above it when ``low`` is 0 and not ``whole``), or an expression:
+    one error at the field for a flag, a fraction where a whole number belongs, a number out of range or a word."""
+    what = f"a whole number ≥ {low:g}" if whole else f"a number above {low:g}"
+
+    def check(value: Any) -> Any:
+        if isinstance(value, str):
+            try:
+                float(value)
+            except ValueError:
+                if not is_expr(value):
+                    raise ValueError(f"is the text '{value}', not a number: write {what}, or an expression with `$` "
+                                     "that gives one") from None
+            return value  # a number written as text is reported with its fix (see expressions.quoted_numbers)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or (whole and value != int(value)) \
+                or (value < low if whole else value <= low):
+            shown = str(value).lower() if isinstance(value, bool) else format_value(value)
+            raise ValueError(f"must be {what}, or an expression with `$` that gives one; got {shown}")
+        return int(value) if whole else value
+    return check
 
 
-#: A whole number ≥ 0 (a count of units, lots, people), or an expression giving one: a fraction is an error at the
-#: field, never rounded. What an expression gives is held to the same rule where it is worked out.
-Whole = Annotated[int, BeforeValidator(_not_a_flag), Field(ge=0)] | str
+#: A whole number ≥ 0 (a count of units, lots, people), or an expression giving one: a fraction or a word is an error
+#: at the field, never rounded or carried on. What an expression gives is held to the same rule where it is worked out.
+Whole = Annotated[int | str, BeforeValidator(_counted(0, whole=True))]
+#: A number above 0 (a volatility, a size), or an expression giving one.
+Positive = Annotated[float | str, BeforeValidator(_counted(0, whole=False))]
 #: When a market checks the invariant that it holds exactly what its traders put in.
 Conserve = bool | Literal["action", "round", "end"]
 

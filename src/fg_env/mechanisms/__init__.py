@@ -385,7 +385,9 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
               for field, source, exc in _broken_expressions(config)]
     broken += _forgotten_items(config, out, path)
     broken += [Issue(f"{path}.{field}", f"is the text '{text}', not a number",
-                     f"write the number without quotes: {text.strip()}") for field, text in quoted_numbers(config)]
+                     f"write the number without quotes: {text.strip()}" if number
+                     else "write a number, or an expression with `$` that gives one")
+               for field, text, number in quoted_numbers(config)]
     if broken:
         return broken
     try:

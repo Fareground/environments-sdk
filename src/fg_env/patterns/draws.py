@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..sampling.poisson import sample_poisson
 from ..stdlib.linalg import cholesky
-from .base import Number, PatternConfig, kind
+from .base import Moment, Number, PatternConfig, kind
 from .signals import when
 
 __all__ = ["DrawConfig", "SegmentsConfig", "DiffusionConfig"]
@@ -206,7 +206,7 @@ class DiffusionConfig(PatternConfig):
     p: Number = Field(..., description="Innovation: the share adopting on their own each unit.")
     q: Number = Field(..., description="Imitation: how strongly adopters draw in others (word of mouth).")
     market: Number = Field(1.0, description="Everyone who will eventually adopt.")
-    start: float | str = Field(0.0, description="When adoption begins: clock units or an ISO date.")
+    start: Moment = Field(0.0, description="When adoption begins: clock units or an ISO date.")
     output: Literal["adopters", "new", "share", "hazard"] = Field(
         "adopters", description="adopters: total so far | new: adopting this round | share: of the market | hazard: "
                                 "called with the adopted share, the chance a non-adopter adopts now (p + q·share).")

@@ -17,6 +17,7 @@ from typing import Annotated, Any
 from pydantic import BaseModel
 
 from ..expr import is_expr
+from ..patterns.base import WORDS
 
 __all__ = ["Expr", "EXPRESSION", "Each", "EachCrowd", "EachWho", "expression_fields", "bare_words", "each_root",
            "quoted_numbers"]
@@ -25,6 +26,7 @@ __all__ = ["Expr", "EXPRESSION", "Each", "EachCrowd", "EachWho", "expression_fie
 EXPRESSION = "expression"
 #: Text that is always an expression.
 Expr = Annotated[str, EXPRESSION]
+
 
 
 @dataclass(frozen=True)
@@ -75,17 +77,31 @@ def bare_words(config: BaseModel, path: str = "") -> Iterator[tuple[str, str]]:
             yield where, value.strip()
 
 
-def quoted_numbers(config: BaseModel, path: str = "") -> Iterator[tuple[str, str]]:
-    """``(path, text)`` of every field that takes a number or an expression with a `$` holding a number written as
-    text (``"reserve": "45"``): text, not the number, which the run then refuses. (A field that is always an
-    expression reads ``"45"`` as the number.)"""
+def quoted_numbers(config: BaseModel, path: str = "") -> Iterator[tuple[str, str, bool]]:
+    """``(path, text, is a number)`` of every field that takes a number or an expression with a `$` holding text
+    that is neither: a number written as text (``"reserve": "45"``), which the run would refuse, or a word
+    (``"stock": "lots"``), which would reach the run as text and be reported, if at all, where the mechanism uses it.
+    A field whose text may also be a name or a date says so (:data:`WORDS`). (A field that is always an expression
+    reads ``"45"`` as the number.)"""
     for name, field in type(config).model_fields.items():
         value, where = getattr(config, name), f"{path}{field.alias or name}"
         if isinstance(value, BaseModel):
             yield from quoted_numbers(value, f"{where}.")
-        elif isinstance(value, str) and EXPRESSION not in field.metadata and _number_text(value) \
-                and _holds_expression(field.annotation) and not _holds_expression(field.annotation, marked_only=True):
-            yield where, value
+        elif isinstance(value, str) and EXPRESSION not in field.metadata and not is_expr(value) \
+                and _holds_expression(field.annotation) and not _holds_expression(field.annotation, marked_only=True) \
+                and (_number_text(value) or _counts(field.annotation) and not _takes_words(field.annotation)):
+            yield where, value, _number_text(value)
+
+
+def _counts(annotation: Any) -> bool:
+    """Whether the field takes a number (not only true or false beside its text: that is a condition)."""
+    return any((typing.get_args(member)[0] if typing.get_origin(member) is Annotated else member) in (int, float)
+               for member in _members(annotation))
+
+
+def _takes_words(annotation: Any) -> bool:
+    return any(typing.get_origin(member) is Annotated and WORDS in member.__metadata__
+               for member in _members(annotation))
 
 
 def _number_text(text: str) -> bool:
@@ -113,10 +129,14 @@ def _written(value: Any, annotation: Any, path: str) -> Iterator[tuple[str, str]
 
 
 def _members(annotation: Any) -> Iterator[Any]:
-    """The members of a union (``annotation`` itself when it is not one)."""
-    if typing.get_origin(annotation) in (typing.Union, types.UnionType):
+    """The members of a union (``annotation`` itself when it is not one), through a checked union (``Whole``)."""
+    origin = typing.get_origin(annotation)
+    if origin in (typing.Union, types.UnionType):
         for arg in typing.get_args(annotation):
             yield from _members(arg)
+    elif origin is Annotated and EXPRESSION not in annotation.__metadata__ \
+            and typing.get_origin(typing.get_args(annotation)[0]) in (typing.Union, types.UnionType):
+        yield from _members(typing.get_args(annotation)[0])
     else:
         yield annotation
 

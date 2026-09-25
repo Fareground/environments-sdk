@@ -101,3 +101,22 @@ def test_no_mechanism_rounds_a_fraction_away_without_a_word(spec):
         pytest.skip("the example has no whole-number field")
     rounded = [key for key in fields if _fraction_rounded(spec, key)]
     assert rounded == [], f"{spec.key}: {rounded} rounded a fraction"
+
+
+def _number_fields(example):
+    return [key for key, value in example.items() if isinstance(value, (int, float)) and not isinstance(value, bool)]
+
+
+NUMBERED = [spec for spec in HOSTLESS if _number_fields(spec.example)]
+
+
+@pytest.mark.parametrize("spec", NUMBERED, ids=[spec.key for spec in NUMBERED])
+def test_a_literal_that_is_no_number_is_reported_at_the_mechanism_field(spec):
+    """audit 13 mechanisms M2: a number field given a word is an error at `mechanisms.<name>.<field>`, where the author
+    wrote it, never at a part the mechanism generated from it or only after a smoke run."""
+    name = spec.name or f"my_{spec.mode}"
+    for key in _number_fields(spec.example):
+        contract = _placed(spec)
+        contract["mechanisms"][name][key] = "lots"
+        errors = [issue for issue in fg_env.check(contract, rounds=0) if issue.severity == "error"]
+        assert errors and all(issue.path.startswith(f"mechanisms.{name}") for issue in errors), (key, errors)

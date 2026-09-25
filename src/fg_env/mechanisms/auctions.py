@@ -44,7 +44,7 @@ from ..expr import compile_expr, truthy
 from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
-from ._common import Conserve, conserve_field, entity_of, fmt, number_of
+from ._common import Conserve, Whole, conserve_field, entity_of, fmt, number_of
 from .expressions import Expr
 from .ledger import Account, balance, clean, move
 from .package_auction import MAX_PACKAGE_BIDS, PackageBid, SearchLimit, settle
@@ -72,7 +72,7 @@ class AuctionConfig(BaseModel):
     house: str | None = Field(None, description="Entity id of the auction house: sells its units and is paid (with "
                                                 "`reverse`: buys and pays); default: the mechanism itself (stock and "
                                                 "revenue in world props).")
-    stock: int | str = Field(1,
+    stock: Whole = Field(1,
                              description="Units the mechanism has to sell (number or expression); a `house` sells the "
                                          "units it holds in `<name>_units` instead (and with `reverse` buys this "
                                          "many), and a double auction's sellers the units they hold.")

@@ -11,7 +11,7 @@ from typing import Any, Literal
 from pydantic import Field, model_validator
 
 from . import timebase as tb
-from .base import Number, PatternConfig, kind
+from .base import Moment, Number, PatternConfig, kind
 from .signals import when
 
 __all__ = ["RandomWalkConfig", "MeanReversionConfig", "AutoregressiveConfig", "VolatilityConfig", "RegimesConfig",
@@ -251,7 +251,7 @@ def _regimes(ctx: Any) -> Any:
 class ShocksConfig(_Stepped):
     kind: Literal["shocks"] = "shocks"
     chance: Number = Field(0.0, description="Probability a shock starts in a step.")
-    at: list[float | str] = Field(default_factory=list,
+    at: list[Moment] = Field(default_factory=list,
                                   description="Times shocks certainly start (clock units or ISO dates).")
     recur: Number | None = Field(None,
                                  description="Clock units between shocks that recur on schedule (from the window's "

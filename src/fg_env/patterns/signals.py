@@ -13,12 +13,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from . import timebase as tb
-from .base import Number, PatternConfig, kind
+from .base import Moment, Number, PatternConfig, kind
 
 __all__ = ["TrendConfig", "SeasonalConfig", "CalendarConfig", "CycleConfig", "LifecycleConfig", "StepConfig",
            "SeriesConfig", "when", "wave"]
 
-Moment = float | str
 NamedPeriod = Literal["year", "quarter", "month", "week", "day", "hour"]
 
 
@@ -53,7 +52,7 @@ class TrendConfig(PatternConfig):
     capacity: Number = Field(1.0, description="The level it saturates at (logistic).")
     midpoint: Number = Field(0.0, description="Clock units after `origin` when it is half way (logistic).")
     steepness: Number = Field(1.0, description="How fast it rises around the midpoint (logistic).")
-    origin: float | str = Field(0.0, description="Where t counts from: clock units from round 1, or an ISO date.")
+    origin: Moment = Field(0.0, description="Where t counts from: clock units from round 1, or an ISO date.")
 
 
 def _trend_words(cfg: TrendConfig) -> str:
@@ -307,7 +306,7 @@ def _cycle(ctx: Any) -> float:
 
 class LifecycleConfig(PatternConfig):
     kind: Literal["lifecycle"] = "lifecycle"
-    start: float | str | list[Moment] = Field(..., description="When it begins: clock units, an ISO date, or a list "
+    start: Moment | list[Moment] = Field(..., description="When it begins: clock units, an ISO date, or a list "
                                                                "(one curve per start, multiplied: each later model "
                                                                "launch).")
     before: Number = Field(1.0, description="Value before the start.")

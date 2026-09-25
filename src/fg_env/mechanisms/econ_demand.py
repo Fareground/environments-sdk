@@ -11,12 +11,12 @@ segment. The round's work (prices, returns, sales) and the stock actions are in 
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..expr import Call, ExprError, compile_expr, function
-from ..patterns.base import KINDS, declared
+from ..patterns.base import KINDS, WORDS, declared
 from ..registry import MechanismError, mode
 from ._common import declared_entity
 from .econ_base import (
@@ -49,7 +49,7 @@ class FactorRef(BaseModel):
 
 
 #: A number, an expression over ``$it`` and ``$price``, a pattern's name, or a pattern read.
-Factor = float | str | FactorRef
+Factor = float | Annotated[str, WORDS] | FactorRef
 
 _RATE = ("Expected units a round for each item before its factors: a number, an expression over $it, or a pattern "
          "(its name, or {pattern, key}; a keyed pattern reads the item).")

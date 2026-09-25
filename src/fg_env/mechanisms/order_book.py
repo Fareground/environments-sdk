@@ -38,7 +38,7 @@ from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
 from ..world.props import prop_type
-from ._common import Conserve, conserve_field, entity_of, fmt, lot_floor, pct
+from ._common import Conserve, Positive, Whole, conserve_field, entity_of, fmt, lot_floor, pct
 from .book_rules import Venue, venue
 from .expressions import EachCrowd, Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -63,7 +63,7 @@ class CrowdSpec(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    count: int | str = Field(..., description="How many (number or expression).")
+    count: Whole = Field(..., description="How many (a whole number ≥ 0, or an expression).")
     cash: float | str = Field(0.0, description="Starting cash each (number or expression).")
     shares: float | str = Field(0.0, description="Starting shares each (number or expression).")
     params: dict[str, float | str] = Field({},
@@ -126,7 +126,7 @@ class OrderBookConfig(BaseModel):
                        + "; $book(name).bar is the bar in progress.")
     depth_levels: int = Field(5, ge=1, le=50, description="Price levels per side shown in the book view.")
     tape: int = Field(50, ge=1, description="Recent trades kept in the <name>_tape record.")
-    volatility: float | str = Field(0.02,
+    volatility: Positive = Field(0.02,
                                     description="Per-round return volatility the default fair value walks at, that "
                                                 "market makers "
                                                     "price their spread and their reading of order flow by, and "
