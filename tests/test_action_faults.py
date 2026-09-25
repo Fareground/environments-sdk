@@ -37,7 +37,7 @@ def test_a_division_by_zero_refuses_the_action_undoes_it_and_the_run_goes_on():
     result = env.run(play, rounds=1)
     refused, ticked, divided = seen
     assert not refused.ok and not refused.ended and refused.data["error"] == "rejected"
-    assert "divide by zero" in refused.text and "Nothing changed" in refused.text
+    assert "could not be worked out" in refused.text and "Nothing changed" in refused.text
     assert "$params" not in refused.text and "actions.div" not in refused.text  # no rule internals for the agent
     assert ticked.ok and divided.ok
     assert env.entity("a")["props"]["used"] == 1  # the refused call's first effect was undone too
@@ -53,7 +53,7 @@ def test_an_overflow_refuses_the_action_and_the_run_completes():
     play, seen = _calls(("big", {"n": 1e10}))
     result = fg_env.load(CALC, seed=1).run(play)
     assert result.status == "completed"
-    assert not seen[0].ok and "too large" in seen[0].text
+    assert not seen[0].ok and "could not be worked out" in seen[0].text
     assert result.outputs["x"] == 0 and result.stats["faulted_actions"] == 2
 
 
@@ -80,7 +80,7 @@ def test_a_trigger_the_action_sets_off_fails_with_it_and_is_undone_with_it():
     env = fg_env.load(contract, seed=1)
     result = env.run(play, rounds=1)
     first, second = seen
-    assert not first.ok and "divide by zero" in first.text
+    assert not first.ok and "could not be worked out" in first.text
     assert second.ok  # the trigger is armed again after the undo, so it fires for this action
     assert env.entity("a")["props"]["used"] == 1 and env.props["x"] == 2.5 and env.props["hits"] == 3
     assert result.error is None
@@ -169,13 +169,13 @@ def test_a_sealed_choice_whose_rule_fails_at_commit_is_refused_and_undone():
     assert result.status == "completed"
     assert env.entity("b")["props"]["c"] == 0 and env.props["x"] == 0
     told = [e for e in result.events if e["kind"] == "outcome" and e["actor"] == "b"]
-    assert "divide by zero" in told[-1]["text"]
+    assert "could not be worked out" in told[-1]["text"]
 
 
 def test_a_sealed_choice_that_fails_when_submitted_is_refused_at_once():
     b, submitted = _calls(("div", {"n": 1}))
     result = fg_env.load(SEALED, seed=1).run({"a": "idle", "b": b})
-    assert not submitted[0].ok and "divide by zero" in submitted[0].text
+    assert not submitted[0].ok and "could not be worked out" in submitted[0].text
     assert result.status == "completed"
 
 

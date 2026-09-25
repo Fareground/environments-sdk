@@ -45,14 +45,10 @@ def world_logic_refused(reason: str) -> str:
 
 def fault_reason(error: RunError) -> str:
     """Why an action whose rule failed is refused, in words that name no rule and show no value (either could reveal
-    hidden state)."""
+    hidden state): the author's own words for a broken invariant or a refusal, and one sentence for every other
+    failure (what failed — a division by zero, a number too large — could tell a hidden divisor or amount)."""
     if isinstance(error, InvariantViolation):
         return error.why.strip().rstrip(".") or "it would break a rule of this environment"
     if isinstance(error, LogicRefused) and error.why:
         return error.why.strip().rstrip(".")
-    text = str(error)
-    if "division by zero" in text:
-        return "it would divide by zero"
-    if "too large" in text or "overflow" in text.lower():
-        return "a number would grow too large"
     return "the environment's rules could not be worked out for it"

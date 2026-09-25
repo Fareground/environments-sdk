@@ -276,7 +276,8 @@ def test_a_rule_that_fails_after_drawing_spends_the_attempt():
     wins = fg_env.run(contract, retry, seed=1).outputs["wins"]
     assert 0.4 * ROUNDS < wins < 0.6 * ROUNDS  # retrying the faulting branch won every round
     faulted = [r for r in replies if not r.ok]
-    assert faulted and all(r.ended and "divide by zero" in r.text for r in faulted)
+    # one wording for every rule failure (audit 13 L7): what failed could tell a hidden divisor
+    assert faulted and all(r.ended and "could not be worked out" in r.text for r in faulted)
 
 
 NOISY = {"name": "Noisy", "clock": {"rounds": 3}, "world": {"truth": 37.0},

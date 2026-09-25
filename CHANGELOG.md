@@ -296,6 +296,9 @@ worlds stay fast, and the package is organised by feature.
     (L5).
   - In a simultaneous stage, a call after a submitted choice that removes the agent says "what you already chose
     this turn takes you out of the game when it resolves", not "you are no longer active" while it still is (L6).
+  - Every rule failure reaches the agent in one sentence ("the environment's rules could not be worked out for
+    it"), or in the author's own words for a broken invariant or a refusal: "it would divide by zero" and "a number
+    would grow too large" are gone, since what failed could tell a hidden divisor or amount (L7).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
