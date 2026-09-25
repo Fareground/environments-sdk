@@ -1,5 +1,6 @@
-"""`events=False` runs a crowd for as long as it likes in flat memory: the result carries no event log, the run forgets
-each event once nothing can read it any more, and everything the run does is exactly what it does with the log kept.
+"""`events=False` runs a crowd for as long as it likes with a flat event log: the result carries no event log, the run
+forgets each event once nothing can read it any more, and everything the run does is exactly what it does with the log
+kept. (The world keeps what the rules keep in it, removed entities included.)
 """
 import gc
 import itertools
@@ -114,3 +115,20 @@ def test_copies_and_snapshots_taken_part_way_through_a_long_run_continue_exactly
 def test_recording_exposures_needs_the_log():
     with pytest.raises(ValueError, match="events=False"):
         fg_env.load(TOWN, seed=3, events=False, exposures=True)
+
+
+def test_a_removed_entity_stays_readable_so_the_world_grows_with_each_one_removed():
+    """What the running guide states (audit 11 M2): the log stays flat, but the world keeps each removed entity, dead,
+    so that whatever names it still reads it."""
+    churn = {"name": "Churn", "clock": {"rounds": 6}, "world": {"last": ""},
+             "types": {"p": {"agent": True}, "token": {"props": {"v": 1}}},
+             "entities": {"a": {"type": "p"}},
+             "events": [{"on": "round.start", "do": [
+                 {"each": "token", "do": ["$world.last = $it.id", {"remove": "$it"}]},
+                 {"create": "token", "count": 3}]}],
+             "outputs": {"gone": "$get($entity($world.last), 'alive', true)", "kept": "$count(token, true)"}}
+    env = fg_env.load(churn, seed=1, events=False)
+    result = env.run("idle")
+    assert result.outputs == {"gone": False, "kept": 3}
+    assert len(env.entities(alive=False)) == 1 + 3 * 6  # the agent and every token ever made, 15 of them dead
+    assert "a removed entity stays in it" in fg_env.guide("running")

@@ -261,6 +261,9 @@ worlds stay fast, and the package is organised by feature.
     a stage's `name` and `actions`, a mechanism's `kind` and `mode`, an arm's `patch`, and an effect's names, texts
     and objects) are shape-checked first, so every such field is a `ContractError` issue at its path. Before, a
     `"post": ["chat"]` or a mechanism `"mode": ["auction"]` crashed `check` and `load` with a Python `TypeError`.
+  - The running guide no longer promises flat memory for `events=False`: the event log stays flat, and it says that
+    the world keeps each removed entity (dead) so whatever names it still reads it, so a run that creates and removes
+    without end grows by each one it removed, and how to avoid that.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
