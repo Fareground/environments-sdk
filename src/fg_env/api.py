@@ -4,8 +4,11 @@ from __future__ import annotations
 import copy
 import json
 import os
+import sys
+import warnings
 from collections.abc import Mapping
 from pathlib import Path
+from types import FrameType
 from typing import Any, Union
 
 from .assets.catalog import resolve_assets
@@ -13,6 +16,7 @@ from .checks import check_contract, parse_contract
 from .checks.smoke import run_issue, smoke_issues
 from .contract import Contract
 from .contract.inputs import resolve_inputs
+from .contract.layout import ordered
 from .contract.normalize import normalize
 from .contract.normalize_state import macros_expanded
 from .errors import ContractError, Issue, RunError
@@ -21,7 +25,7 @@ from .runtime.env import Env
 from .runtime.measure import RunResult
 from .sampling.seeds import mint_seed
 
-__all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand"]
+__all__ = ["ContractLike", "DataDir", "parse", "located", "check", "load", "run", "apply_arm", "expand", "migrate"]
 
 ContractLike = Union[Contract, Mapping[str, Any], str, "os.PathLike[str]"]
 
@@ -177,8 +181,72 @@ def parse(source: ContractLike, data_dir: DataDir = None) -> Contract:
     """Read and structurally validate a contract (dict, path, JSON text or :class:`Contract`).
 
     The contract remembers where its input data files are read from: ``data_dir`` when given, else the
-    contract file's folder, so every run, check and analysis of it finds them."""
-    return located(_parsed(*_read_noted(source)), default_data_dir(source, data_dir))
+    contract file's folder, so every run, check and analysis of it finds them. A contract written in an earlier form
+    of the language is read in the current form, with one ``DeprecationWarning`` saying how to migrate it."""
+    contract = located(_parsed(*_read_noted(source)), default_data_dir(source, data_dir))
+    _warn_earlier_form(source, contract)
+    return contract
+
+
+def migrate(source: ContractLike) -> tuple[dict[str, Any], list[str]]:
+    """``source`` rewritten in the current form of the contract language, and a note of every rewrite ("path: what
+    became what"); no notes means it is already current. Only this contract is rewritten, not the files it
+    imports: migrate each of them too. Sections come back in the contract's order. ``fg-env migrate FILE --write``
+    saves the result.
+
+    Loading an earlier form works for now (the same rewrites are made on load, with one warning), but earlier forms
+    stop loading in fg-env 1.0."""
+    if isinstance(source, Contract):
+        return ordered(contract_source(source)), list(source._notes)
+    if isinstance(source, Mapping):
+        data: Any = source
+    elif isinstance(source, str) and source.lstrip().startswith(("{", "[")):
+        data = _json(source, "(json text)")
+    elif isinstance(source, (str, os.PathLike)):
+        data = _json(_file_text(Path(source)), _shown(str(source)))
+    else:
+        raise ContractError([Issue("(contract)", f"cannot read a contract from {type(source).__name__}", _SOURCES)])
+    if not isinstance(data, Mapping):
+        raise ContractError([Issue("(contract)", f"a contract is a JSON object, got {type(data).__name__}")])
+    current, notes = normalize(data)
+    return ordered(current), notes
+
+
+def earlier_form(source: ContractLike, contract: Contract) -> Issue | None:
+    """The one warning for a contract written in an earlier form of the language: how many rewrites loading it made,
+    and how to save the current form (``None`` when it is current)."""
+    notes = contract._notes
+    if not notes:
+        return None
+    named = isinstance(source, (str, os.PathLike)) and not str(source).lstrip().startswith(("{", "["))
+    imported = ", and each file it imports," if any(note.startswith("imports[") for note in notes) else ""
+    how = (f"run `fg-env migrate {source} --write`{imported} to save the current form (without --write it shows "
+           "every rewrite)" if named else
+           f"save the current form that `fg_env.migrate(contract)` returns with every rewrite{imported.rstrip(',')}")
+    return Issue("fg_env", f"written in an earlier form of the contract language: loading it made {len(notes)} "
+                           f"rewrite(s), e.g. {notes[0]}",
+                 f"{how}; earlier forms stop loading in fg-env 1.0", severity="warning")
+
+
+def _warn_earlier_form(source: ContractLike, contract: Contract) -> None:
+    """Warn once, at the caller, when ``source`` was read from an earlier form (a parsed contract warned when it was
+    parsed)."""
+    if isinstance(source, Contract):
+        return
+    issue = earlier_form(source, contract)
+    if issue is not None:
+        warnings.warn(f"{contract.name}: {issue.message} → {issue.fix}", DeprecationWarning,
+                      stacklevel=_outside_package())
+
+
+def _outside_package() -> int:
+    """The stack level of the first caller outside fg_env, so the warning names the line that loaded the contract."""
+    package = os.path.dirname(__file__)
+    frame: FrameType | None = sys._getframe(1)
+    level = 1
+    while frame is not None and frame.f_code.co_filename.startswith(package):
+        frame, level = frame.f_back, level + 1
+    return level
 
 
 def located(contract: Contract, folder: DataDir) -> Contract:
@@ -246,7 +314,8 @@ def _check_all(source: ContractLike, data_dir: DataDir = None) -> tuple[Contract
             return None, structural
         semantic = check_contract(partial)
         return None, structural + semantic
-    return contract, check_contract(contract)
+    earlier = earlier_form(source, contract)
+    return contract, check_contract(contract) + ([earlier] if earlier else [])
 
 
 def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, data_dir: DataDir = None,
@@ -265,7 +334,8 @@ def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, dat
     when it does. ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a
     ``source`` are read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract
     asks of a host during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied
-    inputs are validated even with ``rounds=0``, and the plays exercise them.
+    inputs are validated even with ``rounds=0``, and the plays exercise them. A contract written in an earlier form of
+    the language gets one warning saying how to migrate it (:func:`migrate`).
     """
     contract, issues = _check_all(source, data_dir)
     errors = [i for i in issues if i.severity == "error"]
@@ -347,13 +417,15 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
     ``events=False`` keeps no event log, for a big crowd played for many rounds:
     ``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
     news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
-    that reads `$events` or `$seen` keeps its log).
+    that reads `$events` or `$seen` keeps its log). A contract written in an earlier form of the language loads in the
+    current form, with one ``DeprecationWarning`` saying how to migrate it (:func:`migrate`).
     """
     del calibrate  # accepted for one release: the `calibration` section is gone
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
     if blocking or contract is None:
         raise ContractError(blocking or issues)
+    _warn_earlier_form(source, contract)
     merged: dict[str, Any] = {}
     unarmed = contract
     if arm is not None:

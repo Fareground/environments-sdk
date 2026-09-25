@@ -11,7 +11,7 @@ import textwrap
 
 #: The commands ``fg-env --help`` lists, grouped in the order a contract is built, run and analysed.
 WORKFLOW = {
-    "start": ("guide", "new", "engines", "author", "check", "preview", "playtest", "expand", "schema"),
+    "start": ("guide", "new", "engines", "author", "check", "preview", "playtest", "expand", "migrate", "schema"),
     "run": ("run", "experiment", "tournament", "evaluate", "trace", "conformance", "playthrough", "bench"),
     "analyse": ("sweep", "sensitivity", "calibrate", "optimise", "backtest", "highlights", "describe", "report"),
 }

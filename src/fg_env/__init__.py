@@ -28,7 +28,7 @@ from . import stdlib  # noqa: F401
 
 if TYPE_CHECKING:
     from . import analysis, engines, participants, personas, rl
-    from .api import check, expand, load, parse, run
+    from .api import check, expand, load, migrate, parse, run
     from .authoring.author import author
     from .authoring.scaffold import new
     from .contract import Contract
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 #: The module each public name is defined in (``""``: the name is a subpackage). Each loads on first use, so
 #: ``import fg_env`` stays fast and a script pays only for what it touches.
 _WHERE = {
-    **dict.fromkeys(("load", "run", "check", "parse", "expand"), ".api"),
+    **dict.fromkeys(("load", "run", "check", "parse", "expand", "migrate"), ".api"),
     **dict.fromkeys(("experiment", "ExperimentResult"), ".experiments.experiment"),
     "fork": ".copying.forks", "Branch": ".copying.branch", "guide": ".guides", "schema": ".guides",
     "new": ".authoring.scaffold", "author": ".authoring.author", "Env": ".runtime.env", "Contract": ".contract",
@@ -83,6 +83,7 @@ __all__ = [
     "check",
     "parse",
     "expand",
+    "migrate",
     "experiment",
     "fork",
     "Branch",

@@ -12,7 +12,7 @@ __all__ = ["CONTRACT_VERSION", "INPUT_TYPES", "PROP_TYPES", "PARAM_TYPES", "MAX_
            "MAX_TURN_CALLS", "MAX_TURN_ACTIONS", "MAX_POPULATION", "MAX_CREATE", "MAX_ENTITIES", "MAX_SUBSTEPS",
            "TAPE", "tape_prop"]
 
-CONTRACT_VERSION = "1"
+CONTRACT_VERSION = "2"
 
 INPUT_TYPES = ("number", "int", "bool", "text", "enum", "list", "table", "map", "date", "file", "any")
 PROP_TYPES = ("number", "int", "bool", "text", "enum", "list", "map", "any", "asset")

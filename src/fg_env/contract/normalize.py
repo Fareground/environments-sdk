@@ -9,11 +9,15 @@ import copy
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from .base import CONTRACT_VERSION
+
 __all__ = ["normalize", "rule", "RULES"]
 
 #: A rule rewrites ``data`` in place and returns a note for each rewrite it made ("path: what became what").
 Rule = Callable[[dict[str, Any]], list[str]]
 RULES: list[Rule] = []
+#: The version of the language the rules rewrite from.
+EARLIER_VERSION = "1"
 
 
 def rule(fn: Rule) -> Rule:
@@ -32,6 +36,9 @@ def normalize(data: Any) -> tuple[Any, list[str]]:
     for fn in _rules():
         notes.extend(fn(out))
     notes.extend(_arm_patches(out))
+    if out.get("fg_env") == EARLIER_VERSION:
+        out["fg_env"] = CONTRACT_VERSION
+        notes.append(f"fg_env: '{EARLIER_VERSION}' → '{CONTRACT_VERSION}'")
     return out, notes
 
 

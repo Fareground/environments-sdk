@@ -10,6 +10,8 @@ from importlib.resources import files
 from pathlib import Path
 from typing import Any
 
+from ..contract.layout import dumps
+
 
 class EngineNotFound(KeyError):
     """An engine id is absent from the installed SDK catalog."""
@@ -170,7 +172,7 @@ def clone(engine_id: str, destination: str | Path, *, name: str | None = None,
         raise FileExistsError(f"refusing to replace existing file: {existing[0]} → pass overwrite=True to replace it, "
                               "or clone to another path")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(_named(engine.source(), name), indent=2) + "\n")
+    path.write_text(dumps(_named(engine.source(), name)), encoding="utf-8")
     root = files("fg_env.engines").joinpath("starters")
     for relative in resources:
         target = path.parent / relative
