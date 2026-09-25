@@ -249,6 +249,10 @@ worlds stay fast, and the package is organised by feature.
     formatted into text), and snapshots keep its provenance. Before, the name stored the display quotes.
   - A prediction market with both `resolve_at` and `resolve_when` resolves at whichever comes first. Before,
     `resolve_when` was dropped silently; it is now an expression field, so a syntax error is reported at it.
+  - A mechanism field that is always an expression is worked out as one with or without a `$` (`veto: "false"` is
+    false, `weight: "2"` is two), and one holding the bare name of a declared property (`veto: "perm"`) is a check
+    error pointing at `$it.perm`. Before, such text was kept as a literal string, which counts as true: a veto
+    written without `$it.` gave every voter a veto, silently.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

@@ -372,7 +372,7 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     weights = ({v.id: _weight_of(runner, config.weight, v, f"mechanisms.{name}.weight") for v in voters}
                if config.weight else None)
     eligible = sum(weights.values()) if weights is not None else len(voters)
-    vetoers = [v.id for v in voters if config.veto and truthy(runner.eval(config.veto, {"it": v}))]
+    vetoers = [v.id for v in voters if config.veto and truthy(runner.expression(config.veto, {"it": v}))]
     try:
         result = tally(config.method, ballots, _options(runner, config, vars), config.threshold, config.ties,
                        world.rng, eligible, config.quorum, weights,
@@ -404,7 +404,7 @@ def _close_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
 
 
 def _weight_of(runner: Any, expr: str, voter: Any, where: str) -> float:
-    value = runner.eval(expr, {"it": voter})
+    value = runner.expression(expr, {"it": voter})
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
         raise RunError(f"a voter's weight must be a number ≥ 0, got {value!r} for {voter.id}", where)
     return float(value)

@@ -342,7 +342,7 @@ def showdown(runner: Any, config: PotConfig, name: str, vars: dict[str, Any], wh
     labels: dict[str, str] = {}
     if len(live) > 1:
         for player in live:
-            scores[player.id] = runner.eval(config.score, {**vars, "it": player})
+            scores[player.id] = runner.expression(config.score, {**vars, "it": player})
             if config.label:
                 labels[player.id] = runner.text("{" + config.label + "}", {**vars, "it": player}, EVERYONE)
     pots = side_pots(committed, [p.id for p in live]) if live else [(sum(committed.values()), [])]

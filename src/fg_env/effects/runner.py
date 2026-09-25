@@ -439,6 +439,11 @@ class EffectRunner:
             return ""
         return compile_template(template, None).text(self.world.evaluation.scope(**vars))
 
+    def expression(self, source: str, vars: dict[str, Any]) -> Any:
+        """Work out text that is always an expression (a mechanism's `Expr` field), `$` or not: ``"false"`` is
+        false."""
+        return compile_expr(source)(self.world.evaluation.scope(**vars))
+
     def said(self, template: str | None, vars: dict[str, Any], to: Sequence[str] | None) -> str:
         """Render text sent ``to`` these entity ids (None: everyone), in which only its one recipient's private
         properties may show."""

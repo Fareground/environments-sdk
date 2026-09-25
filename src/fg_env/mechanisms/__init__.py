@@ -36,7 +36,7 @@ from ..errors import Issue
 from ..expr import ExprError, compile_expr
 from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 from ._common import raw_is_a
-from .expressions import expression_fields
+from .expressions import bare_words, expression_fields
 
 __all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]
 
@@ -366,6 +366,7 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
         return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
     broken = [Issue(f"{path}.{field}", exc.detail, f"expression: {source}")
               for field, source, exc in _broken_expressions(config)]
+    broken += _forgotten_items(config, out, path)
     if broken:
         return broken
     try:
@@ -396,6 +397,17 @@ def _broken_expressions(config: BaseModel) -> list[tuple[str, str, ExprError]]:
         except ExprError as exc:
             broken.append((field, source, exc))
     return broken
+
+
+def _forgotten_items(config: BaseModel, out: Mapping[str, Any], path: str) -> list[Issue]:
+    """A field that is always an expression holding the bare name of a declared property (`veto: "perm"`): the
+    expression is that name as text, true for everyone — a forgotten `$it.`."""
+    props = {prop for spec in (out.get("types") or {}).values() if isinstance(spec, Mapping)
+             for prop in (spec.get("props") or {})} | set(out.get("world") or {})
+    return [Issue(f"{path}.{field}", f"`{word}` is an expression here, and a bare word is that text itself (true for "
+                                     f"every item), not the property {word}",
+                  f"write `$it.{word}` (or `$world.{word}`)")
+            for field, word in bare_words(config) if word in props]
 
 
 #: Sections whose generated entries are claimed by name: two mechanisms must not generate different ones alike.

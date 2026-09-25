@@ -269,6 +269,18 @@ def test_ballot_weights_votes_measures_the_threshold_over_members_and_honours_a_
     assert words.status == "failed" and "a voter's weight must be a number ≥ 0, got 'p1'" in words.error
 
 
+def test_an_expression_field_is_worked_out_as_one_with_or_without_a_dollar():
+    """`veto: "false"` is false and `weight: "2"` is two; a bare property name is the forgotten `$it.` it looks like
+    (audit 9 mech H2)."""
+    yes = {"p1": "adopt", "p2": "adopt", "e1": "adopt", "e2": "reject"}
+    env = fg_env.load(_security_council(veto="false", weight="2"), seed=1)
+    env.run(_votes({**yes, "p1": "reject", "e3": "adopt"}))
+    result = env.props["resolution_result"]
+    assert result["passed"] and not result.get("vetoed") and result["counts"] == {"adopt": 6, "reject": 4}
+    forgot = [i for i in _issues(_security_council(veto="permanent")) if i.path == "mechanisms.resolution.veto"]
+    assert forgot and "`$it.permanent`" in forgot[0].fix
+
+
 def test_a_veto_or_members_threshold_that_cannot_apply_is_refused():
     three = _issues(_security_council(options=["a", "b", "c"]))
     assert any(i.path == "mechanisms.resolution.veto" and "two options" in i.message for i in three)

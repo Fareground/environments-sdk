@@ -374,7 +374,7 @@ def _unmet(runner: Any, name: str, config: DemandConfig, rows: list[_Row], stock
 def _substitutes(runner: Any, config: DemandConfig, item: Entity, base: str) -> list[Entity]:
     world = runner.world
     try:
-        listed = runner.eval(config.substitutes, {"it": item})
+        listed = runner.expression(config.substitutes, {"it": item})
     except ExprError as exc:
         raise RunError(str(exc), f"{base}.substitutes") from None
     listed = [] if listed is None else listed if isinstance(listed, list) else [listed]

@@ -267,7 +267,7 @@ def _enter(runner: Any, mech: str, cfg: ProcedureConfig, phase: str, begins: int
 
 
 def _finish(runner: Any, phase: str, spec: PhaseDef) -> None:
-    winner = runner.eval(spec.winner, {}) if spec.winner is not None else None
+    winner = runner.expression(spec.winner, {}) if spec.winner is not None else None
     runner.world.request_end(phase, common.plain(winner), "")
 
 
