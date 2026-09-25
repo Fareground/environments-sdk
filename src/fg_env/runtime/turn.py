@@ -484,11 +484,15 @@ class Turn:
         return None
 
     def _commit_turn(self) -> str | None:
-        """Why the turn as played is not allowed, or None once it has committed."""
-        rules = self.env.rules
+        """Commit the turn and the `change` events it sets off, then hold the world they leave to `valid`: why the
+        turn is not allowed, with everything it changed undone, or None once it stands. Runs inside
+        :meth:`Rules.guarded`, which keeps the turn undoable."""
+        rules, mark = self.env.rules, self.ledger.mark
+        assert mark is not None  # the turn's part is open
+        rules.commit(f"stages.{self.stage.name}")
         why = rules.invalid(self.actor, self.stage) if self.ledger.counted_in_part else None
-        if why is None:
-            rules.commit(f"stages.{self.stage.name}")
+        if why is not None:
+            self.env.world.rollback(mark)
         return why
 
     def settle_at_end(self) -> None:

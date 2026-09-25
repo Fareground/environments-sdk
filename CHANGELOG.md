@@ -232,6 +232,10 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 9.**
+  - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
+    is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
+    events, so a turn whose derived state ("in check", "overloaded") broke it committed silently.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

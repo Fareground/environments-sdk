@@ -55,7 +55,7 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `valid` makes a turn's actions apply together: each applies at once (the agent sees its move), but events,
   reactions and invariants wait until the turn ends, and an action's own `outcome` text (and attached files) is
   shown once the turn commits — an undone turn shows nothing it was not charged for. Its conditions (`$actor`,
-  `$pending`) are checked when a turn that acted ends; if one fails, every action of the turn is undone, the agent is
+  `$pending`) are checked when a turn that acted ends, on the world its `change` events leave; if one fails, every action of the turn is undone, the agent is
   told `why` and plays the turn again (castling through check, a full backgammon move); `"valid": "true"` makes
   turns atomic with no condition. An action that draws randomness or reads a value hidden from its agent settles the
   turn so far at once, so later actions cannot undo its luck or what it revealed (if `valid` fails then, the turn is

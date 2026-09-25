@@ -2117,7 +2117,7 @@
           "type": "boolean"
         },
         "valid": {
-          "description": "Conditions the whole turn must meet when it ends ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. The turn's actions apply together or not at all: events, reactions and invariants wait until it ends, and an action's `outcome` (and attached files) is shown once the turn commits. `\"true\"` makes the turn atomic with no condition. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck.",
+          "description": "Conditions the whole turn must meet when it ends, after the `change` events it sets off ($actor, $pending); if one fails, every action of the turn is undone and the agent is told `why` and plays the turn again. The turn's actions apply together or not at all: events, reactions and invariants wait until it ends, and an action's `outcome` (and attached files) is shown once the turn commits. `\"true\"` makes the turn atomic with no condition. An action that draws randomness settles the turn so far at once (a failure then undoes the turn and ends it), so no later action can undo its luck.",
           "items": {
             "$ref": "#/$defs/Condition"
           },

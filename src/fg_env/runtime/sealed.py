@@ -44,11 +44,12 @@ def _settle(rules: Rules, turn: Turn, mark: int, applied: int) -> bool:
     the agent's choices stand."""
     world, stage = rules.world, turn.stage
 
-    def commit() -> str | None:
+    def commit() -> str | None:  # the choices and the `change` events they set off, then `valid` on what they leave
+        rules.commit(f"stages.{stage.name}")
         with world.luck.turn_context(None, turn.ledger.pending):
             why = rules.invalid(turn.actor, stage) if applied else None
-        if why is None:
-            rules.commit(f"stages.{stage.name}")
+        if why is not None:
+            world.rollback(mark)
         return why
 
     with rules.gate:

@@ -169,3 +169,35 @@ def test_an_atomic_turn_shows_its_outcomes_once_it_commits():
 
     fg_env.load(PEEK, seed=2).run(honest)
     assert replies[1].ok and replies[1].text == "The top card is ace. Turn ended."
+
+
+OVERLOAD = {
+    "name": "Overload",
+    "clock": {"rounds": 1},
+    "world": {"load": 5, "overloaded": False},
+    "types": {"player": {"agent": True}},
+    "entities": {"ann": {"type": "player"}, "bo": {"type": "player"}},
+    "actions": {"push": {"by": "player", "description": "Add 5 load.", "do": "$world.load += 5"}},
+    "events": [{"on": "change", "when": "$world.load > 7", "do": "$world.overloaded = true"}],
+    "stages": [{"name": "s", "actions": ["push"], "valid": {"expr": "not $world.overloaded",
+                                                             "why": "That overloads the system."}}],
+    "outputs": {"load": "$world.load", "overloaded": "$world.overloaded"},
+}
+
+
+def test_valid_holds_on_the_world_the_turns_change_events_leave():
+    """State a `change` event derives from the turn ("in check") is what `valid` judges (audit 9 core H2)."""
+    seen = []
+
+    def ann(wake):
+        seen.append(wake.call("push"))
+        wake.end()
+
+    result = fg_env.run(OVERLOAD, {"ann": ann, "bo": "idle"}, seed=1)
+    assert not seen[0].ok and "overloads" in seen[0].text
+    assert result.outputs == {"load": 5, "overloaded": False}
+    sealed = copy.deepcopy(OVERLOAD)
+    sealed["stages"][0]["turns"] = "simultaneous"
+    result = fg_env.run(sealed, {"ann": ann, "bo": "idle"}, seed=1)
+    assert result.outputs == {"load": 5, "overloaded": False}
+    assert any("Your choices were undone: That overloads the system" in (e.get("text") or "") for e in result.events)
