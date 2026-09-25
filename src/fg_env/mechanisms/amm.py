@@ -26,7 +26,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
-from ..expr import Call, ExprError, compile_expr, function
+from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
@@ -462,6 +462,10 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
                              "outcome")
     if cfg.outcome is not None:
         compile_expr(cfg.outcome)
+        if not is_expr(cfg.outcome) and cfg.outcome.strip() not in cfg.outcomes:
+            raise MechanismError(f"outcome '{cfg.outcome}' is not one of the outcomes",
+                                 f"outcomes: {', '.join(cfg.outcomes)}; or an expression giving one ($world.truth)",
+                                 "outcome")
     subsidy = cfg.liquidity * math.log(len(cfg.outcomes)) if cfg.maker == "lmsr" else cfg.liquidity
     start_q = {o: 0.0 if cfg.maker == "lmsr" else cfg.liquidity for o in cfg.outcomes}
     question = f" on: {cfg.question}" if cfg.question else ""

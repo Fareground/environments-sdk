@@ -122,7 +122,7 @@ class ActionValidation:
             if isinstance(value, float) and not math.isfinite(value):
                 return None, f"must be a finite number, got {_preview(raw)}"
             if abs(value) > MAX_SAFE_INT:
-                return None, f"must be between -{MAX_SAFE_INT} and {MAX_SAFE_INT}"
+                return None, f"is far too large ({_preview(raw)}): numbers here stay within ±{MAX_SAFE_INT:,}"
             if kind == "int":
                 if isinstance(value, float) and not value.is_integer():
                     return None, f"must be a whole number, got {_preview(raw) if isinstance(raw, str) else raw}"

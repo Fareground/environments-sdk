@@ -536,7 +536,11 @@ def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -
         info = model.model_fields.get(str(loc[0])) if len(loc) == 1 else None
         about = f"`{loc[0]}`: {info.description.rstrip('.')}. " if info is not None and info.description else ""
         return Issue(at, "is required", f"{about}{label} takes: {', '.join(_fields_at(model, ()))}")
-    return Issue(at, error_message(error), (error.get("ctx") or {}).get("fix"))
+    advice: str | None = (error.get("ctx") or {}).get("fix")
+    if error["type"] == "literal_error" and isinstance(error.get("input"), str):
+        close = get_close_matches(error["input"], re.findall(r"'([^']*)'", str(error["ctx"].get("expected", ""))), n=1)
+        advice = f"did you mean '{close[0]}'?" if close else advice
+    return Issue(at, error_message(error), advice)
 
 
 def _fields_at(model: Any, loc: tuple[Any, ...]) -> list[str]:

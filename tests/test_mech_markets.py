@@ -85,6 +85,18 @@ def test_the_books_accounting_is_audited_each_round_unless_asked_for_every_actio
     assert checks(book()) == ["round"] and checks(book(conserve=True)) == ["action"]
 
 
+def test_config_slips_are_said_plainly_at_their_field():
+    """A near-miss enum value gets a suggestion, an outcome that is no outcome is named at `outcome`, and a number
+    too large for a tool says so plainly (audit 9 mech LOWs)."""
+    auction = {"kind": "market", "mode": "auction", "format": "secnd_price", "who": "trader", "item": "x", "stock": 1}
+    issues = [i for i in fg_env.check({**book(), "mechanisms": {"acme": auction}}) if i.severity == "error"]
+    assert issues[0].path == "mechanisms.acme.format" and "did you mean 'second_price'" in issues[0].fix
+    wrong = [i for i in fg_env.check(market("lmsr", outcome="dan")) if i.severity == "error"]
+    assert [i.path for i in wrong] == ["mechanisms.pm.outcome"] and "not one of the outcomes" in wrong[0].message
+    env, replies = play(book(), {(1, "a"): [("acme_buy", {"qty": 1, "price": 1e300})]})
+    assert "far too large" in replies_of(replies, "a")[0].text
+
+
 def test_price_time_priority_and_partial_fills():
     env, replies = play(book(), {
         (1, "a"): [("acme_sell", {"qty": 10, "price": 50})],

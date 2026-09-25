@@ -370,7 +370,7 @@ def test_non_string_keys_on_a_real_contract():
 def test_numbers_beyond_the_safe_range_and_text_length(tools_env):
     actor = tools_env.world.entities["t1"]
     _, problem = tools_env.actions.validate(actor, "trade", {**VALID, "count": 10 ** 400})
-    assert f"between -{MAX_SAFE_INT}" in problem
+    assert "far too large" in problem and f"±{MAX_SAFE_INT:,}" in problem
     _, problem = tools_env.actions.validate(actor, "trade", {**VALID, "memo": "x" * (TEXT_MAX_LEN + 1)})
     assert f"the limit is {TEXT_MAX_LEN}" in problem
     params, problem = tools_env.actions.validate(actor, "defaults", {"long": "x" * 5_000})
