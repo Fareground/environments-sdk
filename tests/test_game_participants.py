@@ -77,3 +77,21 @@ def test_unknown_algorithm_arguments_say_what_to_write():
         fg_env.run(NIM, {"a": "mcts:many", "b": "random"}, seed=1)
     with pytest.raises(ValueError, match="cfr needs"):
         fg_env.run(NIM, {"a": "cfr", "b": "random"}, seed=1)
+
+
+LUCKY = {"name": "Safe or risky", "clock": {"rounds": 1},
+         "types": {"p": {"agent": True, "props": {"pts": 0},
+                         "score": {"value": "$it.pts * 2 - $sum(p, $it.pts)", "utility": "zero_sum"}}},
+         "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+         "stages": [{"name": "s", "must_act": True}],
+         "actions": {"safe": {"by": "p", "do": "$actor.pts += 1", "terminal": True},
+                     "risky": {"by": "p", "do": "$actor.pts += 3 if $chance(0.5) else -3", "terminal": True}},
+         "outputs": {"pts": "$entity(a).pts"}}
+
+
+@pytest.mark.parametrize("bot", ["minimax", "mcts:8"])
+def test_search_participants_do_not_see_the_runs_future_luck(bot):
+    """A draw in an expression is no chance node the search weighs: its copy of the run draws fresh luck, so its risky
+    bets lose as a fair coin does (with the run's own streams it took the bet exactly when it would win)."""
+    points = [fg_env.run(LUCKY, {"a": bot, "b": "idle"}, seed=seed).outputs["pts"] for seed in range(20)]
+    assert points.count(-3) >= 2, points

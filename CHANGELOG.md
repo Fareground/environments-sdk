@@ -231,6 +231,9 @@ worlds stay fast, and the package is organised by feature.
     luck does: one rule (`attempt_cost`) decides both what a refusal costs and what settles a turn. Before, an agent
     could open a door, look at its coins to learn whether the hidden trap was there, break `valid` on purpose and play
     the turn again, until it knew every safe door.
+  - The `mcts` and `minimax` participants search a copy of the run with fresh luck. Before, the copy kept the run's
+    own streams, so a draw in an expression (`$chance`, `$randint` …) showed the bot the real outcome still to come:
+    it took a fair coin bet exactly when it would win, inflating baselines, tournaments and ratings.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

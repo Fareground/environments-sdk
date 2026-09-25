@@ -2,8 +2,9 @@
 ``"cfr:policy.json"`` and ``"cfr:2000"`` play any seat of a run, in tournaments and experiments alike.
 
 * ``mcts[:simulations]`` and ``minimax[:depth]`` search a private copy of the run paused in the turn, with every
-  seat under their control and chance explicit from there on. They see the whole state, so they refuse games
-  with hidden information.
+  seat under their control and `chance` effects explicit from there on. The copy draws fresh luck, so a draw in an
+  expression is never the run's own future draw. They see the whole state, so they refuse games with hidden
+  information.
 * ``ismcts[:simulations]`` rebuilds the seat's view of the game from the run's log (every chance outcome and
   call, checked against what the seat was told) and searches determinizations of it, so it never sees hidden
   facts. It plays one seat at a time; simultaneous stages need ``cfr``.
@@ -123,7 +124,10 @@ class SearchPlayer:
             return mirror(wake, game)
         from ...copying.branch import clone_turn
 
-        branch = clone_turn(wake._turn, controlled=set(game.players), explicit=True, same_luck=True)
+        # Fresh luck: a draw in an expression (`$chance`, `$randint` …) is no chance node the search can weigh, and the
+        # run's own streams would show it the draws still to come.
+        branch = clone_turn(wake._turn, controlled=set(game.players), explicit=True,
+                            seed=_turn_seed(self.seed, wake))
         state = GameState(game, branch, [], path=os.urandom(20))  # a fresh history key: no position is shared
         check_perfect_information(state, self.kind)
         return state
