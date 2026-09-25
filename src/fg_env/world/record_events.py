@@ -46,8 +46,8 @@ class RecordEvents:
     def remove(self, event: LogEvent, key: Key) -> None:
         """Take back the notification ``event`` (an undo: the newest of its group)."""
         seq = event.data.get("entry")
-        indexed = self.by_entry.get(seq) if isinstance(seq, int) else None
-        if indexed:
+        if isinstance(seq, int) and seq in self.by_entry:
+            indexed = self.by_entry[seq]
             indexed.pop(next(i for i in range(len(indexed) - 1, -1, -1) if indexed[i][1] is event))
             if not indexed:
                 del self.by_entry[seq]

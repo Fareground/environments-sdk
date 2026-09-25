@@ -257,7 +257,7 @@ class PropSpec(_Model):
         if not data:
             raise ValueError('an empty object declares nothing: give a default (`0`, `""`, `[]`), or write '
                              '{"default": {}} for a property that starts as an empty map')
-        settings = {name for name, field in cls.model_fields.items() for name in (name, field.alias) if name}
+        settings = {*cls.model_fields, *(field.alias for field in cls.model_fields.values() if field.alias)}
         near = [key for key in data if get_close_matches(str(key), settings, n=1, cutoff=0.7)]
         if not settings.intersection(data) and not near:  # a map written as it starts, not a spec: say how to write it
             shown = json.dumps(data, default=str)
