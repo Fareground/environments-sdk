@@ -46,6 +46,8 @@ EFFECTS = Shape("an effect list (or one effect)", (str, Mapping, list))
 ROUNDS = Shape("a whole number of rounds ≥ 1, or an expression", (int, str))
 COUNT = Shape("a whole number ≥ 0, or an expression", (int, str))
 CHANCE = Shape("a probability from 0 to 1, or an expression", (int, float, str))
+#: A delivery's delay: its range (whole rounds ≥ 0) is the delivery check's to say.
+DELAY = Shape("a number of rounds, or an expression", (int, float, str))
 FLAG = Shape("true or false", (bool,))
 NAMES = Shape("a list of names", (list,))
 BRANCHES = Shape("a list of branches, or the name of a draw", (list, str))
@@ -61,8 +63,8 @@ EFFECT_FIELDS: dict[str, dict[str, Shape]] = {
     "link": {"link": NAME, "from": VALUE, "to": VALUE, "value": VALUE, "props": OBJECT},
     "unlink": {"unlink": NAME, "from": VALUE, "to": VALUE},
     "move": {"move": VALUE, "to": VALUE},
-    "post": {"post": NAME, "to": VALUE, "author": VALUE, "delay": ROUNDS, "drop": CHANCE},
-    "emit": {"emit": NAME, "say": TEXT, "to": VALUE, "data": DATA, "delay": ROUNDS, "drop": CHANCE},
+    "post": {"post": NAME, "to": VALUE, "author": VALUE, "delay": DELAY, "drop": CHANCE},
+    "emit": {"emit": NAME, "say": TEXT, "to": VALUE, "data": DATA, "delay": DELAY, "drop": CHANCE},
     "fail": {"fail": TEXT},
     "end": {"end": TEXT, "winner": VALUE, "say": TEXT},
     "after": {"after": ROUNDS, "do": EFFECTS},
