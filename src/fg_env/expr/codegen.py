@@ -427,6 +427,9 @@ class Codegen:
         return value
 
     def _word(self, node: ast.AST) -> list[str]:
+        """The bare words (and ``null``, however it is spelled) a field is compared with."""
+        if isinstance(node, ast.Constant) and node.value is None or isinstance(node, ast.Name) and node.id == "null":
+            return ["null"]
         if isinstance(node, ast.Name) and not node.id.startswith("__") and node.id not in _LITERAL_NAMES:
             return [node.id]
         if isinstance(node, (ast.List, ast.Tuple)):

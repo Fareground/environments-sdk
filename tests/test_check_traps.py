@@ -529,3 +529,14 @@ def test_announce_true_is_one_issue_naming_what_announce_takes():
              "entities": {"p": {"type": "p"}}, "actions": {"a": {"by": "p", "announce": True, "do": "$actor.n += 1"}}}
     found = [i for i in fg_env.check(shout, rounds=0) if i.path == "actions.a.announce"]
     assert [i.message for i in found] == ["must be text or false, got true"]
+
+
+def test_comparing_a_property_that_always_holds_a_value_with_null_is_warned_about():
+    """`None` is null, and a property declared with a value is never null: `$world.fish == None` never holds."""
+    lake = {"name": "Lake", "clock": {"rounds": 1},
+            "world": {"fish": 10, "catch": {"type": "number", "default": None}},
+            "types": {"p": {"agent": True, "props": {"n": 0}}}, "entities": {"p": {"type": "p"}},
+            "actions": {"a": {"by": "p", "do": [{"if": "$world.fish == None", "then": ["$actor.n += 1"]},
+                                                {"if": "$world.catch == null", "then": ["$actor.n += 1"]}]}}}
+    found = [i for i in fg_env.check(lake, rounds=0) if "never null" in i.message]
+    assert [i.path for i in found] == ["actions.a.do[0].if"] and '"default": null' in found[0].fix

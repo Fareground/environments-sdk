@@ -275,9 +275,14 @@ class Checker:
                 self.error(path, f"${function}({kind}, {word}): `{word}` is the text '{word}' here, not each "
                                  f"{kind}'s {word}", f"write $it.{word} — in `{compiled.source}`")
         for chain, word in compiled.comparisons:
-            self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)
+            if word == "null":
+                self._null_compare(chain, types, path, compiled.source)
+            else:
+                self._compare(self._spec_for(chain, types, params), chain, word, path, compiled.source)
         for _, symbol, chain, word in compiled.item_comparisons:
-            if symbol in self.c.types and len(chain) == 2:
+            if word == "null" and symbol in self.c.types:
+                self._null_compare(chain, {"it": {symbol}}, path, compiled.source)
+            elif symbol in self.c.types and len(chain) == 2:
                 spec = self.c.props_of(symbol).get(chain[1])
                 self._compare((spec.values, prop_type(spec)) if spec else None, chain, word, path, compiled.source)
         props = {root: {prop for kind in types.get(root, ()) for prop in self.type_props.get(kind, set())}
@@ -389,6 +394,22 @@ class Checker:
             spec_in = self.c.inputs[chain[1]]
             return spec_in.values, spec_in.type
         return None
+
+    def _null_compare(self, chain: tuple[str, ...], types: Types, path: str, source: str) -> None:
+        """A comparison with null (``None`` is null too) of a property that always holds a value — it is declared with
+        one, so it can never be null — gives the same answer every time."""
+        root, specs = chain[0], []
+        named = self.c.named_entities().get(root[len("entity("):-1]) if root.startswith("entity(") else None
+        if len(chain) == 2 and named is not None and named.type in self.c.types:
+            specs = [self.c.props_of(named.type).get(chain[1])]
+        elif len(chain) == 2 and root in types:
+            specs = [self.c.props_of(kind).get(chain[1]) if kind in self.c.types else None for kind in types[root]]
+        elif len(chain) == 2 and root == "world":
+            specs = [self.c.world.get(chain[1])]
+        if specs and all(spec is not None and spec.default is not None and prop_type(spec) != "any" for spec in specs):
+            self.warn(path, f"${'.'.join(chain)} always holds a value (it is declared with one), so it is never "
+                            "null: comparing it with null gives the same answer every time",
+                      f"compare it with a value; to let it be empty, declare it with \"default\": null — in `{source}`")
 
     def _compare(self, known: tuple[Any, str] | None, chain: tuple[str, ...], word: str, path: str,
                  source: str) -> None:

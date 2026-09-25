@@ -328,6 +328,8 @@ worlds stay fast, and the package is organised by feature.
     "did you mean".
   - A field that takes text or a literal (`announce: true`) gets one issue naming both ("must be text or false, got
     true"), not a pydantic "Input should be False" beside a second message.
+  - Comparing a property that always holds a value with null (`$world.fish == None`: `None` is null) is warned
+    about, with the fix: it gives the same answer every time.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
