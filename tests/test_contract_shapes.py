@@ -172,3 +172,15 @@ def test_a_map_written_as_a_property_says_how_to_write_its_default():
     assert '{"default": {"apple": 3, "pear": 2}}' in issues["world.prices"].message
     assert '{"default": {"wood": 3}}' in issues["types.t.props.inventory"].message
     assert issues["types.t.props.x.defualt"].fix == "did you mean 'default'?"  # a misspelt setting stays a typo
+
+
+@pytest.mark.parametrize("prop", [{"min": 1, "max": 5}, {"values": [1, 2], "unit": "kg"}])
+def test_an_object_of_spec_settings_with_no_type_or_default_asks_whether_a_map_was_meant(prop):
+    """Every key names a spec setting, so the object is read as a spec whose value starts as null; a map written as
+    it starts is the likelier meaning, and `check` says how to write one (audit 14 M5)."""
+    c = {"name": "Maps", "world": {"limits": prop}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+         "actions": {"go": {"by": "p", "do": []}}}
+    found = [i for i in fg_env.check(c, rounds=0) if i.path == "world.limits"]
+    assert [i.severity for i in found] == ["warning"] and '{"default": {' in found[0].fix
+    c["world"]["limits"] = {"default": prop}
+    assert not [i for i in fg_env.check(c, rounds=0) if i.path == "world.limits"]

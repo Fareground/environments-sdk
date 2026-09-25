@@ -99,6 +99,14 @@ class WorldChecks(Checker):
             check_space(self, self.c.space)
 
     def _prop_spec(self, spec: C.PropSpec, path: str, roots: Iterable[str], types: Types | None = None) -> None:
+        written = spec.model_fields_set
+        if not written & {"type", "default"} and written & {"min", "max", "values", "unit"}:
+            keys = {key: _as_written(getattr(spec, key)) for key in ("min", "max", "values", "unit") if key in written}
+            shown = json.dumps(keys, default=str)
+            self.warn(path, f"is a property spec with no type and no default, so it starts as null: its keys "
+                            f"({', '.join(keys)}) are all spec settings",
+                      f"did you mean a map? write {{\"default\": {shown}}}; for a property, give it a `default` "
+                      "or a `type`")
         if isinstance(spec.private, list):
             agents = set(self.c.agent_types())
             if not spec.private:
@@ -349,3 +357,8 @@ class WorldChecks(Checker):
                                fix='"all" shows every entry to everyone; otherwise write an expression over $viewer '
                                    'and $it, e.g. `$it.author == $viewer.id`')
             self.template(spec.show, f"{path}.show", "it", BASE | {"actor", "it"}, {"actor": set(self.agents)})
+
+
+def _as_written(value: Any) -> Any:
+    """A setting as its author likely wrote it: a whole bound the spec read as a number (``1.0``) is ``1``."""
+    return int(value) if isinstance(value, float) and value.is_integer() else value

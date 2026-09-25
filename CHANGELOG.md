@@ -281,6 +281,9 @@ worlds stay fast, and the package is organised by feature.
     `$any([$it], …)` in a `where`) anywhere one agent is shown. `check` now reports what the run refused and accepts
     what the run allows, such as `($it.floor if $it.seller == $actor.id else 0) > 3` (M1). The hidden-roles recipe's
     day stage no longer reads the roles to decide whether it is held (the end conditions already stop the run).
+  - A property written as an object whose keys are all spec settings but that names neither a `type` nor a `default`
+    (`"limits": {"min": 1, "max": 5}`) starts as null: `check` warns and says how to write the map it likely meant,
+    `{"default": {...}}` (M5).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
