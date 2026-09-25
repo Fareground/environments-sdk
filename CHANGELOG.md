@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - Default market makers (no `quote_mult` of the author's) size their quotes to the larger of last round's flow and
+    what the rest of the coded crowd sends in a round (its traders × `activity` × order size), so a quiet or first
+    round does not leave the book too thin: in a 2-maker, 20-trader book, one-sided rounds fell from 12 to 8 of 160.
   - `market.posted`'s `<name>_avg_price` metric is what a unit sold for on average (turnover ÷ units sold, null before
     a sale); it was the plain average of the listings' current asking prices. farmers_market's golden changes with it.
   - A crowd's strategy `params` may name only that strategy's parameters (every one, `stop_loss` included, is listed

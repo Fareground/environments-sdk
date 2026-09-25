@@ -1149,3 +1149,20 @@ def test_a_posted_markets_average_price_is_what_its_units_sold_for():
     result = fg_env.run(Path(__file__).parents[1] / "examples" / "contracts" / "farmers_market.json", seed=1)
     metrics = {name: values[-1] for name, values in result.series.items()}
     assert metrics["market_avg_price"] == pytest.approx(metrics["market_turnover"] / metrics["market_sales"])
+
+
+def test_default_market_makers_quote_for_the_whole_crowd_not_only_last_rounds_flow():
+    """Two default market makers facing ten fundamentalists and ten noise traders size their quotes to what that crowd
+    sends in a round, not only to the last round's flow, so the book keeps both sides far more often (audit 12 mech
+    M6: 12 of 160 rounds ended one-sided before, 8 now)."""
+    crowd = {"market_maker": {"count": 2, "cash": 100000, "shares": 2000},
+             "fundamentalist": {"count": 10, "cash": 10000, "shares": 200},
+             "noise": {"count": 10, "cash": 10000, "shares": 200}}
+    contract = {"name": "Crowd", "clock": {"rounds": 40}, "types": {"trader": {"agent": True, "props": {"cash": 1000}}},
+                "entities": {"me": {"type": "trader"}},
+                "mechanisms": {"bk": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50,
+                                      "volatility": 0.02, "crowd": crowd}},
+                "outputs": {"book": {"expr": "$book('bk')", "series": True}}}
+    one_sided = sum(book["bid"] is None or book["ask"] is None
+                    for seed in range(4) for book in fg_env.run(contract, None, seed=seed).series["book"])
+    assert one_sided <= 8

@@ -221,7 +221,11 @@ def _market_maker(v: _View, p: dict[str, float], rng: Any) -> None:
         imbalance = net / (gross + v.base)  # -1 (everyone sold) … 1 (everyone bought); a trickle counts less
         state["ref"] = ref * math.exp(v.assumed * p["impact"] * imbalance)
         state["toxicity"] = (1 - TOXICITY_MEMORY) * abs(imbalance) + TOXICITY_MEMORY * float(state.get("toxicity", 0.0))
-        state["depth"] = gross / (2 * _makers(v))  # its share of one side of last round's flow
+        # its share of one side of the crowd's flow: last round's, or — unless the author sized the quotes with
+        # `quote_mult` — what the crowd sends in a round when that is more, so a quiet or first round does not leave
+        # the book too thin for the crowd's orders
+        expected = 0.0 if "quote_mult" in _overrides(v.cfg, "market_maker") else _expected_flow(v)
+        state["depth"] = max(gross, expected) / (2 * _makers(v))
         state["seen"] = v.world.round
     centre_price = float(state["ref"])
     # Quotes deep enough for its share of the crowd's flow, so a big crowd does not take one side of the book away.
@@ -251,6 +255,21 @@ def _makers(v: _View) -> int:
     """How many of the crowd's market makers share the flow (at least one: this one)."""
     kind = f"{v.name}_market_maker"
     return max(1, len(v.world.entities_of(kind))) if kind in v.world.contract.types else 1
+
+
+def _expected_flow(v: _View) -> float:
+    """What the rest of the book's coded crowd sends in a round: each strategy's traders × how often one acts
+    (``activity``) × the order it sizes (``base_qty`` × ``size_mult`` × ``flow_scale``)."""
+    world, total = v.world, 0.0
+    for strategy, defaults in DEFAULTS.items():
+        kind = f"{v.name}_{strategy}"
+        if strategy == "market_maker" or kind not in world.contract.types:
+            continue
+        given = _overrides(v.cfg, strategy)
+        activity, size = (float(given[key]) if isinstance(given.get(key), (int, float)) else defaults[key]
+                          for key in ("activity", "size_mult"))
+        total += len(world.entities_of(kind)) * activity * size * v.base * v.flow
+    return total
 
 
 def _outside_flow(v: _View) -> tuple[float, float]:
