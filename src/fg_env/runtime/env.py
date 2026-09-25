@@ -199,6 +199,11 @@ class Env:
     def round(self) -> int:
         return self.world.round
 
+    @property
+    def stage(self) -> str | None:
+        """The name of the stage being played, or None between stages (with ``run(stop=...)``, stop as one begins)."""
+        return self.world.stage
+
     def run(self, participants: Any = None, *, rounds: int | None = None,
             stop: Callable[[Env], bool] | None = None,
             on_event: Callable[[dict[str, Any]], None] | None = None,

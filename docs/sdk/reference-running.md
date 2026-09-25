@@ -89,7 +89,9 @@ degraded (`budget_cut`), not `ok`. `result.budget` has the limits, use and the l
 `env.step(participants)` runs one round; `env.run(participants, rounds=N)` runs N more (an unfinished
 run returns provisional outputs). `env.run(..., stop=lambda env: ...)` is checked before every round,
 stage, pass and sequential turn; the next `run` continues exactly where it stopped (finishing that
-round counts as one of `rounds`). Snapshots are taken between rounds or where a run stopped: one taken
+round counts as one of `rounds`). `env.round` and `env.stage` (the stage being played, None between stages) say
+where it is: `env.run(stop=lambda env: env.stage == "rebuttal")` stops as the rebuttal begins, and `env.clone()` there
+tries what follows as often as you like. Snapshots are taken between rounds or where a run stopped: one taken
 part-way through a round holds the run's last between-round state and every call since, and restoring plays them
 back (a long single-round negotiation can be saved turn by turn). A participant that raises fails
 the run with its entity id: `fg_env.run` raises the `RunError` (its `.result` is the failed run), `env.run` returns

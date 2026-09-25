@@ -332,3 +332,17 @@ def test_an_invariant_broken_before_the_round_names_no_physics_the_contract_lack
                 "invariants": ["$world.n <= 20 - $round * 6"]}  # broken by the round's number alone
     with pytest.raises(fg_env.RunError, match="no longer holds after the round's start"):
         fg_env.run(contract, "idle", seed=1)
+
+
+def test_a_run_says_which_stage_it_plays_so_a_test_can_stop_as_one_begins():
+    """A single-round design can be tried from part-way through its round (audit 9 hands-on M3)."""
+    contract = {"name": "Stages", "clock": {"rounds": 1}, "world": {"n": 0}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": "$world.n += 1"}},
+                "stages": [{"name": "one", "actions": ["go"]}, {"name": "two", "actions": ["go"]}],
+                "outputs": {"n": "$world.n"}}
+    env = fg_env.load(contract, seed=1)
+    assert env.stage is None
+    go = lambda wake: (wake.call("go"), wake.end())  # noqa: E731
+    env.run(go, stop=lambda e: e.stage == "two")
+    assert (env.round, env.stage, env.props["n"]) == (1, "two", 1)
+    assert env.clone().run(go).outputs == env.run(go).outputs == {"n": 2}

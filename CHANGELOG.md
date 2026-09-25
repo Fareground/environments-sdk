@@ -176,6 +176,9 @@ worlds stay fast, and the package is organised by feature.
 
 ### Added
 
+- `env.stage`: the stage being played (None between stages), so a test can stop as one begins
+  (`env.run(stop=lambda env: env.stage == "rebuttal")`) and try what follows on `env.clone()` part-way through a
+  round.
 - **`private` may name the agent types that also read a property** (`"private": ["chair"]`): an area chair reads every
   review's score, a health agency every country's case count, while every other agent is refused it as for any
   private property — in views, tools, outcomes and every other channel, by `check` and at run time. Before, authors
