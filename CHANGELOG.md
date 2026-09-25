@@ -308,6 +308,9 @@ worlds stay fast, and the package is organised by feature.
     ignored what was already on order, so a step from 4 to 8 drove factory orders to 99 (bullwhip 570); now they
     peak at 34 (bullwhip 64), in the range people reach, and sharing demand still damps it (peak 11, stable by week
     14).
+  - An output that reads itself, or a later output that is not a series (every loop of outputs does), is a check
+    error: outputs are worked out in the order written, so it never has a value. Before, check only warned that it
+    was "fine if it only has a value later in a run".
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

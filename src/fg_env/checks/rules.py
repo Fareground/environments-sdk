@@ -137,6 +137,7 @@ class RuleChecks(EffectChecks):
             self.expr(output.expr, path, BASE | ({"result"} if output.series is not True else set()))
             if isinstance(output.series, str):
                 self.expr(output.series, f"{path}.series", BASE)
+            self._unready_outputs(name, output.expr, path)
         for index, end in enumerate(self.c.end):
             self.condition(end.when, f"end[{index}].when", BASE)
             if _at_last_round(end.when, self.c.clock.rounds):
@@ -162,6 +163,23 @@ class RuleChecks(EffectChecks):
                            self._suggest(invariant.check, C.INVARIANT_CHECKS) or ", ".join(C.INVARIANT_CHECKS))
         if not self.c.outputs:
             self.warn("outputs", "no outputs declared", "declare the typed results this environment produces")
+
+    def _unready_outputs(self, name: str, source: str, path: str) -> None:
+        """An output reads `$outputs.<o>` as worked out so far: outputs are worked out in the order written (a series
+        output's latest sample is there all along), so an output that is not a series, read by itself or by one
+        written before it (every loop of outputs has such a read), never has a value there."""
+        try:
+            reads = {chain[1] for chain in compile_expr(source).paths if chain[0] == "outputs" and len(chain) > 1}
+        except ExprError:
+            return  # reported by the expression check
+        names = list(self.c.outputs)
+        later = sorted(read for read in reads if read in self.c.outputs and not self.c.outputs[read].series
+                       and names.index(read) >= names.index(name))
+        if later:
+            which = "itself" if later == [name] else ", ".join(f"$outputs.{read}" for read in later)
+            self.error(path, f"reads {which}, which has no value yet when {name} is worked out: outputs are worked "
+                             "out in the order written",
+                       "read what it is worked out from instead, or move the output it reads before it")
 
     def _defs(self) -> None:
         for name, spec in self.c.defs.items():

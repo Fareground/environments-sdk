@@ -381,3 +381,13 @@ def test_a_whole_number_past_the_exact_range_is_refused_with_a_true_message():
     assert run("$world.x = $world.x * 1000").status == "failed"  # 10^39 by round 13, not silently rounded
     fraction = run("$world.x = $round(10 ** 400 * 1.5)")
     assert "OverflowError" not in fraction.error and "too large for a fraction" in fraction.error
+
+
+def test_an_output_reading_itself_or_one_written_after_it_is_an_error():
+    c = {"name": "x", "clock": {"rounds": 2}, "world": {"t": 0}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+         "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "description": "g", "do": ["$world.t += 1"]}},
+         "outputs": {"a": "$outputs.b + 1", "b": "$world.t", "c": "$outputs.c + 1", "e": "$outputs.b * 2",
+                     "s": {"expr": "$world.t", "series": True}, "d": "$outputs.s"}}
+    errors = {i.path: i.message for i in _errors(c, rounds=0)}
+    assert set(errors) == {"outputs.a", "outputs.c"}
+    assert errors["outputs.c"].startswith("reads itself") and "$outputs.b" in errors["outputs.a"]
