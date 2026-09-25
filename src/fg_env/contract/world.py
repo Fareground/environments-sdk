@@ -213,11 +213,10 @@ class Space(_Model):
 # Types, entities, population, relations
 # ---------------------------------------------------------------------------
 
-_PROP_KEYS = {"type", "default", "min", "max", "values", "private", "description", "unit"}
-
 
 class PropSpec(_Model):
-    """One property. Shorthand: a bare value is the default (``"cash": 100``).
+    """One property. Shorthand: a bare value is the default (``"cash": 100``). An object is always the spec itself, so a
+    map default is written ``{"default": {"wood": 3}}``.
 
     In a type that ``extends`` another, a property the parent declares is overridden field by
     field: only the fields written here change (a bare value changes only the default), so the
@@ -249,11 +248,14 @@ class PropSpec(_Model):
     @model_validator(mode="before")
     @classmethod
     def _shorthand(cls, data: Any) -> Any:
-        # An object is a spec when it names `type` or `default` (other keys must then be
-        # valid spec keys); a map-valued default is written {"type": "map", "default": {...}}.
-        if isinstance(data, dict) and data and ("type" in data or "default" in data or set(data) <= _PROP_KEYS):
-            return data
-        return {"default": data}
+        # One rule, no guessing: an object is always a spec (so a misspelt field is reported, never taken for a map's
+        # key); any other value is the default. A map default is written {"default": {...}}.
+        if not isinstance(data, dict):
+            return {"default": data}
+        if not data:
+            raise ValueError('an empty object declares nothing: give a default (`0`, `""`, `[]`), or write '
+                             '{"default": {}} for a property that starts as an empty map')
+        return data
 
 
 class TypeSpec(_Model):

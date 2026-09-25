@@ -4,7 +4,8 @@
 
 Global properties ($world.x).
 
-**PropSpec** — One property. Shorthand: a bare value is the default (``"cash": 100``).
+**PropSpec** — One property. Shorthand: a bare value is the default (``"cash": 100``). An object is always the spec itself, so a
+map default is written ``{"default": {"wood": 3}}``.
 
 In a type that ``extends`` another, a property the parent declares is overridden field by
 field: only the fields written here change (a bare value changes only the default), so the

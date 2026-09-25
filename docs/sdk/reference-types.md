@@ -24,7 +24,8 @@ every kind of trader).
 - `policy`: text — The policy agents of this type play when a run names none.
 - `score`: ScoreSpec — What each agent of this type scores as a seat, for returns, tournaments, game search and gyms.
 - `inspect`: bool | text = false — Whether agents may inspect these entities (each agent may always inspect itself): false (default), true, or an expression over $viewer and $it. Inspect shows every property that is not private.
-**PropSpec** — One property. Shorthand: a bare value is the default (``"cash": 100``).
+**PropSpec** — One property. Shorthand: a bare value is the default (``"cash": 100``). An object is always the spec itself, so a
+map default is written ``{"default": {"wood": 3}}``.
 
 In a type that ``extends`` another, a property the parent declares is overridden field by
 field: only the fields written here change (a bare value changes only the default), so the

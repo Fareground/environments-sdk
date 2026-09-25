@@ -144,3 +144,20 @@ def test_assigning_a_built_in_entity_field_is_an_error_at_check(field):
     issues = fg_env.check(contract, rounds=0)
     assert any(i.severity == "error" and "built into every entity" in i.message for i in issues), \
         [str(i) for i in issues]
+
+
+@pytest.mark.parametrize("spec", [{"private": True, "min": 0, "defualt": 3}, {"privat": True, "default": 3},
+                                  {"wood": 3, "stone": 1}])
+def test_an_object_property_is_always_a_spec_so_a_typo_is_an_error_never_a_public_map(spec):
+    """No guessing between a spec and a literal map (audit 12 H3): an unknown key is reported with a suggestion."""
+    issues = fg_env.check(_contract(**{"types.p.props.code": spec}), rounds=0)
+    assert any(i.severity == "error" and i.path.startswith("types.p.props.code") for i in issues), \
+        [str(i) for i in issues]
+
+
+def test_a_map_default_is_written_under_default():
+    contract = _contract(**{"types.p.props.stock": {"default": {"wood": 3}}, "types.p.props.none": {"default": {}}})
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    assert fg_env.load(contract).entity("a")["props"]["stock"] == {"wood": 3}
+    issues = fg_env.check(_contract(**{"types.p.props.stock": {}}), rounds=0)
+    assert any("empty object declares nothing" in i.message for i in issues), [str(i) for i in issues]

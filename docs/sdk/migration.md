@@ -55,6 +55,11 @@ These have no mechanical equivalent: `fg_env.check`, loading and `fg-env migrate
   `fg_env.personas` (`sample_records`, `assign_labels`), or give each entity its archetype with a prop.
 - **Continuous time** — `clock.mode: continuous`, `turns: scheduled`, action `duration`, `wake.in`: environments are
   round-based; make a round the smallest step that matters.
+- **Map defaults** — a property written as an object is always its spec (`type`, `default`, `min`, `max`, `values`,
+  `private`, `description`, `unit`), so a misspelt field is reported instead of turning the property into a public map.
+  A property that starts as a map used to be written as the bare object when none of its keys looked like a spec
+  field (`"stock": {"wood": 3}`); write it under `default` (`"stock": {"default": {"wood": 3}}`). Guessing which was
+  meant is what hid the typos, so neither loading nor `migrate` rewrites it: `fg_env.check` reports each one.
 - **`calibration`** — fit inputs before loading with `fg_env.analysis.calibrate` and pass them as `inputs`.
 - **Owners** — a view's or entity choice's `where` that mentioned its reader used to make the reader the owner of
   every item it picked, however it was written (so `$it.seller != $actor.id` showed everyone else's secrets). Whose an

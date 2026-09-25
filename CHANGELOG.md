@@ -14,6 +14,11 @@ worlds stay fast, and the package is organised by feature.
 
 ### Breaking
 
+- **A property written as an object is always its spec (audit 12 H3).** A bare object used to be taken as a literal map
+  default whenever it named neither `type` nor `default` and had a key that is no spec field, so
+  `{"private": true, "defualt": 3}` became a public map. Now every unknown key is reported with a suggestion. A map
+  default is written `{"default": {"wood": 3}}`, and an empty object `{}` is an error (write `{"default": {}}`).
+  No shipped contract relied on the old reading; `docs/sdk/migration.md` says how to rewrite one that did.
 - **`tournament` and `evaluate` are fair by default (audit 11 M7):** `lookahead` now defaults to `False`, so an
   entrant or focal participant given as a callable is refused `wake.clone` (a copy of the run holds hidden state and
   future luck). Pass `lookahead=True` for a search player you trust.
