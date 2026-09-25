@@ -145,7 +145,8 @@ class Perception:
         if reason:
             lines.append(f"Now: {reason}")
         if time_limit is not None:
-            lines.append(f"You have {format_value(time_limit)} seconds for this turn; after that it ends.")
+            unit = "second" if time_limit == 1 else "seconds"
+            lines.append(f"You have {format_value(time_limit)} {unit} for this turn; after that it ends.")
         if calls is not None:
             free = f", and up to {calls} free reads (look and inspect) that do not use them" if reads else ""
             lines.append(f"You have {calls} tool calls this turn{free}.")

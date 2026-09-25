@@ -158,6 +158,8 @@ def test_every_agent_is_told_the_run_limit():
     env.time_limit = 7
     assert env.preview("ann")["time_limit"] == 7
     assert "You have 7 seconds for this turn" in env.preview("ann")["update"]
+    env.time_limit = 1
+    assert "You have 1 second for this turn" in env.preview("ann")["update"]  # audit 11 L5
 
     limits = {}
 
