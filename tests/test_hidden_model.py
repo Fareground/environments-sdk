@@ -228,8 +228,11 @@ def test_who_reading_a_hidden_value_while_choices_are_announced_is_refused():
     around = copy.deepcopy(roles)
     around["defs"] = {"wolf": {"args": ["p"], "expr": "$p.role == wolf"}}
     around["stages"][0]["who"] = "$wolf($it)"
-    with pytest.raises(fg_env.RunError, match="stages.night.who: ann's role is private"):
-        fg_env.run(around, "random", seed=1)
+    assert "stages[0].who" in _errors(around)  # a def worked out from private properties is seen through (audit 14)
+    from fg_env.checks import parse_contract
+    from fg_env.runtime.env import Env
+    result = Env(parse_contract(around), {}, 1).run("random")  # and the run refuses it too
+    assert result.status == "failed" and "stages.night.who: ann's role is private" in result.error
     secret = copy.deepcopy(roles)
     secret["actions"]["go"]["private"] = True  # nobody learns who acted: waking by role reveals nothing
     assert not _errors(secret)
