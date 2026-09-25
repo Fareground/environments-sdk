@@ -7,11 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Runs are now correct or loud about what went wrong, luck and hidden information cannot be probed, `check` catches
-far more authoring mistakes, `fg_env.author` keeps its best work, big worlds stay fast, and the package is organised by
-feature with the core of the contract language marked apart from the rest.
+The contract language is smaller — one construct for each idea — and the documentation is rewritten around it:
+a start page, a cookbook and a generated reference. Runs are now correct or loud about what went wrong, luck and hidden
+information cannot be probed, `check` catches far more authoring mistakes, `fg_env.author` keeps its best work, big
+worlds stay fast, and the package is organised by feature.
 
 ### Breaking
+
+- **The contract language, version 2 (`"fg_env": "2"`).** One construct per idea; every earlier form still loads
+  (rewritten on load, with one warning per contract) until 1.0, and `fg-env migrate FILE --write` saves the current
+  form. What moved:
+  - **Happenings:** `events` is the one place for world logic outside turns, with an `on` anchor: `round.start`,
+    `round.end`, `stage.<s>.start|end|turn`, `create.<type>`, `remove.<type>` or `change`. It replaces `triggers`,
+    event `phase`/`at`/`every`/`arms`/`each`/`order`, stage `on_enter`/`on_exit`/`on_idle`/`on_timeout` and type
+    `on_create`/`on_remove`; round schedules and arms are `when` conditions.
+  - **State:** `population` becomes generator entries of `entities` (ids `<key>_<n>`), `links` live under their
+    relation (`relations.<r>.links`), and `assets` are inputs of `type: file`.
+  - **Actors and outcomes:** `policies` live under the type that plays them (`types.<t>.policies`); `metrics` are
+    `outputs` with `series: true` (`$metrics.x` is `$outputs.x`); `game` is `types.<player>.score`.
+  - **Reuse:** `blocks` are `defs` with `do`, run with `{"call": …}`; `for`/`make` macros are written out.
+  - **Mechanisms:** `physics`, `patterns` and `feeds` are mechanisms (`dynamics`, `pattern`, `host.feed`); 10
+    families remain (`flow.procedure` → `decision.procedure`, `operations.queue` → `economy.queue`,
+    `conditions.status` → `game.status`, `mind.memory`/`personas` → `host.*`), and `flow.order`, `flow.victory`,
+    `conditions.cooldowns`/`channeling`/`terrain`, `mind.beliefs`, `social.channels`, `groups.relationships`/
+    `factions`, `game.slots` and `agreements.labor` are removed (loading says what to write instead).
+  - **Removed:** continuous time (`clock.mode`, `turns: scheduled`, action `duration`, `wake.in`), action `chance`/
+    `otherwise`/`tool`, stage `atomic` (`valid: "true"`) and `time_limit` (`env.run(time_limit=…)`), view `stages`
+    (`when`), the `calibration` section (`fg_env.analysis.calibrate` before load), population `mix`/`quota`/
+    `members`/`raking` (`fg_env.personas`), game claims, and the functions of removed modes and duplicates (`$random` →
+    `$uniform(0, 1)`, `$exists`, `$ids`, `$index_of`, rewritten on load). Mechanism functions are callable only where their mechanism is
+    declared.
+  - Action `private: true` is `announce: false`. Every example, engine starter and template is written in the
+    current form.
+- **Starting templates are the cookbook.** `fg-env new` / `fg_env.new` offer `blank` and the eleven cookbook recipes
+  (`auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `spread`, `board_game`, `economy`, `grid`,
+  `simulation`); `duel`, `shop`, `simulation` (as it was) and `meeting` are gone. Contracts written by `fg-env new`,
+  `fg-env migrate` and `engines.clone` put sections in the contract's order and short entries on one line.
 
 - **One rule for what is hidden.** A `private` property is hidden from every agent but its owner: an agent owns its
   own, and the world's and every other entity's private properties are hidden from all agents unless a view's or an
@@ -117,8 +148,7 @@ feature with the core of the contract language marked apart from the rest.
   ledger holder type whose own default for the currency differs from the ledger's `start`, a world property named like
   one a mechanism keeps, and a second `game.pot` on one player type. `$adopters` is `$adopter_count`. Removed:
   `rebase`, the prediction market's `open`, and `<name>_supply` on markets.
-- **Engines and templates.** One name per concept: the `market` engine is `retail`, and the starting templates `game`,
-  `market` and `social` are `duel`, `shop` and `meeting` (mechanism families keep their names). Engine defaults are
+- **Engines.** One name per concept: the `market` engine is `retail` (mechanism families keep their names). Engine defaults are
   realistic in size (population 100, network 60, legislature 25, …), coded players respond to the seed and to payoffs,
   rates over nobody are null, and Contest, Council and Negotiation refuse setups they cannot play. Retail: households
   can make coffee at home, so demand responds to price; cafés are an input and reprice toward profit; the sample (at
@@ -140,14 +170,23 @@ feature with the core of the contract language marked apart from the rest.
 
 ### Added
 
+- **`fg-env migrate FILE… [--write]` and `fg_env.migrate(contract)`**: a contract written for an earlier release in
+  the current form, a note per rewrite, and what is left to fix by hand. A file already current is left as it is.
+- **Documentation with one path.** `guide('authoring')`, the start page, teaches the ten concepts in order with one
+  worked contract, its known-answer test and the write → check → preview → run loop. `guide('cookbook')` (and
+  `cookbook.<recipe>`) holds a complete contract for each common pattern, each with a coded policy and a known answer
+  the tests hold it to. `guide('engines')` describes every engine from its catalog entry and starter. Every page under
+  `docs/sdk/` but the index and the migration page is rendered from `fg_env.guide`, so the docs, the guide an agent
+  reads and the engine cannot disagree; eleven hand-written pages that repeated or contradicted it are gone.
+
 - Six engines: `supply_chain`, `auction`, `contact_centre`, `ride_hailing`, `epidemic`, `hidden_roles`.
 - `$path_distance` (grid distance around obstacles), `diffuse` with `where` (walls), `$host_bound`, auction
   `deliver_from`; deliberation, legislature and dispute score speeches with a bound `judge` host.
 - `check` tries to read hidden numbers out through refusals and reports any it can. `make gate` runs every local check.
 
-- **Guide.** `guide()` lists the 16 core sections and 22 core functions the start page teaches first, then the
+- **Guide.** `guide()` lists the 14 core sections and 24 core functions the start page teaches first, then the
   extended ones to reach for when the core cannot say it; every section's schema description starts with "Core
-  section." or "Extended section.". It also says which is which of a mechanism, an engine and a starting template.
+  section." or "Extended section.". It also says which is which of a recipe, a mechanism and an engine.
 - **Engines.** `fg-env engines` and `fg-env new --engine <id>`; engines in `guide()`; `fg_env.author`'s `start_from`
   tool starts from one.
 - **Runs.** `env.preview(id, participants=...)`, which skips turns an `auto` stage plays. `fork()` keeps its
@@ -179,6 +218,17 @@ feature with the core of the contract language marked apart from the rest.
   generated docs and the examples table in sync.
 
 ### Fixed
+
+- **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
+  or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
+  it now gets two guesses). Undoing a change restores which `change` events are armed and which `once` events fired
+  (before, a commit undone between the mark and the work left them moved and they never fired again), gives back the
+  number an undone `after` schedule took, and puts an unlinked link back in its place in its relation and in both
+  entities' neighbour rows. The run's diagnostics try a refused tool apart from the turn, so their trials no longer
+  count as the agent's hidden reads and turn a free refusal into a spent one. Every agent-facing text is rendered for
+  its reader through one gate. Re-loading a parsed contract no longer doubles its normalization notes (memory grew
+  with every load). A copy of a run is a copy of its state: `env.clone()` between rounds is 5–13× faster (werewolf
+  1.15 → 0.14 ms), part-way 11–154× (coffee_market 117 → 0.76 ms), `wake.clone()` 1.8–5.5×, game states up to 2×.
 
 - A file edited in one place no longer breaks other contracts holding the original; generated docs are the same on
   every supported Python; `import fg_env` takes ~40 ms; lists of choices are no longer capped at 1,000 items; an agent
