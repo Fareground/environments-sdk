@@ -594,3 +594,10 @@ def test_an_invisible_character_above_the_basic_plane_is_escaped_as_json_reads_i
     text = "a\U000e0041b\u202e"
     shown = visible(text)
     assert shown == "a\\udb40\\udc41b\\u202e" and json.loads(f'"{shown}"') == text
+
+
+def test_a_variation_selector_that_marks_nothing_is_escaped_but_an_emojis_stays():
+    """A variation selector shows nothing a reader sees, so it can carry a hidden channel between agents: it is shown
+    as its code, but for the one that makes a symbol an emoji (audit 14 agentif LOW-1)."""
+    assert visible("a️b") == "a\\ufe0fb" and visible("x\U000e0100y") == "x\\udb40\\udd00y"
+    assert visible("❤️ ok") == "❤️ ok" and visible("1️⃣") == "1️⃣"

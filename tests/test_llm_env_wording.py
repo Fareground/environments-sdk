@@ -381,8 +381,9 @@ def test_the_last_turn_line_sums_up_what_the_turn_did_and_what_was_refused_after
             wake.call("pay", {"n": 1})  # after the turn: nothing was done
 
     fg_env.run(contract, ann, seed=1)
+    # the advice to call again was for that turn: its recap leaves it out (audit 14 agentif LOW-2)
     assert updates[1].splitlines()[1] == ("Your last turn: Done: pay (n=5). Done: pay (n=2). Then: pay was not done: "
-                                          "n must be at most 5 (got 50). Correct the arguments and call again.")
+                                          "n must be at most 5 (got 50).")
 
 
 def test_a_tool_schema_lists_each_choice_once_and_no_default_the_call_would_refuse():

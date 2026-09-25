@@ -175,9 +175,11 @@ class _Forfeit(Exception):
     """A provider call still failed after its retries, or its prompt is longer than the model takes (``too_long``):
     the turn is lost, not the run."""
 
-    def __init__(self, too_long: bool = False):
+    def __init__(self, cause: BaseException, too_long: bool = False):
         super().__init__()
         self.too_long = too_long
+        #: What the provider answered, for the run's diagnostics.
+        self.cause = f"{type(cause).__name__}: {str(cause)[:160]}"
 
 
 class _Over(Exception):
@@ -254,7 +256,7 @@ class _LLMParticipant:
             try:
                 self._turn(wake)
             except _Forfeit as lost:
-                self._record(wake, forfeits=1, too_long=int(lost.too_long))
+                self._record(wake, error=lost.cause, forfeits=1, too_long=int(lost.too_long))
                 return  # returning ends a forfeited turn: an end_turn of its own would count as a call it never made
             except _Over:
                 pass
@@ -306,11 +308,11 @@ class _LLMParticipant:
                 raise
             except Exception as exc:
                 if too_long(exc):
-                    raise _Forfeit(too_long=True) from exc
+                    raise _Forfeit(exc, too_long=True) from exc
                 if not retryable(exc):
                     raise self._failure(wake, exc) from exc
                 if attempt >= self.retries:
-                    raise _Forfeit() from exc
+                    raise _Forfeit(exc) from exc
                 self._record(wake, llm_retries=1)
                 left = _time_left(wake)
                 time.sleep(backoff(attempt, exc) if left is None else min(backoff(attempt, exc), left))
@@ -355,10 +357,10 @@ class _LLMParticipant:
     def _failure(self, wake: Wake, exc: BaseException) -> RunError:
         return RunError(provider_failure(exc, self.CALL, self.CLIENT, self.model), f"participant:{wake.entity_id}")
 
-    def _record(self, wake: Wake, **counts: int) -> None:
+    def _record(self, wake: Wake, error: str = "", **counts: int) -> None:
         if counts.get("llm_calls"):
             self._last_cost = tokens_of(Stats(**{name: counts.get(name, 0) for name in _TOKEN_COUNTS}))
-        wake.record_usage(**counts)
+        wake.record_usage(**counts, error=error)
         mapping = {"llm_calls": "calls", "llm_retries": "retries"}
         with self._usage_lock:
             for name, value in counts.items():

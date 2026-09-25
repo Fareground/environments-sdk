@@ -88,16 +88,28 @@ def quoted(text: str) -> str:
 
 
 def visible(text: str) -> str:
-    """``text`` with every control or invisible format character (a terminal escape, NUL, a right-to-left override, a
-    tag character; a tab is a space) shown as its code, ``\\u202e``: the same escape JSON reads, so it can be applied
-    to a JSON document too. Letters, line breaks and the joiners scripts and emoji need stay as they are."""
-    return "".join(_visible(char) for char in text) if _UNUSUAL.search(text) else text
+    """``text`` with every invisible character — a control or format character (a terminal escape, NUL, a
+    right-to-left override, a tag character; a tab is a space) or a variation selector, which marks nothing a reader
+    sees — shown as its code, ``\\u202e``: the same escape JSON reads, so it can be applied to a JSON document too.
+    Letters, line breaks, the joiners scripts and emoji need, and the selector that shows a symbol as an emoji (``❤️``)
+    stay as they are."""
+    if not _UNUSUAL.search(text):
+        return text
+    return "".join(_visible(char, text[at - 1] if at else "") for at, char in enumerate(text))
 
 
-def _visible(char: str) -> str:
+def _selector(char: str, before: str) -> bool:
+    """Whether ``char`` is a variation selector that marks nothing: all but the emoji one after a symbol."""
+    code = ord(char)
+    if 0xE0100 <= code <= 0xE01EF or 0xFE00 <= code <= 0xFE0E:
+        return True
+    return code == 0xFE0F and not (before and unicodedata.category(before) in ("So", "Sk", "Nd") or before == "#")
+
+
+def _visible(char: str, before: str = "") -> str:
     if char == "\t":
         return " "
-    if char in _KEPT or unicodedata.category(char) not in ("Cc", "Cf"):
+    if char in _KEPT or (unicodedata.category(char) not in ("Cc", "Cf") and not _selector(char, before)):
         return char
     code = ord(char)
     if code <= 0xFFFF:

@@ -205,3 +205,21 @@ def test_experiments_run_jobs_and_tournaments_take_a_turn_time_limit():
 def test_a_bad_time_limit_raises_before_anything_runs(bad):
     with pytest.raises(ValueError, match="time_limit must be a number of seconds"):
         fg_env.experiment(GAME, runs=1, time_limit=bad)
+
+
+def test_the_next_turn_is_told_its_time_ran_out_not_that_it_took_no_action():
+    """(audit 14 agentif LOW-3)"""
+    release, updates = threading.Event(), []
+
+    def participant(wake):
+        if wake.entity_id == "ann":
+            updates.append(wake.update)
+            if len(updates) == 1:
+                release.wait(10)  # the first turn runs out of time
+        wake.end()
+
+    try:
+        fg_env.load(GAME, seed=1).run(participant, time_limit=LIMIT)
+    finally:
+        release.set()
+    assert "Your last turn: Your time ran out before you took an action." in updates[1]

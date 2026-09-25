@@ -115,8 +115,9 @@ def _forfeits(env: Env) -> list[dict[str, str]]:
     if failed:
         out.append(_finding("turns_forfeited", "participants",
                             f"{sum(failed.values())} turn(s) were forfeited because the model provider still failed "
-                            f"after every retry ({', '.join(f'{agent} {count}' for agent, count in failed.items())}); "
-                            "those agents did nothing in them, so this run does not show how they play",
+                            f"after every retry ({', '.join(f'{agent} {count}' for agent, count in failed.items())}"
+                            + (f"; it last answered {env.state.provider_error}" if env.state.provider_error else "")
+                            + "); those agents did nothing in them, so this run does not show how they play",
                             "rerun when the provider is healthy, or give the participant more `retries`"))
     if long:
         out.append(_finding("turns_forfeited", "participants",

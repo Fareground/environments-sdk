@@ -308,6 +308,10 @@ worlds stay fast, and the package is organised by feature.
     chose for each argument, and judges whether an output varied among random agents' runs alone (idle agents leave
     it at its default): a revision that narrows a bound to one value, cuts an enum to one, or restricts an action or
     a stage to the first round is found like any other gutting, and the earlier revision stays (agentif MEDIUM-A1).
+  - LLM interface polish (agentif LOWs): a variation selector that marks nothing is escaped like any invisible
+    character (the emoji one after a symbol stays); a turn's recap leaves out the advice to call again, which was
+    for that turn; a turn that ran out of time is recapped as such; `turns_forfeited` names what the provider last
+    answered (`Wake.record_usage` takes it as `error`).
   - **A contract's `name` is optional** (mech H1): left out, a contract read from a file is named after the file, any
     other `Environment`; so every mechanism reference example works as pasted. The judge and game-master examples
     declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract

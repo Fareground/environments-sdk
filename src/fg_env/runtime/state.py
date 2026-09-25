@@ -145,6 +145,9 @@ class RunState:
         self.staged: list[Turn] = []
         #: How many of the log's events have been handed to the run's ``on_event`` callback.
         self.emitted = 0
+        #: What a model provider last answered when a turn was forfeited (see :meth:`Wake.record_usage`): the run's
+        #: diagnostics name it, a 429 told apart from an outage.
+        self.provider_error = ""
         #: Spectator views rendered at the end of every round, the last one marked final (see information/core.py).
         self.frames: list[dict[str, Any]] = []
         #: The run's statistics and what it notices about its own rules: folds over its facts (see runtime/facts.py).

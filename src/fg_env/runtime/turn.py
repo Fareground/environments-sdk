@@ -336,7 +336,8 @@ class Turn:
         took none says that (a sealed turn's choices are told as they commit)."""
         refused = self._refused_after
         if refused is None:  # a turn that took no action (passed, forfeited, out of time) says so too
-            return " ".join(self._done) or (None if self.staged else "You took no action.")
+            idle = "Your time ran out before you took an action." if self.timed_out else "You took no action."
+            return " ".join(self._done) or (None if self.staged else idle)
         return " ".join([*self._done, f"Then: {refused}"]) if self._done else refused
 
     def _outcome(self, result: ToolResult) -> None:
@@ -345,7 +346,7 @@ class Turn:
             self._done.append(result.text)
             self._refused_after = None
         elif result.data.get("error") != "undone":  # an undone turn is told by what undid it (:meth:`_undone`)
-            self._refused_after = result.text
+            self._refused_after = _recapped(result.text)
 
     def _undo_outcome(self, why: str) -> None:
         """The turn's actions were undone: what they returned no longer holds."""
@@ -677,6 +678,18 @@ def _read_argument(args: Mapping[str, Any] | None, tool: str, name: str, what: s
         wrong = ", ".join(f"`{key}`" for key in others)
         return None, f"{tool} takes one argument, `{name}` ({what}), not {wrong}: call it again with `{name}`."
     return given.get(name), ""
+
+
+#: Advice a refusal gives for the turn it happens in, which a later turn's recap of it leaves out.
+_IN_TURN = (RETRY, " Correct the arguments and call again.",
+            " Call again with the arguments as one JSON object of named values.")
+
+
+def _recapped(text: str) -> str:
+    """A refusal as the next turn recaps it: without the advice to call again, which was for its own turn."""
+    for advice in _IN_TURN:
+        text = text.removesuffix(advice)
+    return text
 
 
 def entity_dict(entity: Entity) -> dict[str, Any]:

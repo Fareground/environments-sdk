@@ -58,6 +58,7 @@ def test_only_retries_that_run_out_forfeit_the_turn_and_a_diagnostic_says_so():
     assert result.stats["forfeits"] == 1 and result.stats["llm_retries"] == 2
     [found] = [d for d in result.diagnostics if d["code"] == "turns_forfeited"]
     assert "1 turn" in found["message"] and "shopper_1 1" in found["message"] and "retries" in found["fix"]
+    assert "it last answered Flaky" in found["message"]  # a 429 told apart from an outage (audit 14 agentif LOW-4)
     clean = fg_env.load(SHOP, seed=1, inputs=ONE_SHOPPER).run(participants.anthropic(FakeAnthropic([]), "m"), rounds=1)
     assert not [d for d in clean.diagnostics if d["code"] == "turns_forfeited"]
 
