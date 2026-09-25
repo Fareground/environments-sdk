@@ -234,6 +234,10 @@ worlds stay fast, and the package is organised by feature.
     loop, breaking the promise that one agent's actions never shift another's luck. Runs that draw inside a loop
     within a larger block draw differently (six example goldens changed: epidemic_shocks, town_epidemic, hangman_duel,
     wordle_duel, misinformation, ride_hailing).
+  - A parameter field its type does not use is a check error at its path: `values` outside enum and list, `where`
+    and `of` outside entity and list (and `where` on a list whose items are not entities), `min`/`max`/`step` outside
+    number and int, `max_len` outside text, list and file fields elsewhere, and `of`/`values`/`where` beside a list's
+    `items`. Before, they were silently ignored, so `{"type": "int", "values": [1, 2, 3]}` accepted 7.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

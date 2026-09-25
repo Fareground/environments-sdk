@@ -318,3 +318,37 @@ def test_a_validation_message_is_the_validators_own_words_without_pydantics_pref
     ballot = {**contract, "events": [], "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "p",
                                                              "options": ["a", "b"], "threshold": 2}}}
     assert not [i for i in fg_env.check(ballot) if "error," in i.message or "failed," in i.message]
+
+
+# -- a parameter field its type does not use is an error, never silently ignored -------------------------------------
+
+
+def _param_contract(param):
+    return {"name": "Params", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True, "props": {"n": 0}}},
+            "entities": {"ann": {"type": "p"}, "bob": {"type": "p"}},
+            "stages": [{"name": "s"}],
+            "actions": {"pick": {"by": "p", "description": "pick", "params": {"x": param}, "do": []}}}
+
+
+def test_a_parameter_field_its_type_ignores_is_an_error_at_its_path():
+    cases = [({"type": "int", "values": [1, 2, 3]}, "values"),
+             ({"type": "text", "values": ["x", "y"]}, "values"),
+             ({"type": "int", "min": 0, "max": 9, "where": "$it != 7"}, "where"),
+             ({"type": "enum", "values": ["a", "b"], "where": "$it != 'a'"}, "where"),
+             ({"type": "list", "values": ["a", "b"], "where": "$it != 'a'"}, "where"),
+             ({"type": "int", "max_len": 5}, "max_len"),
+             ({"type": "text", "of": "p"}, "of"),
+             ({"type": "number", "min_items": 1}, "min_items"),
+             ({"type": "list", "items": {"type": "enum", "values": ["a"]}, "values": ["b"]}, "values")]
+    for param, field in cases:
+        errors = _errors(_param_contract(param), rounds=0)
+        assert [e.path for e in errors] == [f"actions.pick.params.x.{field}"], (param, errors)
+
+
+def test_parameter_fields_on_the_types_that_use_them_pass():
+    for param in ({"type": "enum", "values": ["a", "b"]}, {"type": "entity", "of": "p", "where": "$it.id != $actor.id"},
+                  {"type": "list", "of": "p", "where": "$it.n >= 0", "max_items": 2},
+                  {"type": "list", "values": ["a", "b"]}, {"type": "text", "max_len": 20},
+                  {"type": "int", "min": 0, "max": 5, "step": 1}):
+        assert _errors(_param_contract(param), rounds=0) == [], param

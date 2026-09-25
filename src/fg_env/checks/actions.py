@@ -28,6 +28,11 @@ BUILT_IN_TOOLS = (*READS, END_TURN)
 #: The tool names model providers accept (Anthropic and OpenAI alike).
 _PROVIDER_NAME = re.compile(r"[a-zA-Z0-9_-]{1,64}")
 _TURNS = ("sequential", "simultaneous")
+#: The parameter types each optional field applies to (on any other it would be ignored).
+_PARAM_FIELDS = {"of": ("entity", "list"), "where": ("entity", "list"), "values": ("enum", "list"),
+                 "min": ("number", "int"), "max": ("number", "int"), "step": ("number", "int"), "max_len": ("text",),
+                 "items": ("list",), "min_items": ("list",), "max_items": ("list",), "kinds": ("file",),
+                 "max_bytes": ("file",)}
 
 
 class ActionChecks(EffectChecks):
@@ -65,10 +70,7 @@ class ActionChecks(EffectChecks):
                     self.value(param.values, f"{ppath}.values", BASE | {"actor", "params"}, types, spec.params)
                 for key in ("min", "max", "default"):
                     self.value(getattr(param, key), f"{ppath}.{key}", BASE | {"actor", "params"}, types, spec.params)
-                if param.type not in ("number", "int") and (param.min is not None or param.max is not None):
-                    self.error(ppath, "min/max apply to number and int parameters")
-                if param.step is not None and param.type not in ("number", "int"):
-                    self.error(f"{ppath}.step", "step applies to number and int parameters")
+                self._unused_fields(param, ppath)
             check_param_bounds(self, path, spec)
             for index, condition in enumerate(spec.when):
                 self.condition(condition.expr, f"{path}.when[{index}]", BASE | {"actor", "params"}, types, spec.params)
@@ -91,6 +93,30 @@ class ActionChecks(EffectChecks):
                               BASE | {"actor", "params", "value"}, types, spec.params)
             if not any(name in _stage_action_names(s, self.c) for s in self.c.stage_list()):
                 self.warn(path, "is not available in any stage", "add it to a stage's `actions`")
+
+    def _unused_fields(self, param: C.ParamSpec, ppath: str) -> None:
+        """A field the parameter's type does not use would be ignored — an int's `values` would let 7 through — so it
+        is an error at its path; the same for a list's items."""
+        entity_items = param.type == "list" and (param.of is not None if param.items is None
+                                                 else param.items.type == "entity")
+        for key, kinds in _PARAM_FIELDS.items():
+            if getattr(param, key) is None or param.type in kinds:
+                continue
+            fix = {"values": "for a fixed set of choices use type enum", "where": "filter entities with type entity "
+                   "(or a list `of` an entity type); refuse other values with a `when` or a `fail`"}.get(key)
+            self.error(f"{ppath}.{key}", f"applies to {' and '.join(kinds)} parameters, so this {param.type} "
+                                         "parameter would ignore it", fix)
+        if param.type == "list" and param.items is not None:
+            for key in ("of", "values", "where"):
+                if getattr(param, key) is not None:
+                    self.error(f"{ppath}.{key}", "a list with `items` reads it from its items, so it would be ignored "
+                                                 "here", f"move it into `items` ({{\"items\": {{..., \"{key}\": ...}}}})")
+            if param.items.type in C.PARAM_TYPES and param.items.type != "list":
+                self._unused_fields(param.items, f"{ppath}.items")
+        elif param.type == "list" and param.where is not None and not entity_items:
+            self.error(f"{ppath}.where", "filters entities, and this list's items are not entities, so it would be "
+                                         "ignored", "give the list `of` an entity type, or refuse other values with a "
+                                                    "`when` or a `fail`")
 
     def _undecided_by_luck(self, spec: C.ActionSpec, path: str) -> None:
         """Nothing that decides whether a call is allowed, or what its arguments may be, draws at random: the engine
