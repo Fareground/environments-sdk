@@ -14,7 +14,8 @@ once the loss passes ``stop_loss`` × volatility (clamped to 2–15%) of the pos
 
 * ``market_maker`` — requotes both sides around a reference price it learns from order flow (last round's net
   aggressive flow moves it by up to ``impact`` volatilities, and it leans toward the last trade), skews on inventory,
-  widens with the book's ``volatility`` and with how one-sided (toxic) recent flow was, and hedges with a market
+  widens with the book's ``volatility`` and with how one-sided (toxic) recent flow was, quotes at least its share of
+  one side of last round's crowd flow (``base_qty`` × ``quote_mult`` at the least), and hedges with a market
   order past its inventory limit. It prices by the configured volatility, not the tape's: a measured one would
   include its own bid-ask bounce and feed back into ever wider quotes.
 * ``momentum`` — buys strength and sells weakness over a lookback; closes when the trend fades.
@@ -218,9 +219,11 @@ def _market_maker(v: _View, p: dict[str, float], rng: Any) -> None:
         imbalance = net / (gross + v.base)  # -1 (everyone sold) … 1 (everyone bought); a trickle counts less
         state["ref"] = ref * math.exp(v.assumed * p["impact"] * imbalance)
         state["toxicity"] = (1 - TOXICITY_MEMORY) * abs(imbalance) + TOXICITY_MEMORY * float(state.get("toxicity", 0.0))
+        state["depth"] = gross / (2 * _makers(v))  # its share of one side of last round's flow
         state["seen"] = v.world.round
     centre_price = float(state["ref"])
-    quote_qty = max(v.lot, v.base * p["quote_mult"])
+    # Quotes deep enough for its share of the crowd's flow, so a big crowd does not take one side of the book away.
+    quote_qty = max(v.lot, v.base * p["quote_mult"], p["quote_mult"] * float(state.get("depth", 0.0)))
     limit = max(quote_qty, v.base * p["inventory_mult"])
     half = max(1.0, p["half_spread_ticks"] + v.assumed * centre_price / v.tick * p["vol_mult"]) \
         * (1 + p["toxicity_mult"] * state["toxicity"])
@@ -240,6 +243,12 @@ def _market_maker(v: _View, p: dict[str, float], rng: Any) -> None:
         size = quote_qty * (1.0 + 0.6 * layer)
         v.order("buy", size * _clamp(1.0 - load, 0.25, 1.75), round(bid_t * v.tick, 10))
         v.order("sell", size * _clamp(1.0 + load, 0.25, 1.75), round(ask_t * v.tick, 10))
+
+
+def _makers(v: _View) -> int:
+    """How many of the crowd's market makers share the flow (at least one: this one)."""
+    kind = f"{v.name}_market_maker"
+    return max(1, len(v.world.entities_of(kind))) if kind in v.world.contract.types else 1
 
 
 def _outside_flow(v: _View) -> tuple[float, float]:

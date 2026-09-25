@@ -999,3 +999,17 @@ def test_an_authors_syntax_error_in_a_mechanism_field_is_reported_at_the_field_n
     issues = [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
     assert [i.path for i in issues] == ["mechanisms.m.outcome"]
     assert "bug" not in issues[0].message + (issues[0].fix or "")
+
+
+def test_market_makers_quote_for_a_big_crowds_flow_so_the_book_keeps_both_sides():
+    """160 coded traders and 2 market makers: quotes sized only by base_qty were taken away on one side most rounds."""
+    crowd = {"market_maker": {"count": 2, "cash": 100000, "shares": 1000},
+             **{kind: {"count": 40, "cash": 5000, "shares": 50}
+                for kind in ("noise", "momentum", "fundamentalist", "mean_reversion")}}
+    c = {"fg_env": "2", "name": "T", "clock": {"rounds": 20},
+         "types": {"trader": {"agent": True, "props": {"cash": 1000}}}, "entities": {"me": {"type": "trader"}},
+         "mechanisms": {"x": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 100,
+                              "crowd": crowd}}}
+    spreads = [spread for seed in (1, 2)
+               for spread in fg_env.load(c, seed=seed, events=False).run({"trader": "idle"}).series["x_spread"]]
+    assert sum(spread is None for spread in spreads) < len(spreads) / 3

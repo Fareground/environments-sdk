@@ -275,6 +275,9 @@ worlds stay fast, and the package is organised by feature.
     as "beyond the exact whole-number range". Before, `$x * $x` was refused as "must be a whole number, got
     100000000000000000000000000000000" (a whole number), and `1e17 + 1` was stored as 1e17 without a word. A whole
     number too large to meet a fraction fails with that reason, not a raw `OverflowError`.
+  - A crowd's market makers quote at least their share of one side of last round's crowd flow. Before, their quotes
+    were sized by `base_qty` alone, so a large crowd emptied one side of the book at most round ends (100 traders,
+    2 makers: 54 of 90; 1,000 and 10: 69 of 90; now 19 and 15).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
