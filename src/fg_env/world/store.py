@@ -304,7 +304,7 @@ class World(ExpressionWorld):
             self.space.positions.rebuild(self.entities.values())
 
     def rebuild_event_index(self) -> None:
-        self.record_events = RecordEvents(self.log, self.entry_by_seq, self.contract)
+        self.record_events = RecordEvents(self.log, self.entry_by_seq, self.contract, self.record_seq)
 
     def rebuild_record_index(self) -> None:
         self.record_authors = RecordAuthors(
@@ -582,7 +582,8 @@ class World(ExpressionWorld):
             for old in dropped:
                 self.entry_by_seq.pop(old["seq"], None)
                 self.record_authors.remove(record, old)
-        self.journal.push(("post", record, entry["seq"], dropped))
+        notices = self.record_events.drop(old["seq"] for old in dropped)  # nobody sees a dropped entry
+        self.journal.push(("post", record, entry["seq"], dropped, notices))
         if spec.notify:
             self.emit("record", "", actor=author, to=to, data={
                 "record": record, "entry": entry["seq"], "fields": {name: entry[name] for name in spec.fields}})

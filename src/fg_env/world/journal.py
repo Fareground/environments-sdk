@@ -11,6 +11,7 @@ dropped are kept as data, so an open journal is data about the world it undoes.
 """
 from __future__ import annotations
 
+import bisect
 import heapq
 import itertools
 from collections.abc import Callable, Iterator
@@ -199,7 +200,7 @@ def _unlink(world: World, op: Op) -> None:
 
 
 def _post(world: World, op: Op) -> None:
-    _, record, seq, dropped = op
+    _, record, seq, dropped, notices = op
     rows = world.records_store[record]
     for index in range(len(rows) - 1, -1, -1):  # a rolled-back entry sits near the end
         if rows[index]["seq"] == seq:
@@ -212,6 +213,10 @@ def _post(world: World, op: Op) -> None:
         world.entry_by_seq[old["seq"]] = old
     for old in reversed(dropped):
         world.record_authors.add(record, old, first=True)
+    log = world.log
+    for number in notices:  # the dropped entries' notifications, back in the index with them
+        at = bisect.bisect_left(log, number, key=lambda event: event.seq)
+        world.record_events.add(log[at], world.entry_by_seq)
     world.record_seq -= 1
 
 

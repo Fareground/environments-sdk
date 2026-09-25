@@ -282,6 +282,9 @@ worlds stay fast, and the package is organised by feature.
   - A record's field types are enforced by the rules a property of the type follows: a `number` field refuses
     `"cheap"`, an `int` field 2.5, and a `text` field no longer turns a map or a number into text quietly; the
     post fails with the field's path (M3).
+  - A record with `keep` indexes the notifications of the entries it keeps only (they were kept for every entry
+    ever posted), and an undo pops the newest notification from the end instead of scanning: 100 agents posting
+    for 500 rounds with `keep: 50` index 50 notifications instead of 29,000 (M4).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
