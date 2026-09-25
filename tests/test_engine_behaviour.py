@@ -386,7 +386,8 @@ def _swept_outputs(engine_id, name, value):
     engine = fg_env.engines.get(engine_id)
     path = Path(str(files("fg_env.engines").joinpath(engine.path)))
     inputs = {**_SWEEP_BASE.get(engine_id, {}), name: value}
-    seeds = (1,) if engine_id in ("retail", "exchange") else (1, 2, 3)  # the big engines' outputs move with anything
+    # The big engines' outputs move with anything; a hung jury, all a dispute's max_ballots decides, is rare.
+    seeds = (1,) if engine_id in ("retail", "exchange") else range(1, 7) if engine_id == "dispute" else (1, 2, 3)
     return [fg_env.load(path, inputs=inputs, seed=seed, arm=_SWEEP_ARM.get(engine_id))
             .run(rounds=_SWEEP_ROUNDS.get((engine_id, name))).outputs for seed in seeds]
 
