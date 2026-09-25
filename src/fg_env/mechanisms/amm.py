@@ -461,9 +461,13 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
     if (cfg.resolve_at is not None or cfg.resolve_when is not None) and cfg.outcome is None:
         raise MechanismError("resolving automatically needs `outcome`: an expression giving the winner", None,
                              "outcome")
-    if cfg.outcome is not None:
-        compile_expr(cfg.outcome)
-        if not is_expr(cfg.outcome) and cfg.outcome.strip() not in cfg.outcomes:
+    outcome = cfg.outcome
+    if outcome is not None:
+        compile_expr(outcome)
+        if not is_expr(outcome):  # a constant: the outcome itself, quoted ('yes') or not
+            text = outcome.strip()
+            outcome = text[1:-1] if len(text) > 1 and text[0] == text[-1] and text[0] in "'\"" else text
+        if not is_expr(outcome) and outcome not in cfg.outcomes:
             raise MechanismError(f"outcome '{cfg.outcome}' is not one of the outcomes",
                                  f"outcomes: {', '.join(cfg.outcomes)}; or an expression giving one ($world.truth)",
                                  "outcome")
@@ -536,7 +540,7 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
     }
     if cfg.resolve_at is not None or cfg.resolve_when is not None:
         event: dict[str, Any] = {"name": f"{name}_resolve", "phase": "end", "once": True,
-                                 "do": [{"market": name, "action": "resolve", "outcome": cfg.outcome}]}
+                                 "do": [{"market": name, "action": "resolve", "outcome": outcome}]}
         due = [f"$round >= ({cfg.resolve_at})" if cfg.resolve_at is not None else None,
                f"({cfg.resolve_when})" if cfg.resolve_when is not None else None]
         event["when"] = f"({' or '.join(term for term in due if term)}) and $world.{name}_resolved == ''"

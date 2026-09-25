@@ -325,6 +325,8 @@ worlds stay fast, and the package is organised by feature.
   - Every mechanism's reference example runs as pasted (with a `name`): the page shows it with its `who` type and
     two agents of it, from one function (`ModeSpec.reference`) the example tests use too, so the six examples that
     declared other types but not their `who` no longer fail (mechanism M5).
+  - A prediction market's `outcome` may be a quoted constant (`"'yes'"`), as it may be an expression giving one
+    (mechanism L2).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

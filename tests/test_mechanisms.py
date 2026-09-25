@@ -671,3 +671,12 @@ def test_a_ballot_nobody_touched_is_not_counted_even_the_first_time():
                 "outputs": {"result": "$world.v_result"}}
     result = fg_env.run(contract, "idle", seed=1)
     assert result.outputs["result"] == {} and not any("no votes" in (e.get("text") or "") for e in result.events)
+
+
+def test_a_prediction_market_outcome_may_be_a_quoted_constant():
+    """audit 13 mechanisms L2: `'yes'` is the expression giving yes, as `'yes' if … else 'no'` is one giving either."""
+    market = _forecast(outcome="'yes'", resolve_at=2)
+    assert [i for i in fg_env.check(market, rounds=0) if i.severity == "error"] == []
+    assert fg_env.run(market, "idle", seed=1).status == "completed"
+    assert [i.path for i in fg_env.check(_forecast(outcome="'maybe'"), rounds=0)
+            if i.severity == "error"] == ["mechanisms.m.outcome"]
