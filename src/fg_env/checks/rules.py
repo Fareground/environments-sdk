@@ -19,8 +19,9 @@ if TYPE_CHECKING:
 
 __all__ = ["RuleChecks"]
 
-#: The rounds a `when` fires on: one (`$round == 5`, `$round == $inputs.day`) or listed (`$round in [2, 4]`).
-_ON_ROUNDS = re.compile(r"\$round\s*(?:==\s*(\d+|\$inputs\.[A-Za-z_]\w*)|\s+in\s+(\[[\d,\s]*\]))")
+#: The rounds a `when` fires on: one (`$round == 5`, `$round == $inputs.day`), listed (`$round in [2, 4]`), or the
+#: first of those it may fire on (`$round >= 5`, as a prediction market's `resolve_at` is written).
+_ON_ROUNDS = re.compile(r"\$round\s*(?:(?:==|>=)\s*\(?(\d+|\$inputs\.[A-Za-z_]\w*)\)?|\s+in\s+(\[[\d,\s]*\]))")
 
 
 def scheduled_rounds(when: str | None) -> list[str]:
@@ -84,7 +85,7 @@ class RuleChecks(EffectChecks):
             return
         what = f"event '{name}'" if name else "this event"
         self.warn(path, f"{what} fires at round {min(planned)}, after the clock's last round {rounds}, so it never "
-                        "fires", f"use a round up to {rounds}, or lengthen clock.rounds")
+                        f"fires — in `{when}`", f"use a round up to {rounds}, or lengthen clock.rounds")
 
     def _policies(self) -> None:
         for owner, spec in self.c.types.items():

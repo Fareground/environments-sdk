@@ -39,7 +39,8 @@ from ..registry import FAMILIES, MechanismError, config_data, family_of_mode
 from ._common import raw_is_a
 from .expressions import bare_words, each_root, expression_fields
 
-__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES"]
+__all__ = ["expand_mechanisms", "merge_sections", "generated_summary", "separate_turns", "authored_slips", "FAMILIES",
+           "at_config"]
 
 _NAME = re.compile(r"[A-Za-z][A-Za-z0-9_]*$")
 
@@ -770,3 +771,74 @@ from ..effects.runner import EFFECT_OPS  # noqa: E402
 from ..registry import OPS  # noqa: E402
 
 assert not set(EFFECT_OPS) & set(OPS), "a registered op shadows a core effect"
+
+
+#: What an issue quotes of the expression it is about: `in \`…\``, or `expression: …` in its fix.
+_QUOTED = re.compile(r"`([^`]+)`|expression: (.+)$")
+
+
+def at_config(source: Mapping[str, Any], issues: Sequence[Issue]) -> list[Issue]:
+    """``issues``, each found in a part a mechanism generated and quoting an expression one of its config fields holds,
+    told at that field instead (``mechanisms.market.resolve_when``, not ``events[0].when``) with the field's own text
+    — the one place every mechanism's config expressions are reported where the author wrote them."""
+    uses = source.get("mechanisms")
+    if not isinstance(uses, Mapping) or not uses:
+        return list(issues)
+    fields = [(f"mechanisms.{name}.{field}", text) for name, use in uses.items() if isinstance(use, Mapping)
+              for field, text in _texts(use) if text.strip()]
+    out = []
+    for issue in issues:
+        quoted = [part for found in _QUOTED.finditer(f"{issue.message}\n{issue.fix or ''}") for part in found.groups()
+                  if part]
+        hit = next(((path, text) for path, text in fields if any(_quotes(part, text) for part in quoted)), None) \
+            if _generated(source, issue.path) else None
+        if hit is None:
+            out.append(issue)
+            continue
+        path, text = hit
+        message = issue.message.split(" — in `", 1)[0]
+        fix = issue.fix if issue.fix and "`" not in issue.fix and "expression: " not in issue.fix else None
+        out.append(Issue(path, f"{message} — in `{text}`", fix, issue.severity))
+    return out
+
+
+def _quotes(expression: str, text: str) -> bool:
+    """Whether a generated ``expression`` holds a config field's ``text``: a text anywhere, a number as a whole one."""
+    if text[:1].isdigit():
+        return re.search(rf"(?<![\w.]){re.escape(text)}(?![\w.])", expression) is not None
+    return text in expression
+
+
+def _texts(value: Any, prefix: str = "") -> list[tuple[str, str]]:
+    """Every text in a mechanism's config (texts first, then numbers, which a generated rule may hold as they are),
+    with its field path (``when``, ``listings.apples.seller``)."""
+    found = _strings(value, prefix)
+    return [pair for pair in found if not pair[1][:1].isdigit()] + [pair for pair in found if pair[1][:1].isdigit()]
+
+
+def _strings(value: Any, prefix: str = "") -> list[tuple[str, str]]:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return [(prefix, str(value))] if prefix else []
+    if isinstance(value, str):
+        return [(prefix, value)] if prefix else []
+    if isinstance(value, Mapping):
+        return [found for key, inner in value.items() if not (not prefix and key in ("kind", "mode"))
+                for found in _strings(inner, f"{prefix}.{key}" if prefix else str(key))]
+    if isinstance(value, list):
+        return [found for n, inner in enumerate(value) for found in _strings(inner, f"{prefix}[{n}]")]
+    return []
+
+
+def _generated(source: Mapping[str, Any], path: str) -> bool:
+    """Whether ``path`` is in a part the author did not write (a mechanism generated it)."""
+    head = re.match(r"([A-Za-z_]+)(?:\[(\d+)\]|\.([^.\[]+))?", path)
+    if head is None:
+        return False
+    section, index, key = head.group(1), head.group(2), head.group(3)
+    written = source.get(section)
+    if index is not None:
+        return not isinstance(written, list) or int(index) >= len(written)
+    if key is not None and section not in ("mechanisms", "world", "inputs", "clock", "brief"):
+        return not isinstance(written, Mapping) or key not in written
+    return False
+

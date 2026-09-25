@@ -22,6 +22,7 @@ from .contract.normalize import normalize
 from .contract.normalize_state import macros_expanded
 from .errors import ContractError, Issue, RunError
 from .expr import ExprError
+from .mechanisms import at_config
 from .runtime.env import Env
 from .runtime.measure import RunResult
 from .sampling.seeds import mint_seed
@@ -374,7 +375,8 @@ def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, dat
             errors.extend(exc.issues)
         except RunError as exc:
             errors.append(run_issue(str(exc)))  # its text starts with its path
-    return errors + [i for i in issues if i.severity != "error"] + warnings_from_smoke
+    found = errors + [i for i in issues if i.severity != "error"] + warnings_from_smoke
+    return at_config(contract_source(contract), found) if contract is not None else found
 
 
 def apply_arm(contract: Contract, arm: str) -> Contract:
@@ -444,7 +446,8 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
     contract, issues = _check_all(source, data_dir)
     blocking = [i for i in issues if i.severity == "error" or strict]
     if blocking or contract is None:
-        raise ContractError(blocking or issues)
+        raise ContractError(at_config(contract_source(contract), blocking or issues) if contract is not None
+                            else blocking or issues)
     _warn_earlier_form(source, contract)
     merged: dict[str, Any] = {}
     unarmed = contract

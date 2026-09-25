@@ -612,3 +612,31 @@ def test_a_negative_ballot_weight_fails_the_count_naming_the_voter():
                                      "weight": "$it.shares"}}}
     result = fg_env.load(contract, seed=1).run("idle")
     assert result.status == "failed" and "a voter's weight must be a number ≥ 0, got -5 for a" in result.error
+
+
+def _forecast(**market):
+    return {"name": "Forecast", "clock": {"rounds": 3}, "world": {"truth": "yes"},
+            "types": {"f": {"agent": True, "props": {"cash": 100}}}, "entities": {"f": {"type": "f", "count": 2}},
+            "mechanisms": {"m": {"kind": "market", "mode": "prediction", "who": "f", "outcomes": ["yes", "no"],
+                                 "outcome": "$world.truth", **market}}}
+
+
+@pytest.mark.parametrize("market, field, quoted", [
+    ({"resolve_when": "round 2"}, "resolve_when", "round 2"),
+    ({"resolve_at": "two"}, "resolve_at", "two"),
+])
+def test_a_mechanism_configs_expression_is_reported_at_its_own_field_with_its_own_text(market, field, quoted):
+    """Not at the generated rule it became (`events[0].when`), nor quoting the generated wrapper around it."""
+    errors = [i for i in fg_env.check(_forecast(**market)) if i.severity == "error"]
+    assert [i.path for i in errors] == [f"mechanisms.m.{field}"] and errors[0].message.endswith(f"— in `{quoted}`")
+
+
+def test_a_prediction_market_resolving_after_the_clock_is_warned_about_at_resolve_at():
+    found = [i for i in fg_env.check(_forecast(resolve_at=10), rounds=0) if i.path == "mechanisms.m.resolve_at"]
+    assert found and found[0].severity == "warning" and "after the clock's last round 3" in found[0].message
+
+
+def test_an_auction_reserve_is_a_price_of_0_or_more():
+    auction = {**_forecast(), "mechanisms": {"m": {"kind": "market", "mode": "auction", "format": "first_price",
+                                                   "who": "f", "item": "x", "reserve": -5}}}
+    assert [i.path for i in fg_env.check(auction) if i.severity == "error"] == ["mechanisms.m.reserve"]

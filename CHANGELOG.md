@@ -313,6 +313,11 @@ worlds stay fast, and the package is organised by feature.
     the run failed), and naming the group is refused with the ids to use.
   - Percentages from mechanism configs are told with the digits they have (one helper): a 0.005 market-order collar
     reads "within 0.5%", not "0%", in the order book's tools and the exchange engine's seats.
+  - A problem with an expression a mechanism's config holds is reported at that field with its own text
+    (`mechanisms.market.resolve_when: syntax error … — in \`round 2\``), not at the generated rule it became and
+    its generated wrapper (`events[0].when`): one step, for every mechanism, re-attributes issues found in generated
+    parts. A prediction market's `resolve_at` past the clock is warned about (it never resolves), and an auction's
+    `reserve` must be 0 or more.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

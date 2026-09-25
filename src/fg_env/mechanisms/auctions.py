@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable, Mapping
-from typing import Any, Literal, cast
+from typing import Annotated, Any, Literal, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -77,8 +77,9 @@ class AuctionConfig(BaseModel):
                                          "many), and a double auction's sellers the units they hold.")
     units: int = Field(1, ge=1, description="Units in each lot (uniform; the last lot sells what is left), or the "
                                             "most units one bid or ask may carry (double).")
-    reserve: float | str = Field(0.0, description="Lowest acceptable price per unit (number or expression); with "
-                                                  "`reverse`, the highest the house pays.")
+    reserve: Annotated[float, Field(ge=0)] | str = Field(0.0, description="Lowest acceptable price per unit, 0 or "
+                                                                         "more (number or expression); with "
+                                                                         "`reverse`, the highest the house pays.")
     reverse: bool = Field(False, description="first_price / second_price: a procurement tender: the `house` buys, the "
                                              "lowest offer wins and is paid (its offer, or the second-lowest).")
     deliver_from: str | None = Field(None, description="reverse: the bidders' property holding their stock; the "
@@ -152,7 +153,10 @@ def _house_stock(cfg: AuctionConfig) -> bool:
 
 
 def _reserve(world: Any, name: str, cfg: AuctionConfig) -> float:
-    return number_of(world, cfg.reserve, f"mechanisms.{name}.reserve")
+    reserve = number_of(world, cfg.reserve, f"mechanisms.{name}.reserve")
+    if reserve < 0:
+        raise RunError(f"the reserve is a price, 0 or more, got {fmt(reserve, 4)}", f"mechanisms.{name}.reserve")
+    return reserve
 
 
 def min_bid(world: Any, name: str) -> float:
