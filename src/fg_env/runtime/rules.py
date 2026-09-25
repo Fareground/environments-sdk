@@ -28,7 +28,6 @@ from ..errors import FatalRunError, InvariantViolation, RunError
 from ..expr import EVERYONE, ExprError, compile_expr, item_conditions, shared_budget, truthy
 from ..expr.objects import Entity
 from ..world.abort import Abort, OutOfBounds
-from ..world.values import plain_value
 from .events import Events
 from .facts import Faulted
 
@@ -235,11 +234,11 @@ class Rules:
             try:
                 if not truthy(compile_expr(end.when)(scope)):
                     continue
-                winner = plain_value(compile_expr(end.winner)(scope)) if end.winner else None
+                winner = compile_expr(end.winner)(scope) if end.winner else None
                 text = self.information.render(end.say, {}, viewer=EVERYONE) if end.say else ""  # the run's last news
             except ExprError as exc:
                 raise RunError(str(exc), path) from None
-            world.request_end(end.name or f"end_{index}", winner, text)
+            world.request_end(end.name or f"end_{index}", winner, text, f"{path}.winner")
             return
 
     # -- actions -------------------------------------------------------------------------------------------------

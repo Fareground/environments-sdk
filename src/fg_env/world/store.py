@@ -20,6 +20,7 @@ from ..expr import ExprError
 from ..expr import World as ExpressionWorld
 from ..expr.hidden import Hidden
 from ..expr.objects import Entity
+from ..expr.template import format_value
 from ..patterns.runtime import PatternRuntime
 from ..physics.model import CompiledExpr, PhysicsModel
 from ..sampling.seeds import SeedTree
@@ -178,6 +179,38 @@ class World(ExpressionWorld):
         if isinstance(entity_id, Entity):
             return entity_id
         return self.entities.get(entity_id) if isinstance(entity_id, str) else None
+
+    def named(self, value: Any, where: str, what: str = "an entity") -> Entity:
+        """The entity ``value`` names — an entity, or the id of one — or an error saying what it is instead: every id a
+        rule names (a recipient, a link's end, a party to a transfer …) is one of the world's entities, never a write
+        that silently goes nowhere."""
+        found = self.entity(value)
+        if found is not None:
+            return found
+        if isinstance(value, str):
+            named = next((e for e in self.entities.values() if e.name == value), None) if value else None
+            hint = (f"; '{value}' is the name of {named.id}: name the entity itself (`$params.who`, not "
+                    "`$params.who.name`)") if named is not None else ""
+            raise RunError(f"expected {what}, but no entity has the id '{value}'{hint}", where)
+        raise RunError(f"expected {what}, got {format_value(value)}", where)
+
+    def named_all(self, value: Any, where: str, what: str = "entities") -> tuple[Entity, ...]:
+        """:meth:`named` of one entity or of each in a list."""
+        if isinstance(value, (list, tuple)):
+            return tuple(self.named(item, where, what) for item in value)
+        return (self.named(value, where, what),)
+
+    def winner(self, value: Any, where: str) -> Any:
+        """What an `end` names as its winner, as plain data: an entity's id, a side's name (text), a list of those, or
+        None; anything else is an error."""
+        if value is None or isinstance(value, str):
+            return value
+        if isinstance(value, Entity):
+            return value.id
+        if isinstance(value, (list, tuple)) and all(isinstance(item, (Entity, str)) for item in value):
+            return [item.id if isinstance(item, Entity) else item for item in value]
+        raise RunError(f"a winner is an entity, a list of entities or a side's name (text), got "
+                       f"{format_value(value)}", where)
 
     def hides(self, owner: Any, prop: str, agent: Any) -> bool:
         if owner is self.evaluation.props_view:
@@ -504,11 +537,14 @@ class World(ExpressionWorld):
             raise Abort(f"{entity.name} {what}: {full}.")
 
     def link(self, kind: str, a: Any, b: Any, value: Any, where: str, fields: dict[str, Any] | None = None) -> None:
-        """Create or update a link (``value`` None keeps the current value; see :func:`links.link`)."""
-        _links.link(self, kind, a, b, value, where, fields)
+        """Create or update a link between two entities (``value`` None keeps the current value; see
+        :func:`links.link`)."""
+        _links.link(self, kind, self.named(a, where, "a link's `from` entity"),
+                    self.named(b, where, "a link's `to` entity"), value, where, fields)
 
     def unlink(self, kind: str, a: Any, b: Any, where: str) -> None:
-        _links.unlink(self, kind, a, b, where)
+        _links.unlink(self, kind, self.named(a, where, "a link's `from` entity"),
+                      self.named(b, where, "a link's `to` entity"), where)
 
     def set_link_field(self, view: Link, name: str, value: Any, where: str) -> None:
         _links.set_link_field(self, view, name, value, where)
@@ -601,9 +637,10 @@ class World(ExpressionWorld):
         self.journal.push(("wake", entity_id, entity_id in self.wake_requests, self.wake_requests.get(entity_id)))
         self.wake_requests[entity_id] = why
 
-    def request_end(self, name: str, winner: Any, text: str) -> None:
+    def request_end(self, name: str, winner: Any, text: str, where: str = "end") -> None:
+        """End the run (the first request stands), naming its ``winner`` (see :meth:`winner`)."""
         if self.end_request is None:
-            self.end_request = {"name": name, "winner": winner, "text": text}
+            self.end_request = {"name": name, "winner": self.winner(winner, where), "text": text}
             self.journal.push(("end",))
 
     def add_to_brief(self, entity_id: str, line: str) -> None:

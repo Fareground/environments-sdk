@@ -261,6 +261,12 @@ worlds stay fast, and the package is organised by feature.
     default move `"when": "not $acted"` can say who passed, and a `$timed_out` forfeit no longer fails the run when
     a participant runs out of time), `$it` on a creation or removal. One table of what each anchor binds
     (`fg_env.contract.anchor_roots`) is what the checker allows and what the run binds (H4).
+  - Every id an effect names is one of the world's entities, or the effect fails: a `post`/`emit` recipient, a
+    `link`/`unlink` end, what `wake` wakes, an entry's `author`, a transfer's parties, what is moved or removed. A
+    recipient that was an entity's name (`$params.who.name`) used to reach nobody, and a link to it stored an edge
+    no neighbour read found; now the action is refused and the error names the entity meant. A literal id of no
+    entity is a check error in every one of these fields, list items included (H2). An `end`'s `winner` is an
+    entity, a list of them or a side's name, and nothing else (L4).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

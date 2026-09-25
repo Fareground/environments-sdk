@@ -12,7 +12,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
-__all__ = ["CONDITION", "EFFECT_FIELDS", "READ_ONLY", "Shape", "misshapen"]
+__all__ = ["CONDITION", "EFFECT_FIELDS", "ENTITY_KEYS", "READ_ONLY", "Shape", "misshapen"]
 
 #: Why no rule assigns an entity's built-in fields (id, name, type, alive, at), and what changes them instead.
 READ_ONLY = ("`create` gives the id and name, `move` changes at and `remove` ends alive; keep anything else in a "
@@ -52,27 +52,37 @@ FLAG = Shape("true or false", (bool,))
 NAMES = Shape("a list of names", (list,))
 BRANCHES = Shape("a list of branches, or the name of a draw", (list, str))
 VALUE = Shape("a value")
+#: A field naming an entity (an expression giving one, or its id), and one naming one or a list of them: what they give
+#: is resolved to the world's entities as the effect runs, and a literal id is checked to be one (:data:`ENTITY_KEYS`).
+ENTITY = Shape("an entity")
+ENTITIES = Shape("an entity or a list of entities")
 
 #: Every core operation's fields and their shapes (a `post` also takes its record's fields, each any value).
 EFFECT_FIELDS: dict[str, dict[str, Shape]] = {
     "if": {"if": CONDITION, "then": EFFECTS, "else": EFFECTS},
     "each": {"each": ITEMS, "where": CONDITION, "do": EFFECTS, "as": NAME, "sync": FLAG},
     "create": {"create": NAME, "count": COUNT, "id": TEXT, "name": TEXT, "props": OBJECT, "at": VALUE, "as": NAME},
-    "remove": {"remove": VALUE},
-    "transfer": {"transfer": NAME, "from": VALUE, "to": VALUE, "amount": VALUE, "into": NAME},
-    "link": {"link": NAME, "from": VALUE, "to": VALUE, "value": VALUE, "props": OBJECT},
-    "unlink": {"unlink": NAME, "from": VALUE, "to": VALUE},
-    "move": {"move": VALUE, "to": VALUE},
-    "post": {"post": NAME, "to": VALUE, "author": VALUE, "delay": DELAY, "drop": CHANCE},
-    "emit": {"emit": NAME, "say": TEXT, "to": VALUE, "data": DATA, "delay": DELAY, "drop": CHANCE},
+    "remove": {"remove": ENTITIES},
+    "transfer": {"transfer": NAME, "from": ENTITY, "to": ENTITY, "amount": VALUE, "into": NAME},
+    "link": {"link": NAME, "from": ENTITY, "to": ENTITY, "value": VALUE, "props": OBJECT},
+    "unlink": {"unlink": NAME, "from": ENTITY, "to": ENTITY},
+    "move": {"move": ENTITY, "to": VALUE},
+    "post": {"post": NAME, "to": ENTITIES, "author": ENTITY, "delay": DELAY, "drop": CHANCE},
+    "emit": {"emit": NAME, "say": TEXT, "to": ENTITIES, "data": DATA, "delay": DELAY, "drop": CHANCE},
     "fail": {"fail": TEXT},
     "end": {"end": TEXT, "winner": VALUE, "say": TEXT},
     "after": {"after": ROUNDS, "do": EFFECTS},
-    "wake": {"wake": VALUE, "why": TEXT, "now": CONDITION, "actions": NAMES},
+    "wake": {"wake": ENTITIES, "why": TEXT, "now": CONDITION, "actions": NAMES},
     "repeat": {"repeat": COUNT, "while": CONDITION, "do": EFFECTS},
     "call": {"call": NAME, "with": OBJECT},
     "chance": {"chance": BRANCHES, "outcomes": VALUE, "weight": VALUE, "as": NAME, "do": EFFECTS},
 }
+
+#: The fields of each operation that name entities: the checker holds a literal id in one to an entity that can exist,
+#: and the runner resolves what one gives to the world's entities (``World.named``), or fails.
+ENTITY_KEYS: dict[str, tuple[str, ...]] = {
+    op: keys for op, fields in EFFECT_FIELDS.items()
+    if (keys := tuple(key for key, shape in fields.items() if shape in (ENTITY, ENTITIES)))}
 
 
 def misshapen(op: str, effect: Mapping[str, Any]) -> list[tuple[str, Shape]]:

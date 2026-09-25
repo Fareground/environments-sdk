@@ -70,34 +70,16 @@ _NOT_ASSIGNABLE = "can only assign to an entity's property, a link's field, $wor
 _NUMBERS = (int, float)
 
 
-def _to_ids(value: Any, where: str) -> tuple[str, ...] | None:
+def _to_ids(value: Any, world: World, where: str) -> tuple[str, ...] | None:
+    """The ids of the recipients ``value`` names (an entity, an id, or a list of them; None: no list given), each one
+    of the world's entities."""
     if value is None:
         return None
-    if isinstance(value, Entity):
-        return (value.id,)
-    if isinstance(value, str):
-        return (value,)
-    if isinstance(value, (list, tuple)):
-        out = []
-        for item in value:
-            if isinstance(item, Entity):
-                out.append(item.id)
-            elif isinstance(item, str):
-                out.append(item)
-            else:
-                raise RunError(f"recipients must be entities or ids, got {item!r}", where)
-        return tuple(out)
-    raise RunError(f"recipients must be entities or ids, got {value!r}", where)
+    return tuple(entity.id for entity in world.named_all(value, where, "a recipient entity"))
 
 
 def _entity(value: Any, world: World, where: str, what: str = "an entity") -> Entity:
-    if isinstance(value, str):
-        found = world.entities.get(value)
-        if found is not None:
-            return found
-    if isinstance(value, Entity):
-        return value
-    raise RunError(f"expected {what}, got {value!r}", where)
+    return world.named(value, where, what)
 
 
 def each_items(value: Any, world: World, where: str) -> list[Any]:
@@ -574,7 +556,7 @@ class EffectRunner:
         else:
             actor = vars.get("actor")
             author = actor.id if isinstance(actor, Entity) else None
-        to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
+        to = _to_ids(self._eval(effect.get("to"), vars), self.world, where) if "to" in effect else None
         read = {**vars, "viewer": self._entry_reader(effect["post"], author, to)}
         fields = {k: _plain_value(self._eval(v, read)) for k, v in effect.items() if k not in POST_KEYS}
         send(self.world, self._eval(effect["delay"], vars) if "delay" in effect else None,
@@ -594,7 +576,7 @@ class EffectRunner:
     def _op_emit(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         if self._dropped(effect, vars, where):
             return
-        to = _to_ids(self._eval(effect.get("to"), vars), where) if "to" in effect else None
+        to = _to_ids(self._eval(effect.get("to"), vars), self.world, where) if "to" in effect else None
         actor = vars.get("actor")
         data = self._eval(effect.get("data") or {}, vars)
         if not isinstance(data, dict):
@@ -616,7 +598,8 @@ class EffectRunner:
 
     def _op_end(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         winner = self._eval(effect.get("winner"), vars) if "winner" in effect else None
-        self.world.request_end(str(effect["end"]), _plain_value(winner), self._text(effect.get("say"), vars, EVERYONE))
+        self.world.request_end(str(effect["end"]), winner, self._text(effect.get("say"), vars, EVERYONE),
+                               f"{where}.winner")
 
     def _op_after(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         delay = self._eval(effect["after"], vars)
@@ -639,7 +622,7 @@ class EffectRunner:
         world.schedule(world.round + delay, effects, captured, f"{where}.do", owed=owed)
 
     def _op_wake(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-        woken = _to_ids(self._eval(effect["wake"], vars), where)
+        woken = _to_ids(self._eval(effect["wake"], vars), self.world, where)
         if not woken:
             return
         why = self.said(effect.get("why"), vars, woken) or "You were asked to act."  # what each woken agent is told

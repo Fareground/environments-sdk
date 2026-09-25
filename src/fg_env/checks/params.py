@@ -10,14 +10,12 @@ from difflib import get_close_matches
 from typing import Any
 
 from .. import contract as C
+from ..effects.shapes import ENTITY_KEYS
 from ..expr import is_expr
 from ..expr.template import format_value
 
 __all__ = ["check_param_bounds", "check_entity_literals"]
 
-#: Keys of core effect ops whose value names an entity.
-ENTITY_KEYS = {"transfer": ("from", "to"), "link": ("from", "to"), "unlink": ("from", "to"), "move": ("move",),
-               "remove": ("remove",), "wake": ("wake",)}
 #: Entity ids listed in a fix.
 _LISTED = 12
 
@@ -62,11 +60,13 @@ def check_entity_literals(checker: Any, op: str, effect: dict[str, Any], path: s
     generated = re.compile(r"(?:" + "|".join(re.escape(t) for t in stems) + r")_\d+") if stems else None
     for key in ENTITY_KEYS.get(op, ()):
         raw = effect.get(key)
-        if not isinstance(raw, str) or is_expr(raw) or "{" in raw or not raw.strip():
-            continue
-        if raw in contract.named_entities() or (generated is not None and generated.fullmatch(raw)):
-            continue
-        checker.error(f"{path}.{key}", f"'{raw}' is not an entity id", _entity_fix(contract, raw))
+        for index, item in enumerate(raw) if isinstance(raw, list) else [(None, raw)]:
+            if not isinstance(item, str) or is_expr(item) or "{" in item or not item.strip():
+                continue
+            if item in contract.named_entities() or (generated is not None and generated.fullmatch(item)):
+                continue
+            at = f"{path}.{key}" if index is None else f"{path}.{key}[{index}]"
+            checker.error(at, f"'{item}' is not an entity id", _entity_fix(contract, item))
 
 
 def _entity_fix(contract: C.Contract, raw: str) -> str | None:
