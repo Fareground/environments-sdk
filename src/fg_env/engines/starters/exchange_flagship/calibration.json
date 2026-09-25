@@ -74,7 +74,7 @@
     },
     "expected_orders": {"expr": "$inputs.substeps * $sum($map($keys($inputs.activity), $crowd_size($it) * $get($inputs.activity, $it)))", "description": "Order activations per bar."},
     "order_size": {"expr": "$max(1, $seed_stats().avg_volume / ($expected_orders() * 0.35))", "description": "Base order size that reproduces historical volume."},
-    "capital": {"expr": "$inputs.median_capital if $inputs.median_capital > 0 else $order_size() * $last($seed_bars()).close / 0.03", "description": "Median trader capital (an order is about 3% of it)."}
+    "default_capital": {"expr": "$order_size() * $last($seed_bars()).close / 0.03", "description": "The capital an order of the calibrated size is about 3% of."}, "capital": {"expr": "$inputs.median_capital if $inputs.median_capital > 0 else $default_capital()", "description": "Median trader capital (an order is about 3% of it)."}
   },
   "mechanisms": {
     "fundamental_shock": {"kind": "pattern", "mode": "noise", "sd": 1, "description": "The latent value's unit shock each pass (scaled by the event that moves it)."},

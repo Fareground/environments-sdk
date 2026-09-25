@@ -86,7 +86,7 @@
     "seed": {
       "type": "book_seed",
       "name": "Opening liquidity",
-      "props": {"cash": "$world.median_capital * 40", "demo_shares": "$round($world.median_capital * 40 / $world.start_price)"}
+      "props": {"cash": "$default_capital() * 40", "demo_shares": "$round($default_capital() * 40 / $world.start_price)"}
     }
   },
   "stages": [

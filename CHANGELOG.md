@@ -307,6 +307,9 @@ worlds stay fast, and the package is organised by feature.
     symbol, any case), and a card entity's or map's suit the same way; a suit that is none of the four, where every
     card in play is, is an error. Before, `'S'` as trump matched no card: the trump never won and any card followed
     suit.
+  - The exchange engine opens its book with liquidity sized for the orders it seeds (`$default_capital()`), whatever
+    `median_capital` its traders are given. Before, an ordinary `median_capital` (1,000 or 100,000) failed the run
+    in round 1 with "Not enough free cash".
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

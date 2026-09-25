@@ -208,3 +208,13 @@ def test_the_cli_lists_the_engines_and_new_clones_one_that_checks(tmp_path, caps
 def test_the_guide_map_lists_every_engine_with_how_to_start_from_it():
     page = fg_env.guide()
     assert "fg-env new --engine" in page and all(f"`{engine_id}`" in page for engine_id in ENGINE_IDS)
+
+
+@pytest.mark.parametrize("capital", [1000, 100_000])
+def test_the_exchange_opens_its_book_whatever_median_capital_traders_are_given(capital):
+    """The opening liquidity is sized for the orders it seeds, not from the traders' capital (audit 11 engines
+    HIGH-4): an ordinary `median_capital` failed the run in its first round."""
+    small = {"median_capital": capital, "participants": 20, "seed_bars": 20, "bars": 2, "substeps": 6}
+    result = fg_env.run(Path(fg_env.__file__).parent / "engines" / "starters" / "exchange_flagship.json", seed=1,
+                        inputs=small)
+    assert result.status == "completed", result.error
