@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - The author loop answers an edit path naming no part of the contract (`"."`) plainly instead of with an
+    `IndexError`, and a tool call missing an argument it sent under another name hears both ("it needs contract and
+    it has no raw").
   - Hearts reads "Turn 15 of 26" (the run) and "Hand 2 of 2, trick 2 of 13" (the stage) instead of a header "Trick 15
     of 26" beside a brief "Trick 2 of 13".
   - A diagnostic about turns out of time names the model calls retried after a rate limit or an overload, which is

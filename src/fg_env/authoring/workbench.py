@@ -525,10 +525,10 @@ def _arguments(params: dict[str, Any], arguments: str) -> tuple[dict[str, Any], 
     if not isinstance(args, dict):
         return {}, "its arguments must be a JSON object"
     missing = [p for p in params.get("required", []) if p not in args]
-    if missing:
-        return args, f"it needs {', '.join(missing)}"
     unknown = [p for p in args if p not in params["properties"]]
-    return args, f"it has no {', '.join(unknown)}" if unknown else ""
+    wrong = [f"it needs {', '.join(missing)}"] if missing else []
+    wrong += [f"it has no {', '.join(unknown)}"] if unknown else []  # a misnamed argument says which, beside the need
+    return args, " and ".join(wrong)
 
 
 def _edit(data: dict[str, Any], one: Any) -> str:
@@ -538,6 +538,9 @@ def _edit(data: dict[str, Any], one: Any) -> str:
         return 'an edit is {"path": "outputs.score", "value": <any JSON value>} (no value removes what is there)'
     path = one["path"]
     keys = [k for k in path.replace("[", ".").replace("]", "").split(".") if k]
+    if not keys:  # "." or "[]": no part of the contract
+        return (f"{path!r} names no part of the contract: give a path such as \"outputs.score\" (to replace the "
+                "whole contract, call write_contract)")
     parent: Any = data
     for depth, key in enumerate(keys[:-1]):
         parent = _child(parent, key)

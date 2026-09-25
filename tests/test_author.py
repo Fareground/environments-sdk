@@ -7,6 +7,7 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
+from fg_env.authoring.workbench import TOOLS, _arguments, _edit
 
 #: A working two-player game (take the last stone), the contract the scripted models write.
 WORKING = json.loads((Path(__file__).parent / "fixtures" / "duel.json").read_text())
@@ -431,3 +432,12 @@ def test_cli_caps_model_calls(tmp_path, monkeypatch, capsys):
 
     assert main(["author", "A game.", "--model", "openai:m", "--out", str(tmp_path / "g.json"), "--calls", "2"]) == 0
     assert "stopped: calls" in capsys.readouterr().out and len(client.sent) == 2
+
+
+def test_an_edit_path_naming_no_part_and_a_misnamed_argument_are_told_plainly():
+    """`"."` is answered as naming no part of the contract, not with an IndexError (audit 12 agentif B-L1), and a call
+    missing its argument under another name says both (B-L2)."""
+    assert "names no part of the contract" in _edit({"name": "x"}, {"path": ".", "value": 1})
+    write = next(tool for tool in TOOLS if tool["name"] == "write_contract")
+    assert _arguments(write["parameters"], '{"raw": 1}')[1] == "it needs contract and it has no raw"
+    assert _arguments(write["parameters"], '{"contract": {"name": ')[1].startswith("its arguments are not valid JSON")
