@@ -90,6 +90,12 @@
               "with": {"exhibit": "$pick(exhibit, $it.side != $actor.side and $it.status == offered and $it.defect != clean)", "grounds": "$pick(exhibit, $it.side != $actor.side and $it.status == offered and $it.defect != clean).defect", "argument": "The exhibit's own foundation shows the defect."}
             },
             {
+              "when": "$any(exhibit, $it.side != $actor.side and $it.status == offered and $it.claim >= 0.8)",
+              "chance": 0.3,
+              "do": "object",
+              "with": {"exhibit": "$pick(exhibit, $it.side != $actor.side and $it.status == offered and $it.claim >= 0.8)", "grounds": "prejudice", "argument": "Its prejudice to my client outweighs what it proves."}
+            },
+            {
               "when": "$count(exhibit, $it.side == $actor.side and $it.status == held) > 0",
               "do": "offer_exhibit",
               "with": {"exhibit": "$next_exhibit($actor)", "claimed_credibility": "$clamp($next_exhibit($actor).strength + 0.1, 0, 1)", "pitch": "This exhibit speaks for itself."}
@@ -494,7 +500,7 @@
     "admitted_exhibits": {"expr": "$map($filter(exhibit, $it.status == admitted), $it.name)", "type": "list"},
     "excluded_exhibits": {"expr": "$map($filter(exhibit, $it.status == excluded), $it.name)", "type": "list"},
     "objections_made": {"expr": "$world.objections", "type": "int"},
-    "objection_success_rate": {"expr": "$pct($world.sustained, $world.objections)", "type": "number", "description": "Share of objections sustained."},
+    "objection_success_rate": {"expr": "null if $world.objections == 0 else $pct($world.sustained, $world.objections)", "type": "number", "description": "Share of objections sustained (null when none was made)."},
     "net_admitted_strength": {"expr": "$sum(exhibit, $it.strength * $it.sign, $it.status == admitted)", "type": "number", "description": "Ground truth: plaintiff minus defense true strength of what the jury saw.", "series": true},
     "phases": {"expr": "$world.trial_history", "type": "list", "description": "Phases of the trial, in order."},
     "cross_examinations": {"expr": "$count(exhibit, $it.crossed)", "type": "int"},
@@ -513,7 +519,7 @@
     },
     "next_exhibit": {
       "args": ["counsel"],
-      "expr": "$top(exhibit, $it.strength - (0 if $it.defect == clean else 0.3) + $normal_for([$it.id, $world.trial_round], 0, 0.1), 1, $it.side == $counsel.side and $it.status == held)[0]",
+      "expr": "$top(exhibit, $it.strength - (0 if $it.defect == clean else 0.15) + $normal_for([$it.id, $world.trial_round], 0, 0.1), 1, $it.side == $counsel.side and $it.status == held)[0]",
       "description": "The exhibit coded counsel offer next: their strongest by their own read of it that day, a flawed one marked down for the risk of exclusion, so they lead with clean exhibits and now and then risk a strong flawed one."
     },
     "remark_lean": {

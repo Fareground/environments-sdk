@@ -238,7 +238,10 @@ def test_coded_counsel_objections_sometimes_keep_evidence_out_by_default():
     runs = [run("dispute", seed=seed).outputs for seed in range(30)]
     kept_out = [o for o in runs if o["excluded_exhibits"]]
     assert 0 < len(kept_out) < len(runs)  # counsel sometimes risk a flawed exhibit, and the objection lands
-    assert all(o["objection_success_rate"] == 1 for o in runs if o["objections_made"])  # they object on the real flaw
+    rates = [o["objection_success_rate"] for o in runs if o["objections_made"]]
+    # an objection on the real flaw is sustained; one against a damaging clean exhibit is overruled (audit 13 EM2)
+    assert rates and min(rates) < 1 and max(rates) > 0
+    assert all(o["objection_success_rate"] is None for o in runs if not o["objections_made"])  # EL2
 
 
 def test_the_case_is_an_input():

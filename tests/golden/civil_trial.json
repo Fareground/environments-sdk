@@ -1,7 +1,7 @@
 {
-  "actions": 8,
-  "events": 12,
-  "events_sha256": "13b08390aa933942029b52ae0f04f26724ba4667dd4735579d35aeed10be6ca4",
+  "actions": 10,
+  "events": 14,
+  "events_sha256": "43565bf28af08e443765301a9058101589374d074e97f91e7a2d37b7e96daab7",
   "first_events": [
     "r1 action p_counsel: Plaintiff's counsel delivered an opening statement.",
     "r1 action d_counsel: Defense counsel delivered an opening statement.",
@@ -9,10 +9,10 @@
     "r2 outcome p_counsel: You offered P-1 Master Supply Agreement (claimed credibility 91%).",
     "r2 action d_counsel: Defense counsel offered D-1 Independent weld inspection report into evidence, claiming credibility 93%.",
     "r2 outcome d_counsel: You offered D-1 Independent weld inspection report (claimed credibility 93%).",
+    "r2 action p_counsel: Plaintiff's counsel objected to D-1 Independent weld inspection report on prejudice grounds.",
+    "r2 action judge: The judge overruled the objection to D-1 Independent weld inspection report; it is admitted.",
     "r3 action d_counsel: Defense counsel offered D-2 Delivery log into evidence, claiming credibility 52%.",
-    "r3 outcome d_counsel: You offered D-2 Delivery log (claimed credibility 52%).",
-    "r3 action p_counsel: Plaintiff's counsel offered P-2 Delivery acceptance email into evidence, claiming credibility 79%.",
-    "r3 outcome p_counsel: You offered P-2 Delivery acceptance email (claimed credibility 79%)."
+    "r3 outcome d_counsel: You offered D-2 Delivery log (claimed credibility 52%)."
   ],
   "metrics": {
     "admitted": 4,
@@ -21,5 +21,5 @@
   },
   "rounds": 4,
   "status": "running",
-  "wakes": 12
+  "wakes": 13
 }

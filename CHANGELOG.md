@@ -333,6 +333,10 @@ worlds stay fast, and the package is organised by feature.
     quote (mechanism L5).
   - The contact_centre engine refuses a `day` that does not open at 08:00, which its half-hours assume, instead of
     silently giving 08:00's results (engines EM1).
+  - The dispute engine's coded counsel mark a flawed exhibit down less (so they now and then lead with a strong
+    one, as documented) and sometimes object to a damaging clean exhibit on prejudice, which the judge overrules, so
+    objections are no longer all sustained; `objection_success_rate` is null when no objection was made (engines
+    EM2, EL2). The civil_trial golden changes with it.
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
