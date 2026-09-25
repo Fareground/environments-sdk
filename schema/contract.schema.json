@@ -2354,7 +2354,7 @@
   "description": "An environment: world, people, rules, what agents see, what is measured.",
   "properties": {
     "fg_env": {
-      "default": "1",
+      "default": "2",
       "description": "Contract version.",
       "title": "Fg Env",
       "type": "string"

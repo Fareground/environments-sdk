@@ -1,5 +1,5 @@
 """`fg-env migrate FILE... [--write]`: show, or save, contracts written in an earlier form of the language in the
-current form (the same rewrites loading them makes)."""
+current form (the same rewrites loading them makes), and list what is left to fix by hand (exit status 1)."""
 from __future__ import annotations
 
 import argparse
@@ -34,7 +34,21 @@ def cmd_migrate(args: argparse.Namespace) -> int:
         if not args.quiet:
             for note in notes:
                 print(f"  {note}", file=sys.stderr)
+        left = _by_hand(current, Path(name).parent)
+        for issue in left:
+            print(f"  to fix by hand: {issue}", file=sys.stderr)
+        failed += bool(left)
     return 1 if failed else 0
+
+
+def _by_hand(current: dict[str, Any], folder: Path) -> list[Any]:
+    """What the current form still gets wrong with no rewrite for it (a removed feature), from a static check; an
+    imported fragment (no `name` or `types` of its own) is checked with the contract that imports it."""
+    from ..api import check
+
+    if "name" not in current or "types" not in current:
+        return []
+    return [issue for issue in check(current, rounds=0, data_dir=folder) if issue.severity == "error"]
 
 
 def add_migrate_command(sub: Any) -> None:

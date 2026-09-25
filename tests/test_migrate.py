@@ -97,3 +97,12 @@ def test_a_contract_is_written_with_sections_in_order_and_short_entries_on_one_l
     assert text == '{\n  "name": "N",\n  "clock": {"rounds": 3},\n  "types": {"t": {"props": {"a": 1}}}\n}\n'
     long = {"name": "N", "types": {"t": {}}, "events": [{"do": ["$world.x += 1"] * 12}]}
     assert json.loads(dumps(long)) == long and '"do": [\n' in dumps(long)
+
+
+def test_the_cli_lists_what_is_left_to_fix_by_hand(tmp_path, capsys):
+    path = tmp_path / "old.json"
+    path.write_text(json.dumps({**EARLIER, "clock": {"rounds": 2, "mode": "continuous"}}))
+    assert main(["migrate", str(path), "--write"]) == 1
+    err = capsys.readouterr().err
+    assert "to fix by hand: clock.mode" in err and "continuous clock was removed" in err
+    assert json.loads(path.read_text())["fg_env"] == "2"  # what could be rewritten was
