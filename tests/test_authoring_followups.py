@@ -133,7 +133,7 @@ def test_bool_type_name_as_default_has_an_actionable_load_error():
     import pytest
     contract = {'name': 'Bool shorthand', 'types': {'item': {'props': {'done': 'bool'}}},
                 'entities': {'one': {'type': 'item', 'props': {'done': False}}}}
-    with pytest.raises(fg_env.RunError, match='type declaration'):
+    with pytest.raises(fg_env.ContractError, match='type declaration'):  # the check says so first (audit 14 L1)
         fg_env.load(contract)
     # Preserve literal text compatibility; only the diagnostic changes.
     contract['entities']['one']['props']['done'] = 'bool'
