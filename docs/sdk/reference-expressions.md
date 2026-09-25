@@ -17,7 +17,8 @@ Any string containing `$name` is an expression; other strings are literal text.
 * Nested per-item functions rebind `$it`; the enclosing item is `$outer`:
   `$sum(trader, $sum(order, $it.qty, $it.owner == $outer.id))`.
 * Every function call needs its `$`: `$max(a, b)`, never `max(a, b)`.
-* `a or b` gives the first truthy value (a default: `$x or 0`); `a and b` the first falsy one.
+* `a or b` gives the first truthy value, `a and b` the first falsy one. For a default when a value is missing (null),
+  write `$coalesce(x, 0)`: `$x or 0` would also replace a real 0, false or ''.
 * A def without arguments reads like a value: `$negotiating` or `$negotiating()`.
 * `$pending` lists what the agent already did or submitted this turn (`{action, ...args}`): use it in
   param `where` or `when` to stop ordering the same army twice.

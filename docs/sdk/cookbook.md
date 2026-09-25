@@ -599,7 +599,7 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
   "outputs": {
     "sick": {"expr": "$count(person, $it.state == sick)", "type": "int", "series": true},
     "ever_sick": {"expr": "$count(person, $it.state != healthy)", "type": "int"},
-    "peak_sick": {"expr": "$max($series.sick) or 0", "type": "int"}
+    "peak_sick": {"expr": "$coalesce($max($series.sick), 0)", "type": "int"}
   },
   "end": [{"name": "over", "when": "$count(person, $it.state == sick) == 0", "say": "Nobody is sick any more."}]
 }

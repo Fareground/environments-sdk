@@ -170,6 +170,8 @@ worlds stay fast, and the package is organised by feature.
 
 ### Added
 
+- `$coalesce(value, default)`: a default for a missing (null) value that keeps 0, false and '' — the documented default
+  idiom now; `value or default` replaced a real 0 too (an exit-seeking agent standing on the exit read distance 999).
 - **`fg-env migrate FILE… [--write]` and `fg_env.migrate(contract)`**: a contract written for an earlier release in
   the current form, a note per rewrite, and what is left to fix by hand. A file already current is left as it is.
 - **Documentation with one path.** `guide('authoring')`, the start page, teaches the ten concepts in order with one

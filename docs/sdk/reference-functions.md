@@ -8,7 +8,7 @@ Core (the start page teaches them): $count $sum $avg $min $max $filter $map $dic
 
 General functions, for any contract:
 
-- `collections` (counting, summing, ranking and filtering lists and entity types): $all $any $avg $best $count $dict $filter $first $flatten $get $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
+- `collections` (counting, summing, ranking and filtering lists and entity types): $all $any $avg $best $coalesce $count $dict $filter $first $flatten $get $is $keys $last $len $map $max $median $min $mode $pick $quantile $range $reverse $slice $sort $stdev $sum $tally $top $unique $values
 - `world` (entities, records, events and what agents were shown): $asset $entity $events $records $seen
 - `math` (arithmetic, trigonometry, interpolation): $abs $acos $asin $atan $atan2 $ceil $clamp $comb $cos $erf $exp $factorial $floor $gcd $interp $lcm $log $logit $logsumexp $pct $pi $round $sigmoid $sign $sin $softmax $sqrt $tan $tanh
 - `random` (seeded draws and distributions): $beta $binomial $chance $choice $dice $dirichlet $exponential $gamma $geometric $lognormal $multinomial $mvnormal $normal $poisson $randint $sample $shuffle $triangular $truncnormal $uniform $weibull $zipf

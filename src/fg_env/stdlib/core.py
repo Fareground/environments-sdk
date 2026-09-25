@@ -533,6 +533,14 @@ def _half_up(value: Any, digits: int) -> Any:
     return int(exact) if digits == 0 or isinstance(value, int) else float(exact)
 
 
+@function("coalesce(value, default)",
+          "`value`, or `default` when it is null: the default for a missing value. Unlike `value or default`, it keeps "
+          "0, false and ''.", min_args=2, max_args=2)
+def _coalesce(call: Call) -> Any:
+    value = call.arg(0)
+    return call.arg(1) if value is None else value
+
+
 @function("clamp(x, low, high)", "x limited to the range [low, high].", min_args=3, max_args=3)
 def _clamp(call: Call) -> Any:
     low, high = call.number(1), call.number(2)

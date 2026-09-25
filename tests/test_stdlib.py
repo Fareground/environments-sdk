@@ -251,6 +251,11 @@ VALUES = [
     ("$pool([{a: 0.2, b: 0.8}, {a: 0.4, b: 0.6}])", {"a": 0.3, "b": 0.7}),
     ("$pool([[1, 0], [0.5, 0.5]], log)", [1.0, 0.0]),
     ("$pool([0.9], log)", 0.9),
+    ("$coalesce(null, 999)", 999),
+    ("$coalesce(0, 999)", 0),  # a null default keeps 0, false and '' (`or` would replace them)
+    ("$coalesce(false, 1)", False),
+    ("$coalesce('', 'x')", ""),
+    ("$coalesce($get({}, a), 5)", 5),
 ]
 
 

@@ -6,6 +6,7 @@
 - `$any(items, where)` — True when at least one item matches.
 - `$avg(items, value?, where?)` — Mean of `value` over matching items (nulls skipped); null when none. $avg(list) averages a list.
 - `$best(items, by, ties?)` — The best of `items` by `by` (a value or list of values, highest first): always one item — a tie is broken at random (seeded) with ties 'random' (default), or gives null with 'none'; null when empty. ties 'all' always gives a list: every item tied for best ([] when empty).
+- `$coalesce(value, default)` — `value`, or `default` when it is null: the default for a missing value. Unlike `value or default`, it keeps 0, false and ''.
 - `$count(items, where?)` — How many items (entities of a type, or a list) match `where`.
 - `$dict(items, key, value)` — A {key: value} map with one entry per item (later items win).
 - `$filter(items, where)` — The items for which `where` holds.
