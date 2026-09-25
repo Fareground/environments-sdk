@@ -258,6 +258,11 @@ worlds stay fast, and the package is organised by feature.
     condition field to this, and the checker to checking each as a condition.
   - `$len(<type>)` is a check error with `$count(<type>)` as the fix: a bare word there is text, so it counted the
     letters of the type's name.
+  - Every mechanism example on the reference pages works as pasted, and a test places each in a small contract of
+    what it assumes, checks it and plays three rounds: the `dynamics.ode` example is shown under the name the mode
+    requires (`physics`; a mode that must have one name declares it, and the name is checked in one place for every
+    mode), and the `game.cards` example turns a first card onto the discard pile before its `play` rule reads it. An
+    `economy.replenishment` over a demand mechanism whose own config is invalid reports that, not a crash.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

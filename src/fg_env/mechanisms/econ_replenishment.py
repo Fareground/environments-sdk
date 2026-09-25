@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..patterns.base import declared
 from ..registry import MechanismError, mode
@@ -136,7 +136,11 @@ _DOC = ("Inventory policies for a demand mechanism's items: orders travel in a p
                "holding_cost": "$it.unit_cost * 0.004", "order_cost": 6})
 def _expand_replenishment(name: str, config: ReplenishmentConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     raw = declared_use(contract, config.demand, DEMAND, "demand")
-    demand = DemandConfig.model_validate({k: v for k, v in raw.items() if k not in ("kind", "mode")})
+    try:
+        demand = DemandConfig.model_validate({k: v for k, v in raw.items() if k not in ("kind", "mode")})
+    except ValidationError:
+        raise MechanismError(f"'{config.demand}' is not a working demand mechanism yet",
+                             f"fix mechanisms.{config.demand} (its errors are reported there)", "demand") from None
     order = list(contract.get("mechanisms") or {})
     if name in order and order.index(config.demand) > order.index(name):
         raise MechanismError(f"'{config.demand}' is declared after '{name}'",

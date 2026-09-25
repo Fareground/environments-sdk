@@ -612,14 +612,3 @@ def test_a_negative_ballot_weight_fails_the_count_naming_the_voter():
                                      "weight": "$it.shares"}}}
     result = fg_env.load(contract, seed=1).run("idle")
     assert result.status == "failed" and "a voter's weight must be a number ≥ 0, got -5 for a" in result.error
-
-
-def test_every_mechanism_example_the_reference_pages_show_is_a_valid_config():
-    """The examples on the reference pages are what authors copy: each validates against its mode's config."""
-    import fg_env.mechanisms  # noqa: F401  (registers them)
-    from fg_env.registry import FAMILIES, config_data
-
-    modes = [spec for family in FAMILIES.values() for spec in family.modes.values()]
-    assert modes
-    for spec in modes:
-        spec.config.model_validate(config_data(spec.example))

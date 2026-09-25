@@ -170,6 +170,7 @@ def _events(name: str, config: CardsConfig) -> list[dict[str, Any]]:
       "$hand, $zone, $top_card, $top_cards, $card_names, $poker_rank, $blackjack_value, $sets, $runs, "
       "$trick_winner, $follow_suit.",
       example={"who": "player", "hand_size": 7, "keep_top": True,
+               "after_deal": [{"game": "my_cards", "action": "deal", "qty": 1, "zone": "discard"}],
                "play": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"},
                "draw": True})
 def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -> dict[str, Any]:

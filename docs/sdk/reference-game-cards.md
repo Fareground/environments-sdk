@@ -65,5 +65,5 @@ Actions of the `game` op:
 - `peek` — takes `cards`, `to`, `say` (needs `cards`): {"game": "cards", "action": "peek", "cards": "$top_cards(deck, 3)", "to": "$actor"}  (only `to` (default $actor) sees the cards, from now on)
 
 ```json
-{"mechanisms": {"my_cards": {"kind": "game", "mode": "cards", "who": "player", "hand_size": 7, "keep_top": true, "play": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"}, "draw": true}}}
+{"mechanisms": {"my_cards": {"kind": "game", "mode": "cards", "who": "player", "hand_size": 7, "keep_top": true, "after_deal": [{"game": "my_cards", "action": "deal", "qty": 1, "zone": "discard"}], "play": {"where": "$it.suit == $top_card(discard).suit or $it.rank == $top_card(discard).rank"}, "draw": true}}}
 ```
