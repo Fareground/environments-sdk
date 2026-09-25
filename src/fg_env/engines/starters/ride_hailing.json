@@ -374,11 +374,11 @@
     "driver_earnings_p90": {"expr": "$round($quantile(driver, $it.earnings, 0.9), 2)", "type": "number"},
     "utilization": {"expr": "$round($pct($sum(driver, $it.busy_steps), $sum(driver, $it.online_steps)), 3)", "type": "number", "description": "Share of online driver time spent driving to or with a rider."},
     "platform_revenue": {"expr": "$round($world.platform_revenue, 2)", "type": "number"},
-    "peak_surge": {"expr": "$max($series.max_surge)", "type": "number"},
+    "peak_surge": {"expr": "$max($series.max_surge)", "type": "number", "description": "The highest surge any zone reached over the run: the largest max_surge."},
     "open_requests": {"expr": "$count(request, $it.status == 'open')", "description": "Unassigned requests at the end of the step.", "series": true},
     "idle_drivers": {"expr": "$count(driver, $it.status == 'idle')", "series": true},
     "busy_drivers": {"expr": "$count(driver, $it.status == 'to_pickup' or $it.status == 'on_trip')", "series": true},
-    "max_surge": {"expr": "$max(zone, $it.surge)", "series": true},
+    "max_surge": {"expr": "$max(zone, $it.surge)", "series": true, "description": "The highest zone surge at each step (its final value is the last step's; peak_surge is the run's highest)."},
     "downtown_surge": {"expr": "$entity(downtown).surge", "series": true}
   },
   "arms": {

@@ -337,6 +337,8 @@ worlds stay fast, and the package is organised by feature.
     sets none: the pool of what each mechanism allows, one more for its own actions (mech L3).
   - Replacing a generated action without an argument the generated one only passed on at its default (a sealed bid's
     `qty`) is no longer warned as leaving out what it does (mech L4).
+  - The ride-hailing starter says what `max_surge` (the highest zone surge each step) and `peak_surge` (the run's
+    highest) each report (mech L5).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
