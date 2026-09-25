@@ -294,6 +294,7 @@ EFFECT_EXAMPLES = {
 RUNNING = """\
 ## Running (Python)
 
+<!-- not run: a map of the API; shop.json, duel.json, my_agent and cases stand for your own -->
 ```python
 import fg_env
 env = fg_env.load("shop.json", inputs={"budget": 50}, seed=7, arm=None)
@@ -390,6 +391,7 @@ Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
 exactly the turn the agent will get.
 
 Copies, forks, games and gyms:
+<!-- not run: a map of the API; wake is a turn in progress and the files stand for your own -->
 ```python
 with wake.clone() as branch:          # inside a turn: a private copy paused right here (fresh luck; same_luck=True)
     branch.call("buy", {"offer": "latte", "qty": 2}); outcome = branch.run("random")   # the real run never changes
@@ -461,8 +463,10 @@ INSPECT = """\
 ## Inspecting a run
 
 ```python
-result = fg_env.run("game.json", seed=1)     # random agents; {"player": my_agent} for yours
-print(result.summary())                       # status, winner, outputs, issues, diagnostics, series, end state
+import fg_env
+fg_env.new("market", "market.json")            # a cookbook recipe to look at; any contract file works
+result = fg_env.run("market.json", seed=1)     # random agents; {"baker": my_agent} for yours
+print(result.summary())                         # status, winner, outputs, issues, diagnostics, series, end state
 result.outputs, result.winner, result.ended_by, result.series["price"]
 ```
 Summaries show numbers to 4 decimals; an output's `"format": "money"` (any template format) shows it that way.

@@ -9,6 +9,7 @@ in between. The search asks for more room than the confidence (the cheapest deci
 flattered); its best are confirmed on new seeds, with more seeds for a borderline one until it settles, and the choice
 is made and reported there; then the choice and the runner-up run on fresh seeds again, so luck is flagged.
 
+<!-- not run: centre.json and manager_plan stand for your own staffing contract and plan -->
 ```python
 r = fg_env.analysis.optimise("centre.json",
     decisions={"agents": {"length": 24, "low": 3, "high": 40, "step": 1, "start": manager_plan}},

@@ -3,8 +3,10 @@
 ## Inspecting a run
 
 ```python
-result = fg_env.run("game.json", seed=1)     # random agents; {"player": my_agent} for yours
-print(result.summary())                       # status, winner, outputs, issues, diagnostics, series, end state
+import fg_env
+fg_env.new("market", "market.json")            # a cookbook recipe to look at; any contract file works
+result = fg_env.run("market.json", seed=1)     # random agents; {"baker": my_agent} for yours
+print(result.summary())                         # status, winner, outputs, issues, diagnostics, series, end state
 result.outputs, result.winner, result.ended_by, result.series["price"]
 ```
 Summaries show numbers to 4 decimals; an output's `"format": "money"` (any template format) shows it that way.

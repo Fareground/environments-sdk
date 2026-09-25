@@ -244,6 +244,8 @@ worlds stay fast, and the package is organised by feature.
     where to give the house its units. Before, `stock` was silently ignored and no lot ever opened.
   - The auction engine's English and Dutch arms sell all three lots: their clock runs until the lots are sold (the run
     ends `sold_out`). Before, nine rounds sold about one lot, so their revenue and surplus looked like a format effect.
+  - Every Python sample on the reference pages runs as written or is marked as an API map that is not run, and the
+    doc-sample test now covers the reference pages too: `guide("inspect")` runs a cookbook recipe it writes first.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

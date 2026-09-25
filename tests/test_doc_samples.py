@@ -23,8 +23,7 @@ from fg_env.__main__ import main
 from fg_env.authoring.scaffold import RECIPES, new
 
 ROOT = Path(__file__).resolve().parents[1]
-PAGES = [ROOT / "README.md", *sorted(p for p in (ROOT / "docs" / "sdk").glob("*.md")
-                                    if not p.name.startswith("reference") and p.name != "api.md")]
+PAGES = [ROOT / "README.md", *sorted((ROOT / "docs" / "sdk").glob("*.md"))]
 #: CPU seconds one sample may take (CPU, not wall time, so a busy machine does not fail it): a first-time reader
 #: should not wait on a documented example.
 SLOW = 10

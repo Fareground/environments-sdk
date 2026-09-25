@@ -2,6 +2,7 @@
 
 ## Running (Python)
 
+<!-- not run: a map of the API; shop.json, duel.json, my_agent and cases stand for your own -->
 ```python
 import fg_env
 env = fg_env.load("shop.json", inputs={"budget": 50}, seed=7, arm=None)
@@ -98,6 +99,7 @@ Read state with `env.entity(id)`, `env.entities(type)`, `env.props`,
 exactly the turn the agent will get.
 
 Copies, forks, games and gyms:
+<!-- not run: a map of the API; wake is a turn in progress and the files stand for your own -->
 ```python
 with wake.clone() as branch:          # inside a turn: a private copy paused right here (fresh luck; same_luck=True)
     branch.call("buy", {"offer": "latte", "qty": 2}); outcome = branch.run("random")   # the real run never changes
