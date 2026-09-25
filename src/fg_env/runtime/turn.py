@@ -93,9 +93,11 @@ class Turn:
         memory = memory or Memory()
         self._since = memory.cursor
         self._first = memory.turns == 0
-        #: What the agent's last action of its previous turn returned (shown atop the update), and of this turn.
+        #: What the agent's actions of its previous turn returned (shown atop the update); this turn's are summed up by
+        #: :attr:`last_outcome` from what its actions did and the refusal of any call after the last that did.
         self._last: str | None = memory.last
-        self.last_outcome: str | None = None
+        self._done: list[str] = []
+        self._refused_after: str | None = None
         self._brief: str | None = None
         self._update: str | None = None
         #: The assets delivered with the brief and with the update.
@@ -193,6 +195,7 @@ class Turn:
             env=env, gate=env.gate, actor=world.entities[self.actor.id], ledger=self.ledger.copy(world),
             stats=self.stats.copy(),
             _tools=None, _delivered=list(self._delivered), _reads=list(self._reads), steps=list(self.steps),
+            _done=list(self._done),
             host_uses=dict(self.host_uses), rng=None if self.rng is None else copy_stream(self.rng),
             exposure=None if self.exposure is None else self.exposure.copy(world.exposures, world))
         return turn
@@ -205,7 +208,7 @@ class Turn:
         self.ledger = AttemptLedger(self.env.world, self.actor.id, ledger.max_actions, ledger.max_calls, atomic=False)
         self.started = self.done = self.closed = self.timed_out = self.did_not_act = False
         self.deadline, self.rng, self.steps, self._reads, self._tools = None, None, [], [], None
-        self.last_outcome = None
+        self._done, self._refused_after = [], None
         self.stats = Stats()
 
     # Brief and update render on first read, so coded participants that never read them cost nothing.
@@ -300,6 +303,7 @@ class Turn:
         with gate:
             self._tools = None
             self.busy += 1
+            live = not self.done  # a call after the turn is over did nothing and tells nothing of the turn
             try:
                 result = self._call(name, args)
             finally:
@@ -307,11 +311,33 @@ class Turn:
                 gate.notify()
             if self.exposure is not None:
                 self.exposure.called(name, args, result)
-            if not (self.staged or self.closed) and isinstance(name, str) and name in self.env.contract.actions \
-                    and result.data.get("error") != "undone":  # an undone turn's outcome is set by what undid it
-                self.last_outcome = result.text  # a sealed choice's result reaches its agent as news when it commits
+            # a sealed choice's result reaches its agent as news when it commits
+            acted = isinstance(name, str) and name in self.env.contract.actions
+            if live and acted and not (self.staged or self.closed):
+                self._outcome(result)
             self.note(Answered(name, args, result))
             return result
+
+    @property
+    def last_outcome(self) -> str | None:
+        """What this turn's actions did, for the agent's next update: what each action that applied returned, in
+        order, then the refusal of any call made after the last of them; an undone turn says so first."""
+        refused = self._refused_after
+        if refused is None:
+            return " ".join(self._done) or None
+        return " ".join([*self._done, f"Then: {refused}"]) if self._done else refused
+
+    def _outcome(self, result: ToolResult) -> None:
+        """Note what an action call of this turn returned (see :attr:`last_outcome`)."""
+        if result.ok:
+            self._done.append(result.text)
+            self._refused_after = None
+        elif result.data.get("error") != "undone":  # an undone turn is told by what undid it (:meth:`_undone`)
+            self._refused_after = result.text
+
+    def _undo_outcome(self, why: str) -> None:
+        """The turn's actions were undone: what they returned no longer holds."""
+        self._done, self._refused_after = [f"Your turn was undone: {why}."], None
 
     def refusal(self) -> ToolResult | None:
         """Why a call cannot be made now (the turn is over or out of time), or None (call holding the run's gate)."""
@@ -519,7 +545,7 @@ class Turn:
             with env.world.luck.turn_context(None, self.ledger.pending):
                 undo = self.settle()
             if undo is not None:
-                self.last_outcome = f"Your turn was undone: {undo.why}."  # not what an undone action returned
+                self._undo_outcome(undo.why)
                 env.world.emit("outcome", f"Your turn was undone: {undo.why}.", actor=self.actor.id,
                                to=(self.actor.id,), data={"ok": False, "undone": True})
                 env.world.commit()
@@ -529,7 +555,7 @@ class Turn:
         turn, or the turn's own commit and `valid`) turned on chance or on something hidden from the agent — then
         the turn is over, since playing it again would retry the luck or probe the hidden value for free."""
         why = undo.why
-        self.last_outcome = f"Your turn was undone: {why}."  # not what an undone action returned
+        self._undo_outcome(why)
         if settled_by is None and not undo.spent:
             return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
                                      "play your turn again.", data=dict(_UNDONE))

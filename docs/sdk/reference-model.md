@@ -100,7 +100,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 
 What an agent reads:
 * brief (static, cacheable): name, situation, rules, its identity and role text.
-* update: time label and stage, "Your last turn: …" (what its last action of its previous turn returned, which a
+* update: time label and stage, "Your last turn: …" (what its actions of its previous turn returned — each that
+  applied, then "Then: …" for a call refused after the last of them, or that the turn was undone and why — which a
   turn-ending action told it nothing of before), why it is acting ("Your turn again." only when it already had a turn
   in this stage this round), "Since your last turn" ("So far" on its first turn; announcements of
   others' actions, outcomes of its own simultaneous actions, record entries, event news; in a busy round what is

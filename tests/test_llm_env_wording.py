@@ -358,3 +358,28 @@ def test_so_far_heads_only_an_agents_first_turn_even_when_nothing_was_logged_bef
 
     fg_env.run(contract, play, seed=1)
     assert heads == [False, False]  # nothing to report on the first turn; its second reports since its last
+
+
+def test_the_last_turn_line_sums_up_what_the_turn_did_and_what_was_refused_after():
+    """"Your last turn" names every action that applied, then a call refused after the last of them; a call made once
+    the turn was over tells nothing (audit 11 A-H1): an agent that paid and then made a bad call is not told it did
+    nothing."""
+    contract = {"name": "Pay", "clock": {"rounds": 2}, "types": {"p": {"agent": True, "props": {"coins": 10}}},
+                "entities": {"ann": {"type": "p"}},
+                "actions": {"pay": {"by": "p", "params": {"n": {"type": "int", "min": 1, "max": 5}},
+                                    "do": "$actor.coins -= $params.n"}},
+                "stages": [{"name": "play", "max_actions": 3}]}
+    updates = []
+
+    def ann(wake):
+        updates.append(wake.update)
+        if wake.round == 1:
+            wake.call("pay", {"n": 5})
+            wake.call("pay", {"n": 2})
+            wake.call("pay", {"n": 50})
+            wake.end()
+            wake.call("pay", {"n": 1})  # after the turn: nothing was done
+
+    fg_env.run(contract, ann, seed=1)
+    assert updates[1].splitlines()[1] == ("Your last turn: Done: pay (n=5). Done: pay (n=2). Then: pay was not done: "
+                                          "n must be at most 5 (got 50). Correct the arguments and call again.")

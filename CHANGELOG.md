@@ -288,6 +288,10 @@ worlds stay fast, and the package is organised by feature.
   - What an action set for later with `after` is refused, as its sealed choice would be ("you are no longer
     active"), once its agent has been removed, instead of writing to an entity no longer in the run.
   - The update says "You have 1 second", not "1 seconds".
+  - "Your last turn:" sums up the turn: what each action that applied returned, then "Then: …" for a call refused
+    after the last of them (an undone turn says so and why, audit 11 M6). Before, a refused call after a done action
+    overwrote it ("pay was not done"), so a model believed it had done nothing and paid again; a call made after the
+    turn was over counted too.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

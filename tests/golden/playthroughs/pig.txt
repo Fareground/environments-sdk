@@ -178,7 +178,7 @@ Seat 0 (a) reads:
 Seat 0 information state: c3c8faa4b33bff2a
 Seat 1 (b) reads:
   | Round 2 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 5, turn total 0. Opponent's score: 0.
 Seat 1 information state: 77939d20ed2e9c60
@@ -197,7 +197,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 2e90f135ba372400
 Seat 1 (b) reads:
   | Round 2 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -220,7 +220,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 2e90f135ba372400
 Seat 1 (b) reads:
   | Round 2 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: stop.
@@ -246,7 +246,7 @@ Seat 0 (a) reads:
 Seat 0 information state: a6e101097a9fc923
 Seat 1 (b) reads:
   | Round 2 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -276,7 +276,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 87c0bcc6683d507e
 Seat 1 (b) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 8, turn total 0. Opponent's score: 2.
 Seat 1 information state: 8d76d175d13831af
@@ -300,7 +300,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 87c0bcc6683d507e
 Seat 1 (b) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 8, turn total 0. Opponent's score: 2.
 Seat 1 information state: 8d76d175d13831af
@@ -326,7 +326,7 @@ Seat 0 (a) reads:
 Seat 0 information state: e1cfdfca73375e53
 Seat 1 (b) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -343,13 +343,13 @@ Current player: 1
 Legal calls of seat 1: [1] roll
 Seat 0 (a) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
 Seat 0 information state: 7fe2e2a59ed5798c
 Seat 1 (b) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -368,13 +368,13 @@ Current player: chance
 Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
 Seat 0 (a) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 8, turn total 0. Opponent's score: 8.
 Seat 0 information state: 7fe2e2a59ed5798c
 Seat 1 (b) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -392,7 +392,7 @@ Current player: 1
 Legal calls of seat 1: [0] end_turn; [1] roll; [2] stop
 Seat 0 (a) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - B: roll.
@@ -402,7 +402,7 @@ Seat 0 (a) reads:
 Seat 0 information state: f8c6baaa542ededc
 Seat 1 (b) reads:
   | Round 3 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -422,7 +422,7 @@ Current player: 0
 Legal calls of seat 0: [1] roll
 Seat 0 (a) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -434,7 +434,7 @@ Seat 0 (a) reads:
 Seat 0 information state: c153d9338032aff4
 Seat 1 (b) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 10, turn total 0. Opponent's score: 8.
 Seat 1 information state: 4818340da44cf10d
@@ -447,7 +447,7 @@ Current player: chance
 Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
 Seat 0 (a) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - B: roll.
@@ -458,7 +458,7 @@ Seat 0 (a) reads:
 Seat 0 information state: c153d9338032aff4
 Seat 1 (b) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 10, turn total 0. Opponent's score: 8.
 Seat 1 information state: 4818340da44cf10d
@@ -477,7 +477,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 7e127b59b8fcf98a
 Seat 1 (b) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -501,7 +501,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 7e127b59b8fcf98a
 Seat 1 (b) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -528,7 +528,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 1d7ada35e90fcace
 Seat 1 (b) reads:
   | Round 4 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -559,7 +559,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 98892755cba7c4d4
 Seat 1 (b) reads:
   | Round 5 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
 Seat 1 information state: ad2bae047bef565f
@@ -583,7 +583,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 98892755cba7c4d4
 Seat 1 (b) reads:
   | Round 5 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 13, turn total 0. Opponent's score: 8.
 Seat 1 information state: ad2bae047bef565f
@@ -609,7 +609,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 012d888d8b6b3fa6
 Seat 1 (b) reads:
   | Round 5 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -632,7 +632,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 012d888d8b6b3fa6
 Seat 1 (b) reads:
   | Round 5 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -656,7 +656,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 012d888d8b6b3fa6
 Seat 1 (b) reads:
   | Round 5 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -782,7 +782,7 @@ Seat 0 (a) reads:
 Seat 0 information state: f79fbdeee0b5841a
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
 Seat 1 information state: 3796f113c5bb3d0b
@@ -806,7 +806,7 @@ Seat 0 (a) reads:
 Seat 0 information state: f79fbdeee0b5841a
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Target: 20. Your score: 15, turn total 0. Opponent's score: 12.
 Seat 1 information state: 3796f113c5bb3d0b
@@ -832,7 +832,7 @@ Seat 0 (a) reads:
 Seat 0 information state: c8207280db5f33fd
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -861,7 +861,7 @@ Seat 0 (a) reads:
 Seat 0 information state: c8207280db5f33fd
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -892,7 +892,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 30c68f1dcb47e9b4
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -924,7 +924,7 @@ Seat 0 (a) reads:
 Seat 0 information state: 30c68f1dcb47e9b4
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -958,7 +958,7 @@ Seat 0 (a) reads:
 Seat 0 information state: b10c02127d22e9c5
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -993,7 +993,7 @@ Seat 0 (a) reads:
 Seat 0 information state: b10c02127d22e9c5
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -1014,13 +1014,13 @@ Current player: 1
 Legal calls of seat 1: [1] roll
 Seat 0 (a) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: roll.
+  | Your last turn: Done: roll. Done: roll. Done: roll. Done: roll.
   | 
   | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
 Seat 0 information state: 5360f5328d021990
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -1044,13 +1044,13 @@ Current player: chance
 Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
 Seat 0 (a) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: roll.
+  | Your last turn: Done: roll. Done: roll. Done: roll. Done: roll.
   | 
   | Target: 20. Your score: 12, turn total 0. Opponent's score: 15.
 Seat 0 information state: 5360f5328d021990
 Seat 1 (b) reads:
   | Round 7 of 200 · turns
-  | Your last turn: Done: stop.
+  | Your last turn: Done: roll. Done: stop.
   | 
   | Since your last turn:
   | - A: roll.
@@ -1073,7 +1073,7 @@ Current player: 0
 Legal calls of seat 0: [1] roll
 Seat 0 (a) reads:
   | Round 8 of 200 · turns
-  | Your last turn: Done: roll.
+  | Your last turn: Done: roll. Done: roll. Done: roll. Done: roll.
   | Now: It is your turn.
   | 
   | Since your last turn:
@@ -1097,7 +1097,7 @@ Current player: chance
 Chance outcomes: die: 1 (p=0.166667), die: 2 (p=0.166667), die: 3 (p=0.166667), die: 4 (p=0.166667), die: 5 (p=0.166667), die: 6 (p=0.166667)
 Seat 0 (a) reads:
   | Round 8 of 200 · turns
-  | Your last turn: Done: roll.
+  | Your last turn: Done: roll. Done: roll. Done: roll. Done: roll.
   | 
   | Since your last turn:
   | - B: roll.
