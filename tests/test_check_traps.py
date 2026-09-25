@@ -416,3 +416,12 @@ def test_i_inside_a_per_item_function_in_generated_props_is_warned_and_outer_rea
     c["entities"]["p"]["props"] = {"n": "$i", "prefs": "$dict($inputs.cats, $it, $random_for([$outer.n, $it]))"}
     assert not [i for i in _warnings(c, rounds=0) if i.path == "entities.p.props.prefs"]
     assert len({str(prefs) for prefs in fg_env.run(c, "idle", seed=1).outputs["prefs"]}) == 3
+
+
+def test_a_named_entitys_name_is_a_template_as_a_generated_ones_is():
+    c = {"name": "x", "clock": {"rounds": 1}, "inputs": {"town": {"type": "text", "default": "Oak"}},
+         "types": {"p": {"agent": True}}, "entities": {"ann": {"type": "p", "name": "Ann of {$inputs.town}"}},
+         "actions": {"go": {"by": "p", "description": "g", "do": []}}, "outputs": {"n": "$entity(ann).name"}}
+    assert fg_env.run(c, "idle", seed=1).outputs["n"] == "Ann of Oak"
+    c["entities"]["ann"]["name"] = "Ann of {$inputs.twon}"
+    assert [i.path for i in _errors(c, rounds=0)] == ["entities.ann.name"]

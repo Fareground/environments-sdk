@@ -54,7 +54,8 @@ def build_world(contract: Contract, inputs: dict[str, Any], seeds: SeedTree, arm
                 generated += 1
                 continue
             evaluation = world.evaluation
-            evaluation.create(named.type, entity_id, named.name or entity_id, named.props, _value(world, named.at, {}),
+            name = render(world, named.name, {}, viewer=None) if named.name else entity_id  # a template, as generated
+            evaluation.create(named.type, entity_id, name, named.props, _value(world, named.at, {}),
                               evaluation.scope(), f"entities.{entity_id}")
             if named.brief:
                 pending_briefs.append((entity_id, named.brief, {}, f"entities.{entity_id}.brief"))

@@ -334,6 +334,8 @@ worlds stay fast, and the package is organised by feature.
     is parametric, like free text. And an undone create no longer leaves a trace in the world (its type's id counter
     goes back to none), so a contract that creates entities no longer fails the serialize check. Before, conformance
     stopped with "has no id" on such a contract, and flagged every contract with a `create` as not serializable.
+  - A named entity's `name` is a template, as a generated entity's is (`"Ann of {$inputs.town}"`), and checked like
+    one. Before, it stayed literal without a word.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

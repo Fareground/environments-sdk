@@ -184,6 +184,7 @@ class WorldChecks(Checker):
                 if generated:
                     self._rebound_index(raw, f"{path}.props.{prop}")
             if not generated:
+                self.template(spec.name, f"{path}.name", None, BASE)
                 self.template(spec.brief, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": {spec.type}})
                 continue
             count = spec.count
