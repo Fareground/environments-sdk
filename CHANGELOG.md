@@ -274,6 +274,8 @@ worlds stay fast, and the package is organised by feature.
     advice for `$i` in `$dict` suggests) is worked out after it, whatever order the type declares them in.
   - A map key that is a word the language keeps (`{eager: 3, not: 0}`) is reported with the fix (quote it) instead
     of a bare "invalid syntax".
+  - An empty map or list shows as "none" in text (it showed nothing: "Current bids: ."), and a view's `of` may be a
+    list literal (`"['up', 'down']"`).
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

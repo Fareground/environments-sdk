@@ -271,7 +271,7 @@ class ActionChecks(EffectChecks):
                 types["it"] = {view.of}
             elif view.of in self.c.records:
                 pass
-            elif not is_expr(view.of):
+            elif not is_expr(view.of) and not view.of.lstrip().startswith("["):
                 self.error(f"{path}.of", f"'{view.of}' is not a declared type or record",
                            self._suggest(view.of, [*self.c.types, *self.c.records])
                            or "name a type or record, or write an expression giving a list ($filter(...))")

@@ -346,3 +346,15 @@ def test_a_run_says_which_stage_it_plays_so_a_test_can_stop_as_one_begins():
     env.run(go, stop=lambda e: e.stage == "two")
     assert (env.round, env.stage, env.props["n"]) == (1, "two", 1)
     assert env.clone().run(go).outputs == env.run(go).outputs == {"n": 2}
+
+
+def test_an_empty_map_or_list_shows_as_none_and_a_view_may_list_a_literal():
+    contract = {"name": "Empty", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"bids": {"type": "map", "default": {}},
+                                                         "hand": {"type": "list", "default": []}}}},
+                "entities": {"a": {"type": "p"}}, "actions": {"wait": {"by": "p", "do": []}},
+                "views": {"me": {"show": "Bids: {bids}. Hand: {hand}."},
+                          "ways": {"of": "['up', 'down']", "show": "{$it}"}}}
+    assert _errors(contract) == []
+    update = fg_env.load(contract, seed=1).preview("a")["update"]
+    assert "Bids: none. Hand: none." in update and "- up\n- down" in update

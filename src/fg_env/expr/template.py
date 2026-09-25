@@ -55,6 +55,8 @@ def quoted_placeholders(source: str) -> list[str]:
 def format_value(value: Any) -> str:
     if value is None:
         return "—"
+    if (type(value) is list or type(value) is dict) and not value:
+        return "none"
     if isinstance(value, Untrusted):
         return quoted(value)
     if isinstance(value, bool):
