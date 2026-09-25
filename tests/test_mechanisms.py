@@ -640,3 +640,23 @@ def test_an_auction_reserve_is_a_price_of_0_or_more():
     auction = {**_forecast(), "mechanisms": {"m": {"kind": "market", "mode": "auction", "format": "first_price",
                                                    "who": "f", "item": "x", "reserve": -5}}}
     assert [i.path for i in fg_env.check(auction) if i.severity == "error"] == ["mechanisms.m.reserve"]
+
+
+def test_a_config_error_is_told_at_the_one_field_that_holds_what_it_quotes():
+    """An error in a generated part is told at the config field whose text it quotes — the longest text first, a bare
+    number last, and an effect op's value it names too (audit 11 mechanisms M1, M2)."""
+    traders = {"types": {"trader": {"agent": True, "props": {"cash": 1000}}},
+               "entities": {f"t{i}": {"type": "trader"} for i in range(1, 3)}}
+    market = {"name": "Two markets", "clock": {"rounds": 2}, **traders, "mechanisms": {
+        "x": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50},
+        "pm": {"kind": "market", "mode": "prediction", "who": "trader", "outcomes": ["up", "down"], "resolve_at": 2,
+               "outcome": "$if($book('x').last >= 50, 'up', 'down')"}}}
+    errors = [i.path for i in fg_env.check(market) if i.severity == "error"]
+    assert errors == ["mechanisms.pm.outcome"]
+    pot = {"name": "Pot", "clock": {"rounds": 1}, "types": {"player": {"agent": True}},
+           "entities": {"player": {"type": "player", "count": 3}}, "mechanisms": {
+               "deck": {"kind": "game", "mode": "cards", "who": "player", "hand_size": 0},
+               "t": {"kind": "game", "mode": "pot", "who": "player", "score": "1",
+                     "setup": [{"game": "dek", "action": "collect"}]}}}
+    errors = [i for i in fg_env.check(pot) if i.severity == "error"]
+    assert [i.path for i in errors] == ["mechanisms.t.setup[0].game"] and "did you mean 'deck'" in str(errors[0])

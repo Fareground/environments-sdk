@@ -776,17 +776,29 @@ def at_config(source: Mapping[str, Any], issues: Sequence[Issue]) -> list[Issue]
         return list(issues)
     fields = [(f"mechanisms.{name}.{field}", text) for name, use in uses.items() if isinstance(use, Mapping)
               for field, text in _texts(use) if text.strip()]
-    out = []
+    # the most specific match first, whichever mechanism holds it: the longest text, and a bare number (`50`, in many
+    # expressions) last
+    fields.sort(key=lambda field: (field[1][:1].isdigit(), -len(field[1])))
+    out: list[Issue] = []
     for issue in issues:
+        generated = _generated(source, issue.path)
         quoted = [part for found in _QUOTED.finditer(f"{issue.message}\n{issue.fix or ''}") for part in found.groups()
-                  if part]
-        hit = next(((path, text) for path, text in fields if any(_quotes(part, text) for part in quoted)), None) \
-            if _generated(source, issue.path) else None
-        if hit is None:
+                  if part] if generated else []
+        hit = next(((path, text) for path, text in fields if any(_quotes(part, text) for part in quoted)), None)
+        # else a value the message names ('dek'), the value of an effect op's field the mechanism copied as it is
+        named = None if hit is not None or not generated else \
+            next((path for path, text in fields if f"'{text}'" in issue.message), None)
+        if hit is None and named is None:
             out.append(issue)
             continue
+        if named is not None:
+            out.append(Issue(named, issue.message, issue.fix, issue.severity))
+            continue
+        assert hit is not None
         path, text = hit
         message = issue.message.split(" — in `", 1)[0]
+        if any(told.path == path and told.message.split(" — in `", 1)[0] == message for told in [*out, *issues]):
+            continue  # already told at that field
         fix = issue.fix if issue.fix and "`" not in issue.fix and "expression: " not in issue.fix else None
         out.append(Issue(path, f"{message} — in `{text}`", fix, issue.severity))
     return out
@@ -800,10 +812,9 @@ def _quotes(expression: str, text: str) -> bool:
 
 
 def _texts(value: Any, prefix: str = "") -> list[tuple[str, str]]:
-    """Every text in a mechanism's config (texts first, then numbers, which a generated rule may hold as they are),
-    with its field path (``when``, ``listings.apples.seller``)."""
-    found = _strings(value, prefix)
-    return [pair for pair in found if not pair[1][:1].isdigit()] + [pair for pair in found if pair[1][:1].isdigit()]
+    """Every text in a mechanism's config (and number, which a generated rule may hold as it is), with its field path
+    (``when``, ``listings.apples.seller``)."""
+    return _strings(value, prefix)
 
 
 def _strings(value: Any, prefix: str = "") -> list[tuple[str, str]]:

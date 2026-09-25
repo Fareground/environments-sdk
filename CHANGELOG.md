@@ -310,6 +310,10 @@ worlds stay fast, and the package is organised by feature.
   - The exchange engine opens its book with liquidity sized for the orders it seeds (`$default_capital()`), whatever
     `median_capital` its traders are given. Before, an ordinary `median_capital` (1,000 or 100,000) failed the run
     in round 1 with "Not enough free cash".
+  - A mechanism config error is told at the one field that holds what it quotes: the longest text first, whichever
+    mechanism holds it, a bare number last, once; and a value an effect op in the config holds (a pot's `setup`) is
+    told at its field (`mechanisms.t.setup[0].game`) rather than at a generated `events[…]` path. Before, an unknown
+    `$if` in one mechanism was also blamed on another's `start_price: 50`.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
