@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - What an action set for later with `after` is dropped, as documented now, when its agent has left the run by then;
+    the new diagnostic `after_dropped` counts it per action instead of it disappearing silently.
   - `fg_env.rl.game` makes an action parametric when a domain of its arguments is worked out from a property the
     rules may raise (assign, add to, multiply, create with or transfer into; any property when a mechanism op runs):
     listing it from the start missed later values, so holdem's `raise` raised "legal now but has no id" mid-game. A

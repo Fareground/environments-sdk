@@ -202,3 +202,24 @@ def test_an_agent_a_stage_offers_actions_that_never_has_a_turn_is_degraded():
                                              if d["code"] == "agents_never_played")
     contract["stages"][0]["who"] = "true"
     assert fg_env.run(contract, "random", seed=1).ok
+
+
+def test_what_an_action_set_for_later_is_counted_when_its_agent_left_first():
+    """An action's `after` block runs as that action's, so it is dropped once its agent is removed: said, not silent
+    (audit 12 M4)."""
+    contract = {"name": "Later", "clock": {"rounds": 3}, "world": {"hits": 0},
+                "types": {"p": {"agent": True, "props": {"x": 0}}},
+                "entities": {"ann": {"type": "p"}, "bob": {"type": "p"}},
+                "actions": {"sched": {"by": "p", "do": [{"after": 1, "do": ["$world.hits += 1"]}]},
+                            "kill": {"by": "p", "params": {"t": {"type": "entity", "of": "p"}},
+                                     "do": {"remove": "$params.t"}}},
+                "outputs": {"hits": "$world.hits"}}
+
+    def play(wake):
+        if wake.round == 1:
+            wake.call("sched" if wake.entity_id == "ann" else "kill", {} if wake.entity_id == "ann" else {"t": "ann"})
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    assert result.outputs["hits"] == 0
+    assert [d["path"] for d in result.diagnostics if d["code"] == "after_dropped"] == ["actions.sched"]

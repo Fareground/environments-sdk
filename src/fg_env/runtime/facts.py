@@ -123,12 +123,14 @@ class Committed:
 
 @dataclass(frozen=True, slots=True)
 class CommitRefused:
-    """A sealed choice of ``action`` accepted when submitted did not happen as the choices committed, told ``text``;
-    ``faulted`` when a rule failed or an invariant broke as it applied."""
+    """A sealed choice of ``action`` accepted when submitted did not happen as the choices committed, told ``text``
+    (or what the action set for later with `after`); ``faulted`` when a rule failed or an invariant broke as it
+    applied, ``left`` when its agent had left the run."""
 
     action: str
     text: str
     faulted: bool = False
+    left: bool = False
 
 
 @dataclass(frozen=True, slots=True)

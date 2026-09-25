@@ -80,7 +80,7 @@ class Events:
 
         with rules.gate:
             if actor is not None and not actor.alive:  # its agent has left: nothing of its action happens any more,
-                rules.facts.emit(CommitRefused(name, "you are no longer active"))  # as with a sealed choice
+                rules.facts.emit(CommitRefused(name, "you are no longer active", left=True))  # as a sealed choice
                 return
             try:
                 if actor is None:

@@ -81,7 +81,7 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
             *_arm_inputs(env),
             *_host_fallbacks(env), *_host_unusable(env), *_faults(env), *_faulted_types(env), *_actions(env),
             *_policy_rules(env),
-            *_overwrites(env), *_idle_agents(env), *_stages(env, rules),
+            *_overwrites(env), *_after_dropped(env), *_idle_agents(env), *_stages(env, rules),
             *_stuck_measures(env, outputs, rules, {issue["path"] for issue in failed})]
 
 
@@ -426,6 +426,16 @@ def _policy_rules(env: Env) -> list[dict[str, str]]:
                                 "give the rule a `when` that holds only while its call can succeed, so the policy "
                                 "stops on purpose"))
     return out
+
+
+def _after_dropped(env: Env) -> list[dict[str, str]]:
+    """Effects an action set for later (`after`) that never ran because the agent that took it had left the run."""
+    return [_finding("after_dropped", f"actions.{name}",
+                     f"{entry['left']} block(s) that {name} set for later with `after` never ran: the agent that took "
+                     "it had left the run by then",
+                     "that is what an action's `after` does; to have the effects happen whoever is still playing, "
+                     "schedule them from an event instead")
+            for name, entry in sorted(env.state.diagnosis.actions.items()) if entry.get("left")]
 
 
 def _overwrites(env: Env) -> list[dict[str, str]]:

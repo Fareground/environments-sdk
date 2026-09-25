@@ -291,7 +291,8 @@ EFFECT_EXAMPLES = {
     "end": '{"end": "bankrupt", "winner": "$top(player, $it.score, 1)[0]", "say": "..."}',
     "after": '{"after": 3, "do": [...]}  (runs 3 rounds later with the same locals; scheduled by an action, it stays '
              'that action\'s: a refusal or failing rule in it undoes that block alone and tells the agent, and the run '
-             'goes on)',
+             'goes on; if that agent has left the run by then, the block does not run at all — the diagnostic '
+             '`after_dropped` counts it; schedule it from an event to have it run regardless)',
     "wake": '{"wake": "$params.who", "why": "{$actor.name} asked you a question."}  (a turn later; "now": true — '
             'they react as soon as this action has taken effect, before this turn continues, offered the actions '
             'named in "actions": ["accept", "reject"] (without it, every action of the current stage) (a reaction '
@@ -503,6 +504,7 @@ the first few entities of each type with every prop (`result.state`), so you can
 `result.diagnostics` is `[{code, path, message, fix}]`: logic problems the run revealed. It reports:
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
+* effects an action set for later with `after` that never ran because its agent had left the run (`after_dropped`);
 * an agent type that never had an action it could take (`agents_never_able_to_act`, degrading: over two rounds, or a
   whole run in which no agent ever could), and agents a stage offers actions that never had a single turn — none
   at all, or some of a type whose others did (`agents_never_played`, degrading; agents made during the run, gone by its

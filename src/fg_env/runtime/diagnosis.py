@@ -122,6 +122,8 @@ class Diagnosis:
         entry = self._action(fact.action)
         entry["refused"] += 1
         _tally(entry["reasons"], fact.text)
+        if fact.left:
+            entry["left"] = entry.get("left", 0) + 1
 
     def _faulted(self, fact: Faulted, turn: Turn | None) -> None:
         """A rule failed, or an invariant broke, while an agent's action applied (which was refused and undone)."""
