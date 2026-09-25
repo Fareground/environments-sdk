@@ -5,10 +5,15 @@ import hashlib
 import json
 import time
 from pathlib import Path
+from types import SimpleNamespace as NS
+
+import pytest
 
 import fg_env
 from fg_env import host
 from fg_env.expr import Untrusted
+from fg_env.host.adapters import AnthropicWebSearch
+from fg_env.host.protocols import HostError, HostUnavailable
 from fg_env.host.stubs import StubTools
 
 COUNCIL = json.loads((Path(__file__).parents[1] / "examples" / "contracts" / "host" / "research_council.json")
@@ -164,3 +169,13 @@ def test_host_tool_config_and_actions_say_what_to_fix():
     page = fg_env.guide("host.tool")
     assert (page.startswith("### `host.tool`") and "- `call`" in page and "- `publish`" not in page
             and "`private`" in page)
+
+
+def test_a_web_search_the_model_declines_or_cuts_off_is_handled_as_the_llm_host_handles_it():
+    """A refusal is not asked again (HostUnavailable) and a cut-off report is no evidence (audit 12 agentif A-L2)."""
+    for stop, error in (("refusal", HostUnavailable), ("max_tokens", HostError)):
+        reply = NS(stop_reason=stop, content=[NS(type="text", text="partial")], usage=None)
+        search = AnthropicWebSearch(NS(messages=NS(create=lambda r=reply, **_: r)), "claude-x", retries=0)
+        with pytest.raises(error) as caught:
+            search.call("web_search", {"query": "q"})
+        assert (type(caught.value) is HostUnavailable) is (stop == "refusal")

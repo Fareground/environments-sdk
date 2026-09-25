@@ -141,9 +141,13 @@ class _Provider:
     def _add_call(self, response: Any, sent: Any) -> None:
         """Count one model call: what its reply says it spent, or — said nothing — the rough size of what was
         ``sent``, flagged as unreported (see host/usage.py)."""
-        spent = call_usage(getattr(response, "usage", None), self.provider,
+        spent = call_usage(field_of(response, "usage"), self.provider,
                            rough_tokens(len(json.dumps(sent, ensure_ascii=False, default=str))))
         self._add(calls=1, **spent.counts(), unreported_usage=int(spent.unreported))
+
+    def _cut_off(self) -> str:
+        return (f"the model's answer was cut off at its output limit (max_tokens={self.max_tokens}) before it "
+                "finished; answer more briefly, or give the host a larger max_tokens")
 
 
 class LLMHost(_Provider):
@@ -203,12 +207,12 @@ class LLMHost(_Provider):
                 model=model, max_tokens=self.max_tokens, system=system,
                 messages=[{"role": "user", "content": message}], timeout=timeout))
             self._add_call(response, [system, content])
-            stop = getattr(response, "stop_reason", None)
+            stop = field_of(response, "stop_reason")
             if stop == "refusal":  # asking again with a correction would only be declined again, and paid for
                 raise HostUnavailable("the model declined the request")
             if stop == "max_tokens":
                 raise HostError(self._cut_off())
-            return "".join(field_of(b, "text") or "" for b in getattr(response, "content", None) or []
+            return "".join(field_of(b, "text") or "" for b in field_of(response, "content") or []
                            if field_of(b, "type") == "text")
         parts = openai_parts(files, OPENAI_MEDIA)
         user: Any = [{"type": "text", "text": content}, *parts] if parts else content
@@ -226,9 +230,6 @@ class LLMHost(_Provider):
             raise HostUnavailable("the model declined the request")
         return field_of(reply, "content") or ""
 
-    def _cut_off(self) -> str:
-        return (f"the model's answer was cut off at its output limit (max_tokens={self.max_tokens}) before it "
-                "finished; answer more briefly, or give the host a larger max_tokens")
 
 
 class AnthropicWebSearch(_Provider):
@@ -255,10 +256,12 @@ class AnthropicWebSearch(_Provider):
                 model=self.model, max_tokens=self.max_tokens, tools=tools, messages=messages,  # noqa: B023 — called within this iteration
                 timeout=timeout))
             self._add_call(response, messages)
-            stop = getattr(response, "stop_reason", None)
-            if stop == "refusal":
-                raise HostError("the model declined the search")
-            blocks = list(getattr(response, "content", None) or [])
+            stop = field_of(response, "stop_reason")
+            if stop == "refusal":  # as LLMHost: asking again with a correction would only be declined again, and paid
+                raise HostUnavailable("the model declined the search")
+            if stop == "max_tokens":  # a cut-off report is no evidence: say so, as LLMHost does
+                raise HostError(self._cut_off())
+            blocks = list(field_of(response, "content") or [])
             for block in blocks:
                 kind = field_of(block, "type")
                 if kind == "text":
