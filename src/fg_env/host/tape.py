@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import inspect
 import json
 import math
 import threading
@@ -163,6 +164,13 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
             raise FatalRunError(f"host '{service}' failed: {exc}", site) from exc
         except Exception as exc:  # an adapter defect or provider error: surfaced with its type, never swallowed
             raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
+        if inspect.isawaitable(answer):  # an async method: nothing would ever await it
+            if inspect.iscoroutine(answer):
+                answer.close()
+            raise FatalRunError(f"host '{service}' answered with an awaitable, so its method is async: a host is asked "
+                                "from the run's own thread and answers at once — write the method as a plain function "
+                                "(run async code inside it with asyncio.run), or pass a sync client to "
+                                "fg_env.host.adapters", site)
         try:
             answer = _json_safe(answer)
             return (validate(answer) if validate is not None else answer), None, None

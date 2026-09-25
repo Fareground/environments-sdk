@@ -339,6 +339,9 @@ worlds stay fast, and the package is organised by feature.
     could not score is told "The judge could not score …'s text: it stays unscored.", and an attempt the game master
     could not rule on reads "the game master could not rule on it, so nothing happened" (a new `unruled` field on
     its record), not "the game master did not allow that".
+  - A custom host whose method is `async` fails the run saying so and what to write instead, as an async provider
+    client does; before, its coroutine was never awaited and the run went on degraded with a message about JSON
+    data.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
