@@ -10,6 +10,8 @@ import copy
 import pytest
 
 import fg_env
+from fg_env.checks import parse_contract
+from fg_env.runtime.env import Env
 
 
 def _errors(contract):
@@ -116,8 +118,10 @@ VAULT = {
 
 def test_a_private_property_of_a_non_agent_entity_cannot_bound_a_tool():
     assert "actions.guess.params.g.max" in _errors(VAULT)
-    with pytest.raises(fg_env.RunError, match="private"):
-        fg_env.load(VAULT, seed=1).preview("ann")
+    with pytest.raises(fg_env.ContractError, match="private"):
+        fg_env.load(VAULT, seed=1)
+    with pytest.raises(fg_env.RunError, match="private"):  # the run refuses it too
+        Env(parse_contract(VAULT), {}, 1).preview("ann")
 
 
 VAULT_GUESS = {**VAULT, "actions": {"guess": {**WORLD_CODE["actions"]["guess"], "do": [
