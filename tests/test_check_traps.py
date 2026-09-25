@@ -402,3 +402,17 @@ def test_a_bare_word_naming_a_listed_items_prop_is_warned_in_a_list_view_too():
          "outputs": {"n": "$count(item)"}}
     warned = [i for i in _warnings(c, rounds=0) if i.path == "views.items.show"]
     assert warned and "did you mean $it.decision?" in warned[0].fix
+
+
+def test_i_inside_a_per_item_function_in_generated_props_is_warned_and_outer_reads_the_entity():
+    c = {"name": "x", "clock": {"rounds": 1}, "inputs": {"cats": {"type": "list", "default": ["a", "b"]}},
+         "types": {"p": {"agent": True, "props": {"n": 0, "prefs": {"type": "map", "default": {}}}}},
+         "entities": {"p": {"type": "p", "count": 3,
+                            "props": {"prefs": "$dict($inputs.cats, $it, $random_for([$i, $it]))"}}},
+         "actions": {"go": {"by": "p", "description": "g", "do": []}}, "outputs": {"prefs": "$map(p, $it.prefs)"}}
+    warned = [i for i in _warnings(c, rounds=0) if i.path == "entities.p.props.prefs"]
+    assert warned and "$outer.n" in warned[0].fix
+    assert len({str(prefs) for prefs in fg_env.run(c, "idle", seed=1).outputs["prefs"]}) == 1  # all the same
+    c["entities"]["p"]["props"] = {"n": "$i", "prefs": "$dict($inputs.cats, $it, $random_for([$outer.n, $it]))"}
+    assert not [i for i in _warnings(c, rounds=0) if i.path == "entities.p.props.prefs"]
+    assert len({str(prefs) for prefs in fg_env.run(c, "idle", seed=1).outputs["prefs"]}) == 3

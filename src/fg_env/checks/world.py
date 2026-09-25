@@ -7,12 +7,12 @@ import json
 import re
 from collections.abc import Iterable
 from pathlib import PurePath
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from .. import contract as C
 from ..contract.inputs import DATA_SUFFIXES, check_value
 from ..effects.runner import POST_KEYS
-from ..expr import EXPRESSION_WORDS, is_expr
+from ..expr import EXPRESSION_WORDS, ExprError, compile_expr, is_expr
 from ..physics.model import _CONSTS, _FUNCS, PhysicsExprError, _CompiledExpr
 from ..world.defaults import default_order
 from .core import Checker
@@ -181,6 +181,8 @@ class WorldChecks(Checker):
                     self.error(f"{path}.props.{prop}", f"'{spec.type}' has no property '{prop}'",
                                self._suggest(prop, self.type_props[spec.type]))
                 self.value(raw, f"{path}.props.{prop}", roots, {"it": {spec.type}} if generated else None)
+                if generated:
+                    self._rebound_index(raw, f"{path}.props.{prop}")
             if not generated:
                 self.template(spec.brief, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": {spec.type}})
                 continue
@@ -197,6 +199,20 @@ class WorldChecks(Checker):
             for key in ("id", "name"):
                 self.template(getattr(spec, key), f"{path}.{key}", None, BASE | {"row", "i"})
             self.template(spec.brief, f"{path}.brief", "actor", BASE | {"row", "i", "actor"}, {"actor": {spec.type}})
+
+    def _rebound_index(self, raw: Any, path: str) -> None:
+        """`$i` in a generated entity's prop is the entity's number, but inside a function's per-item argument
+        (`$dict(xs, $it, $random_for([$i, $it]))`) it is that function's item position: every entity gets the same."""
+        try:
+            functions = sorted({name for name, root in compile_expr(raw).item_roots if root == "i"}) \
+                if isinstance(raw, str) and is_expr(raw) else []
+        except ExprError:
+            return  # reported by the expression check
+        if functions:
+            self.warn(path, f"`$i` inside ${functions[0]}(…) is that function's item position, not this entity's "
+                            "number, so it is the same for every entity",
+                      "give the entity its number in a prop of its own (\"n\": \"$i\") and read $outer.n inside the "
+                      "function ($outer is the entity there)")
 
     def _generated_ids(self) -> None:
         """A generator with a literal count and default ids makes `<key>_<n>`: none may be a named entity's id."""

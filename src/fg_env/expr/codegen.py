@@ -210,6 +210,7 @@ class Codegen:
         self.calls: set = set()
         self.arity_errors: set = set()
         self.item_paths: set = set()
+        self.item_roots: set = set()
         self.comparisons: set = set()
         self.item_comparisons: set = set()
         self.methods: set = set()
@@ -507,6 +508,7 @@ class Codegen:
         self.roots |= inner_roots - set(_ITEM_ROOTS)
         self.paths |= {p for p in inner_paths if p[0] not in _ITEM_ROOTS}
         self.item_paths |= {(name, symbol, p) for p in inner_paths if p[0] == "it"}
+        self.item_roots |= {(name, root) for root in inner_roots & set(_ITEM_ROOTS)}
         self.comparisons |= {c for c in inner_cmp if c[0][0] not in _ITEM_ROOTS}
         self.item_comparisons |= {(name, symbol, c[0], c[1]) for c in inner_cmp if c[0][0] == "it"}
         return written

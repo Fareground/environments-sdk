@@ -129,6 +129,9 @@ class Expr:
     #: ``(function, field, ...)`` chains read from what a function returned, e.g. ``("entity", "cash")`` for
     #: ``$entity(bo).cash``.
     call_paths: frozenset[tuple[str, ...]] = frozenset()
+    #: ``(function, root)`` — ``$it``, ``$i`` or ``$outer`` read inside a function's per-item argument, where the
+    #: function binds them, e.g. ``("dict", "i")``.
+    item_roots: frozenset[tuple[str, str]] = frozenset()
 
     def __call__(self, scope: Scope) -> Any:
         budget = _BUDGET
@@ -220,7 +223,7 @@ def compile_expr(source: str) -> Expr:
                 frozenset(compiler.symbols), frozenset(compiler.paths), frozenset(compiler.calls),
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
                 frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods),
-                frozenset(compiler.call_paths))
+                frozenset(compiler.call_paths), frozenset(compiler.item_roots))
 
 
 #: What an item's own condition may read besides ``$it``: nothing that changes while a run plays.
