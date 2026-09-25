@@ -292,6 +292,9 @@ worlds stay fast, and the package is organised by feature.
     same however many have voted. Before, every vote copied one shared `$world.<name>_ballots` map: memory and time
     grew with the square of the voters (237 MB at 3,000). **BREAKING** for an author's own `<name>_vote` action that
     wrote `$world.<name>_ballots[$actor.id]`: write `$actor.<name>_ballot` instead.
+  - A vote (and an abstention) in a ballot hooked into a declared stage no longer ends the turn: it is one of the
+    turn's moves, so a citizen who votes first can still trade in the same turn, as the stage's share of the turn for
+    each mechanism promises. A ballot with its own stage still ends the turn on the vote.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

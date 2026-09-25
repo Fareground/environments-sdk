@@ -462,6 +462,9 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     vote, abstain = f"{name}_vote", f"{name}_abstain"
     question = f" on: {config.question}" if config.question else ""
     open_ballot = f"$actor.{ballot} == null"
+    # In a declared stage the vote is one of the turn's moves, not its end: the stage gives each mechanism hooked into
+    # it its share of the turn, and voting first must not forfeit the rest.
+    shared = config.stage is not None
     ballot_param: dict[str, Any]
     if config.method in SINGLE:
         ballot_param = {"choice": {"type": "enum", "values": config.options, "description": "Your choice."}}
@@ -481,13 +484,13 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
                "when": [{"expr": open_ballot, "why": "You have already voted."}],
                "do": [f"$actor.{ballot} = {cast}"],
                "outcome": told if config.private else None,
-               "private": config.private, "terminal": True},
+               "private": config.private, "terminal": not shared},
     }
     if config.abstain:
         actions[abstain] = {"by": config.who, "description": f"Abstain{question}.",
                             "when": [{"expr": open_ballot, "why": "You have already voted."}],
                             "do": [f"$actor.{ballot} = '{ABSTAIN}'"], "outcome": "You abstained.",
-                            "private": config.private, "terminal": True}
+                            "private": config.private, "terminal": not shared}
     for action in actions.values():
         if action.get("outcome") is None:
             action.pop("outcome", None)

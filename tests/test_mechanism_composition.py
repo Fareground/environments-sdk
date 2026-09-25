@@ -128,3 +128,26 @@ def test_a_ballot_hooked_into_a_repeating_stage_is_counted_only_while_its_when_h
 
     result = fg_env.run(contract, {"v": voter}, seed=1)
     assert result.series["winner"] == ["yes", "yes", "yes"]
+
+
+def test_voting_in_a_shared_stage_leaves_the_rest_of_the_turn_to_the_other_mechanisms():
+    """The stage gives each mechanism hooked into it its share of the turn: voting first does not end it."""
+    contract = {"name": "Floor", "clock": {"rounds": 1},
+                "types": {"citizen": {"agent": True, "props": {"cash": 100}}},
+                "entities": {"a": {"type": "citizen"}, "b": {"type": "citizen"}},
+                "stages": [{"name": "floor", "turns": "sequential", "actions": []}],
+                "mechanisms": {"vote": {"kind": "decision", "mode": "ballot", "who": "citizen",
+                                        "options": ["yes", "no"], "stage": "floor"},
+                               "pm": {"kind": "market", "mode": "prediction", "who": "citizen",
+                                      "outcomes": ["yes", "no"], "stage": "floor"}}}
+    said = {}
+
+    def citizen(wake):
+        said[wake.entity_id] = [wake.call("vote_vote", {"choice": "yes"}).ok,
+                                wake.call("pm_buy", {"outcome": "yes", "spend": 5}).ok]
+        wake.end()
+
+    result = fg_env.run(contract, {"citizen": citizen}, seed=1)
+    assert result.status == "completed", result.error
+    assert said == {"a": [True, True], "b": [True, True]}
+    assert result.stats["actions"] == 4
