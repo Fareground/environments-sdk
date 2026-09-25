@@ -1,7 +1,7 @@
 {
   "fg_env": "2",
   "name": "Auction house",
-  "description": "Collectors with private valuations bid for three identical vases. The same crowd meets every auction format as an experiment arm: sealed first-price (base), Vickrey second-price, English, Dutch, uniform-price and a double auction against dealers.",
+  "description": "Collectors with private valuations bid for three identical vases. The same crowd meets every auction format as an experiment arm: sealed first-price (base), Vickrey second-price, English, Dutch, uniform-price and a double auction against dealers. Coded collectors bid their value where that is the equilibrium (Vickrey, English), shade by the symmetric equilibrium (n-1)/n in first-price and Dutch, and shade by a tenth in the uniform and double auctions.",
   "brief": {
     "situation": "An auction house sells antique vases. Every collector has a private idea of what one vase is worth to them.",
     "rules": "Bid for vases with the auction tool; how bids win and what the winner pays depends on the auction format described with each lot. Money for a bid is held until the lot closes, and you get back whatever you do not pay. Your score is the value of the vases you win minus what you paid."
@@ -11,6 +11,9 @@
     "budget": {"type": "number", "default": 200, "min": 1, "unit": "$", "description": "Cash per collector."}
   },
   "clock": {"rounds": 9, "unit": "round"},
+  "defs": {
+    "shaded": {"args": ["value"], "expr": "$round(40 + ($count(collector) - 1) / $count(collector) * ($value - 40), 2)", "description": "The symmetric equilibrium bid for a value drawn between 40 and 160 against the other collectors: the lowest value plus (n-1)/n of the rest."}
+  },
   "types": {
     "collector": {
       "agent": true,
@@ -28,7 +31,7 @@
               "with": {"price": "$auction(house).min_bid", "qty": 1}
             },
             {
-              "when": "$auction(house).format == 'dutch' and $auction(house).price <= $actor.value * 0.85",
+              "when": "$auction(house).format == 'dutch' and $auction(house).price <= $shaded($actor.value)",
               "do": "house_bid",
               "with": {"price": "$auction(house).price", "qty": 1}
             },
@@ -40,7 +43,7 @@
             {
               "when": "$auction(house).format == 'first_price'",
               "do": "house_bid",
-              "with": {"price": "$round($actor.value * 0.8, 2)", "qty": 1}
+              "with": {"price": "$shaded($actor.value)", "qty": 1}
             },
             {
               "when": "$auction(house).format == 'uniform' or $auction(house).format == 'double'",

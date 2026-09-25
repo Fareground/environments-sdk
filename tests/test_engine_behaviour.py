@@ -534,3 +534,17 @@ def test_the_hidden_roles_engine_deals_as_many_werewolves_as_the_table_allows():
 def test_an_engine_refuses_inputs_it_cannot_run_on_before_it_runs(engine_id, inputs, fix):
     with pytest.raises(fg_env.InvariantViolation, match=fix):
         fg_env.engines.load(engine_id, inputs=inputs)
+
+
+def test_auction_house_collectors_shade_a_first_price_bid_by_the_equilibrium_for_the_room():
+    """A fixed shading made the format comparison flip with the number of bidders (audit 9 mech M4): each collector
+    bids the lowest value plus (n-1)/n of the rest."""
+    for count in (2, 4, 10):
+        path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("auction").path)))
+        env = fg_env.load(path, seed=3, inputs={"collectors": count})
+        result = env.run(rounds=1)
+        values = {e.id: e.properties["value"] for e in env.world.entities.values() if e.entity_type == "collector"}
+        bids = {event["actor"]: event["data"]["params"]["price"] for event in result.events
+                if event["kind"] == "action" and event["data"].get("action") == "house_bid"}
+        assert bids and all(bid == pytest.approx(40 + (count - 1) / count * (values[who] - 40), abs=0.006)
+                            for who, bid in bids.items())

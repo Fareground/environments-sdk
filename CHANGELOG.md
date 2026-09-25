@@ -287,6 +287,9 @@ worlds stay fast, and the package is organised by feature.
     after every action, which goes over every trader each time (2,000 traders: 16 s for 5 rounds). When a check's
     smoke play runs out of time and invariants are checked after every action, the advice says to check them each
     round.
+  - The auction engine's coded collectors shade a first-price or Dutch bid by the symmetric equilibrium for the room
+    (the lowest value plus (n-1)/n of the rest) instead of a fixed fraction, so the format comparison no longer flips
+    with the number of collectors for a reason unrelated to the formats (the `auction_house` golden changed).
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
