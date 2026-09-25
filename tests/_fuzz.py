@@ -184,7 +184,8 @@ def secretive(seed: int) -> dict[str, Any]:
     (the base contract is exactly ``contract(seed)``'s): whispers — a record whose entries only their author and
     addressee see, posted by a silent action — and tools whose offer, arguments or refusal turn on what their actor
     may not know: a requirement over those entries or over the log, a default worked out from the actor's own secret,
-    a guess at another agent's secret."""
+    a guess at another agent's secret — and messages with data, names worked out from templates, an announcement that
+    leaves out its argument, a record keeping only its latest entries and the events' numbers."""
     c = contract(seed)
     rng = random.Random(f"secretive-{seed}")
     agents = [kind for kind, spec in c["types"].items() if spec.get("agent")]
@@ -214,4 +215,19 @@ def secretive(seed: int) -> dict[str, Any]:
     c["actions"]["note"] = {"by": kind, "description": "Pin a note to the board.", "announce": False,
                             "params": {"text": {"type": "text", "max_len": 30}},
                             "do": [{"post": "board", "text": "$params.text"}]}
+    # The other ways something travels (audit 14): a record keeping only the latest entries while whispers are
+    # addressed; messages with data, to the actor alone (its own secret) and to everyone (what everyone knows); an
+    # announcement that leaves its argument out; names worked out from templates, as built and as created; and the
+    # events' numbers, which must not count the events a reader may not know of.
+    c["records"]["dm"]["keep"] = rng.choice([2, 3])
+    c["actions"]["signal"] = {"by": kind, "description": "Signal a number.",
+                              "params": {"n": {"type": "int", "min": 0, "max": 9}},
+                              "announce": "{$actor.name} signalled.",
+                              "do": [{"emit": "ping", "to": "$actor",
+                                      "data": {"mine": "$actor.secret", "n": "$params.n"}},
+                                     {"emit": "tick", "data": {"pot": "$world.pot"}, "say": "Tick {$round}."},
+                                     {"create": "token", "name": "Chip {$world.pot}", "props": {"value": 1}}]}
+    c["entities"]["badge"] = {"type": "token", "name": "Badge {$world.pot}"}
+    c["views"]["numbers"] = {"show": "Seen: {$map($events(), $it.seq)}; ticks {$map($events(tick), $it.pot)}; "
+                                     "pings {$map($events(ping), $it.n)}; dms {$len($records(dm))}."}
     return c
