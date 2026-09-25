@@ -16,7 +16,9 @@ the first few entities of each type with every prop (`result.state`), so you can
 `result.diagnostics` is `[{code, path, message, fix}]`: logic problems the run revealed. It reports:
 * a tool offered when none of its choices could succeed;
 * sealed choices that overwrite each other's values;
-* an agent type that never had an action it could take;
+* an agent type that never had an action it could take (`agents_never_able_to_act`, degrading: over two rounds, or a
+  whole run in which no agent ever could), and a run in which no agent had a single turn (`nobody_played`,
+  degrading);
 * a coded policy rule whose call was refused every time it was tried (`policy_rule_never_acted`), quoting the refusal,
   and a `repeat` policy's rule that was refused after it had acted (`policy_repeat_refused`);
 * agents all of whose attempts went wrong, or too many of whose turns failed — more than a tenth for a model

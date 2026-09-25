@@ -1,6 +1,8 @@
 """Run diagnostics name the logic problems a run reveals, with a fix, and stay quiet about ordinary play."""
 import json
 
+import pytest
+
 import fg_env
 
 SHOP = {
@@ -107,12 +109,13 @@ def test_a_stage_whose_condition_reads_only_what_no_rule_changes_is_reported():
     contract = _contract(stages=[{"name": "shop", "actions": ["buy"], "when": "$world.phase == 'closed'"}],
                          types={"buyer": {"agent": True, "props": {"cash": 30, "loaves": 0}}})
     found = fg_env.run(contract, seed=1).diagnostics
-    assert [(d["code"], d["message"]) for d in found] == [
+    assert [(d["code"], d["message"]) for d in found if d["code"] != "nobody_played"] == [
         ("stage_never_runs", "never ran and cannot: its `when` is false and it reads only `$world.phase`, which no "
                              "rule changes")]
     changed = _contract(stages=contract["stages"], types=contract["types"],
                         events=[{"at": 9, "do": "$world.phase = 'closed'"}])
-    assert fg_env.run(changed, seed=1).diagnostics == []
+    # a rule could open the shop, though not within these rounds: no agent played, and that is all that is said
+    assert [d["code"] for d in fg_env.run(changed, seed=1).diagnostics] == ["nobody_played"]
 
 
 def test_measures_that_read_only_what_nothing_changes_are_reported_and_ones_rules_could_change_are_not():
@@ -165,3 +168,23 @@ def test_agents_whose_turns_all_ran_out_of_time_are_told_to_take_less_time():
     result = fg_env.load(contract, seed=1).run(lambda wake: clock.sleep(0.2), time_limit=0.05)
     [found] = [d for d in result.diagnostics if d["code"] in ("agents_never_acted", "agents_often_failed")]
     assert "out of time" in found["message"] and "time_limit" in found["fix"]
+
+
+@pytest.mark.parametrize("patch", [{"stages": [{"name": "trade", "when": "false"}]}, {"end": [{"when": "true"}]}])
+def test_a_run_in_which_no_agent_ever_has_a_turn_is_degraded(patch):
+    """Whatever such a run measured, no agent's choice shaped it: it is not ok, with a finding that says why."""
+    contract = {"name": "Stall", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"p": {"type": "p", "count": 2}}, "actions": {"bump": {"by": "p", "do": "$actor.n += 1"}},
+                "outputs": {"total": "$sum(p, $it.n)"}, **patch}
+    result = fg_env.run(contract, "random", seed=1)
+    assert not result.ok and "nobody_played" in result.degraded
+
+
+def test_a_one_round_run_whose_turns_never_offer_an_action_is_degraded():
+    contract = {"name": "Locked", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"p": {"type": "p", "count": 2}},
+                "actions": {"bump": {"by": "p", "when": [{"expr": "$round > 5", "why": "not yet"}],
+                                     "do": "$actor.n += 1"}},
+                "outputs": {"total": "$sum(p, $it.n)"}}
+    result = fg_env.run(contract, "random", seed=1)
+    assert "agents_never_able_to_act" in result.degraded and "not yet" in str(result.diagnostics)

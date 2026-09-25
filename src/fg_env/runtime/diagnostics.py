@@ -40,12 +40,12 @@ MIN_ROUNDS = 2
 ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, or that
 #: never did (every call refused, so nothing it feeds ran), agents that never acted or too many of whose turns failed,
-#: agents that never had an action to take, turns lost to a failing provider, an output that raised an error, a run
+#: agents that never had an action to take, a run in which no agent ever had a turn with one, turns lost to a failing provider, an output that raised an error, a run
 #: its budget cut short, host answers that were the contract's stand-ins or that it could not use.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
-                       "agents_never_able_to_act", "turns_forfeited", "output_failed", "budget_cut", "host_fallback",
-                       "host_unusable"})
+                       "agents_never_able_to_act", "nobody_played", "turns_forfeited", "output_failed", "budget_cut",
+                       "host_fallback", "host_unusable"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
 #: The same for a model participant, held to a much lower share: every failed turn of a model is a move it never made
@@ -73,7 +73,8 @@ def diagnose(env: Env, outputs: dict[str, Any], issues: Sequence[dict[str, Any]]
     failed = [issue for issue in issues if issue["path"].startswith("outputs.")]
     return [*(_finding("output_failed", issue["path"], issue["message"],
                        issue.get("fix") or "fix the expression, or guard the case it fails in") for issue in failed),
-            *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_never_acted(env), *_out_of_steps(env),
+            *_budget_cut(env), *_unreported_usage(env), *_forfeits(env), *_nobody_played(env), *_never_acted(env),
+            *_out_of_steps(env),
             *_arm_inputs(env),
             *_host_fallbacks(env), *_host_unusable(env), *_faults(env), *_faulted_types(env), *_actions(env),
             *_policy_rules(env),
@@ -123,6 +124,22 @@ def _forfeits(env: Env) -> list[dict[str, str]]:
                             "shorten what an agent reads each turn (its brief, views and news: fg-env preview shows "
                             "it), or use a model with a larger context"))
     return out
+
+
+def _nobody_played(env: Env) -> list[dict[str, str]]:
+    """A finished run of a contract with agents and actions in which no agent ever had a turn: whatever it measured,
+    no agent's choice shaped it. (Turns that never offered an action: ``agents_never_able_to_act``.)"""
+    contract = env.contract
+    if not env.finished or not contract.actions or not contract.agent_types() or env.state.stats.actions:
+        return []
+    if any(stats.wakes for stats in env.state.agent_stats.values()):
+        return []
+    return [_finding("nobody_played", "stages",
+                     f"no agent had a single turn in {env.world.round} round(s): every stage was skipped (its `when` "
+                     "or `who`), the run ended before any stage (an `end` that holds at the start), or no entity is an "
+                     "agent; this run does not show how agents play",
+                     "check each stage's `when` and `who`, and each `end` condition, against the state at the start; "
+                     "fg-env preview shows what the first agent to play is offered")]
 
 
 def _out_of_steps(env: Env) -> list[dict[str, str]]:
@@ -404,9 +421,13 @@ def _overwrites(env: Env) -> list[dict[str, str]]:
 
 
 def _idle_agents(env: Env) -> list[dict[str, str]]:
+    """Agent types that never had an action they could take: over :data:`MIN_ROUNDS` rounds, or in a whole finished
+    run in which no agent ever did (nothing any agent chose shaped it)."""
     out = []
-    for kind, entry in sorted(env.state.diagnosis.agents.items()):
-        if entry["wakes"] and not entry["able"] and entry["rounds"] >= MIN_ROUNDS:
+    read = env.state.diagnosis.agents
+    nobody = env.finished and not env.state.stats.actions and not any(entry["able"] for entry in read.values())
+    for kind, entry in sorted(read.items()):
+        if entry["wakes"] and not entry["able"] and (entry["rounds"] >= MIN_ROUNDS or nobody):
             out.append(_finding("agents_never_able_to_act", f"types.{kind}",
                                 f"no {kind} had an action it could take in any of its {entry['wakes']} turn(s) over "
                                 f"{entry['rounds']} rounds; most often: {_most_common(entry['reasons'])}",

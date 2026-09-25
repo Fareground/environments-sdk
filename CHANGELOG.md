@@ -250,6 +250,9 @@ worlds stay fast, and the package is organised by feature.
     refuses the attempt), and the run's end checks the budget once more. Before, host tokens were counted only at
     the next safe point, so ten judge calls at one stage's end all went through a budget of one and the run reported
     `exhausted: None`.
+  - A run in which no agent ever had a turn (every stage skipped by its `when`, an `end` that holds at the start) is
+    degraded (`nobody_played`), and so is a finished run in which no agent ever had an action offered, however
+    short (`agents_never_able_to_act`); `fg_env.author` no longer keeps such a contract as working.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
