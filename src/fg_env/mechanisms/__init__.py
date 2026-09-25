@@ -815,12 +815,14 @@ def at_config(source: Mapping[str, Any], issues: Sequence[Issue]) -> list[Issue]
         hit = next(((path, text) for path, text in fields if any(_quotes(part, text) for part in quoted)), None)
         # else a value the message names ('dek'), the value of an effect op's field the mechanism copied as it is
         named = None if hit is not None or not generated else \
-            next((path for path, text in fields if f"'{text}'" in issue.message), None)
+            next((path for path, text in fields if f"'{text}'" in issue.message
+                  or (text.startswith("$") and issue.message.startswith(f"{text}:"))), None)
         if hit is None and named is None:
             out.append(issue)
             continue
         if named is not None:
-            out.append(Issue(named, issue.message, issue.fix, issue.severity))
+            if not any(told.path == named and told.message == issue.message for told in [*out, *issues]):
+                out.append(Issue(named, issue.message, issue.fix, issue.severity))
             continue
         assert hit is not None
         path, text = hit
@@ -833,9 +835,12 @@ def at_config(source: Mapping[str, Any], issues: Sequence[Issue]) -> list[Issue]
 
 
 def _quotes(expression: str, text: str) -> bool:
-    """Whether a generated ``expression`` holds a config field's ``text``: a text anywhere, a number as a whole one."""
+    """Whether a generated ``expression`` holds a config field's ``text``: a number as a whole one, a name (`p`, a
+    type) as a whole word — never the `p` of `inputs` — and any other text anywhere."""
     if text[:1].isdigit():
         return re.search(rf"(?<![\w.]){re.escape(text)}(?![\w.])", expression) is not None
+    if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", text):
+        return re.search(rf"(?<![\w$]){re.escape(text)}(?!\w)", expression) is not None
     return text in expression
 
 

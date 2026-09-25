@@ -682,3 +682,12 @@ def test_a_prediction_market_outcome_may_be_a_quoted_constant():
     assert fg_env.run(market, "idle", seed=1).status == "completed"
     assert [i.path for i in fg_env.check(_forecast(outcome="'maybe'"), rounds=0)
             if i.severity == "error"] == ["mechanisms.m.outcome"]
+
+
+def test_a_config_expression_error_is_told_once_at_its_own_field():
+    """An error in the expression of one config field is told at that field alone, never also at a field whose short
+    text happens to sit inside the message (the `p` of `inputs`) (audit 14 mech L1)."""
+    c = {"types": {"p": {"agent": True}}, "entities": {"p": {"type": "p", "count": 2}},
+         "mechanisms": {"k": {"kind": "game", "mode": "cards", "who": "p", "hand_size": "$inputs.missing"}}}
+    errors = [(i.path, i.message) for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+    assert errors == [("mechanisms.k.hand_size", "$inputs.missing: no such input")]

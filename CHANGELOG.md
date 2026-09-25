@@ -330,6 +330,9 @@ worlds stay fast, and the package is organised by feature.
     input fails with the invariant's own `why` naming it, not with whatever the build first trips on. The contact
     centre starter requires its demand profiles and their standard errors to be of one, non-zero length, and the
     retail (coffee market) starter a household table with rows (mech M4).
+  - An error in a mechanism field's expression is told once, at that field: never also at a field whose short text sits
+    inside the message (a `who` of `p` inside `inputs`) (mech L1).
+  - `$auction()` may leave out the auction's name while the contract has one, and with several names them (mech L2).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an
