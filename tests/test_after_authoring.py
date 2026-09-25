@@ -39,3 +39,22 @@ def test_dynamic_invalid_delay_still_fails_at_runtime():
     r = failed.value.result
     assert r.status == "failed"
     assert "whole number of rounds" in r.error
+
+
+def test_what_an_action_set_for_later_does_not_happen_once_its_agent_has_left():
+    """Effects an action scheduled are that action's: once its agent is removed they are refused, as its sealed choice
+    would be, rather than writing to an entity no longer in the run (audit 11 L4)."""
+    contract = {"name": "Leave", "clock": {"rounds": 3}, "world": {"hits": 0},
+                "types": {"p": {"agent": True, "props": {"cash": 5}}}, "entities": {"a": {"type": "p"}},
+                "actions": {"sched": {"by": "p", "do": [{"after": 1, "do": ["$world.hits += 1", "$actor.cash += 1"]}]},
+                            "quit": {"by": "p", "do": [{"remove": "$actor"}]}},
+                "stages": [{"name": "s", "max_actions": 2}],
+                "outputs": {"hits": "$world.hits", "cash": "$entity(a).cash"}}
+
+    def play(wake):
+        wake.call("sched", {})
+        wake.call("quit", {})
+
+    result = fg_env.run(contract, play, seed=1)
+    assert result.status == "completed", result.error
+    assert result.outputs == {"hits": 0, "cash": 5}

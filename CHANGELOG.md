@@ -285,6 +285,8 @@ worlds stay fast, and the package is organised by feature.
     The flag stays down."), rendered for it, as a `fail` in a create event does; the change events an action sets
     off run as that action's. Before, it was told "the environment's rules could not be worked out".
   - `"outcomes": "[1,2,3]"` (text where a list is required) is a check error at its path.
+  - What an action set for later with `after` is refused, as its sealed choice would be ("you are no longer
+    active"), once its agent has been removed, instead of writing to an entity no longer in the run.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
