@@ -335,6 +335,10 @@ worlds stay fast, and the package is organised by feature.
     $entity(...)?"); it used to say "write $entities(...)", a function that does not exist.
   - The retail engine's `market_shares` leaves out a café that never opened (the chain in the base arm), which it
     listed at 0.
+  - Agents are told apart a host that gave no usable answer from an in-world outcome: a speaker whose text a judge
+    could not score is told "The judge could not score …'s text: it stays unscored.", and an attempt the game master
+    could not rule on reads "the game master could not rule on it, so nothing happened" (a new `unruled` field on
+    its record), not "the game master did not allow that".
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

@@ -81,7 +81,7 @@ def test_any_effect_outside_the_allow_list_refuses_the_whole_attempt(effect, rea
     # Outside the allow-list is outside the protocol: asked once more with what did not fit, then refused.
     unusable = [d["message"] for d in result.diagnostics if d["code"] == "host_unusable"]
     assert entry["refused"] and "reason" not in entry and reason in unusable[0], unusable
-    assert "it could not decide what happens" in env.entity("mira")["props"]["gm_told"]
+    assert "could not rule on it, so nothing happened" in env.entity("mira")["props"]["gm_told"]
     assert not [e for e in result.events if e["kind"] == "news"]
     mira = env.entity("mira")
     assert (_gold(env, "mira"), mira["props"]["health"], mira["at"]) == (10, 8, "common_room")
@@ -298,8 +298,9 @@ def test_fuzz_adversarial_attempts_and_malicious_answers_never_leave_the_allow_l
 
 
 def test_a_refusal_never_shows_another_agents_private_value_and_others_read_only_that_it_was_refused():
-    """Bram's health is private; Mira's attempt would drop it too far. Cato reads that the game master did not allow
-    it, nothing more, and nobody but Bram (Mira included) reads Bram's current health."""
+    """Bram's health is private; Mira's attempt would drop it too far, so the game master's ruling does not fit its
+    rules, and it gives none that does. Cato reads that it could not rule on it, nothing more, and nobody but Bram
+    (Mira included) reads Bram's current health."""
     contract = copy.deepcopy(TAVERN)
     contract["clock"]["rounds"] = 2
     contract["types"]["adventurer"]["props"]["health"]["private"] = True
@@ -320,10 +321,10 @@ def test_a_refusal_never_shows_another_agents_private_value_and_others_read_only
     env = host.load(contract, hosts={"game_master": StubGameMaster(resolve)}, seed=1)
     result = host.run(env, adventurer)
     assert result.status == "completed", result.error
-    assert "did not allow that" in env.entity("mira")["props"]["gm_told"]
+    assert "could not rule on it" in env.entity("mira")["props"]["gm_told"]
     assert not any("4.5" in text for who in ("mira", "cato") for text in seen[who])
     cato = "\n".join(seen["cato"])
-    assert "Mira tried «I punch Bram.» → the game master did not allow that" in cato
+    assert "Mira tried «I punch Bram.» → the game master could not rule on it, so nothing happened" in cato
     assert "at most 3" not in cato
 
 

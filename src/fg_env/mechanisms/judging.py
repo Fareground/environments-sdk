@@ -287,8 +287,11 @@ def _judge(world: Any, name: str, config: JudgeConfig, item: _Item, where: str) 
                                                          "context": context, **hashes},
                              ask=partial(_ask_judge, request), validate=partial(_verdict, config=config),
                              fallback=fallback)
-        except HostUnusable:
-            return  # the judge declined it or never answered usably: the text stays unscored (the diagnostics say so)
+        except HostUnusable:  # it declined or never answered usably: the text stays unscored (the diagnostics say so)
+            if item.subject is not None:  # its author is told so, in words no in-world outcome uses
+                world.emit(name, f"The judge could not score {item.subject.name}'s text: it stays unscored.",
+                           to=(item.subject.id,), data={"mechanism": name, "unscored": True})
+            return
         answers.append((seat.name, answer))
     scores = {key: _aggregate([a["scores"][key] for _, a in answers], config.aggregate) for key in config.criteria}
     total = total_score(scores, config)
@@ -502,9 +505,10 @@ def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[s
         "world": {"host_tape": tape_prop()},
         "actions": {config.tool: action},
         "records": {name: {
-            "fields": {"attempt": "text", "narration": "text", "changes": "list", "refused": "bool"},
-            "show": "{author} tried {attempt} → {'the game master did not allow that' if $it.refused else "
-                    "$it.narration}",
+            "fields": {"attempt": "text", "narration": "text", "changes": "list", "refused": "bool",
+                       "unruled": "bool"},
+            "show": "{author} tried {attempt} → {'the game master could not rule on it, so nothing happened' if "
+                    "$it.unruled else 'the game master did not allow that' if $it.refused else $it.narration}",
             "visible": config.visible, "description": f"Attempts resolved by the game master '{name}'."}},
     }
 
@@ -550,8 +554,9 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
                            identity={"attempt": text, **hashes}, ask=lambda adapter: adapter.resolve(request),
                            validate=within_rules, fallback=_absent if config.fallback == "refuse" else None)
         plan, refusal = allowlist.validate(world, rules, proposal, config.max_effects)
-    except HostUnusable:  # it declined or never answered usably: this attempt is refused (the diagnostics say why)
-        plan, refusal = allowlist.Plan("", []), "it could not decide what happens"
+        unruled = False
+    except HostUnusable:  # no usable ruling (down, declined, outside its protocol): refused, told apart from a ruling
+        plan, refusal, unruled = allowlist.Plan("", []), "it could not rule on it", True
     if refusal is None:
         mark = world.mark()
         try:
@@ -561,7 +566,9 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
             refusal = abort.reason
     changes = [change.summary for change in plan.changes] if refusal is None else []
     narration = Untrusted(plan.narration) if plan.narration and refusal is None else None
-    if refusal is not None:
+    if unruled:  # in words no in-world outcome uses
+        told = "The game master could not rule on it, so nothing happened."
+    elif refusal is not None:
         told = ("The game master did not allow that: "
                 f"{format_value(refusal) if isinstance(refusal, Untrusted) else refusal}")
     else:
@@ -569,7 +576,7 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
         if changes:
             told += " Changes: " + "; ".join(changes) + "."
     # Why it was refused is the actor's alone (it may name what only the actor may see): the record says only that.
-    world.post(name, {"attempt": text, "narration": narration, "changes": changes, "refused": refusal is not None},
-               actor.id, None, where)
+    world.post(name, {"attempt": text, "narration": narration, "changes": changes, "refused": refusal is not None,
+                      "unruled": unruled}, actor.id, None, where)
     world.set_prop(actor, f"{name}_told", told)
 
