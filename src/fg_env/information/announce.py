@@ -2,15 +2,16 @@
 
 Every agent reads an action's announcement, so it repeats no argument the action keeps from some of them: none carried
 into a record entry that is not broadcast to everyone (a record that does not notify, a directed or restricted entry),
-none its effects write into a private property, and none at all of a simultaneous stage's sealed choices — a losing
-sealed bid stays sealed unless the action's own `announce` says otherwise.
+none at all of an action whose effects may write a private property (an argument can decide such a write through a
+condition, a key or a transfer as surely as by being copied into it), and none at all of a simultaneous stage's sealed
+choices — a losing sealed bid stays sealed unless the action's own `announce` says otherwise.
 """
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any
 
-from ..contract import Contract, RecordSpec
+from ..contract import Contract, DefSpec, RecordSpec
 from ..effects.statements import compile_statement
 from ..expr import ExprError
 from ..world.store import World
@@ -25,16 +26,18 @@ class Redaction:
 
     def __init__(self, contract: Contract):
         self.contract = contract
-        #: Per action, the arguments its effects write into a private property.
-        self._kept_secrets: dict[str, frozenset[str]] = {}
+        #: Per action, whether its effects may write a private property.
+        self._writes_private: dict[str, bool] = {}
 
     def public_params(self, world: World, name: str, params: dict[str, Any], record_mark: int) -> dict[str, Any]:
         """The arguments of action ``name`` its announcement may repeat, the entries it posted being those after
         ``record_mark``."""
         if self._sealed(world):
             return {}
+        if self._keeps_secrets(world, name):
+            return {}
         posted = [(spec, entry) for _, spec, entry in self._posted_since(world, record_mark)]
-        return _public_params(params, posted, self._kept_secret(world, name))
+        return _public_params(params, posted)
 
     def restricted_since(self, world: World, record_mark: int) -> list[list[Any]]:
         """``[record, seq]`` of each entry posted after ``record_mark`` that not every agent may see (directed, or
@@ -61,66 +64,51 @@ class Redaction:
         stage = world.stage
         return any(spec.name == stage and spec.turns == "simultaneous" for spec in self.contract.stage_list())
 
-    def _kept_secret(self, world: World, name: str) -> frozenset[str]:
-        """The arguments of action ``name`` that its effects write into a private property."""
-        known = self._kept_secrets.get(name)
+    def _keeps_secrets(self, world: World, name: str) -> bool:
+        """Whether action ``name`` may write a private property: then it announces none of its arguments."""
+        known = self._writes_private.get(name)
         if known is None:
-            spec = self.contract.actions[name]
-            known = frozenset(_written_into(world.private_names, [spec.do]))
-            self._kept_secrets[name] = known
+            known = _writes_private(world.private_names, self.contract.actions[name].do, self.contract.defs)
+            self._writes_private[name] = known
         return known
 
 
-def _public_params(params: dict[str, Any], posted: Sequence[tuple[RecordSpec, dict[str, Any]]],
-                   secret: frozenset[str]) -> dict[str, Any]:
+def _public_params(params: dict[str, Any], posted: Sequence[tuple[RecordSpec, dict[str, Any]]]) -> dict[str, Any]:
     """The arguments an announcement may repeat. An entry that is not broadcast to everyone
     (a record that does not notify, a directed or restricted entry) keeps its content to
-    its own audience, so arguments carried into it are left out; so are ``secret`` ones, which the action keeps
-    in a private property."""
+    its own audience, so arguments carried into it are left out."""
     kept = [entry.get(field) for spec, entry in posted
             if not spec.notify or entry.get("to") is not None or spec.visible != "all"
             for field in spec.fields]
-    if not kept and not secret:
+    if not kept:
         return params
-    return {k: v for k, v in params.items() if k not in secret and not _carried(plain_value(v), kept)}
+    return {k: v for k, v in params.items() if not _carried(plain_value(v), kept)}
 
 
-def _written_into(private: frozenset[str], effects: Any) -> Iterator[str]:
-    """The arguments (``$params.<name>``) whose value may reach a property named in ``private`` through the
-    assignments in ``effects``, however nested: read on the right of an assignment into one, or carried there by
-    locals (``$x = $params.v``, then ``$actor.secret = $x``). It follows the value, not the wording."""
-    statements = list(_statements(effects))
-    carried: dict[str, set[str]] = {}  # local → the arguments its value may hold
-
-    def reads(statement: Any) -> set[str]:
-        found = {chain[1] for chain in statement.value.paths if chain[0] == "params" and len(chain) > 1}
-        return found.union(*(carried.get(root, ()) for root in statement.value.roots))
-
-    changed = True
-    while changed:  # a local may take its value from one set later in the list (in a loop): follow to a fixed point
-        changed = False
-        for statement in statements:
-            if statement.local is not None:
-                held = carried.setdefault(statement.local, set())
-                grown = reads(statement) - held
-                if grown:
-                    held |= grown
-                    changed = True
-    for statement in statements:
-        if statement.local is None and any(kind == "field" and step in private for kind, step in statement.steps):
-            yield from reads(statement)
-
-
-def _statements(effects: Any) -> Iterator[Any]:
-    """Every assignment statement in ``effects``, however nested, in order."""
+def _writes_private(private: frozenset[str], effects: Any, defs: Mapping[str, DefSpec],
+                    called: frozenset[str] = frozenset()) -> bool:
+    """Whether ``effects`` may write a property named in ``private``, on any branch and at any depth: an assignment
+    into one (whatever its key), a transfer of or into one, a created entity's, or a def's body it calls. Control
+    flow carries a value as surely as a copy does, so this asks whether the write can happen, not what it copies."""
     if isinstance(effects, str):
         try:
-            yield compile_statement(effects)
+            statement = compile_statement(effects)
         except ExprError:
-            return  # a condition or a text, not an assignment
-    elif isinstance(effects, (list, dict)):
-        for item in effects.values() if isinstance(effects, dict) else effects:
-            yield from _statements(item)
+            return False  # a condition or a text, not an assignment
+        return statement.local is None and any(kind == "field" and step in private for kind, step in statement.steps)
+    if isinstance(effects, list):
+        return any(_writes_private(private, item, defs, called) for item in effects)
+    if not isinstance(effects, dict):
+        return False
+    if "transfer" in effects and (effects["transfer"] in private or effects.get("into") in private):
+        return True
+    if "create" in effects and isinstance(effects.get("props"), dict) and set(effects["props"]) & private:
+        return True
+    name = effects.get("call")
+    spec = defs.get(name) if isinstance(name, str) and name not in called else None
+    if spec is not None and spec.do is not None and _writes_private(private, spec.do, defs, called | {name}):
+        return True
+    return any(_writes_private(private, value, defs, called) for value in effects.values())
 
 
 def _carried(value: Any, fields: Sequence[Any]) -> bool:

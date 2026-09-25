@@ -52,6 +52,22 @@ def test_a_private_argument_copied_through_locals_is_not_announced():
         assert events and all("7777" not in e["text"] and "7777" not in str(e["data"]) for e in events), do
 
 
+def test_an_argument_that_decides_a_private_write_is_not_announced():
+    """Control flow carries a value as well as a copy does: an action that may write a private property announces
+    none of its arguments, whichever branch, key or transfer the write goes through."""
+    contract = _secret_contract([])
+    contract["types"]["p"]["props"].update({"cash": {"default": 50, "private": True},
+                                             "marks": {"type": "map", "default": {}, "private": True}})
+    for do in ([{"if": "$params.v > 5000", "then": ["$actor.secret = 1"], "else": ["$actor.secret = 0"]}],
+               [{"each": "p", "where": "$it.note < $params.v", "do": ["$it.secret = 1"]}],
+               ["$actor.marks[$params.v] = 1"],
+               [{"transfer": "cash", "from": "$actor", "to": "$entity(bob)", "amount": "$params.v / 1000"}],
+               [{"after": 1, "do": [{"if": "$params.v > 5000", "then": ["$actor.secret = 1"]}]}]):
+        contract["actions"]["set_secret"]["do"] = do
+        events = _announced(contract, "set_secret")
+        assert events and all("7777" not in e["text"] and "7777" not in str(e["data"]) for e in events), do
+
+
 def test_a_public_argument_is_still_announced():
     events = _announced(_secret_contract("$actor.secret = $params.v"), "set_note")
     assert any("7777" in e["text"] for e in events)

@@ -224,6 +224,9 @@ worlds stay fast, and the package is organised by feature.
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
     entries it posted (`data.posted`), and one rule decides both. Before, `$events(action)` showed everyone who
     whispered to whom.
+  - An action whose effects may write a private property announces none of its arguments. Before, only an argument
+    copied into the property was left out, so one that decided the write (`if $params.n > 4 then secret = 1`), keyed
+    it, or set a transfer of a private resource was announced and gave the value away.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
