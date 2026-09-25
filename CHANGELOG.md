@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - Engines: the network engine links only the ties between people in its participants table and says, as an
+    invariant, when a tie names someone missing (a shorter table crashed the build naming an edge); the contact
+    centre's `calls_scale` has a minimum of 0 and its arrivals never go below zero (a scale near 0 drew negative).
   - A cards deal that needs more cards than the shared deck holds (`hand_size` × players, when both are written out) is
     a check error at `hand_size`, instead of some players silently getting fewer cards.
   - One rule for a property a mechanism starts from a setting: a type declaring it with another default is an error,

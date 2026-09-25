@@ -112,7 +112,7 @@
       ],
       "description": "Standard error of hours_profile."
     },
-    "calls_scale": {"type": "number", "default": 57.128968253968814, "description": "Pattern 'calls', scale: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."},
+    "calls_scale": {"type": "number", "default": 57.128968253968814, "min": 0, "description": "Pattern 'calls', scale: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."},
     "calls_scale_se": {"type": "number", "default": 0.2631603951297977, "description": "Standard error of calls_scale."}
   },
   "clock": {"rounds": 24, "unit": "minute", "step": 30, "start": "$inputs.day"},
@@ -196,7 +196,7 @@
       "unit": "second",
       "channels": {
         "calls": {
-          "arrivals": "$pattern.calls * $pattern.outage",
+          "arrivals": "$max(0, $pattern.calls * $pattern.outage)",
           "service": {"dist": "lognormal", "mean": "$inputs.aht_sec", "cv": "$inputs.aht_cv"},
           "patience": {"dist": "exponential", "mean": "$inputs.patience_sec * ($inputs.outage_patience_share if $pattern.outage > 1.3 else 1)"},
           "threshold": 20,

@@ -233,7 +233,7 @@
       "props": {"group": "$row.group", "receptivity": "$row.receptivity"}
     }
   },
-  "relations": {"knows": {"symmetric": true, "links": [{"rows": "$inputs.ties"}]}},
+  "relations": {"knows": {"symmetric": true, "links": [{"rows": "$filter($inputs.ties, $it.from in $map($inputs.participants, $it.id) and $it.to in $map($inputs.participants, $it.id))"}]}},
   "actions": {
     "adopt": {
       "by": "person",
@@ -297,7 +297,8 @@
     "reach": {"expr": "$reach(proposal)", "series": true}
   },
   "invariants": [
-    {"expr": "$all($inputs.seeds, $it in $map(person, $it.id))", "why": "inputs.seeds names someone who is not in inputs.participants: give the ids of people in the table, or [] for no initial adopter."}
+    {"expr": "$all($inputs.seeds, $it in $map(person, $it.id))", "why": "inputs.seeds names someone who is not in inputs.participants: give the ids of people in the table, or [] for no initial adopter."},
+    {"expr": "$all($inputs.ties, $it.from in $map(person, $it.id) and $it.to in $map(person, $it.id))", "why": "inputs.ties names someone who is not in inputs.participants: give ties only between people in the table (a smaller participants table needs its own ties)."}
   ],
   "mechanisms": {
     "influence": {

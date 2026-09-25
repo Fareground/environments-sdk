@@ -247,3 +247,16 @@ def test_the_chain_cafe_is_in_the_market_only_in_its_launch_arm():
         assert any(cafe["props"]["chain"] for cafe in env.entities("cafe")) is chain
         assert {name for name, _ in result.outputs["market_shares"]} == {cafe["name"] for cafe in env.entities("cafe")
                                                                          if cafe["props"]["cups_total"]}
+
+
+def test_a_network_whose_ties_name_people_not_in_its_table_says_so():
+    """A shorter participants table than the ties used to crash the build naming an edge (audit 12 engines M1)."""
+    for rows in ([], [{"id": "p1", "name": "P1", "group": "A", "receptivity": 0.5}]):
+        with pytest.raises(fg_env.InvariantViolation, match="inputs.ties names someone who is not in"):
+            fg_env.engines.load("network", inputs={"participants": rows, "seeds": []}).run("random")
+
+
+def test_a_contact_centre_with_no_calls_runs_on_every_seed():
+    """`calls_scale: 0` drew a negative scale from its uncertainty; arrivals are never below zero (engines M2)."""
+    runs = [fg_env.engines.load("contact_centre", inputs={"calls_scale": 0}, seed=seed).run() for seed in range(6)]
+    assert {result.status for result in runs} == {"completed"}
