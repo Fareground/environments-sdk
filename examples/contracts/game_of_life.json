@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Game of Life",
   "description": "Conway's cellular automaton on a wrapping grid: a live cell with two or three live neighbours survives, a dead cell with exactly three comes alive, every other cell is dead next generation. One synchronous event: every cell reads the generation as it was.",
   "inputs": {
@@ -9,16 +9,28 @@
   "clock": {"rounds": 50, "unit": "generation"},
   "space": {"grid": {"rows": "$inputs.size", "cols": "$inputs.size", "neighborhood": "moore", "torus": true}},
   "types": {"cell": {"props": {"on": false}}},
-  "population": [
-    {"type": "cell", "count": "$inputs.size ** 2", "at": "[($i - 1) // $inputs.size, ($i - 1) % $inputs.size]",
-     "props": {"on": "$chance($inputs.alive)"}}
-  ],
+  "entities": {
+    "cell": {
+      "type": "cell",
+      "count": "$inputs.size ** 2",
+      "at": "[($i - 1) // $inputs.size, ($i - 1) % $inputs.size]",
+      "props": {"on": "$chance($inputs.alive)"}
+    }
+  },
   "events": [
-    {"name": "generation", "phase": "end", "each": "cell", "sync": true, "do": [
-      "$n = $count($near($it, 1), $it.on)",
-      "$it.on = $n == 3 or ($it.on and $n == 2)"
-    ]}
+    {
+      "name": "generation",
+      "on": "round.end",
+      "do": [
+        {
+          "each": "cell",
+          "sync": true,
+          "do": ["$n = $count($near($it, 1), $it.on)", "$it.on = $n == 3 or ($it.on and $n == 2)"]
+        }
+      ]
+    }
   ],
-  "metrics": {"alive": {"expr": "$pct($count(cell, $it.on), $count(cell))", "description": "Share of live cells."}},
-  "outputs": {"alive": {"expr": "$metrics.alive", "type": "number"}}
+  "outputs": {
+    "alive": {"expr": "$pct($count(cell, $it.on), $count(cell))", "type": "number", "series": true, "description": "Share of live cells."}
+  }
 }

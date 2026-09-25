@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Hopscotch race",
   "description": "Two friends race along a hopscotch court. A turn is up to two hops that land together; a turn ending on a stone is undone and played again. Turns are timed, and a spectator view follows the race.",
   "brief": {
@@ -7,15 +7,9 @@
     "rules": "Each turn, hop up to twice (1 to 3 squares a hop). Your turn must end on a square without a stone, or every hop of it is undone and you play it again. Take too long and you slide back a square. The first to the last square wins."
   },
   "clock": {"rounds": 12, "unit": "turn"},
-  "world": {
-    "length": 20,
-    "stones": {"type": "list", "default": [4, 7, 11, 15, 18]}
-  },
+  "world": {"length": 20, "stones": {"type": "list", "default": [4, 7, 11, 15, 18]}},
   "types": {"player": {"agent": true, "props": {"square": 0}}},
-  "entities": {
-    "ana": {"type": "player", "name": "Ana"},
-    "ben": {"type": "player", "name": "Ben"}
-  },
+  "entities": {"ana": {"type": "player", "name": "Ana"}, "ben": {"type": "player", "name": "Ben"}},
   "actions": {
     "hop": {
       "by": "player",
@@ -29,25 +23,20 @@
     {
       "name": "hop",
       "max_actions": 2,
-      "time_limit": 30,
-      "on_timeout": ["$actor.square = $max($actor.square - 1, 0)"],
       "valid": [{"expr": "$actor.square not in $world.stones", "why": "square {$actor.square} holds a stone"}]
     }
   ],
   "views": {
-    "court": {"for": "player", "title": "Court", "of": "player", "sort": "$it.square", "desc": true,
-              "show": "{name}: square {square}"},
+    "court": {"for": "player", "title": "Court", "of": "player", "sort": "$it.square", "desc": true, "show": "{name}: square {square}"},
     "stones": {"for": "player", "show": "Stones lie on squares {$world.stones}."},
-    "race": {"for": "spectator", "title": "Race", "of": "player", "sort": "$it.square", "desc": true, "bullet": false,
-             "show": "{name}: square {square} of {$world.length}, {$world.length - $it.square} to go"}
+    "race": {"for": "spectator", "title": "Race", "of": "player", "sort": "$it.square", "desc": true, "bullet": false, "show": "{name}: square {square} of {$world.length}, {$world.length - $it.square} to go"}
   },
-  "end": [
-    {"when": "$count(player, $it.square >= $world.length) > 0", "name": "finished",
-     "winner": "$top(player, $it.square, 1)[0].name", "say": "{$top(player, $it.square, 1)[0].name} reaches the last square."}
-  ],
-  "metrics": {"leader_square": "$max(player, $it.square)"},
+  "events": [{"on": "stage.hop.turn", "when": "$timed_out", "do": ["$actor.square = $max($actor.square - 1, 0)"]}],
   "outputs": {
     "winner": {"expr": "$top(player, $it.square, 1)[0].name", "type": "text"},
-    "leader_square": {"expr": "$metrics.leader_square", "type": "int"}
-  }
+    "leader_square": {"expr": "$max(player, $it.square)", "type": "int", "series": true}
+  },
+  "end": [
+    {"when": "$count(player, $it.square >= $world.length) > 0", "name": "finished", "winner": "$top(player, $it.square, 1)[0].name", "say": "{$top(player, $it.square, 1)[0].name} reaches the last square."}
+  ]
 }

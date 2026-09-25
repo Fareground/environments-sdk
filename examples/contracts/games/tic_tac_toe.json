@@ -1,154 +1,51 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Tic-tac-toe",
   "description": "Noughts and crosses on a 3x3 board written in plain rules: alternating marks, three in a row wins, a full board draws.",
-  "brief": {
-    "situation": "A 3x3 board.",
-    "rules": "Mark an empty cell (0-8, row by row). Three in a row wins."
-  },
-  "clock": {
-    "rounds": 9,
-    "unit": "move"
-  },
+  "brief": {"situation": "A 3x3 board.", "rules": "Mark an empty cell (0-8, row by row). Three in a row wins."},
+  "clock": {"rounds": 9, "unit": "move"},
   "world": {
-    "board": {
-      "type": "list",
-      "default": [
-        ".",
-        ".",
-        ".",
-        ".",
-        ".",
-        ".",
-        ".",
-        ".",
-        "."
-      ]
-    },
-    "turn": {
-      "type": "text",
-      "default": "x"
-    },
-    "winner": {
-      "type": "text",
-      "default": ""
-    }
+    "board": {"type": "list", "default": [".", ".", ".", ".", ".", ".", ".", ".", "."]},
+    "turn": {"type": "text", "default": "x"},
+    "winner": {"type": "text", "default": ""}
   },
   "types": {
     "player": {
       "agent": true,
-      "props": {
-        "mark": {
-          "type": "text",
-          "default": "x"
-        },
-        "seat": 0
-      }
+      "props": {"mark": {"type": "text", "default": "x"}, "seat": 0},
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "value": "(1 if $world.winner == $it.mark else -1) if $world.winner != '' else 0"}
     }
   },
   "entities": {
-    "x": {
-      "type": "player",
-      "props": {
-        "mark": "x",
-        "seat": 0
-      }
-    },
-    "o": {
-      "type": "player",
-      "props": {
-        "mark": "o",
-        "seat": 1
-      }
-    }
-  },
-  "defs": {
-    "cell": {
-      "args": [
-        "n"
-      ],
-      "expr": "$text($n) if $world.board[$n] == '.' else $world.board[$n]"
-    },
-    "row": {
-      "args": [
-        "n"
-      ],
-      "expr": "$cell($n) + ' ' + $cell($n + 1) + ' ' + $cell($n + 2)"
-    },
-    "three": {
-      "args": [
-        "m"
-      ],
-      "expr": "$any([[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]], $world.board[$it[0]] == $m and $world.board[$it[1]] == $m and $world.board[$it[2]] == $m)"
-    }
+    "x": {"type": "player", "props": {"mark": "x", "seat": 0}},
+    "o": {"type": "player", "props": {"mark": "o", "seat": 1}}
   },
   "actions": {
     "mark": {
       "by": "player",
-      "params": {
-        "cell": {
-          "type": "int",
-          "min": 0,
-          "max": 8
-        }
-      },
-      "when": [
-        "$world.turn == $actor.mark"
-      ],
+      "params": {"cell": {"type": "int", "min": 0, "max": 8}},
+      "when": ["$world.turn == $actor.mark"],
       "do": [
-        {
-          "if": "$world.board[$params.cell] != '.'",
-          "then": [
-            {
-              "fail": "That cell is taken."
-            }
-          ]
-        },
+        {"if": "$world.board[$params.cell] != '.'", "then": [{"fail": "That cell is taken."}]},
         "$world.board[$params.cell] = $actor.mark",
         "$world.turn = 'o' if $actor.mark == 'x' else 'x'",
-        {
-          "if": "$three($actor.mark)",
-          "then": [
-            "$world.winner = $actor.mark",
-            {
-              "end": "three",
-              "winner": "$actor"
-            }
-          ]
-        }
+        {"if": "$three($actor.mark)", "then": ["$world.winner = $actor.mark", {"end": "three", "winner": "$actor"}]}
       ],
       "terminal": true
     }
   },
-  "stages": [
-    {
-      "name": "move",
-      "who": "$world.turn == $it.mark",
-      "must_act": true
-    }
-  ],
+  "stages": [{"name": "move", "who": "$world.turn == $it.mark", "must_act": true}],
   "views": {
-    "board": {
-      "for": "player",
-      "show": "You play {$actor.mark}. Board, row by row (an empty cell shows its number):\n{$row(0)}\n{$row(3)}\n{$row(6)}"
-    }
+    "board": {"for": "player", "show": "You play {$actor.mark}. Board, row by row (an empty cell shows its number):\n{$row(0)}\n{$row(3)}\n{$row(6)}"}
   },
-  "end": [
-    {
-      "name": "draw",
-      "when": "$world.winner == '' and $count($world.board, $it == '.') == 0"
-    }
-  ],
-  "game": {
-    "players": "player",
-    "seat": "$it.seat",
-    "utility": "zero_sum",
-    "returns": "(1 if $world.winner == $actor.mark else -1) if $world.winner != '' else 0"
-  },
-  "outputs": {
-    "winner": {
-      "expr": "$world.winner",
-      "type": "text"
+  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}},
+  "end": [{"name": "draw", "when": "$world.winner == '' and $count($world.board, $it == '.') == 0"}],
+  "defs": {
+    "cell": {"args": ["n"], "expr": "$text($n) if $world.board[$n] == '.' else $world.board[$n]"},
+    "row": {"args": ["n"], "expr": "$cell($n) + ' ' + $cell($n + 1) + ' ' + $cell($n + 2)"},
+    "three": {
+      "args": ["m"],
+      "expr": "$any([[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]], $world.board[$it[0]] == $m and $world.board[$it[1]] == $m and $world.board[$it[2]] == $m)"
     }
   }
 }

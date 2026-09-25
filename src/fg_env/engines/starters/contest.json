@@ -1,7 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Contest Engine",
   "description": "A reusable contest engine in which participants submit performances and a host judge scores them on a configurable rubric; the highest total wins, and a tie on the rubric goes to the stronger hidden performance (each contestant's declared skill plus luck, drawn every round). Without a bound judge every submission is scored at the rubric midpoint, so skill and luck decide and the run's diagnostics say the judge was a stand-in.",
+  "brief": {
+    "situation": "Participants respond to the same challenge: {$inputs.prompt}",
+    "rules": "Each participant submits once per round. Submissions are judged blind on the configured rubric. Scores accumulate and the highest total wins; a tie goes to the stronger performance over the contest.",
+    "roles": {"contestant": "Create a strong submission using your assigned approach while responding directly to the challenge."}
+  },
   "inputs": {
     "prompt": {"type": "text", "default": "Present the strongest response to the challenge."},
     "rounds": {"type": "int", "default": 2, "min": 1, "max": 10},
@@ -20,40 +25,53 @@
       ]
     }
   },
-  "brief": {
-    "situation": "Participants respond to the same challenge: {$inputs.prompt}",
-    "rules": "Each participant submits once per round. Submissions are judged blind on the configured rubric. Scores accumulate and the highest total wins; a tie goes to the stronger performance over the contest.",
-    "roles": {"contestant": "Create a strong submission using your assigned approach while responding directly to the challenge."}
-  },
   "clock": {"rounds": "$inputs.rounds", "unit": "round"},
-  "types": {"contestant": {"agent": true, "policy": "baseline", "props": {
-    "approach": {"type": "text", "default": "", "private": true},
-    "skill": {"type": "number", "default": 0.5, "private": true},
-    "score": {"type": "number", "default": 0},
-    "performance": {"type": "number", "default": 0, "private": true, "description": "Hidden running total of skill plus luck, one draw per submission: breaks rubric ties."}
-  }}},
-  "population": [{"type": "contestant", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"approach": "$row.approach", "skill": "$row.skill"}}],
-  "records": {"submissions": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
-  "actions": {"submit": {
-    "by": "contestant", "description": "Submit your performance for this round.", "terminal": true,
-    "params": {"text": {"type": "text", "max_len": 1600}},
-    "do": [{"post": "submissions", "text": "$params.text"}, "$actor.performance += $normal($actor.skill, $inputs.luck)"]
-  }},
-  "stages": [{"name": "submissions", "turns": "simultaneous", "must_act": true}],
-  "mechanisms": {"judge": {
-    "kind": "host", "mode": "judge", "record": "submissions", "stage": "submissions", "who": "contestant", "into": "score",
-    "blind": true, "fallback": "midpoint", "instructions": "Judge the submission on its own merits against the shared prompt.",
-    "criteria": {
-      "quality": {"description": "Overall strength and execution.", "weight": 2},
-      "relevance": {"description": "Directly addresses the challenge.", "weight": 1},
-      "reasoning": {"description": "Coherent support for its claims or choices.", "weight": 1}
+  "types": {
+    "contestant": {
+      "agent": true,
+      "policy": "baseline",
+      "props": {
+        "approach": {"type": "text", "default": "", "private": true},
+        "skill": {"type": "number", "default": 0.5, "private": true},
+        "score": {"type": "number", "default": 0},
+        "performance": {"type": "number", "default": 0, "private": true, "description": "Hidden running total of skill plus luck, one draw per submission: breaks rubric ties."}
+      },
+      "policies": {
+        "baseline": {
+          "rules": [
+            {
+              "do": "submit",
+              "with": {"text": "A concise response that addresses the challenge with a clear claim, supporting reason, and practical implication."}
+            }
+          ]
+        }
+      }
     }
-  }},
-  "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
-  "policies": {"baseline": {"rules": [{"do": "submit", "with": {"text": "A concise response that addresses the challenge with a clear claim, supporting reason, and practical implication."}}]}},
-  "defs": {
-    "leaders": {"expr": "$top(contestant, [$it.score, $it.performance], 2)", "description": "The two best contestants: highest rubric total, then stronger hidden performance (one sort, so it scales to large fields)."}
   },
+  "entities": {
+    "contestant": {
+      "type": "contestant",
+      "from": "$inputs.participants",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {"approach": "$row.approach", "skill": "$row.skill"}
+    }
+  },
+  "records": {"submissions": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
+  "actions": {
+    "submit": {
+      "by": "contestant",
+      "description": "Submit your performance for this round.",
+      "terminal": true,
+      "params": {"text": {"type": "text", "max_len": 1600}},
+      "do": [
+        {"post": "submissions", "text": "$params.text"},
+        "$actor.performance += $normal($actor.skill, $inputs.luck)"
+      ]
+    }
+  },
+  "stages": [{"name": "submissions", "turns": "simultaneous", "must_act": true}],
+  "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
   "outputs": {
     "winner": {"type": "text", "expr": "$leaders[0].name if [$leaders[0].score, $leaders[0].performance] != [$leaders[1].score, $leaders[1].performance] else null", "description": "The single top scorer (a rubric tie goes to the stronger hidden performance), or null when that ties too."},
     "judged": {"type": "bool", "expr": "not $any($records(judge), $it.stand_in)", "description": "Whether a bound judge scored every submission; false means the rubric scores are the midpoint stand-in and skill and luck alone decided."},
@@ -61,5 +79,28 @@
     "submissions": {"type": "int", "expr": "$count($records(submissions))"},
     "contestants": {"type": "int", "expr": "$count(contestant)"}
   },
-  "invariants": [{"expr": "$count(contestant) >= 2", "why": "A contest needs at least two contestants: give inputs.participants two or more rows."}]
+  "invariants": [
+    {"expr": "$count(contestant) >= 2", "why": "A contest needs at least two contestants: give inputs.participants two or more rows."}
+  ],
+  "defs": {
+    "leaders": {"expr": "$top(contestant, [$it.score, $it.performance], 2)", "description": "The two best contestants: highest rubric total, then stronger hidden performance (one sort, so it scales to large fields)."}
+  },
+  "mechanisms": {
+    "judge": {
+      "kind": "host",
+      "mode": "judge",
+      "record": "submissions",
+      "stage": "submissions",
+      "who": "contestant",
+      "into": "score",
+      "blind": true,
+      "fallback": "midpoint",
+      "instructions": "Judge the submission on its own merits against the shared prompt.",
+      "criteria": {
+        "quality": {"description": "Overall strength and execution.", "weight": 2},
+        "relevance": {"description": "Directly addresses the challenge.", "weight": 1},
+        "reasoning": {"description": "Coherent support for its claims or choices.", "weight": 1}
+      }
+    }
+  }
 }

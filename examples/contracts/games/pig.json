@@ -1,42 +1,64 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Pig",
   "description": "The dice race with a roll-or-bank decision after every roll: explicit chance nodes, several decisions per turn, perfect information.",
-  "inputs": {"target": {"type": "int", "default": 20, "min": 1, "description": "Points needed to win."}},
   "brief": {
     "situation": "Two players race to {$inputs.target} points with one six-sided die.",
     "rules": "On your turn roll as often as you like: each roll adds its face to your turn total, but a 1 loses the turn total and ends your turn. Stop to bank the turn total. The first to reach the target wins (1); the other loses (-1)."
   },
+  "inputs": {"target": {"type": "int", "default": 20, "min": 1, "description": "Points needed to win."}},
   "clock": {"rounds": 200, "unit": "round"},
   "world": {"winner": {"type": "text", "default": ""}},
-  "defs": {"other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"}},
-  "types": {"player": {"agent": true, "props": {"seat": 0, "score": 0, "turn_total": 0}}},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "score": 0, "turn_total": 0},
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "min": -1, "max": 1, "value": "(1 if $world.winner == $it.id else -1) if $world.winner != '' else 0"}
+    }
+  },
   "entities": {
     "a": {"type": "player", "name": "A", "props": {"seat": 0}},
     "b": {"type": "player", "name": "B", "props": {"seat": 1}}
   },
   "actions": {
     "roll": {
-      "by": "player", "description": "Roll the die.", "terminal": "$actor.turn_total == 0",
-      "do": [{"chance": "die", "outcomes": [1, 2, 3, 4, 5, 6], "as": "face", "do": [
-        {"if": "$face == 1",
-         "then": ["$actor.turn_total = 0", {"emit": "bust", "say": "{$actor.name} rolls a 1 and loses the turn total."}],
-         "else": ["$actor.turn_total += $face", {"emit": "rolled", "say": "{$actor.name} rolls {$face}."}]}
-      ]}]
+      "by": "player",
+      "description": "Roll the die.",
+      "terminal": "$actor.turn_total == 0",
+      "do": [
+        {
+          "chance": "die",
+          "outcomes": [1, 2, 3, 4, 5, 6],
+          "as": "face",
+          "do": [
+            {
+              "if": "$face == 1",
+              "then": [
+                "$actor.turn_total = 0",
+                {"emit": "bust", "say": "{$actor.name} rolls a 1 and loses the turn total."}
+              ],
+              "else": ["$actor.turn_total += $face", {"emit": "rolled", "say": "{$actor.name} rolls {$face}."}]
+            }
+          ]
+        }
+      ]
     },
     "stop": {
-      "by": "player", "description": "Bank your turn total and end your turn.", "terminal": true,
+      "by": "player",
+      "description": "Bank your turn total and end your turn.",
+      "terminal": true,
       "when": ["$actor.turn_total > 0"],
       "do": [
-        "$actor.score += $actor.turn_total", "$actor.turn_total = 0",
+        "$actor.score += $actor.turn_total",
+        "$actor.turn_total = 0",
         {"if": "$actor.score >= $inputs.target", "then": ["$world.winner = $actor.id", {"end": "target"}]}
       ]
     }
   },
   "stages": [{"name": "turns", "order": "$it.seat", "max_actions": 100, "max_calls": 200, "must_act": true}],
-  "views": {"scores": {"for": "player",
-    "show": "Target: {$inputs.target}. Your score: {$actor.score}, turn total {$actor.turn_total}. Opponent's score: {$other($actor).score}."}},
-  "game": {"players": "player", "seat": "$it.seat", "utility": "zero_sum", "min_return": -1, "max_return": 1,
-           "returns": "(1 if $world.winner == $actor.id else -1) if $world.winner != '' else 0"},
-  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}}
+  "views": {
+    "scores": {"for": "player", "show": "Target: {$inputs.target}. Your score: {$actor.score}, turn total {$actor.turn_total}. Opponent's score: {$other($actor).score}."}
+  },
+  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}},
+  "defs": {"other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"}}
 }

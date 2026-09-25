@@ -1,72 +1,89 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Town hall on the skate park",
   "description": "Residents debate whether the town should build a skate park. A moderator chairs: residents raise hands, speak when recognized, move and second a motion, amend it, and the moderator calls the question. The meeting ends with the vote on the main motion.",
+  "brief": {
+    "situation": "Riverside's town council holds a public meeting on one question: should the town build a skate park? Parents want a safe place for kids; neighbours worry about noise and cost.",
+    "rules": "The moderator chairs. Raise your hand to ask for the floor and speak only when recognized (at most two speeches each time). Any resident may move a motion once recognized; a motion needs a second before it is debated. The open motion can be amended once seconded, and the amendment is voted on first. When the moderator calls the question, every resident votes yes, no or abstain; the motion passes with more than half of the votes cast, and the meeting ends.",
+    "roles": {"resident": "You are a resident. {$'You want the park built.' if $actor.stance > 0.3 else ($'You are open to a compromise.' if $actor.stance > -0.3 else 'You are against the park.')} Argue for what you want and vote for it.", "moderator": "You chair the meeting. Give the floor fairly, keep debate moving, and call the question once the motion before the body has been debated."}
+  },
   "inputs": {
     "residents": {"type": "int", "default": 7, "min": 3, "max": 60, "description": "Residents at the meeting."},
     "method": {"type": "enum", "values": ["majority", "supermajority"], "default": "majority"},
     "debate": {"type": "int", "default": 2, "min": 0, "max": 20, "description": "Speeches the coded chair waits for before calling the question."}
   },
-  "brief": {
-    "situation": "Riverside's town council holds a public meeting on one question: should the town build a skate park? Parents want a safe place for kids; neighbours worry about noise and cost.",
-    "rules": "The moderator chairs. Raise your hand to ask for the floor and speak only when recognized (at most two speeches each time). Any resident may move a motion once recognized; a motion needs a second before it is debated. The open motion can be amended once seconded, and the amendment is voted on first. When the moderator calls the question, every resident votes yes, no or abstain; the motion passes with more than half of the votes cast, and the meeting ends.",
-    "roles": {
-      "resident": "You are a resident. {$'You want the park built.' if $actor.stance > 0.3 else ($'You are open to a compromise.' if $actor.stance > -0.3 else 'You are against the park.')} Argue for what you want and vote for it.",
-      "moderator": "You chair the meeting. Give the floor fairly, keep debate moving, and call the question once the motion before the body has been debated."
-    }
-  },
   "clock": {"rounds": 6, "unit": "session"},
   "types": {
-    "resident": {"agent": true, "policy": "resident", "description": "A resident at the meeting.",
-      "props": {"stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true, "description": "Above 0 favours the park."}}},
-    "moderator": {"agent": true, "policy": "chair", "description": "The meeting's chair."}
+    "resident": {
+      "agent": true,
+      "policy": "resident",
+      "description": "A resident at the meeting.",
+      "props": {
+        "stance": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true, "description": "Above 0 favours the park."}
+      },
+      "policies": {
+        "resident": {
+          "repeat": true,
+          "rules": [
+            {
+              "when": "$world.hall.phase == 'voting'",
+              "do": "hall_vote",
+              "with": {"choice": "$'yes' if $actor.stance > ($top_is(amendment) and -0.3 or 0) else 'no'"}
+            },
+            {
+              "when": "$holds_floor($actor) and $pending_motion() == null and $actor.stance > 0.3",
+              "do": "hall_propose",
+              "with": {"text": "Riverside builds a skate park by the river by June."}
+            },
+            {
+              "when": "$holds_floor($actor) and $open_motion and $top_is(motion) and $len($decisions()) == 0 and $actor.stance > -0.3 and $actor.stance <= 0.3",
+              "do": "hall_amend",
+              "with": {"text": "Riverside builds a skate park by the river by September, with the budget capped at 200 thousand dollars."}
+            },
+            {
+              "when": "$holds_floor($actor)",
+              "do": "hall_speak",
+              "with": {"text": "$'Kids need a safe place to skate; I support this.' if $actor.stance > 0 else 'The cost and the noise worry me; I cannot support this as it stands.'"}
+            },
+            {"when": "$pending_motion() != null and $pending_motion().status == 'proposed' and $pending_motion().mover != $actor.id and $actor.stance > -0.3", "do": "hall_second"},
+            {"when": "not ($actor.id in $world.hall.hands) and not $holds_floor($actor)", "chance": 0.35, "do": "hall_raise_hand"},
+            {"do": "pass"}
+          ]
+        }
+      }
+    },
+    "moderator": {
+      "agent": true,
+      "policy": "chair",
+      "description": "The meeting's chair.",
+      "policies": {
+        "chair": {
+          "repeat": true,
+          "rules": [
+            {
+              "when": "$len($world.hall.hands) > 0 and $world.hall.floor == null",
+              "do": "hall_recognize",
+              "with": {"who": "$world.hall.hands[0]"}
+            },
+            {"when": "$open_motion and $pending_motion().speeches >= $inputs.debate", "do": "hall_call_question"},
+            {"do": "pass"}
+          ]
+        }
+      }
+    }
   },
-  "population": [
-    {"type": "resident", "count": "$inputs.residents", "id": "r{$i}", "name": "Resident {$i}",
-     "props": {"stance": "$clamp($normal(0.1, 0.5), -1, 1)"}}
-  ],
-  "entities": {"chair": {"type": "moderator", "name": "Moderator"}},
-  "mechanisms": {
-    "hall": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator", "floor": true,
-             "speaker_limit": 2, "passes": 8, "method": "majority", "question": "Should Riverside build a skate park?",
-             "end": "decision"}
-  },
-  "arms": {
-    "supermajority": {"description": "Two thirds of the votes cast are needed.",
-                      "patch": {"mechanisms": {"hall": {"method": "supermajority"}}}}
+  "entities": {
+    "chair": {"type": "moderator", "name": "Moderator"},
+    "resident": {
+      "type": "resident",
+      "count": "$inputs.residents",
+      "id": "r{$i}",
+      "name": "Resident {$i}",
+      "props": {"stance": "$clamp($normal(0.1, 0.5), -1, 1)"}
+    }
   },
   "views": {
     "my_view": {"for": "resident", "show": "Your leaning: {$'for the park' if $actor.stance > 0.3 else ($'undecided, open to a compromise' if $actor.stance > -0.3 else 'against the park')}."}
-  },
-  "defs": {
-    "holds_floor": {"args": ["who"], "expr": "$world.hall.floor == $who.id"},
-    "open_motion": "$pending_motion() != null and $pending_motion().status == 'open'",
-    "top_is": {"args": ["kind"], "expr": "$pending_motion() != null and $pending_motion().kind == $kind"}
-  },
-  "policies": {
-    "chair": {"repeat": true, "rules": [
-      {"when": "$len($world.hall.hands) > 0 and $world.hall.floor == null", "do": "hall_recognize", "with": {"who": "$world.hall.hands[0]"}},
-      {"when": "$open_motion and $pending_motion().speeches >= $inputs.debate", "do": "hall_call_question"},
-      {"do": "pass"}
-    ]},
-    "resident": {"repeat": true, "rules": [
-      {"when": "$world.hall.phase == 'voting'", "do": "hall_vote",
-       "with": {"choice": "$'yes' if $actor.stance > ($top_is(amendment) and -0.3 or 0) else 'no'"}},
-      {"when": "$holds_floor($actor) and $pending_motion() == null and $actor.stance > 0.3", "do": "hall_propose",
-       "with": {"text": "Riverside builds a skate park by the river by June."}},
-      {"when": "$holds_floor($actor) and $open_motion and $top_is(motion) and $len($decisions()) == 0 and $actor.stance > -0.3 and $actor.stance <= 0.3",
-       "do": "hall_amend", "with": {"text": "Riverside builds a skate park by the river by September, with the budget capped at 200 thousand dollars."}},
-      {"when": "$holds_floor($actor)", "do": "hall_speak",
-       "with": {"text": "$'Kids need a safe place to skate; I support this.' if $actor.stance > 0 else 'The cost and the noise worry me; I cannot support this as it stands.'"}},
-      {"when": "$pending_motion() != null and $pending_motion().status == 'proposed' and $pending_motion().mover != $actor.id and $actor.stance > -0.3",
-       "do": "hall_second"},
-      {"when": "not ($actor.id in $world.hall.hands) and not $holds_floor($actor)", "chance": 0.35, "do": "hall_raise_hand"},
-      {"do": "pass"}
-    ]}
-  },
-  "metrics": {
-    "speeches": {"expr": "$count($records(hall), $it.says == 'says')", "description": "Speeches so far."},
-    "motions": {"expr": "$len($world.hall.stack) + $len($decisions())", "description": "Motions before or decided by the body."}
   },
   "outputs": {
     "decided": {"expr": "$len($decisions()) > 0", "type": "bool"},
@@ -75,7 +92,22 @@
     "yes": {"expr": "$last($decisions()).counts.yes if $len($decisions()) > 0 else 0", "type": "int"},
     "no": {"expr": "$last($decisions()).counts.no if $len($decisions()) > 0 else 0", "type": "int"},
     "amended": {"expr": "$count($records(hall), $contains($it.says, 'moves amendment')) > 0", "type": "bool"},
-    "speeches": {"expr": "$metrics.speeches", "type": "int"},
-    "sessions": {"expr": "$round", "type": "int"}
+    "speeches": {"expr": "$count($records(hall), $it.says == 'says')", "type": "int", "series": true, "description": "Speeches so far."},
+    "sessions": {"expr": "$round", "type": "int"},
+    "motions": {"expr": "$len($world.hall.stack) + $len($decisions())", "description": "Motions before or decided by the body.", "series": true}
+  },
+  "arms": {
+    "supermajority": {
+      "description": "Two thirds of the votes cast are needed.",
+      "patch": {"mechanisms": {"hall": {"method": "supermajority"}}}
+    }
+  },
+  "defs": {
+    "holds_floor": {"args": ["who"], "expr": "$world.hall.floor == $who.id"},
+    "open_motion": "$pending_motion() != null and $pending_motion().status == 'open'",
+    "top_is": {"args": ["kind"], "expr": "$pending_motion() != null and $pending_motion().kind == $kind"}
+  },
+  "mechanisms": {
+    "hall": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator", "floor": true, "speaker_limit": 2, "passes": 8, "method": "majority", "question": "Should Riverside build a skate park?", "end": "decision"}
   }
 }

@@ -1,41 +1,63 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "First-price sealed-bid auction",
   "description": "Two bidders with private values drawn uniformly from 1 to `values` bid sealed whole numbers at once; the highest bid wins and pays its bid, ties split the item. General-sum.",
-  "inputs": {"values": {"type": "int", "default": 4, "min": 1, "max": 20, "description": "Highest possible value (values and bids run from 0 or 1 to it)."}},
   "brief": {
     "situation": "One item is for sale to two bidders. Each bidder privately learns what the item is worth to them: a whole number from 1 to {$inputs.values}, each equally likely.",
     "rules": "Both bidders submit a sealed bid from 0 to {$inputs.values} at the same time. The highest bid wins and pays that bid; the winner scores value minus bid, and the loser scores 0. Equal bids split the item: each scores half of value minus bid."
   },
+  "inputs": {
+    "values": {"type": "int", "default": 4, "min": 1, "max": 20, "description": "Highest possible value (values and bids run from 0 or 1 to it)."}
+  },
   "clock": {"rounds": 1},
-  "types": {"bidder": {"agent": true, "props": {
-    "seat": 0,
-    "value": {"type": "int", "default": 0, "private": true},
-    "bid": {"type": "int", "default": 0, "private": true},
-    "payoff": 0.0
-  }}},
+  "types": {
+    "bidder": {
+      "agent": true,
+      "props": {
+        "seat": 0,
+        "value": {"type": "int", "default": 0, "private": true},
+        "bid": {"type": "int", "default": 0, "private": true},
+        "payoff": 0.0
+      },
+      "score": {"seat": "$it.seat", "utility": "general_sum", "value": "$it.payoff"}
+    }
+  },
   "entities": {
     "a": {"type": "bidder", "name": "A", "props": {"seat": 0}},
     "b": {"type": "bidder", "name": "B", "props": {"seat": 1}}
   },
-  "events": [
-    {"at": 1, "phase": "start", "each": "bidder", "do": [
-      {"chance": "value", "outcomes": "$range(1, $inputs.values + 1)", "as": "v", "do": ["$it.value = $v"]}
-    ]},
-    {"phase": "end", "do": [
-      "$top = $max(bidder, $it.bid)",
-      "$winners = $filter(bidder, $it.bid == $top)",
-      {"each": "$winners", "do": ["$it.payoff = ($it.value - $it.bid) / $len($winners)"]},
-      {"emit": "result", "say": "The highest bid was {$top}; {$join($map($winners, $it.name), ' and ')} won."}
-    ]}
-  ],
-  "actions": {"bid": {
-    "by": "bidder", "description": "Submit your sealed bid.", "private": true, "terminal": true,
-    "params": {"amount": {"type": "int", "min": 0, "max": "$inputs.values"}},
-    "do": ["$actor.bid = $params.amount"]
-  }},
+  "actions": {
+    "bid": {
+      "by": "bidder",
+      "description": "Submit your sealed bid.",
+      "terminal": true,
+      "params": {"amount": {"type": "int", "min": 0, "max": "$inputs.values"}},
+      "do": ["$actor.bid = $params.amount"],
+      "announce": false
+    }
+  },
   "stages": [{"name": "bid", "turns": "simultaneous", "must_act": true}],
   "views": {"value": {"for": "bidder", "show": "The item is worth {$actor.value} to you."}},
-  "game": {"players": "bidder", "seat": "$it.seat", "utility": "general_sum", "returns": "$actor.payoff"},
+  "events": [
+    {
+      "on": "round.start",
+      "when": "$round == 1",
+      "do": [
+        {
+          "each": "bidder",
+          "do": [{"chance": "value", "outcomes": "$range(1, $inputs.values + 1)", "as": "v", "do": ["$it.value = $v"]}]
+        }
+      ]
+    },
+    {
+      "on": "round.end",
+      "do": [
+        "$top = $max(bidder, $it.bid)",
+        "$winners = $filter(bidder, $it.bid == $top)",
+        {"each": "$winners", "do": ["$it.payoff = ($it.value - $it.bid) / $len($winners)"]},
+        {"emit": "result", "say": "The highest bid was {$top}; {$join($map($winners, $it.name), ' and ')} won."}
+      ]
+    }
+  ],
   "outputs": {"revenue": {"expr": "$max(bidder, $it.bid)", "type": "number"}}
 }

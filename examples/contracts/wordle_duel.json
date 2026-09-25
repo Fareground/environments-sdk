@@ -1,24 +1,78 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Wordle duel",
   "description": "Two players race to crack each other's secret five-letter word with Wordle feedback, best of three games.",
   "brief": {
     "situation": "Two word sleuths duel. In every game each of you holds a secret five-letter word that your rival must find, while you hunt for theirs.",
     "rules": "Each round both of you type one guess: any five-letter word from the allowed word list. You are told, letter by letter: G = right letter in the right place, Y = the letter is in the word but elsewhere, - = not in the word. A repeated letter is marked only as many times as the word really contains it. The first to find the word wins the game; if both find it in the same round, or neither finds it within {$inputs.max_guesses} guesses, the game is drawn. The first to win {$inputs.wins_needed} games wins the match; after {$inputs.games} games the player with more wins takes it.",
-    "roles": {
-      "player": "Win the match: use every clue to narrow your rival's word down in as few guesses as you can."
-    }
+    "roles": {"player": "Win the match: use every clue to narrow your rival's word down in as few guesses as you can."}
   },
   "inputs": {
     "words": {
       "type": "list",
       "description": "Allowed guesses, and the pool secret words are dealt from (five lower-case letters each).",
-      "default": ["crane", "slate", "trace", "crate", "stare", "apple", "geese", "sheep", "llama", "lemon",
-                  "melon", "mango", "peach", "grape", "berry", "bread", "toast", "spice", "chili", "onion",
-                  "brick", "stone", "plant", "flame", "frost", "storm", "cloud", "river", "ocean", "beach",
-                  "shore", "coral", "pearl", "amber", "ivory", "ebony", "cedar", "maple", "birch", "aspen",
-                  "tiger", "zebra", "otter", "eagle", "raven", "robin", "horse", "mouse", "moose", "goose",
-                  "piano", "cello", "flute", "organ", "banjo", "dance", "music", "poems", "novel", "story"]
+      "default": [
+        "crane",
+        "slate",
+        "trace",
+        "crate",
+        "stare",
+        "apple",
+        "geese",
+        "sheep",
+        "llama",
+        "lemon",
+        "melon",
+        "mango",
+        "peach",
+        "grape",
+        "berry",
+        "bread",
+        "toast",
+        "spice",
+        "chili",
+        "onion",
+        "brick",
+        "stone",
+        "plant",
+        "flame",
+        "frost",
+        "storm",
+        "cloud",
+        "river",
+        "ocean",
+        "beach",
+        "shore",
+        "coral",
+        "pearl",
+        "amber",
+        "ivory",
+        "ebony",
+        "cedar",
+        "maple",
+        "birch",
+        "aspen",
+        "tiger",
+        "zebra",
+        "otter",
+        "eagle",
+        "raven",
+        "robin",
+        "horse",
+        "mouse",
+        "moose",
+        "goose",
+        "piano",
+        "cello",
+        "flute",
+        "organ",
+        "banjo",
+        "dance",
+        "music",
+        "poems",
+        "novel",
+        "story"
+      ]
     },
     "max_guesses": {"type": "int", "default": 6, "min": 1, "max": 12, "description": "Guesses allowed per game."},
     "wins_needed": {"type": "int", "default": 2, "min": 1, "description": "Game wins that take the match."},
@@ -37,46 +91,46 @@
       "policy": "solver",
       "description": "A duellist.",
       "props": {
-        "secret": {"type": "text", "default": "$choice($inputs.words)", "private": true,
-                   "description": "The word your rival must find this game."},
-        "history": {"type": "list", "default": [], "private": true,
-                    "description": "This game's guesses and their marks: [{guess, marks}]."},
+        "secret": {"type": "text", "default": "$choice($inputs.words)", "private": true, "description": "The word your rival must find this game."},
+        "history": {"type": "list", "default": [], "private": true, "description": "This game's guesses and their marks: [{guess, marks}]."},
         "grid": {"type": "list", "default": [], "private": true, "description": "This game's guesses as shown to you."},
         "marks": {"type": "list", "default": [], "description": "This game's marks as G / Y / - lines, without the letters."},
         "solved": {"type": "bool", "default": false},
         "wins": {"type": "int", "default": 0},
         "total_guesses": {"type": "int", "default": 0}
+      },
+      "policies": {
+        "solver": {"rules": [{"do": "guess", "with": {"word": "$choice($candidates($actor))"}}]},
+        "opener": {
+          "rules": [
+            {"when": "$len($actor.history) == 0", "do": "guess", "with": {"word": "crane"}},
+            {"do": "guess", "with": {"word": "$choice($candidates($actor))"}}
+          ]
+        }
       }
     }
   },
-  "entities": {
-    "ada": {"type": "player", "name": "Ada"},
-    "ben": {"type": "player", "name": "Ben"}
-  },
-  "defs": {
-    "rival_of": {"args": ["p"], "expr": "$pick(player, $it.id != $p.id)",
-                 "description": "The other player."},
-    "marks_line": {"args": ["marks"], "expr": "$join($map($marks, 'G' if $it == green else ('Y' if $it == yellow else '-')), ' ')",
-                   "description": "Wordle marks as G / Y / - letters."},
-    "candidates": {"args": ["p"], "expr": "$filter($inputs.words, $all($p.history, $wordle_feedback($it.guess, $outer) == $it.marks))",
-                   "description": "Words still consistent with every mark a player has received this game."}
-  },
+  "entities": {"ada": {"type": "player", "name": "Ada"}, "ben": {"type": "player", "name": "Ben"}},
   "actions": {
     "guess": {
       "by": "player",
       "description": "Type your guess: one five-letter word from the allowed word list.",
-      "params": {
-        "word": {"type": "text", "max_len": 20, "description": "A five-letter word, for example crane."}
-      },
+      "params": {"word": {"type": "text", "max_len": 20, "description": "A five-letter word, for example crane."}},
       "when": [{"expr": "not $actor.solved", "why": "You already found the word this game."}],
       "do": [
         "$w = $lower($trim($params.word))",
-        {"if": "not $matches($w, '^[a-z]{5}$')",
-         "then": [{"fail": "A guess must be exactly five letters a-z, and {$params.word} is not. Type another word."}]},
-        {"if": "not ($w in $inputs.words)",
-         "then": [{"fail": "{$upper($w)} is not in the word list. Type another five-letter word."}]},
-        {"if": "$any($actor.history, $it.guess == $w)",
-         "then": [{"fail": "You already guessed {$upper($w)} this game."}]},
+        {
+          "if": "not $matches($w, '^[a-z]{5}$')",
+          "then": [{"fail": "A guess must be exactly five letters a-z, and {$params.word} is not. Type another word."}]
+        },
+        {
+          "if": "not ($w in $inputs.words)",
+          "then": [{"fail": "{$upper($w)} is not in the word list. Type another five-letter word."}]
+        },
+        {
+          "if": "$any($actor.history, $it.guess == $w)",
+          "then": [{"fail": "You already guessed {$upper($w)} this game."}]
+        },
         "$rival = $rival_of($actor)",
         "$marks = $wordle_feedback($w, $rival.secret)",
         "$line = $marks_line($marks)",
@@ -87,116 +141,92 @@
         {"if": "$w == $rival.secret", "then": ["$actor.solved = true"]}
       ],
       "outcome": "{$upper($w)}   {$line}",
-      "private": true
+      "announce": false
     }
   },
   "stages": [
+    {"name": "guess", "turns": "sequential", "max_actions": 1, "max_calls": 6, "must_act": true, "brief": "Game {$world.game}, guess {$world.guesses + 1} of {$inputs.max_guesses}. Type a five-letter word."},
+    {"name": "settle", "actions": []}
+  ],
+  "views": {
+    "board": {"for": "player", "title": "Your guesses this game (G right place, Y elsewhere in the word, - not in the word)", "of": "$actor.grid", "show": "{$it}", "bullet": false, "empty": "No guesses yet this game."},
+    "rival": {"for": "player", "title": "Your rival's marks so far (their letters stay hidden)", "of": "$slice($rival_of($actor).marks, 0, $world.guesses)", "show": "{$it}", "bullet": false, "empty": "Your rival has no completed guesses this game."},
+    "match": {"for": "player", "show": "Game {$world.game} of up to {$inputs.games}. Wins: {$join($map(player, $it.name + ' ' + $text($it.wins)), ', ')}. {$world.last_result}"}
+  },
+  "events": [
     {
-      "name": "guess",
-      "turns": "sequential",
-      "max_actions": 1,
-      "max_calls": 6,
-      "must_act": true,
-      "brief": "Game {$world.game}, guess {$world.guesses + 1} of {$inputs.max_guesses}. Type a five-letter word."
-    },
-    {
-      "name": "settle",
-      "actions": [],
-      "on_enter": [
+      "on": "stage.settle.start",
+      "do": [
         "$world.guesses += 1",
         "$solvers = $filter(player, $it.solved)",
         "$game_over = $len($solvers) > 0 or $world.guesses >= $inputs.max_guesses",
-        {"if": "$len($solvers) == 1",
-         "then": [
-           "$champion = $solvers[0]",
-           "$champion.wins += 1",
-           "$world.last_result = 'Game ' + $text($world.game) + ': ' + $champion.name + ' found the word in ' + $text($world.guesses) + ' guesses.'"
-         ],
-         "else": [
-           {"if": "$game_over",
-            "then": [
-              "$world.draws += 1",
-              "$world.last_result = 'Game ' + $text($world.game) + ' was drawn after ' + $text($world.guesses) + ' guesses.'"
-            ]}
-         ]},
-        {"if": "$game_over",
-         "then": [
-           "$words = $join($map(player, $it.name + ' held ' + $upper($it.secret)), ', ')",
-           {"emit": "game_over", "say": "{$world.last_result} The words were {$words}."},
-           "$world.game += 1",
-           "$world.guesses = 0",
-           {"each": "player",
-            "do": ["$it.secret = $choice($inputs.words)", "$it.history = []", "$it.grid = []", "$it.marks = []", "$it.solved = false"]}
-         ]}
+        {
+          "if": "$len($solvers) == 1",
+          "then": [
+            "$champion = $solvers[0]",
+            "$champion.wins += 1",
+            "$world.last_result = 'Game ' + $text($world.game) + ': ' + $champion.name + ' found the word in ' + $text($world.guesses) + ' guesses.'"
+          ],
+          "else": [
+            {
+              "if": "$game_over",
+              "then": [
+                "$world.draws += 1",
+                "$world.last_result = 'Game ' + $text($world.game) + ' was drawn after ' + $text($world.guesses) + ' guesses.'"
+              ]
+            }
+          ]
+        },
+        {
+          "if": "$game_over",
+          "then": [
+            "$words = $join($map(player, $it.name + ' held ' + $upper($it.secret)), ', ')",
+            {"emit": "game_over", "say": "{$world.last_result} The words were {$words}."},
+            "$world.game += 1",
+            "$world.guesses = 0",
+            {
+              "each": "player",
+              "do": [
+                "$it.secret = $choice($inputs.words)",
+                "$it.history = []",
+                "$it.grid = []",
+                "$it.marks = []",
+                "$it.solved = false"
+              ]
+            }
+          ]
+        }
       ]
     }
   ],
-  "views": {
-    "board": {
-      "for": "player",
-      "title": "Your guesses this game (G right place, Y elsewhere in the word, - not in the word)",
-      "of": "$actor.grid",
-      "show": "{$it}",
-      "bullet": false,
-      "empty": "No guesses yet this game."
-    },
-    "rival": {
-      "for": "player",
-      "title": "Your rival's marks so far (their letters stay hidden)",
-      "of": "$slice($rival_of($actor).marks, 0, $world.guesses)",
-      "show": "{$it}",
-      "bullet": false,
-      "empty": "Your rival has no completed guesses this game."
-    },
-    "match": {
-      "for": "player",
-      "show": "Game {$world.game} of up to {$inputs.games}. Wins: {$join($map(player, $it.name + ' ' + $text($it.wins)), ', ')}. {$world.last_result}"
-    }
+  "outputs": {
+    "winner": {"expr": "$top(player, $it.wins, 1)[0].name if $max(player, $it.wins) > $min(player, $it.wins) else 'draw'", "type": "text", "description": "The match winner's name, or draw."},
+    "wins": {"expr": "$dict(player, $it.name, $it.wins)", "type": "map"},
+    "draws": {"expr": "$world.draws", "type": "int"},
+    "games": {"expr": "$world.game - 1", "type": "int", "description": "Games finished."},
+    "guesses_per_player": {"expr": "$dict(player, $it.name, $it.total_guesses)", "type": "map"},
+    "games_finished": {"expr": "$world.game - 1", "series": true},
+    "guesses_made": {"expr": "$sum(player, $it.total_guesses)", "series": true},
+    "candidates_left": {"expr": "$sum(player, $len($candidates($it)))", "series": true}
   },
   "end": [
-    {
-      "name": "match_won",
-      "when": "$any(player, $it.wins >= $inputs.wins_needed)",
-      "winner": "$filter(player, $it.wins >= $inputs.wins_needed)",
-      "say": "{$top(player, $it.wins, 1)[0].name} wins the match."
-    },
-    {
-      "name": "games_played",
-      "when": "$world.game > $inputs.games",
-      "winner": "$filter(player, $it.wins == $max(player, $it.wins))",
-      "say": "All {$inputs.games} games are played."
-    }
+    {"name": "match_won", "when": "$any(player, $it.wins >= $inputs.wins_needed)", "winner": "$filter(player, $it.wins >= $inputs.wins_needed)", "say": "{$top(player, $it.wins, 1)[0].name} wins the match."},
+    {"name": "games_played", "when": "$world.game > $inputs.games", "winner": "$filter(player, $it.wins == $max(player, $it.wins))", "say": "All {$inputs.games} games are played."}
   ],
   "invariants": [
     {"expr": "$sum(player, $it.wins) + $world.draws == $world.game - 1", "why": "Every finished game is a win or a draw."}
   ],
-  "policies": {
-    "solver": {
-      "rules": [
-        {"do": "guess", "with": {"word": "$choice($candidates($actor))"}}
-      ]
+  "defs": {
+    "rival_of": {"args": ["p"], "expr": "$pick(player, $it.id != $p.id)", "description": "The other player."},
+    "marks_line": {
+      "args": ["marks"],
+      "expr": "$join($map($marks, 'G' if $it == green else ('Y' if $it == yellow else '-')), ' ')",
+      "description": "Wordle marks as G / Y / - letters."
     },
-    "opener": {
-      "rules": [
-        {"when": "$len($actor.history) == 0", "do": "guess", "with": {"word": "crane"}},
-        {"do": "guess", "with": {"word": "$choice($candidates($actor))"}}
-      ]
+    "candidates": {
+      "args": ["p"],
+      "expr": "$filter($inputs.words, $all($p.history, $wordle_feedback($it.guess, $outer) == $it.marks))",
+      "description": "Words still consistent with every mark a player has received this game."
     }
-  },
-  "metrics": {
-    "games_finished": "$world.game - 1",
-    "guesses_made": "$sum(player, $it.total_guesses)",
-    "candidates_left": "$sum(player, $len($candidates($it)))"
-  },
-  "outputs": {
-    "winner": {
-      "expr": "$top(player, $it.wins, 1)[0].name if $max(player, $it.wins) > $min(player, $it.wins) else 'draw'",
-      "type": "text",
-      "description": "The match winner's name, or draw."
-    },
-    "wins": {"expr": "$dict(player, $it.name, $it.wins)", "type": "map"},
-    "draws": {"expr": "$world.draws", "type": "int"},
-    "games": {"expr": "$world.game - 1", "type": "int", "description": "Games finished."},
-    "guesses_per_player": {"expr": "$dict(player, $it.name, $it.total_guesses)", "type": "map"}
   }
 }

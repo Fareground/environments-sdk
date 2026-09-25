@@ -1,32 +1,45 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Product listings",
   "description": "A small marketplace whose listings carry product photos. The catalogue is a CSV with an image column; buyers see each in-stock listing with its photo and receive the photo of what they bought, and the seller may relist a product with a new photo it submits (an image file checked for type and size).",
   "brief": {
     "situation": "An online shop sells a few handmade products. Every listing shows its photo.",
     "rules": "Each round the seller may relist one product with a new photo and price. Then buyers, in random order, may buy one in-stock item they can afford. Photos are information about the product.",
-    "roles": {
-      "seller": "You sell these products. A better photo or a better price may sell more.",
-      "buyer": "You shop for good value. Look at the photos before you buy."
+    "roles": {"seller": "You sell these products. A better photo or a better price may sell more.", "buyer": "You shop for good value. Look at the photos before you buy."}
+  },
+  "inputs": {
+    "catalog": {
+      "type": "table",
+      "source": "product_listing/products.csv",
+      "columns": {"sku": "text", "title": "text", "price": "number", "stock": "int", "photo": "asset"},
+      "description": "The products: sku, title, price, stock and the path of each photo."
     }
   },
   "clock": {"rounds": 6, "unit": "day"},
-  "inputs": {
-    "catalog": {"type": "table", "source": "product_listing/products.csv",
-                "columns": {"sku": "text", "title": "text", "price": "number", "stock": "int", "photo": "asset"},
-                "description": "The products: sku, title, price, stock and the path of each photo."}
-  },
   "types": {
-    "listing": {"props": {"title": "", "price": 0, "stock": {"type": "int", "default": 0}, "photo": {"type": "asset"}, "relisted": false}},
+    "listing": {
+      "props": {
+        "title": "",
+        "price": 0,
+        "stock": {"type": "int", "default": 0},
+        "photo": {"type": "asset"},
+        "relisted": false
+      }
+    },
     "seller": {"agent": true, "props": {"revenue": 0}},
     "buyer": {"agent": true, "props": {"cash": 60, "bought": {"type": "list", "default": []}}}
   },
-  "entities": {"sam": {"type": "seller", "name": "Sam's Goods"}},
-  "population": [
-    {"type": "listing", "from": "$inputs.catalog", "id": "{$row.sku}", "name": "{$row.title}",
-     "props": {"title": "$row.title", "price": "$row.price", "stock": "$row.stock", "photo": "$row.photo"}},
-    {"type": "buyer", "count": 3, "name": "Buyer {$i}"}
-  ],
+  "entities": {
+    "sam": {"type": "seller", "name": "Sam's Goods"},
+    "listing": {
+      "type": "listing",
+      "from": "$inputs.catalog",
+      "id": "{$row.sku}",
+      "name": "{$row.title}",
+      "props": {"title": "$row.title", "price": "$row.price", "stock": "$row.stock", "photo": "$row.photo"}
+    },
+    "buyer": {"type": "buyer", "count": 3, "name": "Buyer {$i}"}
+  },
   "actions": {
     "relist": {
       "by": "seller",
@@ -36,7 +49,11 @@
         "photo": {"type": "file", "kinds": ["image"], "max_bytes": 2000000, "description": "The new product photo."},
         "price": {"type": "number", "min": 1, "max": 100}
       },
-      "do": ["$params.item.photo = $params.photo", "$params.item.price = $params.price", "$params.item.relisted = true"],
+      "do": [
+        "$params.item.photo = $params.photo",
+        "$params.item.price = $params.price",
+        "$params.item.relisted = true"
+      ],
       "outcome": "{$params.item.name} is relisted at ${$params.price}.",
       "attach": "$params.item.photo"
     },
@@ -55,22 +72,15 @@
       "attach": "$params.item.photo"
     }
   },
-  "stages": [
-    {"name": "restock", "actions": ["relist"]},
-    {"name": "shop", "actions": ["buy"], "order": "random"}
-  ],
+  "stages": [{"name": "restock", "actions": ["relist"]}, {"name": "shop", "actions": ["buy"], "order": "random"}],
   "views": {
-    "listings": {"for": "buyer", "title": "In stock", "of": "listing", "where": "$it.stock > 0", "sort": "$it.price",
-                 "show": "{name} [{id}] — ${price} ({stock} left)", "attach": "$it.photo", "empty": "Sold out."},
+    "listings": {"for": "buyer", "title": "In stock", "of": "listing", "where": "$it.stock > 0", "sort": "$it.price", "show": "{name} [{id}] — ${price} ({stock} left)", "attach": "$it.photo", "empty": "Sold out."},
     "shelf": {"for": "seller", "title": "Your listings", "of": "listing", "show": "{name} [{id}] — ${price}, {stock} left{' (relisted)' if $it.relisted else ''}"},
     "wallet": {"for": "buyer", "show": "You have ${cash}."}
   },
-  "metrics": {
-    "units_sold": "$sum(buyer, $len($it.bought))",
-    "revenue": "$entity(sam).revenue"
-  },
   "outputs": {
-    "revenue": {"expr": "$metrics.revenue", "type": "number", "description": "What the shop earned."},
-    "sold_out": {"expr": "$map($filter(listing, $it.stock == 0), $it.name)", "type": "list", "description": "Products that sold out."}
+    "revenue": {"expr": "$entity(sam).revenue", "type": "number", "description": "What the shop earned.", "series": true},
+    "sold_out": {"expr": "$map($filter(listing, $it.stock == 0), $it.name)", "type": "list", "description": "Products that sold out."},
+    "units_sold": {"expr": "$sum(buyer, $len($it.bought))", "series": true}
   }
 }

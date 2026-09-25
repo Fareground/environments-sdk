@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Chicken",
   "description": "The one-shot anti-coordination game. The pure equilibria have exactly one player go straight; the mixed equilibrium goes straight with probability 1/10.",
   "brief": {
@@ -8,33 +8,46 @@
   },
   "clock": {"rounds": 1},
   "world": {
-    "payoff": {"type": "map", "default": {
-      "swerve": {"swerve": 0, "straight": -1},
-      "straight": {"swerve": 1, "straight": -10}
-    }}
+    "payoff": {
+      "type": "map",
+      "default": {"swerve": {"swerve": 0, "straight": -1}, "straight": {"swerve": 1, "straight": -10}}
+    }
   },
-  "types": {"player": {"agent": true, "props": {
-    "seat": 0,
-    "move": {"type": "text", "default": "swerve", "private": true},
-    "score": 0
-  }}},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "move": {"type": "text", "default": "swerve", "private": true}, "score": 0},
+      "score": {"seat": "$it.seat", "utility": "general_sum", "min": -10, "max": 1, "value": "$it.score"}
+    }
+  },
   "entities": {
     "a": {"type": "player", "name": "A", "props": {"seat": 0}},
     "b": {"type": "player", "name": "B", "props": {"seat": 1}}
   },
-  "actions": {"drive": {
-    "by": "player", "description": "Swerve or go straight.", "private": true, "terminal": true,
-    "params": {"move": {"type": "enum", "values": ["swerve", "straight"]}},
-    "do": ["$actor.move = $params.move"]
-  }},
+  "actions": {
+    "drive": {
+      "by": "player",
+      "description": "Swerve or go straight.",
+      "terminal": true,
+      "params": {"move": {"type": "enum", "values": ["swerve", "straight"]}},
+      "do": ["$actor.move = $params.move"],
+      "announce": false
+    }
+  },
   "stages": [{"name": "drive", "turns": "simultaneous", "must_act": true}],
-  "events": [{"phase": "end", "do": [
-    "$a = $entity('a')", "$b = $entity('b')",
-    "$a.score = $world.payoff[$a.move][$b.move]", "$b.score = $world.payoff[$b.move][$a.move]",
-    "$shown_a = $a.move", "$shown_b = $b.move",
-    {"emit": "shown", "say": "A chose {$shown_a}; B chose {$shown_b}."}
-  ]}],
-  "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "general_sum",
-           "min_return": -10, "max_return": 1},
+  "events": [
+    {
+      "on": "round.end",
+      "do": [
+        "$a = $entity('a')",
+        "$b = $entity('b')",
+        "$a.score = $world.payoff[$a.move][$b.move]",
+        "$b.score = $world.payoff[$b.move][$a.move]",
+        "$shown_a = $a.move",
+        "$shown_b = $b.move",
+        {"emit": "shown", "say": "A chose {$shown_a}; B chose {$shown_b}."}
+      ]
+    }
+  ],
   "outputs": {"a_score": {"expr": "$entity('a').score", "type": "number"}}
 }

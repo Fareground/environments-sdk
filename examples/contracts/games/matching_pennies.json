@@ -1,91 +1,42 @@
 {
- "fg_env": "1",
- "name": "Matching pennies",
- "description": "The one-shot zero-sum game: both show a coin at once and the matcher wins when they match.",
- "brief": {
-  "situation": "Two players show a coin at once.",
-  "rules": "The matcher wins when the coins match. A player who does not show a coin loses; if neither shows one, nobody scores."
- },
- "clock": {
-  "rounds": 1
- },
- "types": {
-  "player": {
-   "agent": true,
-   "props": {
-    "seat": 0,
-    "side": {
-     "type": "text",
-     "default": "",
-     "private": true
-    },
-    "score": 0
-   }
-  }
- },
- "entities": {
-  "m": {
-   "type": "player",
-   "props": {
-    "seat": 0
-   }
+  "fg_env": "2",
+  "name": "Matching pennies",
+  "description": "The one-shot zero-sum game: both show a coin at once and the matcher wins when they match.",
+  "brief": {
+    "situation": "Two players show a coin at once.",
+    "rules": "The matcher wins when the coins match. A player who does not show a coin loses; if neither shows one, nobody scores."
   },
-  "n": {
-   "type": "player",
-   "props": {
-    "seat": 1
-   }
-  }
- },
- "actions": {
-  "show": {
-   "by": "player",
-   "private": true,
-   "terminal": true,
-   "params": {
-    "side": {
-     "type": "enum",
-     "values": [
-      "heads",
-      "tails"
-     ]
+  "clock": {"rounds": 1},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "side": {"type": "text", "default": "", "private": true}, "score": 0},
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "value": "$it.score"}
     }
-   },
-   "do": [
-    "$actor.side = $params.side"
-   ]
-  }
- },
- "stages": [
-  {
-   "name": "show",
-   "turns": "simultaneous",
-   "must_act": true
-  }
- ],
- "events": [
-  {
-   "phase": "end",
-   "do": [
-    "$m_side = $entity('m').side",
-    "$n_side = $entity('n').side",
-    "$m_wins = ($m_side == $n_side) if $m_side != '' and $n_side != '' else ($n_side == '')",
-    "$someone = $m_side != '' or $n_side != ''",
-    "$entity('m').score = (1 if $m_wins else -1) if $someone else 0",
-    "$entity('n').score = (-1 if $m_wins else 1) if $someone else 0"
-   ]
-  }
- ],
- "game": {
-  "players": "player",
-  "seat": "$it.seat",
-  "returns": "$actor.score",
-  "utility": "zero_sum"
- },
- "outputs": {
-  "match": {
-   "expr": "$entity('m').score",
-   "type": "number"
-  }
- }
+  },
+  "entities": {"m": {"type": "player", "props": {"seat": 0}}, "n": {"type": "player", "props": {"seat": 1}}},
+  "actions": {
+    "show": {
+      "by": "player",
+      "terminal": true,
+      "params": {"side": {"type": "enum", "values": ["heads", "tails"]}},
+      "do": ["$actor.side = $params.side"],
+      "announce": false
+    }
+  },
+  "stages": [{"name": "show", "turns": "simultaneous", "must_act": true}],
+  "events": [
+    {
+      "on": "round.end",
+      "do": [
+        "$m_side = $entity('m').side",
+        "$n_side = $entity('n').side",
+        "$m_wins = ($m_side == $n_side) if $m_side != '' and $n_side != '' else ($n_side == '')",
+        "$someone = $m_side != '' or $n_side != ''",
+        "$entity('m').score = (1 if $m_wins else -1) if $someone else 0",
+        "$entity('n').score = (-1 if $m_wins else 1) if $someone else 0"
+      ]
+    }
+  ],
+  "outputs": {"match": {"expr": "$entity('m').score", "type": "number"}}
 }

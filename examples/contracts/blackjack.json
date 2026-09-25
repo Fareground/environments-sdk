@@ -1,7 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Blackjack",
   "description": "Three players against a dealer with a fixed house policy: bets, hit, stand, double down, 3:2 blackjacks, and a dealer who hits or stands on soft 17.",
+  "brief": {
+    "situation": "Three players sit at a blackjack table with {$inputs.starting_chips} chips each and play up to {$inputs.hands} hands against the house.",
+    "rules": "Each hand: bet {$inputs.min_bet} to {$inputs.max_bet} chips. You and the dealer get two cards; players' cards are face up, the dealer shows one card and hides the other. Values: 2 to 10 as marked, J Q K count 10, an ace counts 11 or 1. On your turn hit (take a card) as often as you like, stand, or double down on your first two cards (double your bet and take exactly one more card). Going over 21 busts and loses at once. Then the dealer reveals the hidden card and draws until reaching 17 or more{$' (and also draws on a soft 17)' if $inputs.dealer_hits_soft_17 else ' (standing on every 17)'}. Beat the dealer without busting to win your bet; a tie returns it. A blackjack (an ace and a ten-value card as your first two cards) pays 3 to 2 unless the dealer has one too. If the dealer starts with blackjack, the hand ends at once.",
+    "roles": {"player": "You want to leave the table with as many chips as possible."}
+  },
   "inputs": {
     "hands": {"type": "int", "default": 12, "min": 1, "max": 200},
     "starting_chips": {"type": "int", "default": 200, "min": 10, "unit": "chips"},
@@ -9,16 +14,8 @@
     "max_bet": {"type": "int", "default": 50, "min": 1, "unit": "chips"},
     "dealer_hits_soft_17": {"type": "bool", "default": true, "description": "The dealer draws on a soft 17 (an ace counted as 11) instead of standing."}
   },
-  "brief": {
-    "situation": "Three players sit at a blackjack table with {$inputs.starting_chips} chips each and play up to {$inputs.hands} hands against the house.",
-    "rules": "Each hand: bet {$inputs.min_bet} to {$inputs.max_bet} chips. You and the dealer get two cards; players' cards are face up, the dealer shows one card and hides the other. Values: 2 to 10 as marked, J Q K count 10, an ace counts 11 or 1. On your turn hit (take a card) as often as you like, stand, or double down on your first two cards (double your bet and take exactly one more card). Going over 21 busts and loses at once. Then the dealer reveals the hidden card and draws until reaching 17 or more{$' (and also draws on a soft 17)' if $inputs.dealer_hits_soft_17 else ' (standing on every 17)'}. Beat the dealer without busting to win your bet; a tie returns it. A blackjack (an ace and a ten-value card as your first two cards) pays 3 to 2 unless the dealer has one too. If the dealer starts with blackjack, the hand ends at once.",
-    "roles": {"player": "You want to leave the table with as many chips as possible."}
-  },
   "clock": {"rounds": "$inputs.hands", "unit": "hand"},
-  "world": {
-    "dealer_busts": {"type": "int", "default": 0},
-    "dealer_total": {"type": "int", "default": 0}
-  },
+  "world": {"dealer_busts": {"type": "int", "default": 0}, "dealer_total": {"type": "int", "default": 0}},
   "types": {
     "player": {
       "agent": true,
@@ -31,6 +28,17 @@
         "doubled": {"type": "bool", "default": false},
         "result": {"type": "text", "default": ""},
         "net": {"type": "int", "default": 0, "description": "Chips won or lost so far."}
+      },
+      "policies": {
+        "basic": {
+          "repeat": true,
+          "rules": [
+            {"when": "$stage == betting", "do": "place_bet", "with": {"amount": "$inputs.min_bet"}},
+            {"when": "$blackjack_value($hand($actor)) == 11", "do": "double_down"},
+            {"when": "$blackjack_value($hand($actor)) < 17", "do": "hit"},
+            {"do": "stand"}
+          ]
+        }
       }
     },
     "dealer": {"description": "The house."}
@@ -41,14 +49,13 @@
     "p2": {"type": "player", "name": "Ben", "props": {"seat": 1}},
     "p3": {"type": "player", "name": "Cleo", "props": {"seat": 2}}
   },
-  "mechanisms": {
-    "cards": {"kind": "game", "mode": "cards", "who": "player", "deal": "never"}
-  },
   "actions": {
     "place_bet": {
       "by": "player",
       "description": "Bet for this hand.",
-      "params": {"amount": {"type": "int", "min": "$inputs.min_bet", "max": "$min($inputs.max_bet, $actor.chips)", "description": "Chips to bet."}},
+      "params": {
+        "amount": {"type": "int", "min": "$inputs.min_bet", "max": "$min($inputs.max_bet, $actor.chips)", "description": "Chips to bet."}
+      },
       "do": ["$actor.chips -= $params.amount", "$actor.wager = $params.amount"],
       "outcome": "You bet {$params.amount}.",
       "announce": "{$actor.name} bets {$params.amount}."
@@ -56,7 +63,9 @@
     "hit": {
       "by": "player",
       "description": "Take one more card.",
-      "when": [{"expr": "$actor.wager > 0 and not $actor.done and $blackjack_value($hand($actor)) < 21", "why": "You cannot take another card."}],
+      "when": [
+        {"expr": "$actor.wager > 0 and not $actor.done and $blackjack_value($hand($actor)) < 21", "why": "You cannot take another card."}
+      ],
       "do": [
         {"game": "cards", "action": "draw", "face_up": true},
         {"if": "$blackjack_value($hand($actor)) >= 21", "then": ["$actor.done = true"]}
@@ -101,18 +110,41 @@
       "who": "$it.chips >= $inputs.min_bet",
       "must_act": true,
       "max_calls": 4,
-      "brief": "Place your bet for hand {$round}.",
-      "on_idle": ["$actor.chips -= $inputs.min_bet", "$actor.wager = $inputs.min_bet"],
-      "on_enter": [
+      "brief": "Place your bet for hand {$round}."
+    },
+    {"name": "deal", "actions": [], "when": "$any(player, $it.wager > 0)"},
+    {
+      "name": "play",
+      "turns": "sequential",
+      "actions": ["hit", "stand", "double_down"],
+      "who": "$it.wager > 0 and not $it.done",
+      "max_actions": 12,
+      "max_calls": 14,
+      "must_act": true,
+      "brief": "Your total is {$blackjack_value($hand($actor))}{$' (soft)' if $blackjack_soft($hand($actor)) else ''}. The dealer shows {$card_names($filter($hand($entity(dealer)), $card_visible($it, $actor)))}."
+    },
+    {"name": "dealer", "actions": [], "when": "$any(player, $it.wager > 0)"}
+  ],
+  "views": {
+    "you": {"for": "player", "show": "Your chips {chips} · bet this hand {wager} · total {$blackjack_value($hand($actor))}{$' (soft)' if $blackjack_soft($hand($actor)) else ''}"},
+    "players": {"for": "player", "title": "Players", "of": "player", "sort": "$it.seat", "show": "[{id}] {name}: {$card_names($filter($hand($it), $card_visible($it, $actor))) or 'no cards'} · bet {wager} · chips {chips}{$' · ' + $it.result if $it.result != '' else ''}"}
+  },
+  "events": [
+    {
+      "on": "stage.betting.start",
+      "do": [
         {"game": "cards", "action": "collect"},
         {"each": "player", "do": ["$it.wager = 0", "$it.done = false", "$it.doubled = false", "$it.result = ''"]}
       ]
     },
     {
-      "name": "deal",
-      "actions": [],
-      "when": "$any(player, $it.wager > 0)",
-      "on_enter": [
+      "on": "stage.betting.turn",
+      "when": "not $acted",
+      "do": ["$actor.chips -= $inputs.min_bet", "$actor.wager = $inputs.min_bet"]
+    },
+    {
+      "on": "stage.deal.start",
+      "do": [
         "$seated = $filter(player, $it.wager > 0)",
         {"game": "cards", "action": "deal", "qty": 1, "to": "$seated", "face_up": true},
         {"game": "cards", "action": "deal", "qty": 1, "to": "$entity(dealer)", "face_up": true},
@@ -125,22 +157,10 @@
         }
       ]
     },
+    {"on": "stage.play.turn", "when": "not $acted", "do": ["$actor.done = true"]},
     {
-      "name": "play",
-      "turns": "sequential",
-      "actions": ["hit", "stand", "double_down"],
-      "who": "$it.wager > 0 and not $it.done",
-      "max_actions": 12,
-      "max_calls": 14,
-      "must_act": true,
-      "on_idle": ["$actor.done = true"],
-      "brief": "Your total is {$blackjack_value($hand($actor))}{$' (soft)' if $blackjack_soft($hand($actor)) else ''}. The dealer shows {$card_names($filter($hand($entity(dealer)), $card_visible($it, $actor)))}."
-    },
-    {
-      "name": "dealer",
-      "actions": [],
-      "when": "$any(player, $it.wager > 0)",
-      "on_enter": [
+      "on": "stage.dealer.start",
+      "do": [
         "$house = $entity(dealer)",
         {"game": "cards", "action": "reveal", "cards": "$filter($hand($house), not $it.face_up)", "say": "The dealer turns over the hidden card: {$card_names($hand($house))}."},
         {
@@ -173,44 +193,18 @@
       ]
     }
   ],
-  "views": {
-    "you": {
-      "for": "player",
-      "show": "Your chips {chips} · bet this hand {wager} · total {$blackjack_value($hand($actor))}{$' (soft)' if $blackjack_soft($hand($actor)) else ''}"
-    },
-    "players": {
-      "for": "player",
-      "title": "Players",
-      "of": "player",
-      "sort": "$it.seat",
-      "show": "[{id}] {name}: {$card_names($filter($hand($it), $card_visible($it, $actor))) or 'no cards'} · bet {wager} · chips {chips}{$' · ' + $it.result if $it.result != '' else ''}"
-    }
-  },
-  "policies": {
-    "basic": {
-      "repeat": true,
-      "rules": [
-        {"when": "$stage == betting", "do": "place_bet", "with": {"amount": "$inputs.min_bet"}},
-        {"when": "$blackjack_value($hand($actor)) == 11", "do": "double_down"},
-        {"when": "$blackjack_value($hand($actor)) < 17", "do": "hit"},
-        {"do": "stand"}
-      ]
-    }
-  },
-  "metrics": {
-    "total_chips": "$sum(player, $it.chips)",
-    "dealer_busts": "$world.dealer_busts"
-  },
-  "invariants": [
-    {"expr": "$all(player, $it.wager <= $inputs.max_bet * 2)", "why": "A bet never exceeds the table maximum, doubled."}
-  ],
-  "end": [
-    {"name": "table_empty", "when": "$all(player, $it.chips < $inputs.min_bet and $it.wager == 0)", "say": "Nobody can afford the minimum bet any more."}
-  ],
   "outputs": {
     "final_chips": {"expr": "$map($sort(player, $it.seat), $it.name + ': ' + $text($it.chips))", "type": "list"},
     "net_results": {"expr": "$dict(player, $it.name, $it.net)", "type": "map", "description": "Chips won (+) or lost (-) by each player."},
-    "dealer_busts": {"expr": "$world.dealer_busts", "type": "int"},
-    "house_edge_observed": {"expr": "-$sum(player, $it.net)", "type": "int", "description": "Chips the house won overall."}
-  }
+    "dealer_busts": {"expr": "$world.dealer_busts", "type": "int", "series": true},
+    "house_edge_observed": {"expr": "-$sum(player, $it.net)", "type": "int", "description": "Chips the house won overall."},
+    "total_chips": {"expr": "$sum(player, $it.chips)", "series": true}
+  },
+  "end": [
+    {"name": "table_empty", "when": "$all(player, $it.chips < $inputs.min_bet and $it.wager == 0)", "say": "Nobody can afford the minimum bet any more."}
+  ],
+  "invariants": [
+    {"expr": "$all(player, $it.wager <= $inputs.max_bet * 2)", "why": "A bet never exceeds the table maximum, doubled."}
+  ],
+  "mechanisms": {"cards": {"kind": "game", "mode": "cards", "who": "player", "deal": "never"}}
 }

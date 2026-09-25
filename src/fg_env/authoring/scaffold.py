@@ -6,11 +6,11 @@ world, a turn-based game with a winner, a market, a simulation of a population, 
 from __future__ import annotations
 
 import copy
-import json
 import os
 from pathlib import Path
 from typing import Any
 
+from ..contract.layout import dumps
 from ..errors import ContractError, Issue
 
 __all__ = ["TEMPLATES", "new"]
@@ -36,7 +36,8 @@ _DUEL: dict[str, Any] = {
               "rules": "Take turns removing 1 to 3 stones. Whoever takes the last stone wins."},
     "clock": {"rounds": 15, "unit": "turn"},
     "world": {"stones": 15},
-    "types": {"player": {"agent": True, "props": {"taken": 0}}},
+    "types": {"player": {"agent": True, "props": {"taken": 0},
+                         "score": {"value": "1 if $result.winner == $it else 0"}}},
     "entities": {"north": {"type": "player", "name": "North"}, "south": {"type": "player", "name": "South"}},
     "actions": {"take": {"by": "player", "description": "Take stones from the pile.",
                          "params": {"count": {"type": "int", "min": 1, "max": "$min(3, $world.stones)"}},
@@ -48,7 +49,6 @@ _DUEL: dict[str, Any] = {
     "stages": [{"name": "play", "turns": "sequential", "must_act": True}],
     "views": {"pile": {"for": "player", "show": "Stones left: {$world.stones}."}},
     "outputs": {"winner": "$result.winner.name if $result.winner else 'nobody'"},
-    "game": {"players": "player", "returns": "1 if $result.winner == $actor else 0"},
 }
 
 _SHOP: dict[str, Any] = {
@@ -60,8 +60,8 @@ _SHOP: dict[str, Any] = {
     "inputs": {"cost": {"type": "number", "default": 1.0, "description": "What one loaf costs the baker."}},
     "types": {"baker": {"agent": True, "props": {"cash": 0.0, "price": 2.0}},
               "household": {"agent": True, "props": {"cash": 20.0, "loaves": 0}}},
-    "entities": {"mo": {"type": "baker", "name": "Mo"}},
-    "population": [{"type": "household", "count": 3, "name": "Household {$i}"}],
+    "entities": {"mo": {"type": "baker", "name": "Mo"},
+                 "household": {"type": "household", "count": 3, "name": "Household {$i}"}},
     "actions": {
         "set_price": {"by": "baker", "description": "Set today's price per loaf.",
                       "params": {"price": {"type": "number", "min": 1, "max": 6}},
@@ -76,9 +76,9 @@ _SHOP: dict[str, Any] = {
                {"name": "shopping", "actions": ["buy"], "order": "random"}],
     "views": {"shop": {"for": "household", "show": "Bread costs {$entity(mo).price|money}. You have {cash|money}."},
               "books": {"for": "baker", "show": "Cash {cash|money}, price {price|money}."}},
-    "metrics": {"price": "$entity(mo).price", "sold": "$sum(household, $it.loaves)"},
     "outputs": {"profit": {"expr": "$entity(mo).cash", "type": "number"},
-                "loaves_sold": {"expr": "$metrics.sold", "type": "int"}},
+                "loaves_sold": {"expr": "$sum(household, $it.loaves)", "type": "int", "series": True},
+                "price": {"expr": "$entity(mo).price", "series": True}},
 }
 
 _SIMULATION: dict[str, Any] = {
@@ -88,14 +88,14 @@ _SIMULATION: dict[str, Any] = {
     "clock": {"rounds": 30},
     "inputs": {"people": {"type": "int", "default": 50, "min": 1}},
     "types": {"person": {"props": {"wealth": 5}}},
-    "population": [{"type": "person", "count": "$inputs.people"}],
-    "events": [{"phase": "end", "when": "$count(person) > 1", "each": "person", "where": "$it.wealth > 0",
-                "do": [{"transfer": "wealth", "from": "$it", "to": "$choice($filter(person, $it.id != $outer.id))",
-                        "amount": 1}]}],
-    "metrics": {"gini": "$gini($map(person, $it.wealth))", "broke": "$count(person, $it.wealth == 0)"},
+    "entities": {"person": {"type": "person", "count": "$inputs.people"}},
+    "events": [{"on": "round.end", "when": "$count(person) > 1",
+                "do": {"each": "person", "where": "$it.wealth > 0",
+                       "do": {"transfer": "wealth", "from": "$it", "to": "$choice($filter(person, $it.id != $outer.id))",
+                              "amount": 1}}}],
     "invariants": ["$sum(person, $it.wealth) == 5 * $inputs.people"],
-    "outputs": {"gini": {"expr": "$metrics.gini", "type": "number"},
-                "broke": {"expr": "$metrics.broke", "type": "int"}},
+    "outputs": {"gini": {"expr": "$gini($map(person, $it.wealth))", "type": "number", "series": True},
+                "broke": {"expr": "$count(person, $it.wealth == 0)", "type": "int", "series": True}},
 }
 
 _MEETING: dict[str, Any] = {
@@ -106,8 +106,8 @@ _MEETING: dict[str, Any] = {
     "types": {"neighbour": {"agent": True, "props": {"hope": {"type": "enum", "values": ["park", "library", "road"],
                                                                "default": "$choice(['park', 'library', 'road'])",
                                                                "private": True}}}},
-    "population": [{"type": "neighbour", "count": 5, "name": "Neighbour {$i}",
-                    "brief": "You would most like a {$actor.hope}."}],
+    "entities": {"neighbour": {"type": "neighbour", "count": 5, "name": "Neighbour {$i}",
+                               "brief": "You would most like a {$actor.hope}."}},
     "records": {"chat": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
     "actions": {"speak": {"by": "neighbour", "description": "Say what you think the town should do.",
                           "params": {"text": {"type": "text", "max_len": 280}},
@@ -125,7 +125,7 @@ TEMPLATES: dict[str, tuple] = {
     "blank": ("one agent type, one action, a view and an output: the smallest useful start", _BLANK),
     "duel": ("a two-player turn-based game with a winner and per-seat returns", _DUEL),
     "shop": ("a seller and a crowd of buyers trading with money over days", _SHOP),
-    "simulation": ("a population with no agents, world events, metrics and an invariant", _SIMULATION),
+    "simulation": ("a population with no agents, world events, series outputs and an invariant", _SIMULATION),
     "meeting": ("agents talking in a shared record and deciding with a vote mechanism", _MEETING),
 }
 
@@ -152,5 +152,5 @@ def new(template: str = "blank", path: str | os.PathLike[str] | None = None, *,
     if target is not None:
         if target.exists() and not overwrite:
             raise FileExistsError(f"'{target}' already exists: choose another path, or overwrite it on purpose")
-        target.write_text(json.dumps(contract, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        target.write_text(dumps(contract), encoding="utf-8")
     return contract

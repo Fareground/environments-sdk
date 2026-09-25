@@ -1,131 +1,31 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Northline contact centre: staffing a day of calls",
   "description": "One day (08:00-20:00, half-hours) at a broadband provider's contact centre, played call by call by an operations queue. Calls arrive at a fitted base x a day-of-week index x a time-of-day index (fitted from contact_centre/history.csv with fg_env.analysis.fit_patterns), surging after a network outage; handle times are lognormal around the average handle time in the history; callers give up after a patience calibrated to the history's abandonment, shorter during an outage. Agents on duty per half-hour are an input vector (empty: the manager's rule, 10% over the forecast workload plus two). Arms compare the manager's rule with the plan fg_env.analysis.optimise found (the cheapest where every half-hour's expected service level reaches 80% of calls answered within 20 seconds and the day's does in 90% of runs, each held with 90% confidence), an outage at 09:30, and callbacks that keep agents free for live calls. examples/contact_centre_history.py regenerates the history from the truth arm and re-estimates the model; examples/contact_centre_plan.py searches the plan (kept in contact_centre/plan.json) and, with --report, validates the model on the two held-out weeks and prints the owner report.",
-  "clock": {
-    "rounds": 24,
-    "unit": "minute",
-    "step": 30,
-    "start": "$inputs.day"
-  },
   "inputs": {
-    "day": {
-      "type": "text",
-      "default": "2026-09-14T08:00",
-      "description": "The day simulated: its opening time (ISO date-time; opening must stay 08:00)."
-    },
+    "day": {"type": "text", "default": "2026-09-14T08:00", "description": "The day simulated: its opening time (ISO date-time; opening must stay 08:00)."},
     "history": {
       "type": "table",
       "source": "contact_centre/history.csv",
-      "columns": {
-        "offered": "int",
-        "answered": "int",
-        "abandoned": "int",
-        "answered_within_20s": "int",
-        "avg_handle_sec": "number",
-        "avg_wait_sec": "number",
-        "agents": "int",
-        "outage": "int"
-      },
+      "columns": {"offered": "int", "answered": "int", "abandoned": "int", "answered_within_20s": "int", "avg_handle_sec": "number", "avg_wait_sec": "number", "agents": "int", "outage": "int"},
       "description": "Half-hourly history: calls offered, answered, abandoned and answered within 20 s, handle and wait times, agents on duty, outage."
     },
-    "staffing": {
-      "type": "list",
-      "default": [],
-      "description": "Agents on duty in each of the 24 half-hours from 08:00; empty: the manager's rule."
-    },
-    "agent_cost": {
-      "type": "number",
-      "default": 26.0,
-      "min": 0,
-      "description": "Cost of one agent per paid hour.",
-      "unit": "USD"
-    },
-    "shrinkage": {
-      "type": "number",
-      "default": 0.31,
-      "min": 0,
-      "max": 0.9,
-      "description": "Share of paid time not on the phones (breaks, training, meetings), from the workforce plan."
-    },
-    "aht_sec": {
-      "type": "number",
-      "default": 379.5,
-      "min": 30,
-      "description": "Average handle time in seconds: estimated from the history (answered-weighted) by examples/contact_centre_history.py."
-    },
-    "aht_cv": {
-      "type": "number",
-      "default": 0.6,
-      "min": 0.05,
-      "description": "ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages."
-    },
-    "patience_sec": {
-      "type": "number",
-      "default": 155.1,
-      "min": 10,
-      "description": "Mean time a caller waits before hanging up: calibrated to the history's daily abandonment by examples/contact_centre_history.py."
-    },
-    "outage_at": {
-      "type": "text",
-      "default": "2026-09-14T09:30",
-      "description": "When a network outage starts (only matters with outage_uplift above 0)."
-    },
-    "outage_uplift": {
-      "type": "number",
-      "default": 0.0,
-      "min": 0,
-      "description": "Extra calls at an outage's peak, as a multiple of the normal volume (0: no outage)."
-    },
-    "outage_uplift_estimate": {
-      "type": "number",
-      "default": 3.105,
-      "min": 0,
-      "description": "Peak uplift estimated from the outage days in the history (first half-hour's calls over the fitted forecast) by examples/contact_centre_history.py; the outage arms use it."
-    },
-    "outage_half_life": {
-      "type": "number",
-      "default": 80,
-      "min": 1,
-      "description": "ASSUMED: minutes for an outage surge to halve."
-    },
-    "outage_patience_share": {
-      "type": "number",
-      "default": 0.55,
-      "min": 0.05,
-      "max": 1,
-      "description": "ASSUMED: callers' patience during an outage surge, as a share of normal patience."
-    },
-    "callbacks": {
-      "type": "bool",
-      "default": false,
-      "description": "Offer callers facing a long wait a call back."
-    },
-    "callback_wait_sec": {
-      "type": "number",
-      "default": 90,
-      "min": 0,
-      "description": "Offer a callback when the expected wait is longer than this (seconds)."
-    },
-    "callback_accept": {
-      "type": "number",
-      "default": 0.6,
-      "min": 0,
-      "max": 1,
-      "description": "ASSUMED: share of callers offered a callback who take it."
-    },
-    "callback_reserve": {
-      "type": "int",
-      "default": 3,
-      "min": 0,
-      "description": "Agents kept free for live calls: a callback is made only while more agents than this are free."
-    },
-    "parameter_uncertainty": {
-      "type": "number",
-      "default": 1,
-      "min": 0,
-      "description": "Scales the standard errors of fitted pattern parameters: 1 draws each run's parameters around their estimates, 0 uses the estimates as they are."
-    },
+    "staffing": {"type": "list", "default": [], "description": "Agents on duty in each of the 24 half-hours from 08:00; empty: the manager's rule."},
+    "agent_cost": {"type": "number", "default": 26.0, "min": 0, "description": "Cost of one agent per paid hour.", "unit": "USD"},
+    "shrinkage": {"type": "number", "default": 0.31, "min": 0, "max": 0.9, "description": "Share of paid time not on the phones (breaks, training, meetings), from the workforce plan."},
+    "aht_sec": {"type": "number", "default": 379.5, "min": 30, "description": "Average handle time in seconds: estimated from the history (answered-weighted) by examples/contact_centre_history.py."},
+    "aht_cv": {"type": "number", "default": 0.6, "min": 0.05, "description": "ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages."},
+    "patience_sec": {"type": "number", "default": 155.1, "min": 10, "description": "Mean time a caller waits before hanging up: calibrated to the history's daily abandonment by examples/contact_centre_history.py."},
+    "outage_at": {"type": "text", "default": "2026-09-14T09:30", "description": "When a network outage starts (only matters with outage_uplift above 0)."},
+    "outage_uplift": {"type": "number", "default": 0.0, "min": 0, "description": "Extra calls at an outage's peak, as a multiple of the normal volume (0: no outage)."},
+    "outage_uplift_estimate": {"type": "number", "default": 3.105, "min": 0, "description": "Peak uplift estimated from the outage days in the history (first half-hour's calls over the fitted forecast) by examples/contact_centre_history.py; the outage arms use it."},
+    "outage_half_life": {"type": "number", "default": 80, "min": 1, "description": "ASSUMED: minutes for an outage surge to halve."},
+    "outage_patience_share": {"type": "number", "default": 0.55, "min": 0.05, "max": 1, "description": "ASSUMED: callers' patience during an outage surge, as a share of normal patience."},
+    "callbacks": {"type": "bool", "default": false, "description": "Offer callers facing a long wait a call back."},
+    "callback_wait_sec": {"type": "number", "default": 90, "min": 0, "description": "Offer a callback when the expected wait is longer than this (seconds)."},
+    "callback_accept": {"type": "number", "default": 0.6, "min": 0, "max": 1, "description": "ASSUMED: share of callers offered a callback who take it."},
+    "callback_reserve": {"type": "int", "default": 3, "min": 0, "description": "Agents kept free for live calls: a callback is made only while more agents than this are free."},
+    "parameter_uncertainty": {"type": "number", "default": 1, "min": 0, "description": "Scales the standard errors of fitted pattern parameters: 1 draws each run's parameters around their estimates, 0 uses the estimates as they are."},
     "weekday_profile": {
       "type": "list",
       "default": [
@@ -212,200 +112,30 @@
       ],
       "description": "Standard error of hours_profile."
     },
-    "calls_scale": {
-      "type": "number",
-      "default": 57.128968253968814,
-      "description": "Pattern 'calls', scale: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."
-    },
-    "calls_scale_se": {
-      "type": "number",
-      "default": 0.2631603951297977,
-      "description": "Standard error of calls_scale."
-    }
+    "calls_scale": {"type": "number", "default": 57.128968253968814, "description": "Pattern 'calls', scale: fitted by fg_env.analysis.fit_patterns from $inputs.history (joint count regression)."},
+    "calls_scale_se": {"type": "number", "default": 0.2631603951297977, "description": "Standard error of calls_scale."}
   },
-  "types": {
-    "centre": {
-      "description": "The contact centre (the queue is its mechanism)."
-    }
-  },
-  "patterns": {
-    "weekday": {
-      "kind": "seasonal",
-      "period": "week",
-      "profile": "$inputs.weekday_profile",
-      "description": "day of the week",
-      "uncertainty": {
-        "profile": "$map($inputs.weekday_profile_se, $it * $inputs.parameter_uncertainty)"
-      }
-    },
-    "hours": {
-      "kind": "seasonal",
-      "period": 720,
-      "profile": "$inputs.hours_profile",
-      "description": "time of day (the 12 opening hours, one value per half-hour from 08:00)",
-      "uncertainty": {
-        "profile": "$map($inputs.hours_profile_se, $it * $inputs.parameter_uncertainty)"
-      }
-    },
-    "calls": {
-      "kind": "product",
-      "scale": "$inputs.calls_scale",
-      "of": [
-        "weekday",
-        "hours"
-      ],
-      "description": "expected calls in a half-hour",
-      "fit": {
-        "data": "$inputs.history",
-        "value": "offered",
-        "time": "time",
-        "where": "$row.outage == 0 and $row.date < '2026-08-31'"
-      },
-      "uncertainty": {
-        "scale": "$inputs.calls_scale_se * $inputs.parameter_uncertainty"
-      }
-    },
-    "outage": {
-      "kind": "lifecycle",
-      "start": "$inputs.outage_at",
-      "before": 1,
-      "peak": "1 + $inputs.outage_uplift",
-      "floor": 1,
-      "half_life": "$inputs.outage_half_life",
-      "description": "the surge of calls after a network outage"
-    }
-  },
-  "mechanisms": {
-    "centre": {
-      "kind": "operations",
-      "mode": "queue",
-      "unit": "second",
-      "channels": {
-        "calls": {
-          "arrivals": "$pattern.calls * $pattern.outage",
-          "service": {
-            "dist": "lognormal",
-            "mean": "$inputs.aht_sec",
-            "cv": "$inputs.aht_cv"
-          },
-          "patience": {
-            "dist": "exponential",
-            "mean": "$inputs.patience_sec * ($inputs.outage_patience_share if $pattern.outage > 1.3 else 1)"
-          },
-          "threshold": 20,
-          "target": 0.8,
-          "callback": {
-            "when": "$inputs.callback_wait_sec",
-            "accept": "$inputs.callback_accept if $inputs.callbacks else 0",
-            "reserve": "$inputs.callback_reserve"
-          }
-        }
-      },
-      "servers": {
-        "agents": {
-          "staff": "$inputs.staffing[$interval] if $len($inputs.staffing) > 0 else $max(4, $ceil($pattern.calls * $inputs.aht_sec / 1800 * 1.1 + 2))",
-          "cost": "$inputs.agent_cost",
-          "shrinkage": "$inputs.shrinkage"
-        }
-      }
-    }
-  },
+  "clock": {"rounds": 24, "unit": "minute", "step": 30, "start": "$inputs.day"},
+  "types": {"centre": {"description": "The contact centre (the queue is its mechanism)."}},
   "arms": {
-    "current": {
-      "description": "the manager's rule"
-    },
+    "current": {"description": "the manager's rule"},
     "recommended": {
       "description": "the optimised plan",
       "inputs": {
-        "staffing": [
-          11,
-          16,
-          22,
-          27,
-          26,
-          26,
-          22,
-          21,
-          22,
-          25,
-          24,
-          24,
-          22,
-          21,
-          19,
-          20,
-          19,
-          18,
-          17,
-          16,
-          15,
-          13,
-          12,
-          11
-        ]
+        "staffing": [11, 16, 22, 27, 26, 26, 22, 21, 22, 25, 24, 24, 22, 21, 19, 20, 19, 18, 17, 16, 15, 13, 12, 11]
       }
     },
     "outage": {
       "description": "a network outage at 09:30 with the recommended plan",
       "inputs": {
-        "staffing": [
-          11,
-          16,
-          22,
-          27,
-          26,
-          26,
-          22,
-          21,
-          22,
-          25,
-          24,
-          24,
-          22,
-          21,
-          19,
-          20,
-          19,
-          18,
-          17,
-          16,
-          15,
-          13,
-          12,
-          11
-        ],
+        "staffing": [11, 16, 22, 27, 26, 26, 22, 21, 22, 25, 24, 24, 22, 21, 19, 20, 19, 18, 17, 16, 15, 13, 12, 11],
         "outage_uplift": 3.105
       }
     },
     "outage_with_callbacks": {
       "description": "the outage, with callbacks offered",
       "inputs": {
-        "staffing": [
-          11,
-          16,
-          22,
-          27,
-          26,
-          26,
-          22,
-          21,
-          22,
-          25,
-          24,
-          24,
-          22,
-          21,
-          19,
-          20,
-          19,
-          18,
-          17,
-          16,
-          15,
-          13,
-          12,
-          11
-        ],
+        "staffing": [11, 16, 22, 27, 26, 26, 22, 21, 22, 25, 24, 24, 22, 21, 19, 20, 19, 18, 17, 16, 15, 13, 12, 11],
         "outage_uplift": 3.105,
         "callbacks": true
       }
@@ -413,61 +143,17 @@
     "callbacks": {
       "description": "callbacks offered on a normal day with the recommended plan",
       "inputs": {
-        "staffing": [
-          11,
-          16,
-          22,
-          27,
-          26,
-          26,
-          22,
-          21,
-          22,
-          25,
-          24,
-          24,
-          22,
-          21,
-          19,
-          20,
-          19,
-          18,
-          17,
-          16,
-          15,
-          13,
-          12,
-          11
-        ],
+        "staffing": [11, 16, 22, 27, 26, 26, 22, 21, 22, 25, 24, 24, 22, 21, 19, 20, 19, 18, 17, 16, 15, 13, 12, 11],
         "callbacks": true
       }
     },
     "truth": {
       "description": "The centre that generated history.csv: the true parameters, used by examples/contact_centre_history.py only.",
-      "inputs": {
-        "parameter_uncertainty": 0,
-        "aht_sec": 380.0,
-        "aht_cv": 0.6,
-        "patience_sec": 160.0,
-        "outage_patience_share": 0.55,
-        "outage_half_life": 80
-      },
+      "inputs": {"parameter_uncertainty": 0, "aht_sec": 380.0, "aht_cv": 0.6, "patience_sec": 160.0, "outage_patience_share": 0.55, "outage_half_life": 80},
       "patch": {
-        "patterns": {
-          "calls": {
-            "scale": 64.0
-          },
-          "weekday": {
-            "profile": [
-              1.25,
-              1.1,
-              1.0,
-              1.0,
-              0.95,
-              0.7,
-              0.55
-            ]
-          },
+        "mechanisms": {
+          "calls": {"scale": 64.0},
+          "weekday": {"profile": [1.25, 1.1, 1.0, 1.0, 0.95, 0.7, 0.55]},
           "hours": {
             "profile": [
               0.55,
@@ -499,5 +185,51 @@
         }
       }
     }
+  },
+  "mechanisms": {
+    "centre": {
+      "kind": "economy",
+      "mode": "queue",
+      "unit": "second",
+      "channels": {
+        "calls": {
+          "arrivals": "$pattern.calls * $pattern.outage",
+          "service": {"dist": "lognormal", "mean": "$inputs.aht_sec", "cv": "$inputs.aht_cv"},
+          "patience": {"dist": "exponential", "mean": "$inputs.patience_sec * ($inputs.outage_patience_share if $pattern.outage > 1.3 else 1)"},
+          "threshold": 20,
+          "target": 0.8,
+          "callback": {"when": "$inputs.callback_wait_sec", "accept": "$inputs.callback_accept if $inputs.callbacks else 0", "reserve": "$inputs.callback_reserve"}
+        }
+      },
+      "servers": {
+        "agents": {"staff": "$inputs.staffing[$interval] if $len($inputs.staffing) > 0 else $max(4, $ceil($pattern.calls * $inputs.aht_sec / 1800 * 1.1 + 2))", "cost": "$inputs.agent_cost", "shrinkage": "$inputs.shrinkage"}
+      }
+    },
+    "weekday": {
+      "kind": "pattern",
+      "mode": "seasonal",
+      "period": "week",
+      "profile": "$inputs.weekday_profile",
+      "description": "day of the week",
+      "uncertainty": {"profile": "$map($inputs.weekday_profile_se, $it * $inputs.parameter_uncertainty)"}
+    },
+    "hours": {
+      "kind": "pattern",
+      "mode": "seasonal",
+      "period": 720,
+      "profile": "$inputs.hours_profile",
+      "description": "time of day (the 12 opening hours, one value per half-hour from 08:00)",
+      "uncertainty": {"profile": "$map($inputs.hours_profile_se, $it * $inputs.parameter_uncertainty)"}
+    },
+    "calls": {
+      "kind": "pattern",
+      "mode": "product",
+      "scale": "$inputs.calls_scale",
+      "of": ["weekday", "hours"],
+      "description": "expected calls in a half-hour",
+      "fit": {"data": "$inputs.history", "value": "offered", "time": "time", "where": "$row.outage == 0 and $row.date < '2026-08-31'"},
+      "uncertainty": {"scale": "$inputs.calls_scale_se * $inputs.parameter_uncertainty"}
+    },
+    "outage": {"kind": "pattern", "mode": "lifecycle", "start": "$inputs.outage_at", "before": 1, "peak": "1 + $inputs.outage_uplift", "floor": 1, "half_life": "$inputs.outage_half_life", "description": "the surge of calls after a network outage"}
   }
 }

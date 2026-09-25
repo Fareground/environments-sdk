@@ -14,6 +14,11 @@ CORPUS = sorted([*(ROOT / "examples" / "contracts").rglob("*.json"),
 
 
 @pytest.mark.parametrize("path", example_params(CORPUS))
+def test_every_shipped_contract_is_written_in_the_current_form(path):
+    assert normalize(json.loads(path.read_text()))[1] == []
+
+
+@pytest.mark.parametrize("path", example_params(CORPUS))
 def test_normalizing_twice_is_normalizing_once(path):
     data = json.loads(path.read_text())
     once, _ = normalize(data)

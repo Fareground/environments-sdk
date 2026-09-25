@@ -1,37 +1,96 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Farmers market",
   "description": "Three farmers post prices for apples, pears and honey; a dozen shoppers browse a ranked shelf, buy within a daily stall capacity, haggle where a farmer is open to offers, and rate what they bought. Farmers run promotions when stock piles up.",
-  "inputs": {
-    "rounds": {"type": "int", "default": 6, "min": 1, "max": 60, "description": "Market days."},
-    "shoppers": {"type": "int", "default": 12, "min": 1, "max": 200, "description": "Shoppers visiting."}
-  },
   "brief": {
     "situation": "It is market day. Ana sells apples and takes offers, Ben sells pears but can only pick a few crates a day, and Cy's honey is the priciest stall with the best reviews.",
     "rules": "Shoppers see the stalls ranked (sponsored first, then rating, then price), buy at the posted price, or make a lower offer where a farmer is open to offers: an offer at or above the farmer's lowest price is accepted, a lower one gets a counter-offer you can accept. Farmers can change prices, run promotions and pay for sponsored placement."
   },
+  "inputs": {
+    "rounds": {"type": "int", "default": 6, "min": 1, "max": 60, "description": "Market days."},
+    "shoppers": {"type": "int", "default": 12, "min": 1, "max": 200, "description": "Shoppers visiting."}
+  },
   "clock": {"rounds": "$inputs.rounds", "unit": "day"},
   "world": {
-    "fair": {"type": "map", "default": {"apples": 3, "pears": 4, "honey": 8}, "description": "What each good is usually worth."}
+    "fair": {
+      "type": "map",
+      "default": {"apples": 3, "pears": 4, "honey": 8},
+      "description": "What each good is usually worth."
+    }
   },
   "types": {
-    "farmer": {"agent": true, "policy": "stallholder", "props": {"cash": 0}},
-    "shopper": {"agent": true, "policy": "shopper", "props": {
-      "cash": 0,
-      "wants": {"type": "text", "default": "apples"},
-      "thrift": {"type": "number", "default": 1, "private": true, "description": "Willingness to pay relative to the usual price."}
-    }}
+    "farmer": {
+      "agent": true,
+      "policy": "stallholder",
+      "props": {"cash": 0},
+      "policies": {
+        "stallholder": {
+          "rules": [
+            {
+              "when": "$any(market_listing, $it.seller == $actor.id and $it.stock > 20 and $it.promo_until < $round)",
+              "do": "market_promote",
+              "with": {"listing": "$pick(market_listing, $it.seller == $actor.id and $it.stock > 20)", "pct": 0.15, "rounds": 2}
+            },
+            {"do": "pass"}
+          ]
+        }
+      }
+    },
+    "shopper": {
+      "agent": true,
+      "policy": "shopper",
+      "props": {
+        "cash": 0,
+        "wants": {"type": "text", "default": "apples"},
+        "thrift": {"type": "number", "default": 1, "private": true, "description": "Willingness to pay relative to the usual price."}
+      },
+      "policies": {
+        "shopper": {
+          "rules": [
+            {
+              "when": "$len($posted_counters(market, $actor)) > 0",
+              "do": "market_accept",
+              "with": {"listing": "$posted_counters(market, $actor)[0]"}
+            },
+            {
+              "when": "$pick($shelf(market, $actor.wants), $posted_price(market, $it) <= $get($world.fair, $actor.wants) * $actor.thrift) != null",
+              "do": "market_buy",
+              "with": {"listing": "$pick($shelf(market, $actor.wants), $posted_price(market, $it) <= $get($world.fair, $actor.wants) * $actor.thrift)", "qty": 1}
+            },
+            {
+              "when": "$pick($shelf(market, $actor.wants), $it.negotiable) != null",
+              "do": "market_offer",
+              "with": {"listing": "$pick($shelf(market, $actor.wants), $it.negotiable)", "price": "$round($get($world.fair, $actor.wants) * $actor.thrift, 2)"}
+            },
+            {
+              "when": "$len($filter($keys($actor.market_bought), not ($it in $actor.market_rated))) > 0",
+              "do": "market_rate",
+              "with": {"listing": "$filter($keys($actor.market_bought), not ($it in $actor.market_rated))[0]", "stars": "$randint(3, 5)"}
+            },
+            {"do": "pass"}
+          ]
+        }
+      }
+    }
   },
   "entities": {
     "ana": {"type": "farmer", "name": "Ana"},
     "ben": {"type": "farmer", "name": "Ben"},
-    "cy": {"type": "farmer", "name": "Cy"}
+    "cy": {"type": "farmer", "name": "Cy"},
+    "shopper": {
+      "type": "shopper",
+      "count": "$inputs.shoppers",
+      "name": "Shopper {$i}",
+      "props": {"cash": "$round($uniform(15, 40), 2)", "wants": "$choice(['apples', 'pears', 'honey'])", "thrift": "$round($uniform(0.7, 1.15), 2)"},
+      "brief": "You came for {$actor.wants}."
+    }
   },
-  "population": [
-    {"type": "shopper", "count": "$inputs.shoppers", "name": "Shopper {$i}",
-     "props": {"cash": "$round($uniform(15, 40), 2)", "wants": "$choice(['apples', 'pears', 'honey'])", "thrift": "$round($uniform(0.7, 1.15), 2)"},
-     "brief": "You came for {$actor.wants}."}
-  ],
+  "outputs": {
+    "unsold": {"expr": "$sum(market_listing, $it.stock)", "type": "int", "description": "Units left on the stalls."},
+    "farmer_takings": {"expr": "$dict(farmer, $it.name, $round($it.cash, 2))", "type": "map", "description": "Cash each farmer took."},
+    "served": {"expr": "$count(shopper, $len($keys($it.market_basket)) > 0)", "type": "int", "description": "Shoppers who went home with something."},
+    "ratings": {"expr": "$dict(market_listing, $it.id, $round($it.rating, 2))", "type": "map", "description": "Final average rating per stall."}
+  },
   "mechanisms": {
     "market": {
       "kind": "market",
@@ -46,30 +105,5 @@
         "honey": {"seller": "cy", "item": "honey", "name": "Cy's honey", "price": 8.5, "stock": 15, "sponsored": true, "rating": 4.6, "ratings": 12}
       }
     }
-  },
-  "policies": {
-    "shopper": {"rules": [
-      {"when": "$len($posted_counters(market, $actor)) > 0", "do": "market_accept",
-       "with": {"listing": "$posted_counters(market, $actor)[0]"}},
-      {"when": "$pick($shelf(market, $actor.wants), $posted_price(market, $it) <= $get($world.fair, $actor.wants) * $actor.thrift) != null",
-       "do": "market_buy",
-       "with": {"listing": "$pick($shelf(market, $actor.wants), $posted_price(market, $it) <= $get($world.fair, $actor.wants) * $actor.thrift)", "qty": 1}},
-      {"when": "$pick($shelf(market, $actor.wants), $it.negotiable) != null", "do": "market_offer",
-       "with": {"listing": "$pick($shelf(market, $actor.wants), $it.negotiable)", "price": "$round($get($world.fair, $actor.wants) * $actor.thrift, 2)"}},
-      {"when": "$len($filter($keys($actor.market_bought), not ($it in $actor.market_rated))) > 0", "do": "market_rate",
-       "with": {"listing": "$filter($keys($actor.market_bought), not ($it in $actor.market_rated))[0]", "stars": "$randint(3, 5)"}},
-      {"do": "pass"}
-    ]},
-    "stallholder": {"rules": [
-      {"when": "$any(market_listing, $it.seller == $actor.id and $it.stock > 20 and $it.promo_until < $round)", "do": "market_promote",
-       "with": {"listing": "$pick(market_listing, $it.seller == $actor.id and $it.stock > 20)", "pct": 0.15, "rounds": 2}},
-      {"do": "pass"}
-    ]}
-  },
-  "outputs": {
-    "unsold": {"expr": "$sum(market_listing, $it.stock)", "type": "int", "description": "Units left on the stalls."},
-    "farmer_takings": {"expr": "$dict(farmer, $it.name, $round($it.cash, 2))", "type": "map", "description": "Cash each farmer took."},
-    "served": {"expr": "$count(shopper, $len($keys($it.market_basket)) > 0)", "type": "int", "description": "Shoppers who went home with something."},
-    "ratings": {"expr": "$dict(market_listing, $it.id, $round($it.rating, 2))", "type": "map", "description": "Final average rating per stall."}
   }
 }

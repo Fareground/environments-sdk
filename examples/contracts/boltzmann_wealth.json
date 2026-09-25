@@ -1,25 +1,28 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Boltzmann wealth",
   "description": "Everyone starts with one coin. Each step, in random order, every person with a coin gives one to a person picked at random. Equal chances produce a very unequal, exponential wealth distribution.",
-  "inputs": {
-    "people": {"type": "int", "default": 100, "min": 2},
-    "steps": {"type": "int", "default": 100, "min": 1}
-  },
+  "inputs": {"people": {"type": "int", "default": 100, "min": 2}, "steps": {"type": "int", "default": 100, "min": 1}},
   "clock": {"rounds": "$inputs.steps", "unit": "step"},
   "types": {"person": {"props": {"wealth": {"type": "int", "default": 1, "min": 0}}}},
-  "population": [{"type": "person", "count": "$inputs.people"}],
+  "entities": {"person": {"type": "person", "count": "$inputs.people"}},
   "events": [
-    {"name": "exchange", "each": "person", "order": "random", "where": "$it.wealth > 0",
-     "do": [{"transfer": "wealth", "from": "$it", "to": "$choice(person)", "amount": 1}]}
+    {
+      "name": "exchange",
+      "do": [
+        {
+          "each": "$shuffle(person)",
+          "where": "$it.wealth > 0",
+          "do": [{"transfer": "wealth", "from": "$it", "to": "$choice(person)", "amount": 1}]
+        }
+      ]
+    }
   ],
-  "invariants": [{"expr": "$sum(person, $it.wealth) == $inputs.people", "why": "coins change hands, never appear or vanish", "check": "round"}],
-  "metrics": {
-    "gini": {"expr": "$gini(person, $it.wealth)", "description": "Inequality of wealth (0 equal, 1 one person has all)."},
-    "richest": "$max(person, $it.wealth)"
-  },
   "outputs": {
-    "gini": {"expr": "$metrics.gini", "type": "number"},
-    "richest": {"expr": "$metrics.richest", "type": "int"}
-  }
+    "gini": {"expr": "$gini(person, $it.wealth)", "type": "number", "series": true, "description": "Inequality of wealth (0 equal, 1 one person has all)."},
+    "richest": {"expr": "$max(person, $it.wealth)", "type": "int", "series": true}
+  },
+  "invariants": [
+    {"expr": "$sum(person, $it.wealth) == $inputs.people", "why": "coins change hands, never appear or vanish", "check": "round"}
+  ]
 }

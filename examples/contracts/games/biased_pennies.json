@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Biased pennies",
   "description": "A zero-sum 2x2 matrix game with a lopsided payoff. Its unique equilibrium has both players show heads with probability 1/3; the row player's value is 1/3.",
   "brief": {
@@ -8,34 +8,43 @@
   },
   "clock": {"rounds": 1},
   "world": {
-    "payoff": {"type": "map", "default": {
-      "heads": {"heads": 3, "tails": -1},
-      "tails": {"heads": -1, "tails": 1}
-    }}
+    "payoff": {"type": "map", "default": {"heads": {"heads": 3, "tails": -1}, "tails": {"heads": -1, "tails": 1}}}
   },
-  "types": {"player": {"agent": true, "props": {
-    "seat": 0,
-    "side": {"type": "text", "default": "", "private": true},
-    "score": 0
-  }}},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "side": {"type": "text", "default": "", "private": true}, "score": 0},
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "min": -3, "max": 3, "value": "$it.score"}
+    }
+  },
   "entities": {
     "a": {"type": "player", "name": "A", "props": {"seat": 0}},
     "b": {"type": "player", "name": "B", "props": {"seat": 1}}
   },
-  "actions": {"show": {
-    "by": "player", "description": "Show heads or tails.", "private": true, "terminal": true,
-    "params": {"side": {"type": "enum", "values": ["heads", "tails"]}},
-    "do": ["$actor.side = $params.side"]
-  }},
+  "actions": {
+    "show": {
+      "by": "player",
+      "description": "Show heads or tails.",
+      "terminal": true,
+      "params": {"side": {"type": "enum", "values": ["heads", "tails"]}},
+      "do": ["$actor.side = $params.side"],
+      "announce": false
+    }
+  },
   "stages": [{"name": "show", "turns": "simultaneous", "must_act": true}],
-  "events": [{"phase": "end", "do": [
-    "$a = $entity('a')", "$b = $entity('b')",
-    "$a.score = 0 if $a.side == '' and $b.side == '' else -1 if $a.side == '' else 3 if $b.side == '' else $world.payoff[$a.side][$b.side]",
-    "$b.score = -$a.score",
-    "$shown_a = $a.side", "$shown_b = $b.side",
-    {"emit": "shown", "say": "A showed {$shown_a or 'nothing'}; B showed {$shown_b or 'nothing'}."}
-  ]}],
-  "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "zero_sum",
-           "min_return": -3, "max_return": 3},
+  "events": [
+    {
+      "on": "round.end",
+      "do": [
+        "$a = $entity('a')",
+        "$b = $entity('b')",
+        "$a.score = 0 if $a.side == '' and $b.side == '' else -1 if $a.side == '' else 3 if $b.side == '' else $world.payoff[$a.side][$b.side]",
+        "$b.score = -$a.score",
+        "$shown_a = $a.side",
+        "$shown_b = $b.side",
+        {"emit": "shown", "say": "A showed {$shown_a or 'nothing'}; B showed {$shown_b or 'nothing'}."}
+      ]
+    }
+  ],
   "outputs": {"a_score": {"expr": "$entity('a').score", "type": "number"}}
 }

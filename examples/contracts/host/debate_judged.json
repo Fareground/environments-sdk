@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Judged debate",
   "description": "Two debaters give three speeches each; an impartial rubric judge scores every speech and the higher total wins.",
   "brief": {
@@ -7,9 +7,7 @@
     "rules": "Each round both debaters speak once, the pro side first. An impartial judge scores every speech on logic, evidence and rebuttal, out of 10. After three rounds the debater with the higher total wins.",
     "roles": {"debater": "You argue the {$actor.side} side of the motion."}
   },
-  "inputs": {
-    "motion": {"type": "text", "default": "Cities should make public transport free."}
-  },
+  "inputs": {"motion": {"type": "text", "default": "Cities should make public transport free."}},
   "clock": {"rounds": 3, "unit": "round"},
   "types": {
     "debater": {
@@ -24,9 +22,7 @@
     "avery": {"type": "debater", "name": "Avery", "props": {"side": "pro"}},
     "blake": {"type": "debater", "name": "Blake", "props": {"side": "con"}}
   },
-  "records": {
-    "speeches": {"fields": {"text": "text"}, "show": "{author} ({$it.author.side}): {text}"}
-  },
+  "records": {"speeches": {"fields": {"text": "text"}, "show": "{author} ({$it.author.side}): {text}"}},
   "actions": {
     "speak": {
       "by": "debater",
@@ -36,9 +32,16 @@
       "terminal": true
     }
   },
-  "stages": [
-    {"name": "speeches", "turns": "sequential", "order": "0 if $it.side == pro else 1", "must_act": true}
-  ],
+  "stages": [{"name": "speeches", "turns": "sequential", "order": "0 if $it.side == pro else 1", "must_act": true}],
+  "views": {
+    "standings": {"for": "debater", "title": "Scores so far", "of": "debater", "sort": "$it.score", "desc": true, "show": "{name} ({side}): {score|1}"}
+  },
+  "outputs": {
+    "winner": {"expr": "$top(debater, $it.score, 1)[0].name", "type": "text"},
+    "pro_score": {"expr": "$entity(avery).score", "type": "number"},
+    "con_score": {"expr": "$entity(blake).score", "type": "number"},
+    "speeches": {"expr": "$count($records(speeches))", "type": "int"}
+  },
   "mechanisms": {
     "judge": {
       "kind": "host",
@@ -56,17 +59,5 @@
         "rebuttal": {"description": "Engages the opponent's strongest points.", "weight": 1}
       }
     }
-  },
-  "views": {
-    "standings": {
-      "for": "debater", "title": "Scores so far", "of": "debater", "sort": "$it.score", "desc": true,
-      "show": "{name} ({side}): {score|1}"
-    }
-  },
-  "outputs": {
-    "winner": {"expr": "$top(debater, $it.score, 1)[0].name", "type": "text"},
-    "pro_score": {"expr": "$entity(avery).score", "type": "number"},
-    "con_score": {"expr": "$entity(blake).score", "type": "number"},
-    "speeches": {"expr": "$count($records(speeches))", "type": "int"}
   }
 }

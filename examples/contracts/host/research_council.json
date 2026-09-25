@@ -1,14 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Research council",
   "description": "A panel of forecasters researches a question with a host search tool, remembers what it found, discusses on a board and submits probability forecasts each round.",
   "brief": {
     "situation": "A panel forecasts: {$inputs.question}",
     "rules": "Each round: research with search (the evidence is yours alone), share arguments on the board, then submit your probability that the answer is yes. Use recall to bring back what you learned in earlier rounds and note to keep something for later. The panel's forecast is the average of the latest forecasts."
   },
-  "inputs": {
-    "question": {"type": "text", "default": "Will the city's new metro line open before 2028?"}
-  },
+  "inputs": {"question": {"type": "text", "default": "Will the city's new metro line open before 2028?"}},
   "clock": {"rounds": 3, "unit": "round"},
   "types": {
     "panelist": {
@@ -19,14 +17,16 @@
       }
     }
   },
-  "population": [
-    {"type": "panelist", "count": 3, "name": "Panelist {$i}",
-     "props": {"lens": "['base rates', 'recent reporting', 'devil advocate'][$i - 1]"},
-     "brief": "You reason from {$actor.lens}."}
-  ],
-  "records": {
-    "board": {"fields": {"text": "text"}, "show": "{author}: {text}"}
+  "entities": {
+    "panelist": {
+      "type": "panelist",
+      "count": 3,
+      "name": "Panelist {$i}",
+      "props": {"lens": "['base rates', 'recent reporting', 'devil advocate'][$i - 1]"},
+      "brief": "You reason from {$actor.lens}."
+    }
   },
+  "records": {"board": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
   "actions": {
     "post": {
       "by": "panelist",
@@ -39,30 +39,42 @@
       "description": "Submit your probability that the answer is yes.",
       "params": {"p": {"type": "number", "min": 0, "max": 1, "description": "Probability of yes."}},
       "do": ["$actor.forecast = $params.p"],
-      "private": true,
       "outcome": "Your forecast: {$params.p|pct}.",
-      "terminal": true
+      "terminal": true,
+      "announce": false
     }
   },
   "stages": [
     {"name": "discuss", "turns": "sequential", "actions": ["post"], "max_calls": 8},
     {"name": "ballot", "turns": "simultaneous", "actions": ["forecast"], "must_act": true}
   ],
-  "mechanisms": {
-    "search": {
-      "kind": "host", "mode": "tool", "host": "web_search", "who": "panelist",
-      "description": "Search the web for evidence on the question.",
-      "max_calls_per_turn": 2, "max_calls_per_run": 5, "stages": ["discuss", "ballot"]
-    },
-    "memory": {"kind": "mind", "mode": "memory", "who": "panelist", "half_life": 3, "budget": 200, "stages": ["discuss", "ballot"]},
-    "story": {"kind": "host", "mode": "recap", "record": "board", "every": 2, "fallback": "extract"}
-  },
   "views": {
-    "panel": {"for": "panelist", "title": "The panel", "of": "panelist", "stages": ["discuss"], "show": "{name} ({lens})"}
+    "panel": {"for": "panelist", "title": "The panel", "of": "panelist", "show": "{name} ({lens})", "when": "$stage in ['discuss']"}
   },
   "outputs": {
     "panel_forecast": {"expr": "$round($avg(panelist, $it.forecast), 4)", "type": "number"},
     "spread": {"expr": "$round($max(panelist, $it.forecast) - $min(panelist, $it.forecast), 4)", "type": "number"},
     "searches": {"expr": "$sum(panelist, $it.search_calls)", "type": "int"}
+  },
+  "mechanisms": {
+    "search": {
+      "kind": "host",
+      "mode": "tool",
+      "host": "web_search",
+      "who": "panelist",
+      "description": "Search the web for evidence on the question.",
+      "max_calls_per_turn": 2,
+      "max_calls_per_run": 5,
+      "stages": ["discuss", "ballot"]
+    },
+    "memory": {
+      "kind": "host",
+      "mode": "memory",
+      "who": "panelist",
+      "half_life": 3,
+      "budget": 200,
+      "stages": ["discuss", "ballot"]
+    },
+    "story": {"kind": "host", "mode": "recap", "record": "board", "every": 2, "fallback": "extract"}
   }
 }

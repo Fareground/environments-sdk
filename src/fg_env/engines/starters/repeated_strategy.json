@@ -1,7 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Strategy Engine",
   "description": "A reusable repeated-interaction engine for interdependent human choices, cooperation, competition, commitments, and configurable consequences. Coded players follow a classic strategy (tit for tat, grim trigger, always cooperate, always compete or random), which ignores the payoffs by design, or look forward, weighing the payoffs against the rounds left, and occasionally make a mistake.",
+  "brief": {
+    "situation": "Participants repeatedly make interdependent choices under incomplete information.",
+    "rules": "Each round, privately choose cooperate or compete; your choice plays against every other participant. Mutual cooperation rewards both; mutual competition gives a smaller return; when choices differ, the competitor gains the bonus and the cooperator receives the loss payoff. Past choices and scores become public after each round.",
+    "roles": {"strategist": "Choose based on your goals, expectations, history, and any scenario-specific commitments."}
+  },
   "inputs": {
     "rounds": {"type": "int", "default": 10, "min": 1, "max": 50},
     "participants": {
@@ -27,54 +32,111 @@
     "compete_bonus": {"type": "number", "default": 5},
     "cooperate_loss": {"type": "number", "default": 0}
   },
-  "brief": {
-    "situation": "Participants repeatedly make interdependent choices under incomplete information.",
-    "rules": "Each round, privately choose cooperate or compete; your choice plays against every other participant. Mutual cooperation rewards both; mutual competition gives a smaller return; when choices differ, the competitor gains the bonus and the cooperator receives the loss payoff. Past choices and scores become public after each round.",
-    "roles": {"strategist": "Choose based on your goals, expectations, history, and any scenario-specific commitments."}
-  },
   "clock": {"rounds": "$inputs.rounds", "unit": "round"},
-  "types": {"strategist": {"agent": true, "policy": "baseline", "props": {
-    "strategy": {"type": "enum", "values": ["tit_for_tat", "grim_trigger", "forward_looking", "always_cooperate", "always_compete", "random"], "default": "tit_for_tat", "private": true},
-    "choice": {"type": "text", "default": "", "private": true},
-    "last_choice": {"type": "text", "default": "none"},
-    "score": {"type": "number", "default": 0},
-    "cooperations": {"type": "int", "default": 0},
-    "competitions": {"type": "int", "default": 0}
-  }}},
-  "population": [{"type": "strategist", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}", "props": {"strategy": "$row.strategy"}}],
-  "actions": {"choose": {
-    "by": "strategist", "description": "Privately choose cooperate or compete for this round.", "private": true, "terminal": true,
-    "params": {"choice": {"type": "enum", "values": ["cooperate", "compete"]}},
-    "do": ["$actor.choice = $params.choice"]
-  }},
+  "types": {
+    "strategist": {
+      "agent": true,
+      "policy": "baseline",
+      "props": {
+        "strategy": {
+          "type": "enum",
+          "values": ["tit_for_tat", "grim_trigger", "forward_looking", "always_cooperate", "always_compete", "random"],
+          "default": "tit_for_tat",
+          "private": true
+        },
+        "choice": {"type": "text", "default": "", "private": true},
+        "last_choice": {"type": "text", "default": "none"},
+        "score": {"type": "number", "default": 0},
+        "cooperations": {"type": "int", "default": 0},
+        "competitions": {"type": "int", "default": 0}
+      },
+      "policies": {
+        "baseline": {
+          "rules": [
+            {"chance": "$inputs.mistakes", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}},
+            {
+              "when": "$actor.strategy == tit_for_tat",
+              "do": "choose",
+              "with": {"choice": "$'compete' if $count($rivals($actor), $it.last_choice == compete) * 2 > $count($rivals($actor)) else 'cooperate'"}
+            },
+            {
+              "when": "$actor.strategy == grim_trigger",
+              "do": "choose",
+              "with": {"choice": "$'compete' if $sum($rivals($actor), $it.competitions) > 0 else 'cooperate'"}
+            },
+            {
+              "when": "$actor.strategy == forward_looking",
+              "do": "choose",
+              "with": {"choice": "$'cooperate' if $count($rivals($actor), $it.last_choice == compete) * 2 <= $count($rivals($actor)) and ($inputs.mutual_cooperate - $inputs.mutual_compete) * ($inputs.rounds - $round) >= $inputs.compete_bonus - $inputs.mutual_cooperate else 'compete'"}
+            },
+            {"when": "$actor.strategy == always_cooperate", "do": "choose", "with": {"choice": "cooperate"}},
+            {"when": "$actor.strategy == always_compete", "do": "choose", "with": {"choice": "compete"}},
+            {"when": "$actor.strategy == random", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}}
+          ]
+        }
+      }
+    }
+  },
+  "entities": {
+    "strategist": {
+      "type": "strategist",
+      "from": "$inputs.participants",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {"strategy": "$row.strategy"}
+    }
+  },
+  "actions": {
+    "choose": {
+      "by": "strategist",
+      "description": "Privately choose cooperate or compete for this round.",
+      "terminal": true,
+      "params": {"choice": {"type": "enum", "values": ["cooperate", "compete"]}},
+      "do": ["$actor.choice = $params.choice"],
+      "announce": false
+    }
+  },
   "stages": [{"name": "choose", "turns": "simultaneous", "must_act": true}],
-  "events": [{"name": "resolve_choices", "phase": "end", "do": [
-    "$cooperators = $count(strategist, $it.choice == cooperate)", "$competitors = $count(strategist) - $cooperators",
-    {"each": "strategist", "do": [
-      {"if": "$it.choice == cooperate",
-       "then": ["$it.score += ($cooperators - 1) * $inputs.mutual_cooperate + $competitors * $inputs.cooperate_loss", "$it.cooperations += 1"],
-       "else": ["$it.score += $cooperators * $inputs.compete_bonus + ($competitors - 1) * $inputs.mutual_compete", "$it.competitions += 1"]},
-      "$it.last_choice = $it.choice", "$it.choice = ''"
-    ]},
-    {"emit": "round_result", "say": "Choices are revealed and consequences applied."}
-  ]}],
-  "invariants": [{"expr": "$count(strategist) >= 2", "why": "Choices only play against other players: give inputs.participants at least two rows."}],
-  "defs": {"rivals": {"args": ["me"], "expr": "$filter(strategist, $it.id != $me.id)", "description": "Everyone else."}},
-  "policies": {"baseline": {"rules": [
-    {"chance": "$inputs.mistakes", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}},
-    {"when": "$actor.strategy == tit_for_tat", "do": "choose", "with": {"choice": "$'compete' if $count($rivals($actor), $it.last_choice == compete) * 2 > $count($rivals($actor)) else 'cooperate'"}},
-    {"when": "$actor.strategy == grim_trigger", "do": "choose", "with": {"choice": "$'compete' if $sum($rivals($actor), $it.competitions) > 0 else 'cooperate'"}},
-    {"when": "$actor.strategy == forward_looking", "do": "choose", "with": {"choice": "$'cooperate' if $count($rivals($actor), $it.last_choice == compete) * 2 <= $count($rivals($actor)) and ($inputs.mutual_cooperate - $inputs.mutual_compete) * ($inputs.rounds - $round) >= $inputs.compete_bonus - $inputs.mutual_cooperate else 'compete'"}},
-    {"when": "$actor.strategy == always_cooperate", "do": "choose", "with": {"choice": "cooperate"}},
-    {"when": "$actor.strategy == always_compete", "do": "choose", "with": {"choice": "compete"}},
-    {"when": "$actor.strategy == random", "do": "choose", "with": {"choice": "$choice([cooperate, compete])"}}
-  ]}},
-  "metrics": {"cooperation_rate": {"expr": "$sum(strategist, $it.cooperations) / $sum(strategist, $it.cooperations + $it.competitions) if $sum(strategist, $it.cooperations + $it.competitions) > 0 else null"}},
+  "events": [
+    {
+      "name": "resolve_choices",
+      "on": "round.end",
+      "do": [
+        "$cooperators = $count(strategist, $it.choice == cooperate)",
+        "$competitors = $count(strategist) - $cooperators",
+        {
+          "each": "strategist",
+          "do": [
+            {
+              "if": "$it.choice == cooperate",
+              "then": [
+                "$it.score += ($cooperators - 1) * $inputs.mutual_cooperate + $competitors * $inputs.cooperate_loss",
+                "$it.cooperations += 1"
+              ],
+              "else": [
+                "$it.score += $cooperators * $inputs.compete_bonus + ($competitors - 1) * $inputs.mutual_compete",
+                "$it.competitions += 1"
+              ]
+            },
+            "$it.last_choice = $it.choice",
+            "$it.choice = ''"
+          ]
+        },
+        {"emit": "round_result", "say": "Choices are revealed and consequences applied."}
+      ]
+    }
+  ],
   "outputs": {
-    "cooperation_rate": {"type": "number", "expr": "$metrics.cooperation_rate"},
+    "cooperation_rate": {"type": "number", "expr": "$sum(strategist, $it.cooperations) / $sum(strategist, $it.cooperations + $it.competitions) if $sum(strategist, $it.cooperations + $it.competitions) > 0 else null", "series": true},
     "total_cooperations": {"type": "int", "expr": "$sum(strategist, $it.cooperations)"},
     "total_competitions": {"type": "int", "expr": "$sum(strategist, $it.competitions)"},
     "top_score": {"type": "number", "expr": "$max(strategist, $it.score)"},
     "winner": {"type": "text", "expr": "$first($filter(strategist, $it.score == $max(strategist, $it.score))).name if $count(strategist, $it.score == $max(strategist, $it.score)) == 1 else null", "description": "The single top scorer, or null on a tie."}
+  },
+  "invariants": [
+    {"expr": "$count(strategist) >= 2", "why": "Choices only play against other players: give inputs.participants at least two rows."}
+  ],
+  "defs": {
+    "rivals": {"args": ["me"], "expr": "$filter(strategist, $it.id != $me.id)", "description": "Everyone else."}
   }
 }

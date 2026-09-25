@@ -1,59 +1,23 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Rumor on a social network",
   "description": "150 accounts on a follower network post, like and repost from ranked feeds while a false rumor about a dam spreads by independent cascade along follows. A fact-checker labels rumor posts misleading; in the downrank arm the platform also pushes labelled posts down every feed. Outputs how far the rumor reached and how insular the network is.",
-  "inputs": {
-    "accounts": {
-      "type": "int",
-      "default": 150,
-      "min": 10,
-      "max": 5000
-    },
-    "follow_p": {
-      "type": "number",
-      "default": 0.04,
-      "min": 0,
-      "max": 1,
-      "description": "Chance any account follows any other."
-    },
-    "spread_p": {
-      "type": "number",
-      "default": 0.18,
-      "min": 0,
-      "max": 1,
-      "description": "Base chance an adopter convinces one follower per step."
-    },
-    "label_after": {
-      "type": "int",
-      "default": 3,
-      "min": 1,
-      "max": 50,
-      "unit": "hour",
-      "description": "Hours before the fact-checker can act."
-    },
-    "label_damp": {
-      "type": "number",
-      "default": 1.0,
-      "min": 0,
-      "max": 1,
-      "description": "Spread multiplier once the rumor is labelled (1 = labels do nothing)."
-    },
-    "rumor_text": {
-      "type": "text",
-      "default": "BREAKING: the river dam has cracked and officials are hiding it. Get out now!"
-    }
-  },
   "brief": {
     "situation": "A city's residents use a follower network. A false rumor says the river dam has cracked.",
     "rules": "Each hour read your feed and do one thing: post, like, repost, reply, follow or block, or nothing. Your feed ranks recent posts from accounts you follow by engagement and recency. The City fact desk labels misleading posts; it is not an account and cannot be followed.",
-    "roles": {
-      "fact_checker": "You check claims. Label posts spreading the dam rumor misleading."
-    }
+    "roles": {"fact_checker": "You check claims. Label posts spreading the dam rumor misleading."}
   },
-  "clock": {
-    "rounds": 12,
-    "unit": "hour",
-    "start": "2026-05-04T08:00"
+  "inputs": {
+    "accounts": {"type": "int", "default": 150, "min": 10, "max": 5000},
+    "follow_p": {"type": "number", "default": 0.04, "min": 0, "max": 1, "description": "Chance any account follows any other."},
+    "spread_p": {"type": "number", "default": 0.18, "min": 0, "max": 1, "description": "Base chance an adopter convinces one follower per step."},
+    "label_after": {"type": "int", "default": 3, "min": 1, "max": 50, "unit": "hour", "description": "Hours before the fact-checker can act."},
+    "label_damp": {"type": "number", "default": 1.0, "min": 0, "max": 1, "description": "Spread multiplier once the rumor is labelled (1 = labels do nothing)."},
+    "rumor_text": {"type": "text", "default": "BREAKING: the river dam has cracked and officials are hiding it. Get out now!"}
+  },
+  "clock": {"rounds": 12, "unit": "hour", "start": "2026-05-04T08:00"},
+  "world": {
+    "rumor_damp": {"type": "number", "default": 1, "min": 0, "max": 1, "description": "Current spread multiplier for the rumor."}
   },
   "types": {
     "account": {
@@ -61,83 +25,119 @@
       "policy": "crowd",
       "description": "A resident's account.",
       "props": {
-        "credulity": {
-          "type": "number",
-          "default": 0.4,
-          "min": 0,
-          "max": 1,
-          "private": true
-        },
-        "side": {
-          "type": "enum",
-          "values": [
-            "east",
-            "west"
-          ],
-          "default": "east",
-          "description": "Side of the river."
+        "credulity": {"type": "number", "default": 0.4, "min": 0, "max": 1, "private": true},
+        "side": {"type": "enum", "values": ["east", "west"], "default": "east", "description": "Side of the river."}
+      },
+      "policies": {
+        "crowd": {
+          "rules": [
+            {
+              "when": "$len($feed($actor)) > 0 and $is_rumor($first($feed($actor))) and $spread_state($actor, dam) == 'adopted'",
+              "chance": 0.5,
+              "do": "net_repost",
+              "with": {"post": "$first($feed($actor)).id"}
+            },
+            {
+              "when": "$len($feed($actor)) > 0 and not $is_rumor($first($feed($actor)))",
+              "chance": 0.3,
+              "do": "net_like",
+              "with": {"post": "$first($feed($actor)).id"}
+            },
+            {
+              "chance": 0.05,
+              "do": "net_post",
+              "with": {"text": "$choice(['Traffic on the east bridge again.', 'Farmers market is open till noon.', 'Anyone watching the game tonight?', 'New bakery on Main Street is great.'])"}
+            },
+            {"do": "pass"}
+          ]
         }
       }
     },
     "fact_checker": {
       "agent": true,
-      "policy": "desk"
+      "policy": "desk",
+      "policies": {
+        "desk": {
+          "repeat": true,
+          "rules": [
+            {
+              "when": "$round >= $inputs.label_after and $unlabelled_rumor != null",
+              "do": "net_label",
+              "with": {"post": "$unlabelled_rumor.id", "label": "misleading"}
+            },
+            {"do": "pass"}
+          ]
+        }
+      }
     }
   },
-  "world": {
-    "rumor_damp": {
-      "type": "number",
-      "default": 1,
-      "min": 0,
-      "max": 1,
-      "description": "Current spread multiplier for the rumor."
-    }
-  },
-  "population": [
-    {
+  "entities": {
+    "checker": {"type": "fact_checker", "name": "City fact desk"},
+    "account": {
       "type": "account",
       "count": "$inputs.accounts",
       "id": "u{$i}",
       "name": "user{$i}",
-      "props": {
-        "credulity": "$beta(2, 3)",
-        "side": "$choice([east, west])"
-      }
-    }
-  ],
-  "entities": {
-    "checker": {
-      "type": "fact_checker",
-      "name": "City fact desk"
+      "props": {"credulity": "$beta(2, 3)", "side": "$choice([east, west])"}
     }
   },
-  "links": [
+  "views": {
+    "heard": {"for": "account", "title": "Stories you have come across", "of": "$heard($actor)", "show": "the dam story: {$'you believe it' if $it.state == 'adopted' else ($'you rejected it' if $it.state == 'rejected' else 'you saw it ' + $text($it.exposures) + ' time(s)')}"}
+  },
+  "events": [
     {
-      "relation": "net_follows",
-      "among": "account",
-      "graph": "random",
-      "p": "$inputs.follow_p * 2 if $from.side == $to.side else $inputs.follow_p / 2"
+      "name": "rumor_breaks",
+      "on": "round.start",
+      "when": "$round == 1",
+      "do": [
+        {
+          "each": "account",
+          "where": "$spread_state($it, dam) == 'adopted'",
+          "do": [{"social": "net", "action": "post", "who": "$it", "text": "$inputs.rumor_text"}]
+        }
+      ]
+    },
+    {
+      "name": "labels_bite",
+      "on": "round.end",
+      "when": "$any(net_post, 'misleading' in $it.labels)",
+      "do": ["$world.rumor_damp = $inputs.label_damp"]
     }
   ],
+  "outputs": {
+    "reach": {"expr": "$reach(dam)", "type": "int", "description": "Distinct accounts the rumor reached.", "series": true},
+    "reach_share": {"expr": "$pct($outputs.reach, $count(account))", "type": "number"},
+    "believers": {"expr": "$adopter_count(dam)", "type": "int", "series": true},
+    "rumor_posts": {"expr": "$count(net_post, $is_rumor($it))", "type": "int", "series": true},
+    "labelled_posts": {"expr": "$count(net_post, 'misleading' in $it.labels)", "type": "int"},
+    "insularity": {"expr": "$insularity()", "type": "number", "series": true, "description": "Mean share of an account's follows that follow each other."},
+    "same_side_follows": {"expr": "$homophily(side)", "type": "number", "description": "Share of follows within one side of the river."},
+    "top_influencer": {"expr": "$top(account, $influence($it), 1)[0].id", "type": "text"}
+  },
+  "arms": {
+    "control": {"description": "Posts are labelled, nothing else changes."},
+    "downrank": {
+      "description": "Labelled posts sink in feeds and the rumor spreads at a fifth of the rate once labelled.",
+      "inputs": {"label_damp": 0.2},
+      "patch": {"mechanisms": {"net": {"downrank": {"labels": ["misleading"], "factor": 0.2}}}}
+    }
+  },
+  "defs": {
+    "is_rumor": {"args": ["post"], "expr": "$post.text == $inputs.rumor_text"},
+    "unlabelled_rumor": "$first($filter(net_post, $is_rumor($it) and $len($it.labels) == 0))"
+  },
   "mechanisms": {
     "net": {
       "kind": "social",
       "mode": "feed",
       "who": "account",
       "moderators": "fact_checker",
-      "labels": [
-        "misleading"
-      ],
+      "labels": ["misleading"],
       "feed_size": 6,
       "window": 6,
       "block": false,
       "per_turn": 1,
-      "downrank": {
-        "labels": [
-          "misleading"
-        ],
-        "factor": 1.0
-      }
+      "downrank": {"labels": ["misleading"], "factor": 1.0}
     },
     "rumor": {
       "kind": "social",
@@ -147,189 +147,16 @@
       "flow": "against",
       "model": "cascade",
       "p": "$inputs.spread_p * (0.5 + $to.credulity) * $world.rumor_damp",
-      "seeds": {
-        "dam": [
-          "u1",
-          "u2",
-          "u3"
-        ]
-      },
+      "seeds": {"dam": ["u1", "u2", "u3"]},
       "on_adopt": [
         {
           "if": "$chance(0.5)",
-          "then": [
-            {
-              "social": "net",
-              "action": "post",
-              "who": "$it",
-              "text": "$inputs.rumor_text"
-            }
-          ]
+          "then": [{"social": "net", "action": "post", "who": "$it", "text": "$inputs.rumor_text"}]
         }
       ]
     }
   },
-  "arms": {
-    "control": {
-      "description": "Posts are labelled, nothing else changes."
-    },
-    "downrank": {
-      "description": "Labelled posts sink in feeds and the rumor spreads at a fifth of the rate once labelled.",
-      "inputs": {
-        "label_damp": 0.2
-      },
-      "patch": {
-        "mechanisms": {
-          "net": {
-            "downrank": {
-              "labels": [
-                "misleading"
-              ],
-              "factor": 0.2
-            }
-          }
-        }
-      }
-    }
-  },
-  "events": [
-    {
-      "name": "rumor_breaks",
-      "at": 1,
-      "phase": "start",
-      "each": "account",
-      "where": "$spread_state($it, dam) == 'adopted'",
-      "do": [
-        {
-          "social": "net",
-          "action": "post",
-          "who": "$it",
-          "text": "$inputs.rumor_text"
-        }
-      ]
-    },
-    {
-      "name": "labels_bite",
-      "phase": "end",
-      "when": "$any(net_post, 'misleading' in $it.labels)",
-      "do": [
-        "$world.rumor_damp = $inputs.label_damp"
-      ]
-    }
-  ],
-  "views": {
-    "heard": {
-      "for": "account",
-      "title": "Stories you have come across",
-      "of": "$heard($actor)",
-      "show": "the dam story: {$'you believe it' if $it.state == 'adopted' else ($'you rejected it' if $it.state == 'rejected' else 'you saw it ' + $text($it.exposures) + ' time(s)')}"
-    }
-  },
-  "defs": {
-    "is_rumor": {
-      "args": [
-        "post"
-      ],
-      "expr": "$post.text == $inputs.rumor_text"
-    },
-    "unlabelled_rumor": "$first($filter(net_post, $is_rumor($it) and $len($it.labels) == 0))"
-  },
-  "policies": {
-    "crowd": {
-      "rules": [
-        {
-          "when": "$len($feed($actor)) > 0 and $is_rumor($first($feed($actor))) and $spread_state($actor, dam) == 'adopted'",
-          "chance": 0.5,
-          "do": "net_repost",
-          "with": {
-            "post": "$first($feed($actor)).id"
-          }
-        },
-        {
-          "when": "$len($feed($actor)) > 0 and not $is_rumor($first($feed($actor)))",
-          "chance": 0.3,
-          "do": "net_like",
-          "with": {
-            "post": "$first($feed($actor)).id"
-          }
-        },
-        {
-          "chance": 0.05,
-          "do": "net_post",
-          "with": {
-            "text": "$choice(['Traffic on the east bridge again.', 'Farmers market is open till noon.', 'Anyone watching the game tonight?', 'New bakery on Main Street is great.'])"
-          }
-        },
-        {
-          "do": "pass"
-        }
-      ]
-    },
-    "desk": {
-      "repeat": true,
-      "rules": [
-        {
-          "when": "$round >= $inputs.label_after and $unlabelled_rumor != null",
-          "do": "net_label",
-          "with": {
-            "post": "$unlabelled_rumor.id",
-            "label": "misleading"
-          }
-        },
-        {
-          "do": "pass"
-        }
-      ]
-    }
-  },
-  "metrics": {
-    "reach": {
-      "expr": "$reach(dam)",
-      "description": "Accounts the rumor has reached."
-    },
-    "believers": {
-      "expr": "$adopter_count(dam)"
-    },
-    "rumor_posts": "$count(net_post, $is_rumor($it))",
-    "insularity": {
-      "expr": "$insularity()",
-      "description": "Mean share of an account's follows that follow each other."
-    }
-  },
-  "outputs": {
-    "reach": {
-      "expr": "$metrics.reach",
-      "type": "int",
-      "description": "Distinct accounts the rumor reached."
-    },
-    "reach_share": {
-      "expr": "$pct($metrics.reach, $count(account))",
-      "type": "number"
-    },
-    "believers": {
-      "expr": "$metrics.believers",
-      "type": "int"
-    },
-    "rumor_posts": {
-      "expr": "$metrics.rumor_posts",
-      "type": "int"
-    },
-    "labelled_posts": {
-      "expr": "$count(net_post, 'misleading' in $it.labels)",
-      "type": "int"
-    },
-    "insularity": {
-      "expr": "$metrics.insularity",
-      "type": "number"
-    },
-    "same_side_follows": {
-      "expr": "$homophily(side)",
-      "type": "number",
-      "description": "Share of follows within one side of the river."
-    },
-    "top_influencer": {
-      "expr": "$top(account, $influence($it), 1)[0].id",
-      "type": "text"
-    }
-  }
+  "links": [
+    {"relation": "net_follows", "among": "account", "graph": "random", "p": "$inputs.follow_p * 2 if $from.side == $to.side else $inputs.follow_p / 2"}
+  ]
 }

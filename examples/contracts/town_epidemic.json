@@ -1,418 +1,140 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Town epidemic",
   "description": "A 300-resident town on a small-world contact network faces a respiratory outbreak. The mayor controls lockdowns and a budget-limited vaccination campaign; residents decide daily whether to comply.",
-  "inputs": {
-    "residents": {
-      "type": "int",
-      "default": 300,
-      "min": 20,
-      "max": 2000,
-      "description": "Town size"
-    },
-    "seed_cases": {
-      "type": "int",
-      "default": 3,
-      "min": 1,
-      "max": 50,
-      "description": "Infected residents on day 1"
-    },
-    "transmissibility": {
-      "type": "number",
-      "default": 0.09,
-      "min": 0,
-      "max": 1,
-      "description": "Chance one infected contact infects one fully susceptible contact per day"
-    },
-    "illness_days": {
-      "type": "number",
-      "default": 8,
-      "min": 1,
-      "description": "Mean infectious period",
-      "unit": "day"
-    },
-    "lockdown_contact_cut": {
-      "type": "number",
-      "default": 0.75,
-      "min": 0,
-      "max": 1,
-      "description": "Share of a complying resident's contacts removed during lockdown"
-    },
-    "natural_immunity": {
-      "type": "number",
-      "default": 0.95,
-      "min": 0,
-      "max": 1,
-      "description": "Protection right after recovery"
-    },
-    "vaccine_immunity": {
-      "type": "number",
-      "default": 0.85,
-      "min": 0,
-      "max": 1,
-      "description": "Protection right after vaccination"
-    },
-    "immunity_half_life": {
-      "type": "number",
-      "default": 90,
-      "min": 1,
-      "description": "Days for protection to halve",
-      "unit": "day"
-    },
-    "hospital_beds": {
-      "type": "number",
-      "default": 2,
-      "min": 0,
-      "description": "Staffed beds at the town hospital"
-    },
-    "hospital_stay": {
-      "type": "number",
-      "default": 9,
-      "min": 1,
-      "description": "Mean length of stay",
-      "unit": "day"
-    },
-    "overload_death_multiplier": {
-      "type": "number",
-      "default": 2.5,
-      "min": 1,
-      "description": "Death hazard multiplier while the hospital is over capacity"
-    },
-    "budget": {
-      "type": "number",
-      "default": 60000,
-      "min": 0,
-      "description": "Emergency budget",
-      "unit": "USD"
-    },
-    "lockdown_cost_per_day": {
-      "type": "number",
-      "default": 900,
-      "min": 0,
-      "description": "Income support paid per lockdown day",
-      "unit": "USD"
-    },
-    "dose_cost": {
-      "type": "number",
-      "default": 40,
-      "min": 0,
-      "description": "Cost per vaccine dose delivered",
-      "unit": "USD"
-    },
-    "max_daily_doses": {
-      "type": "int",
-      "default": 15,
-      "min": 0,
-      "description": "Clinic throughput"
-    },
-    "vaccine_day": {
-      "type": "int",
-      "default": 30,
-      "min": 1,
-      "description": "First day doses are available"
-    },
-    "lockdown_trigger": {
-      "type": "int",
-      "default": 10,
-      "min": 1,
-      "description": "Active cases at which the coded mayor locks down"
-    },
-    "lift_below": {
-      "type": "int",
-      "default": 4,
-      "min": 0,
-      "description": "Active cases below which the coded mayor lifts lockdown"
-    },
-    "lockdown_fatigue": {
-      "type": "number",
-      "default": 0.012,
-      "min": 0,
-      "max": 1,
-      "description": "Daily drop in willingness to comply as a lockdown drags on"
-    }
-  },
   "brief": {
     "situation": "Millbrook is a town of about 300 people. A new respiratory virus has arrived: it spreads between close contacts, most people recover in about a week, and older or frailer residents can need a hospital bed or die. The hospital has very few beds; when it is over capacity, more of the seriously ill die. Immunity from infection or vaccination fades over months.",
     "rules": "Each day: the mayor may impose or lift a lockdown and set the daily vaccination rate; then, while a lockdown is on, every resident decides whether to comply today. Complying residents cut most of their contacts. Lockdown costs the town income-support money every day it is on, and each vaccine dose costs money; the emergency budget cannot go negative. Once the budget is gone, support payments stop and vaccination halts.",
-    "roles": {
-      "mayor": "You are the mayor. You want to keep deaths and hospital overload as low as possible while spending the budget wisely, and you know every lockdown day hurts residents and wears down their willingness to comply.",
-      "resident": "You are a resident. You weigh your own risk and your neighbours' illness against the strain of staying home."
-    }
+    "roles": {"mayor": "You are the mayor. You want to keep deaths and hospital overload as low as possible while spending the budget wisely, and you know every lockdown day hurts residents and wears down their willingness to comply.", "resident": "You are a resident. You weigh your own risk and your neighbours' illness against the strain of staying home."}
   },
-  "clock": {
-    "rounds": 120,
-    "unit": "day"
+  "inputs": {
+    "residents": {"type": "int", "default": 300, "min": 20, "max": 2000, "description": "Town size"},
+    "seed_cases": {"type": "int", "default": 3, "min": 1, "max": 50, "description": "Infected residents on day 1"},
+    "transmissibility": {"type": "number", "default": 0.09, "min": 0, "max": 1, "description": "Chance one infected contact infects one fully susceptible contact per day"},
+    "illness_days": {"type": "number", "default": 8, "min": 1, "description": "Mean infectious period", "unit": "day"},
+    "lockdown_contact_cut": {"type": "number", "default": 0.75, "min": 0, "max": 1, "description": "Share of a complying resident's contacts removed during lockdown"},
+    "natural_immunity": {"type": "number", "default": 0.95, "min": 0, "max": 1, "description": "Protection right after recovery"},
+    "vaccine_immunity": {"type": "number", "default": 0.85, "min": 0, "max": 1, "description": "Protection right after vaccination"},
+    "immunity_half_life": {"type": "number", "default": 90, "min": 1, "description": "Days for protection to halve", "unit": "day"},
+    "hospital_beds": {"type": "number", "default": 2, "min": 0, "description": "Staffed beds at the town hospital"},
+    "hospital_stay": {"type": "number", "default": 9, "min": 1, "description": "Mean length of stay", "unit": "day"},
+    "overload_death_multiplier": {"type": "number", "default": 2.5, "min": 1, "description": "Death hazard multiplier while the hospital is over capacity"},
+    "budget": {"type": "number", "default": 60000, "min": 0, "description": "Emergency budget", "unit": "USD"},
+    "lockdown_cost_per_day": {"type": "number", "default": 900, "min": 0, "description": "Income support paid per lockdown day", "unit": "USD"},
+    "dose_cost": {"type": "number", "default": 40, "min": 0, "description": "Cost per vaccine dose delivered", "unit": "USD"},
+    "max_daily_doses": {"type": "int", "default": 15, "min": 0, "description": "Clinic throughput"},
+    "vaccine_day": {"type": "int", "default": 30, "min": 1, "description": "First day doses are available"},
+    "lockdown_trigger": {"type": "int", "default": 10, "min": 1, "description": "Active cases at which the coded mayor locks down"},
+    "lift_below": {"type": "int", "default": 4, "min": 0, "description": "Active cases below which the coded mayor lifts lockdown"},
+    "lockdown_fatigue": {"type": "number", "default": 0.012, "min": 0, "max": 1, "description": "Daily drop in willingness to comply as a lockdown drags on"}
   },
+  "clock": {"rounds": 120, "unit": "day"},
   "world": {
-    "lockdown": {
-      "type": "bool",
-      "default": false,
-      "description": "Lockdown in force"
-    },
-    "lockdown_started": {
-      "type": "int",
-      "default": 0
-    },
-    "lockdown_days": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "lockdowns_imposed": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "daily_doses": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "budget": {
-      "type": "number",
-      "default": "$inputs.budget",
-      "min": 0
-    },
-    "spent": {
-      "type": "number",
-      "default": 0,
-      "min": 0
-    },
-    "support_paid": {
-      "type": "bool",
-      "default": true,
-      "description": "Income support still being paid"
-    },
-    "doses_given": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "hospital_load": {
-      "type": "number",
-      "default": 0,
-      "min": 0
-    },
-    "days_over_capacity": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "new_cases": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "new_deaths": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "active_7_days_ago": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "active_yesterday": {
-      "type": "int",
-      "default": 0,
-      "min": 0
-    },
-    "immunized_today": {
-      "type": "number",
-      "default": 0,
-      "min": 0,
-      "description": "Protection added yesterday (resident-equivalents)"
-    },
-    "town_protection": {
-      "type": "number",
-      "default": 0,
-      "min": 0,
-      "description": "Immunity pool, integrated with waning"
-    }
+    "lockdown": {"type": "bool", "default": false, "description": "Lockdown in force"},
+    "lockdown_started": {"type": "int", "default": 0},
+    "lockdown_days": {"type": "int", "default": 0, "min": 0},
+    "lockdowns_imposed": {"type": "int", "default": 0, "min": 0},
+    "daily_doses": {"type": "int", "default": 0, "min": 0},
+    "budget": {"type": "number", "default": "$inputs.budget", "min": 0},
+    "spent": {"type": "number", "default": 0, "min": 0},
+    "support_paid": {"type": "bool", "default": true, "description": "Income support still being paid"},
+    "doses_given": {"type": "int", "default": 0, "min": 0},
+    "hospital_load": {"type": "number", "default": 0, "min": 0},
+    "days_over_capacity": {"type": "int", "default": 0, "min": 0},
+    "new_cases": {"type": "int", "default": 0, "min": 0},
+    "new_deaths": {"type": "int", "default": 0, "min": 0},
+    "active_7_days_ago": {"type": "int", "default": 0, "min": 0},
+    "active_yesterday": {"type": "int", "default": 0, "min": 0},
+    "immunized_today": {"type": "number", "default": 0, "min": 0, "description": "Protection added yesterday (resident-equivalents)"},
+    "town_protection": {"type": "number", "default": 0, "min": 0, "description": "Immunity pool, integrated with waning"}
   },
   "types": {
     "mayor": {
       "agent": true,
       "description": "The town's decision-maker.",
       "props": {},
-      "policy": "threshold_mayor"
+      "policy": "threshold_mayor",
+      "policies": {
+        "threshold_mayor": {
+          "repeat": true,
+          "rules": [
+            {"when": "not $world.lockdown and $count(resident, $it.status == I) >= $inputs.lockdown_trigger and $world.lockdowns_imposed == 0", "do": "impose_lockdown"},
+            {"when": "$world.lockdown and $count(resident, $it.status == I) < $inputs.lift_below and $round - $world.lockdown_started >= 14", "do": "lift_lockdown"},
+            {
+              "when": "$round >= $inputs.vaccine_day and $world.daily_doses != $min($inputs.max_daily_doses, $floor($world.budget / $max(1, $inputs.dose_cost))) and $world.budget >= $inputs.dose_cost",
+              "do": "set_vaccination",
+              "with": {"doses_per_day": "$min($inputs.max_daily_doses, $floor($world.budget / $max(1, $inputs.dose_cost)))"}
+            },
+            {"do": "pass"}
+          ]
+        }
+      }
     },
     "resident": {
       "agent": true,
       "policy": "crowd",
       "description": "One townsperson.",
       "props": {
-        "age_group": {
-          "type": "enum",
-          "values": [
-            "child",
-            "adult",
-            "senior"
-          ],
-          "default": "adult"
-        },
-        "frailty": {
-          "type": "number",
-          "default": 0.3,
-          "min": 0,
-          "max": 1,
-          "private": true,
-          "description": "Underlying health risk"
-        },
-        "propensity": {
-          "type": "number",
-          "default": 0.7,
-          "min": 0,
-          "max": 1,
-          "private": true,
-          "description": "Baseline willingness to follow rules"
-        },
+        "age_group": {"type": "enum", "values": ["child", "adult", "senior"], "default": "adult"},
+        "frailty": {"type": "number", "default": 0.3, "min": 0, "max": 1, "private": true, "description": "Underlying health risk"},
+        "propensity": {"type": "number", "default": 0.7, "min": 0, "max": 1, "private": true, "description": "Baseline willingness to follow rules"},
         "status": {
           "type": "enum",
-          "values": [
-            "S",
-            "I",
-            "R",
-            "D"
-          ],
+          "values": ["S", "I", "R", "D"],
           "default": "S",
           "description": "S susceptible, I infected, R recovered, D dead"
         },
-        "infected_on": {
-          "type": "int",
-          "default": -1000
-        },
-        "infections": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "immunity_peak": {
-          "type": "number",
-          "default": 0,
-          "min": 0,
-          "max": 1
-        },
-        "immune_since": {
-          "type": "int",
-          "default": 0
-        },
-        "vaccinated": {
-          "type": "bool",
-          "default": false
-        },
-        "complying": {
-          "type": "bool",
-          "default": false
-        },
-        "days_complied": {
-          "type": "int",
-          "default": 0,
-          "min": 0
+        "infected_on": {"type": "int", "default": -1000},
+        "infections": {"type": "int", "default": 0, "min": 0},
+        "immunity_peak": {"type": "number", "default": 0, "min": 0, "max": 1},
+        "immune_since": {"type": "int", "default": 0},
+        "vaccinated": {"type": "bool", "default": false},
+        "complying": {"type": "bool", "default": false},
+        "days_complied": {"type": "int", "default": 0, "min": 0}
+      },
+      "policies": {
+        "crowd": {
+          "rules": [
+            {"when": "$world.lockdown", "do": "comply", "chance": "$clamp($actor.propensity + (0.12 if $actor.age_group == senior else 0) + 0.25 * $pct($count($neighbors($actor, contact), $it.status == I), $len($neighbors($actor, contact))) + 0.3 * $actor.frailty - $inputs.lockdown_fatigue * ($round - $world.lockdown_started) - (0 if $world.support_paid else 0.25), 0.02, 0.98)"},
+            {"when": "$world.lockdown", "do": "defy"}
+          ]
         }
       }
     }
   },
   "entities": {
-    "mayor": {
-      "type": "mayor",
-      "name": "Mayor Alvarez"
-    }
-  },
-  "population": [
-    {
+    "mayor": {"type": "mayor", "name": "Mayor Alvarez"},
+    "resident": {
       "type": "resident",
       "count": "$inputs.residents",
       "id": "r{$i}",
       "name": "Resident {$i}",
-      "props": {
-        "age_group": "$choice([child, adult, senior], 0.21 if $it == child else (0.58 if $it == adult else 0.21))",
-        "frailty": "$beta(2, 6)",
-        "propensity": "$beta(6, 2.5)"
-      }
+      "props": {"age_group": "$choice([child, adult, senior], 0.21 if $it == child else (0.58 if $it == adult else 0.21))", "frailty": "$beta(2, 6)", "propensity": "$beta(6, 2.5)"}
     }
-  ],
+  },
   "relations": {
     "contact": {
       "symmetric": true,
-      "description": "Regular close contact (household, work, school)"
-    }
-  },
-  "links": [
-    {
-      "relation": "contact",
-      "among": "resident",
-      "graph": "small_world",
-      "degree": 6,
-      "p": 0.08
-    }
-  ],
-  "physics": {
-    "dt": 1.0,
-    "substeps": 4,
-    "params": {
-      "recovery": "1 / $inputs.illness_days",
-      "stay": "$inputs.hospital_stay",
-      "wane": "0.693147 / $inputs.immunity_half_life"
-    },
-    "vars": {
-      "H": {
-        "start": 0,
-        "rate": "recovery * severe - H / stay",
-        "min": 0
-      },
-      "W": {
-        "start": 0,
-        "rate": "immunized - wane * W",
-        "min": 0
-      }
-    },
-    "read": {
-      "severe": "$sum(resident, (0.006 if $it.age_group == child else (0.05 if $it.age_group == adult else 0.3)) * (0.5 + 1.5 * $it.frailty), $it.status == I)",
-      "immunized": "$world.immunized_today"
-    },
-    "write": {
-      "world.hospital_load": "H",
-      "world.town_protection": "W"
+      "description": "Regular close contact (household, work, school)",
+      "links": [{"among": "resident", "graph": "small_world", "degree": 6, "p": 0.08}]
     }
   },
   "actions": {
     "impose_lockdown": {
       "by": "mayor",
       "description": "Order a lockdown starting today. Complying residents cut most contacts; support costs the budget every day it lasts.",
-      "when": [
-        {
-          "expr": "not $world.lockdown",
-          "why": "A lockdown is already in force."
-        }
-      ],
-      "do": [
-        "$world.lockdown = true",
-        "$world.lockdown_started = $round",
-        "$world.lockdowns_imposed += 1"
-      ],
+      "when": [{"expr": "not $world.lockdown", "why": "A lockdown is already in force."}],
+      "do": ["$world.lockdown = true", "$world.lockdown_started = $round", "$world.lockdowns_imposed += 1"],
       "outcome": "Lockdown ordered from day {$round}.",
       "announce": "The mayor has ordered a lockdown."
     },
     "lift_lockdown": {
       "by": "mayor",
       "description": "End the lockdown today.",
-      "when": [
-        {
-          "expr": "$world.lockdown",
-          "why": "There is no lockdown to lift."
-        }
-      ],
+      "when": [{"expr": "$world.lockdown", "why": "There is no lockdown to lift."}],
       "do": [
         "$world.lockdown = false",
-        {
-          "each": "resident",
-          "where": "$it.complying",
-          "do": [
-            "$it.complying = false"
-          ]
-        }
+        {"each": "resident", "where": "$it.complying", "do": ["$it.complying = false"]}
       ],
       "outcome": "Lockdown lifted after {$round - $world.lockdown_started} days.",
       "announce": "The mayor has lifted the lockdown."
@@ -420,35 +142,21 @@
     "set_vaccination": {
       "by": "mayor",
       "description": "Set how many doses the clinic gives per day from today, highest-risk unprotected residents first. 0 pauses the campaign.",
-      "when": [
-        {
-          "expr": "$round >= $inputs.vaccine_day",
-          "why": "Vaccine doses are not available yet."
-        }
-      ],
+      "when": [{"expr": "$round >= $inputs.vaccine_day", "why": "Vaccine doses are not available yet."}],
       "params": {
-        "doses_per_day": {
-          "type": "int",
-          "min": 0,
-          "max": "$inputs.max_daily_doses",
-          "description": "Doses per day"
-        }
+        "doses_per_day": {"type": "int", "min": 0, "max": "$inputs.max_daily_doses", "description": "Doses per day"}
       },
       "do": [
         {
           "if": "$params.doses_per_day == $world.daily_doses",
           "then": [
-            {
-              "fail": "The campaign already runs at {$world.daily_doses} doses per day; choose a different rate or end your turn."
-            }
+            {"fail": "The campaign already runs at {$world.daily_doses} doses per day; choose a different rate or end your turn."}
           ]
         },
         {
           "if": "$params.doses_per_day * $inputs.dose_cost > $world.budget",
           "then": [
-            {
-              "fail": "One day at {$params.doses_per_day} doses costs {$params.doses_per_day * $inputs.dose_cost|money} but only {$world.budget|money} is left; choose at most {$floor($world.budget / $inputs.dose_cost)} doses."
-            }
+            {"fail": "One day at {$params.doses_per_day} doses costs {$params.doses_per_day * $inputs.dose_cost|money} but only {$world.budget|money} is left; choose at most {$floor($world.budget / $inputs.dose_cost)} doses."}
           ]
         },
         "$world.daily_doses = $params.doses_per_day"
@@ -460,76 +168,21 @@
       "by": "resident",
       "description": "Stay home today and follow the lockdown.",
       "when": [
-        {
-          "expr": "$world.lockdown",
-          "why": "There is no lockdown today."
-        },
-        {
-          "expr": "$actor.status != D",
-          "why": "Deceased."
-        }
+        {"expr": "$world.lockdown", "why": "There is no lockdown today."},
+        {"expr": "$actor.status != D", "why": "Deceased."}
       ],
-      "do": [
-        "$actor.complying = true",
-        "$actor.days_complied += 1"
-      ],
-      "private": true
+      "do": ["$actor.complying = true", "$actor.days_complied += 1"],
+      "announce": false
     },
     "defy": {
       "by": "resident",
       "description": "Go about your normal routine today despite the lockdown.",
       "when": [
-        {
-          "expr": "$world.lockdown",
-          "why": "There is no lockdown today."
-        },
-        {
-          "expr": "$actor.status != D",
-          "why": "Deceased."
-        }
+        {"expr": "$world.lockdown", "why": "There is no lockdown today."},
+        {"expr": "$actor.status != D", "why": "Deceased."}
       ],
-      "do": [
-        "$actor.complying = false"
-      ],
-      "private": true
-    }
-  },
-  "policies": {
-    "crowd": {
-      "rules": [
-        {
-          "when": "$world.lockdown",
-          "do": "comply",
-          "chance": "$clamp($actor.propensity + (0.12 if $actor.age_group == senior else 0) + 0.25 * $pct($count($neighbors($actor, contact), $it.status == I), $len($neighbors($actor, contact))) + 0.3 * $actor.frailty - $inputs.lockdown_fatigue * ($round - $world.lockdown_started) - (0 if $world.support_paid else 0.25), 0.02, 0.98)"
-        },
-        {
-          "when": "$world.lockdown",
-          "do": "defy"
-        }
-      ]
-    },
-    "threshold_mayor": {
-      "repeat": true,
-      "rules": [
-        {
-          "when": "not $world.lockdown and $count(resident, $it.status == I) >= $inputs.lockdown_trigger and $world.lockdowns_imposed == 0",
-          "do": "impose_lockdown"
-        },
-        {
-          "when": "$world.lockdown and $count(resident, $it.status == I) < $inputs.lift_below and $round - $world.lockdown_started >= 14",
-          "do": "lift_lockdown"
-        },
-        {
-          "when": "$round >= $inputs.vaccine_day and $world.daily_doses != $min($inputs.max_daily_doses, $floor($world.budget / $max(1, $inputs.dose_cost))) and $world.budget >= $inputs.dose_cost",
-          "do": "set_vaccination",
-          "with": {
-            "doses_per_day": "$min($inputs.max_daily_doses, $floor($world.budget / $max(1, $inputs.dose_cost)))"
-          }
-        },
-        {
-          "do": "pass"
-        }
-      ]
+      "do": ["$actor.complying = false"],
+      "announce": false
     }
   },
   "stages": [
@@ -537,13 +190,7 @@
       "name": "mayor",
       "who": "$it.type == mayor",
       "turns": "sequential",
-      "actions": {
-        "mayor": [
-          "impose_lockdown",
-          "lift_lockdown",
-          "set_vaccination"
-        ]
-      },
+      "actions": {"mayor": ["impose_lockdown", "lift_lockdown", "set_vaccination"]},
       "max_actions": 3,
       "max_calls": 8,
       "brief": "Day {$round}. Review the situation and set today's policy; end your turn when done."
@@ -553,37 +200,35 @@
       "when": "$world.lockdown",
       "who": "$it.type == resident and $it.status != D",
       "turns": "simultaneous",
-      "actions": {
-        "resident": [
-          "comply",
-          "defy"
-        ]
-      },
+      "actions": {"resident": ["comply", "defy"]},
       "max_actions": 1,
       "max_calls": 3,
       "brief": "Lockdown day {$round - $world.lockdown_started + 1}. Decide whether you stay home today."
     }
   ],
+  "views": {
+    "town": {"for": "mayor", "title": "Town status", "show": "Active cases {$count(resident, $it.status == I)} (yesterday {$world.active_yesterday}, a week ago {$world.active_7_days_ago}); new today {$world.new_cases}. Recovered {$count(resident, $it.status == R)}, never infected {$count(resident, $it.status == S and $it.infections == 0)}, dead {$count(resident, $it.status == D)} of {$count(resident)}."},
+    "hospital": {"for": "mayor", "title": "Hospital", "show": "{$world.hospital_load|1} patients in {$inputs.hospital_beds} beds{' — OVER CAPACITY, more of the seriously ill will die' if $world.hospital_load > $inputs.hospital_beds else ''}. Over capacity on {$world.days_over_capacity} days so far."},
+    "by_age": {"for": "mayor", "title": "By age group (active / dead / vaccinated)", "show": "children {$count(resident, $it.age_group == child and $it.status == I)} / {$count(resident, $it.age_group == child and $it.status == D)} / {$count(resident, $it.age_group == child and $it.vaccinated)}; adults {$count(resident, $it.age_group == adult and $it.status == I)} / {$count(resident, $it.age_group == adult and $it.status == D)} / {$count(resident, $it.age_group == adult and $it.vaccinated)}; seniors {$count(resident, $it.age_group == senior and $it.status == I)} / {$count(resident, $it.age_group == senior and $it.status == D)} / {$count(resident, $it.age_group == senior and $it.vaccinated)}"},
+    "policy": {"for": "mayor", "title": "Your policy", "show": "{'Lockdown in force since day ' + $text($world.lockdown_started) + ', ' + $text($round(100 * $pct($count(resident, $it.complying), $count(resident, $it.status != D)))) + '% of residents complied yesterday' if $world.lockdown else 'No lockdown'}; {$world.lockdown_days} lockdown days in total. Vaccination {$world.daily_doses} doses/day{' (doses available from day ' + $text($inputs.vaccine_day) + ')' if $round < $inputs.vaccine_day else ''}, {$world.doses_given} given. Budget {$world.budget|money} left of {$inputs.budget|money}; lockdown costs {$inputs.lockdown_cost_per_day|money}/day, a dose {$inputs.dose_cost|money}.{' Support payments have STOPPED.' if not $world.support_paid else ''}"},
+    "my_situation": {"for": "resident", "title": "Your situation", "show": "You are {'infected' if $actor.status == I else ('recovered' if $actor.status == R else 'well')} ({age_group}); {$count($neighbors($actor, contact), $it.status == I)} of your {$len($neighbors($actor, contact))} close contacts are sick. {'Support payments continue.' if $world.support_paid else 'Support payments have stopped.'}"}
+  },
   "events": [
     {
       "name": "outbreak",
-      "at": 1,
-      "phase": "start",
+      "on": "round.start",
+      "when": "$round == 1",
       "do": [
         {
           "each": "$sample(resident, $inputs.seed_cases)",
-          "do": [
-            "$it.status = I",
-            "$it.infected_on = 0",
-            "$it.infections = 1"
-          ]
+          "do": ["$it.status = I", "$it.infected_on = 0", "$it.infections = 1"]
         }
       ],
       "say": "Doctors confirm {$inputs.seed_cases} cases of a new respiratory virus in town."
     },
     {
       "name": "snapshot_trend",
-      "phase": "start",
+      "on": "round.start",
       "do": [
         "$world.active_yesterday = $count(resident, $it.status == I)",
         "$world.active_7_days_ago = $get($series, active, [])[$len($get($series, active, [])) - 7] if $len($get($series, active, [])) >= 7 else 0"
@@ -591,7 +236,7 @@
     },
     {
       "name": "lockdown_budget",
-      "phase": "end",
+      "on": "round.end",
       "when": "$world.lockdown",
       "do": [
         "$world.lockdown_days += 1",
@@ -602,15 +247,13 @@
             "$world.spent += $inputs.lockdown_cost_per_day",
             "$world.support_paid = true"
           ],
-          "else": [
-            "$world.support_paid = false"
-          ]
+          "else": ["$world.support_paid = false"]
         }
       ]
     },
     {
       "name": "vaccination",
-      "phase": "end",
+      "on": "round.end",
       "when": "$world.daily_doses > 0",
       "do": [
         "$doses = $min($world.daily_doses, $floor($world.budget / $max(1, $inputs.dose_cost)))",
@@ -626,17 +269,12 @@
             "$world.immunized_today += $inputs.vaccine_immunity"
           ]
         },
-        {
-          "if": "$world.budget < $inputs.dose_cost",
-          "then": [
-            "$world.daily_doses = 0"
-          ]
-        }
+        {"if": "$world.budget < $inputs.dose_cost", "then": ["$world.daily_doses = 0"]}
       ]
     },
     {
       "name": "transmission",
-      "phase": "end",
+      "on": "round.end",
       "do": [
         "$world.immunized_today = 0",
         "$world.new_cases = 0",
@@ -656,12 +294,7 @@
                 "$risk = 1 - (1 - $inputs.transmissibility * $shield * (1 - $protection)) ** $exposure",
                 {
                   "if": "$chance($risk)",
-                  "then": [
-                    "$p.status = I",
-                    "$p.infected_on = $round",
-                    "$p.infections += 1",
-                    "$world.new_cases += 1"
-                  ]
+                  "then": ["$p.status = I", "$p.infected_on = $round", "$p.infections += 1", "$world.new_cases += 1"]
                 }
               ]
             }
@@ -671,7 +304,7 @@
     },
     {
       "name": "progression",
-      "phase": "end",
+      "on": "round.end",
       "do": [
         "$world.new_deaths = 0",
         "$overloaded = $world.hospital_load > $inputs.hospital_beds",
@@ -685,11 +318,7 @@
             "$daily_death = $ifr * $recover * ($inputs.overload_death_multiplier if $overloaded else 1)",
             {
               "if": "$chance($daily_death)",
-              "then": [
-                "$p.status = D",
-                "$p.complying = false",
-                "$world.new_deaths += 1"
-              ],
+              "then": ["$p.status = D", "$p.complying = false", "$world.new_deaths += 1"],
               "else": [
                 {
                   "if": "$chance($recover)",
@@ -704,149 +333,55 @@
             }
           ]
         },
-        {
-          "if": "$overloaded",
-          "then": [
-            "$world.days_over_capacity += 1"
-          ]
-        }
+        {"if": "$overloaded", "then": ["$world.days_over_capacity += 1"]}
       ]
     },
-    {
-      "name": "death_news",
-      "phase": "end",
-      "when": "$world.new_deaths > 0",
-      "say": "{$world.new_deaths} {'resident' if $world.new_deaths == 1 else 'residents'} died of the virus today."
-    },
-    {
-      "name": "overload_news",
-      "phase": "end",
-      "when": "$world.hospital_load > $inputs.hospital_beds and $world.days_over_capacity == 1",
-      "once": true,
-      "say": "The hospital is over capacity for the first time."
-    }
+    {"name": "death_news", "on": "round.end", "when": "$world.new_deaths > 0", "say": "{$world.new_deaths} {'resident' if $world.new_deaths == 1 else 'residents'} died of the virus today."},
+    {"name": "overload_news", "on": "round.end", "when": "$world.hospital_load > $inputs.hospital_beds and $world.days_over_capacity == 1", "once": true, "say": "The hospital is over capacity for the first time."}
   ],
-  "views": {
-    "town": {
-      "for": "mayor",
-      "title": "Town status",
-      "show": "Active cases {$count(resident, $it.status == I)} (yesterday {$world.active_yesterday}, a week ago {$world.active_7_days_ago}); new today {$world.new_cases}. Recovered {$count(resident, $it.status == R)}, never infected {$count(resident, $it.status == S and $it.infections == 0)}, dead {$count(resident, $it.status == D)} of {$count(resident)}."
-    },
-    "hospital": {
-      "for": "mayor",
-      "title": "Hospital",
-      "show": "{$world.hospital_load|1} patients in {$inputs.hospital_beds} beds{' — OVER CAPACITY, more of the seriously ill will die' if $world.hospital_load > $inputs.hospital_beds else ''}. Over capacity on {$world.days_over_capacity} days so far."
-    },
-    "by_age": {
-      "for": "mayor",
-      "title": "By age group (active / dead / vaccinated)",
-      "show": "children {$count(resident, $it.age_group == child and $it.status == I)} / {$count(resident, $it.age_group == child and $it.status == D)} / {$count(resident, $it.age_group == child and $it.vaccinated)}; adults {$count(resident, $it.age_group == adult and $it.status == I)} / {$count(resident, $it.age_group == adult and $it.status == D)} / {$count(resident, $it.age_group == adult and $it.vaccinated)}; seniors {$count(resident, $it.age_group == senior and $it.status == I)} / {$count(resident, $it.age_group == senior and $it.status == D)} / {$count(resident, $it.age_group == senior and $it.vaccinated)}"
-    },
-    "policy": {
-      "for": "mayor",
-      "title": "Your policy",
-      "show": "{'Lockdown in force since day ' + $text($world.lockdown_started) + ', ' + $text($round(100 * $pct($count(resident, $it.complying), $count(resident, $it.status != D)))) + '% of residents complied yesterday' if $world.lockdown else 'No lockdown'}; {$world.lockdown_days} lockdown days in total. Vaccination {$world.daily_doses} doses/day{' (doses available from day ' + $text($inputs.vaccine_day) + ')' if $round < $inputs.vaccine_day else ''}, {$world.doses_given} given. Budget {$world.budget|money} left of {$inputs.budget|money}; lockdown costs {$inputs.lockdown_cost_per_day|money}/day, a dose {$inputs.dose_cost|money}.{' Support payments have STOPPED.' if not $world.support_paid else ''}"
-    },
-    "my_situation": {
-      "for": "resident",
-      "title": "Your situation",
-      "show": "You are {'infected' if $actor.status == I else ('recovered' if $actor.status == R else 'well')} ({age_group}); {$count($neighbors($actor, contact), $it.status == I)} of your {$len($neighbors($actor, contact))} close contacts are sick. {'Support payments continue.' if $world.support_paid else 'Support payments have stopped.'}"
-    }
-  },
-  "metrics": {
-    "active": {
-      "expr": "$count(resident, $it.status == I)",
-      "description": "Currently infected"
-    },
-    "dead": {
-      "expr": "$count(resident, $it.status == D)"
-    },
-    "recovered": {
-      "expr": "$count(resident, $it.status == R)"
-    },
-    "new_cases": "$world.new_cases",
-    "hospital_load": {
-      "expr": "$physics.H",
-      "unit": "patients"
-    },
-    "lockdown": "1 if $world.lockdown else 0",
-    "compliance": {
-      "expr": "$pct($count(resident, $it.complying), $count(resident, $it.status != D)) if $world.lockdown else 0"
-    },
-    "budget": {
-      "expr": "$world.budget",
-      "unit": "USD"
-    }
-  },
   "outputs": {
-    "peak_infected": {
-      "expr": "$max($series.active, $it)",
-      "type": "int",
-      "description": "Most residents infected at once"
-    },
-    "total_deaths": {
-      "expr": "$metrics.dead",
-      "type": "int"
-    },
-    "lockdown_days": {
-      "expr": "$world.lockdown_days",
-      "type": "int"
-    },
-    "days_hospital_over_capacity": {
-      "expr": "$world.days_over_capacity",
-      "type": "int"
-    },
-    "budget_spent": {
-      "expr": "$world.spent",
-      "type": "number",
-      "description": "USD"
-    },
-    "peak_hospital_load": {
-      "expr": "$round($max($series.hospital_load, $it), 1)",
-      "type": "number"
-    },
-    "ever_infected_share": {
-      "expr": "$round($pct($count(resident, $it.infections > 0), $count(resident)), 3)",
-      "type": "number"
-    },
-    "doses_given": {
-      "expr": "$world.doses_given",
-      "type": "int"
-    },
-    "mean_compliance_in_lockdown": {
-      "expr": "$round($avg($filter($series.compliance, $it > 0), $it), 3) if $world.lockdown_days > 0 else 0",
-      "type": "number"
-    }
+    "peak_infected": {"expr": "$max($series.active, $it)", "type": "int", "description": "Most residents infected at once"},
+    "total_deaths": {"expr": "$outputs.dead", "type": "int"},
+    "lockdown_days": {"expr": "$world.lockdown_days", "type": "int"},
+    "days_hospital_over_capacity": {"expr": "$world.days_over_capacity", "type": "int"},
+    "budget_spent": {"expr": "$world.spent", "type": "number", "description": "USD"},
+    "peak_hospital_load": {"expr": "$round($max($series.hospital_load, $it), 1)", "type": "number"},
+    "ever_infected_share": {"expr": "$round($pct($count(resident, $it.infections > 0), $count(resident)), 3)", "type": "number"},
+    "doses_given": {"expr": "$world.doses_given", "type": "int"},
+    "mean_compliance_in_lockdown": {"expr": "$round($avg($filter($series.compliance, $it > 0), $it), 3) if $world.lockdown_days > 0 else 0", "type": "number"},
+    "active": {"expr": "$count(resident, $it.status == I)", "description": "Currently infected", "series": true},
+    "dead": {"expr": "$count(resident, $it.status == D)", "series": true},
+    "recovered": {"expr": "$count(resident, $it.status == R)", "series": true},
+    "new_cases": {"expr": "$world.new_cases", "series": true},
+    "hospital_load": {"expr": "$physics.H", "unit": "patients", "series": true},
+    "lockdown": {"expr": "1 if $world.lockdown else 0", "series": true},
+    "compliance": {"expr": "$pct($count(resident, $it.complying), $count(resident, $it.status != D)) if $world.lockdown else 0", "series": true},
+    "budget": {"expr": "$world.budget", "unit": "USD", "series": true}
   },
-  "invariants": [
-    {
-      "expr": "$world.budget >= 0",
-      "why": "The budget cannot go negative."
-    },
-    {
-      "expr": "$abs($world.budget + $world.spent - $inputs.budget) < 0.01",
-      "why": "Every dollar spent comes out of the budget."
-    }
-  ],
   "end": [
-    {
-      "name": "burned_out",
-      "when": "$round > 30 and $count(resident, $it.status == I) == 0",
-      "say": "The outbreak has burned out."
-    }
+    {"name": "burned_out", "when": "$round > 30 and $count(resident, $it.status == I) == 0", "say": "The outbreak has burned out."}
   ],
   "arms": {
-    "early_lockdown": {
-      "description": "Lock down as soon as 5 residents are sick.",
-      "inputs": {
-        "lockdown_trigger": 5
-      }
-    },
-    "late_lockdown": {
-      "description": "Wait until 40 residents are sick.",
-      "inputs": {
-        "lockdown_trigger": 40
-      }
+    "early_lockdown": {"description": "Lock down as soon as 5 residents are sick.", "inputs": {"lockdown_trigger": 5}},
+    "late_lockdown": {"description": "Wait until 40 residents are sick.", "inputs": {"lockdown_trigger": 40}}
+  },
+  "invariants": [
+    {"expr": "$world.budget >= 0", "why": "The budget cannot go negative."},
+    {"expr": "$abs($world.budget + $world.spent - $inputs.budget) < 0.01", "why": "Every dollar spent comes out of the budget."}
+  ],
+  "mechanisms": {
+    "physics": {
+      "kind": "dynamics",
+      "mode": "ode",
+      "dt": 1.0,
+      "substeps": 4,
+      "params": {"recovery": "1 / $inputs.illness_days", "stay": "$inputs.hospital_stay", "wane": "0.693147 / $inputs.immunity_half_life"},
+      "vars": {
+        "H": {"start": 0, "rate": "recovery * severe - H / stay", "min": 0},
+        "W": {"start": 0, "rate": "immunized - wane * W", "min": 0}
+      },
+      "read": {"severe": "$sum(resident, (0.006 if $it.age_group == child else (0.05 if $it.age_group == adult else 0.3)) * (0.5 + 1.5 * $it.frailty), $it.status == I)", "immunized": "$world.immunized_today"},
+      "write": {"world.hospital_load": "H", "world.town_protection": "W"}
     }
   }
 }

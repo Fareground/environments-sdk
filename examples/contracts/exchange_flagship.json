@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Exchange (flagship)",
   "description": "A stock exchange session calibrated to a seed history: one instrument on a continuous price-time limit order book with maker/taker fees, a market-order collar, short selling capped by equity and a circuit breaker on the bar's open, traded pass by pass by a calibrated crowd of market makers, momentum, mean-reversion, fundamental, noise and passive traders, with scheduled news that moves a hidden fundamental and market sentiment (by default a guidance cut at bar 30 knocks 8% off it), online volume and volatility controllers, stop-loss liquidations, a few trader seats (4 by default) that participants fill and that decide between bars, and a realism score against the seed tape. Fundamental traders each hold a noisy private estimate of the hidden value; because price reverts toward that value they profit as a class from uninformed flow.",
   "imports": ["exchange_flagship/calibration.json", "exchange_flagship/seats.json"],
@@ -7,22 +7,37 @@
     "situation": "You trade DEMO on an electronic exchange alongside a crowd of market makers, momentum, mean-reversion, value, retail and passive traders. Your score is your equity (cash plus shares marked at the last price) against your start.",
     "rules": "You decide between bars; the crowd then trades through the bar. A limit order (with a price) trades at once against resting orders at your price or better, best price first and oldest first, and the rest rests with its cash or shares reserved; a market order (no price) trades within 0.5% of the best quote and the rest is cancelled. Fees are charged on the value of every fill. You may short, but not beyond twice your equity. If the price moves the circuit-breaker percentage away from the bar's open, trading halts for the rest of the bar. News can change what the stock is worth."
   },
-  "clock": {"rounds": "$inputs.bars * $inputs.substeps", "unit": "pass"},
   "inputs": {
-    "history": {"type": "table", "source": "exchange_flagship/seed_history.csv", "columns": {"day": "int", "open": "number", "high": "number", "low": "number", "close": "number", "volume": "number"},
-                "description": "Seed bars the session is calibrated on (synthetic daily bars)."},
+    "history": {
+      "type": "table",
+      "source": "exchange_flagship/seed_history.csv",
+      "columns": {"day": "int", "open": "number", "high": "number", "low": "number", "close": "number", "volume": "number"},
+      "description": "Seed bars the session is calibrated on (synthetic daily bars)."
+    },
     "seed_bars": {"type": "int", "default": 120, "min": 20, "max": 1000},
     "bars": {"type": "int", "default": 40, "min": 1, "max": 500, "description": "Bars to run."},
     "substeps": {"type": "int", "default": 8, "min": 4, "max": 60, "description": "Passes of the crowd through one bar (one round each)."},
     "participants": {"type": "int", "default": 300, "min": 20, "max": 2000, "description": "Size of the coded crowd."},
-    "population_preset": {"type": "enum", "values": ["balanced", "retail_heavy", "institutional", "thin"], "default": "balanced"},
-    "presets": {"type": "map", "description": "Crowd shares by preset.", "default": {
-      "balanced": {"market_maker": 0.06, "momentum": 0.18, "mean_reversion": 0.16, "fundamentalist": 0.14, "noise": 0.40, "passive": 0.06},
-      "retail_heavy": {"market_maker": 0.04, "momentum": 0.22, "mean_reversion": 0.08, "fundamentalist": 0.06, "noise": 0.56, "passive": 0.04},
-      "institutional": {"market_maker": 0.08, "momentum": 0.12, "mean_reversion": 0.20, "fundamentalist": 0.24, "noise": 0.22, "passive": 0.14},
-      "thin": {"market_maker": 0.02, "momentum": 0.26, "mean_reversion": 0.10, "fundamentalist": 0.10, "noise": 0.48, "passive": 0.04}}},
-    "activity": {"type": "map", "description": "Chance a trader of each kind acts on a pass.",
-                 "default": {"market_maker": 0.9, "momentum": 0.12, "mean_reversion": 0.15, "fundamentalist": 0.08, "noise": 0.06, "passive": 0.5}},
+    "population_preset": {
+      "type": "enum",
+      "values": ["balanced", "retail_heavy", "institutional", "thin"],
+      "default": "balanced"
+    },
+    "presets": {
+      "type": "map",
+      "description": "Crowd shares by preset.",
+      "default": {
+        "balanced": {"market_maker": 0.06, "momentum": 0.18, "mean_reversion": 0.16, "fundamentalist": 0.14, "noise": 0.4, "passive": 0.06},
+        "retail_heavy": {"market_maker": 0.04, "momentum": 0.22, "mean_reversion": 0.08, "fundamentalist": 0.06, "noise": 0.56, "passive": 0.04},
+        "institutional": {"market_maker": 0.08, "momentum": 0.12, "mean_reversion": 0.2, "fundamentalist": 0.24, "noise": 0.22, "passive": 0.14},
+        "thin": {"market_maker": 0.02, "momentum": 0.26, "mean_reversion": 0.1, "fundamentalist": 0.1, "noise": 0.48, "passive": 0.04}
+      }
+    },
+    "activity": {
+      "type": "map",
+      "description": "Chance a trader of each kind acts on a pass.",
+      "default": {"market_maker": 0.9, "momentum": 0.12, "mean_reversion": 0.15, "fundamentalist": 0.08, "noise": 0.06, "passive": 0.5}
+    },
     "median_capital": {"type": "number", "default": 0, "min": 0, "description": "Median trader capital; 0 derives it from the calibrated order size."},
     "circuit_breaker_pct": {"type": "number", "default": 10, "min": 0, "max": 50, "description": "Halt the rest of the bar on a move this many percent from its open; 0 turns the breaker off."},
     "volatility_scale": {"type": "number", "default": 1, "min": 0.1, "max": 5},
@@ -31,20 +46,35 @@
     "jump_sigma": {"type": "number", "default": 0.015, "min": 0},
     "flow_scale": {"type": "number", "default": 1, "min": 0.25, "max": 6, "description": "Pilot share of speculative flow (fit with fg_env.analysis.calibrate)."},
     "volatility_gain": {"type": "number", "default": 0.1, "min": 0, "max": 0.2, "description": "Largest step per bar (as a log change) the volatility controller takes toward the target."},
-    "events": {"type": "list", "description": "Scheduled news: [{bar, headline, shock_pct, sentiment, duration_bars}]. The default is a scripted guidance cut at bar 30 that knocks 8% off the fundamental, so a default session ends lower; pass [] for a session without news.",
-               "default": [{"bar": 30, "headline": "DEMO cuts full-year guidance; analysts rush to revise their valuations.", "shock_pct": -8, "sentiment": -0.7, "duration_bars": 5}]},
+    "events": {
+      "type": "list",
+      "description": "Scheduled news: [{bar, headline, shock_pct, sentiment, duration_bars}]. The default is a scripted guidance cut at bar 30 that knocks 8% off the fundamental, so a default session ends lower; pass [] for a session without news.",
+      "default": [
+        {"bar": 30, "headline": "DEMO cuts full-year guidance; analysts rush to revise their valuations.", "shock_pct": -8, "sentiment": -0.7, "duration_bars": 5}
+      ]
+    },
     "seats": {"type": "int", "default": 4, "min": 0, "max": 100, "description": "Trader seats for participants (a model, a person or the coded stand-in); 0 runs the coded crowd alone."},
     "seat_cash": {"type": "number", "default": 100000, "min": 1000},
     "decision_every_bars": {"type": "int", "default": 1, "min": 1, "max": 50}
   },
+  "clock": {"rounds": "$inputs.bars * $inputs.substeps", "unit": "pass"},
   "world": {
     "value_gap": {"type": "number", "default": 0, "private": true, "description": "How far the mid is from the fundamental this pass, as a fraction."},
     "heat": {"type": "number", "default": 1, "description": "The book's heat this pass: recent volatility against normal (the crowd acts that much more often)."}
   },
   "types": {
-    "trader": {"agent": true, "description": "An account on the exchange.",
-               "props": {"activity": {"type": "number", "default": 1, "private": true, "description": "Chance of acting on a pass."}}},
-    "book_seed": {"extends": "trader", "description": "Liquidity that opens the book; it never trades again.", "props": {"activity": 0}},
+    "trader": {
+      "agent": true,
+      "description": "An account on the exchange.",
+      "props": {
+        "activity": {"type": "number", "default": 1, "private": true, "description": "Chance of acting on a pass."}
+      }
+    },
+    "book_seed": {
+      "extends": "trader",
+      "description": "Liquidity that opens the book; it never trades again.",
+      "props": {"activity": 0}
+    },
     "demo_market_maker": {"props": {"activity": "$inputs.activity.market_maker"}},
     "demo_momentum": {"props": {"activity": "$inputs.activity.momentum"}},
     "demo_mean_reversion": {"props": {"activity": "$inputs.activity.mean_reversion"}},
@@ -53,74 +83,69 @@
     "demo_passive": {"props": {"activity": "$inputs.activity.passive"}}
   },
   "entities": {
-    "seed": {"type": "book_seed", "name": "Opening liquidity",
-             "props": {"cash": "$world.median_capital * 40", "demo_shares": "$round($world.median_capital * 40 / $world.start_price)"}}
-  },
-  "mechanisms": {
-    "demo": {
-      "kind": "market", "mode": "order_book", "who": "trader", "instrument": "DEMO",
-      "start_price": "$last($seed_bars()).close",
-      "tick_size": "10 ** ($floor($log($last($seed_bars()).close, 10)) - 4)", "lot_size": 1,
-      "maker_fee_bps": 0, "taker_fee_bps": 0.5, "collar_pct": 0.005, "price_band_pct": 0.25,
-      "short_limit": 10000000, "max_short_leverage": 2, "max_orders": 20, "depth_levels": 5,
-      "bar_rounds": "$inputs.substeps", "halt_pct": "$inputs.circuit_breaker_pct / 100",
-      "halt_reference": "bar_open", "halt_check": "round_end", "halt_until": "bar_end",
-      "base_qty": "$world.base_qty * $world.size_scale", "flow_scale": "$world.flow_scale", "sentiment": "$world.sentiment",
-      "fair_value": "$world.fundamental", "volatility": "$world.target_sigma / $sqrt($inputs.substeps)", "measure_volatility": false,
-      "stage": "session", "conserve": "round",
-      "crowd": {
-        "market_maker": {"count": "$crowd_size(market_maker)", "cash": "$world.median_capital * 4 * $lognormal(0, 0.8)",
-                         "params": {"activity": 1, "half_spread_ticks": 1.5, "quote_mult": 0.5, "inventory_mult": 1.5, "vol_mult": 0.6, "impact": 0.5, "layers": 3, "position_mult": 12}},
-        "momentum": {"count": "$crowd_size(momentum)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
-                     "params": {"activity": 1, "lookback": 24, "threshold_sigma": 1.0, "size_mult": 1.0, "position_mult": 2.5, "stop_loss": "4 * $sqrt($inputs.substeps)"}},
-        "mean_reversion": {"count": "$crowd_size(mean_reversion)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
-                           "params": {"activity": 1, "window": 40, "z_threshold": 1.6, "size_mult": 0.8, "position_mult": 3, "stop_loss": "5 * $sqrt($inputs.substeps)"}},
-        "fundamentalist": {"count": "$crowd_size(fundamentalist)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
-                           "params": {"activity": 1, "noise_sigma": "1.5 * $sqrt($inputs.substeps)", "margin_sigma": "$sqrt($inputs.substeps)", "patience": 0.75, "size_mult": 1.2, "position_mult": 20, "value_rounds": "$inputs.substeps"}},
-        "noise": {"count": "$crowd_size(noise)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
-                  "params": {"activity": 1, "market_prob": 0.7, "herding": 0.15, "size_mult": 0.25, "size_sigma": 0.7, "position_mult": 1.5, "sentiment_sensitivity": 0.35, "stop_loss": "5 * $sqrt($inputs.substeps)"}},
-        "passive": {"count": "$crowd_size(passive)", "cash": "$world.median_capital * $lognormal(0, 0.8)",
-                    "params": {"activity": 1, "size_mult": 0.3, "position_mult": 8, "side_rounds": "$inputs.substeps"}}
-      }
+    "seed": {
+      "type": "book_seed",
+      "name": "Opening liquidity",
+      "props": {"cash": "$world.median_capital * 40", "demo_shares": "$round($world.median_capital * 40 / $world.start_price)"}
     }
   },
   "stages": [
-    {"name": "decide", "when": "($round - 1) % ($inputs.substeps * $inputs.decision_every_bars) == 0", "who": "$it.type == seat",
-     "actions": ["demo_buy", "demo_sell", "demo_cancel", "demo_cancel_all", "explain"], "max_actions": 4, "max_calls": 10,
-     "brief": "Decide for this bar: trade, cancel, note your reason, or end your turn to hold."},
-    {"name": "session", "who": "$it.demo_strategy != '' and $chance($acting_chance($it))", "order": "random", "actions": ["demo_algo"]}
+    {
+      "name": "decide",
+      "when": "($round - 1) % ($inputs.substeps * $inputs.decision_every_bars) == 0",
+      "who": "$it.type == seat",
+      "actions": ["demo_buy", "demo_sell", "demo_cancel", "demo_cancel_all", "explain"],
+      "max_actions": 4,
+      "max_calls": 10,
+      "brief": "Decide for this bar: trade, cancel, note your reason, or end your turn to hold."
+    },
+    {
+      "name": "session",
+      "who": "$it.demo_strategy != '' and $chance($acting_chance($it))",
+      "order": "random",
+      "actions": ["demo_algo"]
+    }
   ],
-  "defs": {
-    "bar": {"expr": "($round - 1) // $inputs.substeps + 1", "description": "The bar the current pass belongs to."},
-    "bar_starts": {"expr": "($round - 1) % $inputs.substeps == 0"},
-    "bar_ends": {"expr": "$round % $inputs.substeps == 0"},
-    "acting_chance": {"args": ["trader"], "expr": "$trader.activity if $trader.demo_strategy == market_maker else $min(1, $world.heat * (($trader.activity if ($round - 1) % $inputs.substeps >= 0.75 * $inputs.substeps else 0) if $trader.demo_strategy == passive else $trader.activity * (1 + 0.5 * $world.value_gap / $world.target_sigma) if $trader.demo_strategy == fundamentalist else $trader.activity))",
-                      "description": "Market makers quote at their own pace; everyone else acts more often when the market runs hot (heat), passive flow works its side only in the last quarter of the bar, and fundamentalists act more often the further price is from value."},
-    "bar_closes": {"expr": "$map($records(demo_bars), $it.close)"},
-    "bar_volumes": {"expr": "$map($records(demo_bars), $it.volume)"}
-  },
   "events": [
-    {"name": "open_the_book", "phase": "start", "at": 1, "each": "$range(15)", "as": "level",
-     "do": ["$tick = $book(demo).tick",
+    {
+      "name": "open_the_book",
+      "on": "round.start",
+      "when": "$round == 1",
+      "do": [
+        {
+          "each": "$range(15)",
+          "as": "level",
+          "do": [
+            "$tick = $book(demo).tick",
             "$tick_sigma = $world.target_sigma / $sqrt($inputs.substeps) * $world.start_price / $tick",
             "$half = $round(0.6 * $tick_sigma) + 1",
             "$step = $max(1, $round(0.4 * $tick_sigma))",
             "$size = $max(1, $round($world.base_qty * $uniform(0.2, 0.5) * (1 + 0.1 * $level)))",
             "$bid = $round(($world.start_price - ($half + $level * $step) * $tick) / $tick) * $tick",
             "$ask = $round(($world.start_price + ($half + $level * $step) * $tick) / $tick) * $tick",
-            {"if": "$bid >= $book(demo).band_low", "then": [{"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$bid"}]},
-            {"if": "$ask <= $book(demo).band_high", "then": [{"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$ask"}]}]},
-    {"name": "value_gap", "phase": "start", "do": ["$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)", "$world.heat = $book(demo).heat"]},
-    {"name": "pass_closes_before_the_controllers_read_the_bar", "phase": "end", "do": {"market": "demo", "action": "close"}}
+            {
+              "if": "$bid >= $book(demo).band_low",
+              "then": [{"market": "demo", "action": "buy", "who": "$entity(seed)", "qty": "$size", "price": "$bid"}]
+            },
+            {
+              "if": "$ask <= $book(demo).band_high",
+              "then": [{"market": "demo", "action": "sell", "who": "$entity(seed)", "qty": "$size", "price": "$ask"}]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "value_gap",
+      "on": "round.start",
+      "do": ["$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)", "$world.heat = $book(demo).heat"]
+    },
+    {
+      "name": "pass_closes_before_the_controllers_read_the_bar",
+      "on": "round.end",
+      "do": {"market": "demo", "action": "close"}
+    }
   ],
-  "metrics": {
-    "fundamental": "$world.fundamental",
-    "sentiment": "$world.sentiment",
-    "spread_bps": "$spread_bps()",
-    "depth": "$sum($book_depth(demo, 5), $it.qty)",
-    "size_scale": "$world.size_scale",
-    "flow_scale": "$world.flow_scale"
-  },
   "outputs": {
     "final_price": {"expr": "$book(demo).last", "type": "number"},
     "final_fundamental": {"expr": "$round($world.fundamental, 4)", "type": "number"},
@@ -138,11 +163,96 @@
     "demo_volatility": {"expr": "$market_stats($series.demo_price).sigma", "type": "number", "description": "Volatility per pass (one round, a fraction of a bar); bar_stats.sigma is the per-bar figure."},
     "realism": {"expr": "$market_realism({prices: $bar_closes(), volumes: $bar_volumes()}, $seed_stats())", "type": "map"},
     "realism_score": {"expr": "$market_realism({prices: $bar_closes(), volumes: $bar_volumes()}, $seed_stats()).score", "type": "number"},
-    "calibration": {"expr": "{target_sigma: $world.target_sigma, target_volume: $world.target_volume, base_qty: $world.base_qty, median_capital: $round($world.median_capital, 2), size_scale: $round($world.size_scale, 4), flow_scale: $round($world.flow_scale, 4)}", "type": "map"}
+    "calibration": {"expr": "{target_sigma: $world.target_sigma, target_volume: $world.target_volume, base_qty: $world.base_qty, median_capital: $round($world.median_capital, 2), size_scale: $round($world.size_scale, 4), flow_scale: $round($world.flow_scale, 4)}", "type": "map"},
+    "fundamental": {"expr": "$world.fundamental", "series": true},
+    "sentiment": {"expr": "$world.sentiment", "series": true},
+    "spread_bps": {"expr": "$spread_bps()", "series": true},
+    "depth": {"expr": "$sum($book_depth(demo, 5), $it.qty)", "series": true},
+    "size_scale": {"expr": "$world.size_scale", "series": true},
+    "flow_scale": {"expr": "$world.flow_scale", "series": true}
   },
   "arms": {
     "breaker_on": {"description": "Stocks default: halt the rest of the bar on a 10% move from its open."},
-    "breaker_tight": {"description": "A tight breaker: halt the rest of the bar on a 3% move from its open.", "inputs": {"circuit_breaker_pct": 3}},
+    "breaker_tight": {
+      "description": "A tight breaker: halt the rest of the bar on a 3% move from its open.",
+      "inputs": {"circuit_breaker_pct": 3}
+    },
     "breaker_off": {"description": "No circuit breaker.", "inputs": {"circuit_breaker_pct": 0}}
+  },
+  "defs": {
+    "bar": {"expr": "($round - 1) // $inputs.substeps + 1", "description": "The bar the current pass belongs to."},
+    "bar_starts": {"expr": "($round - 1) % $inputs.substeps == 0"},
+    "bar_ends": {"expr": "$round % $inputs.substeps == 0"},
+    "acting_chance": {
+      "args": ["trader"],
+      "expr": "$trader.activity if $trader.demo_strategy == market_maker else $min(1, $world.heat * (($trader.activity if ($round - 1) % $inputs.substeps >= 0.75 * $inputs.substeps else 0) if $trader.demo_strategy == passive else $trader.activity * (1 + 0.5 * $world.value_gap / $world.target_sigma) if $trader.demo_strategy == fundamentalist else $trader.activity))",
+      "description": "Market makers quote at their own pace; everyone else acts more often when the market runs hot (heat), passive flow works its side only in the last quarter of the bar, and fundamentalists act more often the further price is from value."
+    },
+    "bar_closes": {"expr": "$map($records(demo_bars), $it.close)"},
+    "bar_volumes": {"expr": "$map($records(demo_bars), $it.volume)"}
+  },
+  "mechanisms": {
+    "demo": {
+      "kind": "market",
+      "mode": "order_book",
+      "who": "trader",
+      "instrument": "DEMO",
+      "start_price": "$last($seed_bars()).close",
+      "tick_size": "10 ** ($floor($log($last($seed_bars()).close, 10)) - 4)",
+      "lot_size": 1,
+      "maker_fee_bps": 0,
+      "taker_fee_bps": 0.5,
+      "collar_pct": 0.005,
+      "price_band_pct": 0.25,
+      "short_limit": 10000000,
+      "max_short_leverage": 2,
+      "max_orders": 20,
+      "depth_levels": 5,
+      "bar_rounds": "$inputs.substeps",
+      "halt_pct": "$inputs.circuit_breaker_pct / 100",
+      "halt_reference": "bar_open",
+      "halt_check": "round_end",
+      "halt_until": "bar_end",
+      "base_qty": "$world.base_qty * $world.size_scale",
+      "flow_scale": "$world.flow_scale",
+      "sentiment": "$world.sentiment",
+      "fair_value": "$world.fundamental",
+      "volatility": "$world.target_sigma / $sqrt($inputs.substeps)",
+      "measure_volatility": false,
+      "stage": "session",
+      "conserve": "round",
+      "crowd": {
+        "market_maker": {
+          "count": "$crowd_size(market_maker)",
+          "cash": "$world.median_capital * 4 * $lognormal(0, 0.8)",
+          "params": {"activity": 1, "half_spread_ticks": 1.5, "quote_mult": 0.5, "inventory_mult": 1.5, "vol_mult": 0.6, "impact": 0.5, "layers": 3, "position_mult": 12}
+        },
+        "momentum": {
+          "count": "$crowd_size(momentum)",
+          "cash": "$world.median_capital * $lognormal(0, 0.8)",
+          "params": {"activity": 1, "lookback": 24, "threshold_sigma": 1.0, "size_mult": 1.0, "position_mult": 2.5, "stop_loss": "4 * $sqrt($inputs.substeps)"}
+        },
+        "mean_reversion": {
+          "count": "$crowd_size(mean_reversion)",
+          "cash": "$world.median_capital * $lognormal(0, 0.8)",
+          "params": {"activity": 1, "window": 40, "z_threshold": 1.6, "size_mult": 0.8, "position_mult": 3, "stop_loss": "5 * $sqrt($inputs.substeps)"}
+        },
+        "fundamentalist": {
+          "count": "$crowd_size(fundamentalist)",
+          "cash": "$world.median_capital * $lognormal(0, 0.8)",
+          "params": {"activity": 1, "noise_sigma": "1.5 * $sqrt($inputs.substeps)", "margin_sigma": "$sqrt($inputs.substeps)", "patience": 0.75, "size_mult": 1.2, "position_mult": 20, "value_rounds": "$inputs.substeps"}
+        },
+        "noise": {
+          "count": "$crowd_size(noise)",
+          "cash": "$world.median_capital * $lognormal(0, 0.8)",
+          "params": {"activity": 1, "market_prob": 0.7, "herding": 0.15, "size_mult": 0.25, "size_sigma": 0.7, "position_mult": 1.5, "sentiment_sensitivity": 0.35, "stop_loss": "5 * $sqrt($inputs.substeps)"}
+        },
+        "passive": {
+          "count": "$crowd_size(passive)",
+          "cash": "$world.median_capital * $lognormal(0, 0.8)",
+          "params": {"activity": 1, "size_mult": 0.3, "position_mult": 8, "side_rounds": "$inputs.substeps"}
+        }
+      }
+    }
   }
 }

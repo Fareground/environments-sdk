@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Stag hunt",
   "description": "The one-shot coordination game. Both pure profiles (stag, stag) and (hare, hare) are equilibria; the mixed equilibrium hunts stag with probability 3/4.",
   "brief": {
@@ -7,34 +7,42 @@
     "rules": "A stag needs both hunters: both hunting stag score 4 each. A hare hunter always scores 3. A lone stag hunter scores 0. A hunter who does not choose hunts stag."
   },
   "clock": {"rounds": 1},
-  "world": {
-    "payoff": {"type": "map", "default": {
-      "stag": {"stag": 4, "hare": 0},
-      "hare": {"stag": 3, "hare": 3}
-    }}
+  "world": {"payoff": {"type": "map", "default": {"stag": {"stag": 4, "hare": 0}, "hare": {"stag": 3, "hare": 3}}}},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "move": {"type": "text", "default": "stag", "private": true}, "score": 0},
+      "score": {"seat": "$it.seat", "utility": "general_sum", "min": 0, "max": 4, "value": "$it.score"}
+    }
   },
-  "types": {"player": {"agent": true, "props": {
-    "seat": 0,
-    "move": {"type": "text", "default": "stag", "private": true},
-    "score": 0
-  }}},
   "entities": {
     "a": {"type": "player", "name": "A", "props": {"seat": 0}},
     "b": {"type": "player", "name": "B", "props": {"seat": 1}}
   },
-  "actions": {"hunt": {
-    "by": "player", "description": "Hunt stag or hare.", "private": true, "terminal": true,
-    "params": {"move": {"type": "enum", "values": ["stag", "hare"]}},
-    "do": ["$actor.move = $params.move"]
-  }},
+  "actions": {
+    "hunt": {
+      "by": "player",
+      "description": "Hunt stag or hare.",
+      "terminal": true,
+      "params": {"move": {"type": "enum", "values": ["stag", "hare"]}},
+      "do": ["$actor.move = $params.move"],
+      "announce": false
+    }
+  },
   "stages": [{"name": "hunt", "turns": "simultaneous", "must_act": true}],
-  "events": [{"phase": "end", "do": [
-    "$a = $entity('a')", "$b = $entity('b')",
-    "$a.score = $world.payoff[$a.move][$b.move]", "$b.score = $world.payoff[$b.move][$a.move]",
-    "$shown_a = $a.move", "$shown_b = $b.move",
-    {"emit": "shown", "say": "A hunted {$shown_a}; B hunted {$shown_b}."}
-  ]}],
-  "game": {"players": "player", "seat": "$it.seat", "returns": "$actor.score", "utility": "general_sum",
-           "min_return": 0, "max_return": 4},
+  "events": [
+    {
+      "on": "round.end",
+      "do": [
+        "$a = $entity('a')",
+        "$b = $entity('b')",
+        "$a.score = $world.payoff[$a.move][$b.move]",
+        "$b.score = $world.payoff[$b.move][$a.move]",
+        "$shown_a = $a.move",
+        "$shown_b = $b.move",
+        {"emit": "shown", "say": "A hunted {$shown_a}; B hunted {$shown_b}."}
+      ]
+    }
+  ],
   "outputs": {"a_score": {"expr": "$entity('a').score", "type": "number"}}
 }

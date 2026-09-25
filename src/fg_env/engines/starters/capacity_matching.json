@@ -1,7 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Matching Engine",
   "description": "A reusable two-sided matching engine: applicants and selectors each privately rank the other side, and deferred acceptance produces a stable match within selector capacity.",
+  "brief": {
+    "situation": "Applicants and selectors are being matched.",
+    "rules": "Everyone privately ranks the other side, best first; anyone left off your ranking is unacceptable to you. Deferred acceptance then makes a stable match: no applicant and selector who both prefer each other are left apart, and no selector takes more applicants than its capacity.",
+    "roles": {"applicant": "Rank the selectors you would accept, best first.", "selector": "Rank the applicants you would accept, best first, according to your criteria."}
+  },
   "inputs": {
     "applicants": {
       "type": "table",
@@ -67,44 +72,71 @@
     },
     "taste": {"type": "number", "default": 0.2, "min": 0, "description": "How much each coded participant's judgment strays from shared appeal and quality (the spread of personal taste); 0 = everyone ranks alike."}
   },
-  "brief": {
-    "situation": "Applicants and selectors are being matched.",
-    "rules": "Everyone privately ranks the other side, best first; anyone left off your ranking is unacceptable to you. Deferred acceptance then makes a stable match: no applicant and selector who both prefer each other are left apart, and no selector takes more applicants than its capacity.",
-    "roles": {
-      "applicant": "Rank the selectors you would accept, best first.",
-      "selector": "Rank the applicants you would accept, best first, according to your criteria."
-    }
-  },
   "clock": {"rounds": 1, "unit": "cycle"},
   "types": {
-    "applicant": {"agent": true, "policy": "applicant_baseline", "props": {
-      "quality": {"type": "number", "default": 0}
-    }},
-    "selector": {"agent": true, "policy": "selector_baseline", "props": {
-      "capacity": {"type": "int", "default": 1},
-      "appeal": {"type": "number", "default": 0},
-      "minimum_quality": {"type": "number", "default": 0, "private": true}
-    }}
+    "applicant": {
+      "agent": true,
+      "policy": "applicant_baseline",
+      "props": {"quality": {"type": "number", "default": 0}},
+      "policies": {
+        "applicant_baseline": {
+          "rules": [
+            {
+              "do": "placement_rank_applicant",
+              "with": {"ranking": "$top(selector, $it.appeal + $normal(0, $inputs.taste))"}
+            }
+          ]
+        }
+      }
+    },
+    "selector": {
+      "agent": true,
+      "policy": "selector_baseline",
+      "props": {
+        "capacity": {"type": "int", "default": 1},
+        "appeal": {"type": "number", "default": 0},
+        "minimum_quality": {"type": "number", "default": 0, "private": true}
+      },
+      "policies": {
+        "selector_baseline": {
+          "rules": [
+            {
+              "do": "placement_rank_selector",
+              "with": {"ranking": "$top($filter(applicant, $it.quality >= $actor.minimum_quality), $it.quality + $normal(0, $inputs.taste))"}
+            }
+          ]
+        }
+      }
+    }
   },
-  "population": [
-    {"type": "applicant", "from": "$inputs.applicants", "id": "{$row.id}", "name": "{$row.name}", "props": {"quality": "$row.quality"}},
-    {"type": "selector", "from": "$inputs.selectors", "id": "{$row.id}", "name": "{$row.name}", "props": {"capacity": "$row.capacity", "appeal": "$row.appeal", "minimum_quality": "$row.minimum_quality"}}
-  ],
-  "mechanisms": {"placement": {"kind": "groups", "mode": "matching", "who": "applicant", "to": "selector", "seats": "$it.capacity"}},
+  "entities": {
+    "applicant": {
+      "type": "applicant",
+      "from": "$inputs.applicants",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {"quality": "$row.quality"}
+    },
+    "selector": {
+      "type": "selector",
+      "from": "$inputs.selectors",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {"capacity": "$row.capacity", "appeal": "$row.appeal", "minimum_quality": "$row.minimum_quality"}
+    }
+  },
   "views": {
     "selectors": {"for": "applicant", "title": "Selectors", "of": "selector", "show": "{name}: appeal {appeal|2}; capacity {capacity}"},
     "selector_position": {"for": "selector", "show": "Your capacity is {capacity}; your private minimum quality is {minimum_quality|2}."},
     "applicants": {"for": "selector", "title": "Applicants", "of": "applicant", "show": "{name}: quality {quality|2}"}
   },
-  "policies": {
-    "applicant_baseline": {"rules": [{"do": "placement_rank_applicant", "with": {"ranking": "$top(selector, $it.appeal + $normal(0, $inputs.taste))"}}]},
-    "selector_baseline": {"rules": [{"do": "placement_rank_selector", "with": {"ranking": "$top($filter(applicant, $it.quality >= $actor.minimum_quality), $it.quality + $normal(0, $inputs.taste))"}}]}
-  },
-  "metrics": {"match_rate": {"expr": "$count(applicant, $it.placement_match != '') / $count(applicant) if $count(applicant) > 0 else null"}},
   "outputs": {
     "unmatched_applicants": {"type": "int", "expr": "$count(applicant, $it.placement_match == '')"},
-    "match_rate": {"type": "number", "expr": "$metrics.match_rate"},
+    "match_rate": {"type": "number", "expr": "$count(applicant, $it.placement_match != '') / $count(applicant) if $count(applicant) > 0 else null", "series": true},
     "first_choice_rate": {"type": "number", "expr": "$count(applicant, $it.placement_match != '' and $it.placement_match == $first($it.placement_prefs)) / $count(applicant) if $count(applicant) > 0 else null", "description": "Share of applicants matched to the selector they ranked first."},
     "unused_capacity": {"type": "int", "expr": "$sum(selector, $it.capacity - $len($it.placement_matches))"}
+  },
+  "mechanisms": {
+    "placement": {"kind": "groups", "mode": "matching", "who": "applicant", "to": "selector", "seats": "$it.capacity"}
   }
 }

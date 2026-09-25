@@ -1,14 +1,11 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Evidence hearing",
   "description": "Counsel offer exhibits; opposing counsel may object and the judge rules. The procedure's stack resolves last in, first out: the ruling first, then the objection, then the exhibit, so a sustained objection keeps the exhibit out.",
   "brief": {
     "situation": "A pre-trial evidence hearing in Harbor Fabrication v. Meridian Logistics: each side wants its documents in front of the jury.",
     "rules": "Each court day counsel may offer one exhibit. Opposing counsel may let it stand or object (hearsay, relevance or lack of foundation). An objection goes to the judge, who sustains or overrules it. Rulings are applied before the objection, and the objection before the exhibit: a sustained objection excludes the exhibit; otherwise it is admitted. The hearing closes after four court days.",
-    "roles": {
-      "attorney": "You are trial counsel. Get your strongest exhibits admitted and object to the other side's exhibits when there is a real ground.",
-      "judge": "You are the presiding judge. Sustain an objection only when its ground actually applies to the exhibit; otherwise overrule it."
-    }
+    "roles": {"attorney": "You are trial counsel. Get your strongest exhibits admitted and object to the other side's exhibits when there is a real ground.", "judge": "You are the presiding judge. Sustain an objection only when its ground actually applies to the exhibit; otherwise overrule it."}
   },
   "clock": {"rounds": 5, "unit": "court day"},
   "world": {
@@ -17,7 +14,10 @@
     "sustained": false
   },
   "types": {
-    "attorney": {"agent": true, "props": {"side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"}}},
+    "attorney": {
+      "agent": true,
+      "props": {"side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"}}
+    },
     "judge": {"agent": true}
   },
   "entities": {
@@ -27,47 +27,79 @@
   },
   "actions": {
     "offer_exhibit": {
-      "by": "attorney", "description": "Offer an exhibit into evidence.",
-      "params": {"exhibit": {"type": "text", "max_len": 80, "description": "The exhibit, e.g. 'the signed supply agreement'."}},
+      "by": "attorney",
+      "description": "Offer an exhibit into evidence.",
+      "params": {
+        "exhibit": {"type": "text", "max_len": 80, "description": "The exhibit, e.g. 'the signed supply agreement'."}
+      },
       "when": [{"expr": "$stack(hearing, top) == null", "why": "Wait until the pending exhibit has been dealt with."}],
-      "do": [{"flow": "hearing", "action": "push", "item": "exhibit", "params": {"name": "$params.exhibit", "side": "$actor.side"}}],
+      "do": [
+        {
+          "decision": "hearing",
+          "action": "push",
+          "item": "exhibit",
+          "params": {"name": "$params.exhibit", "side": "$actor.side"}
+        }
+      ],
       "outcome": "You offered {$params.exhibit}."
     }
   },
+  "views": {
+    "record": {"title": "Evidence so far", "show": "Admitted: {$join($world.admitted, '; ') or 'none'}. Excluded: {$join($world.excluded, '; ') or 'none'}."}
+  },
+  "outputs": {
+    "admitted": {"expr": "$world.admitted", "type": "list", "description": "Exhibits admitted."},
+    "excluded": {"expr": "$world.excluded", "type": "list", "description": "Exhibits kept out by a sustained objection."}
+  },
   "mechanisms": {
     "hearing": {
-      "kind": "flow",
+      "kind": "decision",
       "mode": "procedure",
       "phases": {
-        "evidence": {"title": "Evidence", "stages": [{"name": "offers", "actions": ["offer_exhibit"], "who": "$is($it, attorney)"}],
-                     "next": [{"to": "closed", "after": 4, "say": "The court closes the evidence."}]},
+        "evidence": {
+          "title": "Evidence",
+          "stages": [{"name": "offers", "actions": ["offer_exhibit"], "who": "$is($it, attorney)"}],
+          "next": [{"to": "closed", "after": 4, "say": "The court closes the evidence."}]
+        },
         "closed": {"title": "Evidence closed", "terminal": true}
       },
       "stack": {
         "who": ["attorney", "judge"],
         "reopen": false,
         "kinds": {
-          "exhibit": {"tool": false, "params": {"name": "text", "side": "text"}, "show": "{$params.name} ({$params.side})",
-                      "responders": "$is($it, attorney) and $it.id != $item.by",
-                      "resolve": ["$world.admitted += $params.name"], "countered": ["$world.excluded += $params.name"]},
-          "objection": {"starts": false, "on": ["exhibit"], "who": "attorney", "description": "Object to the exhibit on top of the stack.",
-                        "params": {"ground": {"type": "enum", "values": ["hearsay", "relevance", "foundation"]}},
-                        "show": "{$params.ground}", "responders": "$is($it, judge)",
-                        "resolve": [{"if": "$world.sustained", "then": [{"flow": "hearing", "action": "counter"}]}, "$world.sustained = false"]},
-          "ruling": {"starts": false, "on": ["objection"], "who": "judge", "description": "Rule on the objection on top of the stack.",
-                     "params": {"decision": {"type": "enum", "values": ["sustained", "overruled"]}},
-                     "show": "{$params.decision}", "responders": "false",
-                     "resolve": ["$world.sustained = $params.decision == sustained"]}
+          "exhibit": {
+            "tool": false,
+            "params": {"name": "text", "side": "text"},
+            "show": "{$params.name} ({$params.side})",
+            "responders": "$is($it, attorney) and $it.id != $item.by",
+            "resolve": ["$world.admitted += $params.name"],
+            "countered": ["$world.excluded += $params.name"]
+          },
+          "objection": {
+            "starts": false,
+            "on": ["exhibit"],
+            "who": "attorney",
+            "description": "Object to the exhibit on top of the stack.",
+            "params": {"ground": {"type": "enum", "values": ["hearsay", "relevance", "foundation"]}},
+            "show": "{$params.ground}",
+            "responders": "$is($it, judge)",
+            "resolve": [
+              {"if": "$world.sustained", "then": [{"decision": "hearing", "action": "counter"}]},
+              "$world.sustained = false"
+            ]
+          },
+          "ruling": {
+            "starts": false,
+            "on": ["objection"],
+            "who": "judge",
+            "description": "Rule on the objection on top of the stack.",
+            "params": {"decision": {"type": "enum", "values": ["sustained", "overruled"]}},
+            "show": "{$params.decision}",
+            "responders": "false",
+            "resolve": ["$world.sustained = $params.decision == sustained"]
+          }
         }
       }
     }
-  },
-  "views": {
-    "record": {"title": "Evidence so far",
-               "show": "Admitted: {$join($world.admitted, '; ') or 'none'}. Excluded: {$join($world.excluded, '; ') or 'none'}."}
-  },
-  "outputs": {
-    "admitted": {"expr": "$world.admitted", "type": "list", "description": "Exhibits admitted."},
-    "excluded": {"expr": "$world.excluded", "type": "list", "description": "Exhibits kept out by a sustained objection."}
   }
 }

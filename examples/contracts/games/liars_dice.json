@@ -1,12 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Liar's dice",
   "description": "Two players, one hidden die each. Players raise bids on how many dice show a face; the next player may call the bid a lie instead. No wild faces.",
-  "inputs": {"sides": {"type": "int", "default": 6, "min": 2, "max": 6, "description": "Faces on each die."}},
   "brief": {
     "situation": "Two players each roll one die with faces 1 to {$inputs.sides} and look at it in secret.",
     "rules": "P0 bids first. A bid says at least a quantity (1 or 2) of the two dice show a face. Each bid must raise the quantity, or keep it and raise the face. Instead of bidding you may call the last bid a lie: the dice are shown, and the bidder wins if the bid holds, otherwise the caller wins. The winner scores 1 and the loser -1."
   },
+  "inputs": {"sides": {"type": "int", "default": 6, "min": 2, "max": 6, "description": "Faces on each die."}},
   "clock": {"rounds": 1},
   "world": {
     "bid_qty": 0,
@@ -16,34 +16,43 @@
     "over": false,
     "winner": {"type": "text", "default": ""}
   },
-  "defs": {"other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"}},
-  "types": {"player": {"agent": true, "props": {
-    "seat": 0,
-    "die": {"type": "int", "default": 0, "private": true}
-  }}},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "die": {"type": "int", "default": 0, "private": true}},
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "min": -1, "max": 1, "value": "(1 if $world.winner == $it.id else -1) if $world.over else 0"}
+    }
+  },
   "entities": {
     "p0": {"type": "player", "name": "P0", "props": {"seat": 0}},
     "p1": {"type": "player", "name": "P1", "props": {"seat": 1}}
   },
-  "events": [{"at": 1, "phase": "start", "do": [
-    {"chance": "roll p0", "outcomes": "$range(1, $inputs.sides + 1)", "as": "face", "do": ["$entity('p0').die = $face"]},
-    {"chance": "roll p1", "outcomes": "$range(1, $inputs.sides + 1)", "as": "face", "do": ["$entity('p1').die = $face"]}
-  ]}],
   "actions": {
     "bid": {
-      "by": "player", "description": "Bid that at least `quantity` dice show `face`.", "terminal": true,
+      "by": "player",
+      "description": "Bid that at least `quantity` dice show `face`.",
+      "terminal": true,
       "when": ["$world.to_act == $actor.id and not $world.over"],
-      "params": {"quantity": {"type": "int", "min": 1, "max": 2}, "face": {"type": "int", "min": 1, "max": "$inputs.sides"}},
+      "params": {
+        "quantity": {"type": "int", "min": 1, "max": 2},
+        "face": {"type": "int", "min": 1, "max": "$inputs.sides"}
+      },
       "announce": "{$actor.name} bids {$params.quantity} x {$params.face}.",
       "do": [
-        {"if": "$params.quantity < $world.bid_qty or ($params.quantity == $world.bid_qty and $params.face <= $world.bid_face)",
-         "then": [{"fail": "A bid must raise the quantity, or keep the quantity and raise the face."}]},
-        "$world.bid_qty = $params.quantity", "$world.bid_face = $params.face", "$world.bidder = $actor.id",
+        {
+          "if": "$params.quantity < $world.bid_qty or ($params.quantity == $world.bid_qty and $params.face <= $world.bid_face)",
+          "then": [{"fail": "A bid must raise the quantity, or keep the quantity and raise the face."}]
+        },
+        "$world.bid_qty = $params.quantity",
+        "$world.bid_face = $params.face",
+        "$world.bidder = $actor.id",
         "$world.to_act = $other($actor).id"
       ]
     },
     "liar": {
-      "by": "player", "description": "Call the last bid a lie.", "terminal": true,
+      "by": "player",
+      "description": "Call the last bid a lie.",
+      "terminal": true,
       "when": ["$world.to_act == $actor.id and not $world.over", "$world.bid_qty > 0"],
       "do": [
         "$shown = $count(player, $it.die == $world.bid_face)",
@@ -55,11 +64,32 @@
       ]
     }
   },
-  "stages": [{"name": "bidding", "order": "$it.seat", "who": "$world.to_act == $it.id", "until": "$world.over",
-              "passes": 15, "must_act": true}],
-  "views": {"table": {"for": "player",
-    "show": "Your die: {$actor.die}. Last bid: {'none' if $world.bid_qty == 0 else $text($world.bid_qty) + ' x ' + $text($world.bid_face)}."}},
-  "game": {"players": "player", "seat": "$it.seat", "utility": "zero_sum", "min_return": -1, "max_return": 1,
-           "returns": "(1 if $world.winner == $actor.id else -1) if $world.over else 0"},
-  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}}
+  "stages": [
+    {"name": "bidding", "order": "$it.seat", "who": "$world.to_act == $it.id", "until": "$world.over", "passes": 15, "must_act": true}
+  ],
+  "views": {
+    "table": {"for": "player", "show": "Your die: {$actor.die}. Last bid: {'none' if $world.bid_qty == 0 else $text($world.bid_qty) + ' x ' + $text($world.bid_face)}."}
+  },
+  "events": [
+    {
+      "on": "round.start",
+      "when": "$round == 1",
+      "do": [
+        {
+          "chance": "roll p0",
+          "outcomes": "$range(1, $inputs.sides + 1)",
+          "as": "face",
+          "do": ["$entity('p0').die = $face"]
+        },
+        {
+          "chance": "roll p1",
+          "outcomes": "$range(1, $inputs.sides + 1)",
+          "as": "face",
+          "do": ["$entity('p1').die = $face"]
+        }
+      ]
+    }
+  ],
+  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}},
+  "defs": {"other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"}}
 }

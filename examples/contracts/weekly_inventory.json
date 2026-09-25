@@ -5,115 +5,56 @@
     "situation": "A retailer serves weekly demand from one stock pool.",
     "rules": "Choose a replenishment quantity before demand arrives. Orders arrive immediately in this introductory model."
   },
-  "clock": {
-    "rounds": 4,
-    "unit": "week"
-  },
   "inputs": {
-    "weekly_demand": {
-      "type": "int",
-      "default": 6,
-      "min": 0
-    },
-    "unit_price": {
-      "type": "number",
-      "default": 10,
-      "min": 0
-    },
-    "unit_cost": {
-      "type": "number",
-      "default": 4,
-      "min": 0
-    }
+    "weekly_demand": {"type": "int", "default": 6, "min": 0},
+    "unit_price": {"type": "number", "default": 10, "min": 0},
+    "unit_cost": {"type": "number", "default": 4, "min": 0}
   },
+  "clock": {"rounds": 4, "unit": "week"},
   "types": {
     "retailer": {
       "agent": true,
-      "props": {
-        "stock": 10,
-        "cash": 100.0,
-        "sold": 0,
-        "lost": 0
-      }
+      "props": {"stock": 10, "cash": 100.0, "sold": 0, "lost": 0},
+      "policies": {"steady": {"rules": [{"do": "replenish", "with": {"qty": 6}}]}}
     }
   },
-  "entities": {
-    "shop": {
-      "type": "retailer",
-      "name": "Shop"
-    }
-  },
+  "entities": {"shop": {"type": "retailer", "name": "Shop"}},
   "actions": {
     "replenish": {
       "by": "retailer",
-      "description": "Purchase inventory before this week\u2019s demand.",
-      "params": {
-        "qty": {
-          "type": "int",
-          "min": 0,
-          "max": 20
-        }
-      },
-      "when": {
-        "expr": "$actor.cash >= $params.qty * $inputs.unit_cost",
-        "why": "The order exceeds available cash."
-      },
-      "do": [
-        "$actor.cash -= $params.qty * $inputs.unit_cost",
-        "$actor.stock += $params.qty"
-      ]
+      "description": "Purchase inventory before this week’s demand.",
+      "params": {"qty": {"type": "int", "min": 0, "max": 20}},
+      "when": {"expr": "$actor.cash >= $params.qty * $inputs.unit_cost", "why": "The order exceeds available cash."},
+      "do": ["$actor.cash -= $params.qty * $inputs.unit_cost", "$actor.stock += $params.qty"]
     }
+  },
+  "views": {
+    "position": {"for": "retailer", "show": "Stock: {stock}. Cash: {cash|money}. Demand each week: {$inputs.weekly_demand}."}
   },
   "events": [
     {
-      "phase": "end",
-      "each": "retailer",
+      "on": "round.end",
       "do": [
-        "$units = $min($it.stock, $inputs.weekly_demand)",
-        "$it.stock -= $units",
-        "$it.sold += $units",
-        "$it.lost += $inputs.weekly_demand - $units",
-        "$it.cash += $units * $inputs.unit_price"
-      ]
-    }
-  ],
-  "views": {
-    "position": {
-      "for": "retailer",
-      "show": "Stock: {stock}. Cash: {cash|money}. Demand each week: {$inputs.weekly_demand}."
-    }
-  },
-  "invariants": [
-    "$entity(shop).stock >= 0",
-    "$entity(shop).cash >= 0"
-  ],
-  "metrics": {
-    "stock": "$entity(shop).stock",
-    "cash": "$entity(shop).cash"
-  },
-  "outputs": {
-    "units_sold": "$entity(shop).sold",
-    "lost_sales": "$entity(shop).lost",
-    "closing_cash": "$entity(shop).cash"
-  },
-  "policies": {
-    "steady": {
-      "rules": [
         {
-          "do": "replenish",
-          "with": {
-            "qty": 6
-          }
+          "each": "retailer",
+          "do": [
+            "$units = $min($it.stock, $inputs.weekly_demand)",
+            "$it.stock -= $units",
+            "$it.sold += $units",
+            "$it.lost += $inputs.weekly_demand - $units",
+            "$it.cash += $units * $inputs.unit_price"
+          ]
         }
       ]
     }
+  ],
+  "outputs": {
+    "units_sold": "$entity(shop).sold",
+    "lost_sales": "$entity(shop).lost",
+    "closing_cash": "$entity(shop).cash",
+    "stock": {"expr": "$entity(shop).stock", "series": true},
+    "cash": {"expr": "$entity(shop).cash", "series": true}
   },
-  "arms": {
-    "baseline": {},
-    "busy": {
-      "inputs": {
-        "weekly_demand": 9
-      }
-    }
-  }
+  "arms": {"baseline": {}, "busy": {"inputs": {"weekly_demand": 9}}},
+  "invariants": ["$entity(shop).stock >= 0", "$entity(shop).cash >= 0"]
 }

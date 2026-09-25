@@ -1,53 +1,81 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Goofspiel",
   "description": "Imperfect-information Goofspiel: sealed simultaneous bids for prize cards turned up in a random order; players learn who won each prize but never the other bid. Returns are the point difference.",
-  "inputs": {"cards": {"type": "int", "default": 4, "min": 1, "max": 13, "description": "Cards per hand and prize cards."}},
   "brief": {
     "situation": "Two players each hold cards 1 to {$inputs.cards}. Prize cards 1 to {$inputs.cards} are turned up one at a time, in a random order.",
     "rules": "For each prize both players bid one of their cards at the same time. The higher bid wins the prize's points; on a tie nobody does. Bid cards are spent. You learn who won each prize, never the other player's bid. Your score is your points minus your opponent's."
   },
-  "clock": {"rounds": "$inputs.cards", "unit": "prize"},
-  "world": {
-    "prizes": {"type": "list", "default": "$range(1, $inputs.cards + 1)"},
-    "prize": 0
+  "inputs": {
+    "cards": {"type": "int", "default": 4, "min": 1, "max": 13, "description": "Cards per hand and prize cards."}
   },
-  "defs": {"other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"}},
-  "types": {"player": {"agent": true, "props": {
-    "seat": 0,
-    "hand": {"type": "list", "default": "$range(1, $inputs.cards + 1)", "private": true},
-    "bid": {"type": "int", "default": 0, "private": true},
-    "points": 0
-  }}},
+  "clock": {"rounds": "$inputs.cards", "unit": "prize"},
+  "world": {"prizes": {"type": "list", "default": "$range(1, $inputs.cards + 1)"}, "prize": 0},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {
+        "seat": 0,
+        "hand": {"type": "list", "default": "$range(1, $inputs.cards + 1)", "private": true},
+        "bid": {"type": "int", "default": 0, "private": true},
+        "points": 0
+      },
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "value": "$it.points - $other($it).points"}
+    }
+  },
   "entities": {
     "a": {"type": "player", "name": "A", "props": {"seat": 0}},
     "b": {"type": "player", "name": "B", "props": {"seat": 1}}
   },
-  "events": [
-    {"phase": "start", "do": [
-      {"chance": "prize", "outcomes": "$world.prizes", "as": "card", "do": [
-        "$world.prize = $card", "$world.prizes -= $card",
-        {"emit": "prize", "say": "Prize {$card} is turned up."}
-      ]}
-    ]},
-    {"phase": "end", "do": [
-      "$a = $entity('a')", "$b = $entity('b')",
-      {"if": "$a.bid > $b.bid",
-       "then": ["$a.points += $world.prize", {"emit": "won", "say": "A wins prize {$world.prize}."}],
-       "else": [{"if": "$b.bid > $a.bid",
-                 "then": ["$b.points += $world.prize", {"emit": "won", "say": "B wins prize {$world.prize}."}],
-                 "else": [{"emit": "tied", "say": "The bids tie; nobody wins prize {$world.prize}."}]}]}
-    ]}
-  ],
-  "actions": {"bid": {
-    "by": "player", "description": "Bid one of your cards for the prize.", "private": true, "terminal": true,
-    "params": {"card": {"type": "enum", "values": "$actor.hand"}},
-    "do": ["$actor.bid = $params.card", "$actor.hand -= $params.card"]
-  }},
+  "actions": {
+    "bid": {
+      "by": "player",
+      "description": "Bid one of your cards for the prize.",
+      "terminal": true,
+      "params": {"card": {"type": "enum", "values": "$actor.hand"}},
+      "do": ["$actor.bid = $params.card", "$actor.hand -= $params.card"],
+      "announce": false
+    }
+  },
   "stages": [{"name": "bid", "turns": "simultaneous", "must_act": true}],
-  "views": {"table": {"for": "player",
-    "show": "Prize: {$world.prize}. Your cards: {$join($actor.hand, ' ')}. Points: you {$actor.points}, opponent {$other($actor).points}."}},
-  "game": {"players": "player", "seat": "$it.seat", "utility": "zero_sum",
-           "returns": "$actor.points - $other($actor).points"},
-  "outputs": {"a_points": {"expr": "$entity('a').points", "type": "int"}}
+  "views": {
+    "table": {"for": "player", "show": "Prize: {$world.prize}. Your cards: {$join($actor.hand, ' ')}. Points: you {$actor.points}, opponent {$other($actor).points}."}
+  },
+  "events": [
+    {
+      "on": "round.start",
+      "do": [
+        {
+          "chance": "prize",
+          "outcomes": "$world.prizes",
+          "as": "card",
+          "do": [
+            "$world.prize = $card",
+            "$world.prizes -= $card",
+            {"emit": "prize", "say": "Prize {$card} is turned up."}
+          ]
+        }
+      ]
+    },
+    {
+      "on": "round.end",
+      "do": [
+        "$a = $entity('a')",
+        "$b = $entity('b')",
+        {
+          "if": "$a.bid > $b.bid",
+          "then": ["$a.points += $world.prize", {"emit": "won", "say": "A wins prize {$world.prize}."}],
+          "else": [
+            {
+              "if": "$b.bid > $a.bid",
+              "then": ["$b.points += $world.prize", {"emit": "won", "say": "B wins prize {$world.prize}."}],
+              "else": [{"emit": "tied", "say": "The bids tie; nobody wins prize {$world.prize}."}]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "outputs": {"a_points": {"expr": "$entity('a').points", "type": "int"}},
+  "defs": {"other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"}}
 }

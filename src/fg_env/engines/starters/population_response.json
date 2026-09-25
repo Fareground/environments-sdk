@@ -1,7 +1,12 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Population Engine",
   "description": "A reusable sampled-population response engine. People independently choose among configurable responses with private inclinations and report confidence; the coded baseline responds from each person's inclination blurred by their uncertainty, stays undecided unless that leaning clearly outweighs its doubt (so the less confident answer undecided more often), and reports its confidence discounted by how likely it would give the same answer again, so outcomes vary across runs and aggregate across people and experiment runs.",
+  "brief": {
+    "situation": "A population is independently responding to one shared situation: {$inputs.question}",
+    "rules": "Choose support, oppose, or undecided and state confidence. Responses are independent: you cannot see anyone else's response before submitting.",
+    "roles": {"person": "Respond as this person, using the supplied persona and private inclination as context rather than as a command."}
+  },
   "inputs": {
     "question": {"type": "text", "default": "Would you adopt the proposed change?"},
     "participants": {
@@ -112,59 +117,93 @@
       ]
     }
   },
-  "brief": {
-    "situation": "A population is independently responding to one shared situation: {$inputs.question}",
-    "rules": "Choose support, oppose, or undecided and state confidence. Responses are independent: you cannot see anyone else's response before submitting.",
-    "roles": {"person": "Respond as this person, using the supplied persona and private inclination as context rather than as a command."}
-  },
   "clock": {"rounds": 1, "unit": "survey"},
   "types": {
-    "person": {"agent": true, "policy": "baseline", "props": {
-      "segment": {"type": "text", "default": ""},
-      "inclination": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
-      "default_confidence": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
-      "leaning": {"type": "number", "default": 0, "private": true, "description": "Today's leaning: the inclination plus noise that shrinks as confidence grows (what the coded baseline responds from)."},
-      "response": {"type": "text", "default": "", "private": true},
-      "reported_confidence": {"type": "number", "default": 0, "min": 0, "max": 1, "private": true}
-    }}
+    "person": {
+      "agent": true,
+      "policy": "baseline",
+      "props": {
+        "segment": {"type": "text", "default": ""},
+        "inclination": {"type": "number", "default": 0, "min": -1, "max": 1, "private": true},
+        "default_confidence": {"type": "number", "default": 0.5, "min": 0, "max": 1, "private": true},
+        "leaning": {"type": "number", "default": 0, "private": true, "description": "Today's leaning: the inclination plus noise that shrinks as confidence grows (what the coded baseline responds from)."},
+        "response": {"type": "text", "default": "", "private": true},
+        "reported_confidence": {"type": "number", "default": 0, "min": 0, "max": 1, "private": true}
+      },
+      "policies": {
+        "baseline": {
+          "rules": [
+            {
+              "when": "$actor.leaning > $band($actor)",
+              "do": "respond",
+              "with": {"choice": "support", "confidence": "$round($actor.default_confidence * $sure($actor, $band($actor), 99), 2)", "reason": "The change fits my priorities."}
+            },
+            {
+              "when": "$actor.leaning < -$band($actor)",
+              "do": "respond",
+              "with": {"choice": "oppose", "confidence": "$round($actor.default_confidence * $sure($actor, -99, -$band($actor)), 2)", "reason": "The change conflicts with my priorities."}
+            },
+            {
+              "do": "respond",
+              "with": {"choice": "undecided", "confidence": "$round($actor.default_confidence * $sure($actor, -$band($actor), $band($actor)), 2)", "reason": "I would need more information."}
+            }
+          ]
+        }
+      }
+    }
   },
-  "population": [{
-    "type": "person", "from": "$inputs.participants", "id": "{$row.id}", "name": "{$row.name}",
-    "props": {"segment": "$row.segment", "inclination": "$row.inclination", "default_confidence": "$row.confidence",
-              "leaning": "$row.inclination + $normal(0, 1 - $row.confidence)"}
-  }],
-  "records": {"responses": {"fields": {"choice": "text", "confidence": "number", "reason": "text"}, "visible": "false"}},
+  "entities": {
+    "person": {
+      "type": "person",
+      "from": "$inputs.participants",
+      "id": "{$row.id}",
+      "name": "{$row.name}",
+      "props": {"segment": "$row.segment", "inclination": "$row.inclination", "default_confidence": "$row.confidence", "leaning": "$row.inclination + $normal(0, 1 - $row.confidence)"}
+    }
+  },
+  "records": {
+    "responses": {"fields": {"choice": "text", "confidence": "number", "reason": "text"}, "visible": "false"}
+  },
   "actions": {
     "respond": {
-      "by": "person", "description": "Submit your independent response.", "private": true, "terminal": true,
+      "by": "person",
+      "description": "Submit your independent response.",
+      "terminal": true,
       "params": {
         "choice": {"type": "enum", "values": ["support", "oppose", "undecided"]},
         "confidence": {"type": "number", "min": 0, "max": 1},
         "reason": {"type": "text", "max_len": 400}
       },
       "when": [{"expr": "$actor.response == ''", "why": "You already responded."}],
-      "do": ["$actor.response = $params.choice", "$actor.reported_confidence = $params.confidence", {"post": "responses", "choice": "$params.choice", "confidence": "$params.confidence", "reason": "$params.reason"}]
+      "do": [
+        "$actor.response = $params.choice",
+        "$actor.reported_confidence = $params.confidence",
+        {"post": "responses", "choice": "$params.choice", "confidence": "$params.confidence", "reason": "$params.reason"}
+      ],
+      "announce": false
     }
   },
   "stages": [{"name": "respond", "turns": "simultaneous", "must_act": true}],
   "views": {"private_context": {"for": "person", "show": "Segment: {segment}. Private inclination: {inclination|2}."}},
-  "defs": {"band": {"args": ["person"], "expr": "0.25 / $max(0.01, $person.default_confidence)", "description": "How far the leaning must go before the coded baseline commits to support or oppose: the less confident, the wider the undecided band."},
-           "sure": {"args": ["person", "low", "high"], "expr": "$round(($erf(($high - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2))) - $erf(($low - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2)))) / 2, 2)", "description": "The chance the coded baseline's leaning (inclination plus noise of spread 1 - confidence) lands between low and high again."}},
-  "policies": {"baseline": {"rules": [
-    {"when": "$actor.leaning > $band($actor)", "do": "respond", "with": {"choice": "support", "confidence": "$round($actor.default_confidence * $sure($actor, $band($actor), 99), 2)", "reason": "The change fits my priorities."}},
-    {"when": "$actor.leaning < -$band($actor)", "do": "respond", "with": {"choice": "oppose", "confidence": "$round($actor.default_confidence * $sure($actor, -99, -$band($actor)), 2)", "reason": "The change conflicts with my priorities."}},
-    {"do": "respond", "with": {"choice": "undecided", "confidence": "$round($actor.default_confidence * $sure($actor, -$band($actor), $band($actor)), 2)", "reason": "I would need more information."}}
-  ]}},
-  "metrics": {
-    "support_share": {"expr": "$count(person, $it.response == support) / $count(person) if $count(person) > 0 else null"},
-    "response_rate": {"expr": "$count(person, $it.response != '') / $count(person) if $count(person) > 0 else null"}
-  },
   "outputs": {
     "population_size": {"type": "int", "expr": "$count(person)"},
     "support": {"type": "int", "expr": "$count(person, $it.response == support)"},
     "oppose": {"type": "int", "expr": "$count(person, $it.response == oppose)"},
     "undecided": {"type": "int", "expr": "$count(person, $it.response == undecided)"},
-    "support_share": {"type": "number", "expr": "$metrics.support_share"},
-    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)", "description": "Mean confidence people reported (the coded baseline reports its confidence discounted by how likely it would give the same answer again)."}
+    "support_share": {"type": "number", "expr": "$count(person, $it.response == support) / $count(person) if $count(person) > 0 else null", "series": true},
+    "average_confidence": {"type": "number", "expr": "$avg(person, $it.reported_confidence)", "description": "Mean confidence people reported (the coded baseline reports its confidence discounted by how likely it would give the same answer again)."},
+    "response_rate": {"expr": "$count(person, $it.response != '') / $count(person) if $count(person) > 0 else null", "series": true}
+  },
+  "defs": {
+    "band": {
+      "args": ["person"],
+      "expr": "0.25 / $max(0.01, $person.default_confidence)",
+      "description": "How far the leaning must go before the coded baseline commits to support or oppose: the less confident, the wider the undecided band."
+    },
+    "sure": {
+      "args": ["person", "low", "high"],
+      "expr": "$round(($erf(($high - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2))) - $erf(($low - $person.inclination) / ($max(0.01, 1 - $person.default_confidence) * $sqrt(2)))) / 2, 2)",
+      "description": "The chance the coded baseline's leaning (inclination plus noise of spread 1 - confidence) lands between low and high again."
+    }
   }
 }

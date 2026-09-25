@@ -1,58 +1,23 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Refurbished electronics: grades, returns and supply disruption",
   "description": "A round-based business acceptance scenario; all behavioral parameters are explicit assumptions, not fitted market estimates.",
-  "clock": {
-    "rounds": "$inputs.days",
-    "unit": "day"
+  "brief": {
+    "situation": "Refurbished electronics: grades, returns and supply disruption",
+    "roles": {"merchant": "Manage prices and replenishment across your products. Balance operating profit, cash, customer service and excess inventory."},
+    "rules": "Each day, delayed deliveries arrive first. Review your operating position and competitors, then plan each product once. Customers shop after both merchants decide. Prices affect demand and rival prices create substitution pressure. Orders cost cash immediately and arrive after the announced delay. Demand signals record requested units separately from sales. Forecasts update after trading. Parameters are illustrative assumptions. Buyers accept a different grade for 40% of unmet primary requests, taking the cheapest available alternative. Twelve percent of each daily sale batch (rounded to whole units) returns two days later for a full original-price refund and becomes resale stock. Refund cash is reserved immediately; reported profit includes pending refunds and inventory expected back at cost. Supplier disruption on days 7–9 extends new-order lead times."
   },
   "inputs": {
-    "days": {
-      "type": "int",
-      "default": 21,
-      "min": 1,
-      "max": 120
-    },
-    "demand_scale": {
-      "type": "number",
-      "default": 1,
-      "min": 0
-    },
-    "focal_price": {
-      "type": "number",
-      "default": 1,
-      "min": 0.6,
-      "max": 1.8
-    },
-    "inventory_cover": {
-      "type": "number",
-      "default": 1.2,
-      "min": 0,
-      "max": 3
-    },
-    "use_demand_signal": {
-      "type": "bool",
-      "default": true
-    },
-    "lead_time": {
-      "type": "int",
-      "default": 3,
-      "min": 1,
-      "max": 14
-    },
-    "disruption_delay": {
-      "type": "int",
-      "default": 4,
-      "min": 0,
-      "max": 14
-    },
-    "weather": {
-      "type": "list",
-      "default": [
-        1
-      ]
-    }
+    "days": {"type": "int", "default": 21, "min": 1, "max": 120},
+    "demand_scale": {"type": "number", "default": 1, "min": 0},
+    "focal_price": {"type": "number", "default": 1, "min": 0.6, "max": 1.8},
+    "inventory_cover": {"type": "number", "default": 1.2, "min": 0, "max": 3},
+    "use_demand_signal": {"type": "bool", "default": true},
+    "lead_time": {"type": "int", "default": 3, "min": 1, "max": 14},
+    "disruption_delay": {"type": "int", "default": 4, "min": 0, "max": 14},
+    "weather": {"type": "list", "default": [1]}
   },
+  "clock": {"rounds": "$inputs.days", "unit": "day"},
   "world": {
     "weather": 1.0,
     "shipping_delay": 3,
@@ -67,286 +32,93 @@
       "agent": true,
       "policy": "planner",
       "props": {
-        "cash": {
-          "type": "number",
-          "default": 10000,
-          "min": 0
-        },
-        "initial_cash": {
-          "type": "number",
-          "default": 10000,
-          "min": 0
-        },
-        "revenue": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "spent": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "refunds": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "refunds_due": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
+        "cash": {"type": "number", "default": 10000, "min": 0},
+        "initial_cash": {"type": "number", "default": 10000, "min": 0},
+        "revenue": {"type": "number", "default": 0, "min": 0},
+        "spent": {"type": "number", "default": 0, "min": 0},
+        "refunds": {"type": "number", "default": 0, "min": 0},
+        "refunds_due": {"type": "number", "default": 0, "min": 0},
         "focal": false
+      },
+      "policies": {
+        "planner": {
+          "repeat": true,
+          "rules": [
+            {
+              "each": "$filter(product, $it.owner == $actor.id)",
+              "when": "$it.planned != $round",
+              "do": "plan",
+              "with": {"product": "$it", "price": "$max($it.cost, $it.reference * ($inputs.focal_price if $actor.focal else 1))", "qty": "$min(300, $floor(($actor.cash-$actor.refunds_due)/$it.cost), $max(0, $ceil($it.forecast*($world.shipping_delay+1)*$inputs.inventory_cover - $it.stock - $it.transit)))"}
+            }
+          ]
+        }
       }
     },
     "product": {
       "props": {
         "owner": "",
         "category": "",
-        "price": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "reference": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "cost": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "base": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "forecast": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "forecast_error": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "weather_power": {
-          "type": "number",
-          "default": 1
-        },
-        "return_rate": {
-          "type": "number",
-          "default": 0,
-          "min": 0
-        },
-        "stock": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "initial": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "ordered": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "transit": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "delivered": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "returned": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "returns_due": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "sold": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "waste": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "requested": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "today_requested": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "today_sold": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "unmet": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        },
-        "planned": {
-          "type": "int",
-          "default": 0,
-          "min": 0
-        }
+        "price": {"type": "number", "default": 0, "min": 0},
+        "reference": {"type": "number", "default": 0, "min": 0},
+        "cost": {"type": "number", "default": 0, "min": 0},
+        "base": {"type": "number", "default": 0, "min": 0},
+        "forecast": {"type": "number", "default": 0, "min": 0},
+        "forecast_error": {"type": "number", "default": 0, "min": 0},
+        "weather_power": {"type": "number", "default": 1},
+        "return_rate": {"type": "number", "default": 0, "min": 0},
+        "stock": {"type": "int", "default": 0, "min": 0},
+        "initial": {"type": "int", "default": 0, "min": 0},
+        "ordered": {"type": "int", "default": 0, "min": 0},
+        "transit": {"type": "int", "default": 0, "min": 0},
+        "delivered": {"type": "int", "default": 0, "min": 0},
+        "returned": {"type": "int", "default": 0, "min": 0},
+        "returns_due": {"type": "int", "default": 0, "min": 0},
+        "sold": {"type": "int", "default": 0, "min": 0},
+        "waste": {"type": "int", "default": 0, "min": 0},
+        "requested": {"type": "int", "default": 0, "min": 0},
+        "today_requested": {"type": "int", "default": 0, "min": 0},
+        "today_sold": {"type": "int", "default": 0, "min": 0},
+        "unmet": {"type": "int", "default": 0, "min": 0},
+        "planned": {"type": "int", "default": 0, "min": 0}
       }
     }
   },
   "entities": {
-    "atlas": {
-      "type": "merchant",
-      "name": "Atlas",
-      "props": {
-        "focal": true
-      }
-    },
-    "beacon": {
-      "type": "merchant",
-      "name": "Beacon"
-    },
+    "atlas": {"type": "merchant", "name": "Atlas", "props": {"focal": true}},
+    "beacon": {"type": "merchant", "name": "Beacon"},
     "atlas_certified": {
       "type": "product",
       "name": "Atlas certified",
-      "props": {
-        "owner": "atlas",
-        "category": "certified",
-        "reference": 240,
-        "price": 240,
-        "cost": 145,
-        "base": 6,
-        "forecast": 6,
-        "initial": 10,
-        "stock": 10,
-        "weather_power": 0,
-        "return_rate": 0.12
-      }
+      "props": {"owner": "atlas", "category": "certified", "reference": 240, "price": 240, "cost": 145, "base": 6, "forecast": 6, "initial": 10, "stock": 10, "weather_power": 0, "return_rate": 0.12}
     },
     "atlas_budget": {
       "type": "product",
       "name": "Atlas budget",
-      "props": {
-        "owner": "atlas",
-        "category": "budget",
-        "reference": 140,
-        "price": 140,
-        "cost": 78,
-        "base": 10,
-        "forecast": 10,
-        "initial": 16,
-        "stock": 16,
-        "weather_power": 0,
-        "return_rate": 0.12
-      }
+      "props": {"owner": "atlas", "category": "budget", "reference": 140, "price": 140, "cost": 78, "base": 10, "forecast": 10, "initial": 16, "stock": 16, "weather_power": 0, "return_rate": 0.12}
     },
     "beacon_certified": {
       "type": "product",
       "name": "Beacon certified",
-      "props": {
-        "owner": "beacon",
-        "category": "certified",
-        "reference": 240,
-        "price": 240,
-        "cost": 145,
-        "base": 6,
-        "forecast": 6,
-        "initial": 10,
-        "stock": 10,
-        "weather_power": 0,
-        "return_rate": 0.12
-      }
+      "props": {"owner": "beacon", "category": "certified", "reference": 240, "price": 240, "cost": 145, "base": 6, "forecast": 6, "initial": 10, "stock": 10, "weather_power": 0, "return_rate": 0.12}
     },
     "beacon_budget": {
       "type": "product",
       "name": "Beacon budget",
-      "props": {
-        "owner": "beacon",
-        "category": "budget",
-        "reference": 140,
-        "price": 140,
-        "cost": 78,
-        "base": 10,
-        "forecast": 10,
-        "initial": 16,
-        "stock": 16,
-        "weather_power": 0,
-        "return_rate": 0.12
-      }
+      "props": {"owner": "beacon", "category": "budget", "reference": 140, "price": 140, "cost": 78, "base": 10, "forecast": 10, "initial": 16, "stock": 16, "weather_power": 0, "return_rate": 0.12}
     }
-  },
-  "patterns": {
-    "arrivals": {
-      "kind": "counts",
-      "dist": "negative_binomial",
-      "dispersion": 12,
-      "keys": "product"
-    },
-    "bundle_arrivals": {
-      "kind": "counts",
-      "dist": "poisson",
-      "keys": "merchant"
-    }
-  },
-  "brief": {
-    "situation": "Refurbished electronics: grades, returns and supply disruption",
-    "roles": {
-      "merchant": "Manage prices and replenishment across your products. Balance operating profit, cash, customer service and excess inventory."
-    },
-    "rules": "Each day, delayed deliveries arrive first. Review your operating position and competitors, then plan each product once. Customers shop after both merchants decide. Prices affect demand and rival prices create substitution pressure. Orders cost cash immediately and arrive after the announced delay. Demand signals record requested units separately from sales. Forecasts update after trading. Parameters are illustrative assumptions. Buyers accept a different grade for 40% of unmet primary requests, taking the cheapest available alternative. Twelve percent of each daily sale batch (rounded to whole units) returns two days later for a full original-price refund and becomes resale stock. Refund cash is reserved immediately; reported profit includes pending refunds and inventory expected back at cost. Supplier disruption on days 7\u20139 extends new-order lead times."
   },
   "actions": {
     "plan": {
       "by": "merchant",
       "description": "Set a product price and order replenishment; each product can be planned once today.",
       "params": {
-        "product": {
-          "type": "entity",
-          "of": "product",
-          "where": "$it.owner == $actor.id"
-        },
-        "price": {
-          "type": "number",
-          "min": "$params.product.cost",
-          "max": "3*$params.product.reference"
-        },
-        "qty": {
-          "type": "int",
-          "min": 0,
-          "max": 300
-        }
+        "product": {"type": "entity", "of": "product", "where": "$it.owner == $actor.id"},
+        "price": {"type": "number", "min": "$params.product.cost", "max": "3*$params.product.reference"},
+        "qty": {"type": "int", "min": 0, "max": 300}
       },
       "when": [
-        {
-          "expr": "$params.product.planned != $round",
-          "why": "This product has already been planned today."
-        },
-        {
-          "expr": "$actor.cash-$actor.refunds_due >= $params.qty*$params.product.cost",
-          "why": "There is not enough cash for this order."
-        }
+        {"expr": "$params.product.planned != $round", "why": "This product has already been planned today."},
+        {"expr": "$actor.cash-$actor.refunds_due >= $params.qty*$params.product.cost", "why": "There is not enough cash for this order."}
       ],
       "do": [
         "$params.product.price = $params.price",
@@ -372,52 +144,24 @@
       "outcome": "Price set to {$params.price}; {$params.qty} units ordered, arriving in {$world.shipping_delay} days."
     }
   },
-  "policies": {
-    "planner": {
-      "repeat": true,
-      "rules": [
-        {
-          "each": "$filter(product, $it.owner == $actor.id)",
-          "when": "$it.planned != $round",
-          "do": "plan",
-          "with": {
-            "product": "$it",
-            "price": "$max($it.cost, $it.reference * ($inputs.focal_price if $actor.focal else 1))",
-            "qty": "$min(300, $floor(($actor.cash-$actor.refunds_due)/$it.cost), $max(0, $ceil($it.forecast*($world.shipping_delay+1)*$inputs.inventory_cover - $it.stock - $it.transit)))"
-          }
-        }
-      ]
-    }
+  "stages": [{"name": "planning", "actions": ["plan"], "max_actions": 2, "max_calls": 5}],
+  "views": {
+    "position": {"for": "merchant", "title": "Operating position", "show": "Cash {$actor.cash|money}, reserved refunds {$actor.refunds_due|money}; cash change {$actor.revenue-$actor.spent-$actor.refunds|money}. Weather index {$world.weather}; new order delay {$world.shipping_delay} days."},
+    "own_products": {"for": "merchant", "title": "Your products", "of": "$filter(product, $it.owner == $actor.id)", "show": "{name}: price {price|money}, stock {stock}, in transit {transit}; yesterday requests {today_requested}, sold {today_sold}; forecast {forecast|1} units/day."},
+    "competition": {"for": "merchant", "title": "Public competitor prices", "of": "$filter(product, $it.owner != $actor.id)", "show": "{name}: {price|money}"}
   },
-  "stages": [
-    {
-      "name": "planning",
-      "actions": [
-        "plan"
-      ],
-      "max_actions": 2,
-      "max_calls": 5
-    }
-  ],
   "events": [
     {
-      "phase": "start",
+      "on": "round.start",
       "do": [
         "$world.weather = $inputs.weather[($round-1) % $len($inputs.weather)]",
         "$world.shipping_delay = $inputs.lead_time + ($inputs.disruption_delay if $round >= 7 and $round <= 9 else 0)"
       ]
     },
     {
-      "phase": "end",
+      "on": "round.end",
       "do": [
-        {
-          "each": "product",
-          "do": [
-            "$it.today_requested = 0",
-            "$it.today_sold = 0",
-            "$it.unmet = 0"
-          ]
-        },
+        {"each": "product", "do": ["$it.today_requested = 0", "$it.today_sold = 0", "$it.unmet = 0"]},
         {
           "each": "product",
           "do": [
@@ -514,110 +258,44 @@
       ]
     }
   ],
-  "views": {
-    "position": {
-      "for": "merchant",
-      "title": "Operating position",
-      "show": "Cash {$actor.cash|money}, reserved refunds {$actor.refunds_due|money}; cash change {$actor.revenue-$actor.spent-$actor.refunds|money}. Weather index {$world.weather}; new order delay {$world.shipping_delay} days."
-    },
-    "own_products": {
-      "for": "merchant",
-      "title": "Your products",
-      "of": "$filter(product, $it.owner == $actor.id)",
-      "show": "{name}: price {price|money}, stock {stock}, in transit {transit}; yesterday requests {today_requested}, sold {today_sold}; forecast {forecast|1} units/day."
-    },
-    "competition": {
-      "for": "merchant",
-      "title": "Public competitor prices",
-      "of": "$filter(product, $it.owner != $actor.id)",
-      "show": "{name}: {price|money}"
-    }
-  },
-  "invariants": [
-    {
-      "expr": "$all(product, $it.initial + $it.delivered + $it.returned == $it.stock + $it.sold + $it.waste)",
-      "why": "Product units must be accounted for."
-    },
-    {
-      "expr": "$all(product, $it.ordered == $it.delivered + $it.transit)",
-      "why": "Every ordered unit is delivered or still in transit."
-    },
-    {
-      "expr": "$all(merchant, $abs($it.cash - ($it.initial_cash + $it.revenue - $it.spent - $it.refunds)) < 0.000001)",
-      "why": "Cash must reconcile with receipts, purchases and refunds."
-    },
-    {
-      "expr": "$all(merchant, $it.cash+0.000001 >= $it.refunds_due)",
-      "why": "Promised refunds must remain funded."
-    }
-  ],
-  "metrics": {
-    "sales": "$sum(product, $it.today_sold)",
-    "requested": "$sum(product, $it.today_requested)",
-    "stock": "$sum(product, $it.stock)"
-  },
   "outputs": {
-    "sales": "$sum(product, $it.sold)",
+    "sales": {"expr": "$sum(product, $it.sold)", "series": "$sum(product, $it.today_sold)"},
     "requests": "$world.requests",
     "unmet": "$world.unmet",
     "waste": "$sum(product, $it.waste)",
     "returns": "$sum(product, $it.returned)",
     "in_transit": "$sum(product, $it.transit)",
-    "stock": "$sum(product, $it.stock)",
+    "stock": {"expr": "$sum(product, $it.stock)", "series": true},
     "cash_change": "$sum(merchant, $it.revenue-$it.spent-$it.refunds)",
     "operating_profit": "$sum(merchant, $it.revenue-$it.refunds-$it.refunds_due)-$sum(product, ($it.sold-$it.returned-$it.returns_due+$it.waste)*$it.cost)",
     "inventory_value": "$sum(product, ($it.stock+$it.transit+$it.returns_due)*$it.cost)",
     "pending_refunds": "$sum(merchant, $it.refunds_due)",
     "forecast_mae": "$sum(product, $it.forecast_error)/($count(product)*$round)",
-    "requests_by_product": {
-      "type": "map",
-      "expr": "$dict(product, $it.id, $it.requested)"
-    },
-    "sales_by_product": {
-      "type": "map",
-      "expr": "$dict(product, $it.id, $it.sold)"
-    },
-    "by_merchant": {
-      "type": "map",
-      "expr": "$dict(merchant, $it.id, {revenue: $it.revenue, spent: $it.spent, refunds: $it.refunds, cash: $it.cash})"
-    },
+    "requests_by_product": {"type": "map", "expr": "$dict(product, $it.id, $it.requested)"},
+    "sales_by_product": {"type": "map", "expr": "$dict(product, $it.id, $it.sold)"},
+    "by_merchant": {"type": "map", "expr": "$dict(merchant, $it.id, {revenue: $it.revenue, spent: $it.spent, refunds: $it.refunds, cash: $it.cash})"},
     "fill_rate": "1 - $world.unmet/$world.requests if $world.requests > 0 else 1",
     "substitutions": "$world.substitutions",
-    "bundles_sold": "$world.bundles_sold"
+    "bundles_sold": "$world.bundles_sold",
+    "requested": {"expr": "$sum(product, $it.today_requested)", "series": true}
   },
   "arms": {
-    "baseline": {
-      "inputs": {}
-    },
-    "thin_stock": {
-      "inputs": {
-        "inventory_cover": 0.35
-      }
-    },
-    "buffered_stock": {
-      "inputs": {
-        "inventory_cover": 1.8
-      }
-    },
-    "sales_only_forecast": {
-      "inputs": {
-        "use_demand_signal": false
-      }
-    },
-    "focal_discount": {
-      "inputs": {
-        "focal_price": 0.8
-      }
-    },
-    "long_delays": {
-      "inputs": {
-        "lead_time": 5
-      }
-    },
-    "higher_demand": {
-      "inputs": {
-        "demand_scale": 1.3
-      }
-    }
+    "baseline": {"inputs": {}},
+    "thin_stock": {"inputs": {"inventory_cover": 0.35}},
+    "buffered_stock": {"inputs": {"inventory_cover": 1.8}},
+    "sales_only_forecast": {"inputs": {"use_demand_signal": false}},
+    "focal_discount": {"inputs": {"focal_price": 0.8}},
+    "long_delays": {"inputs": {"lead_time": 5}},
+    "higher_demand": {"inputs": {"demand_scale": 1.3}}
+  },
+  "invariants": [
+    {"expr": "$all(product, $it.initial + $it.delivered + $it.returned == $it.stock + $it.sold + $it.waste)", "why": "Product units must be accounted for."},
+    {"expr": "$all(product, $it.ordered == $it.delivered + $it.transit)", "why": "Every ordered unit is delivered or still in transit."},
+    {"expr": "$all(merchant, $abs($it.cash - ($it.initial_cash + $it.revenue - $it.spent - $it.refunds)) < 0.000001)", "why": "Cash must reconcile with receipts, purchases and refunds."},
+    {"expr": "$all(merchant, $it.cash+0.000001 >= $it.refunds_due)", "why": "Promised refunds must remain funded."}
+  ],
+  "mechanisms": {
+    "arrivals": {"kind": "pattern", "mode": "counts", "dist": "negative_binomial", "dispersion": 12, "keys": "product"},
+    "bundle_arrivals": {"kind": "pattern", "mode": "counts", "dist": "poisson", "keys": "merchant"}
   }
 }

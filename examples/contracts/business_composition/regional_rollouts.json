@@ -1,393 +1,207 @@
 {
   "name": "Regional rollouts sharing funding and stock",
   "description": "Two regional rollouts, each a procedure, share one funding pot and one warehouse: a region launches once its managers approve and the money and stock are there.",
-  "clock": {
-    "rounds": 8
-  },
   "inputs": {
-    "funding_round": {
-      "type": "int",
-      "default": 4,
-      "min": 1
-    },
-    "funding": {
-      "type": "number",
-      "default": 100,
-      "min": 0
-    }
+    "funding_round": {"type": "int", "default": 4, "min": 1},
+    "funding": {"type": "number", "default": 100, "min": 0}
   },
-  "world": {
-    "launched_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": 0
-    }
-  },
+  "clock": {"rounds": 8},
+  "world": {"launched_north": 0, "launched_south": 0},
   "types": {
     "holder": {},
     "manager": {
       "agent": true,
       "policy": "approve",
-      "props": {
-        "region": "text",
-        "approved": false,
-        "available_round": {
-          "type": "int",
-          "default": 1,
-          "min": 1
+      "props": {"region": "text", "approved": false, "available_round": {"type": "int", "default": 1, "min": 1}},
+      "policies": {
+        "approve": {
+          "rules": [
+            {"when": "$actor.region == 'north' and not $actor.approved and $round >= $actor.available_round", "do": "approve_north"},
+            {"when": "$actor.region == 'south' and not $actor.approved and $round >= $actor.available_round", "do": "approve_south"}
+          ]
         }
       }
     },
-    "store": {
-      "extends": "holder",
-      "props": {
-        "ready": false
-      }
-    },
+    "store": {"extends": "holder", "props": {"ready": false}},
     "customer": {
       "extends": "holder",
       "agent": true,
       "policy": "purchase",
-      "props": {
-        "region": "text",
-        "bought": false
+      "props": {"region": "text", "bought": false},
+      "policies": {
+        "purchase": {
+          "rules": [
+            {"when": "$actor.region == 'north' and not $actor.bought", "do": "buy_north"},
+            {"when": "$actor.region == 'south' and not $actor.bought", "do": "buy_south"}
+          ]
+        }
       }
     }
   },
   "entities": {
-    "hq": {
-      "type": "holder",
-      "props": {
-        "cash": 100
-      }
-    },
-    "vendor": {
-      "type": "holder"
-    },
-    "warehouse": {
-      "type": "holder",
-      "props": {
-        "stock": {
-          "standard": 20,
-          "premium": 8
-        }
-      }
-    },
-    "store_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "type": "store"
-      }
-    },
-    "transit_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "type": "holder"
-      }
-    },
-    "manager_{r}_{i}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "for": [
-          1,
-          2
-        ],
-        "as": "i",
-        "make": {
-          "type": "manager",
-          "props": {
-            "region": "{r}"
-          }
-        }
-      }
-    },
-    "customer_{r}_{i}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "for": [
-          1,
-          2,
-          3
-        ],
-        "as": "i",
-        "make": {
-          "type": "customer",
-          "props": {
-            "region": "{r}",
-            "cash": 10
-          }
-        }
-      }
-    }
-  },
-  "mechanisms": {
-    "money": {
-      "kind": "economy",
-      "mode": "ledger",
-      "who": "holder",
-      "currencies": {
-        "cash": {}
-      }
-    },
-    "stock": {
-      "kind": "economy",
-      "mode": "inventory",
-      "who": "holder",
-      "items": {
-        "{sku}": {
-          "for": [
-            "standard",
-            "premium"
-          ],
-          "as": "sku",
-          "make": {}
-        }
-      }
-    },
-    "rollout_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "kind": "flow",
-        "mode": "procedure",
-        "views": false,
-        "phases": {
-          "review": {
-            "stages": [
-              {
-                "name": "review_{r}",
-                "who": "$is($it, manager) and $it.region == '{r}'",
-                "actions": [
-                  "approve_{r}"
-                ]
-              }
-            ],
-            "next": [
-              {
-                "to": "delivery",
-                "when": "$all($filter(manager, $it.region == '{r}'), $it.approved) and $entity(hq).cash >= 70 and $has($entity(warehouse), standard, 5) and $has($entity(warehouse), premium, 2)",
-                "do": [
-                  {
-                    "economy": "money",
-                    "action": "pay",
-                    "from": "$entity(hq)",
-                    "to": "$entity(vendor)",
-                    "amount": 70
-                  },
-                  {
-                    "economy": "stock",
-                    "action": "give",
-                    "from": "$entity(warehouse)",
-                    "to": "$entity(transit_{r})",
-                    "item": "standard",
-                    "qty": 5
-                  },
-                  {
-                    "economy": "stock",
-                    "action": "give",
-                    "from": "$entity(warehouse)",
-                    "to": "$entity(transit_{r})",
-                    "item": "premium",
-                    "qty": 2
-                  },
-                  "$world.launched_{r} = $round",
-                  {
-                    "after": 2,
-                    "do": [
-                      {
-                        "economy": "stock",
-                        "action": "give",
-                        "from": "$entity(transit_{r})",
-                        "to": "$entity(store_{r})",
-                        "item": "standard",
-                        "qty": 5
-                      },
-                      {
-                        "economy": "stock",
-                        "action": "give",
-                        "from": "$entity(transit_{r})",
-                        "to": "$entity(store_{r})",
-                        "item": "premium",
-                        "qty": 2
-                      },
-                      "$entity(store_{r}).ready = true"
-                    ]
-                  }
-                ]
-              }
-            ]
-          },
-          "delivery": {
-            "next": [
-              {
-                "to": "live",
-                "when": "$entity(store_{r}).ready"
-              }
-            ]
-          },
-          "live": {
-            "stages": [
-              {
-                "name": "shop_{r}",
-                "who": "$is($it, customer) and $it.region == '{r}'",
-                "actions": [
-                  "buy_{r}"
-                ]
-              }
-            ]
-          }
-        }
-      }
-    }
+    "hq": {"type": "holder", "props": {"cash": 100}},
+    "vendor": {"type": "holder"},
+    "warehouse": {"type": "holder", "props": {"stock": {"standard": 20, "premium": 8}}},
+    "store_north": {"type": "store"},
+    "store_south": {"type": "store"},
+    "transit_north": {"type": "holder"},
+    "transit_south": {"type": "holder"},
+    "manager_north_1": {"type": "manager", "props": {"region": "north"}},
+    "manager_north_2": {"type": "manager", "props": {"region": "north"}},
+    "manager_south_1": {"type": "manager", "props": {"region": "south"}},
+    "manager_south_2": {"type": "manager", "props": {"region": "south"}},
+    "customer_north_1": {"type": "customer", "props": {"region": "north", "cash": 10}},
+    "customer_north_2": {"type": "customer", "props": {"region": "north", "cash": 10}},
+    "customer_north_3": {"type": "customer", "props": {"region": "north", "cash": 10}},
+    "customer_south_1": {"type": "customer", "props": {"region": "south", "cash": 10}},
+    "customer_south_2": {"type": "customer", "props": {"region": "south", "cash": 10}},
+    "customer_south_3": {"type": "customer", "props": {"region": "south", "cash": 10}}
   },
   "actions": {
-    "approve_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "by": "manager",
-        "when": [
-          "$actor.region == '{r}' and not $actor.approved and $round >= $actor.available_round"
-        ],
-        "do": [
-          "$actor.approved = true"
-        ],
-        "terminal": true
-      }
+    "approve_north": {
+      "by": "manager",
+      "when": ["$actor.region == 'north' and not $actor.approved and $round >= $actor.available_round"],
+      "do": ["$actor.approved = true"],
+      "terminal": true
     },
-    "buy_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": {
-        "by": "customer",
-        "when": [
-          "$actor.region == '{r}' and not $actor.bought and $entity(store_{r}).ready and $has($entity(store_{r}), standard, 1) and $actor.cash >= 5"
-        ],
-        "do": [
-          {
-            "economy": "money",
-            "action": "pay",
-            "from": "$actor",
-            "to": "$entity(store_{r})",
-            "amount": 5
-          },
-          {
-            "economy": "stock",
-            "action": "give",
-            "from": "$entity(store_{r})",
-            "to": "$actor",
-            "item": "standard",
-            "qty": 1
-          },
-          "$actor.bought = true"
-        ],
-        "terminal": true
-      }
-    }
-  },
-  "policies": {
-    "approve": {
-      "rules": [
-        {
-          "for": [
-            "north",
-            "south"
-          ],
-          "as": "r",
-          "make": {
-            "when": "$actor.region == '{r}' and not $actor.approved and $round >= $actor.available_round",
-            "do": "approve_{r}"
-          }
-        }
-      ]
+    "approve_south": {
+      "by": "manager",
+      "when": ["$actor.region == 'south' and not $actor.approved and $round >= $actor.available_round"],
+      "do": ["$actor.approved = true"],
+      "terminal": true
     },
-    "purchase": {
-      "rules": [
-        {
-          "for": [
-            "north",
-            "south"
-          ],
-          "as": "r",
-          "make": {
-            "when": "$actor.region == '{r}' and not $actor.bought",
-            "do": "buy_{r}"
-          }
-        }
-      ]
+    "buy_north": {
+      "by": "customer",
+      "when": [
+        "$actor.region == 'north' and not $actor.bought and $entity(store_north).ready and $has($entity(store_north), standard, 1) and $actor.cash >= 5"
+      ],
+      "do": [
+        {"economy": "money", "action": "pay", "from": "$actor", "to": "$entity(store_north)", "amount": 5},
+        {"economy": "stock", "action": "give", "from": "$entity(store_north)", "to": "$actor", "item": "standard", "qty": 1},
+        "$actor.bought = true"
+      ],
+      "terminal": true
+    },
+    "buy_south": {
+      "by": "customer",
+      "when": [
+        "$actor.region == 'south' and not $actor.bought and $entity(store_south).ready and $has($entity(store_south), standard, 1) and $actor.cash >= 5"
+      ],
+      "do": [
+        {"economy": "money", "action": "pay", "from": "$actor", "to": "$entity(store_south)", "amount": 5},
+        {"economy": "stock", "action": "give", "from": "$entity(store_south)", "to": "$actor", "item": "standard", "qty": 1},
+        "$actor.bought = true"
+      ],
+      "terminal": true
     }
   },
   "events": [
     {
       "name": "funding",
-      "phase": "start",
+      "on": "round.start",
       "when": "$round == $inputs.funding_round",
       "do": [
-        {
-          "economy": "money",
-          "action": "mint",
-          "to": "$entity(hq)",
-          "amount": "$inputs.funding",
-          "source": "investment"
-        }
+        {"economy": "money", "action": "mint", "to": "$entity(hq)", "amount": "$inputs.funding", "source": "investment"}
       ]
     }
   ],
   "outputs": {
-    "launch_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": "$world.launched_{r}"
-    },
-    "phase_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": "$world.rollout_{r}_phase"
-    },
-    "sales_{r}": {
-      "for": [
-        "north",
-        "south"
-      ],
-      "as": "r",
-      "make": "$count($filter(customer, $it.region == '{r}' and $it.bought))"
-    },
+    "launch_north": "$world.launched_north",
+    "launch_south": "$world.launched_south",
+    "phase_north": "$world.rollout_north_phase",
+    "phase_south": "$world.rollout_south_phase",
+    "sales_north": "$count($filter(customer, $it.region == 'north' and $it.bought))",
+    "sales_south": "$count($filter(customer, $it.region == 'south' and $it.bought))",
     "cash": "$entity(hq).cash",
     "money_conserved": "$conserved(money)",
     "stock_conserved": "$conserved(stock)"
+  },
+  "mechanisms": {
+    "money": {"kind": "economy", "mode": "ledger", "who": "holder", "currencies": {"cash": {}}},
+    "stock": {"kind": "economy", "mode": "inventory", "who": "holder", "items": {"standard": {}, "premium": {}}},
+    "rollout_north": {
+      "kind": "decision",
+      "mode": "procedure",
+      "views": false,
+      "phases": {
+        "review": {
+          "stages": [
+            {
+              "name": "review_north",
+              "who": "$is($it, manager) and $it.region == 'north'",
+              "actions": ["approve_north"]
+            }
+          ],
+          "next": [
+            {
+              "to": "delivery",
+              "when": "$all($filter(manager, $it.region == 'north'), $it.approved) and $entity(hq).cash >= 70 and $has($entity(warehouse), standard, 5) and $has($entity(warehouse), premium, 2)",
+              "do": [
+                {"economy": "money", "action": "pay", "from": "$entity(hq)", "to": "$entity(vendor)", "amount": 70},
+                {"economy": "stock", "action": "give", "from": "$entity(warehouse)", "to": "$entity(transit_north)", "item": "standard", "qty": 5},
+                {"economy": "stock", "action": "give", "from": "$entity(warehouse)", "to": "$entity(transit_north)", "item": "premium", "qty": 2},
+                "$world.launched_north = $round",
+                {
+                  "after": 2,
+                  "do": [
+                    {"economy": "stock", "action": "give", "from": "$entity(transit_north)", "to": "$entity(store_north)", "item": "standard", "qty": 5},
+                    {"economy": "stock", "action": "give", "from": "$entity(transit_north)", "to": "$entity(store_north)", "item": "premium", "qty": 2},
+                    "$entity(store_north).ready = true"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "delivery": {"next": [{"to": "live", "when": "$entity(store_north).ready"}]},
+        "live": {
+          "stages": [
+            {"name": "shop_north", "who": "$is($it, customer) and $it.region == 'north'", "actions": ["buy_north"]}
+          ]
+        }
+      }
+    },
+    "rollout_south": {
+      "kind": "decision",
+      "mode": "procedure",
+      "views": false,
+      "phases": {
+        "review": {
+          "stages": [
+            {
+              "name": "review_south",
+              "who": "$is($it, manager) and $it.region == 'south'",
+              "actions": ["approve_south"]
+            }
+          ],
+          "next": [
+            {
+              "to": "delivery",
+              "when": "$all($filter(manager, $it.region == 'south'), $it.approved) and $entity(hq).cash >= 70 and $has($entity(warehouse), standard, 5) and $has($entity(warehouse), premium, 2)",
+              "do": [
+                {"economy": "money", "action": "pay", "from": "$entity(hq)", "to": "$entity(vendor)", "amount": 70},
+                {"economy": "stock", "action": "give", "from": "$entity(warehouse)", "to": "$entity(transit_south)", "item": "standard", "qty": 5},
+                {"economy": "stock", "action": "give", "from": "$entity(warehouse)", "to": "$entity(transit_south)", "item": "premium", "qty": 2},
+                "$world.launched_south = $round",
+                {
+                  "after": 2,
+                  "do": [
+                    {"economy": "stock", "action": "give", "from": "$entity(transit_south)", "to": "$entity(store_south)", "item": "standard", "qty": 5},
+                    {"economy": "stock", "action": "give", "from": "$entity(transit_south)", "to": "$entity(store_south)", "item": "premium", "qty": 2},
+                    "$entity(store_south).ready = true"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "delivery": {"next": [{"to": "live", "when": "$entity(store_south).ready"}]},
+        "live": {
+          "stages": [
+            {"name": "shop_south", "who": "$is($it, customer) and $it.region == 'south'", "actions": ["buy_south"]}
+          ]
+        }
+      }
+    }
   }
 }

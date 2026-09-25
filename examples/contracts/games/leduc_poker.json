@@ -1,5 +1,5 @@
 {
-  "fg_env": "1",
+  "fg_env": "2",
   "name": "Leduc poker",
   "description": "Two-player Leduc hold'em: six cards (two each of J, Q, K), ante 1, two betting rounds with raises of 2 and then 4 (at most two a round), one public card. The standard second imperfect-information benchmark after Kuhn poker.",
   "brief": {
@@ -16,71 +16,107 @@
     "over": false,
     "winner": {"type": "text", "default": ""}
   },
-  "defs": {
-    "card_rank": {"args": ["c"], "expr": "$floor(($c - 1) / 2)"},
-    "card_name": {"args": ["c"], "expr": "$get(['none', 'J', 'J', 'Q', 'Q', 'K', 'K'], $c)"},
-    "other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"},
-    "strength": {"args": ["p"], "expr": "(10 if $card_rank($p.card) == $card_rank($world.public) else 0) + $card_rank($p.card)"}
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"seat": 0, "card": {"type": "int", "default": 0, "private": true}, "bet": 1},
+      "score": {"seat": "$it.seat", "utility": "zero_sum", "min": -13, "max": 13, "value": "(0 if $world.winner == '' else ($other($it).bet if $world.winner == $it.id else -$it.bet)) if $world.over else 0"}
+    }
   },
-  "types": {"player": {"agent": true, "props": {
-    "seat": 0,
-    "card": {"type": "int", "default": 0, "private": true},
-    "bet": 1
-  }}},
   "entities": {
     "p0": {"type": "player", "name": "P0", "props": {"seat": 0}},
     "p1": {"type": "player", "name": "P1", "props": {"seat": 1}}
   },
-  "events": [{"at": 1, "phase": "start", "do": [
-    {"chance": "deal p0", "outcomes": [1, 2, 3, 4, 5, 6], "as": "first", "do": ["$entity('p0').card = $first"]},
-    {"chance": "deal p1", "outcomes": "$filter([1, 2, 3, 4, 5, 6], $it != $entity('p0').card)", "as": "second",
-     "do": ["$entity('p1').card = $second"]}
-  ]}],
-  "blocks": {
-    "next_street": {"do": [
-      "$world.street = 2", "$world.raises = 0", "$world.acted = 0", "$world.to_act = 'p0'",
-      {"chance": "public card", "as": "card",
-       "outcomes": "$filter([1, 2, 3, 4, 5, 6], $it != $entity('p0').card and $it != $entity('p1').card)",
-       "do": ["$world.public = $card", {"emit": "public", "say": "The public card is {$card_name($card)}."}]}
-    ]},
-    "showdown": {"do": [
-      "$s0 = $strength($entity('p0'))", "$s1 = $strength($entity('p1'))",
-      "$world.winner = 'p0' if $s0 > $s1 else ('p1' if $s1 > $s0 else '')",
-      "$world.over = true",
-      "$held = [$card_name($entity('p0').card), $card_name($entity('p1').card)]",
-      {"emit": "showdown", "say": "Showdown: P0 holds {$held[0]}, P1 holds {$held[1]}."},
-      {"end": "showdown"}
-    ]}
-  },
   "actions": {
     "fold": {
-      "by": "player", "description": "Give up the hand (only when facing a bet).", "terminal": true,
+      "by": "player",
+      "description": "Give up the hand (only when facing a bet).",
+      "terminal": true,
       "when": ["$world.to_act == $actor.id and not $world.over", "$actor.bet < $other($actor).bet"],
       "do": ["$world.winner = $other($actor).id", "$world.over = true", {"end": "fold"}]
     },
     "call": {
-      "by": "player", "description": "Check, or match the bet.", "terminal": true,
+      "by": "player",
+      "description": "Check, or match the bet.",
+      "terminal": true,
       "when": ["$world.to_act == $actor.id and not $world.over"],
       "do": [
-        "$actor.bet = $other($actor).bet", "$world.acted += 1",
-        {"if": "$world.acted < 2", "then": ["$world.to_act = $other($actor).id"],
-         "else": [{"if": "$world.street == 1", "then": [{"block": "next_street"}], "else": [{"block": "showdown"}]}]}
+        "$actor.bet = $other($actor).bet",
+        "$world.acted += 1",
+        {
+          "if": "$world.acted < 2",
+          "then": ["$world.to_act = $other($actor).id"],
+          "else": [{"if": "$world.street == 1", "then": [{"call": "next_street"}], "else": [{"call": "showdown"}]}]
+        }
       ]
     },
     "raise": {
-      "by": "player", "description": "Raise: 2 chips in round one, 4 in round two.", "terminal": true,
+      "by": "player",
+      "description": "Raise: 2 chips in round one, 4 in round two.",
+      "terminal": true,
       "when": ["$world.to_act == $actor.id and not $world.over", "$world.raises < 2"],
       "do": [
         "$actor.bet = $other($actor).bet + (2 if $world.street == 1 else 4)",
-        "$world.raises += 1", "$world.acted += 1", "$world.to_act = $other($actor).id"
+        "$world.raises += 1",
+        "$world.acted += 1",
+        "$world.to_act = $other($actor).id"
       ]
     }
   },
-  "stages": [{"name": "betting", "order": "$it.seat", "who": "$world.to_act == $it.id", "until": "$world.over",
-              "passes": 10, "must_act": true}],
-  "views": {"table": {"for": "player",
-    "show": "Your card: {$card_name($actor.card)}. Public card: {$card_name($world.public)}. Betting round {$world.street}. Chips in: you {$actor.bet}, opponent {$other($actor).bet}. Raises this round: {$world.raises}."}},
-  "game": {"players": "player", "seat": "$it.seat", "utility": "zero_sum", "min_return": -13, "max_return": 13,
-           "returns": "(0 if $world.winner == '' else ($other($actor).bet if $world.winner == $actor.id else -$actor.bet)) if $world.over else 0"},
-  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}}
+  "stages": [
+    {"name": "betting", "order": "$it.seat", "who": "$world.to_act == $it.id", "until": "$world.over", "passes": 10, "must_act": true}
+  ],
+  "views": {
+    "table": {"for": "player", "show": "Your card: {$card_name($actor.card)}. Public card: {$card_name($world.public)}. Betting round {$world.street}. Chips in: you {$actor.bet}, opponent {$other($actor).bet}. Raises this round: {$world.raises}."}
+  },
+  "events": [
+    {
+      "on": "round.start",
+      "when": "$round == 1",
+      "do": [
+        {"chance": "deal p0", "outcomes": [1, 2, 3, 4, 5, 6], "as": "first", "do": ["$entity('p0').card = $first"]},
+        {
+          "chance": "deal p1",
+          "outcomes": "$filter([1, 2, 3, 4, 5, 6], $it != $entity('p0').card)",
+          "as": "second",
+          "do": ["$entity('p1').card = $second"]
+        }
+      ]
+    }
+  ],
+  "outputs": {"winner": {"expr": "$world.winner", "type": "text"}},
+  "defs": {
+    "card_rank": {"args": ["c"], "expr": "$floor(($c - 1) / 2)"},
+    "card_name": {"args": ["c"], "expr": "$get(['none', 'J', 'J', 'Q', 'Q', 'K', 'K'], $c)"},
+    "other": {"args": ["p"], "expr": "$filter(player, $it.id != $p.id)[0]"},
+    "strength": {
+      "args": ["p"],
+      "expr": "(10 if $card_rank($p.card) == $card_rank($world.public) else 0) + $card_rank($p.card)"
+    },
+    "next_street": {
+      "do": [
+        "$world.street = 2",
+        "$world.raises = 0",
+        "$world.acted = 0",
+        "$world.to_act = 'p0'",
+        {
+          "chance": "public card",
+          "as": "card",
+          "outcomes": "$filter([1, 2, 3, 4, 5, 6], $it != $entity('p0').card and $it != $entity('p1').card)",
+          "do": ["$world.public = $card", {"emit": "public", "say": "The public card is {$card_name($card)}."}]
+        }
+      ]
+    },
+    "showdown": {
+      "do": [
+        "$s0 = $strength($entity('p0'))",
+        "$s1 = $strength($entity('p1'))",
+        "$world.winner = 'p0' if $s0 > $s1 else ('p1' if $s1 > $s0 else '')",
+        "$world.over = true",
+        "$held = [$card_name($entity('p0').card), $card_name($entity('p1').card)]",
+        {"emit": "showdown", "say": "Showdown: P0 holds {$held[0]}, P1 holds {$held[1]}."},
+        {"end": "showdown"}
+      ]
+    }
+  }
 }
