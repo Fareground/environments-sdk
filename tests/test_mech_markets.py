@@ -1093,3 +1093,25 @@ def test_a_small_market_order_collar_is_told_with_its_digits():
                                   "collar_pct": 0.005}}}
     buy = next(t for t in fg_env.load(book, seed=1).preview("t_1").tools if t["name"] == "bk_buy")
     assert "within 0.5% of the best ask" in buy["description"]
+
+
+def test_an_auctions_revenue_counts_what_its_house_is_paid():
+    """With a `house` entity the proceeds go to its cash, and the auction's revenue output, metric and
+    `$auction(name).revenue` count them too (audit 11 mechanisms HIGH-1): they read 0 before."""
+    contract = {"name": "House sale", "clock": {"rounds": 2},
+                "types": {"bidder": {"agent": True, "props": {"value": {"type": "number", "default": 0,
+                                                                         "private": True}, "cash": 100}},
+                          "house": {"props": {"cash": 0, "t_units": 2}}},
+                "entities": {**{f"b{i}": {"type": "bidder", "props": {"value": v}} for i, v in enumerate([30, 40, 50])},
+                             "hq": {"type": "house"}},
+                "mechanisms": {"t": {"kind": "market", "mode": "auction", "format": "second_price", "who": "bidder",
+                                     "house": "hq"}},
+                "outputs": {"house_cash": "$entity('hq').cash", "read": "$auction('t').revenue"}}
+
+    def bid(wake):
+        wake.call("t_bid", {"price": wake.me["value"]})
+        wake.end()
+
+    result = fg_env.run(contract, bid, seed=1)
+    assert result.status == "completed", result.error
+    assert result.outputs["house_cash"] == result.outputs["t_revenue"] == result.outputs["read"] == 80

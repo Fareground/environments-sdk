@@ -147,6 +147,15 @@ def _payee(world: Any, name: str, cfg: AuctionConfig) -> tuple[Account, Account]
     return Account(None, f"{name}_revenue"), Account(None, f"{name}_stock")
 
 
+def _proceeds(world: Any, name: str, source: Account, payee: Account, amount: float, what: str) -> None:
+    """Pay a sale's ``amount`` from ``source`` to ``payee`` — the house entity, or ``$world.<name>_revenue`` — which
+    counts the house's proceeds either way (its output, metric and ``$auction(name).revenue`` read it)."""
+    move(world, source, payee, amount, what=what)
+    if payee.entity is not None:
+        key = f"{name}_revenue"
+        world.set_world(key, clean(float(world.props.get(key) or 0) + amount))
+
+
 def _house_stock(cfg: AuctionConfig) -> bool:
     """Units come from ``$world.<name>_stock`` even with a house: a combinatorial lot's items, a tender's contracts."""
     return cfg.format == "combinatorial" or cfg.reverse
@@ -234,7 +243,7 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
         clock = float(lot["price"])
         _, source = _payee(world, name, cfg)
         payee, _ = _payee(world, name, cfg)
-        move(world, cash, payee, clock, what="cash")
+        _proceeds(world, name, cash, payee, clock, "cash")
         move(world, source, Account(trader, f"{name}_units"), 1, what="units")
         _won(world, name, trader, 1)
         _close(world, name, cfg, lot, [(trader.id, 1, clock)], note="took the Dutch clock")
@@ -369,7 +378,7 @@ def close_sealed(world: Any, name: str) -> None:
     for entry, take in allocation:
         price = prices[0]
         owner = entity_of(world, entry["bidder"], f"mechanisms.{name}", "a bidder")
-        move(world, Account(owner, f"{name}_escrow"), payee, price * take, what="escrow")
+        _proceeds(world, name, Account(owner, f"{name}_escrow"), payee, price * take, "escrow")
         _refund(world, name, cfg, entry, keep=price * take)
         move(world, source, Account(owner, f"{name}_units"), take, what="units")
         _won(world, name, owner, take)
@@ -530,7 +539,7 @@ def _clear_packages(world: Any, name: str, cfg: AuctionConfig, lot: dict[str, An
         win = won.get(bidder)
         pays = clean(win["pays"]) if win else 0.0
         if pays:
-            move(world, escrow, payee, pays, what="escrow")
+            _proceeds(world, name, escrow, payee, pays, "escrow")
         change = clean(balance(world, escrow))
         if change:
             move(world, escrow, Account(owner, cfg.currency), change, what="escrow")
@@ -566,7 +575,7 @@ def tick(world: Any, name: str) -> None:
             return
         payee, source = _payee(world, name, cfg)
         owner = entity_of(world, leader, f"mechanisms.{name}", "the leader")
-        move(world, Account(owner, f"{name}_escrow"), payee, float(lot["price"]), what="escrow")
+        _proceeds(world, name, Account(owner, f"{name}_escrow"), payee, float(lot["price"]), "escrow")
         move(world, source, Account(owner, f"{name}_units"), 1, what="units")
         _won(world, name, owner, 1)
         _close(world, name, cfg, lot, [(owner.id, 1, float(lot["price"]))], note="going, going, gone")

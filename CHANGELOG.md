@@ -296,6 +296,8 @@ worlds stay fast, and the package is organised by feature.
     every view it may look at and inspects an entity of every type the first time it is woken in a stage, and each
     round the first agent of its type reads them again. Before, only the first agent of each type read them (and
     `check` read no `look` view at all), so a view that broke for one agent's state was certified as working.
+  - An auction with a `house` entity counts what the house is paid in its `<name>_revenue` output and metric and in
+    `$auction(name).revenue`, which read 0 before while the house's cash grew.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
