@@ -149,8 +149,9 @@ def _payee(world: Any, name: str, cfg: AuctionConfig) -> tuple[Account, Account]
 
 
 def _proceeds(world: Any, name: str, source: Account, payee: Account, amount: float, what: str) -> None:
-    """Pay a sale's ``amount`` from ``source`` to ``payee`` — the house entity, or ``$world.<name>_proceeds`` — and
-    count it in ``$world.<name>_revenue``, the report its output, metric and ``$auction(name).revenue`` read."""
+    """Pay a sale's ``amount`` from ``source`` to ``payee`` — the house entity or ``$world.<name>_proceeds``, a
+    tender's winner, a double auction's seller — and count it in ``$world.<name>_revenue``, what the sales paid in all:
+    the report its output, metric and ``$auction(name).revenue`` read."""
     move(world, source, payee, amount, what=what)
     key = f"{name}_revenue"
     world.set_world(key, clean(float(world.props.get(key) or 0) + amount))
@@ -420,7 +421,7 @@ def _award_tender(world: Any, name: str, cfg: AuctionConfig, lot: dict[str, Any]
     others = [b["price"] for b in bids if b is not best]
     price = best["price"] if cfg.format == "first_price" else min([cap, *others])
     winner = entity_of(world, best["bidder"], f"mechanisms.{name}", "a bidder")
-    move(world, payer, Account(winner, cfg.currency), price, what="cash")
+    _proceeds(world, name, payer, Account(winner, cfg.currency), price, "cash")
     delivered = Account(payer.entity, f"{name}_units")
     if cfg.deliver_from:  # the winner's stock supplies the unit; the house wants one fewer
         move(world, Account(winner, cfg.deliver_from), delivered, 1, what=cfg.deliver_from)
@@ -461,7 +462,7 @@ def _clear_double(world: Any, name: str, cfg: AuctionConfig, lot: dict[str, Any]
     for b, a, q in trades:
         buyer = entity_of(world, b["bidder"], f"mechanisms.{name}", "a bidder")
         seller = entity_of(world, a["bidder"], f"mechanisms.{name}", "a seller")
-        move(world, Account(buyer, f"{name}_escrow"), Account(seller, cfg.currency), price * q, what="escrow")
+        _proceeds(world, name, Account(buyer, f"{name}_escrow"), Account(seller, cfg.currency), price * q, "escrow")
         move(world, Account(seller, f"{name}_escrow_units"), Account(buyer, f"{name}_units"), q, what="units")
         bought[buyer.id] = bought.get(buyer.id, 0) + q
     for entry in bids:

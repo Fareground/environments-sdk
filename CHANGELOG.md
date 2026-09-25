@@ -327,6 +327,8 @@ worlds stay fast, and the package is organised by feature.
     declared other types but not their `who` no longer fail (mechanism M5).
   - A prediction market's `outcome` may be a quoted constant (`"'yes'"`), as it may be an expression giving one
     (mechanism L2).
+  - An auction's `<name>_revenue` counts what every sale paid in every format: a tender's what the house paid its
+    winners, a double auction's what buyers paid sellers (both used to stay 0) (mechanism L4).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

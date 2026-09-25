@@ -767,6 +767,7 @@ def test_a_tender_composes_with_a_declared_stage_and_outputs():
     env, _ = play(contract, {(1, "a"): [("house_bid", {"price": 40})], (2, "c"): [("house_bid", {"price": 30})]},
                   rounds=2)
     assert env.result().outputs["spent"] == 70 and env.result().outputs["house_prices"] == [40, 30]
+    assert env.result().outputs["house_revenue"] == 70  # what the sales paid: here, what the house paid (audit 13 L4)
 
 
 @pytest.mark.parametrize("fmt", auctions.FORMATS)
@@ -783,6 +784,9 @@ def test_auctions_conserve_cash_and_units_with_random_bidders(fmt):
     result = env.run()
     assert result.status == "completed", result.error
     assert not auctions.audit(env.world, "house")
+    if fmt != "combinatorial":  # a package's result rows list each item at the package's price
+        paid = sum(row["price"] * row["qty"] for row in env.world.records("house_results") if row["winner"])
+        assert env.props["house_revenue"] == pytest.approx(paid)  # every format counts what its sales paid (L4)
 
 
 # ---------------------------------------------------------------------------

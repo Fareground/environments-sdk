@@ -147,7 +147,8 @@ def _check_packages(cfg: AuctionConfig) -> None:
            "(price, qty) and, for double, `<name>_ask`. Each party holds the units it bought, or a double auction's "
            "sellers the units they offer, in `<name>_units` (give sellers their stock there). Bids escrow cash, asks "
            "escrow units; proceeds go to the `house` entity or $world.<name>_proceeds, and $world.<name>_revenue "
-           "counts them. `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below "
+           "counts what every sale paid (a tender's: what the house paid; a double auction's: what buyers paid "
+           "sellers). `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below "
            "the reserve wins, is paid and supplies one unit to the house's `<name>_units`, taken from its "
            "`deliver_from` stock when set); `score` awards a first_price lot to the best score instead of the best "
            "price. Each closed lot is posted to the `<name>_results` record, one entry per winner (winner, price, qty,"
@@ -300,7 +301,8 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         "metrics": {f"{name}_sold": f"$world.{name}_sold", f"{name}_revenue": f"$world.{name}_revenue"},
         "outputs": {f"{name}_sold": {"expr": f"$world.{name}_sold", "type": "int", "description": "Units sold."},
                     f"{name}_revenue": {"expr": f"$world.{name}_revenue", "type": "number",
-                                        "description": "House proceeds."},
+                                        "description": "What the sales paid in all (a tender: what the house "
+                                                       "paid; a double auction: what buyers paid sellers)."},
                     f"{name}_prices": {"expr": f"$map($filter($records({name}_results), $it.winner != ''), $it.price)",
                                        "type": "list",
                                        "description": "Price per unit of each winning entry (one per winner of a "
