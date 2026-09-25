@@ -275,7 +275,10 @@ class Checker:
         if not fields:
             return
         first = fields[0]
-        if root in types:
+        named = self.c.named_entities().get(root[len("entity("):-1]) if root.startswith("entity(") else None
+        if named is not None:
+            self._prop({named.type}, first, path, source, root)
+        elif root in types:
             self._prop(types[root], first, path, source, root)
         elif root == "params" and params:
             if first not in params:

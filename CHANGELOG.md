@@ -255,6 +255,9 @@ worlds stay fast, and the package is organised by feature.
   - Another entity's private property fetched into what an actor is shown (an outcome, a `why`, a bound) or into text
     sent to several agents (an announcement, news, an invariant's `why`) is a check error, as in a view: the run
     refuses it for every reader but its owner. Before, it was a warning and every such action was refused at run time.
+  - An assignment to a named entity (`$entity(a).vv = 1`) is checked like one to `$actor`: a misspelt property or a
+    value of the wrong kind is a check error at the rule's path, with a "did you mean". Before, only a smoke run found
+    it, blaming `p.vv`.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

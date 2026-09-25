@@ -87,17 +87,22 @@ class EffectChecks(PrivacyChecks):
             return
         assert base is not None
         simple = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)", base)
-        if simple is None:
+        named = re.fullmatch(r"\$entity\(\s*(['\"]?)([A-Za-z0-9_-]+)\1\s*\)", base.strip())
+        if named is not None and named.group(2) in self.c.named_entities():
+            self.expr(base, path, roots, types, params)
+            root = f"entity({named.group(2)})"  # a named entity: its type is known, like $actor's
+        elif simple is None:
             self.expr(base, path, roots, types, params)
             return
-        root = simple.group(1)
+        else:
+            root = simple.group(1)
         leading: list[str] = []  # the property path up to the first element index
         for kind, step in steps:
             if kind != "field":
                 break
             leading.append(step)
         fields = tuple(leading)
-        if root not in roots:
+        if root not in roots and named is None:
             self.error(path, f"${root} is not available here",
                        f"available: {', '.join('$' + r for r in sorted(roots))}")
             return

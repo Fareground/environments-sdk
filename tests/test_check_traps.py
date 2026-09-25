@@ -279,3 +279,15 @@ def test_a_world_rule_that_crashes_on_a_boundary_value_is_reported():
                 "outputs": {"cash": "$entity(a).cash"}}
     found = [i for i in _errors(contract) if i.path == "events[0].do[0].do[1]"]
     assert len(found) == 1 and "division by zero" in found[0].message
+
+
+def test_a_misspelt_property_of_a_named_entity_is_caught_before_running_at_the_rule():
+    """`$entity(a).vv = 1` resolves `a` to its type, like `$actor.vv`: the check names the rule and suggests the
+    property, instead of leaving it to a smoke run that blames `p.vv`."""
+    contract = {"name": "Typo", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"v": 0, "n": {"type": "int", "default": 0}}}},
+                "entities": {"a": {"type": "p"}},
+                "events": [{"on": "round.start", "do": ["$entity(a).vv = 1", "$entity('a').v = 'x'"]}]}
+    errors = {i.path: i for i in _errors(contract, rounds=0)}
+    assert "$entity(a).vv" in errors["events[0].do[0]"].message and "'v'" in errors["events[0].do[0]"].fix
+    assert "declared as" in errors["events[0].do[1]"].message
