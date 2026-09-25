@@ -34,8 +34,10 @@ class InputSpec(_Model):
     type: TypeName = Field("number", description="One of: " + ", ".join(INPUT_TYPES) + SPELLINGS)
     default: Any = Field(None, description="Used when the caller supplies nothing.")
     required: bool = Field(False, description="The caller must supply it (no default).")
-    min: float | None = None
-    max: float | None = None
+    min: float | None = Field(None, description="The least value of a number; the fewest rows of a table or items of "
+                                                "a list.")
+    max: float | None = Field(None, description="The greatest value of a number; the most rows of a table or items "
+                                                "of a list.")
     multiple_of: float | None = Field(None, gt=0, allow_inf_nan=False,
                                       description="Require a multiple of this positive numeric increment, measured "
                                                   "from zero; e.g. 0.01 for cents. Unlike step, validates supplied "

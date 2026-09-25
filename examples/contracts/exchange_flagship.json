@@ -10,6 +10,7 @@
   "inputs": {
     "history": {
       "type": "table",
+      "min": 2,
       "source": "exchange_flagship/seed_history.csv",
       "columns": {"day": "int", "open": "number", "high": "number", "low": "number", "close": "number", "volume": "number"},
       "description": "Seed bars the session is calibrated on (synthetic daily bars)."

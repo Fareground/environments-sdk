@@ -13,6 +13,7 @@
     "hours": {"type": "int", "default": 14, "min": 1, "max": 48, "unit": "hour", "description": "Length of the shift simulated."},
     "demand_profile": {
       "type": "table",
+      "min": 1,
       "columns": {"hour": "int", "requests_per_hour": "number", "downtown_share": "number"},
       "description": "Citywide ride requests per hour and the share that start downtown, by clock hour.",
       "default": [
@@ -385,6 +386,7 @@
     "surge": {"description": "Zones surge-priced from open requests per idle driver.", "inputs": {"surge": true}}
   },
   "invariants": [
+    {"expr": "$all($range($inputs.hours), $any($inputs.demand_profile, $it.hour == ($inputs.start_hour + $outer) % 24))", "check": "round", "why": "The demand profile needs a row for every clock hour the shift covers: give inputs.demand_profile a row for each hour from start_hour on."},
     {"expr": "$world.completed <= $world.pickups", "why": "Every completed trip had a pickup."},
     {"expr": "$world.pickups + $world.cancelled + $count(request, $it.status != 'riding') == $world.requested", "why": "Requests are conserved."},
     {"expr": "$all(driver, $it.busy_steps <= $it.online_steps)", "why": "Busy time is part of online time."}

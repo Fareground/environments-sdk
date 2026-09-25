@@ -8,8 +8,8 @@ Typed values supplied when the contract is loaded ($inputs.x): knobs, data table
 - `type`: text = "number" — One of: number, int, bool, text, enum, list, table, map, date, file, any (`integer`, `float`, `string` and `boolean` are read as int, number, text and bool)
 - `default`: any — Used when the caller supplies nothing.
 - `required`: bool = false — The caller must supply it (no default).
-- `min`: number
-- `max`: number
+- `min`: number — The least value of a number; the fewest rows of a table or items of a list.
+- `max`: number — The greatest value of a number; the most rows of a table or items of a list.
 - `multiple_of`: number — Require a multiple of this positive numeric increment, measured from zero; e.g. 0.01 for cents. Unlike step, validates supplied data.
 - `values`: [any] — Allowed values (type enum).
 - `columns`: object — Column types (type table): {name: type}.

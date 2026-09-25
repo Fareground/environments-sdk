@@ -324,6 +324,11 @@ worlds stay fast, and the package is organised by feature.
     resolves on …) and the page shows them with it. The test that plays every example uses only that and a type for
     its `who`, so an example that stops working as written fails it. Before, six examples (pot, prediction,
     deliberation, negotiation, procedure, posted) did not run as shown.
+  - A list or table input's `min` and `max` bound how many items or rows it has ("inputs.history: must have at least
+    2 rows, got 1"). The exchange, retail and ride-hailing engines use it (and ride-hailing an invariant that its
+    demand profile covers every hour of the shift) to refuse a table too short to run with the fix, as the other
+    engines do; before, a one-row history, an empty café table or a one-row demand profile failed the run with an
+    error pointing at the rules.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

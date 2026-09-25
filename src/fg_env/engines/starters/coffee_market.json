@@ -65,6 +65,7 @@
     },
     "cafes": {
       "type": "table",
+      "min": 1,
       "description": "The cafés. price is the list price (USD/cup), unit_cost what a cup costs to make, capacity the cups a day it can serve city-wide, quality (1-5) its true coffee and rating (1-5) its starting public star rating; sub_fee (USD/month, 0 for none) and sub_discount set its loyalty subscription. A chain café stays closed until launch_day and opens only in the chain_launch arm.",
       "columns": {"id": "text", "name": "text", "neighborhood": "text", "price": "number", "quality": "number", "unit_cost": "number", "capacity": "number", "rating": "number", "sub_fee": "number", "sub_discount": "number", "chain": "bool"},
       "fields": {

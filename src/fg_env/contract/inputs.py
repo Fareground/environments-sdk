@@ -98,6 +98,12 @@ def check_value(type_name: str, value: Any, spec: InputSpec | None = None) -> st
             problem = check_value(spec.items.type, item, spec.items)
             if problem:
                 return f"item {index} {problem}"
+    if spec is not None and type_name in ("list", "table") and isinstance(value, list):
+        for bound, fails, word in ((spec.min, len(value) < (spec.min or 0), "least"),
+                                   (spec.max, spec.max is not None and len(value) > spec.max, "most")):
+            if bound is not None and fails:
+                what = ("row" if type_name == "table" else "item") + ("" if bound == 1 else "s")
+                return f"must have at {word} {bound:g} {what}, got {len(value)}"
     if spec is not None and _is_number(value):
         if spec.min is not None and value < spec.min:
             return f"must be ≥ {spec.min:g}, got {value}"

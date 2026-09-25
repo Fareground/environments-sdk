@@ -218,3 +218,19 @@ def test_the_exchange_opens_its_book_whatever_median_capital_traders_are_given(c
     result = fg_env.run(Path(fg_env.__file__).parent / "engines" / "starters" / "exchange_flagship.json", seed=1,
                         inputs=small)
     assert result.status == "completed", result.error
+
+
+@pytest.mark.parametrize("starter, inputs, said", [
+    ("exchange_flagship.json", {"history": [{"day": 1, "open": 100, "high": 101, "low": 99, "close": 100,
+                                             "volume": 1000}]}, "inputs.history: must have at least 2 rows"),
+    ("coffee_market.json", {"cafes": []}, "inputs.cafes: must have at least 1 row"),
+    ("ride_hailing.json", {"demand_profile": [{"hour": 6, "requests_per_hour": 10, "downtown_share": 0.3}]},
+     "needs a row for every clock hour the shift covers"),
+])
+def test_an_engine_refuses_a_table_too_short_to_run_with_the_fix(starter, inputs, said):
+    """A short or empty table is refused when the run is set up, naming the input, as other engines do, rather than
+    failing a run with an error that points at the rules (audit 11 engines M5); a list or table input's `min` and
+    `max` bound its rows."""
+    path = Path(fg_env.__file__).parent / "engines" / "starters" / starter
+    with pytest.raises((fg_env.InputError, fg_env.RunError), match=said):
+        fg_env.load(path, inputs=inputs)

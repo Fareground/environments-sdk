@@ -705,6 +705,7 @@
             }
           ],
           "default": null,
+          "description": "The least value of a number; the fewest rows of a table or items of a list.",
           "title": "Min"
         },
         "max": {
@@ -717,6 +718,7 @@
             }
           ],
           "default": null,
+          "description": "The greatest value of a number; the most rows of a table or items of a list.",
           "title": "Max"
         },
         "multiple_of": {
