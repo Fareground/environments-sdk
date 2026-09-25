@@ -12,7 +12,6 @@ from typing import Any
 from ..contract import one_or_many
 from ..expr import Expr, ExprError, compile_expr, is_expr
 from ..expr.base import RESERVED_ROOTS
-from ..expr.compile import compile_target
 
 __all__ = ["RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "capture_roots",
            "structured_capture_roots"]
@@ -142,7 +141,7 @@ def compile_statement(source: str) -> Statement:
         return Statement(source, None, (), local, op, value)
     assert base is not None
     compiled = tuple((kind, compile_expr(text) if kind == "index" else text) for kind, text in steps)
-    return Statement(source, compile_target(base), compiled, None, op, value)
+    return Statement(source, compile_expr(base), compiled, None, op, value)
 
 
 @lru_cache(maxsize=8_192)

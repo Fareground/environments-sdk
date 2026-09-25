@@ -62,6 +62,16 @@ RESERVED_ROOTS = frozenset({
 _BREAKS = re.compile(r"\s*[\r\n\v\f\x1c-\x1e\x85\u2028\u2029]\s*")
 
 
+def view_as_value(value: Any) -> ExprError | None:
+    """The error for keeping or showing a view of the run's live state (``$world``, ``$physics``, ``$clock``,
+    ``$pattern``) as a value — an output, a stored property, a line of text — or None when ``value`` is none: a view
+    changes under whatever holds it, so only its fields are values (a local may still name one)."""
+    root = getattr(type(value), "ROOT", None)
+    if not isinstance(root, str):
+        return None
+    return ExprError(f"${root} is not a value to keep or show: read one of its fields (${root}.<field>)")
+
+
 def quoted(text: str) -> str:
     """Participant ``text`` as it renders: in «» on one line, its own guillemets made plain."""
     return "«" + _BREAKS.sub(" ", str.__str__(text)).replace("«", "‹").replace("»", "›") + "»"

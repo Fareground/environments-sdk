@@ -171,6 +171,9 @@ def _describe(value: Any) -> str:
         return "null"
     if hasattr(value, "entity_type"):
         return f"entity '{value.id}'"
+    root = getattr(type(value), "ROOT", None)
+    if isinstance(root, str):
+        return f"${root} (a view of the run's state: read its fields)"
     text = repr(value)
     return f"{type(value).__name__} {text[:40]}"
 

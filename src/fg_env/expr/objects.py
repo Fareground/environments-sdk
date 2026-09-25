@@ -58,6 +58,9 @@ class Entity:
 class PropsView:
     """``$world`` — global properties, readable and assignable."""
 
+    #: The root it is: a view of the run's live state, never a value to keep or show.
+    ROOT = "world"
+
     def __init__(self, world: World):
         self._world = world
 

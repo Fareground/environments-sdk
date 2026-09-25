@@ -90,6 +90,8 @@ class LogEvent:
 class PhysicsView:
     """``$physics`` — current values of physics variables and params."""
 
+    ROOT = "physics"
+
     def __init__(self, world: World):
         self._world = world
 
@@ -105,6 +107,8 @@ class PhysicsView:
 
 
 class ClockView:
+    ROOT = "clock"
+
     def __init__(self, world: World):
         self._world = world
 

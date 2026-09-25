@@ -243,10 +243,11 @@ worlds stay fast, and the package is organised by feature.
     block it is) and how many that block created this round, not by its id. Ids come from a counter every creator
     shares, so whether one agent created something shifted the luck of what another created. Runs that draw for
     created entities draw differently (the `wolf_sheep` golden changed); snapshots carry the new counts.
-  - `$world`, `$physics` and `$clock` are views of the run's state, not values: using one bare (an output, a view,
-    a stored value, a function argument) is a check error naming the fix (`$world.<field>`). Before, `$world` handed
-    out the live engine object: a series kept the same object every round, outputs were not JSON and a view showed a
-    memory address.
+  - `$world`, `$physics`, `$clock` and `$pattern` are views of the run's state, not values to keep or show: an output,
+    a stored property or a line of text holding one bare is refused with the fix (`$world.<field>`), which `check`'s
+    play reports at its path (a local may still name one, as delayed rules do). Before, `$world` handed out the live
+    engine object: a series kept the same object every round, outputs were not JSON and a view showed a memory
+    address.
   - An entity named from participant text keeps the text as typed in its `name`, so comparisons, lengths and
     outputs read it; it renders in «» wherever it is shown (participant text now quotes itself whenever it is
     formatted into text), and snapshots keep its provenance. Before, the name stored the display quotes.

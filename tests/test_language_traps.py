@@ -279,7 +279,8 @@ def test_a_view_of_the_runs_state_is_no_value_to_keep_or_show(where, text):
                 "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
                 "actions": {"inc": {"by": "p", "do": "$world.pot += 1"}}, where: text}
     errors = _errors(contract)
-    assert errors and "is not a value: read one of its fields" in errors[0].message
+    assert errors and ("is not a value to keep or show: read one of its fields" in errors[0].message
+                       or "a view of the run's state: read its fields" in errors[0].message)
     contract[where] = {"pot": {"expr": "$world.pot", "series": True}} if where == "outputs" else \
         {"v": {"show": "Pot {$world.pot}, round {$clock.round}"}}
     assert not _errors(contract)

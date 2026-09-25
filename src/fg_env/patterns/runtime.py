@@ -148,6 +148,8 @@ class Ctx:
 class PatternsView:
     """``$pattern`` — ``$pattern.winter`` reads a pattern now; ``$pattern.lift($it.price, $it.sku)`` calls one."""
 
+    ROOT = "pattern"
+
     def __init__(self, runtime: PatternRuntime):
         self._runtime = runtime
 

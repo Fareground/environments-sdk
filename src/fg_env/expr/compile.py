@@ -18,7 +18,7 @@ from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
 from .syntax_hints import syntax_message
 
-__all__ = ["Expr", "call_roots", "compile_expr", "compile_target", "item_conditions"]
+__all__ = ["Expr", "call_roots", "compile_expr", "item_conditions"]
 
 _MAX_SOURCE = 8_192
 _MAX_NODES = 2_048
@@ -181,17 +181,6 @@ class Expr:
 @lru_cache(maxsize=16_384)
 def compile_expr(source: str) -> Expr:
     """Parse and validate ``source`` once. Raises :class:`ExprError` on bad syntax."""
-    return _compile(source, target=False)
-
-
-@lru_cache(maxsize=1_024)
-def compile_target(source: str) -> Expr:
-    """:func:`compile_expr` for what an assignment writes into (``$world`` in ``$world.pot = 1``): a view root may
-    stand alone there, since the assignment writes one of its fields."""
-    return _compile(source, target=True)
-
-
-def _compile(source: str, target: bool) -> Expr:
     if not isinstance(source, str) or not source.strip():
         raise ExprError("expression is empty", str(source))
     source = source.strip()
@@ -225,8 +214,6 @@ def _compile(source: str, target: bool) -> Expr:
                             source)
         if isinstance(node, ast.Attribute) and node.attr.startswith("_"):
             raise ExprError(f"private field '{node.attr}' cannot be read", source)
-    if not target:
-        _views_read_by_field(tree, source)
     compiler = Codegen(source)
     try:
         run = compiler.compile(tree.body)
@@ -237,21 +224,6 @@ def _compile(source: str, target: bool) -> Expr:
                 frozenset(compiler.item_paths), frozenset(compiler.comparisons),
                 frozenset(compiler.item_comparisons), frozenset(compiler.arity_errors), frozenset(compiler.methods),
                 frozenset(compiler.call_paths), frozenset(compiler.item_roots))
-
-
-#: Roots that are views of the run's own state, not values: an expression reads their fields (``$world.pot``).
-_VIEWS = frozenset(_ROOT_PREFIX + name for name in ("world", "physics", "clock"))
-
-
-def _views_read_by_field(tree: ast.AST, source: str) -> None:
-    """Refuse a view root (``$world``, ``$physics``, ``$clock``) used as a value — shown, stored, passed or kept as an
-    output — rather than read by field: the value would be the run's live state itself, which changes under it and
-    is no data to keep or show."""
-    fields = {id(node.value) for node in ast.walk(tree) if isinstance(node, (ast.Attribute, ast.Subscript))}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Name) and node.id in _VIEWS and id(node) not in fields:
-            name = node.id[len(_ROOT_PREFIX):]
-            raise ExprError(f"${name} is not a value: read one of its fields (${name}.<field>)", source)
 
 
 #: What an item's own condition may read besides ``$it``: nothing that changes while a run plays.

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from ..expr.base import view_as_value
 from ..expr.objects import Entity
 from .links import Link
 from .parts import Entry
@@ -25,6 +26,9 @@ def plain_value(value: Any) -> Any:
         return {k: plain_value(v) for k, v in value.items()}
     if isinstance(value, Entry):
         return {k: v for k, v in value.items()}
+    refused = view_as_value(value)
+    if refused is not None:
+        raise refused
     return value
 
 

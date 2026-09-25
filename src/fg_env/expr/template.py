@@ -23,7 +23,7 @@ from functools import lru_cache
 from typing import Any
 
 from . import Expr, ExprError, Scope, Untrusted, compile_expr
-from .base import RESERVED_ROOTS, quoted
+from .base import RESERVED_ROOTS, quoted, view_as_value
 
 __all__ = ["Template", "compile_template", "render", "format_value", "apply_format", "entity_handles",
            "quoted_placeholders"]
@@ -55,6 +55,9 @@ def quoted_placeholders(source: str) -> list[str]:
 def format_value(value: Any) -> str:
     if value is None:
         return "—"
+    refused = view_as_value(value)
+    if refused is not None:
+        raise refused
     if (type(value) is list or type(value) is dict) and not value:
         return "none"
     if isinstance(value, Untrusted):
@@ -146,6 +149,9 @@ class Template:
                 value = expr(scope)
             except ExprError as exc:
                 raise ExprError(f"template {self.source!r}: {exc.detail}", exc.source) from None
+            refused = view_as_value(value)
+            if refused is not None:
+                raise ExprError(f"template {self.source!r}: {refused.detail}", expr.source)
             if plain and isinstance(value, Untrusted) and not fmt:
                 out.append(value)
                 continue
