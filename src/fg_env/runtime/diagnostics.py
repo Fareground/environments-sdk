@@ -104,14 +104,25 @@ def _unreported_usage(env: Env) -> list[dict[str, str]]:
 
 
 def _forfeits(env: Env) -> list[dict[str, str]]:
-    lost = {agent: stats.forfeits for agent, stats in sorted(env.state.agent_stats.items()) if stats.forfeits}
-    if not lost:
-        return []
-    return [_finding("turns_forfeited", "participants",
-                     f"{sum(lost.values())} turn(s) were forfeited because the model provider still failed after every "
-                     f"retry ({', '.join(f'{agent} {count}' for agent, count in lost.items())}); those agents did "
-                     "nothing in them, so this run does not show how they play",
-                     "rerun when the provider is healthy, or give the participant more `retries`")]
+    stats = sorted(env.state.agent_stats.items())
+    failed = {agent: s.forfeits - s.too_long for agent, s in stats if s.forfeits > s.too_long}
+    long = {agent: s.too_long for agent, s in stats if s.too_long}
+    out = []
+    if failed:
+        out.append(_finding("turns_forfeited", "participants",
+                            f"{sum(failed.values())} turn(s) were forfeited because the model provider still failed "
+                            f"after every retry ({', '.join(f'{agent} {count}' for agent, count in failed.items())}); "
+                            "those agents did nothing in them, so this run does not show how they play",
+                            "rerun when the provider is healthy, or give the participant more `retries`"))
+    if long:
+        out.append(_finding("turns_forfeited", "participants",
+                            f"{sum(long.values())} turn(s) were forfeited because the prompt is longer than the "
+                            f"model's context ({', '.join(f'{agent} {count}' for agent, count in long.items())}), "
+                            "which no retry can change; those agents did nothing in them, so this run does not show "
+                            "how they play",
+                            "shorten what an agent reads each turn (its brief, views and news: fg-env preview shows "
+                            "it), or use a model with a larger context"))
+    return out
 
 
 def _out_of_steps(env: Env) -> list[dict[str, str]]:
@@ -159,32 +170,34 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
                             f"{_attempts(never)}; this run does not show how they play",
                             "read what the agents were shown and did (load with exposures=True, then "
                             "result.exposures): a model that only replies in text, calls tools that do not exist or is "
-                            "always refused needs clearer tools and brief"))
+                            "always refused needs clearer tools and brief" + _out_of_time(never)))
     if failing:
         listed = ", ".join(f"{agent} {s.failed_turns} of {s.wakes}" for agent, s in failing[:_LISTED])
         out.append(_finding("agents_often_failed", "participants",
                             f"too many turns of {_named(failing)} failed: they ended with no action though one was "
                             "available, after invalid or refused calls, a model refusal, a reply cut off or with no "
-                            f"tool call, or the model calls used up, or a model reply was refused or cut off ({listed}"
+                            f"tool call, or the model calls used up, or out of time, or a model reply was refused or "
+                            f"cut off ({listed}"
                             f"); {_attempts(failing)}; this run does not show how they play",
                             "read what those agents were shown and did (load with exposures=True, then "
                             "result.exposures); for replies cut off, give the participant more `max_tokens`; for model "
                             "calls used up, more `max_steps` or clearer tools; for replies with no tool call, a brief "
-                            "and tools that make the choice clear"))
+                            "and tools that make the choice clear" + _out_of_time(failing)))
     if some:
         failed, wakes = sum(s.failed_turns for _, s in some), sum(s.wakes for _, s in some)
         out.append(_finding("some_turns_failed", "participants",
                             f"{failed} of {wakes} turns ({failed / wakes:.0%}) of {_named(some)} failed "
                             f"({', '.join(f'{agent} {s.failed_turns} of {s.wakes}' for agent, s in some[:_LISTED])}): "
-                            f"{_attempts(some)}{_timeouts(some)}",
-                            "read those turns (load with exposures=True, then result.exposures); turns out of time "
-                            "need a longer `time_limit` or a faster participant"))
+                            f"{_attempts(some)}",
+                            "read those turns (load with exposures=True, then result.exposures)" + _out_of_time(some)))
     return out
 
 
-def _timeouts(agents: list[tuple[str, Any]]) -> str:
-    count = sum(stats.timeouts for _, stats in agents)
-    return f", {count} turn(s) out of time" if count else ""
+def _out_of_time(agents: list[tuple[str, Any]]) -> str:
+    """The fix for turns out of time, when some of ``agents``' were."""
+    if not any(stats.timeouts for _, stats in agents):
+        return ""
+    return "; turns out of time need a longer `time_limit` or a faster participant"
 
 
 def _named(agents: list[tuple[str, Any]]) -> str:
@@ -203,7 +216,8 @@ def _attempts(agents: list[tuple[str, Any]]) -> str:
                                                             ("truncated", "reply(ies) cut off at the output limit"),
                                                             ("out_of_steps", "turn(s) out of model calls"),
                                                             ("no_tool_replies",
-                                                             "turn(s) the model answered in text only"))
+                                                             "turn(s) the model answered in text only"),
+                                                            ("timeouts", "turn(s) out of time"))
               if total(name)]
     return ", ".join(tried)
 

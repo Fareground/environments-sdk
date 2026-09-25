@@ -199,7 +199,7 @@ class Wake:
     def record_usage(self, *, llm_calls: int = 0, input_tokens: int = 0, output_tokens: int = 0,
                      cache_read_tokens: int = 0, cache_write_tokens: int = 0, llm_retries: int = 0,
                      forfeits: int = 0, truncated: int = 0, refusals: int = 0, out_of_steps: int = 0,
-                     no_tool_replies: int = 0, unreported_usage: int = 0) -> None:
+                     no_tool_replies: int = 0, unreported_usage: int = 0, too_long: int = 0) -> None:
         """Add a model's real usage to the run's statistics (the built-in LLM participants call this). Usage reported
         after the turn is over (it ran out of time) still counts toward the statistics and the budget; usage that
         spends the run's token budget ends every turn in play (the built-in LLM participants then make no more calls).
@@ -208,12 +208,13 @@ class Wake:
         ``refusals`` replies the provider refused to give, ``out_of_steps`` turns the participant's own call limit
         ended, ``no_tool_replies`` turns the model ended answering in text without a tool call. Each of the last four
         counts a turn with an action open and none taken as failed. ``unreported_usage`` counts calls whose provider
-        reported no usage (their input tokens are the prompt's estimated size)."""
+        reported no usage (their input tokens are the prompt's estimated size); ``too_long``, forfeits whose prompt was
+        longer than the model takes."""
         counts = (("llm_calls", llm_calls), ("input_tokens", input_tokens), ("output_tokens", output_tokens),
                   ("cache_read_tokens", cache_read_tokens), ("cache_write_tokens", cache_write_tokens),
                   ("llm_retries", llm_retries), ("forfeits", forfeits), ("truncated", truncated),
                   ("refusals", refusals), ("out_of_steps", out_of_steps), ("no_tool_replies", no_tool_replies),
-                  ("unreported_usage", unreported_usage))
+                  ("unreported_usage", unreported_usage), ("too_long", too_long))
         for name, value in counts:
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f"{name} must be a whole number ≥ 0, got {value!r}")

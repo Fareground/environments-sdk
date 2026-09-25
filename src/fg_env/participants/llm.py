@@ -71,6 +71,7 @@ class _LLMUsage:
         self.out_of_steps = 0
         self.no_tool_replies = 0
         self.unreported_usage = 0
+        self.too_long = 0
 
     def to_dict(self) -> dict[str, int]:
         return dict(self.__dict__)
@@ -240,7 +241,12 @@ def _retry_after(exc: BaseException) -> float | None:
 
 
 class _Forfeit(Exception):
-    """A provider call still failed after its retries: the turn is lost, not the run."""
+    """A provider call still failed after its retries, or its prompt is longer than the model takes (``too_long``):
+    the turn is lost, not the run."""
+
+    def __init__(self, too_long: bool = False):
+        super().__init__()
+        self.too_long = too_long
 
 
 class _Over(Exception):
@@ -317,8 +323,8 @@ class _LLMParticipant:
         if any(tool.kind == "act" for tool in wake.tools):  # with nothing to do, the model is not asked
             try:
                 self._turn(wake)
-            except _Forfeit:
-                self._record(wake, forfeits=1)
+            except _Forfeit as lost:
+                self._record(wake, forfeits=1, too_long=int(lost.too_long))
             except _Over:
                 pass
         if not wake.done and _may_end(wake):
@@ -369,7 +375,7 @@ class _LLMParticipant:
                 raise
             except Exception as exc:
                 if too_long(exc):
-                    raise _Forfeit() from exc
+                    raise _Forfeit(too_long=True) from exc
                 if not _retryable(exc):
                     raise self._failure(wake, exc) from exc
                 if attempt >= self.retries:

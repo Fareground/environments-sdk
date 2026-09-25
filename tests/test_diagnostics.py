@@ -154,3 +154,14 @@ def test_a_policy_rule_that_acts_at_least_once_is_not_reported():
                          policies={"thrifty": {"rules": [{"do": "buy", "with": {"qty": 2}}]}})
     contract["types"]["buyer"]["policy"] = "thrifty"
     assert _codes(fg_env.run(contract, seed=1)) == []
+
+
+def test_agents_whose_turns_all_ran_out_of_time_are_told_to_take_less_time():
+    """Turns out of time are among what went wrong, with `time_limit` in the fix (audit 9 LLM M2)."""
+    import time as clock
+
+    contract = {"name": "Slow", "clock": {"rounds": 3}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": []}}}
+    result = fg_env.load(contract, seed=1).run(lambda wake: clock.sleep(0.2), time_limit=0.05)
+    [found] = [d for d in result.diagnostics if d["code"] in ("agents_never_acted", "agents_often_failed")]
+    assert "out of time" in found["message"] and "time_limit" in found["fix"]

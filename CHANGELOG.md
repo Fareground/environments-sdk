@@ -299,6 +299,10 @@ worlds stay fast, and the package is organised by feature.
     token budget binds. Before, a host or an authoring session counted such calls as 0 tokens (a budget never bound),
     usage given as text counted 0 unflagged, and an Anthropic reply with no usage ended an authoring session. Host
     adapters' `usage` gains `unreported_usage`; `credit_tokens` takes `unreported`.
+  - A turn forfeited because the prompt is longer than the model's context is its own `turns_forfeited` finding,
+    advising a shorter update or a larger-context model (it said the provider "still failed after every retry" and
+    advised more `retries`); `stats["too_long"]` counts them. Turns out of time are listed among what went wrong in
+    `agents_never_acted` and `agents_often_failed`, with `time_limit` in the fix.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

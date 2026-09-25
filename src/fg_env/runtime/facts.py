@@ -214,8 +214,10 @@ class Stats:
     llm_retries: int = 0
     #: Out-of-turn reaction turns (`wake` with `now`).
     reactions: int = 0
-    #: Turns an LLM participant lost because its provider still failed after every retry.
+    #: Turns an LLM participant lost because its provider still failed after every retry, or its prompt was too long.
     forfeits: int = 0
+    #: Of those, the turns whose prompt was longer than the model's context (no retry can help).
+    too_long: int = 0
     #: Model replies cut off at their output limit (reported by LLM participants).
     truncated: int = 0
     #: Model replies the provider refused to give (reported by LLM participants).
