@@ -34,6 +34,9 @@ A third tier runs only with `FG_ENV_SLOW=1`: thousands of fuzzed contracts, more
 on every example, full engine and exchange sessions. `make test-slow` runs the whole suite with it on; run it before
 a release and after changing the run's kernel, the game algorithms or the fuzzer. A test that needs minutes goes in
 this tier (`pytest.mark.skipif(not os.environ.get("FG_ENV_SLOW"), ...)`, or more seeds when it is set).
+`make test-oracle` runs the whole suite with every expression also evaluated by a second, reference evaluator
+(`tests/expr_oracle.py`, with `FG_ENV_EXPR_ORACLE=1`) and the two results compared: run it after changing the expression
+compiler.
 `testpaths` is set to `tests` in `pyproject.toml`, so a bare `pytest` from the
 repo root discovers everything. Narrow a run with `pytest tests/<file>.py -k <expr>`.
 

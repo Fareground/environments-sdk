@@ -6,7 +6,7 @@ RUN := PYTHONPATH=src $(PYTHON)
 # (`make test WORKERS=auto`).
 WORKERS ?= 2
 
-.PHONY: gate test test-fast test-slow lint typecheck schema check-schema docs check-docs
+.PHONY: gate test test-fast test-slow test-oracle lint typecheck schema check-schema docs check-docs
 
 # Everything that must pass before a push: the whole suite, lint, types, the schema and the generated docs. Before a
 # release, and after changing the kernel, the game algorithms or the fuzzer, also run `make test-slow`.
@@ -20,6 +20,11 @@ test:
 # every adversary everywhere, full engine and exchange sessions. Tens of minutes: before a release.
 test-slow:
 	FG_ENV_SLOW=1 $(RUN) -m pytest tests -q -n $(WORKERS)
+
+# The whole suite with every expression also evaluated by the reference evaluator (tests/expr_oracle.py) and the two
+# results compared: after changing the expression compiler.
+test-oracle:
+	FG_ENV_EXPR_ORACLE=1 $(RUN) -m pytest tests -q -n $(WORKERS)
 
 # Everything but the tests marked slow (statistical and engine-behaviour checks): the loop while iterating.
 test-fast:

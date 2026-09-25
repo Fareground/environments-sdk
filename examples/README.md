@@ -89,6 +89,8 @@ top-level ones reproduce a golden run (`tests/test_examples.py`). A folder named
 | [`host/tavern_gm.json`](contracts/host/tavern_gm.json) | **Tavern with a game master.** Adventurers in a tavern describe what they try in their own words; a game master resolves each attempt, but only within the contract's allow-list. |
 <!-- end contracts table -->
 
+From this folder (`cd examples`):
+
 ```bash
 fg-env check contracts/werewolf.json
 fg-env preview contracts/werewolf.json p1

@@ -344,9 +344,6 @@ class PhysicsModel:
         """Names of variables that have an ODE (are integrated)."""
         return [n for n, v in self.variables.items() if v.rate is not None]
 
-    def is_empty(self) -> bool:
-        return not self.variables
-
     def _validate_names(self) -> None:
         """Every name referenced by a rate must resolve to a variable, param,
         constant, the time symbol, or a whitelisted function. Fail loud at build
