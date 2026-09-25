@@ -256,3 +256,20 @@ def test_undoing_a_scheduled_effect_restores_the_schedule_count():
     _, fault = env.rules.guarded(lambda: env.rules.run_block(block, {}, "kernel.block"))
     assert fault is not None and not env.world.scheduled
     assert undoable_state(env) == before
+
+
+def test_undoing_an_unlink_puts_the_link_back_where_it_was():
+    contract = {"name": "Ring", "clock": {"rounds": 1},
+                "types": {"p": {"props": {}}},
+                "entities": {k: {"type": "p"} for k in ("a", "b", "c", "d")},
+                "relations": {"knows": {"symmetric": True, "links": [
+                    {"from": "a", "to": "b"}, {"from": "a", "to": "c"}, {"from": "a", "to": "d"}]}}}
+    env = fg_env.load(contract, seed=1)
+    world = env.world
+    before = (list(world.links["knows"]), {k: list(v) for k, v in world.adjacent["knows"].items()})
+    with world.held():
+        mark = world.mark()
+        env.rules.run_block([{"unlink": "knows", "from": "$entity(a)", "to": "$entity(b)"}], {}, "t")
+        assert "b" not in world.adjacent["knows"]["a"]
+        world.rollback(mark)
+    assert (list(world.links["knows"]), {k: list(v) for k, v in world.adjacent["knows"].items()}) == before

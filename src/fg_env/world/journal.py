@@ -174,11 +174,16 @@ def _link_field(world: World, op: Op) -> None:
 
 
 def _unlink(world: World, op: Op) -> None:
-    _, kind, key, old, old_fields = op
-    world.links[kind][key] = old
-    if old_fields is not None:
-        world.link_fields[kind][key] = old_fields
-    _links._adjust(world, kind, key, 1)
+    _, kind, key, old, old_fields, (at, fields_at, rows) = op
+    _links.reinsert(world.links[kind], key, old, at)
+    if old_fields is not None and fields_at is not None:
+        _links.reinsert(world.link_fields[kind], key, old_fields, fields_at)
+    for x, y, position, count in rows:
+        row = world.adjacent[kind].setdefault(x, {})
+        if y in row:  # still linked another way: only the count went down
+            row[y] = count
+        else:
+            _links.reinsert(row, y, count, position)
 
 
 def _post(world: World, op: Op) -> None:

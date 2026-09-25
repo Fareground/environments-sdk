@@ -215,10 +215,33 @@ def unlink(world: World, kind: str, a: Any, b: Any, where: str) -> None:
     key = edge_key(world, kind, entity_id(a), entity_id(b))
     if key not in edges:
         return
+    places = _places(world, kind, key)  # where it sat, so an undo puts it back there, not at the end
     old = edges.pop(key)
     old_fields = world.link_fields[kind].pop(key, None)
     _adjust(world, kind, key, -1)
-    world.journal.push(("unlink", kind, key, old, old_fields))
+    world.journal.push(("unlink", kind, key, old, old_fields, places))
+
+
+def _places(world: World, kind: str, key: Key) -> tuple[int, int | None, tuple[tuple[str, str, int, int], ...]]:
+    """Where ``key`` sits in its relation's links, its fields and both ends' neighbour rows (with the count there):
+    the order a run lists neighbours and links in, which undoing a removal must restore."""
+    fields = world.link_fields[kind]
+    rows = []
+    a, b = key
+    if a != b:
+        for x, y in ((a, b), (b, a)):
+            row = world.adjacent[kind].get(x, {})
+            if y in row:
+                rows.append((x, y, list(row).index(y), row[y]))
+    return (list(world.links[kind]).index(key), list(fields).index(key) if key in fields else None, tuple(rows))
+
+
+def reinsert(mapping: dict[Any, Any], key: Any, value: Any, position: int) -> None:
+    """Put ``key`` back into ``mapping`` at ``position`` in its order."""
+    items = list(mapping.items())
+    items.insert(position, (key, value))
+    mapping.clear()
+    mapping.update(items)
 
 
 def _name(world: World, entity: str) -> str:
