@@ -1084,3 +1084,12 @@ def test_a_house_from_a_counted_group_is_named_by_its_generated_id(house, ok):
         assert errors == [] and fg_env.run(tender, seed=1).status != "failed"
     else:
         assert [i.path for i in errors] == ["mechanisms.a.house"] and "buyer_1" in errors[0].fix
+
+
+def test_a_small_market_order_collar_is_told_with_its_digits():
+    book = {"name": "Book", "clock": {"rounds": 1}, "types": {"t": {"agent": True, "props": {"cash": 1000}}},
+            "entities": {"t": {"type": "t", "count": 1}},
+            "mechanisms": {"bk": {"kind": "market", "mode": "order_book", "who": "t", "start_price": 100,
+                                  "collar_pct": 0.005}}}
+    buy = next(t for t in fg_env.load(book, seed=1).preview("t_1").tools if t["name"] == "bk_buy")
+    assert "within 0.5% of the best ask" in buy["description"]

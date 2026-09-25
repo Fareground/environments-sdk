@@ -38,7 +38,7 @@ from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
 from ..world.props import prop_type
-from ._common import entity_of, fmt, lot_floor
+from ._common import entity_of, fmt, lot_floor, pct
 from .book_rules import Venue, venue
 from .expressions import EachCrowd, Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -494,7 +494,7 @@ def _limit_ticks(v: Venue, side: str, price: Any, anchor: float, opposite: list[
         low, high = band(v, anchor)
         if not _ticks(low, v.tick) <= limit_t <= _ticks(high, v.tick):
             raise Abort(f"Limit prices must be between {fmt(low, 4)} and {fmt(high, 4)} "
-                        f"(within {v.band:.0%} of the round's open {fmt(anchor, 4)}).")
+                        f"(within {pct(v.band)} of the round's open {fmt(anchor, 4)}).")
         return limit_t
     if not opposite:
         raise Abort(f"There are no {'sell' if side == 'buy' else 'buy'} orders to trade with; place a limit order "
@@ -639,7 +639,7 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         why = "the circuit breaker halted trading" if tripped else (
             "not enough cash" if side == "buy" and price is None and opposite and _ticks(opposite[0]["price"], v.tick)
             <= limit_t
-            else f"no more liquidity within the {v.collar:.0%} collar" if price is None else "")
+            else f"no more liquidity within the {pct(v.collar)} collar" if price is None else "")
         parts.append(f"{fmt(cancelled, 6)} cancelled" + (f" ({why})" if why else ""))
     if prevented:
         parts.append(f"{prevented} of your own opposite order(s) cancelled instead of trading with you")
@@ -687,7 +687,7 @@ def trip(world: Any, name: str, px: float, ref: float, what: str) -> None:
     lasts = "the rest of this bar" if to_bar_end else "the rest of this round" + (
         f" and {v.halt_rounds} more round(s)" if v.halt_rounds else "")
     world.emit(f"{name}_halt", f"CIRCUIT BREAKER on {cfg.instrument or name}: {what} {fmt(px, 4)} moved "
-                               f"{'at least' if cfg.halt_check == 'round_end' else 'more than'} {v.halt_pct:.0%} from "
+                               f"{'at least' if cfg.halt_check == 'round_end' else 'more than'} {pct(v.halt_pct)} from "
                                f"{reference} {fmt(ref, 4)}. Trading is halted for {lasts}.",
                data={"mechanism": KEY, "price": px, "until": until})
 

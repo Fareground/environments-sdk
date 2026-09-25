@@ -27,7 +27,7 @@ from ..registry import MechanismError, use_key
 __all__ = [
     "Config", "Number", "Effects", "ModifierSpec", "NAME", "MODIFIER_SOURCES", "uses",
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
-    "entities_of", "lot_floor", "fmt",
+    "entities_of", "lot_floor", "fmt", "pct",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
     "is_agent_type", "stage_event", "declared_entity",
 ]
@@ -244,6 +244,11 @@ def lot_floor(qty: float, lot: float) -> float:
         return max(0.0, qty)
     lots = int(qty / lot + 1e-9)
     return round(lots * lot, 10)
+
+
+def pct(share: float) -> str:
+    """A share as a percentage with the digits it has: 0.005 is "0.5%", 0.1 "10%", 0.125 "12.5%"."""
+    return f"{share * 100:.4g}%"
 
 
 def fmt(value: float, digits: int = 2) -> str:

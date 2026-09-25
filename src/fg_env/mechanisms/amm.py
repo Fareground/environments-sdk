@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import entity_of, fmt
+from ._common import entity_of, fmt, pct
 from .econ_base import money_prop
 from .expressions import Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -473,7 +473,7 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
     receipt = f"{{$world.{name}_receipt}}"
     pricing = ("Prices are probabilities set by a logarithmic market scoring rule" if cfg.maker == "lmsr"
                else "Prices are set by a constant-product pool") + "; every trade moves them. A winning share pays 1."
-    fee = f" Fee {cfg.fee_pct:.1%} of the trade's value." if cfg.fee_pct else ""
+    fee = f" Fee {pct(cfg.fee_pct)} of the trade's value." if cfg.fee_pct else ""
     actions = {
         f"{name}_buy": {
             "by": cfg.who,

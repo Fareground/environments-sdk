@@ -311,6 +311,8 @@ worlds stay fast, and the package is organised by feature.
   - Mechanisms check an entity id the way the run makes it: an auction's `house`, a posted market's `seller` and a
     supply chain's `nodes` may name `buyer_1` of a counted group (before, only the group's key passed `check`, and then
     the run failed), and naming the group is refused with the ids to use.
+  - Percentages from mechanism configs are told with the digits they have (one helper): a 0.005 market-order collar
+    reads "within 0.5%", not "0%", in the order book's tools and the exchange engine's seats.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

@@ -14,7 +14,7 @@ from typing import Any
 
 from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
-from ._common import fmt
+from ._common import fmt, pct
 from .book_rules import rules_default
 from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
@@ -45,7 +45,7 @@ def _actions(name: str, cfg: OrderBookConfig, qty_type: str) -> dict[str, Any]:
                  + f" when your resting order fills, {fmt(float(cfg.taker_fee_bps))} bps when you trade against the "
                    "book.")
         multiple = fmt(float(cfg.lot_size), 6)
-    collar = "the market-order collar" if isinstance(cfg.collar_pct, str) else f"{cfg.collar_pct:.0%}"
+    collar = "the market-order collar" if isinstance(cfg.collar_pct, str) else pct(cfg.collar_pct)
     receipt = f"{{$world.{name}_receipt}}"
     manual = {"expr": f"$actor.{p['strategy']} == ''", "why": f"Your coded strategy trades for you; use {name}_algo."}
     halted = {"expr": f"not $world.{name}_halted",

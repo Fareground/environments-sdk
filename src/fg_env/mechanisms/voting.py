@@ -205,10 +205,10 @@ def _decide(result: dict[str, Any], scores: dict[str, float], method: str, thres
         passed = share > need or (share >= need and (casting or not strictly))
         if not passed:
             of = "" if base is None else " of all members"
-            result["reason"] = f"no option reached {'more than ' if strictly else ''}{need:.0%}{of}"
+            result["reason"] = f"no option reached {'more than ' if strictly else ''}{_common.pct(need)}{of}"
             return result
         if len(tied) > 1 and ties != "first":  # a threshold is met by one option, not by a draw between several
-            result["reason"] = f"{' and '.join(tied)} tied at {share:.0%}"
+            result["reason"] = f"{' and '.join(tied)} tied at {_common.pct(share)}"
             return result
     result["winner"], result["ranking"] = winner, _lead(ranking, winner)
     return result

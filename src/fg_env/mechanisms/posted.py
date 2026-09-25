@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import declared_entity, entity_of, fmt
+from ._common import declared_entity, entity_of, fmt, pct
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -158,7 +158,7 @@ def _sell(world: Any, name: str, cfg: PostedMarketConfig, buyer: Entity, listing
 
 
 def act(world: Any, name: str, action: str, trader: Entity, listing_id: Any = None, qty: Any = None, price: Any = None,
-        pct: Any = None, rounds: Any = None, stars: Any = None) -> str:
+        share: Any = None, rounds: Any = None, stars: Any = None) -> str:
     cfg = posted_config(world, name)
     listing = _listing(world, name, listing_id)
     if action == "buy":
@@ -177,7 +177,7 @@ def act(world: Any, name: str, action: str, trader: Entity, listing_id: Any = No
     elif action == "rate":
         text = _rate(world, name, trader, listing, _whole(stars, 1, 5, "stars"))
     else:
-        text = _manage(world, name, cfg, action, trader, listing, price, pct, rounds)
+        text = _manage(world, name, cfg, action, trader, listing, price, share, rounds)
     world.set_world(f"{name}_receipt", text)
     return text
 
@@ -227,7 +227,7 @@ def _rate(world: Any, name: str, buyer: Entity, listing: Entity, stars: int) -> 
 
 
 def _manage(world: Any, name: str, cfg: PostedMarketConfig, action: str, seller: Entity, listing: Entity, price: Any,
-            pct: Any, rounds: Any) -> str:
+            share: Any, rounds: Any) -> str:
     if _prop(listing, "seller") != seller.id:
         raise Abort(f"{listing.name} is not your listing.")
     if action == "set_price":
@@ -237,12 +237,12 @@ def _manage(world: Any, name: str, cfg: PostedMarketConfig, action: str, seller:
             world.set_prop(listing, "floor", value)
         return f"{listing.name} now costs {fmt(value)}."
     if action == "promote":
-        if isinstance(pct, bool) or not isinstance(pct, (int, float)) or not 0 < pct <= cfg.max_promo:
-            raise Abort(f"The discount must be above 0 and at most {cfg.max_promo:.0%}.")
+        if isinstance(share, bool) or not isinstance(share, (int, float)) or not 0 < share <= cfg.max_promo:
+            raise Abort(f"The discount must be above 0 and at most {pct(cfg.max_promo)}.")
         length = _whole(rounds, 1, 1000, "rounds")
-        world.set_prop(listing, "promo", float(pct))
+        world.set_prop(listing, "promo", float(share))
         world.set_prop(listing, "promo_until", world.round + length - 1)
-        return f"{listing.name} is {pct:.0%} off for {length} round(s): {fmt(price_now(world, listing))}."
+        return f"{listing.name} is {pct(share)} off for {length} round(s): {fmt(price_now(world, listing))}."
     if action == "sponsor":
         length = _whole(rounds, 1, 1000, "rounds")
         move(world, Account(seller, cfg.currency), Account(None, f"{name}_ad_revenue"), cfg.sponsor_fee * length,
@@ -501,7 +501,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                                           "price": "$params.price"}], "outcome": receipt},
             f"{name}_promote": {"by": cfg.sellers,
                                 "description": "Run a discount on a listing for some rounds (at most "
-                                               f"{cfg.max_promo:.0%}).",
+                                               f"{pct(cfg.max_promo)}).",
                                 "params": {"listing": mine, "pct": {"type": "number", "min": 0.01, "max": cfg.max_promo,
                                                  "description": "Discount as a fraction (0.2 = 20% "
                                                "off)."},
