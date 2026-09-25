@@ -1094,7 +1094,7 @@ A contract as a PettingZoo parallel environment (needs game.returns).
 ### `rl.tournament`
 
 ```pyi
-tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Sequence[str] | None = None, pairing: str = 'round_robin', games: int = 1, score: ScoreSpec = None, rating: str = 'elo', swiss_rounds: int | None = None, others: Any = None, inputs: Mapping[str, Any] | None = None, arm: str | None = None, rounds: int | None = None, seed: int = 0, workers: int = 1, data_dir: Any = None, budget: Mapping[str, Any] | None = None, exposures: bool = False, time_limit: float | None = None, lookahead: bool = True) -> TournamentResult
+tournament(contract: ContractLike, entrants: Mapping[str, Any], *, seats: Sequence[str] | None = None, pairing: str = 'round_robin', games: int = 1, score: ScoreSpec = None, rating: str = 'elo', swiss_rounds: int | None = None, others: Any = None, inputs: Mapping[str, Any] | None = None, arm: str | None = None, rounds: int | None = None, seed: int = 0, workers: int = 1, data_dir: Any = None, budget: Mapping[str, Any] | None = None, exposures: bool = False, time_limit: float | None = None, lookahead: bool = False) -> TournamentResult
 ```
 
 Play ``entrants`` (``{name: participant}``) against each other in the contract's ``seats``.
@@ -1120,9 +1120,9 @@ each standing's ``cost`` its turns, calls, invalid calls, timeouts, undone turns
 entrant is shared by all its games: with ``workers > 1`` those run in threads at once. ``budget`` caps each game on
 its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
 (``result.runs[i].exposures``, events kept), each a trace to read or replay. ``time_limit`` is the wall-clock
-seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`). ``lookahead=False`` refuses `wake.clone` to
-every entrant given as a callable: a copy of the run holds hidden state and future luck, which an entrant written
-by someone else must not read.
+seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`). Every entrant given as a callable is
+refused `wake.clone`, since a copy of the run holds hidden state and future luck, which an entrant written by
+someone else must not read; ``lookahead=True`` allows it (a search player among entrants you trust).
 
 ### `rl.TournamentResult`
 
@@ -1136,7 +1136,7 @@ and the Schulze vote; ``returns[entrant][seat]`` the score in each seat; ``games
 ### `rl.evaluate`
 
 ```pyi
-evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = None, seats: Any = None, score: ScoreSpec = None, modes: Mapping[str, float] | None = None, inputs: Mapping[str, Any] | None = None, arm: str | None = None, runs: int = 10, rounds: int | None = None, budget: Mapping[str, Any] | None = None, seed: int = 0, workers: int = 1, exposures: bool = False, lookahead: bool = True) -> EvaluationResult
+evaluate(suite: Any, *, focal: Any, background: Any = None, baseline: Any = None, seats: Any = None, score: ScoreSpec = None, modes: Mapping[str, float] | None = None, inputs: Mapping[str, Any] | None = None, arm: str | None = None, runs: int = 10, rounds: int | None = None, budget: Mapping[str, Any] | None = None, seed: int = 0, workers: int = 1, exposures: bool = False, lookahead: bool = False) -> EvaluationResult
 ```
 
 How ``focal`` does among ``background`` agents, compared with ``baseline`` in the same seats on the same seeds.
@@ -1156,8 +1156,8 @@ focal seats (per focal agent), and its difference is that minus the baseline run
 ``budget`` caps each run on its own; ``exposures=True`` records what agents saw in every run. ``results`` keeps
 every run: pair *i* is ``results[2i]`` (focal) and ``results[2i + 1]`` (baseline). Callable participants are
 shared by all their runs; with ``workers > 1`` runs go to threads, or to processes when every participant is
-given by name. ``lookahead=False`` refuses `wake.clone` to a callable ``focal``: a copy of the run holds hidden
-state and future luck, which a participant under evaluation must not read.
+given by name. A callable ``focal`` is refused `wake.clone`, since a copy of the run holds hidden state and future
+luck, which a participant under evaluation must not read; ``lookahead=True`` allows it (a search player).
 
 ### `rl.EvaluationResult`
 

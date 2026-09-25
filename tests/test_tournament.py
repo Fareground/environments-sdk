@@ -271,9 +271,10 @@ def test_cli_tournament_prints_a_summary_or_json(tmp_path, capsys):
     assert "NAME=PARTICIPANT" in capsys.readouterr().err
 
 
-@pytest.mark.parametrize("lookahead", [True, False])
-def test_lookahead_false_refuses_wake_clone_to_every_entrant(lookahead):
-    """A copy of the run holds hidden state and future luck: with `lookahead=False` an entrant cannot take one."""
+@pytest.mark.parametrize("lookahead", [True, False, None])
+def test_an_entrant_is_refused_wake_clone_unless_lookahead_is_allowed(lookahead):
+    """A copy of the run holds hidden state and future luck: an entrant cannot take one unless `lookahead=True` (fair by
+    default, audit 11 M7)."""
     cloned = []
 
     def peeker(wake):
@@ -284,9 +285,10 @@ def test_lookahead_false_refuses_wake_clone_to_every_entrant(lookahead):
             cloned.append(str(refused))
         wake.call("pick", {"choice": 3})
 
-    tournament(NUMBERS, {"peeker": peeker, "bot": "policy:1"}, lookahead=lookahead)
+    options = {} if lookahead is None else {"lookahead": lookahead}
+    tournament(NUMBERS, {"peeker": peeker, "bot": "policy:1"}, **options)
     assert cloned
     if lookahead:
         assert all(c is True for c in cloned)
     else:
-        assert all(isinstance(c, str) and "lookahead=False" in c for c in cloned)
+        assert all(isinstance(c, str) and "lookahead=True allows it" in c for c in cloned)

@@ -14,6 +14,9 @@ worlds stay fast, and the package is organised by feature.
 
 ### Breaking
 
+- **`tournament` and `evaluate` are fair by default (audit 11 M7):** `lookahead` now defaults to `False`, so an
+  entrant or focal participant given as a callable is refused `wake.clone` (a copy of the run holds hidden state and
+  future luck). Pass `lookahead=True` for a search player you trust.
 - **The contract language, version 2 (`"fg_env": "2"`).** One construct per idea; every earlier form still loads
   (rewritten on load, with one warning per contract) until 1.0, and `fg-env migrate FILE --write` saves the current
   form. What moved:

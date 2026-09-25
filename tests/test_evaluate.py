@@ -160,3 +160,23 @@ def test_a_suite_file_reads_contracts_beside_it_and_the_cli_prints_the_summary(t
     assert out.startswith("Evaluation of policy:free_ride: 1 scenario(s), 2 run(s) each") and "visitor" in out
     assert main(["evaluate", str(suite), "--focal", "policy:free_ride", "--mode", "visitor=many"]) == 1
     assert "--mode expects NAME=SHARE" in capsys.readouterr().err
+
+
+def test_a_focal_participant_is_refused_wake_clone_unless_lookahead_is_allowed():
+    """Fair by default (audit 11 M7): a copy of the run would show the focal participant hidden state and luck."""
+    tried = []
+
+    def focal(wake):
+        try:
+            wake.clone()
+            tried.append("cloned")
+        except RuntimeError:
+            tried.append("refused")
+        wake.end()
+
+    contract = {"name": "Lookahead", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}}, "actions": {"noop": {"by": "p", "do": []}},
+                "outputs": {"n": "1"}}
+    fg_env.rl.evaluate(contract, focal=focal, seats=["a"], runs=1, score="$outputs.n")
+    fg_env.rl.evaluate(contract, focal=focal, seats=["a"], runs=1, score="$outputs.n", lookahead=True)
+    assert tried and set(tried[:len(tried) // 2]) == {"refused"} and set(tried[len(tried) // 2:]) == {"cloned"}

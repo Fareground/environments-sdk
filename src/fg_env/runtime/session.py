@@ -276,11 +276,12 @@ def _copy(value: Any) -> Any:
 
 
 class _NoLookahead(Wake):
-    """A turn whose participant may not look ahead: :meth:`clone` is refused."""
+    """A turn whose participant may not look ahead (a tournament's or evaluation's by default): :meth:`clone` is
+    refused."""
 
     def clone(self, *, participants: Any = None, seed: int | None = None, same_luck: bool = False) -> Branch:
-        raise RuntimeError("wake.clone is off for this participant (lookahead=False): a copy of the run holds the "
-                           "whole world, hidden state and future luck included")
+        raise RuntimeError("wake.clone is off for this participant (lookahead=True allows it): a copy of the run "
+                           "holds the whole world, hidden state and future luck included")
 
 
 class _WithoutLookahead:
