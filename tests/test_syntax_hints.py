@@ -33,3 +33,17 @@ def test_a_single_equals_still_suggests_double_equals():
 def test_a_reserved_word_written_as_a_map_key_says_to_quote_it():
     assert "`not` is a word the language itself uses, so as a map key it must be quoted: 'not'" in \
         _error("$get({eager: 3, not: 0}, eager, 1)")
+
+
+def test_a_call_without_its_dollar_suggests_only_a_function_there_is():
+    """`entities(player)` used to be told "write $entities(...)", a function that does not exist (audit 11)."""
+    from fg_env.expr import ExprError, compile_expr
+
+    told = {}
+    for source in ("entities(player)", "count(player, true)", "xyzzy(1)"):
+        with pytest.raises(ExprError) as refused:
+            compile_expr(source)
+        told[source] = str(refused.value)
+    assert "$entities" not in told["entities(player)"] and "did you mean $entity(...)?" in told["entities(player)"]
+    assert "write $count(...)" in told["count(player, true)"]
+    assert "write" not in told["xyzzy(1)"] and "did you mean" not in told["xyzzy(1)"]

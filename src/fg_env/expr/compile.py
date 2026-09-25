@@ -13,7 +13,7 @@ from functools import lru_cache
 from typing import Any
 
 from .base import _BUDGET, EVAL_BUDGET, EXPRESSION_WORDS, ExprError, charge, nested_free
-from .calls import _NO_KEY, EqualityGuard, Evaluator
+from .calls import _NO_KEY, FUNCTIONS, EqualityGuard, Evaluator, suggest_function
 from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
 from .syntax_hints import syntax_message
@@ -205,8 +205,7 @@ def compile_expr(source: str) -> Expr:
             isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX) or _root_method(node.func)
         )):
             called = node.func.id if isinstance(node.func, ast.Name) and not node.keywords else None
-            raise ExprError("only $functions can be called, with positional arguments"
-                            + (f": write ${called}(...)" if called else ""), source)
+            raise ExprError("only $functions can be called, with positional arguments" + _meant(called), source)
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
                 and not node.value.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)) and node.value.id not in _LITERAL_NAMES:
             raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write "
@@ -325,6 +324,19 @@ def _restore_words(nodes: list[ast.AST]) -> None:
             node.id = node.id[len(_WORD_PREFIX):]
         elif isinstance(node, ast.Attribute) and node.attr.startswith(_WORD_PREFIX):
             node.attr = node.attr[len(_WORD_PREFIX):]
+
+
+def _meant(called: str | None) -> str:
+    """What to write for a call of ``called`` without its `$`: the function it names, or the closest one there is —
+    never a function the language does not have."""
+    if called is None:
+        return ""
+    if called in FUNCTIONS:
+        return f": write ${called}(...)"
+    meant = suggest_function(called, list(FUNCTIONS))
+    if meant is None:
+        return ""
+    return f": did you mean {meant}(...)?" if "(" not in meant else f": write {meant}"
 
 
 def _root_method(func: ast.AST) -> bool:

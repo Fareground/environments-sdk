@@ -331,6 +331,8 @@ worlds stay fast, and the package is organised by feature.
     error pointing at the rules.
   - A number written as text in a mechanism field that takes a number (`"reserve": "45"`) is a config error at its
     field; before, only a play found it.
+  - A call written without its `$` suggests only a function there is (`entities(player)`: "did you mean
+    $entity(...)?"); it used to say "write $entities(...)", a function that does not exist.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
