@@ -5,7 +5,8 @@ refused and undone (:meth:`~fg_env.runtime.rules.Rules.guarded`), the agent is t
 hidden (this module), the run's diagnostics tell the author where and how to fix it, and the run goes on. What an
 action schedules with `after` stays that action's when it runs (:meth:`~fg_env.runtime.events.Events.run_scheduled`).
 The same failure outside an agent's action (events nothing an agent did set off, physics, the build) still fails the
-run — a `fail` or a transfer that does not fit too: world logic has no one to refuse it to (:func:`world_logic_refused`).
+run — a `fail` or a transfer that does not fit too: world logic has no one to refuse it to
+(:func:`world_logic_refused`).
 """
 from __future__ import annotations
 

@@ -370,8 +370,8 @@ class Turn:
 
     def _act(self, name: str, spec: ActionSpec, args: Any, observed: Observation) -> tuple[ToolResult, bool, bool]:
         """Check, then submit (sealed turns) or apply and commit one action call — ``observed`` from its start: its
-        result, whether it applied, and whether applying it was spent (:func:`~fg_env.runtime.ledger.attempt_cost`). Runs inside :meth:`Rules.guarded`, so the
-        turn's own counts change only once nothing can fail any more."""
+        result, whether it applied, and whether applying it was spent (:func:`~fg_env.runtime.ledger.attempt_cost`).
+        Runs inside :meth:`Rules.guarded`, so the turn's own counts change only once nothing can fail any more."""
         with self.after_choices():
             return self._checked_act(name, spec, args, observed)
 

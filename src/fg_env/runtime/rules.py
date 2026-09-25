@@ -91,8 +91,8 @@ class Rules:
         does not fit) fails the run — or, inside an agent's action, refuses that action; ``refusable`` (effects an
         action scheduled for later) raises the refusal, once the block is undone, for the caller to refuse.
         ``check=False``: one item of a block whose invariants are checked once it is whole (a round event's `each`),
-        unless a `change` event fires or an agent reacts first. The block draws from the stream of ``luck`` (default: its path) and ``owner`` (default:
-        its $actor), so an entity's luck does not shift when others come or go."""
+        unless a `change` event fires or an agent reacts first. The block draws from the stream of ``luck`` (default:
+        its path) and ``owner`` (default: its $actor), so an entity's luck does not shift when others come or go."""
         if not effects:
             return
         world = self.world

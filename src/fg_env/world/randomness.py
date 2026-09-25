@@ -39,8 +39,8 @@ class LuckAhead(BaseException):
 class Context:
     """What one thread or asyncio task is running: its random stream, a turn's ``$pending`` (what the turn did or
     submitted so far, with its version) and deadline (``time.monotonic()``), the agent whose action runs and which
-    action it is, how deep defs call each other, why draws are forbidden (None: they are not; empty: a trial), and how many draws and reads of
-    values hidden from the acting agent it has made (what an :class:`Observation` compares)."""
+    action it is, how deep defs call each other, why draws are forbidden (None: they are not; empty: a trial), and how
+    many draws and reads of values hidden from the acting agent it has made (what an :class:`Observation` compares)."""
 
     __slots__ = ("rng", "pending", "deadline", "actor", "action", "depth", "forbid", "draws", "hidden")
 
