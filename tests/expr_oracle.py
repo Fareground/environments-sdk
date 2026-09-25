@@ -170,6 +170,9 @@ class _Compiler:
                 return attr(container, str(map_key(index)), source, scope)
             if hasattr(container, "entity_type"):
                 return attr(container, str(index), source, scope)
+            if isinstance(container, str):
+                raise ExprError(f"cannot index {_describe(container)}: text is not a list; $chars(text) lists its "
+                                "characters ($chars(text)[i]), $substr(text, start, end) cuts a part", source)
             raise ExprError(f"cannot index {_describe(container)}", source)
 
         return run
