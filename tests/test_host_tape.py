@@ -96,7 +96,8 @@ def test_a_game_master_that_declines_refuses_that_attempt_and_the_run_goes_on():
     assert result.status == "completed", result.error
     attempts = env.world.records("gm")
     assert attempts and all(entry["refused"] for entry in attempts)
-    assert attempts[0]["reason"] == "it could not decide what happens"
+    told = [e["props"]["gm_told"] for e in env.entities("adventurer")]
+    assert all("it could not decide what happens" in text for text in told)
     assert "failed, also when asked again: the model declined the request" in _unusable(result)[0]
 
 

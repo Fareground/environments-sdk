@@ -360,7 +360,7 @@ def _value(spec: Any, rule: Rule, current: Any, value: Any, label: str) -> tuple
             if isinstance(current, bool) or not isinstance(current, (int, float)):
                 return None, f"{label} has no number to change from"
             if abs(value - current) > rule.delta + _EPSILON:
-                return None, f"{label} may change by at most {rule.delta:g} at once (from {format_value(current)})"
+                return None, f"{label} may change by at most {rule.delta:g} at once"
         return (int(value) if kind == "int" else value), ""
     if kind == "bool":
         return (value, "") if isinstance(value, bool) else (None, f"{label} must be true or false, got {_shown(value)}")

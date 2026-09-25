@@ -13,7 +13,7 @@ Named the same in every mode:
 
 Modes (`"kind": "host", "mode": ...`; read one with `guide('host.<mode>')`):
 - `judge`: A rubric judge answered by a host evaluator: the `judge` action (`text` and `subject`) in any effect list (or every new entry of `record`) scores the text per criterion, alone or as a panel, optionally blind.
-- `game_master`: Free-text attempts resolved by a host game master: agents get an `attempt(text)` tool; the host proposes effects and the engine applies them only when every one fits `allow` (kinds, targets, properties, bounds, amounts, destinations) — atomically, or refuses with the reason.
+- `game_master`: Free-text attempts resolved by a host game master: agents get an `attempt(text)` tool; the host proposes effects and the engine applies them only when every one fits `allow` (kinds, targets, properties, bounds, amounts, destinations) — atomically, or refuses.
 - `personas`: Personas written by a host writer from a prompt template over $it, once per entity before round 1: stored in the `prop` property and the entity's brief, carried by snapshots, recorded for replay.
 - `tool`: A host service as an agent tool (web search, retrieval): the `<name>` tool calls the host, returns the result «quoted» and keeps it as evidence in $actor.<name>_evidence (look: <name>_evidence), within per-turn and per-run limits.
 - `memory`: Per-agent memory: each round what the agent did and read is remembered, plus `note(text)` entries and optional host reflections; importance fades with `half_life`.

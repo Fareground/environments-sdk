@@ -455,9 +455,9 @@ class GameMasterConfig(BaseModel):
 @mode("host", "game_master", GameMasterConfig,
            "Free-text attempts resolved by a host game master: agents get an `attempt(text)` tool; the host "
            "proposes effects and the engine applies them only when every one fits `allow` (kinds, targets, "
-           "properties, bounds, amounts, destinations) — atomically, or refuses with the reason. Attempts, "
-           "narration and changes go to the record <name>; the actor is told the result; answers are recorded "
-           "for replay.",
+           "properties, bounds, amounts, destinations) — atomically, or refuses. Attempts, narration and changes "
+           "go to the record <name>, which says of a refusal only that it was refused; the actor is told the result "
+           "and why; answers are recorded for replay.",
            example={"who": "adventurer", "rules": "A small tavern. Be fair and terse.",
                     "allow": [{"effect": "set", "prop": "health", "min": 0, "max": 10, "delta": 3},
                               {"effect": "transfer", "prop": "gold", "to": "$filter(adventurer, $it.id != $actor.id)",
@@ -492,8 +492,9 @@ def _expand_game_master(name: str, config: GameMasterConfig, contract: Mapping[s
         "world": {"host_tape": tape_prop()},
         "actions": {config.tool: action},
         "records": {name: {
-            "fields": {"attempt": "text", "narration": "text", "changes": "list", "refused": "bool", "reason": "text"},
-            "show": "{author} tried {attempt} → {$it.reason if $it.refused else $it.narration}",
+            "fields": {"attempt": "text", "narration": "text", "changes": "list", "refused": "bool"},
+            "show": "{author} tried {attempt} → {'the game master did not allow that' if $it.refused else "
+                    "$it.narration}",
             "visible": config.visible, "description": f"Attempts resolved by the game master '{name}'."}},
     }
 
@@ -549,7 +550,8 @@ def _resolve_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where
         told = f"The game master: {format_value(narration)}" if narration else "The game master lets it happen."
         if changes:
             told += " Changes: " + "; ".join(changes) + "."
-    world.post(name, {"attempt": text, "narration": narration, "changes": changes, "refused": refusal is not None,
-                      "reason": refusal}, actor.id, None, where)
+    # Why it was refused is the actor's alone (it may name what only the actor may see): the record says only that.
+    world.post(name, {"attempt": text, "narration": narration, "changes": changes, "refused": refusal is not None},
+               actor.id, None, where)
     world.set_prop(actor, f"{name}_told", told)
 

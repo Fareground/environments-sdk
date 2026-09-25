@@ -250,6 +250,10 @@ worlds stay fast, and the package is organised by feature.
   - An agent type most of whose attempts were refused because a rule failed as they applied degrades the run
     (`action_always_faulted` at `types.<type>`), also when another type's use of the same action works: a coded
     population whose actions all fail no longer ends "completed" and healthy.
+  - A game master's refusal is the actor's alone: the attempt record every reader sees says only "the game master
+    did not allow that" (its `reason` field is gone; the actor's `<name>_told` keeps why), and no allow-list reason
+    quotes a property's current value. Before, a delta refusal posted "Bram's health may change by at most 3 at once
+    (from 4.5)" to everyone, although Bram's health was private.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

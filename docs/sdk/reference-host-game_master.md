@@ -1,7 +1,7 @@
 # host / game_master
 
 ### `host.game_master`
-Free-text attempts resolved by a host game master: agents get an `attempt(text)` tool; the host proposes effects and the engine applies them only when every one fits `allow` (kinds, targets, properties, bounds, amounts, destinations) — atomically, or refuses with the reason. Attempts, narration and changes go to the record <name>; the actor is told the result; answers are recorded for replay.
+Free-text attempts resolved by a host game master: agents get an `attempt(text)` tool; the host proposes effects and the engine applies them only when every one fits `allow` (kinds, targets, properties, bounds, amounts, destinations) — atomically, or refuses. Attempts, narration and changes go to the record <name>, which says of a refusal only that it was refused; the actor is told the result and why; answers are recorded for replay.
 
 Config:
 - `who` (required): Agent type(s) that may attempt things.
@@ -30,7 +30,7 @@ Nested config:
 - `values`: [any] — The only values it may set.
 - `max_chars`: int = 200 — Longest text it may set or spread as news.
 - `from`: text = "actor" — transfer: 'actor' or an expression giving who may give.
-- `to`: text — transfer: expression giving who may receive ('actor' works); move: 'adjacent' or an expression over $actor and $it giving places.
+- `to`: expression — transfer: expression giving who may receive ('actor' works); move: 'adjacent' or an expression over $actor and $it giving places.
 - `amount`: number — transfer: most that may move from one giver in one attempt.
 - `description`: text — Shown to the game master.
 
