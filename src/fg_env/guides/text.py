@@ -47,7 +47,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (events on its `start`/`end`).
-* A stage without `actions` offers every action. When other stages list their own, list this stage's too
+* A stage without `actions` offers every action but a mechanism's tools attached (`stage:`) to another stage, which
+  are that stage's own. When other stages list their own, list this stage's too
   (check warns otherwise: agents could take another phase's actions here), or write `"actions": "all"`.
 * `must_act: true` removes `end_turn` while an action is available. An agent that could act and did not — in
   a `must_act` stage, or any stage once its calls ran out — is reported as an `idle` event ("Ben did not act.").

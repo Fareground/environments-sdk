@@ -15,7 +15,8 @@ declares gain the mechanism's properties without losing their own. A mechanism m
 (``action_hooks``) and stages (``stage_hooks``: tools and turn settings; what it runs when a stage starts or ends, or
 after each turn, is an event on the stage's anchor), and generate other mechanisms. A declared stage that offers only
 mechanisms' actions and sets no ``max_actions`` allows, per turn, what each mechanism attached to it allows (a hook's
-``max_actions``, default 1). A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
+``max_actions``, default 1). A mechanism's tools attached to a stage are that stage's own: another stage offers them
+only by listing them. A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
 which each type using it already acts.
 """
 from __future__ import annotations
@@ -81,6 +82,7 @@ def expand_mechanisms(data: Mapping[str, Any], generated: dict[str, dict[str, li
     expanded: list[str] = []
     owners: dict[tuple[str, str], str] = {}  # (section, name) → the mechanism that generated it
     shares: dict[str, int] = {}  # declared stage → the actions per turn its attached mechanisms allow
+    homes: dict[str, set[str]] = {}  # a tool attached to declared stages (`stage:`) → those stages
     while True:  # generated mechanisms are expanded too, until nothing new appears
         todo = [(name, use) for name, use in out["mechanisms"].items() if name not in expanded]
         if not todo:
@@ -93,12 +95,26 @@ def expand_mechanisms(data: Mapping[str, Any], generated: dict[str, dict[str, li
         for name, use in todo:
             expanded.append(name)
             before = _names(out) if generated is not None else {}
-            issues.extend(_expand_one(out, name, use, owners, shares))
+            issues.extend(_expand_one(out, name, use, owners, shares, homes))
             if generated is not None:
                 generated[str(name)] = _added(before, _names(out))
+    _keep_home(out, homes)
     _stage_orphans(out, owners, shares)
     _share_turns(data, out, shares)
     return out, issues
+
+
+def _keep_home(out: dict[str, Any], homes: Mapping[str, set[str]]) -> None:
+    """A mechanism attached to a stage (`stage:`) owns its tools there: a stage that offers every action offers them
+    only when it is one they are attached to, so a ballot for the `vote` stage is never cast while agents talk. A stage
+    that lists actions by name offers what it lists."""
+    if not homes:
+        return
+    actions = out.get("actions") or {}
+    for stage in out.get("stages") or []:
+        if isinstance(stage, dict) and stage.get("actions", "all") == "all" \
+                and any(stage.get("name") not in stages for stages in homes.values()):
+            stage["actions"] = [a for a in actions if stage.get("name") in homes.get(a, (stage.get("name"),))]
 
 
 def _offered(stage: Mapping[str, Any], actions: Mapping[str, Any]) -> list[str]:
@@ -353,8 +369,9 @@ def _can_end(use: Any) -> bool:
 
 
 def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str, str], str],
-                shares: dict[str, int]) -> list[Issue]:
-    """Validate one declared mechanism and merge what it generates into ``out``."""
+                shares: dict[str, int], homes: dict[str, set[str]]) -> list[Issue]:
+    """Validate one declared mechanism and merge what it generates into ``out``, noting the stages each of its tools
+    is attached to in ``homes``."""
     path = f"mechanisms.{name}"
     if not isinstance(name, str) or not _NAME.match(name):
         return [Issue(path, "a mechanism name starts with a letter and uses letters, digits and _",
@@ -383,6 +400,8 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
         for stage, hook in (fragment.get("stage_hooks") or {}).items():
             if hook.get("actions"):
                 shares[stage] = shares.get(stage, 0) + int(hook.get("max_actions", 1))
+            for tool in hook.get("actions") or []:
+                homes.setdefault(tool, set()).add(stage)
     except MechanismError as exc:
         return [Issue(f"{path}.{exc.path}" if exc.path else path, str(exc), exc.fix)]
     except ExprError as exc:  # an expression the mechanism built from its fields: the author's, not a bug

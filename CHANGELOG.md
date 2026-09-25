@@ -242,6 +242,9 @@ worlds stay fast, and the package is organised by feature.
     was free, so an agent could binary-search another's hidden number); and a stage `valid` that reads a hidden
     value (or draws) and fails undoes the turn and ends it rather than letting the agent play it again. A kernel
     test probes every such shape against two hidden values.
+  - A mechanism attached to a stage (`stage:`) owns its tools there: a stage that offers every action no longer
+    offers them too, so a ballot for the `vote` stage cannot be cast (and counted) while agents talk, nor an order
+    book's orders placed as sealed choices in another stage. A stage that lists a tool by name still offers it.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
