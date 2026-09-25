@@ -338,6 +338,8 @@ worlds stay fast, and the package is organised by feature.
     one. Before, it stayed literal without a word.
   - `fg-env check` says how many rounds its plays covered: "all 4 round(s)" for a 4-round contract. Before, it said
     "12 rounds (or to the last scheduled event)" whatever the contract's length.
+  - Indexing text (`$inputs.plan[r][c]`) says to read its characters with `$chars(text)[i]`, or cut a part with
+    `$substr`.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the
