@@ -135,8 +135,8 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
         producer = config.nodes[-1]
         fragment["actions"] = {f"{name}_order": {
             "by": agents, "private": True, "terminal": True, "per_round": 1,
-            "description": "Place this round's order with the node upstream (the producer: start a batch). One order a "
-                           "round.",
+            "description": "Order units from the node upstream; the producer, with no node upstream, starts a batch "
+                           "of them instead.",
             "when": [{"expr": f"not $actor.{name}_ordered", "why": "You already ordered this round."}],
             "params": {"qty": {"type": "int", "min": 0, "max": config.max_order, "description": "Units."}},
             "do": [{"economy": name, "action": "order", "who": "$actor", "qty": "$params.qty"}],
