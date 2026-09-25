@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 from ..actions.params import parse_arguments
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, anthropic_parts, media_set, openai_parts
 from ..errors import RunError
+from ..host.usage import call_usage
 from ..information.schemas import ToolSpec
 from ..runtime.budget import tokens_of
 from ..runtime.facts import Stats
@@ -284,6 +285,8 @@ class _LLMParticipant:
     #: The provider's sync client, and the call the loop makes on it (named in error messages).
     CLIENT = ""
     CALL = ""
+    #: The provider whose usage fields its replies carry (see host/usage.py).
+    PROVIDER = ""
 
     def __init__(self, client: Any, model: str, max_steps: int, system: str, retries: int,
                  media: frozenset = frozenset(), retry_truncated: bool = True, extra: dict[str, Any] | None = None):
@@ -393,11 +396,8 @@ class _LLMParticipant:
                 raise RunError(f"{self.CALL} returned an awaitable, so this is an async client. Pass the sync client, "
                                f"{self.CLIENT}: simultaneous turns already run in parallel, and `await env.arun(...)` "
                                "keeps your event loop free while the run plays", f"participant:{wake.entity_id}")
-            usage = getattr(response, "usage", None)
-            if usage is None:  # the provider says nothing of what the call cost: count its prompt, so budgets hold
-                self._record(wake, llm_calls=1, input_tokens=prompt, unreported_usage=1)
-            else:
-                self._count(wake, usage)
+            spent = call_usage(getattr(response, "usage", None), self.PROVIDER, prompt)
+            self._record(wake, llm_calls=1, **spent.counts(), unreported_usage=int(spent.unreported))
         finally:
             if budget is not None:
                 budget.release(turn.env, held)
@@ -413,9 +413,6 @@ class _LLMParticipant:
         if self._last_cost:
             return self._last_cost
         return prompt + self.output_cap if self.output_cap is not None else math.inf
-
-    def _count(self, wake: Wake, usage: Any) -> None:
-        raise NotImplementedError
 
     @staticmethod
     def _empty(response: Any) -> bool:
@@ -444,6 +441,7 @@ _TOKEN_COUNTS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_wr
 class _Anthropic(_LLMParticipant):
     CLIENT = "anthropic.Anthropic()"
     CALL = "client.messages.create"
+    PROVIDER = "anthropic"
 
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
                  media: frozenset, retry_truncated: bool, extra: Mapping[str, Any] | None):
@@ -511,15 +509,6 @@ class _Anthropic(_LLMParticipant):
             _add_changes(results[-1], offered.changes(wake))
             messages.append({"role": "user", "content": results})
         self._out_of_steps(wake)
-
-    def _count(self, wake: Wake, usage: Any) -> None:
-        def number(name: str) -> int:
-            value = getattr(usage, name, 0) if usage is not None else 0
-            return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
-
-        self._record(wake, llm_calls=1, input_tokens=number("input_tokens"), output_tokens=number("output_tokens"),
-                     cache_read_tokens=number("cache_read_input_tokens"),
-                     cache_write_tokens=number("cache_creation_input_tokens"))
 
 
 def _several_calls(tools: list[ToolSpec]) -> bool:
@@ -622,6 +611,7 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
 class _OpenAI(_LLMParticipant):
     CLIENT = "openai.OpenAI()"
     CALL = "client.chat.completions.create"
+    PROVIDER = "openai"
 
     def __init__(self, client: Any, model: str, max_tokens: int | None, reasoning_effort: str | None,
                  max_steps: int, system: str, retries: int, media: frozenset, retry_truncated: bool,
@@ -697,15 +687,6 @@ class _OpenAI(_LLMParticipant):
                                  "content": [{"type": "text", "text": "Files from the tool results above:"},
                                              *files]})
         self._out_of_steps(wake)
-
-    def _count(self, wake: Wake, usage: Any) -> None:
-        def number(owner: Any, name: str) -> int:
-            value = getattr(owner, name, 0) if owner is not None else 0
-            return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
-
-        cached = number(getattr(usage, "prompt_tokens_details", None), "cached_tokens")
-        self._record(wake, llm_calls=1, input_tokens=max(0, number(usage, "prompt_tokens") - cached),
-                     output_tokens=number(usage, "completion_tokens"), cache_read_tokens=cached)
 
     @staticmethod
     def _empty(response: Any) -> bool:

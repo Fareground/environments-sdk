@@ -30,6 +30,7 @@ from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, Carried, anthropi
 from ..errors import RunError
 from .hosts import credit_tokens, time_left
 from .protocols import HostError, HostUnavailable
+from .usage import call_usage, rough_tokens
 
 __all__ = ["LLMHost", "AnthropicWebSearch", "HistoricalFeed", "anthropic", "openai", "anthropic_web_search",
            "historical", "parse_json"]
@@ -74,11 +75,6 @@ def _field(block: Any, name: str) -> Any:
     return block.get(name) if isinstance(block, Mapping) else getattr(block, name, None)
 
 
-def _count(owner: Any, name: str) -> int:
-    value = getattr(owner, name, 0) if owner is not None else 0
-    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else 0
-
-
 class _Provider:
     """Retries and usage accounting shared by the adapters."""
 
@@ -99,7 +95,7 @@ class _Provider:
         self.max_tokens = max_tokens
         self.provider = provider
         self.usage: dict[str, int] = {"calls": 0, "input_tokens": 0, "output_tokens": 0, "cache_read_tokens": 0,
-                                      "cache_write_tokens": 0, "retries": 0}
+                                      "cache_write_tokens": 0, "retries": 0, "unreported_usage": 0}
         self._lock = threading.Lock()
 
     def _retrying(self, request: Callable[[float], Any]) -> Any:
@@ -131,12 +127,15 @@ class _Provider:
                 self.usage[key] += value
         if "calls" in counts:  # one model call: its tokens go to the run that asked (parallel runs may share us)
             credit_tokens(counts.get("input_tokens", 0), counts.get("output_tokens", 0),
-                          counts.get("cache_read_tokens", 0), counts.get("cache_write_tokens", 0))
+                          counts.get("cache_read_tokens", 0), counts.get("cache_write_tokens", 0),
+                          counts.get("unreported_usage", 0))
 
-    def _add_anthropic(self, usage: Any) -> None:
-        self._add(calls=1, input_tokens=_count(usage, "input_tokens"), output_tokens=_count(usage, "output_tokens"),
-                  cache_read_tokens=_count(usage, "cache_read_input_tokens"),
-                  cache_write_tokens=_count(usage, "cache_creation_input_tokens"))
+    def _add_call(self, response: Any, sent: Any) -> None:
+        """Count one model call: what its reply says it spent, or — said nothing — the rough size of what was
+        ``sent``, flagged as unreported (see host/usage.py)."""
+        spent = call_usage(getattr(response, "usage", None), self.provider,
+                           rough_tokens(len(json.dumps(sent, ensure_ascii=False, default=str))))
+        self._add(calls=1, **spent.counts(), unreported_usage=int(spent.unreported))
 
 
 class LLMHost(_Provider):
@@ -195,7 +194,7 @@ class LLMHost(_Provider):
             response = self._retrying(lambda timeout: self.client.messages.create(
                 model=model, max_tokens=self.max_tokens, system=system,
                 messages=[{"role": "user", "content": message}], timeout=timeout))
-            self._add_anthropic(getattr(response, "usage", None))
+            self._add_call(response, [system, content])
             stop = getattr(response, "stop_reason", None)
             if stop == "refusal":
                 raise HostError("the model declined the request")
@@ -208,10 +207,7 @@ class LLMHost(_Provider):
         response = self._retrying(lambda timeout: self.client.chat.completions.create(
             model=model, messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
             timeout=timeout))
-        usage = getattr(response, "usage", None)
-        cached = _count(getattr(usage, "prompt_tokens_details", None), "cached_tokens")
-        self._add(calls=1, input_tokens=max(0, _count(usage, "prompt_tokens") - cached),
-                  output_tokens=_count(usage, "completion_tokens"), cache_read_tokens=cached)
+        self._add_call(response, [system, content])
         choices = getattr(response, "choices", None) or []
         if not choices:
             raise HostError("the model answered with no choices")
@@ -247,7 +243,7 @@ class AnthropicWebSearch(_Provider):
             response = self._retrying(lambda timeout: self.client.messages.create(
                 model=self.model, max_tokens=self.max_tokens, tools=tools, messages=messages,  # noqa: B023 — called within this iteration
                 timeout=timeout))
-            self._add_anthropic(getattr(response, "usage", None))
+            self._add_call(response, messages)
             stop = getattr(response, "stop_reason", None)
             if stop == "refusal":
                 raise HostError("the model declined the search")

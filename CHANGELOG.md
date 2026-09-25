@@ -293,6 +293,12 @@ worlds stay fast, and the package is organised by feature.
   - Mechanism config slips read plainly: a near-miss enum value suggests the value meant, a prediction market's
     literal `outcome` that is not one of its outcomes is an error at `outcome` (it surfaced only in a play, twice),
     and a number far too large for a tool says so instead of "must be between -9007199254740991 and …".
+  - A model call whose reply reports no token usage, or not as whole numbers, is counted the same way everywhere —
+    participants, hosts and `fg_env.author` (one helper, `fg_env.host.usage`): the size of what was sent stands in,
+    and the call is flagged (`usage_unreported` on a run, "came back without usage" in the authoring summary), so a
+    token budget binds. Before, a host or an authoring session counted such calls as 0 tokens (a budget never bound),
+    usage given as text counted 0 unflagged, and an Anthropic reply with no usage ended an authoring session. Host
+    adapters' `usage` gains `unreported_usage`; `credit_tokens` takes `unreported`.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

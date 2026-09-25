@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 __all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens",
            "time_left"]
 
-#: The counters of a host's ``usage`` that are model tokens.
-_TOKENS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens")
+#: The counters of a host's ``usage`` a run counts: its model tokens, and its calls whose provider reported none.
+_TOKENS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "unreported_usage")
 
 
 class Hosts:
@@ -146,13 +146,14 @@ def time_left() -> float | None:
 
 
 def credit_tokens(input_tokens: int = 0, output_tokens: int = 0, cache_read_tokens: int = 0,
-                  cache_write_tokens: int = 0) -> None:
+                  cache_write_tokens: int = 0, unreported: int = 0) -> None:
     """Report the tokens one model call of a host adapter spent, toward the run whose host call is in progress on this
     thread (the reference adapters call it; outside a host call it does nothing). ``input_tokens`` are the fresh ones,
-    not read from the provider's prompt cache."""
+    not read from the provider's prompt cache; ``unreported``: 1 when the provider reported no usage, so the tokens
+    are an estimate (:func:`fg_env.host.usage.call_usage`)."""
     reported = getattr(_CALL, "reported", None)
     if reported is not None:
-        spent = zip(_TOKENS, (input_tokens, output_tokens, cache_read_tokens, cache_write_tokens))
+        spent = zip(_TOKENS, (input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, unreported))
         for key, value in spent:
             reported[key] = reported.get(key, 0) + value
 

@@ -40,6 +40,7 @@ from ..actions.params import parse_arguments
 from ..api import load, parse
 from ..engines import list_engines
 from ..guides import guide
+from ..host.usage import call_usage, rough_tokens
 from ..participants.llm import (
     _MAX_BACKOFF_SECONDS,
     PROVIDERS,
@@ -120,8 +121,9 @@ class AuthorResult:
     #: The whole conversation, in OpenAI chat format.
     messages: list[Message]
     #: input_tokens (fresh ones), cached_tokens (read from the provider's prompt cache), cache_write_tokens (written to
-    #: it), output_tokens, calls, truncated (replies cut off at the output limit), and cost when the provider reports it
-    #: (OpenRouter does).
+    #: it), output_tokens, calls, truncated (replies cut off at the output limit), unreported (calls whose reply carried
+    #: no usage: their tokens are estimated from what was sent), and cost when the provider reports it (OpenRouter
+    #: does).
     usage: dict[str, Any]
     seconds: float
     #: Where ``contract`` was written: ``out``, or beside it as ``<name>.not-working.json`` when nothing worked.
@@ -179,8 +181,11 @@ class AuthorResult:
         cost = f", ${self.usage['cost']:.2f}" if "cost" in self.usage else ""
         cached = f" (+{self.usage['cached_tokens']:,} cached)" if self.usage.get("cached_tokens") else ""
         fresh = self.usage["input_tokens"] + self.usage.get("cache_write_tokens", 0) + self.usage["output_tokens"]
+        unreported = self.usage.get("unreported", 0)
+        estimated = (f" ({unreported} call(s) came back without usage: their tokens are estimated from what was "
+                     "sent)" if unreported else "")
         lines.append(f"  used: {self.usage['calls']} model calls, {fresh:,} tokens{cached}{cost}, "
-                     f"{self.seconds:.0f}s")
+                     f"{self.seconds:.0f}s{estimated}")
         if self.path:
             hosts = ", ".join(f"{name!r}: ..." for name in self.tested.hosts) if self.tested else ""
             run = (f"run it with its hosts bound: fg_env.host.load({self.path!r}, hosts={{{hosts}}}).run()" if hosts
@@ -231,7 +236,7 @@ def author(brief: str, model: str, *, client: Any = None, out: str | None = None
     messages: list[Message] = [{"role": "system", "content": guide("authoring")},
                                {"role": "user", "content": brief + instruction + _starters()}]
     usage: dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
-                             "calls": 0, "truncated": 0}
+                             "calls": 0, "truncated": 0, "unreported": 0}
     try:
         deadline = started + limits["seconds"]
         stop = _converse(_retrying(ask, progress, deadline), messages, bench, usage, limits, progress, out, deadline)
@@ -410,10 +415,8 @@ def _openai(client: Any, model: str) -> Request:
         message: Message = {"role": "assistant", "content": reply.content or ""}
         if calls:
             message["tool_calls"] = calls
-        used = response.usage
-        cached = getattr(getattr(used, "prompt_tokens_details", None), "cached_tokens", 0) or 0
-        counts = {"input_tokens": (getattr(used, "prompt_tokens", 0) or 0) - cached, "cached_tokens": cached,
-                  "output_tokens": getattr(used, "completion_tokens", 0) or 0,
+        used = getattr(response, "usage", None)
+        counts = {**_spent_on(used, "openai", messages),
                   "truncated": int(getattr(choice, "finish_reason", None) == "length"),
                   "refused": int(getattr(choice, "finish_reason", None) == "content_filter")}
         cost = getattr(used, "cost", None)  # OpenRouter reports it; OpenAI does not
@@ -445,14 +448,19 @@ def _anthropic(client: Any, model: str) -> Request:
         message: Message = {"role": "assistant", "content": text}
         if calls:
             message["tool_calls"] = calls
-        used = response.usage
-        return message, {"input_tokens": used.input_tokens,
-                         "cached_tokens": getattr(used, "cache_read_input_tokens", 0) or 0,
-                         "cache_write_tokens": getattr(used, "cache_creation_input_tokens", 0) or 0,
-                         "output_tokens": used.output_tokens,
+        return message, {**_spent_on(getattr(response, "usage", None), "anthropic", messages),
                          "truncated": int(stop == "max_tokens"), "refused": int(stop == "refusal")}
 
     return ask
+
+
+def _spent_on(usage: Any, provider: str, messages: list[Message]) -> dict[str, int]:
+    """What one call spent, in the session's counts: as the reply's ``usage`` says, or — it says nothing — the size of
+    the ``messages`` sent, counted as unreported (see host/usage.py)."""
+    spent = call_usage(usage, provider, rough_tokens(len(json.dumps(messages, ensure_ascii=False, default=str))))
+    return {"input_tokens": spent.input_tokens, "cached_tokens": spent.cache_read_tokens,
+            "cache_write_tokens": spent.cache_write_tokens, "output_tokens": spent.output_tokens,
+            "unreported": int(spent.unreported)}
 
 
 def _to_anthropic(messages: list[Message]) -> list[Message]:

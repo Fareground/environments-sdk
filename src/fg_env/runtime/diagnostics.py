@@ -96,8 +96,9 @@ def _unreported_usage(env: Env) -> list[dict[str, str]]:
     if not calls:
         return []
     return [_finding("usage_unreported", "participants",
-                     f"{calls} model call(s) came back without token usage, so their cost is an estimate (the prompt's "
-                     "size) in the run's token counts and budget",
+                     f"{calls} model call(s) of the participants or hosts came back without token usage (or not as "
+                     "whole numbers), so their cost is an estimate (the prompt's size) in the run's token counts and "
+                     "budget",
                      "use a provider or proxy that reports usage when the token counts or a token budget must be "
                      "exact")]
 
