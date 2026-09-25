@@ -9,6 +9,7 @@ from test_author import WORKING, FakeOpenAI, call, edit, tool_replies, write
 from test_author_safety import game
 
 import fg_env
+from fg_env.authoring import testing
 from fg_env.authoring.sandbox import Sandbox, TooSlow
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
@@ -200,3 +201,11 @@ def test_an_openai_refusal_after_a_working_revision_stops_as_refused():
 
     assert (result.ok, result.stop, result.contract) == (True, "refused", WORKING)
 
+
+
+def test_an_output_read_from_a_stubbed_hosts_answers_is_not_called_flat():
+    """The test runs answer hosts with the SDK's stubs, the same every time: the contest starter's `judged` output is
+    flat by design and not warned about (audit 12 agentif B-L3)."""
+    result = testing.tested(Path(fg_env.__file__).parent / "engines" / "starters" / "contest.json")
+    assert result.problem == "" and result.hosts
+    assert not [w for w in result.warnings if w.startswith("[warning] outputs.judged:")]

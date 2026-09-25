@@ -48,9 +48,10 @@ class Seen:
         """``(average, largest)`` tokens an agent read in a turn."""
         return round(self.chars / max(1, self.turns) / _CHARS_PER_TOKEN), round(self.most / _CHARS_PER_TOKEN)
 
-    def warnings(self, contract: Contract) -> list[Issue]:
-        """Everything this module warns about, for ``contract`` and these runs."""
-        return [*self._large(), *flat_measures(contract, self.runs), *aimless(contract)]
+    def warnings(self, contract: Contract, stubbed: bool = False) -> list[Issue]:
+        """Everything this module warns about, for ``contract`` and these runs (``stubbed``: see :func:`flat_measures`).
+        """
+        return [*self._large(), *flat_measures(contract, self.runs, stubbed), *aimless(contract)]
 
     def _large(self) -> list[Issue]:
         rounds = sum(max(1, run.rounds) for run in self.runs)
@@ -64,14 +65,21 @@ class Seen:
                       "listing every entity, or fewer agents woken each round", "warning")]
 
 
-def flat_measures(contract: Contract, runs: list[RunResult]) -> list[Issue]:
+def flat_measures(contract: Contract, runs: list[RunResult], stubbed: bool = False) -> list[Issue]:
     """Outputs and series that came out the same, or empty (null), in every one of ``runs`` (two at least): whatever
     the agents did and whatever luck drew, they measured nothing that changed — a winner no rule decides but a
-    tie-break, a sum of what no rule adds to."""
+    tie-break, a sum of what no rule adds to. With ``stubbed`` — the runs' hosts were the SDK's stand-in stubs, which
+    answer the same every time — an output read from what a host mechanism answers is left out: it is flat by design."""
     if len(runs) < 2:
         return []
+    hosts = [name for name, use in (contract.mechanisms or {}).items()
+             if isinstance(use, dict) and use.get("kind") == "host"] if stubbed else []
+    names = "|".join(map(re.escape, hosts))
+    answered = re.compile(rf"\$records\(\s*(?:{names})\b|\$world\.(?:{names})_") if hosts else None
     found: list[Issue] = []
     for name, spec in contract.outputs.items():
+        if answered is not None and answered.search(spec.expr or ""):
+            continue
         sampled = spec.series is True  # its result is its last sample: every sample tells more
         found += _flat(f"outputs.{name}", [value for run in runs for value in run.series.get(name, [])] if sampled
                        else [run.outputs.get(name) for run in runs])

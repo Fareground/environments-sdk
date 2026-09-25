@@ -137,11 +137,12 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
                                                                          seeds, most, seen)
         if not found["problem"]:
             warned = {issue.path for issue in issues}  # what check already warned about is not said twice
-            found["warnings"] += [str(i) for i in seen.warnings(contract) if i.path not in warned]
+            found["warnings"] += [str(i) for i in seen.warnings(contract, bool(hosts.asked)) if i.path not in warned]
             found["prompt"] = list(seen.prompt)
             found["fired"] = _fired_parts(contract, seen.fired)
             found["views"] = sorted(seen.views)
-            found["flat"] = [issue.path.removeprefix("outputs.") for issue in flat_measures(contract, seen.runs)]
+            found["flat"] = [issue.path.removeprefix("outputs.")
+                             for issue in flat_measures(contract, seen.runs, bool(hosts.asked))]
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
         found["problem"] = f"{type(exc).__name__}: {exc}"
     found["hosts"] = list(hosts.asked)

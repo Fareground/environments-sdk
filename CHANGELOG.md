@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
+    SDK's stand-in stubs (the contest starter's `judged`).
   - The author loop answers an edit path naming no part of the contract (`"."`) plainly instead of with an
     `IndexError`, and a tool call missing an argument it sent under another name hears both ("it needs contract and
     it has no raw").
