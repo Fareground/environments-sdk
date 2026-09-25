@@ -311,6 +311,9 @@ worlds stay fast, and the package is organised by feature.
   - An output that reads itself, or a later output that is not a series (every loop of outputs does), is a check
     error: outputs are worked out in the order written, so it never has a value. Before, check only warned that it
     was "fine if it only has a value later in a run".
+  - A policy rule's `each: $filter(<type>, <condition>)` that picks the agent's own items may also test their private
+    properties (`$it.holder == $actor.id and $it.secret == 0`), as a view's `where` may. Before, the second condition
+    was refused as a leak even for items the agent held.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

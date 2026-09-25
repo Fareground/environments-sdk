@@ -206,17 +206,23 @@ class PolicyAgent:
     def _each(turn: Any, each: str, scope: Any, path: str) -> list[Any]:
         """A scope per item of a rule's `each` ($it, $i). Items a `$filter(<type>, <condition>)` picks by the agent
         and one of their properties (`$it.owner == $actor.id`) are the agent's, as a view's `where` makes them: the
-        rule may read their private properties (see expr/hidden.py)."""
+        condition reads each item's private properties for the agent (`... and $it.secret == 0`), and so does the rule
+        (see expr/hidden.py)."""
         world, contract = turn.env.world, turn.env.contract
         if each in contract.types:
             return [scope.child(it=item, i=position) for position, item in enumerate(world.entities_of(each))]
         try:
+            parts = filter_parts(each)
+            owned = parts is not None and reveals(contract, parts[1], parts[0])
             with turn.gate, turn.after_choices():
-                items = each_items(compile_expr(each)(scope), world, f"{path}.each")
-                parts = filter_parts(each)
+                if parts is not None and owned:
+                    kind, condition = parts
+                    items = [item for item in world.entities_of(kind)
+                             if truthy(condition(scope.child(it=item, **{REVEALS: item})))]
+                else:
+                    items = each_items(compile_expr(each)(scope), world, f"{path}.each")
         except ExprError as exc:
             raise RunError(str(exc), f"{path}.each") from None
-        owned = parts is not None and reveals(contract, parts[1], parts[0])
         return [scope.child(it=item, i=position, **({REVEALS: item} if owned else {}))
                 for position, item in enumerate(items)]
 

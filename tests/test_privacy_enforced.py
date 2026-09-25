@@ -408,3 +408,23 @@ def test_whether_an_action_ends_the_turn_may_not_read_a_hidden_value():
     assert [e.path for e in errors] == ["actions.probe.terminal"] and "code" in errors[0].message
     c["actions"]["probe"]["terminal"] = "$actor.n >= 2"
     assert not [i for i in fg_env.check(c, rounds=0) if i.severity == "error"]
+
+
+def test_a_policy_filter_that_picks_the_agents_own_items_may_also_test_their_private_props():
+    """As a view's `where` may: `$it.holder == $actor.id and $it.secret == 0` picks r_1's unmarked tokens."""
+    c = {"name": "own", "clock": {"rounds": 1},
+         "types": {"r": {"agent": True, "policies": {"p": {"rules": [
+             {"each": "$filter(tok, $it.holder == $actor.id and $it.secret == 0)", "do": "mark",
+              "with": {"t": "$it"}}]}}},
+             "tok": {"props": {"holder": "", "secret": {"type": "int", "default": 0, "private": True}}}},
+         "entities": {"r": {"type": "r", "count": 2},
+                      "tok": {"type": "tok", "count": 4, "props": {"holder": "'r_1' if $i <= 2 else 'r_2'",
+                                                                  "secret": "1 if $i == 1 else 0"}}},
+         "actions": {"mark": {"by": "r", "params": {"t": {"type": "entity", "of": "tok",
+                                                          "where": "$it.holder == $actor.id"}},
+                              "do": "$params.t.secret += 10", "announce": False}},
+         "outputs": {"secrets": "$map(tok, $it.secret)"}}
+    assert not [i for i in fg_env.check(c) if i.severity == "error"]
+    result = fg_env.run(c, "policy:p", seed=1)
+    assert result.status == "completed", result.error
+    assert result.outputs["secrets"] == [1, 10, 10, 0]
