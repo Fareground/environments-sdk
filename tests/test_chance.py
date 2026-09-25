@@ -117,3 +117,15 @@ def test_an_event_fires_at_random_through_its_when():
     contract["events"][0]["when"] = "$chance(0.5)"
     heads = fg_env.run(contract, seed=2).outputs["heads"]
     assert 0 < heads < 6
+
+
+def test_outcomes_written_as_text_are_a_check_error():
+    """`"outcomes": "[1,2,3]"` is text, not a list: check says so before a run does (audit 11 L3)."""
+    contract = {"name": "Die", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"x": 0}}},
+                "entities": {"a": {"type": "p"}},
+                "actions": {"roll": {"by": "p", "do": [{"chance": "die", "outcomes": "[1,2,3]", "as": "r",
+                                                         "do": ["$actor.x = $r"]}]}}}
+    found = [i for i in fg_env.check(contract, rounds=0) if i.path == "actions.roll.do[0].outcomes"]
+    assert [i.severity for i in found] == ["error"] and "neither a list nor a type name" in found[0].message
+    contract["actions"]["roll"]["do"][0]["outcomes"] = [1, 2, 3]
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]

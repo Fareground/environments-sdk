@@ -177,7 +177,8 @@ def test_a_whole_number_parameter_states_its_bounds_as_whole_numbers():
 
 
 def test_chance_outcomes_written_as_quoted_text_say_so():
-    contract = _counter(do={"chance": "deal", "outcomes": "[1, 2, 3]", "as": "x", "do": "$actor.n += $x"})
+    # written as plain text, check refuses it (test_chance.py); an expression that gives text is told at run time
+    contract = _counter(do={"chance": "deal", "outcomes": "$text('[1, 2, 3]')", "as": "x", "do": "$actor.n += $x"})
     found = [d["message"] for d in fg_env.run(contract, lambda wake: wake.call("act", {}), seed=1).diagnostics]
     assert any("got the text '[1, 2, 3]'" in message and "without quotes" in message for message in found)
 

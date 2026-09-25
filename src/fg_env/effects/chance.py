@@ -23,7 +23,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from ..errors import RunError
-from ..expr import EVERYONE
+from ..expr import EVERYONE, is_expr
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from .statements import RESERVED_ROOTS
@@ -180,7 +180,12 @@ def check_chance(checker: Any, effect: Mapping[str, Any], path: str, roots: set[
     elif isinstance(raw, str) and raw.strip():
         if "outcomes" not in effect:
             checker.error(path, "a named chance needs `outcomes`", "a list, a type name or an expression giving a list")
-        checker.value(effect.get("outcomes"), f"{path}.outcomes", roots, types, params)
+        outcomes = effect.get("outcomes")
+        if isinstance(outcomes, str) and not is_expr(outcomes) and outcomes not in checker.c.types:
+            checker.error(f"{path}.outcomes", f"is the text {outcomes!r}, which is neither a list nor a type name",
+                          "write the list itself in the JSON, without quotes ([1, 2, 3]), a type name, or an "
+                          "expression ($range(1, 11))")
+        checker.value(outcomes, f"{path}.outcomes", roots, types, params)
         checker.expr(effect.get("weight"), f"{path}.weight", roots | {"it", "i"}, types, params)
         bound |= checker.effects(effect.get("do", []), f"{path}.do", inner, inner_types, params) - roots
     else:
