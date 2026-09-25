@@ -267,6 +267,10 @@ worlds stay fast, and the package is organised by feature.
     private properties, as a view's `where` allows; the refusal text says how. Before, it was refused, and the fix it
     suggested (a `where`) does not exist on policy rules.
   - The start page no longer claims a clean check proves a contract runs: it says what a check does prove.
+  - The Anthropic participant places a prompt-cache breakpoint only where a later call reads it: on the conversation
+    only in a turn that may make several calls, and on the system prompt in such a turn or when the agent's turn opens
+    with the same tools and brief as its previous one. Before, a turn that ends on its one action (every poker bet)
+    paid the cache-write premium on its whole prompt, and tools that change every turn re-wrote the brief each time.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

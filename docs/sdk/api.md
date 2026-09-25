@@ -358,9 +358,11 @@ The model is shown one tool list for the whole turn: the tools legal when the tu
 longer legal is refused with the reason, each tool result names the offered tools not available any more, and a
 tool that becomes legal during the turn is added. So every call of a turn sends the same prefix, and two
 prompt-cache breakpoints — the system prompt (``system`` and the brief, cached after the tools) and the latest
-message — let each call read the one before it from the cache. A breakpoint is placed only once its prefix is long
-enough for any model to cache (about 512 tokens). When the agent has no action it could take, the model is not
-called and the turn ends.
+message — let each call read the one before it from the cache. A breakpoint is placed only where a later call can
+read it: the latest message only in a turn that may make several calls (some tool other than end_turn leaves the
+turn open), and the system prompt in such a turn or when the agent's turn opens with the same tools and system
+prompt as its previous one — and only once its prefix is long enough for any model to cache (about 512 tokens).
+When the agent has no action it could take, the model is not called and the turn ends.
 
 Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
 sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's

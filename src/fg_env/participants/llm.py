@@ -6,8 +6,10 @@ results back until the turn ends; it retries rate limits and overload with backo
 and counts tokens against the run's budget. ``<provider>:<model>`` participants run on the official client."""
 from __future__ import annotations
 
+import hashlib
 import importlib
 import inspect
+import json
 import os
 import random
 import threading
@@ -423,6 +425,9 @@ class _Anthropic(_LLMParticipant):
         sent = ("model", "messages", "tools", "system", "max_tokens", "timeout")
         super().__init__(client, model, max_steps, system, retries, media, retry_truncated, _extra(extra, sent))
         self.max_tokens = max_tokens
+        #: A digest of the tools and system prompt each agent's latest turn opened with: a turn opening with the same
+        #: prefix reads it from the prompt cache, so it is worth a breakpoint even when the turn makes one call.
+        self._openings: dict[str, str] = {}
 
     def _turn(self, wake: Wake) -> None:
         text = (self.system + "\n\n" if self.system else "") + wake.brief
@@ -430,6 +435,10 @@ class _Anthropic(_LLMParticipant):
         opening: Any = [{"type": "text", "text": wake.update}, *parts] if parts else wake.update
         messages: list[dict[str, Any]] = [{"role": "user", "content": opening}]
         offered = _TurnTools(wake, "anthropic")
+        several = _several_calls(wake.tools)
+        prefix = hashlib.sha256(json.dumps([offered.definitions, text], default=str).encode()).hexdigest()
+        repeated = self._openings.get(wake.entity_id) == prefix
+        self._openings[wake.entity_id] = prefix
         asked = False
         for _ in range(self.max_steps):
             if wake.done:
@@ -437,10 +446,10 @@ class _Anthropic(_LLMParticipant):
             tools = offered.definitions
             head = _tokens(tools, text)
             system: list[dict[str, Any]] = [{"type": "text", "text": text}]
-            if head >= _CACHE_MIN_TOKENS:
+            if head >= _CACHE_MIN_TOKENS and (several or repeated):
                 system[0]["cache_control"] = {"type": "ephemeral"}
             prompt = head + _tokens(messages)
-            sent = _cached(messages) if prompt >= _CACHE_MIN_TOKENS else messages
+            sent = _cached(messages) if several and prompt >= _CACHE_MIN_TOKENS else messages
             response = self._create(wake, lambda: self.client.messages.create(
                 model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=sent,  # noqa: B023 — called within this iteration
                 timeout=request_timeout(wake.time_left), **self.extra), prompt)
@@ -486,6 +495,13 @@ class _Anthropic(_LLMParticipant):
         self._record(wake, llm_calls=1, input_tokens=number("input_tokens"), output_tokens=number("output_tokens"),
                      cache_read_tokens=number("cache_read_input_tokens"),
                      cache_write_tokens=number("cache_creation_input_tokens"))
+
+
+def _several_calls(tools: list[ToolSpec]) -> bool:
+    """Whether a turn offering ``tools`` may make more than one model call: some tool other than end_turn leaves the
+    turn open. A turn whose every action ends it makes one call, so a cache breakpoint on its conversation would be
+    written and never read."""
+    return any(tool.kind != "end" and not tool.terminal for tool in tools)
 
 
 def _add_changes(result: dict[str, Any], changes: str) -> None:
@@ -543,9 +559,11 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
     longer legal is refused with the reason, each tool result names the offered tools not available any more, and a
     tool that becomes legal during the turn is added. So every call of a turn sends the same prefix, and two
     prompt-cache breakpoints — the system prompt (``system`` and the brief, cached after the tools) and the latest
-    message — let each call read the one before it from the cache. A breakpoint is placed only once its prefix is long
-    enough for any model to cache (about 512 tokens). When the agent has no action it could take, the model is not
-    called and the turn ends.
+    message — let each call read the one before it from the cache. A breakpoint is placed only where a later call can
+    read it: the latest message only in a turn that may make several calls (some tool other than end_turn leaves the
+    turn open), and the system prompt in such a turn or when the agent's turn opens with the same tools and system
+    prompt as its previous one — and only once its prefix is long enough for any model to cache (about 512 tokens).
+    When the agent has no action it could take, the model is not called and the turn ends.
 
     Files the agent receives are sent as image and document blocks after the text (``media``: the attachment types
     sent as content, default image, pdf and text; ``media=()`` for a text-only model, which reads each file's

@@ -1,4 +1,5 @@
 """LLM participant loops against fake provider clients (no network)."""
+import copy
 import json
 import time
 from types import SimpleNamespace as NS
@@ -65,6 +66,29 @@ def test_one_tool_list_serves_the_whole_turn_so_each_call_reads_the_one_before_f
     names = [[tool["name"] for tool in request["tools"]] for request in client.requests]
     assert "review" not in names[0] and names[1] == names[2] == names[0] + ["review"]
     assert first["tools"] == second["tools"][:-1]
+
+
+def _cache_marks(request):
+    """Where a request places prompt-cache breakpoints: on the system prompt, and on how many messages."""
+    return ("cache_control" in request["system"][0], sum("cache_control" in json.dumps(m) for m in request["messages"]))
+
+
+def test_a_turn_that_ends_on_one_action_writes_no_cache_a_later_call_cannot_read():
+    rules = "House rules: bids are final, the highest wins, ties go to the earliest. " * 60
+    auction = {**AUCTION, "clock": {"rounds": 3}}
+    client = FakeAnthropic([[("bid", {"amount": 10})]] * 3)
+    fg_env.run(auction, {"ann": participants.anthropic(client, "claude-x", system=rules), "bo": "idle", "cy": "idle"},
+               seed=1)
+    # Each turn is one call (bid ends it): no breakpoint on the conversation. The system prompt is cached from the
+    # second turn on, once the agent's turn opens with the same tools and brief as its previous one, which it reads.
+    assert [_cache_marks(request) for request in client.requests] == [(False, 0), (True, 0), (True, 0)]
+
+    varying = copy.deepcopy(auction)
+    varying["actions"]["bid"]["params"]["amount"]["max"] = "$actor.budget - $round"
+    client = FakeAnthropic([[("bid", {"amount": 10})]] * 3)
+    fg_env.run(varying, {"ann": participants.anthropic(client, "claude-x", system=rules), "bo": "idle", "cy": "idle"},
+               seed=1)
+    assert [_cache_marks(request) for request in client.requests] == [(False, 0)] * 3  # the tools change every turn
 
 
 def test_a_tool_that_stops_being_legal_stays_offered_and_the_result_says_it_is_not_available_now():
