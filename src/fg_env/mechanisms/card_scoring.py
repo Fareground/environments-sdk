@@ -14,7 +14,7 @@ from typing import Any
 from ..expr import Call, ExprError, function
 
 __all__ = ["RANK_LABELS", "SUITS", "SUIT_SYMBOLS", "parse_card", "poker_rank", "poker_hand", "blackjack", "sets",
-           "runs", "trick_winner", "follow_suit"]
+           "runs", "trick_winner", "follow_suit", "suit_name"]
 
 SUITS = ("spades", "hearts", "diamonds", "clubs")
 SUIT_SYMBOLS = {"spades": "♠", "hearts": "♥", "diamonds": "♦", "clubs": "♣"}
@@ -39,9 +39,9 @@ def parse_card(value: Any) -> Card:
     """``(rank, suit, value)`` for an entity, a map or short text; raises ValueError when unreadable."""
     if hasattr(value, "entity_type"):
         props = value.properties
-        return props.get("rank"), str(props.get("suit") or ""), value
+        return props.get("rank"), suit_name(props.get("suit")), value
     if isinstance(value, Mapping):
-        return value.get("rank"), str(value.get("suit") or ""), value
+        return value.get("rank"), suit_name(value.get("suit")), value
     if isinstance(value, str):
         text = value.strip().upper()
         if len(text) >= 2:
@@ -49,6 +49,24 @@ def parse_card(value: Any) -> Card:
             if rank is not None and suit is not None:
                 return rank, suit, value
     raise ValueError(f"cannot read {value!r} as a card (a card entity, {{rank, suit}} or text like 'AS', '10h')")
+
+
+def suit_name(value: Any) -> str:
+    """A suit as every card function compares it: a standard suit however it is spelled — its name, letter or symbol,
+    any case (``"H"``, ``"♥"``, ``"Hearts"`` are ``hearts``) — and any other suit (a deck of its own) as written."""
+    text = str(value or "").strip()
+    return text.lower() if text.lower() in SUITS else _PARSE_SUITS.get(text.upper(), text)
+
+
+def _given_suit(value: Any, cards: Sequence[Card], what: str) -> str | None:
+    """A suit an author gives (a lead suit, a trump) as :func:`suit_name` reads it; one that is no standard suit is
+    refused where every card in play is of the standard four (it could match none of them)."""
+    if value is None or value == "":
+        return None
+    suit = suit_name(value)
+    if suit not in SUITS and cards and all(card[1] in SUITS for card in cards):
+        raise ValueError(f"{what} {value!r} is not a suit: write spades, hearts, diamonds or clubs (or S, H, D, C)")
+    return suit
 
 
 def _cards(values: Any) -> list[Card]:
@@ -255,7 +273,8 @@ def trick_winner(values: Any, lead_suit: str | None = None, trump: str | None = 
     cards = _cards(values)
     if not cards:
         return None
-    lead = lead_suit or cards[0][1]
+    lead = _given_suit(lead_suit, cards, "the lead suit") or cards[0][1]
+    trump = _given_suit(trump, cards, "the trump")
     trumps = [c for c in cards if trump and c[1] == trump]
     candidates = trumps or [c for c in cards if c[1] == lead]
     if not candidates:
@@ -266,9 +285,10 @@ def trick_winner(values: Any, lead_suit: str | None = None, trump: str | None = 
 def follow_suit(hand: Any, lead_suit: str | None) -> list[Any]:
     """The cards of ``hand`` that may legally be played: those of the suit led when there are any, else all."""
     cards = _cards(hand)
-    if not lead_suit:
+    lead = _given_suit(lead_suit, cards, "the lead suit")
+    if not lead:
         return [c[2] for c in cards]
-    matching = [c[2] for c in cards if c[1] == lead_suit]
+    matching = [c[2] for c in cards if c[1] == lead]
     return matching or [c[2] for c in cards]
 
 

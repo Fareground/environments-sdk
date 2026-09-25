@@ -644,3 +644,15 @@ def test_no_player_learns_a_hidden_role_before_it_is_revealed(seed):
     result = env.run(spy)
     assert result.status in ("completed", "ended"), result.error
     assert spy.reads > 50 and spy.leaks == []
+
+
+@pytest.mark.parametrize("trump, lead", [("S", "H"), ("spades", "hearts"), ("♠", "h"), ("Spades", "HEARTS")])
+def test_suits_are_read_alike_however_they_are_spelled(trump, lead):
+    """A lead suit or trump given as a letter, a symbol or in any case is the suit a card's text names (audit 11
+    mechanisms HIGH-3): `'S'` used to match no card, so a trump never won and anything followed suit."""
+    from fg_env.expr import ExprError, evaluate
+
+    assert evaluate(f"$trick_winner(['2H', 'KH', '3S'], '{lead}', '{trump}')") == "3S"
+    assert evaluate(f"$follow_suit(['2H', '3S'], '{lead}')") == ["2H"]
+    with pytest.raises(ExprError, match="is not a suit"):
+        evaluate("$follow_suit(['2H', '3S'], 'X')")

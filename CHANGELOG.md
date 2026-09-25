@@ -303,6 +303,10 @@ worlds stay fast, and the package is organised by feature.
     supply-chain `nodes` — is checked against the entities the contract makes with one helper: a typo says "did you
     mean …", a counted group's name says to name one of its members, and a seed of another type is refused. Before,
     a diffusion seeded with a typo seeded nobody, silently.
+  - `$trick_winner` and `$follow_suit` read a lead suit or trump as the card parser reads suits (a name, letter or
+    symbol, any case), and a card entity's or map's suit the same way; a suit that is none of the four, where every
+    card in play is, is an error. Before, `'S'` as trump matched no card: the trump never won and any card followed
+    suit.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
