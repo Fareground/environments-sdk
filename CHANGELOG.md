@@ -291,6 +291,8 @@ worlds stay fast, and the package is organised by feature.
     `per_round` below 1 are check errors (L2).
   - `inspect` or `look` called with another argument name (`{"entity": "b"}`) says which argument it takes, instead of
     that no entity has that id (L3).
+  - A `transfer` whose `from` or `to` names an entity of a type without the property (`$actor`, an entity argument, a
+    named entity) is a check error, not a smoke-run failure (L4).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

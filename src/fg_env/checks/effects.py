@@ -55,6 +55,39 @@ class EffectChecks(FieldReads):
                 self.error(where, "an effect is an assignment text or an operation object")
         return roots
 
+    def _holds(self, party: Any, prop: str, path: str, types: Types, params: Mapping[str, C.ParamSpec] | None) -> None:
+        """A transfer's party (``party``, its `from` or `to`) holds ``prop``, when what it names shows its type: a
+        root of a known type (`$actor`), an entity argument, a named entity."""
+        kinds = self._party_types(party, types, params or {})
+        lacking = sorted(kind for kind in kinds if prop not in self.c.props_of(kind))
+        if not lacking:
+            return
+        if len(lacking) == len(kinds):
+            self.error(path, f"names a {' or '.join(lacking)}, which has no property '{prop}': a transfer moves a "
+                             "number property both parties hold", f"declare '{prop}' on {lacking[0]}, or transfer "
+                                                                   "between entities that hold it")
+        else:
+            self.warn(path, f"may name a {' or '.join(lacking)}, which has no property '{prop}': the transfer fails "
+                            "for it at run time", f"declare '{prop}' on {' and '.join(lacking)}, or guard the transfer")
+
+    def _party_types(self, party: Any, types: Types, params: Mapping[str, C.ParamSpec]) -> set[str]:
+        """The types of the entity ``party`` names, when it shows them (else none)."""
+        if not isinstance(party, str):
+            return set()
+        text = party.strip()
+        root = re.fullmatch(r"\$([A-Za-z_][A-Za-z0-9_]*)", text)
+        if root is not None:
+            return set(types.get(root.group(1), set()))
+        chosen = re.fullmatch(r"\$params\.([A-Za-z_][A-Za-z0-9_]*)", text)
+        if chosen is not None:
+            param = params.get(chosen.group(1))
+            if param is not None and param.type == "entity" and param.of in self.c.types:
+                return set(self.c.subtypes(param.of))
+            return set()
+        named = re.fullmatch(r"\$entity\(\s*(['\"]?)([A-Za-z0-9_-]+)\1\s*\)", text)
+        spec = self.c.named_entities().get(named.group(2)) if named is not None else None
+        return {spec.type} if spec is not None and spec.type in self.c.types else set()
+
     def _statement(self, source: str, path: str, roots: set[str], types: Types,
                    params: Mapping[str, C.ParamSpec] | None) -> None:
         try:
@@ -334,6 +367,8 @@ class EffectChecks(FieldReads):
                     self.error(f"{path}.{key}", f"no type has a property '{name}'",
                                self._suggest(name, declared) or "a transfer moves a number property its entities hold: "
                                                              "declare it under the type's props")
+            for key, held in (("from", prop), ("to", effect.get("into") or prop)):
+                self._holds(effect.get(key), held, f"{path}.{key}", types, params)
             for key in ("from", "to", "amount"):
                 if key not in effect:
                     self.error(path, f"`transfer` needs `{key}`")

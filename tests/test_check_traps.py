@@ -587,3 +587,15 @@ def test_rules_that_can_never_do_anything_are_static_errors(change, path):
          "actions": {"go": {"by": "p", "do": []}}}
     change(c)
     assert any(i.severity == "error" and i.path == path for i in fg_env.check(c, rounds=0))
+
+
+def test_a_transfer_to_an_entity_of_a_type_without_the_property_is_a_static_error():
+    """What a party names shows its type — `$actor`, an entity argument, a named entity — and a transfer between
+    entities of which one holds no such property fails at run time: the check says so first (audit 14 L4)."""
+    c = {"name": "Transfer", "types": {"p": {"agent": True, "props": {"cash": 5}}, "box": {"props": {"n": 0}}},
+         "entities": {"a": {"type": "p"}, "bx": {"type": "box"}},
+         "actions": {"go": {"by": "p", "params": {"t": {"type": "entity", "of": "box"}},
+                            "do": [{"transfer": "cash", "from": "$actor", "to": "$params.t", "amount": 1}]}}}
+    assert any(i.severity == "error" and i.path == "actions.go.do[0].to" for i in fg_env.check(c, rounds=0))
+    c["types"]["box"]["props"]["cash"] = 0
+    assert not [i for i in fg_env.check(c, rounds=0) if i.path.startswith("actions.go.do[0]")]
