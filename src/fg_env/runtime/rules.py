@@ -71,6 +71,9 @@ class Rules:
         self.react: Callable[[StageSpec | None], None] = _no_reactions
         self.end_on_action = any(end.check == "action" for end in contract.end)
         self.events = Events(self)
+        #: Inside :meth:`replay_intents`, the ids of the entities the replayed choices created: they exist only in
+        #: the trial, and at commit the same id may go to another agent's entity.
+        self.trial_born: frozenset[str] = frozenset()
 
     # -- where the run is ----------------------------------------------------------------------------------------
 
@@ -268,8 +271,13 @@ class Rules:
             yield
             return
         with self.actions.trying():
+            before = set(self.world.entities)
             self.actions.replay(actor, intents)
-            yield
+            self.trial_born = frozenset(self.world.entities.keys() - before)
+            try:
+                yield
+            finally:
+                self.trial_born = frozenset()
 
     def invalid(self, actor: Entity, stage: StageSpec) -> str | None:
         """Why ``actor``'s turn as played breaks ``stage``'s `valid` rules, or None when it meets them."""

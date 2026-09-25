@@ -234,3 +234,28 @@ def test_another_agents_sealed_choices_never_show_in_what_an_agent_reads():
     a.concurrent = b.concurrent = True  # both turns at once, so b reads while a's choices are being tried
     fg_env.load(contract, seed=1).run({"a": a, "b": b})
     assert 1000 in seen and not any(isinstance(cash, int) and cash > 1000 for cash in seen), sorted(map(str, seen))
+
+
+def test_a_sealed_choice_cannot_name_what_the_agents_own_earlier_choice_creates():
+    """At commit another agent's choice may take the id first, so the choice would land on its entity (audit 9 core
+    M3)."""
+    contract = {"name": "Sealed ids", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"score": 0}}, "chip": {"props": {"maker": "", "used": False}}},
+                "entities": {"ann": {"type": "p"}, "bob": {"type": "p"}},
+                "actions": {"make": {"by": "p", "do": {"create": "chip", "props": {"maker": "$actor.id"}}},
+                            "use": {"by": "p", "do": ["$params.c.used = true", "$actor.score += 1"],
+                                    "params": {"c": {"type": "entity", "of": "chip", "where": "not $it.used"}}}},
+                "stages": [{"name": "s", "turns": "simultaneous", "max_actions": 2,
+                            "order": "0 if $it.id == 'bob' else 1"}],
+                "outputs": {"chips": "$map(chip, [$it.maker, $it.used])"}}
+    said = []
+
+    def play(wake):
+        wake.call("make")
+        if wake.entity_id == "ann":
+            said.append(wake.call("use", {"c": "chip_1"}))
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    assert not said[0].ok and "cannot be named yet" in said[0].text
+    assert result.outputs["chips"] == [["bob", False], ["ann", False]]

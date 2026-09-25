@@ -419,7 +419,7 @@ class Turn:
             return (self._refused(name, f"{name} was not done: {problem}. Correct the arguments and call again.",
                                   observed, _INVALID), False, False)
         if self.staged:  # checked without its luck (a trial draws nothing): the luck is rolled when it commits
-            refusal = rules.trial(self.actor, name, params)
+            refusal = _names_unborn(params, rules.trial_born) or rules.trial(self.actor, name, params)
             if refusal is not None:
                 self.note(REJECTED)
                 return self._refused(name, refusal, observed, _REJECTED), False, False
@@ -618,6 +618,17 @@ def _cut(params: Mapping[str, Any], args: Any) -> tuple[Any, str]:
 
 def _with_references(text: str, files: list[Attachment]) -> str:
     return f"{text} {' '.join(file.reference for file in files)}" if files else text
+
+
+def _names_unborn(params: dict[str, Any], born: frozenset[str]) -> str | None:
+    """Why a sealed choice may not name an entity one of the agent's own earlier choices this turn creates (``born``):
+    it exists only once the choices commit, and then its id may belong to another agent's."""
+    for value in params.values():
+        for item in value if isinstance(value, list) else [value]:
+            if isinstance(item, Entity) and item.id in born:
+                return (f"{item.name} is made by one of your own choices this turn and exists only once everyone's "
+                        "choices commit, so it cannot be named yet: name it in a later turn")
+    return None
 
 
 def _args_text(params: Mapping[str, Any]) -> str:
