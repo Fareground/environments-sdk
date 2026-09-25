@@ -76,10 +76,16 @@ class Observation:
     def read_hidden(self) -> bool:
         return self._context.hidden != self._hidden
 
+    @property
+    def spends(self) -> bool:
+        """Whether the work drew luck or read a value hidden from the acting agent: an attempt that did is spent (see
+        runtime/ledger.py)."""
+        return self.drew or self.read_hidden
+
     def pure(self, before: Any, after: Any) -> bool:
         """Whether the work drew nothing, read nothing hidden, and left the state as it found it (``before`` and
         ``after`` are the state's versions around it)."""
-        return before == after and not self.drew and not self.read_hidden
+        return before == after and not self.spends
 
 
 #: The context running in this thread or asyncio task, as ``(randomness, context)``. A context variable rather than a

@@ -116,3 +116,28 @@ def test_a_game_whose_agents_pick_entities_created_as_it_plays_is_checked():
     report = fg_env.rl.conformance(c, sims=5)
     assert report.ok, report.summary()
     assert "praise" in fg_env.rl.game(c).space.parametric
+
+
+def test_a_move_refused_by_a_hidden_value_stays_legal_and_is_spent_when_played():
+    """A dry run that refuses a call by a value hidden from the seat keeps the call legal, as the live engine does
+    (audit 11 H3): otherwise the legal set would name the opponent's hidden code."""
+    contract = {"name": "Code guess", "clock": {"rounds": 2},
+                "types": {"p": {"agent": True, "props": {"code": {"default": "$randint(0,3)", "private": True},
+                                                          "won": 0}, "score": {"value": "$it.won"}}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "actions": {"guess": {"by": "p", "params": {"g": {"type": "int", "min": 0, "max": 3, "step": 1}},
+                                      "when": [{"expr": "$params.g == $first($filter(p, $it.id != $actor.id)).code",
+                                                "why": "Wrong."}],
+                                      "do": ["$actor.won = 1"], "announce": False}},
+                "views": {"me": {"show": "my code {code}"}},
+                "stages": [{"name": "s"}], "outputs": {"w": "$dict(p, $it.id, $it.won)"}}
+    for seed in range(4):
+        state = fg_env.rl.game(contract, seed=seed).new_initial_state()
+        seat = state.current_player()
+        legal = [state.action_to_string(seat, a) for a in state.legal_actions()]
+        assert legal == ["end_turn", *(f"guess(g={g})" for g in range(4))]
+        code = state.entity("b")["props"]["code"]
+        state.apply_action(next(a for a in state.legal_actions()
+                                if state.action_to_string(seat, a) not in ("end_turn", f"guess(g={code})")))
+        assert state.current_player() != seat  # the wrong guess was played: it spent the seat's one action
+    assert fg_env.rl.conformance(contract, sims=4).issues == []

@@ -255,8 +255,7 @@ def sample_call(env: Env, turn: Turn, rng: random.Random, *, limit: int = COMBIN
             tool, args = candidates[index]
             if tool == END_TURN:
                 return tool, args
-            params, problem = book.validate(actor, tool, args)
-            if problem is None and book.refusal(actor, tool, params) is None:
+            if book.known_refusal(actor, tool, args) is None:
                 return tool, args
     return None
 
@@ -293,8 +292,7 @@ def _walk(env: Env, turn: Turn, name: str, items: list[tuple[str, ParamSpec]], i
     """Every call of ``name`` from here on, each dry-run unless ``dry_run`` is false."""
     book, actor = env.actions, turn.actor
     if index == len(items):
-        params, problem = book.validate(actor, name, raw)
-        if problem is None and (not dry_run or book.refusal(actor, name, params) is None):
+        if book.known_refusal(actor, name, raw, dry_run) is None:
             if len(found) >= limit:
                 raise _Unlisted(f"more than {limit:,} legal combinations of arguments")
             found.append((name, dict(raw)))

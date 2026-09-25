@@ -2,9 +2,9 @@
 
 A playout is replayed with one step changed — another chance outcome, another call by the acting seat,
 or another sealed choice by one seat of a simultaneous node — and both playouts continue with the
-same later steps while those stay legal. At every pair of states where, for some seat, the two worlds
-differ only in what the rules hide from it (other entities' private properties, events not addressed
-to it, other seats' sealed choices), that seat's observation text, observation structure and
+same later steps while those stay legal. At every pair of states where, for some seat that made the same calls in
+both, the two worlds differ only in what the rules hide from it (other entities' private properties, events not
+addressed to it, other seats' sealed choices), that seat's observation text, observation structure and
 information state must be identical. Terminal states are left out: games reveal hidden cards at the
 end. Hidden information kept in world properties is not declared hidden, so it is not tested.
 """
@@ -102,8 +102,8 @@ def _compare(a: GameState, b: GameState, steps: list[Step], other_steps: list[St
         return []
     found: list[Leak] = []
     for seat, entity_id in enumerate(a.game.players):
-        if _visible(a, seat) != _visible(b, seat):
-            continue
+        if _own_calls(steps, seat) != _own_calls(other_steps, seat) or _visible(a, seat) != _visible(b, seat):
+            continue  # a seat tells playouts apart by its own calls (a refused one leaves no trace in the world)
         difference = _difference(a, b, seat)
         if difference is not None:
             changed = next((index for index, (s, t) in enumerate(zip(steps, other_steps)) if s != t), len(steps))
@@ -112,6 +112,17 @@ def _compare(a: GameState, b: GameState, steps: list[Step], other_steps: list[St
                               "information through an event or message when the rules reveal it, never by reading "
                               "another entity's private property or a sealed choice in a view", steps, other_steps))
     return found
+
+
+def _own_calls(steps: Sequence[Step], seat: int) -> list[Any]:
+    """The calls ``seat`` made in ``steps``: its own, which it knows whatever they did."""
+    calls: list[Any] = []
+    for step in steps:
+        if step.get("seat") == seat:
+            calls.append((step["tool"], step["args"]))
+        elif "joint" in step:
+            calls.append(next((call for key, call in step["joint"].items() if int(key) == seat), None))
+    return calls
 
 
 def _visible(state: GameState, seat: int) -> str:

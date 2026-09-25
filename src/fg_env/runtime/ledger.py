@@ -30,7 +30,7 @@ def attempt_cost(observed: Observation) -> Literal["free", "spent"]:
     """What an attempt costs, ``observed`` from its start: spent when working it out drew luck or read a value hidden
     from the actor, else free. A spent refusal counts as a use of the action; a spent action that applied settles an
     atomic turn at once (nothing after it can undo it)."""
-    return "spent" if observed.drew or observed.read_hidden else "free"
+    return "spent" if observed.spends else "free"
 
 
 class Pending:

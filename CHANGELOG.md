@@ -253,6 +253,10 @@ worlds stay fast, and the package is organised by feature.
     whispered), and check warns about it as for a private property. Text sent to several agents (an announcement,
     news, an ordered `who`) reads only the entries and events every agent sees, and an action's `terminal` reads them
     as its actor does. The posted market's ledger declares that only the buyer and seller see a sale.
+  - `fg_env.rl.game`'s legal actions keep a call whose refusal turned on a value hidden from the seat (or on luck), as
+    the live engine does: applying it spends the action. Before, the dry run dropped it, so the legal set of a guess
+    at the opponent's hidden code named the code. `rl.conformance`'s leak test no longer compares a seat across
+    playouts in which it made different calls.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

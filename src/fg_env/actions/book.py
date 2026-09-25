@@ -424,6 +424,17 @@ class ActionBook:
         except RunError as exc:
             return fault_reason(exc)
 
+    def known_refusal(self, actor: Entity, name: str, args: dict[str, Any], dry_run: bool = True) -> str | None:
+        """Why ``actor``'s call of ``name`` with ``args`` would be refused — validated, then (``dry_run``) tried —
+        when knowing it costs nothing: what decided it drew no luck and read nothing hidden from the actor. A refusal
+        that turned on either is None, as the live call would be: legal, and spent if refused when applied (see
+        runtime/ledger.py). Legal-call listings ask this, so they reveal no more than a call would."""
+        observed = self.world.luck.observe()
+        params, problem = self.validate(actor, name, args)
+        if problem is None and dry_run:
+            problem = self.refusal(actor, name, params)
+        return None if observed.spends else problem
+
     @staticmethod
     def _args_text(params: dict[str, Any]) -> str:
         parts = [f"{k}={format_value(v)}" for k, v in params.items() if v is not None]

@@ -396,8 +396,7 @@ class GameState:
                 with previewed(turn, tool, args) as (checked, problem):  # files as the call will submit them
                     if problem is not None:
                         return problem
-                    params, problem = env.actions.validate(turn.actor, tool, checked)
-                    return problem or env.actions.refusal(turn.actor, tool, params)
+                    return env.actions.known_refusal(turn.actor, tool, checked)
 
             problem = self._run.read(check)
             if problem is None:
