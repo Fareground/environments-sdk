@@ -363,6 +363,9 @@ worlds stay fast, and the package is organised by feature.
     "$3.4"); the coffee_market golden changes with that text (agentif LOWs).
   - A turn an LLM participant forfeited (the provider never answered) ends with its return instead of an
     `end_turn` of its own, which the run's statistics counted as a tool call (agentif LOW).
+  - Saving a contract that draws on chance tests it on at most 12 seeds with random agents (was 20), the extra
+    seeds taking at most half the test time left after the first runs, so a slow starter's save no longer spends
+    the whole 60 s test budget (agentif LOW).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

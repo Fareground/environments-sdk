@@ -27,9 +27,11 @@ __all__ = ["TEST_SEEDS", "MOST_SEEDS", "TEST_SECONDS", "Tested", "tested", "cont
 #: Seeds every saved contract is run on, with random agents and with idle ones.
 TEST_SEEDS = (1, 2, 3)
 #: Most seeds random agents play a saved contract that draws on chance: when every run on :data:`TEST_SEEDS` finished
-#: with test time to spare, random agents play on further seeds while it lasts, so a problem that shows in one run in
-#: ten is found too. A contract that draws nothing at random is done after :data:`TEST_SEEDS`.
-MOST_SEEDS = 20
+#: with test time to spare, random agents play on further seeds, so a problem that shows in one run in ten is found
+#: too — until this many seeds have passed cleanly, or half the test time left after the first runs is spent (a slow
+#: contract's save stays well inside :data:`TEST_SECONDS`). A contract that draws nothing at random is done after
+#: :data:`TEST_SEEDS`.
+MOST_SEEDS = 12
 #: Longest testing a saved contract may take: its check, then all its test runs together. A run still going then has
 #: passed the rounds it reached: the contract works, with the rest of its rounds untested. A check, or a single turn,
 #: still going then makes the contract too slow to test.
@@ -207,9 +209,10 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
 
 def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], most: int,
                 seen: Seen) -> tuple[str, str, int]:
-    """Random agents on further seeds, up to ``most`` in all, while each run is likely to finish before ``deadline``:
-    ``(problem, "", seeds played)``."""
+    """Random agents on further seeds, up to ``most`` in all, while each run is likely to finish within half the time
+    left before ``deadline``: ``(problem, "", seeds played)``."""
     played, seed, took = len(seeds), max(seeds), 0.0
+    deadline = time.monotonic() + (deadline - time.monotonic()) / 2
     while played < most and time.monotonic() + took < deadline:
         seed += 1
         step(f"the run with random agents (seed {seed})")

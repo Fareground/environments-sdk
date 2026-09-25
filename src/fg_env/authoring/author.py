@@ -56,8 +56,9 @@ from ..host.providers import (
 from ..host.usage import call_usage, rough_tokens
 from ..participants.llm import PROVIDERS, official_client
 from ..runtime.budget import CACHED_WEIGHT, is_seconds
-from .testing import TEST_SECONDS, Tested
-from .workbench import MAX_REVISIONS, TOOLS, Workbench, describe_changes, removed_parts
+from . import testing, workbench
+from .testing import Tested
+from .workbench import TOOLS, Workbench, describe_changes, removed_parts
 
 __all__ = ["author", "AuthorResult"]
 
@@ -248,7 +249,8 @@ def author(brief: str, model: str, *, client: Any = None, out: str | None = None
         raise ValueError(f"out {out!r}: the folder {str(Path(out).parent)!r} does not exist")
     started = time.time()
     bench = Workbench(started + limits["seconds"])
-    instruction = INSTRUCTION.format(revisions=MAX_REVISIONS, test=TEST_SECONDS, **limits)
+    # read when the session starts, as the workbench and the tests read them (a setting changed later holds for both)
+    instruction = INSTRUCTION.format(revisions=workbench.MAX_REVISIONS, test=testing.TEST_SECONDS, **limits)
     messages: list[Message] = [{"role": "system", "content": guide("authoring")},
                                {"role": "user", "content": brief + instruction + _starters()}]
     usage: dict[str, Any] = {"input_tokens": 0, "cached_tokens": 0, "cache_write_tokens": 0, "output_tokens": 0,
