@@ -67,10 +67,10 @@ def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.
     :data:`MOST_SEEDS`, while test time is left — that fails, has an output that fails, does not show how the
     environment plays (``RunResult.degraded``; for idle and edge-value agents, beyond their not acting — so random
     agents, who write a real sentence for free text, must get some action through) or in which an agent's choice breaks
-    a rule. Every test agent reads its brief and update each turn, and each view it may look at and an entity of every
-    type it may inspect: every agent the first time it is woken in a stage, and in each round the first of its type
-    (:class:`~fg_env.checks.reading.Reading`, as `check`'s plays read), however few free reads a turn allows, so a view
-    that breaks for one agent's state, or on a state play reaches, is found. Anything evaluating the contract raises
+    a rule. Every test agent reads its brief and update on every turn, and every view it may look at and an entity of
+    every type it may inspect (a different one each round), on every turn too (:class:`~fg_env.checks.reading.Reading`,
+    as `check`'s plays read), however few free reads a turn allows, so a view that breaks for any agent's state, on any
+    turn the test runs reach, is found. Anything evaluating the contract raises
     is its problem too. Its ``warnings`` are its check's, then what the runs showed (:mod:`fg_env.authoring.findings`).
 
     It all runs in a child process within :data:`TEST_SECONDS`: the check first, then the runs, each taking an even

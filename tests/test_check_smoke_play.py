@@ -1,6 +1,8 @@
 """`fg_env.check` plays what a real run plays: several rounds, every declared policy, and random agents that can
 fill arguments whose choices depend on earlier arguments."""
 import copy
+import json
+from pathlib import Path
 
 import pytest
 
@@ -218,3 +220,12 @@ def test_a_view_that_breaks_for_one_agent_is_found_by_check_and_by_the_authoring
     path = tmp_path / "purses.json"
     path.write_text(json.dumps(contract))
     assert "views.purse" in _test(str(path), 5, [1], 1)["problem"]
+
+
+def test_a_look_view_that_breaks_for_a_later_agent_on_a_later_turn_fails_the_check():
+    """Every agent reads every look view on every wake: no sampling that a view breaking for the second agent of a
+    type, once its state changes, could slip past (audit 12 agentif H2)."""
+    contract = json.loads((Path(__file__).parent / "fixtures" / "duel.json").read_text())
+    contract["views"]["odds"] = {"for": "player", "look": True,
+                                 "show": "Ratio: {$10 / ($actor.taken - (3 if $actor.id == 'south' else -100))}"}
+    assert any("division by zero" in i.message for i in errors(fg_env.check(contract))), fg_env.check(contract)

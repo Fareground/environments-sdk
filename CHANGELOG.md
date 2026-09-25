@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - `check`'s plays and the author's tests read every look view on every agent's every wake. They used to read one
+    only for an agent's first wake in a stage and the first agent of its type each round, so a view that broke for
+    the second player once its state changed passed both and crashed a real run when that player looked.
   - A record entry's `seq`, wherever an agent reads it (a record's `show`, a view's `show` or `sort`, `$records` in
     what it is shown), is its number in that reader's own view of the record, from 1. It used to be one count over
     every entry of every record, so the gap between two numbers told a reader how many entries it could not see.

@@ -2,10 +2,9 @@
 runs exercise every view and template, not just the rules.
 
 A reading agent reads its brief and update each turn, as a model does, and — beyond the turn's free reads, spending
-none of them — every view it may look at and an entity of every type it may inspect: every agent the first time it is
-woken in a stage, and, in each round, the first agent of its type woken in a stage. A view or template that fails for
-one agent's state, or on a state a later round reaches, then fails the play, however many views there are and however
-few reads a turn allows.
+none of them — every view it may look at and an entity of every type it may inspect (a different one each round), on
+every wake. A view or template that fails for any agent's state, on any turn the play reaches, then fails the play,
+however many views there are and however few reads a turn allows.
 """
 from __future__ import annotations
 
@@ -26,11 +25,7 @@ class Reading:
     and update each turn read."""
 
     def __init__(self, agent: Any, seen: Callable[[int], None] | None = None) -> None:
-        self.agent, self.seen, self.round = agent, seen, 0
-        #: The agents that have read in each stage: ``(stage, agent id)``.
-        self.readers: set[tuple[str, str]] = set()
-        #: What agents have read this round: ``(stage, agent type, "look" or "inspect", view or entity type)``.
-        self.read: set[tuple[str, str, str, str]] = set()
+        self.agent, self.seen = agent, seen
 
     def __call__(self, wake: Wake) -> None:
         shown = len(wake.brief) + len(wake.update)
@@ -38,15 +33,8 @@ class Reading:
             self.seen(shown)
         turn = wake._turn  # read straight from the turn, as its look and inspect tools do, but without their allowance
         with turn.gate:
-            if turn.round != self.round:
-                self.round, self.read = turn.round, set()
-            first = (turn.stage.name, turn.actor.id) not in self.readers
-            self.readers.add((turn.stage.name, turn.actor.id))
-            for kind, name, args in _reads(turn):
-                key = (turn.stage.name, turn.actor.entity_type, kind, name)
-                if first or key not in self.read:
-                    self.read.add(key)
-                    turn._look(args) if kind == "look" else turn._inspect(args)
+            for kind, _, args in _reads(turn):
+                turn._look(args) if kind == "look" else turn._inspect(args)
         self.agent(wake)
 
 
