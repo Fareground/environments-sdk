@@ -30,7 +30,7 @@
       "id": "exchange",
       "title": "Exchange",
       "summary": "a calibrated trader crowd on a limit order book, with a few trader seats",
-      "description": "Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental (by default a scripted guidance cut at bar 30 knocks 8% off it, so a default session ends lower).",
+      "description": "Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental (by default a scripted guidance cut at bar 30 knocks 8% off it, so a default session tends to end lower).",
       "status": "native",
       "path": "starters/exchange_flagship.json",
       "resources": [

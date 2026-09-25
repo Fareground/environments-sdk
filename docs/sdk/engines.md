@@ -49,7 +49,7 @@ Inputs: `plaintiff`, `defendant`, `case`, `claimed_damages`, `evidence_rounds`, 
 
 ## `exchange` — Exchange
 
-Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental (by default a scripted guidance cut at bar 30 knocks 8% off it, so a default session ends lower).
+Simulates a stock exchange calibrated to a seed history: a coded crowd of market makers, trend, value, noise and passive traders trades one instrument on a limit order book while a few trader seats, filled by participants or a coded stand-in, decide between bars; news moves a hidden fundamental (by default a scripted guidance cut at bar 30 knocks 8% off it, so a default session tends to end lower).
 
 Clone: `fg-env new --engine exchange my_env.json`. Roles: `trader`, `book_seed`, `seat` (policies: `seat_trend`).
 Inputs: `history`, `seed_bars`, `bars`, `substeps`, `participants`, `population_preset`, `presets`, `activity`, `median_capital`, `circuit_breaker_pct`, `volatility_scale`, `drift_pct_per_bar`, `jump_prob_bar`, `jump_sigma`, `flow_scale`, `volatility_gain`, `events`, `seats`, `seat_cash`, `decision_every_bars`.

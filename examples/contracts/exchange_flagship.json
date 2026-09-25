@@ -48,7 +48,7 @@
     "volatility_gain": {"type": "number", "default": 0.1, "min": 0, "max": 0.2, "description": "Largest step per bar (as a log change) the volatility controller takes toward the target."},
     "events": {
       "type": "list",
-      "description": "Scheduled news: [{bar, headline, shock_pct, sentiment, duration_bars}]. The default is a scripted guidance cut at bar 30 that knocks 8% off the fundamental, so a default session ends lower; pass [] for a session without news.",
+      "description": "Scheduled news: [{bar, headline, shock_pct, sentiment, duration_bars}]. The default is a scripted guidance cut at bar 30 that knocks 8% off the fundamental, so a default session tends to end lower; pass [] for a session without news.",
       "default": [
         {"bar": 30, "headline": "DEMO cuts full-year guidance; analysts rush to revise their valuations.", "shock_pct": -8, "sentiment": -0.7, "duration_bars": 5}
       ]

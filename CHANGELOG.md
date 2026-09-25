@@ -302,6 +302,8 @@ worlds stay fast, and the package is organised by feature.
   - The hidden-roles engine (and the `werewolf` example) deals as many werewolves as the table allows: the fixed
     maximum of 3 is gone, and the build still refuses a deal with no seer, doctor and villager left. Before, a
     15-player table could not have 4 werewolves.
+  - The exchange engine's docs say a default session *tends to* end lower after its scripted guidance cut (7 of 10
+    seeds do), instead of promising it does.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;
