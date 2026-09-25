@@ -100,7 +100,7 @@ def test_a_near_miss_is_corrected_by_asking_the_game_master_once_more():
     env, result = _run(resolve, ["I rest by the fire."])
     assert asked[0] is None and "at most 10" in asked[1]
     assert env.entity("mira")["props"]["health"] == 9 and not env.world.records("gm")[0]["refused"]
-    assert result.degraded == []
+    assert result.degraded == ["agents_never_played"]  # Bram waits: only what the host did is at stake here
 
 
 def test_one_news_item_per_attempt_even_with_several_news_rules():
