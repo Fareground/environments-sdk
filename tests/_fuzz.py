@@ -177,3 +177,33 @@ def contract(seed: int) -> dict[str, Any]:
     }
     c["clock"] = {"rounds": rng.randint(2, 5)}
     return c
+
+
+def secretive(seed: int) -> dict[str, Any]:
+    """:func:`contract` of ``seed`` with the ways hidden information travels besides private properties added on top
+    (the base contract is exactly ``contract(seed)``'s): whispers — a record whose entries only their author and
+    addressee see, posted by a silent action — and tools whose offer, arguments or refusal turn on what their actor
+    may not know: a requirement over those entries or over the log, a default worked out from the actor's own secret,
+    a guess at another agent's secret."""
+    c = contract(seed)
+    rng = random.Random(f"secretive-{seed}")
+    agents = [kind for kind, spec in c["types"].items() if spec.get("agent")]
+    kind = rng.choice(agents)
+    c["records"]["dm"] = {"fields": {"text": "text"},
+                          "visible": "$it.author == $viewer.id or $viewer.id in ($it.to or [])"}
+    c["actions"]["whisper"] = {"by": kind, "description": "Whisper to another.", "announce": False,
+                               "params": {"to": {"type": "entity", "of": kind, "where": "$it.id != $actor.id"},
+                                          "text": {"type": "text", "max_len": 30}},
+                               "do": [{"post": "dm", "text": "$params.text", "to": ["$params.to"]}]}
+    rule = rng.choice(["$len($records(dm)) > 0", "$len($events('action')) > 1", "$count($records(dm)) % 2 == 0"])
+    c["actions"]["accuse"] = {"by": kind, "description": "Accuse.", "when": [rule], "do": ["$actor.score += 1"]}
+    c["actions"]["claim"] = {"by": kind, "description": "Claim a number.",
+                             "params": {"n": {"type": "int", "default": "$actor.secret % 7", "min": 0, "max": 9}},
+                             "do": ["$actor.seated += 1"], **rng.choice([{}, {"announce": "{$actor.name} claimed."}])}
+    c["actions"]["guess"] = {"by": kind, "description": "Guess another's secret (mod 4).",
+                             "params": {"g": {"type": "int", "min": 0, "max": 3, "step": 1},
+                                        "who": {"type": "entity", "of": kind, "where": "$it.id != $actor.id"}},
+                             "when": [{"expr": "$params.g == $params.who.secret % 4", "why": "Wrong."}],
+                             "do": ["$actor.score += 2"], "announce": False}
+    c["views"]["whispers"] = {"of": "$records(dm)", "show": "{$it.author}: {$it.text}", "empty": "No whispers."}
+    return c
