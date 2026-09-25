@@ -1121,8 +1121,9 @@ entrant is shared by all its games: with ``workers > 1`` those run in threads at
 its own (:mod:`fg_env.runtime.budget`); ``exposures=True`` records what agents saw in every game
 (``result.runs[i].exposures``, events kept), each a trace to read or replay. ``time_limit`` is the wall-clock
 seconds each entrant's turn may take (as in :meth:`fg_env.Env.run`). Every entrant given as a callable is
-refused `wake.clone`, since a copy of the run holds hidden state and future luck, which an entrant written by
-someone else must not read; ``lookahead=True`` allows it (a search player among entrants you trust).
+refused `wake.clone`, since a copy of the run holds hidden state and future luck, which an entrant must not read;
+``lookahead=True`` allows it (a search player). Refusing it keeps honest entrants fair and is no sandbox: code in
+the same process can reach the run in other ways, so play entrants you do not trust in processes of their own.
 
 ### `rl.TournamentResult`
 

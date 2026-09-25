@@ -298,7 +298,9 @@ class _WithoutLookahead:
 
 
 def without_lookahead(participant: Any) -> Any:
-    """``participant`` playing with `wake.clone` refused, so an entrant written by someone else cannot read the run's
-    hidden state or future luck through a copy of it; a built-in participant given by name is returned as it is."""
+    """``participant`` playing with `wake.clone` refused, so it cannot read the run's hidden state or future luck
+    through a copy of it by mistake; a built-in participant given by name is returned as it is. This keeps honest code
+    honest, and is no sandbox: Python code running in the same process can reach the run's objects in other ways, so
+    run code you do not trust in a process of its own."""
     return _WithoutLookahead(participant) if callable(participant) else participant
 
