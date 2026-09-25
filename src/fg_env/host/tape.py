@@ -91,7 +91,7 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
         return _recorded(found, site)
     adapter = hosts.adapter(service) if hosts is not None else None
     unusable: str | None = None
-    outside = False
+    why: str | None = None
     if adapter is None:
         if fallback is None:
             if hosts is not None and not hosts.live:
@@ -106,15 +106,15 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
         if not callable(getattr(adapter, method, None)):
             raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
         with counting(world, adapter):
-            answer, unusable, outside = _live(adapter, service, site, ask, validate)
+            answer, unusable, why = _live(adapter, service, site, ask, validate)
     entry: dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:
         entry["fallback"] = True
     elif unusable is not None:
         entry["unusable"] = unusable
-        if outside:
-            entry["outside"] = True
+        if why:
+            entry[why] = True
     with guard:
         tape = _tape(world, site)
         if key in tape:  # a concurrent identical call recorded first: everyone reads that answer
@@ -132,9 +132,10 @@ def _recorded(entry: Mapping[str, Any], site: str) -> Any:
 
 
 def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
-          validate: Callable[[Any], Any] | None) -> tuple[Any, str | None, bool]:
-    """A live host's answer, validated, None and False; or None, what was wrong and whether the answer was outside the
-    protocol when it gave no usable answer. An answer the engine cannot use (the host raised :class:`HostError`, or the
+          validate: Callable[[Any], Any] | None) -> tuple[Any, str | None, str | None]:
+    """A live host's answer, validated, None and None; or None, what was wrong and why when it gave no usable answer:
+    ``"outside"`` (its answer was outside the protocol), ``"unavailable"`` (its provider was down or limiting its rate)
+    or None (it declined). An answer the engine cannot use (the host raised :class:`HostError`, or the
     answer is outside the protocol) is asked for once more, the request carrying a `correction` that says what was
     wrong; a second unusable answer is the outcome. Any other failure stops the run."""
     correction: str | None = None
@@ -143,10 +144,10 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
         try:
             answer = ask(asked)
         except HostUnavailable as exc:  # asking again at once would only meet the same outage
-            return None, f"host '{service}' failed: {exc}", False
+            return None, f"host '{service}' failed: {exc}", "unavailable"
         except HostError as exc:
             if correction is not None:
-                return None, f"host '{service}' failed, also when asked again: {exc}", False
+                return None, f"host '{service}' failed, also when asked again: {exc}", None
             correction = str(exc)
             continue
         # the provider failed (a reference adapter says how to fix it): asking again cannot help
@@ -156,10 +157,10 @@ def _live(adapter: Any, service: str, site: str, ask: Callable[[Any], Any],
             raise FatalRunError(f"host '{service}' raised {type(exc).__name__}: {exc}", site) from exc
         try:
             answer = _json_safe(answer)
-            return (validate(answer) if validate is not None else answer), None, False
+            return (validate(answer) if validate is not None else answer), None, None
         except HostError as exc:
             if correction is not None:
-                return None, f"host '{service}' answered outside its protocol, also when asked again: {exc}", True
+                return None, f"host '{service}' answered outside its protocol, also when asked again: {exc}", "outside"
             correction = f"your answer was outside the protocol: {exc}"
 
 

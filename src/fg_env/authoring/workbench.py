@@ -65,8 +65,9 @@ TOOLS: list[dict[str, Any]] = [
     {"name": "guide",
      "description": "Read one part of the SDK guide, e.g. 'actions', 'effects', 'functions.collections'.",
      "parameters": {"type": "object", "properties": {"part": {"type": "string"}, "start": {
-         "type": "integer", "description": "Where to start reading, in characters: a part longer than one reply is "
-                          "cut, and the cut says where to read on."}}, "required": ["part"]}},
+         "type": "integer", "minimum": 0,
+         "description": "Where to start reading, in characters: a part longer than one reply is cut, and the cut says "
+                        "where to read on."}}, "required": ["part"]}},
 ]
 
 
@@ -400,7 +401,7 @@ class Workbench:
         return self._in_child("preview", agent=agent)
 
     def tool_guide(self, part: str, start: int = 0) -> str:
-        return guide(part)[int(start or 0):]
+        return guide(part)[max(0, int(start or 0)):]
 
     def _in_child(self, name: str, **args: Any) -> str:
         """The ``name`` tool on the saved contract, in a child process of at most :data:`RUN_SECONDS` (or the session's

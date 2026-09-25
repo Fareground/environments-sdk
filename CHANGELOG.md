@@ -312,6 +312,11 @@ worlds stay fast, and the package is organised by feature.
   - `fg_env.author`'s test process stops itself once it holds more than 1 GB and says the contract is too big to
     test (with fewer entities as the fix), and the next call starts a fresh one. Before, it had a time limit only, so
     a population of a hundred thousand with a list on each passed 1.4 GB.
+  - Smaller LLM and authoring fixes: an Anthropic reply with no content is asked again like an empty OpenAI reply
+    (it counted as a text-only reply); a host whose provider stayed down is told to rerun later or allow more
+    retries, not to follow its protocol; an authoring session stopped by the provider says what to do about it (the
+    fix `provider_failure` gives elsewhere); `guide(part, start)` in the authoring loop never reads from the end; the
+    running guide says the built-in LLM participants take sync clients only, under `arun` too.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

@@ -30,11 +30,15 @@ from ..runtime.session import END_TURN, ToolResult, Wake
 if TYPE_CHECKING:
     from .builtin import Participant
 
-__all__ = ["PROVIDERS", "anthropic", "openai", "official_client", "official_participant", "provider_failure"]
+__all__ = ["PROVIDERS", "PROVIDER_CALLS", "anthropic", "openai", "official_client", "official_participant",
+           "provider_failure"]
 
 
 #: ``<provider>:<model>`` participants: the official client's class, and the variable holding its API key.
 PROVIDERS = {"anthropic": ("Anthropic", "ANTHROPIC_API_KEY"), "openai": ("OpenAI", "OPENAI_API_KEY")}
+#: Per provider: the call every built-in client of it makes, and its sync client (named in failures).
+PROVIDER_CALLS = {"anthropic": ("client.messages.create", "anthropic.Anthropic()"),
+                  "openai": ("client.chat.completions.create", "openai.OpenAI()")}
 
 
 def official_participant(provider: str, model: str) -> Participant:
@@ -424,7 +428,7 @@ class _LLMParticipant:
     def _empty(response: Any) -> bool:
         """Whether a response holds no usable reply: none at all, or one the provider says failed (retried like an
         overload)."""
-        return False
+        raise NotImplementedError
 
     def _failure(self, wake: Wake, exc: BaseException) -> RunError:
         return RunError(provider_failure(exc, self.CALL, self.CLIENT, self.model), f"participant:{wake.entity_id}")
@@ -445,9 +449,14 @@ _TOKEN_COUNTS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_wr
 
 
 class _Anthropic(_LLMParticipant):
-    CLIENT = "anthropic.Anthropic()"
-    CALL = "client.messages.create"
+    CALL, CLIENT = PROVIDER_CALLS["anthropic"]
     PROVIDER = "anthropic"
+
+    @staticmethod
+    def _empty(response: Any) -> bool:
+        """No content at all, and not because the reply was cut off or refused (counted as such)."""
+        return not getattr(response, "content", None) and getattr(response, "stop_reason", None) not in (
+            "max_tokens", "refusal")
 
     def __init__(self, client: Any, model: str, max_tokens: int, max_steps: int, system: str, retries: int,
                  media: frozenset, retry_truncated: bool, extra: Mapping[str, Any] | None):
@@ -615,8 +624,7 @@ def anthropic(client: Any, model: str, *, max_tokens: int = 16000, max_steps: in
 
 
 class _OpenAI(_LLMParticipant):
-    CLIENT = "openai.OpenAI()"
-    CALL = "client.chat.completions.create"
+    CALL, CLIENT = PROVIDER_CALLS["openai"]
     PROVIDER = "openai"
 
     def __init__(self, client: Any, model: str, max_tokens: int | None, reasoning_effort: str | None,

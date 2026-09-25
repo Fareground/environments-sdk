@@ -254,26 +254,29 @@ def _host_unusable(env: Env) -> list[dict[str, str]]:
     are reported (`host_sometimes_unusable`): a host declining content participants wrote is part of the game."""
     tape = env.world.props.get(TAPE)
     asked: dict[str, int] = {}
-    found: dict[str, list[Any]] = {}  # site → [unusable, any outside the protocol, the latest reason]
+    found: dict[str, list[Any]] = {}  # site → [unusable, any outside the protocol, any unavailable, the latest reason]
     for entry in tape.values() if isinstance(tape, dict) else ():
         if not isinstance(entry, dict):
             continue
         site = str(entry.get("site"))
         asked[site] = asked.get(site, 0) + 1
         if entry.get("unusable"):
-            counts = found.setdefault(site, [0, False, ""])
+            counts = found.setdefault(site, [0, False, False, ""])
             counts[0] += 1
             counts[1] = counts[1] or bool(entry.get("outside"))
-            counts[2] = str(entry["unusable"])
+            counts[2] = counts[2] or bool(entry.get("unavailable"))
+            counts[3] = str(entry["unusable"])
     out = []
-    for site, (count, outside, reason) in found.items():
+    for site, (count, outside, unavailable, reason) in found.items():
         degrading = outside or count > MODEL_FAILED_SHARE * asked[site]
+        fixes = (["if its provider was down or limiting its rate, rerun when it is healthy or give the host adapter "
+                  "more `retries`"] if unavailable else [])
+        fixes += ["if it answers outside the protocol, give it a model that follows it, or clearer instructions; if "
+                  "it declines content participants wrote, that is part of the game"]
         out.append(_finding("host_unusable" if degrading else "host_sometimes_unusable", site,
-                            f"{count} of {asked[site]} request(s) got no usable answer, also when asked again, so "
-                            "each was refused (a judged text left unscored, a game master's attempt refused); the "
-                            f"latest: {reason}",
-                            "if it answers outside the protocol, give it a model that follows it, or clearer "
-                            "instructions; if it declines content participants wrote, that is part of the game"))
+                            f"{count} of {asked[site]} request(s) got no usable answer, so each was refused (a judged "
+                            f"text left unscored, a game master's attempt refused); the latest: {reason}",
+                            "; ".join(fixes)))
     return out
 
 

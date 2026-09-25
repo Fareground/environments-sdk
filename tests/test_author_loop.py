@@ -182,7 +182,7 @@ def test_retries_never_wait_past_the_seconds_budget(monkeypatch):
 
     result = fg_env.author("A game.", "openai:m", client=client, budget={"seconds": 3.5})
 
-    assert waits == [1.0, 2.0] and result.stop == "error: ProviderError: HTTP 429"
+    assert waits == [1.0, 2.0] and "still failed after 2 retries with ProviderError (HTTP 429)" in result.stop
 
 
 def test_an_empty_anthropic_reply_is_retried(monkeypatch):
@@ -205,3 +205,15 @@ def test_a_written_contract_is_advertised_as_an_object_but_json_text_still_saves
                                                                           contract=json.dumps(WORKING))], []))
 
     assert result.ok and result.contract == WORKING
+
+
+def test_the_guide_tool_reads_from_the_start_when_asked_to_start_before_it():
+    import time as clock
+
+    from fg_env.authoring.workbench import Workbench
+
+    bench = Workbench(clock.time() + 60)
+    try:
+        assert bench.tool_guide("actions", start=-50) == fg_env.guide("actions")
+    finally:
+        bench.box.close()

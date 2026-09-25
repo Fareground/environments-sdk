@@ -46,8 +46,10 @@ own earlier choices), so a choice that could not happen is refused immediately a
 Async participants: an `async def` (or an object with an async `__call__`, or a function that returns an
 awaitable) works everywhere, and a simultaneous stage runs them concurrently with the same deterministic
 result; so does the built-in LLM participant. A plain function plays one turn at a time (set `concurrent = True` on
-a thread-safe one that waits on I/O to run it alongside others). Inside an event loop use `result = await env.arun(participants, ...)`: participants run on that loop,
-so clients bound to it work. `wake.time_limit` and `wake.time_left` give the turn's deadline.
+a thread-safe one that waits on I/O to run it alongside others). Inside an event loop use
+`result = await env.arun(participants, ...)`: your own async participants run on that loop, so clients bound to it
+work; the built-in LLM participants take the provider's sync client (`anthropic.Anthropic()`, `openai.OpenAI()`)
+and refuse an async one. `wake.time_limit` and `wake.time_left` give the turn's deadline.
 `fg_env.load(..., exposures=True)` records what every agent was shown on every wake in `result.exposures`,
 `{"texts": {hash: text}, "wakes": [...], "chance": [...]}`: brief, update and view hashes and sizes, news event sequence
 numbers, tools offered, every call with its arguments and result, timeouts and undone turns — every text

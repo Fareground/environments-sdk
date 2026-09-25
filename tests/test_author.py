@@ -173,7 +173,8 @@ def test_a_provider_error_that_persists_stops_and_keeps_what_works(monkeypatch):
 
     result = fg_env.author("A game.", "openai:m", client=client)
 
-    assert result.stop == "error: ConnectionError: provider down" and result.ok
+    assert result.stop.startswith("error: client.chat.completions.create still failed after 4 retries with "
+                                  "ConnectionError: provider down") and "try again later" in result.stop and result.ok
     assert waits == [1.0, 2.0, 4.0, 8.0]  # retried with backoff first
 
 
@@ -378,7 +379,7 @@ def test_retryable_provider_errors_are_retried_and_others_stop(monkeypatch):
     refused = fg_env.author("A game.", "openai:m", client=FakeOpenAI(ProviderError(401)))
 
     assert busy.ok and busy.stop == "done" and waits == [1.0, 2.0]
-    assert refused.stop == "error: ProviderError: HTTP 401" and len(waits) == 2
+    assert "failed with ProviderError (HTTP 401)" in refused.stop and "API key" in refused.stop and len(waits) == 2
 
 
 def test_anthropic_caches_the_conversation_so_far():

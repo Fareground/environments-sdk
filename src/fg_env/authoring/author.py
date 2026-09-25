@@ -43,10 +43,12 @@ from ..guides import guide
 from ..host.usage import call_usage, rough_tokens
 from ..participants.llm import (
     _MAX_BACKOFF_SECONDS,
+    PROVIDER_CALLS,
     PROVIDERS,
     _retry_after,
     _retryable,
     official_client,
+    provider_failure,
     request_timeout,
 )
 from ..runtime.budget import CACHED_WEIGHT, is_seconds
@@ -239,7 +241,8 @@ def author(brief: str, model: str, *, client: Any = None, out: str | None = None
                              "calls": 0, "truncated": 0, "unreported": 0}
     try:
         deadline = started + limits["seconds"]
-        stop = _converse(_retrying(ask, progress, deadline), messages, bench, usage, limits, progress, out, deadline)
+        stop = _converse(_retrying(ask, provider, name, progress, deadline), messages, bench, usage, limits, progress,
+                         out, deadline)
     finally:
         bench.box.close()
         shutil.rmtree(bench.path.parent, ignore_errors=True)
@@ -278,7 +281,7 @@ def _converse(ask: Ask, messages: list[Message], bench: Workbench, usage: dict[s
         try:
             message, used = ask(messages)
         except Exception as exc:  # the provider's error ends the loop; what already works is kept
-            return f"error: {type(exc).__name__}: {exc}"[:500]
+            return (f"error: {exc}" if isinstance(exc, ProviderFailed) else f"error: {type(exc).__name__}: {exc}")[:800]
         refused = used.pop("refused", 0)
         for key, value in used.items():
             usage[key] = usage.get(key, 0) + value
@@ -354,10 +357,22 @@ def _answer(calls: list[dict[str, Any]], truncated: bool, bench: Workbench) -> l
     return results
 
 
-def _retrying(ask: Request, progress: Callable[[str], None] | None, deadline: float) -> Ask:
+class ProviderFailed(Exception):
+    """The provider still failed (or failed in a way retrying cannot fix): the error and how to fix it."""
+
+
+def _retrying(ask: Request, provider: str, model: str, progress: Callable[[str], None] | None,
+              deadline: float) -> Ask:
     """``ask``, each request given the time left before ``deadline`` (a ``time.time()``) as its timeout, retrying rate
     limits, overload, timeouts, server errors and empty replies with backoff (honouring retry-after), never waiting
-    past ``deadline``: a wait that would is not made, and the error stands."""
+    past ``deadline``: a wait that would is not made, and the error stands (:class:`ProviderFailed`, with its fix)."""
+    call, client = PROVIDER_CALLS[provider]
+
+    def failed(exc: Exception, attempt: int) -> ProviderFailed:
+        if isinstance(exc, EmptyReply):
+            return ProviderFailed(f"{call} still sent no usable reply after {attempt} retr"
+                                  f"{'y' if attempt == 1 else 'ies'} ({exc}): try again later, or another provider")
+        return ProviderFailed(provider_failure(exc, call, client, model, attempt))
 
     def retried(messages: list[Message]) -> tuple[Message, dict[str, Any]]:
         for attempt in range(RETRIES + 1):
@@ -365,11 +380,11 @@ def _retrying(ask: Request, progress: Callable[[str], None] | None, deadline: fl
                 return ask(messages, request_timeout(max(0.0, deadline - time.time())))
             except Exception as exc:
                 if attempt >= RETRIES or not (isinstance(exc, EmptyReply) or _retryable(exc)):
-                    raise
+                    raise failed(exc, attempt) from exc
                 delay = _retry_after(exc)
                 wait = min(_MAX_BACKOFF_SECONDS, delay if delay is not None else 2.0 ** attempt)
                 if time.time() + wait >= deadline:
-                    raise
+                    raise failed(exc, attempt) from exc
                 if progress:
                     progress(f"provider busy ({type(exc).__name__}: {str(exc)[:200]}); retrying in {wait:.0f}s")
                 time.sleep(wait)

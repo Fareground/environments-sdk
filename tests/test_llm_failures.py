@@ -212,3 +212,18 @@ def test_a_prompt_too_long_for_the_model_is_diagnosed_as_such_not_as_a_failing_p
     assert result.stats["forfeits"] == result.stats["too_long"] == 1 and result.stats["llm_retries"] == 0
     [found] = [d for d in result.diagnostics if d["code"] == "turns_forfeited"]
     assert "longer than the model's context" in found["message"] and "retries" not in found["fix"]
+
+
+def test_an_anthropic_reply_with_nothing_in_it_is_asked_again_like_an_empty_openai_reply():
+    replies = iter([NS(content=[], stop_reason="end_turn", usage=NS(input_tokens=5, output_tokens=0))])
+
+    def create(**kwargs):
+        empty = next(replies, None)
+        if empty is not None:
+            return empty
+        block = NS(type="tool_use", id="t1", name="end_turn", input={})
+        return NS(content=[block], stop_reason="tool_use", usage=NS(input_tokens=5, output_tokens=1))
+
+    client = NS(messages=NS(create=create))
+    result = fg_env.load(SHOP, seed=1, inputs=ONE_SHOPPER).run(participants.anthropic(client, "claude-x"), rounds=1)
+    assert result.stats["llm_retries"] == 1 and result.stats["no_tool_replies"] == 0

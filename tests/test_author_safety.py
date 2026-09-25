@@ -165,7 +165,7 @@ def test_an_empty_reply_is_retried_and_one_that_persists_stops_the_session(monke
     lost = fg_env.author("A game.", "openai:m", client=FakeOpenAI([write(WORKING)], *[EMPTY] * 5))
 
     assert recovered.ok and recovered.stop == "done"
-    assert lost.ok and lost.stop == "error: EmptyReply: the provider sent a response with no reply in it"
+    assert lost.ok and lost.stop.startswith("error: client.chat.completions.create still sent no usable reply")
 
 
 @pytest.mark.parametrize("broken", ["check", "load"])

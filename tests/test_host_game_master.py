@@ -325,3 +325,16 @@ def test_a_refusal_never_shows_another_agents_private_value_and_others_read_only
     cato = "\n".join(seen["cato"])
     assert "Mira tried «I punch Bram.» → the game master did not allow that" in cato
     assert "at most 3" not in cato
+
+
+def test_a_host_whose_provider_stays_down_is_told_to_retry_later_not_to_follow_the_protocol():
+    from fg_env.host.protocols import HostUnavailable
+
+    class Down:
+        def resolve(self, request):
+            raise HostUnavailable("client.messages.create still failed after 4 retries with HTTP 529: overloaded")
+
+    env = host.load("examples/contracts/host/tavern_gm.json", hosts={"game_master": Down()}, seed=1)
+    result = env.run("random", rounds=1)
+    [found] = [d for d in result.diagnostics if d["code"] in ("host_unusable", "host_sometimes_unusable")]
+    assert "also when asked again" not in found["message"] and "more `retries`" in found["fix"]

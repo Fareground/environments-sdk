@@ -78,10 +78,6 @@ def _field(block: Any, name: str) -> Any:
 class _Provider:
     """Retries and usage accounting shared by the adapters."""
 
-    #: The provider call and client each adapter makes, named in its failures.
-    CALLS = {"anthropic": ("client.messages.create", "anthropic.Anthropic()"),
-             "openai": ("client.chat.completions.create", "openai.OpenAI()")}
-
     def __init__(self, client: Any, model: str, retries: int, max_tokens: int, provider: str = "anthropic"):
         if not isinstance(model, str) or not model:
             raise ValueError(f"model must be a model name, got {model!r}")
@@ -103,7 +99,7 @@ class _Provider:
         A failure is never a :class:`HostError` that asks the model again with a correction: nothing was wrong with its
         answer, there was none. One retrying could fix that still fails is :class:`HostUnavailable` (that request goes
         unanswered); any other stops the run."""
-        from ..participants.llm import _backoff, _retryable, provider_failure, request_timeout
+        from ..participants.llm import PROVIDER_CALLS, _backoff, _retryable, provider_failure, request_timeout
 
         for attempt in range(self.retries + 1):
             try:
@@ -113,7 +109,7 @@ class _Provider:
                 retry = attempt < self.retries and _retryable(exc)
                 late = retry and left is not None and left < wait
                 if not retry or late:
-                    call, client = self.CALLS[self.provider]
+                    call, client = PROVIDER_CALLS[self.provider]
                     text = provider_failure(exc, call, client, self.model, attempt)
                     text += " (The turn's time ran out before another try.)" if late else ""
                     raise (HostUnavailable(text) if _retryable(exc) else RunError(text)) from exc
