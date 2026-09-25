@@ -196,6 +196,14 @@ class Randomness:
         others coming or going never shifts."""
         return self.using(DrawSite(f"{site}@{owner.id}" if isinstance(owner, Entity) else site))
 
+    def item(self, site: str, item: Any) -> Any:
+        """:meth:`using` a stream of its own for one item of the loop written at ``site``, inside the block running now:
+        keyed by that block's stream, the loop and the item (an entity by its id), so neither the items the loop goes
+        over nor what they draw shift another item's luck or the draws the block makes after the loop."""
+        outer = self.here().rng
+        base = f"{outer.key}/" if outer.__class__ is DrawSite else ""
+        return self.using(DrawSite(f"{base}{site}@{item.id}" if isinstance(item, Entity) else f"{base}{site}"))
+
     @contextmanager
     def forbidden(self, reason: str | None = None) -> Iterator[None]:
         """Inside the block a draw is not made. Given a ``reason``, it fails as a rule does with that text: where

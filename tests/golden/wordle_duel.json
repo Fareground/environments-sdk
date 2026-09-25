@@ -14,7 +14,7 @@
     "r4 action ben: {\"action\": \"guess\", \"params\": {\"word\": \"apple\"}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
-    "candidates_left": 12,
+    "candidates_left": 11,
     "games_finished": 1,
     "guesses_made": 8
   },

@@ -448,13 +448,14 @@ class EffectRunner:
     def _op_each(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         name = effect.get("as") or "it"
         items = each_items(self._eval(effect["each"], vars), self.world, where)
-        where_expr = effect.get("where")
+        where_expr, luck = effect.get("where"), self.world.luck  # each item draws luck of its own
         if effect.get("sync"):
             def run_item(position: int, item: Any) -> bool:
                 inner = {**vars, name: item, "i": position}
-                if where_expr is not None and not self._condition(where_expr, inner):
-                    return False
-                self.run(effect.get("do") or [], inner, f"{where}.do")
+                with luck.item(where, item):
+                    if where_expr is not None and not self._condition(where_expr, inner):
+                        return False
+                    self.run(effect.get("do") or [], inner, f"{where}.do")
                 return True
 
             run_synced(self.world, items, run_item, where)
@@ -468,11 +469,12 @@ class EffectRunner:
                 if removed(position):
                     continue
                 inner = {**vars, name: item, "i": position}
-                if where_expr is not None and not self._condition(where_expr, inner):
-                    continue
-                if watch is not None:
-                    watch.item, watch.position = item, position
-                self.run(effect.get("do") or [], inner, f"{where}.do")
+                with luck.item(where, item):
+                    if where_expr is not None and not self._condition(where_expr, inner):
+                        continue
+                    if watch is not None:
+                        watch.item, watch.position = item, position
+                    self.run(effect.get("do") or [], inner, f"{where}.do")
                 # Locals assigned in the body (running totals, a best-so-far) stay assigned after it;
                 # only the loop's own names are scoped to it.
                 vars.update((key, value) for key, value in inner.items() if key not in (name, "i"))

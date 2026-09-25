@@ -15,8 +15,8 @@
   ],
   "metrics": {
     "games_finished": 1,
-    "letters_hidden": 10,
-    "strikes": 0
+    "letters_hidden": 14,
+    "strikes": 2
   },
   "rounds": 4,
   "status": "running",

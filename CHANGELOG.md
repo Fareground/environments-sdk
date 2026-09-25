@@ -228,6 +228,12 @@ worlds stay fast, and the package is organised by feature.
   - A `wake.clone()` taken in a simultaneous stage holds none of the other agents' sealed choices not yet committed:
     the copy's participants choose for them. Before, the copy kept the real choices, so a search that only read
     public scores still played against the opponent's actual hand.
+  - Each item of an `each` loop draws its luck from a stream of its own, keyed by the block it runs in and the item
+    (an entity by its id), and the loop leaves the block's own stream untouched. Before, a loop drew from the block's
+    one sequential stream, so removing an unrelated item shifted every later item's luck and every draw after the
+    loop, breaking the promise that one agent's actions never shift another's luck. Runs that draw inside a loop
+    within a larger block draw differently (six example goldens changed: epidemic_shocks, town_epidemic, hangman_duel,
+    wordle_duel, misinformation, ride_hailing).
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

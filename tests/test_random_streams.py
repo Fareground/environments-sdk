@@ -96,3 +96,26 @@ def test_reading_an_update_whose_view_draws_luck_does_not_change_the_run():
         return result.outputs, result.events  # stats differ: reading costs tokens
 
     assert run(read=True) == run(read=False)
+
+
+def test_an_each_loop_draws_each_items_luck_on_its_own_so_removing_an_item_shifts_no_other_draw():
+    """ann removes a cell bob never sees; bob's rolls inside and after his loop over the cells stay the same, and so
+    does a world draw after a round event's loop."""
+    c = {"name": "Loops", "clock": {"rounds": 2}, "world": {"after": []},
+         "types": {"player": {"agent": True, "props": {"r": []}}, "cell": {"props": {"v": []}}},
+         "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}, "cell": {"type": "cell", "count": 3}},
+         "actions": {"kill": {"by": "player", "description": "k", "do": [{"remove": "$entity(cell_1)"}]},
+                     "farm": {"by": "player", "description": "f",
+                              "do": [{"each": "cell", "do": ["$it.v += [$randint(1, 1000)]"]},
+                                     "$actor.r += [$randint(1, 1000)]"]}},
+         "events": [{"on": "round.end", "do": [{"each": "cell", "do": ["$it.v += [$randint(1, 1000)]"]},
+                                               "$world.after += [$randint(1, 1000)]"]}],
+         "outputs": {"bob": {"expr": "$entity(bob).r", "type": "list"}, "after": {"expr": "$world.after", "type": "list"},
+                     "cell_3": {"expr": "$entity(cell_3).v", "type": "list"}}}
+
+    def bob(wake):
+        wake.call("farm", {})
+
+    idle = fg_env.run(c, {"ann": lambda wake: wake.end(), "bob": bob}, seed=2).outputs
+    kill = fg_env.run(c, {"ann": lambda wake: wake.call("kill", {}), "bob": bob}, seed=2).outputs
+    assert idle == kill
