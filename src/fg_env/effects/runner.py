@@ -564,7 +564,9 @@ class EffectRunner:
                 roots = None
         if roots is not None and not roots.intersection(world.contract.defs):
             captured = {name: value for name, value in vars.items() if name in roots}
-        world.schedule(world.round + delay, effects, captured, f"{where}.do")
+        context = world.luck.here()  # scheduled by an agent's action, the effects stay that action's
+        owed = (context.actor.id, context.action) if context.actor is not None and context.action else None
+        world.schedule(world.round + delay, effects, captured, f"{where}.do", owed=owed)
 
     def _op_wake(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         woken = _to_ids(self._eval(effect["wake"], vars), where)

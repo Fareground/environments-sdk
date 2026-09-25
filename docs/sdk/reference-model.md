@@ -85,7 +85,9 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   alone — in a sealed stage when the choices commit, in an atomic turn the whole turn — and the agent is told the cause
   without the rule or any hidden value. The run goes on; `result.diagnostics` names the failing rule with a fix and
   `stats.faulted_actions` counts these refusals. Guard such rules (`min`/`max` on the parameter, or a `when` with a
-  `why`) so agents are told the limit up front. The same failure in events, world logic or physics fails the run, as
+  `why`) so agents are told the limit up front. What an action schedules with `after` stays that action's: when it
+  runs, a refusal (a `fail`, a transfer or write that does not fit) or a failing rule in it undoes that block alone,
+  the agent is told, and the run goes on. The same failure in events, world logic or physics fails the run, as
   do a host that fails and a crash in a mechanism's own code, wherever they happen.
 * `end` conditions are checked after the start events, after each stage, and at the end of the round, so
   `$round == <clock.rounds>` ends the run before the last round plays (check warns): the run ends after its last

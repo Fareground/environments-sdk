@@ -570,13 +570,15 @@ class World(ExpressionWorld):
         self.journal.push(("first", index, since))
 
     def schedule(self, due_round: int, effects: list[Any], vars: dict[str, Any], path: str,
-                 delivery: dict[str, Any] | None = None) -> None:
-        """Run ``effects`` when the round reaches ``due_round``;
-        or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
+                 delivery: dict[str, Any] | None = None, owed: tuple[str, str] | None = None) -> None:
+        """Run ``effects`` when the round reaches ``due_round`` — as the continuation of agent ``owed[0]``'s action
+        ``owed[1]`` when an action scheduled them; or, with ``delivery``, deliver that message (see :mod:`delivery`)."""
         item: dict[str, Any] = {"effects": effects, "vars": {k: freeze(v) for k, v in vars.items()},
                                 "capture_version": CAPTURE_VERSION, "path": path}
         if delivery is not None:
             item["delivery"] = delivery
+        if owed is not None:
+            item["by"], item["action"] = owed
         self.schedule_seq += 1
         entry = (due_round, self.schedule_seq, item)
         heapq.heappush(self.scheduled, entry)

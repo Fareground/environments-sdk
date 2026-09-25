@@ -319,7 +319,7 @@ class ActionBook:
         the announcement and its event: they cannot fail or draw, and a rollback would undo them unseen. The action
         draws from its actor's own stream, so it never shifts another agent's luck or the world's; a refusal keeps
         what it drew spent, so retrying rolls fresh luck (see :class:`~fg_env.sampling.seeds.DrawSite`)."""
-        with self.world.luck.at(f"actions.{name}", actor), self.world.luck.acting_as(actor):
+        with self.world.luck.at(f"actions.{name}", actor), self.world.luck.acting_as(actor, name):
             return self._apply_drawn(actor, name, params, trial)
 
     def _apply_drawn(self, actor: Entity, name: str, params: dict[str, Any], trial: bool) -> Outcome:

@@ -2,9 +2,10 @@
 events its commit sets off, and the invariants checked after it. A rule that fails anywhere in it, or an invariant it
 breaks, is the contract's bug, not the agent's — but it is found through one agent's choice, so that action alone is
 refused and undone (:meth:`~fg_env.runtime.rules.Rules.guarded`), the agent is told why in words that reveal nothing
-hidden (this module), the run's diagnostics tell the author where and how to fix it, and the run goes on. The same
-failure outside an agent's action (events nothing an agent did set off, physics, the build) still fails the run — a
-`fail` or a transfer that does not fit too: world logic has no one to refuse it to (:func:`world_logic_refused`).
+hidden (this module), the run's diagnostics tell the author where and how to fix it, and the run goes on. What an
+action schedules with `after` stays that action's when it runs (:meth:`~fg_env.runtime.events.Events.run_scheduled`).
+The same failure outside an agent's action (events nothing an agent did set off, physics, the build) still fails the
+run — a `fail` or a transfer that does not fit too: world logic has no one to refuse it to (:func:`world_logic_refused`).
 """
 from __future__ import annotations
 

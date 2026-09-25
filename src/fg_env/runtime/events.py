@@ -24,6 +24,7 @@ from ..expr.objects import Entity
 from ..world.abort import Abort
 from ..world.randomness import event_streams
 from .diagnosis import LoopWrites
+from .facts import CommitRefused
 
 if TYPE_CHECKING:
     from .rules import Rules
@@ -57,9 +58,42 @@ class Events:
             _, _, item = heapq.heappop(world.scheduled)
             if "delivery" in item:
                 self._deliver(item)
+            elif "by" in item:
+                self._continue(item)
             else:
                 rules.run_block(item["effects"], thaw(item["vars"], world, version=item.get("capture_version", 0)),
                                 item["path"])
+
+    def _continue(self, item: Mapping[str, Any]) -> None:
+        """Effects an agent's action scheduled with `after`: still that action's. What refuses the action refuses them
+        (a `fail`, a transfer or write that does not fit, a rule that fails, an invariant they break): the block alone
+        is undone, the agent is told why in words that reveal nothing hidden from it, the run's diagnostics count it
+        against the action, and the run goes on — as when a sealed choice is refused as it commits."""
+        rules, world = self.rules, self.rules.world
+        by, name = item["by"], item["action"]
+        actor = world.entities.get(by)
+        vars = thaw(item["vars"], world, version=item.get("capture_version", 0))
+
+        def work() -> None:
+            rules.run_block(item["effects"], vars, item["path"], refusable=True)
+
+        with rules.gate:
+            try:
+                if actor is None:
+                    _, why = rules.guarded(work, action=name)
+                else:
+                    with world.luck.acting_as(actor, name):
+                        _, why = rules.guarded(work, action=name)
+                faulted = why is not None
+            except Abort as refusal:
+                why, faulted = refusal.reason.strip().rstrip("."), False
+            if why is None:
+                return
+            if actor is not None and actor.alive:
+                world.emit("outcome", f"What your {name.replace('_', ' ')} set for later did not happen: {why}.",
+                           actor=by, to=(by,), data={"action": name, "ok": False})
+            rules.facts.emit(CommitRefused(name, why, faulted=faulted))
+            world.commit()
 
     def _deliver(self, item: Mapping[str, Any]) -> None:
         """Deliver one scheduled message as its own atomic change."""

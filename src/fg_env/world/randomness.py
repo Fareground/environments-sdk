@@ -38,17 +38,18 @@ class LuckAhead(BaseException):
 
 class Context:
     """What one thread or asyncio task is running: its random stream, a turn's ``$pending`` (what the turn did or
-    submitted so far, with its version) and deadline (``time.monotonic()``), the agent whose action runs, how deep defs
-    call each other, why draws are forbidden (None: they are not; empty: a trial), and how many draws and reads of
+    submitted so far, with its version) and deadline (``time.monotonic()``), the agent whose action runs and which
+    action it is, how deep defs call each other, why draws are forbidden (None: they are not; empty: a trial), and how many draws and reads of
     values hidden from the acting agent it has made (what an :class:`Observation` compares)."""
 
-    __slots__ = ("rng", "pending", "deadline", "actor", "depth", "forbid", "draws", "hidden")
+    __slots__ = ("rng", "pending", "deadline", "actor", "action", "depth", "forbid", "draws", "hidden")
 
     def __init__(self, rng: Any = None, pending: Any = None, deadline: float | None = None):
         self.rng = rng
         self.pending = pending
         self.deadline = deadline
         self.actor: Entity | None = None
+        self.action: str | None = None
         self.depth = 0
         self.forbid: str | None = None
         self.draws = 0
@@ -209,16 +210,16 @@ class Randomness:
             context.forbid = previous
 
     @contextmanager
-    def acting_as(self, actor: Entity) -> Iterator[None]:
-        """Inside the block the rules run for ``actor``'s action: a value hidden from it that they read is counted
+    def acting_as(self, actor: Entity, action: str | None = None) -> Iterator[None]:
+        """Inside the block the rules run for ``actor``'s ``action``: a value hidden from it that they read is counted
         (:meth:`count_hidden_read`), and their refusals may not tell it one."""
         context = self.here()
-        previous = context.actor
-        context.actor = actor
+        previous = context.actor, context.action
+        context.actor, context.action = actor, action
         try:
             yield
         finally:
-            context.actor = previous
+            context.actor, context.action = previous
 
 
 #: The streams each event draws from — for its `when`, for its `do` — named for what it was written as before events

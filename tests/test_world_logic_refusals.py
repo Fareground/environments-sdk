@@ -60,3 +60,27 @@ def test_a_guarded_block_runs_normally():
     contract = _with(events=[{"phase": "end", "do": [{"if": "$entity(bank).cash >= 100", "then": [
         {"transfer": "cash", "from": "$entity(bank)", "to": "$entity(ann)", "amount": 100}]}]}])
     assert fg_env.run(contract, "idle", seed=1).status == "completed"
+
+
+def test_what_an_action_schedules_for_later_stays_that_actions_and_is_refused_not_fatal():
+    """An action's `after` effects are still the action's: a refusal in them undoes that block alone, its agent is
+    told, and the run's diagnostics count it against the action; the run goes on."""
+    contract = _with(stages=[{"name": "play", "max_actions": 2}], actions={
+        "pledge": {"by": "p", "do": [{"after": 1, "do": [
+            "$world.cleared += 1", {"transfer": "cash", "from": "$actor", "to": "$entity(bank)", "amount": 2}]}]},
+        "spend": {"by": "p", "do": ["$actor.cash = 0"]}})
+    updates = []
+
+    def ann(wake):
+        updates.append(wake.update)
+        if wake.round == 1:
+            assert wake.call("pledge").ok and wake.call("spend").ok
+        wake.end()
+
+    env = fg_env.load(contract, seed=1)
+    result = env.run({"ann": ann, "bank": "idle"})
+    assert result.status == "completed", result.error
+    assert result.outputs["cleared"] == 0  # the block was undone whole
+    assert any("pledge" in update and "did not happen" in update and "ann has only 0 cash" in update
+               for update in updates)
+    assert env.state.diagnosis.actions["pledge"]["refused"] == 1
