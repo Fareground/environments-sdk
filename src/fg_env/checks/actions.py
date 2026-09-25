@@ -86,7 +86,7 @@ class ActionChecks(EffectChecks):
             self._private_action(spec, types, path)
             self._undecided_by_luck(spec, path)
             if isinstance(spec.terminal, str):
-                self.expr(spec.terminal, f"{path}.terminal", after, types, spec.params)
+                self.condition(spec.terminal, f"{path}.terminal", after, types, spec.params)
             for pname, param in spec.params.items():
                 if param.overflow == "truncate" and (param.type != "text" or param.max_len is None):
                     self.error(f"{path}.params.{pname}.overflow", "`truncate` cuts text to `max_len`",
@@ -221,7 +221,7 @@ class ActionChecks(EffectChecks):
                 self._count(getattr(stage, setting), f"{path}.{setting}")
             agent_types: Types = {"it": set(self.agents)}
             self.order_setting(stage.order, f"{path}.order", ("seat", "random"), BASE | {"it", "i"}, agent_types)
-            self.expr(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
+            self.condition(stage.who, f"{path}.who", BASE | {"it", "i"}, agent_types)
             self.condition(stage.until, f"{path}.until", BASE)
             self.condition(stage.when, f"{path}.when", BASE)
             self.template(stage.brief or None, f"{path}.brief", "actor", BASE | {"actor"}, {"actor": set(self.agents)})

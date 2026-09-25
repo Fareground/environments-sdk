@@ -85,3 +85,78 @@ def test_existing_reference_conditions_keep_draw_order_and_complete_results(seed
     corrected = fg_env.run(c, seed=seed).to_dict()
     monkeypatch.setattr(EffectRunner, '_condition', lambda self, value, variables: bool(self._eval(value, variables)))
     assert corrected == fg_env.run(c, seed=seed).to_dict()
+
+
+# -- every field that holds a condition refuses bare text ----------------------------------------------------------
+
+def _fishery():
+    return {"name": "Lake", "clock": {"rounds": 2}, "world": {"fish": 10},
+            "types": {"fisher": {"agent": True, "props": {"caught": 0}}},
+            "entities": {"fisher": {"type": "fisher", "count": 2}},
+            "records": {"chat": {"fields": {"text": "text"}}},
+            "actions": {"fish": {"by": "fisher", "params": {"who": {"type": "entity", "of": "fisher"}},
+                                 "do": ["$actor.caught += 1"]}},
+            "stages": [{"name": "fishing"}],
+            "views": {"lake": {"for": "fisher", "show": "Fish: {$world.fish}"}},
+            "outputs": {"caught": "$sum(fisher, $it.caught)"}}
+
+
+def _put(path, value):
+    def edit(contract):
+        *parents, last = path
+        target = contract
+        for key in parents:
+            target = target[key]
+        target[last] = value
+    return edit
+
+
+CONDITION_FIELDS = {
+    "actions.*.when": _put(("actions", "fish", "when"), "fisher_1"),
+    "actions.*.params.*.where": _put(("actions", "fish", "params", "who", "where"), "fisher_1"),
+    "actions.*.terminal": _put(("actions", "fish", "terminal"), "fisher_1"),
+    "stages.*.when": _put(("stages", 0, "when"), "fisher_1"),
+    "stages.*.who": _put(("stages", 0, "who"), "fisher_1"),
+    "stages.*.until": _put(("stages", 0, "until"), "fisher_1"),
+    "stages.*.valid": _put(("stages", 0, "valid"), [{"expr": "fisher_1", "why": "no"}]),
+    "events.*.when": _put(("events",), [{"on": "round.end", "when": "fisher_1", "do": "$world.fish += 1"}]),
+    "effects if": _put(("actions", "fish", "do"), [{"if": "fisher_1", "then": ["$actor.caught += 1"]}]),
+    "effects each.where": _put(("actions", "fish", "do"),
+                               [{"each": "fisher", "where": "fisher_1", "do": ["$it.caught += 1"]}]),
+    "effects repeat.while": _put(("actions", "fish", "do"),
+                                 [{"repeat": 2, "while": "fisher_1", "do": ["$actor.caught += 1"]}]),
+    "views.*.when": _put(("views", "lake", "when"), "fisher_1"),
+    "views.*.where": _put(("views", "lake"), {"for": "fisher", "of": "fisher", "where": "fisher_1", "show": "{name}"}),
+    "records.*.visible": _put(("records", "chat", "visible"), "fisher_1"),
+    "end.*.when": _put(("end",), [{"when": "fisher_1"}]),
+    "invariants": _put(("invariants",), [{"expr": "fisher_1"}]),
+}
+
+
+@pytest.mark.parametrize("field", list(CONDITION_FIELDS))
+def test_every_field_that_holds_a_condition_refuses_bare_text_as_always_true(field):
+    """A bare word where a condition goes is that text itself, true for everything: `check` refuses it wherever a
+    condition is written, so no field can silently hold every time."""
+    contract = _fishery()
+    CONDITION_FIELDS[field](contract)
+    errors = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    assert any("always true" in i.message for i in errors), (field, [str(i) for i in errors])
+
+
+def test_the_checker_checks_every_condition_field_as_a_condition():
+    """The static half of the rule: a field whose name says it holds a condition is never checked as a plain
+    expression, which would let bare text through (as a stage's `who` once did)."""
+    import ast
+    import pathlib
+
+    conditional = ("when", "who", "where", "until", "if", "valid", "visible", "terminal", "while")
+    source = pathlib.Path(fg_env.__file__).parent / "checks"
+    wrong = []
+    for file in source.glob("*.py"):
+        for node in ast.walk(ast.parse(file.read_text())):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "expr" \
+                    and len(node.args) >= 2 and isinstance(node.args[1], ast.JoinedStr):
+                tail = node.args[1].values[-1]
+                if isinstance(tail, ast.Constant) and str(tail.value).rsplit(".", 1)[-1] in conditional:
+                    wrong.append(f"{file.name}:{node.lineno}")
+    assert wrong == []

@@ -253,6 +253,9 @@ worlds stay fast, and the package is organised by feature.
   - A run in which no agent ever had a turn (every stage skipped by its `when`, an `end` that holds at the start) is
     degraded (`nobody_played`), and so is a finished run in which no agent ever had an action offered, however
     short (`agents_never_able_to_act`); `fg_env.author` no longer keeps such a contract as working.
+  - Bare text in a stage's `who` or an action's `terminal` is a check error ("is the text …, which is always true"),
+    as in every other field that holds a condition; before, `"who": "fisher_1"` woke every agent. A test holds every
+    condition field to this, and the checker to checking each as a condition.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
