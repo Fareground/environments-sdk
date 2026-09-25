@@ -238,6 +238,8 @@ worlds stay fast, and the package is organised by feature.
     write that does not fit) or a failing rule undoes that block alone, the agent is told why, the run's diagnostics
     count it against the action, and the run goes on. Before, an agent could fail the whole run by spending the coins
     a `pledge` would take next round.
+  - A ballot hooked into a declared stage that repeats is counted at the stage's end only while its `when` holds for
+    some voter. Before, every later round counted it again, empty, and overwrote the real result with none.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

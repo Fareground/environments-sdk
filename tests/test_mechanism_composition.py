@@ -107,3 +107,24 @@ def test_a_mechanism_named_like_another_ones_records_is_an_error_naming_both():
                 "mechanisms": {"a": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 5},
                                "a_tape": {"kind": "decision", "mode": "deliberation", "who": "trader"}}}
     assert any("'a' and 'a_tape' both generate records 'a_tape'" in e for e in errors(contract))
+
+
+def test_a_ballot_hooked_into_a_repeating_stage_is_counted_only_while_its_when_holds():
+    """The tally obeys the ballot's `when`: counting again in later rounds would overwrite the result with an empty
+    count."""
+    contract = {"name": "Once", "clock": {"rounds": 3},
+                "types": {"v": {"agent": True, "props": {"x": 0}}},
+                "entities": {"a": {"type": "v"}, "b": {"type": "v"}, "c": {"type": "v"}},
+                "actions": {"work": {"by": "v", "do": "$actor.x += 1"}},
+                "stages": [{"name": "day", "actions": ["work", "e_vote", "e_abstain"]}],
+                "mechanisms": {"e": {"kind": "decision", "mode": "ballot", "who": "v", "options": ["yes", "no"],
+                                     "when": "$round == 1", "stage": "day"}},
+                "outputs": {"winner": {"expr": "$world.e_result.winner if $world.e_result else 'none'",
+                                       "series": True}}}
+
+    def voter(wake):
+        wake.call("e_vote", {"choice": "yes"}) if wake.round == 1 else wake.call("work", {})
+        wake.end()
+
+    result = fg_env.run(contract, {"v": voter}, seed=1)
+    assert result.series["winner"] == ["yes", "yes", "yes"]

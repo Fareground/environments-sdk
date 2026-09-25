@@ -384,6 +384,21 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     world.emit(name, text, data={"mechanism": "ballot", "result": result})
 
 
+@family_action("decision", ("ballot",), "close", internal=True,
+               example='{"decision": "election", "action": "close"}  (the end of a declared stage: count the ballot '
+                       'when its `when` holds for a voter now, else leave the last result)')
+def _close_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
+    """Count a ballot hooked into a declared stage at the stage's end — only when it is open now: its `when` (a
+    requirement of each voter's vote, so it may read `$actor`) holds for some voter still in the game."""
+    name = effect["decision"]
+    world = runner.world
+    config = mechanism_config(world, name, KEY, BallotConfig, where)
+    when = config.when
+    if when and not any(truthy(runner.eval(when, {"actor": voter})) for voter in _voters_in_game(world, config.who)):
+        return
+    _tally_op(runner, {"decision": name, "action": "tally"}, vars, where)
+
+
 def _weight_of(runner: Any, expr: str, voter: Any, where: str) -> float:
     value = runner.eval(expr, {"it": voter})
     if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value < 0:
@@ -487,5 +502,8 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
             for action in actions.values():
                 action["when"].append({"expr": config.when, "why": "The vote is not open now."})
         fragment["stage_hooks"] = {config.stage: {"actions": names}}
-    fragment["events"] = [_common.stage_event(config.stage or name, "end", [{"decision": name, "action": "tally"}])]
+    # In a declared stage the count obeys `when` too (`close`): a stage that repeats would otherwise count a closed
+    # ballot again at every end and overwrite its result with an empty one.
+    count = "close" if config.stage is not None and config.when else "tally"
+    fragment["events"] = [_common.stage_event(config.stage or name, "end", [{"decision": name, "action": count}])]
     return fragment
