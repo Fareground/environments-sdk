@@ -10,7 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import entity_of
+from ._common import entity_of, setting_kept
 from .econ_assets import balance, move_money
 from .econ_base import (
     INVENTORY,
@@ -22,7 +22,6 @@ from .econ_base import (
     declared_names,
     emit_to,
     guarded,
-    lineage,
     money,
     props,
     register_config,
@@ -165,7 +164,7 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
                                  "use letters, digits and _ (not a word expressions use, like in or not)",
                                  f"currencies.{currency}")
         if "start" in spec.model_fields_set:
-            _start_holds(contract, holders, currency, spec.start)
+            setting_kept(contract, holders, currency, spec.start, f"currencies.{currency}.start")
         holder_props[currency] = {"type": "number", "default": spec.start, "unit": spec.unit,
                                   "description": spec.description or f"Money held ({currency})."}
         if spec.credit is not None:
@@ -192,21 +191,6 @@ def _expand_ledger(name: str, config: LedgerConfig, contract: Mapping[str, Any])
         shown = " · ".join(f"{{{c}}} {c}" for c in config.currencies)  # money is not always dollars
         fragment["views"] = {f"{name}_balance": {"for": agents, "title": "Your money", "bullet": False, "show": shown}}
     return fragment
-
-
-def _start_holds(contract: Mapping[str, Any], holders: list[str], currency: str, start: Any) -> None:
-    """A holder type that declares the currency itself would silently replace the ledger's starting balance."""
-    for kind, spec in (contract.get("types") or {}).items():
-        declared = ((spec or {}).get("props") or {}).get(currency) if isinstance(spec, Mapping) else None
-        if declared is None or not set(holders) & set(lineage(contract, kind)):
-            continue
-        default = declared.get("default") if isinstance(declared, Mapping) else declared
-        if default != start:
-            raise MechanismError(
-                f"types.{kind}.props.{currency} (default {money(default)}) would replace this starting balance "
-                f"({money(start)})",
-                f"remove types.{kind}.props.{currency} (the ledger declares it), or drop `start` here; a population or "
-                f"entity may still set its own {currency}", f"currencies.{currency}.start")
 
 
 def _source_event(name: str, config: LedgerConfig, source: str, spec: SourceSpec,

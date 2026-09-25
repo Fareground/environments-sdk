@@ -24,7 +24,7 @@ from ..expr import EVERYONE, Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode, use_key
 from ..world.abort import Abort
-from ._common import stage_event
+from ._common import setting_kept, stage_event
 from ._game import game_section
 from .contract_cache import parse_kind, per_contract
 from .econ_base import lineage
@@ -614,6 +614,7 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
         raise MechanismError(f"who '{config.who}' is not a declared type", f"types: {', '.join(types) or 'none'}",
                              "who")
     _one_pot_per_player(name, config, contract)
+    setting_kept(contract, [config.who], "stack", config.stack, "stack")
     if config.blinds is not None and len(config.blinds) != 2:
         raise MechanismError("blinds are [small, big]", "e.g. [5, 10]", "blinds")
     if not config.streets:

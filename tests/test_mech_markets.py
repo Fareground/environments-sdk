@@ -1166,3 +1166,17 @@ def test_default_market_makers_quote_for_the_whole_crowd_not_only_last_rounds_fl
     one_sided = sum(book["bid"] is None or book["ask"] is None
                     for seed in range(4) for book in fg_env.run(contract, None, seed=seed).series["book"])
     assert one_sided <= 8
+
+
+@pytest.mark.parametrize("mechanism, prop", [
+    ({"kind": "game", "mode": "pot", "who": "player", "stack": 1000, "score": "1", "streets": {"betting": []}},
+     "stack"),
+    ({"kind": "economy", "mode": "ledger", "who": "player", "currencies": {"cash": {"start": 1000}}}, "cash"),
+])
+def test_a_type_prop_that_would_replace_a_mechanisms_starting_setting_is_an_error(mechanism, prop):
+    """One rule for every mechanism that starts a property from a setting: a type declaring it otherwise is an error
+    (audit 12 mech M8: a pot's `stack` was silently overridden)."""
+    contract = {"name": "P", "clock": {"rounds": 1}, "types": {"player": {"agent": True, "props": {prop: 5}}},
+                "entities": {"a": {"type": "player"}, "b": {"type": "player"}}, "mechanisms": {"m": mechanism}}
+    issues = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    assert issues and f"types.player.props.{prop} (default 5) would replace" in issues[0].message, issues

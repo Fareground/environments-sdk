@@ -22,6 +22,7 @@ from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
 from ..expr.objects import Entity
+from ..expr.template import format_value
 from ..registry import MechanismError, use_key
 
 __all__ = [
@@ -29,7 +30,8 @@ __all__ = [
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt", "pct",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
-    "is_agent_type", "stage_event", "declared_entity", "Conserve", "conserve_field", "conserve_invariant",
+    "is_agent_type", "stage_event", "declared_entity", "setting_kept", "Conserve", "conserve_field",
+    "conserve_invariant",
 ]
 
 
@@ -101,6 +103,22 @@ def types_in(contract: Mapping[str, Any], names: str | Sequence[str], field: str
         if name not in declared:
             raise MechanismError(f"'{name}' is not a declared type", suggest(name, declared), field)
     return listed
+
+
+def setting_kept(contract: Mapping[str, Any], holders: Sequence[str], prop: str, value: Any, setting: str) -> None:
+    """The one rule for a property a mechanism starts from one of its settings (a ledger's `start`, a pot's `stack`):
+    a holder type that declares that property itself would silently replace the setting, so it is an error unless it
+    agrees. An entity may still set its own value."""
+    for kind, spec in (contract.get("types") or {}).items():
+        declared = ((spec.get("props") or {}) if isinstance(spec, Mapping) else {}).get(prop)
+        if declared is None or not any(raw_is_a(contract, kind, holder) for holder in holders):
+            continue
+        default = declared.get("default") if isinstance(declared, Mapping) else declared
+        if default != value:
+            raise MechanismError(f"types.{kind}.props.{prop} (default {format_value(default)}) would replace "
+                                 f"`{setting}` here ({format_value(value)})",
+                                 f"remove types.{kind}.props.{prop} (the mechanism declares it) and give the starting "
+                                 f"value as `{setting}`; an entity may still set its own {prop}", setting)
 
 
 def raw_is_a(contract: Mapping[str, Any], type_name: str, ancestor: str) -> bool:
