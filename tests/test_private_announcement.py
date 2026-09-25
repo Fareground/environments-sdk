@@ -107,3 +107,14 @@ def test_a_fetched_private_read_in_an_outcome_or_an_invariant_why_is_a_check_err
         found = [i for i in fg_env.check(contract, rounds=0) if i.path == path]
         assert [i.severity for i in found] == ["error"], (path, [str(i) for i in found])
         assert "$entity(…).secret" in found[0].message
+
+
+def test_a_parameter_default_reading_another_agents_private_property_is_a_check_error():
+    """A default fills in what the agent left out, and is shown in its tool: reading another agent's private property
+    there would fail the run the first time the tool is offered, so check refuses it before (audit hands-on M2)."""
+    contract = _fetched()
+    contract["actions"]["g"]["params"] = {"n": {"type": "int", "default": "$entity(b).secret"}}
+    found = [i for i in fg_env.check(contract, rounds=0) if i.path == "actions.g.params.n.default"]
+    assert [i.severity for i in found] == ["error"]
+    with pytest.raises(fg_env.ContractError):
+        fg_env.load(contract)
