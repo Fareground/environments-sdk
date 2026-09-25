@@ -1,12 +1,16 @@
-"""The leak test: playouts that differ only in what a seat cannot see must look the same to that seat.
+"""The leak test: playouts that differ only in what a seat cannot see must look the same to that seat, and playouts
+it was told apart must stay apart in its information state.
 
 A playout is replayed with one step changed — another chance outcome, another call by the acting seat,
 or another sealed choice by one seat of a simultaneous node — and both playouts continue with the
 same later steps while those stay legal. At every pair of states where, for some seat that made the same calls in
 both, the two worlds differ only in what the rules hide from it (other entities' private properties, events not
 addressed to it, other seats' sealed choices), that seat's observation text, observation structure and
-information state must be identical. Terminal states are left out: games reveal hidden cards at the
-end. Hidden information kept in world properties is not declared hidden, so it is not tested.
+information state must be identical. Conversely (perfect recall), once a seat was told the playouts apart — its
+observation text differed, or a call it made told it something different — its information states must differ at
+every later pair: a solver built on them would otherwise solve a game in which the seat forgets. Terminal states are
+left out: games reveal hidden cards at the end. Hidden information kept in world properties is not declared hidden, so
+it is not tested.
 """
 from __future__ import annotations
 
@@ -16,7 +20,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from ..errors import RunError
-from .observe import visible_key
+from .observe import told, visible_key
 from .state import GameState
 from .steps import Step, apply_step, replay_steps
 
@@ -60,9 +64,10 @@ def _branch(game: Any, steps: list[Step], index: int, rng: random.Random) -> lis
             apply_step(here, steps[index])
             mine, theirs = steps[:index + 1], steps[:index] + [other_step]
             found: list[Leak] = []
+            apart: set[int] = set()  # the seats told the two playouts apart so far
             position = index + 1
             while True:
-                found.extend(_compare(here, other, mine, theirs))
+                found.extend(_compare(here, other, mine, theirs, apart))
                 if position >= len(steps) or here.is_terminal() or other.is_terminal() or _kind(here) != _kind(other):
                     return found
                 try:
@@ -97,11 +102,20 @@ def _alternatives(state: GameState, step: Mapping[str, Any]) -> list[Step]:
             if action.tool != step["tool"] or dict(action.args) != dict(step["args"])]
 
 
-def _compare(a: GameState, b: GameState, steps: list[Step], other_steps: list[Step]) -> list[Leak]:
+def _compare(a: GameState, b: GameState, steps: list[Step], other_steps: list[Step], apart: set[int]) -> list[Leak]:
     if a.is_terminal() or b.is_terminal():
         return []
     found: list[Leak] = []
     for seat, entity_id in enumerate(a.game.players):
+        if seat not in apart and (a.observation_string(seat) != b.observation_string(seat)
+                                  or _told(a, seat) != _told(b, seat)):
+            apart.add(seat)
+        if seat in apart and a.information_state_string(seat) == b.information_state_string(seat):
+            changed = next((index for index, (s, t) in enumerate(zip(steps, other_steps)) if s != t), len(steps))
+            found.append(Leak(f"seat {seat} ({entity_id}) was told two playouts apart (they differ at step "
+                              f"{changed + 1}) but its information state is the same in both: it forgets what it was "
+                              "told, so a solver treats the two as one → report this as an SDK bug", steps,
+                              other_steps))
         if _own_calls(steps, seat) != _own_calls(other_steps, seat) or _visible(a, seat) != _visible(b, seat):
             continue  # a seat tells playouts apart by its own calls (a refused one leaves no trace in the world)
         difference = _difference(a, b, seat)
@@ -129,6 +143,11 @@ def _visible(state: GameState, seat: int) -> str:
     actor_id = state.game.players[seat]
     return str(state._run.read(lambda env: visible_key(env, env.world.entities[actor_id],
                                                        _own_pending(state._pending(env), actor_id))))
+
+
+def _told(state: GameState, seat: int) -> list[str]:
+    actor_id = state.game.players[seat]
+    return list(state._run.read(lambda env: told(env, env.world.entities[actor_id])))
 
 
 def _own_pending(pending: dict[str, Any], actor_id: str) -> dict[str, Any]:

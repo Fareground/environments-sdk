@@ -74,7 +74,7 @@ Seat 0 (a) reads:
   | - B wins prize 3.
   | 
   | Prize: 3. Your cards: 2 3 4. Points: you 0, opponent 3.
-Seat 0 information state: e7275b50c0a6d8c9
+Seat 0 information state: 2add0126d5b1e11c
 Seat 1 (b) reads:
   | Prize 2 of 4 · bid
   | 
@@ -83,7 +83,7 @@ Seat 1 (b) reads:
   | - B wins prize 3.
   | 
   | Prize: 3. Your cards: 1 2 4. Points: you 3, opponent 0.
-Seat 1 information state: 26c44051113bf307
+Seat 1 information state: 835b08b37076bd7d
 Returns: [-3, 3]
 Chosen: prize: 2
 Step: {"chance": 1}
@@ -97,12 +97,12 @@ Seat 0 (a) reads:
   | Now: Everyone chooses at the same time.
   | 
   | Prize: 2. Your cards: 2 3 4. Points: you 0, opponent 3.
-Seat 0 information state: 1dae9f89f1a4403b
+Seat 0 information state: 1d94d260e270a7bb
 Seat 1 (b) reads:
   | Prize 2 of 4 · bid
   | 
   | Prize: 2. Your cards: 1 2 4. Points: you 3, opponent 0.
-Seat 1 information state: 0d6fa994b2d932c9
+Seat 1 information state: a02152c55cb6d07c
 Returns: [-3, 3]
 Chosen: seat 0: bid(card=2); seat 1: bid(card=4)
 Step: {"joint": {"0": {"args": {"card": 2}, "tool": "bid"}, "1": {"args": {"card": 4}, "tool": "bid"}}}
@@ -118,7 +118,7 @@ Seat 0 (a) reads:
   | - B wins prize 2.
   | 
   | Prize: 2. Your cards: 3 4. Points: you 0, opponent 5.
-Seat 0 information state: 4f5452d2da18d0fc
+Seat 0 information state: 6a374b65dcc4b7c9
 Seat 1 (b) reads:
   | Prize 3 of 4 · bid
   | 
@@ -127,7 +127,7 @@ Seat 1 (b) reads:
   | - B wins prize 2.
   | 
   | Prize: 2. Your cards: 1 2. Points: you 5, opponent 0.
-Seat 1 information state: d1c4fcf34a6e6114
+Seat 1 information state: 7dea0b7c2abcc445
 Returns: [-5, 5]
 Chosen: prize: 4
 Step: {"chance": 1}
@@ -141,12 +141,12 @@ Seat 0 (a) reads:
   | Now: Everyone chooses at the same time.
   | 
   | Prize: 4. Your cards: 3 4. Points: you 0, opponent 5.
-Seat 0 information state: 0c7a297da3037984
+Seat 0 information state: f7babb5fdeed16ae
 Seat 1 (b) reads:
   | Prize 3 of 4 · bid
   | 
   | Prize: 4. Your cards: 1 2. Points: you 5, opponent 0.
-Seat 1 information state: 3c7d0bd1e569bdd4
+Seat 1 information state: 3fa7cc2d7ed96609
 Returns: [-5, 5]
 Chosen: seat 0: bid(card=4); seat 1: bid(card=1)
 Step: {"joint": {"0": {"args": {"card": 4}, "tool": "bid"}, "1": {"args": {"card": 1}, "tool": "bid"}}}
@@ -162,7 +162,7 @@ Seat 0 (a) reads:
   | - A wins prize 4.
   | 
   | Prize: 4. Your cards: 3. Points: you 4, opponent 5.
-Seat 0 information state: 5af7b4eb12a20131
+Seat 0 information state: 6de33271d9d947e9
 Seat 1 (b) reads:
   | Prize 4 of 4 · bid
   | 
@@ -171,7 +171,7 @@ Seat 1 (b) reads:
   | - A wins prize 4.
   | 
   | Prize: 4. Your cards: 2. Points: you 5, opponent 4.
-Seat 1 information state: e705982e92c31354
+Seat 1 information state: b0208b0e4c79e519
 Returns: [-1, 1]
 Chosen: prize: 1
 Step: {"chance": 0}
@@ -185,12 +185,12 @@ Seat 0 (a) reads:
   | Now: Everyone chooses at the same time.
   | 
   | Prize: 1. Your cards: 3. Points: you 4, opponent 5.
-Seat 0 information state: b42399978140fad5
+Seat 0 information state: 594c9e42796f1d55
 Seat 1 (b) reads:
   | Prize 4 of 4 · bid
   | 
   | Prize: 1. Your cards: 2. Points: you 5, opponent 4.
-Seat 1 information state: d7d20c0c63d24c6e
+Seat 1 information state: f8e8689cd0b56fe1
 Returns: [-1, 1]
 Chosen: seat 0: bid(card=3); seat 1: bid(card=2)
 Step: {"joint": {"0": {"args": {"card": 3}, "tool": "bid"}, "1": {"args": {"card": 2}, "tool": "bid"}}}

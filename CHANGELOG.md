@@ -267,6 +267,12 @@ worlds stay fast, and the package is organised by feature.
     no neighbour read found; now the action is refused and the error names the entity meant. A literal id of no
     entity is a check error in every one of these fields, list items included (H2). An `end`'s `winner` is an
     entity, a list of them or a side's name, and nothing else (L4).
+  - `fg_env.rl` information states have perfect recall: they hold what each of the seat's own calls told it (an
+    outcome such as "The card is 8.", a refusal) as `you were told: …` lines, so two histories the seat can tell
+    apart are never one information set, and the solvers built on them solve the right game. `rl.conformance`'s
+    branch check now also reports a seat told two playouts apart whose information states are the same. Every
+    information state string changes (the playthrough goldens were regenerated); snapshots keep what each agent was
+    told under its `memory` (H1).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

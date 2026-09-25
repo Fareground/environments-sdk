@@ -88,7 +88,7 @@ Seat 0 (p0) reads:
   | Your last turn: Done: bid (quantity=1, face=5).
   | 
   | Your die: 4. Last bid: 1 x 5.
-Seat 0 information state: 92609de2a28bec61
+Seat 0 information state: ff227aec5df6ce3f
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | Now: It is your turn.
@@ -114,13 +114,13 @@ Seat 0 (p0) reads:
   | - P1 bids 2 x 6.
   | 
   | Your die: 4. Last bid: 2 x 6.
-Seat 0 information state: cee46de3b1836023
+Seat 0 information state: f403e82d22d3d2b5
 Seat 1 (p1) reads:
   | Round 1 of 1 · bidding
   | Your last turn: Done: bid (quantity=2, face=6).
   | 
   | Your die: 6. Last bid: 2 x 6.
-Seat 1 information state: 09aea63bb6e2715d
+Seat 1 information state: 1f2d1e2578f6a3d7
 Returns: [0, 0]
 Chosen: seat 0: liar
 Step: {"args": {}, "seat": 0, "tool": "liar"}

@@ -6,8 +6,9 @@
   may inspect with their public properties, the declared views, and — when it acts — its tools.
 * The information state is perfect recall of what the seat was told and did: its brief, every event
   it could see (other agents' public actions, news, messages to it, outcomes of its own sealed
-  choices) and its own actions with their arguments, in order, then the current views and its own
-  sealed choices. Hidden state other seats hold never enters it.
+  choices), its own actions with their arguments and what each of its calls told it (an outcome, a
+  refusal), in order, then the current views and its own sealed choices. Hidden state other seats
+  hold never enters it.
 * The state key identifies the world and the pending decision (not the log or what agents were told).
 """
 from __future__ import annotations
@@ -26,7 +27,7 @@ from .space import as_turn
 if TYPE_CHECKING:
     from ..runtime.env import Env
 
-__all__ = ["observation_text", "observation_struct", "information_state", "state_key", "digest"]
+__all__ = ["observation_text", "observation_struct", "information_state", "state_key", "told", "digest"]
 
 
 def _stage(env: Env, turn: Turn | None) -> StageSpec:
@@ -70,8 +71,12 @@ def observation_struct(env: Env, actor: Entity, turn: Turn | None, actions: list
 def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
     peek = _peek(env, actor, turn)
     lines: list[str] = [env.information.render_brief(actor), "", "History:"]
+    told, at = _told(env, actor), 0
     with as_turn(env, peek):
         for event in env.world.log:
+            while at < len(told) and told[at][0] < event.seq:  # what a call told it, after the events before it
+                lines.append(_told_line(told[at]))
+                at += 1
             if not env.world.evaluation.event_visible(event, actor):
                 continue
             if event.kind == "action" and event.actor == actor.id:
@@ -83,6 +88,7 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
             line = env.information.event_line(event, actor)
             if line:
                 lines.append(f"- round {event.round}: {line}")
+        lines += [_told_line(said) for said in told[at:]]
         lines += ["", "Now:"]
         # Everything the seat knows of itself, as a coded policy reads it (`wake.me`), whether or not a view shows it:
         # two states it can tell apart by its own private value are never one information state.
@@ -104,6 +110,22 @@ def information_state(env: Env, actor: Entity, turn: Turn | None) -> str:
     return "\n".join(lines)
 
 
+def told(env: Env, actor: Entity) -> list[str]:
+    """What ``actor``'s own calls told it, in order: part of what it knows, which its information state recalls."""
+    return [text for _, _, text in _told(env, actor)]
+
+
+def _told(env: Env, actor: Entity) -> list[tuple[int, int, str]]:
+    """What ``actor``'s own calls told it, in order (see :class:`~fg_env.runtime.state.Memory`)."""
+    memory = env.state.memories.get(actor.id)
+    return memory.told if memory is not None else []
+
+
+def _told_line(told: tuple[int, int, str]) -> str:
+    _, round, text = told
+    return f"- round {round}: you were told: {text}"
+
+
 def state_key(env: Env, pending: dict[str, Any]) -> str:
     rows = [[e.id, e.entity_type, e.alive, e.location_id, encode(e.properties)] for e in env.world.entities.values()]
     return digest(json.dumps(_world_data(env, rows, pending), sort_keys=True, default=str))
@@ -111,7 +133,8 @@ def state_key(env: Env, pending: dict[str, Any]) -> str:
 
 def visible_key(env: Env, actor: Entity, pending: dict[str, Any]) -> str:
     """A key for the state with what ``actor`` cannot see left out: properties hidden from it (see expr/hidden.py)
-    and events not addressed to it. Two states with equal keys differ at most in what the rules hide from ``actor``."""
+    and events not addressed to it; with what its own calls told it, which it knows. Two states with equal keys differ
+    at most in what the rules hide from ``actor``."""
     world = env.world
     rows = []
     for entity in world.entities.values():
@@ -122,6 +145,7 @@ def visible_key(env: Env, actor: Entity, pending: dict[str, Any]) -> str:
     data["props"] = encode({key: value for key, value in world.props.items() if key not in world.hidden.world})
     data["log"] = [[event.round, event.kind, event.text, event.actor, encode(event.data)]
                    for event in world.log if world.evaluation.event_visible(event, actor)]
+    data["told"] = told(env, actor)
     return digest(json.dumps(data, sort_keys=True, default=str))
 
 

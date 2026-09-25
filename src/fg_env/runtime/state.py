@@ -47,19 +47,23 @@ UNDONE = frozenset({
 
 
 class Memory:
-    """What the engine remembers per agent between turns: where its news starts, how many turns it had, and what its
-    last action of its last turn returned (its next update opens with it)."""
+    """What the engine remembers per agent between turns: where its news starts, how many turns it had, what its
+    last action of its last turn returned (its next update opens with it), and what every call it made told it."""
 
-    __slots__ = ("cursor", "turns", "last")
+    __slots__ = ("cursor", "turns", "last", "told")
 
     def __init__(self) -> None:
         self.cursor = 0
         self.turns = 0
         self.last: str | None = None
+        #: What each call the agent made told it, in order, as ``(the log's last sequence number then, round, text)``:
+        #: the part of what it knows that no event carries (an outcome, a refusal), which its information state recalls
+        #: (see game/observe.py). Never undone: what an agent was told stays told.
+        self.told: list[tuple[int, int, str]] = []
 
     def copy(self) -> Memory:
         memory = Memory()
-        memory.cursor, memory.turns, memory.last = self.cursor, self.turns, self.last
+        memory.cursor, memory.turns, memory.last, memory.told = self.cursor, self.turns, self.last, list(self.told)
         return memory
 
 
@@ -234,7 +238,8 @@ class RunState:
             "turn_count": self.turn_count,
             "armed": {str(k): v for k, v in w.armed.items()},
             "used_round": {actor: dict(used) for actor, used in w.used_round.items()},
-            "memory": {k: {"cursor": m.cursor, "turns": m.turns, **({"last": m.last} if m.last else {})}
+            "memory": {k: {"cursor": m.cursor, "turns": m.turns, **({"last": m.last} if m.last else {}),
+                           **({"told": [list(told) for told in m.told]} if m.told else {})}
                        for k, m in self.memories.items()},
             "rng": [rng[0], list(rng[1]), rng[2]],
             "stats": self.stats.to_dict(),
@@ -314,6 +319,7 @@ class RunState:
         for key, m in data["memory"].items():
             memory = self.memory(key)
             memory.cursor, memory.turns, memory.last = m["cursor"], m["turns"], m.get("last")
+            memory.told = [(int(seq), int(round), str(text)) for seq, round, text in m.get("told") or ()]
         for name in Stats.__dataclass_fields__:
             setattr(self.stats, name, data["stats"].get(name, 0))
         self.agent_stats = {key: Stats(**{name: counts.get(name, 0) for name in Stats.__dataclass_fields__})

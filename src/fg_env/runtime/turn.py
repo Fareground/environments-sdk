@@ -319,6 +319,9 @@ class Turn:
             acted = isinstance(name, str) and name in self.env.contract.actions
             if live and acted and not (self.staged or self.closed):
                 self._outcome(result)
+            if live and not self.peek:  # what the call told the agent is what it knows from now on
+                world = self.env.world
+                self.env.state.memory(self.actor.id).told.append((world.event_seq, world.round, result.text))
             self.note(Answered(name, args, result))
             return result
 

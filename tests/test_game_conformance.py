@@ -141,3 +141,33 @@ def test_a_move_refused_by_a_hidden_value_stays_legal_and_is_spent_when_played()
                                 if state.action_to_string(seat, a) not in ("end_turn", f"guess(g={code})")))
         assert state.current_player() != seat  # the wrong guess was played: it spent the seat's one action
     assert fg_env.rl.conformance(contract, sims=4).issues == []
+
+
+PEEK = {"name": "Peek", "clock": {"rounds": 2},
+        "types": {"player": {"agent": True, "props": {"card": {"type": "int", "default": 0, "private": True},
+                                                       "coins": 10}, "score": {"value": "$it.coins"}}},
+        "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+        "events": [{"on": "round.start", "when": "$round == 1",
+                    "do": {"chance": [{"p": 0.5, "do": "$entity(bob).card = 1"},
+                                      {"p": 0.5, "do": "$entity(bob).card = 2"}]}}],
+        "actions": {"noop": {"by": "player", "description": "Do nothing.", "do": "$actor.coins += 0"},
+                    "peek": {"by": "player", "description": "See bob's card.", "announce": False,
+                             "do": "$seen = $entity(bob).card", "outcome": "The card is {$seen}."}}}
+
+
+def test_what_a_seat_s_own_call_told_it_stays_in_its_information_state():
+    """audit 13 H1: an outcome ("The card is 2.") is part of what the seat knows; two playouts it told apart are two
+    information states, and the conformance branch check holds every game to that (perfect recall)."""
+    states = set()
+    for card in (0, 1):
+        state = fg_env.rl.game(PEEK, seed=1).new_initial_state()
+        state.apply_action(card)  # the chance node: bob's card
+        seat = state.current_player()
+        state.apply_action(next(a for a in state.legal_actions() if state.action_to_string(seat, a) == "peek"))
+        while state.current_player() != seat:
+            player = state.current_player()
+            state.apply_action(next(a for a in state.legal_actions() if state.action_to_string(player, a) == "noop"))
+        assert f"you were told: The card is {card + 1}." in state.information_state_string(seat)
+        states.add(state.information_state(seat))
+    assert len(states) == 2
+    assert fg_env.rl.conformance(PEEK, sims=6, seed=1).ok

@@ -87,7 +87,7 @@ Seat 0 (p0) reads:
   | Your last turn: Done: bet.
   | 
   | Your card: 2. Betting so far (P0 first): bet.
-Seat 0 information state: 85501a57f9bd3ca2
+Seat 0 information state: 4b3f61d6ceb054f1
 Seat 1 (p1) reads:
   | Hand 1 of 1 · betting
   | Now: It is your turn.
