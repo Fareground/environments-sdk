@@ -1,10 +1,11 @@
-"""Runs that keep no event log (``load(..., events=False)``): memory stays flat however long they play.
+"""Runs that keep no event log (``load(..., events=False)``): the log stays flat however long they play.
 
 Such a run's result carries no events, so an event is needed only while something in the run can still read it:
 an agent's news (what happened since its last turn). Before every round the run forgets the events every living agent
 has already been past. A contract that reads older
 events — `$events`, `$seen`, a game's information sets, the memory and procedure mechanisms — keeps its whole log:
-forgetting never changes what a run does, only what it holds.
+forgetting never changes what a run does, only what it holds. The world keeps what the rules keep, removed entities
+included (dead, so what names them still reads them).
 """
 from __future__ import annotations
 

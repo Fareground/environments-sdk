@@ -256,6 +256,8 @@ worlds stay fast, and the package is organised by feature.
   - An agent's news goes through only the events sent to it, not every event sent to anyone: in a simultaneous
     stage, where each agent's outcome is sent to it alone, a round cost the square of the crowd (3,000 agents: 1.0 s
     a round, now 0.29 s).
+  - The `events=False` docs no longer promise flat memory: the log stays flat, but removed entities are kept (dead,
+    so what names them still reads them), so a run that creates and removes without bound grows with them.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

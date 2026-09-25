@@ -434,8 +434,10 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
     nothing: fit inputs before loading with :func:`fg_env.analysis.calibrate` and pass its ``params`` as ``inputs``.
     ``events=False`` keeps no event log, for a big crowd played for many rounds:
     ``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
-    news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
-    that reads `$events` or `$seen` keeps its log). A contract written in an earlier form of the language loads in the
+    news can reach it, so the log stays flat however long it plays; everything the run does is the same (a contract
+    that reads `$events` or `$seen` keeps its log). The world itself grows with what the rules keep in it: a removed
+    entity stays (dead) so that anything naming it still reads it, so a run that creates and removes without bound
+    grows with every entity it removed. A contract written in an earlier form of the language loads in the
     current form, with one ``DeprecationWarning`` saying how to migrate it (:func:`migrate`).
     """
     del calibrate  # accepted for one release: the `calibration` section is gone
