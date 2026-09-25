@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - The static luck check follows a def read by its bare name (`"when": "$lucky"`) as it follows `$lucky()`, so a
+    requirement that draws through one is reported at load, not when a play reaches it.
   - What an action set for later with `after` is dropped, as documented now, when its agent has left the run by then;
     the new diagnostic `after_dropped` counts it per action instead of it disappearing silently.
   - `fg_env.rl.game` makes an action parametric when a domain of its arguments is worked out from a property the

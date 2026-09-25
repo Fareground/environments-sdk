@@ -328,3 +328,11 @@ def test_adding_an_entity_or_a_random_prop_never_re_deals_the_others_starting_lu
     trait = fg_env.run(_traders(3, {"mood": {"type": "int", "default": "$randint(1, 9)"}}), "idle", seed=1).outputs
     assert more["cost"] == trait["cost"] == base["cost"] and more["weather"] == trait["weather"] == base["weather"]
     assert {k: more["value"][k] for k in base["value"]} == base["value"] == trait["value"]
+
+
+@pytest.mark.parametrize("when", ["$lucky", "$lucky()", "$fair and true"])
+def test_a_def_that_draws_is_seen_statically_whether_it_is_called_or_named_bare(when):
+    """`$lucky` reads a def as `$lucky()` does (audit 12 M5): the static luck check reports it before any play."""
+    contract = {**_lucky(when=when), "defs": {"lucky": "$chance(0.2)", "fair": "$lucky"}}
+    issues = fg_env.check(contract, rounds=0)
+    assert any(i.path == "actions.lucky.when[0]" and i.severity == "error" for i in issues), issues

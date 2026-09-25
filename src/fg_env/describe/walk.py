@@ -15,6 +15,8 @@ __all__ = ["dumped", "texts", "effect_nodes", "in_effects", "roles", "calls", "w
            "random_ops", "draws", "ops_in", "mechanism_kinds"]
 
 _CALL = re.compile(r"\$([A-Za-z_][A-Za-z0-9_]*)\s*\(")
+#: A root named on its own (``$lucky``, not ``$lucky(...)`` nor ``$x.lucky``): a def without arguments reads so too.
+_BARE = re.compile(r"(?<![\w.])\$([A-Za-z_][A-Za-z0-9_]*)\b(?!\s*\()")
 _WORLD = re.compile(r"\$world\.([A-Za-z_][A-Za-z0-9_]*)")
 #: Sections that build the world before round 1.
 _SETUP = frozenset({"world", "types", "entities", "relations", "space"})
@@ -132,8 +134,10 @@ def draws(contract: Contract, texts: Sequence[str]) -> bool:
     what does not draw changes nothing, so it may be read ahead, or skipped when nobody reads it."""
     drawing, pending = random_functions(), list(texts)
     seen: set[str] = set()
+    defs = contract.expr_defs()
     while pending:
-        called = calls(pending.pop())
+        text = pending.pop()
+        called = calls(text) | {name for name in _BARE.findall(text) if name in defs}  # `$lucky` reads a def too
         if called & drawing:
             return True
         for name in called - seen:
