@@ -164,7 +164,8 @@ class AuthorResult:
         elif self.problem:
             last = ("the last write" if self.writes[-1] is not revisions[-1]
                     else f"revision {len(revisions)} was not kept"
-                    if len(revisions) in self.working else f"revision {len(revisions)} did not work")
+                    if len(revisions) in self.working else f"revision {len(revisions)} was not tested"
+                    if self.problem.startswith("not tested") else f"revision {len(revisions)} did not work")
             lines.append(f"  kept revision {kept} of {len(revisions)}; {last}: {self.problem}")
         first = revisions[self.working[0] - 1] if self.ok and self.contract else None
         changed = describe_changes(first, self.contract) if first is not None and self.contract else ""

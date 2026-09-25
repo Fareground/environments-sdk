@@ -1,6 +1,6 @@
 {
   "fg_env": "2",
-  "name": "Civil Trial Engine",
+  "name": "Civil Trial",
   "description": "A civil jury trial on the procedure mechanism: openings, direct examination with exhibits, objections and rulings, cross-examination, closings, a sealed jury room where each juror's speech pulls the others' leanings toward where it points (what a bound judge host ('judge') reads in its words; without one, the speaker's own leaning, not what is said), secret ballots and a judgment. The parties, the case, the jury and each side's exhibits are inputs; coded counsel lead with their strongest exhibits, sometimes risk a flawed one, and object to any the other side offers whose foundation shows a defect.",
   "brief": {
     "situation": "Civil jury trial, Superior Court. {$inputs.plaintiff} (plaintiff) sues {$inputs.defendant} (defendant). {$inputs.case} The standard is preponderance of the evidence: the plaintiff must show breach is more likely than not.",

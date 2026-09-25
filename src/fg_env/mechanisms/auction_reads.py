@@ -47,7 +47,7 @@ def describe(world: Any, name: str, viewer: Entity | None) -> str:
         mine = [b for b in lot.get("bids", []) if viewer is not None and b["bidder"] == viewer.id]
         if mine:
             parts.append("your bids: " + "; ".join(f"{' + '.join(b['items'])} at {fmt(b['price'], 4)}" for b in mine))
-        parts.append(f"{len(lot.get('bids', []))} sealed bid(s) in")
+        parts.append(_sealed(len(lot.get("bids", []))))
     elif cfg.format == "english":
         leader = world.entity(lot.get("leader")) if lot.get("leader") else None
         parts.append(f"high bid {fmt(lot['price'], 4)} by "
@@ -66,7 +66,7 @@ def describe(world: Any, name: str, viewer: Entity | None) -> str:
         mine = [b for b in lot.get("bids", []) if viewer is not None and b["bidder"] == viewer.id]
         if mine:
             parts.append("your " + "; ".join(f"{b['side']} {fmt(b['price'], 4)} × {b['qty']}" for b in mine))
-        parts.append(f"{len(lot.get('bids', []))} sealed bid(s) in")
+        parts.append(_sealed(len(lot.get("bids", []))))
     return ", ".join(parts) + "."
 
 
@@ -119,3 +119,8 @@ def _text_function(call: Call) -> str:
           min_args=1, max_args=1, family="market")
 def _ok_function(call: Call) -> bool:
     return not audit(call.scope.world, _auction(call))
+
+
+def _sealed(count: int) -> str:
+    """How many sealed bids are in, in words: "no sealed bids in yet", "1 sealed bid in", "3 sealed bids in"."""
+    return "no sealed bids in yet" if count == 0 else f"{count} sealed bid{'' if count == 1 else 's'} in"

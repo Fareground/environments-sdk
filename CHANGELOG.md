@@ -356,6 +356,10 @@ worlds stay fast, and the package is organised by feature.
   - A host model that declines a request (Anthropic `refusal`, OpenAI `refusal` or `content_filter`) leaves that
     request unanswered without a second, paid correction call; a host call is not started once the run's seconds
     budget is spent; judged totals add up exactly (three texts worth 35/6 make 17.5, not 17.4999).
+  - Polish: the werewolf, retail and civil-trial examples are named without implementation words ("Werewolf",
+    "Coffee Market", "Civil Trial"), an auction says "no sealed bids in yet" / "1 sealed bid in", and an authoring
+    summary says a last revision "was not tested" rather than "did not work" when the session's time ran out before
+    its test.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

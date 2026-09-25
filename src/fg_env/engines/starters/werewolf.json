@@ -1,6 +1,6 @@
 {
   "fg_env": "2",
-  "name": "Werewolf (roles mechanism)",
+  "name": "Werewolf",
   "description": "Social deduction among the players (nine by default): the werewolves (two by default), one seer, one doctor and villagers for the rest, dealt and hidden by the roles mechanism, with the day vote as a ballot.",
   "brief": {
     "situation": "{$count(player)} people live in a village. {$inputs.werewolves} of them are secretly werewolves who kill one villager every night. Roles were dealt at random and are hidden: only the werewolves know each other.",

@@ -1,6 +1,6 @@
 {
   "fg_env": "2",
-  "name": "Market Engine",
+  "name": "Coffee Market",
   "description": "A month in a city's coffee market: sampled households choose daily whether to buy (against making coffee at home) and where; cafés (an input) reprice weekly toward more profit, and may promote and sell loyalty subscriptions. Arm chain_launch opens the chain café with a launch promotion.",
   "brief": {
     "situation": "A month in the city's coffee market. Households in five neighborhoods (Downtown, Riverside, Eastside, Northgate, University) buy coffee from a handful of cafés. Each café has a list price, a weekly promotion, a loyalty subscription (monthly fee for a per-cup discount), a daily cup capacity and a public star rating built from customer reviews.",
