@@ -100,7 +100,10 @@ def _visible(char: str) -> str:
     if char in _KEPT or unicodedata.category(char) not in ("Cc", "Cf"):
         return char
     code = ord(char)
-    return f"\\u{code:04x}" if code <= 0xFFFF else f"\\U{code:08x}"
+    if code <= 0xFFFF:
+        return f"\\u{code:04x}"
+    high, low = divmod(code - 0x10000, 0x400)  # above U+FFFF JSON reads a surrogate pair
+    return f"\\u{0xD800 + high:04x}\\u{0xDC00 + low:04x}"
 
 
 def tainted(value: Any) -> bool:
