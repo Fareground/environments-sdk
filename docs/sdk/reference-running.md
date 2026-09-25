@@ -121,6 +121,9 @@ policy = CFRSolver(game, plus=True).iterate(1000).average_policy(); exploitabili
 fg_env.run("tic_tac_toe.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
 aec = fg_env.rl.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
 ```
+The leak check changes one step of a playout — a chance outcome, a seat's call, a sealed choice — and compares what
+each other seat reads: it finds what a seat's moves reveal, not what the starting hidden state does (a rule that
+announces news because another's private value is high shows no difference to it); `check` warns about those.
 Games transform into ordinary contracts: `fg_env.game.repeated(contract, 10)`, `misere`, `zerosum`;
 `game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
 CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,

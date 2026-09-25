@@ -279,3 +279,31 @@ def test_no_free_refusal_or_undo_turns_on_a_hidden_value_whatever_shape_the_rule
         if not (_free(one) or _free(other)):
             break
         assert _free(one) and _free(other) and one.text == other.text, (shape, one.text, other.text)
+
+
+def _bidders(**parts):
+    contract = {"name": "Bidders", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"value": {"type": "number", "default": 1, "private": True},
+                                                          "bid": 0}}},
+                "entities": {"p": {"type": "p", "count": 3}},
+                "actions": {"bid": {"by": "p", "params": {"x": {"type": "int", "min": 0, "max": 9}},
+                                    "do": "$actor.bid = $params.x"}},
+                "stages": [{"name": "bidding"}]}
+    contract.update(parts)
+    return contract
+
+
+@pytest.mark.parametrize("contract, path", [
+    (_bidders(stages=[{"name": "bidding", "when": "$entity(p_2).value > 1.5"}]), "stages[0].when"),
+    (_bidders(stages=[{"name": "bidding", "until": "$entity(p_2).value < 1.5", "passes": 3}]), "stages[0].until"),
+    (_bidders(events=[{"on": "round.start", "when": "$entity(p_2).value > 1.5", "say": "A rumour goes round."}]),
+     "events[0].when"),
+    (_bidders(events=[{"on": "round.start", "do": [{"if": "$entity(p_2).value > 1.5",
+                                                    "then": [{"emit": "hint", "say": "A big spender is here."}]}]}]),
+     "events[0].do[0].if"),
+])
+def test_every_condition_that_decides_what_everyone_sees_by_a_hidden_value_is_warned_alike(contract, path):
+    """A stage held or not, the passes it plays, an event's news or a branch that sends everyone news: each tells
+    every agent a bit of the hidden value it reads, and `check` says so in the same words wherever it is written."""
+    found = [i for i in fg_env.check(contract, rounds=0) if i.path == path]
+    assert [i.severity for i in found] == ["warning"] and "and every agent learns" in found[0].message

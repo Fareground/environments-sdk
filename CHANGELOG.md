@@ -281,6 +281,11 @@ worlds stay fast, and the package is organised by feature.
     `outcomes` written as quoted text says it got text; an action that removes its own actor ends that turn.
   - `check` warns about a bare word that names a property (`{' - DONE' if done else ''}` is always true) also when
     an output has the same name: outputs are never read as bare words.
+  - `check` warns alike about every condition that decides by a hidden value what every agent sees: a stage's
+    `when`, its `until` or `passes` (when it wakes everyone or announces its actions), an event's `when` when the
+    event sends everyone news, and an `if` with a branch that does ("reads private …, and every agent learns …").
+    Before, only a stage's `when` was warned about. The conformance docs say the leak check changes steps, not the
+    starting hidden state.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

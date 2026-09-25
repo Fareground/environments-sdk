@@ -108,13 +108,25 @@ class PrivacyChecks(Checker):
                        "who acted")
 
     def _private_stage_when(self, stage: C.StageSpec, path: str) -> None:
-        """A stage's `when` that reads a hidden value: every agent learns it from whether the stage was held (the
-        stage's name opens every update in it), as it would from a `who` in an announced stage."""
-        expressions = _expressions(stage.when)
-        read = self._hidden_reads(expressions, {}, {}) | self._fetched_reads(expressions)
+        """A stage's `when`, `until` or `passes` that reads a hidden value: every agent learns something of it from
+        whether the stage was held (the stage's name opens every update in it) or how many passes it played (when the
+        stage wakes everyone, or announces what its agents do)."""
+        self._private_gate(stage.when, path, f"whether {stage.name} was held (it names the stage it plays)")
+        if stage.who is not None and not announces(self.c, stage):
+            return  # only the agents it wakes see its passes, and nobody else learns what they did
+        base, passes = path.rsplit(".", 1)[0], f"how many passes {stage.name} played (each wakes them again)"
+        self._private_gate(stage.until, f"{base}.until", passes)
+        if isinstance(stage.passes, str):
+            self._private_gate(stage.passes, f"{base}.passes", passes)
+
+    def _private_gate(self, condition: object, path: str, learns: str, types: Types | None = None,
+                      params: Mapping[str, C.ParamSpec] | None = None) -> None:
+        """A condition that reads a hidden value and decides something every agent sees (a stage held, news sent to
+        everyone): every agent learns a bit of the value from ``learns``. Warned alike wherever it is written."""
+        expressions = _expressions(condition)
+        read = self._hidden_reads(expressions, types or {}, params or {}) | self._fetched_reads(expressions)
         if read:
-            self.warn(path, f"reads private {', '.join(sorted(read))}, and every agent learns whether {stage.name} "
-                            "was held (it names the stage it plays)",
+            self.warn(path, f"reads private {', '.join(sorted(read))}, and every agent learns {learns}",
                       "decide it by what is not private, or keep a public property that says what everyone may know "
                       "(\"$world.night = ...\" in game logic) and read that")
 

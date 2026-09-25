@@ -1034,7 +1034,9 @@ conformance(source: ContractLike | Game, *, sims: int = 20, seed: int = 0, input
 Check a game (a contract, or a :class:`Game` from :func:`fg_env.rl.game`) over ``sims`` seeded random playouts.
 
 ``simultaneous="turn_based"`` checks the one-seat-at-a-time view of simultaneous stages, where the leak test
-also covers sealed choices. ``leak_branches`` is how many steps of each playout are changed for the leak test;
+also covers sealed choices. ``leak_branches`` is how many steps of each playout are changed for the leak test,
+which changes steps (chance outcomes, calls, sealed choices), never the starting hidden state: what a condition over
+a private starting value tells everyone is what `fg_env.check` warns about;
 ``max_steps`` is the longest a playout may run; ``resume=False`` skips the whole-run resume check.
 
 ### `rl.ConformanceReport`

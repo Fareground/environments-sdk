@@ -433,8 +433,10 @@
     {
       "on": "stage.mediator_vote.end",
       "do": [
+        "$union_vote = $entity(union).vote",
+        "$firm_vote = $entity(firm).vote",
         {
-          "if": "$entity(union).vote == accept and $entity(firm).vote == accept",
+          "if": "$union_vote == accept and $firm_vote == accept",
           "then": [
             "$world.deal = true",
             "$world.deal_via = 'mediator proposal'",
@@ -447,8 +449,6 @@
             {"emit": "mediated_deal", "say": "Both sides accepted the mediator's compromise. Contract signed: wage +{$world.deal_wage|1}%, {$world.deal_benefits} benefits, {$world.deal_years}-year job guarantee."}
           ],
           "else": [
-            "$union_vote = $entity(union).vote",
-            "$firm_vote = $entity(firm).vote",
             {"emit": "mediation_failed", "say": "The mediator's compromise was not adopted (union: {$union_vote}, firm: {$firm_vote}). Bargaining continues."}
           ]
         },

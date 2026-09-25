@@ -11,7 +11,7 @@ from ..expr import ExprError, compile_expr
 from ..expr.calls import callable_in
 from ..expr.template import FORMATS, compile_template
 from ..sampling.probability import check_literal_probability
-from .effects import EffectChecks
+from .effects import EffectChecks, broadcasts
 from .roots import BASE
 
 if TYPE_CHECKING:
@@ -52,6 +52,8 @@ class RuleChecks(EffectChecks):
             else:
                 self.template(event.say, f"{path}.say", None, roots, types)
             self._shared_text(event.say, f"{path}.say", {})
+            if event.say or broadcasts(event.do, self.c):
+                self._private_gate(event.when, f"{path}.when", "whether it fired (it sends everyone news)", types)
             if not event.do and not event.say:
                 self.warn(path, "does nothing", "add `do` or `say`")
 

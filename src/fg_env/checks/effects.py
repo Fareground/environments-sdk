@@ -21,7 +21,7 @@ from .state import check_delivery, check_link_fields
 if TYPE_CHECKING:
     from .roots import Types
 
-__all__ = ["EffectChecks"]
+__all__ = ["EffectChecks", "broadcasts"]
 
 #: The kinds of value an assignment's text can make plain, as its messages name them.
 #: Keys an effect no longer takes, and what to write instead.
@@ -250,6 +250,9 @@ class EffectChecks(PrivacyChecks):
         v = lambda key, r=roots: self.value(effect.get(key), f"{path}.{key}", r, types, params)
         if op == "if":
             self.condition(effect["if"], f"{path}.if", roots, types, params)
+            if broadcasts([effect.get("then"), effect.get("else")], self.c):
+                self._private_gate(effect["if"], f"{path}.if", "which way it went (a branch sends everyone news)",
+                                   types, params)
             then_types, else_types = dict(types), dict(types)
             then_roots = self.effects(effect.get("then", []), f"{path}.then", roots, then_types, params)
             else_roots = self.effects(effect.get("else", []), f"{path}.else", roots, else_types, params)
@@ -424,3 +427,17 @@ def _reads_it(raw: Any) -> bool:
     if isinstance(raw, (list, dict)):
         return any(_reads_it(item) for item in (raw.values() if isinstance(raw, dict) else raw))
     return False
+
+
+def broadcasts(effects: Any, contract: Any) -> bool:
+    """Whether ``effects`` (nested blocks included) send news every agent reads: an `emit` without `to`, a `post` to a
+    record everyone reads without `to`, or an `end` that says something."""
+    if isinstance(effects, list):
+        return any(broadcasts(effect, contract) for effect in effects)
+    if not isinstance(effects, dict):
+        return False
+    public = "post" in effects and getattr(contract.records.get(effects["post"]), "visible", None) == "all"
+    if "to" not in effects and ("emit" in effects or public) or "end" in effects and effects.get("say"):
+        return True
+    return any(broadcasts(effects.get(key), contract) for key in ("then", "else", "do"))
+
