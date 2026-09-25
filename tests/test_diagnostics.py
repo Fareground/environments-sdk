@@ -234,3 +234,16 @@ def test_turns_out_of_time_name_the_provider_retries_that_spent_it():
                                                                                                llm_retries=8))])
     assert "retried" not in _out_of_time([("north", Stats(timeouts=4))])
     assert _out_of_time([("north", Stats(llm_retries=8))]) == ""
+
+
+def test_a_run_that_ends_on_purpose_before_an_agent_s_turn_came_did_not_keep_it_from_playing():
+    """audit 13 L5: an agent is never-played only when the run passed it over (a pass played to its end without
+    waking it), not when the run ended by its rules before its turn came."""
+    contract = {"name": "Race", "clock": {"rounds": 3},
+                "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+                "actions": {"win": {"by": "p", "do": {"end": "won", "winner": "$actor"}}},
+                "stages": [{"name": "s", "order": "seat"}], "outputs": {"total": "$sum(p, $it.n)"}}
+    result = fg_env.run(contract, {"a": lambda wake: (wake.call("win", {}), wake.end()), "b": lambda wake: wake.end()},
+                        seed=1)
+    assert result.ended_by == "won" and "agents_never_played" not in result.degraded

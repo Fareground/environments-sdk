@@ -266,6 +266,10 @@ class Schedule:
             resumed = False
             if rules.ended():
                 return
+            if stage.who is not None:  # the pass played to its end: whom it did not wake, it passed over
+                woken = {agent.id for agent in agents}
+                env.state.diagnosis.passed_over.update(
+                    agent.id for agent in self.eligible(stage, ordered=False, who=False) if agent.id not in woken)
             if stage.until is not None:
                 try:
                     if truthy(compile_expr(stage.until)(world.evaluation.scope())):
@@ -286,16 +290,16 @@ class Schedule:
         except ExprError as exc:
             raise RunError(str(exc), f"stages.{stage.name}.when") from None
 
-    def eligible(self, stage: StageSpec, ordered: bool = True, pass_index: int = 0) -> list[Entity]:
+    def eligible(self, stage: StageSpec, ordered: bool = True, pass_index: int = 0, who: bool = True) -> list[Entity]:
         """Agents woken in ``stage`` (in its pass ``pass_index``), in turn order. ``ordered=False`` skips ordering (no
-        random draws)."""
+        random draws); ``who=False`` leaves out the stage's `who` (every living agent it offers actions)."""
         contract, world = self.env.contract, self.env.world
         agent_types = set(contract.agent_types())  # includes types that inherit `agent`
         acting = {kind: bool(stage_actions(contract, stage, kind)) for kind in agent_types}
         agents = [e for e in world.entities.values() if e.alive and acting.get(e.entity_type)]
         path = f"stages.{stage.name}"
         try:
-            if stage.who is not None:
+            if stage.who is not None and who:
                 agents = self._woken(stage, agents, pass_index)
         except PrivateRead as exc:
             raise RunError(f"{exc.detail.partition(', and ')[0]}, and every agent learns who acts in {stage.name} (its "

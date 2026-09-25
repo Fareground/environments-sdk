@@ -69,6 +69,9 @@ class Diagnosis:
         self.policy_rules: dict[str, list[Any]] = {}
         #: Agents some stage's `who` decided by luck (it drew), so never being woken may be the luck of the draw.
         self.chance_woken: set[str] = set()
+        #: Agents a stage offering them actions passed over: a pass of it that played to its end did not wake them (its
+        #: `who`). Only such an agent can have been kept from playing: one whose turn the run ended before was not.
+        self.passed_over: set[str] = set()
         #: Names of properties written since the world was built (shared with the world, which adds to it).
         self.written = written
         #: The turn number and actions already probed in it (not saved: snapshots fall between turns).
@@ -206,6 +209,7 @@ class Diagnosis:
         copied.overwrites, copied.loop_overwrites = _copy(self.overwrites), _copy(self.loop_overwrites)
         copied.faults, copied.policy_rules = _copy(self.faults), _copy(self.policy_rules)
         copied.chance_woken = set(self.chance_woken)
+        copied.passed_over = set(self.passed_over)
         copied._probed = (self._probed[0], set(self._probed[1]))
         return copied
 
@@ -213,7 +217,8 @@ class Diagnosis:
         return {"actions": _copy(self.actions), "stages": _copy(self.stages), "agents": _copy(self.agents),
                 "overwrites": _copy(self.overwrites), "loop_overwrites": _copy(self.loop_overwrites),
                 "faults": _copy(self.faults), "policy_rules": _copy(self.policy_rules),
-                "chance_woken": sorted(self.chance_woken), "written": sorted(self.written)}
+                "chance_woken": sorted(self.chance_woken), "passed_over": sorted(self.passed_over),
+                "written": sorted(self.written)}
 
     def load(self, data: dict[str, Any] | None) -> None:
         """Take the counts of :meth:`to_dict` (the written names in place: the world holds the same set)."""
@@ -229,6 +234,7 @@ class Diagnosis:
         self.faults = _copy(data.get("faults", {}))
         self.policy_rules = _copy(data.get("policy_rules", {}))
         self.chance_woken = set(data.get("chance_woken", []))
+        self.passed_over = set(data.get("passed_over", []))
         self.written.clear()
         self.written.update(data.get("written", []))
 

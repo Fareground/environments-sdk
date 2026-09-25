@@ -131,20 +131,23 @@ def _forfeits(env: Env) -> list[dict[str, str]]:
 
 def _never_played(env: Env) -> list[dict[str, str]]:
     """Agents a stage offers actions that never had a turn in a finished run — none at all, or some of a type whose
-    others did: whatever the run measured, their choices never shaped it. Agents made during the run, agents no longer
-    in it at the end, agents a stage's `who` picks by luck, and a type none of whose agents ever plays (a passive part
-    of the world, like a market's opening liquidity) may rightly never have had one. (Turns that never offered an
-    action: ``agents_never_able_to_act``.)"""
+    others did: whatever the run measured, their choices never shaped it. An agent counts only when the run passed it
+    over (a pass of a stage offering it actions played to its end without waking it): one whose turn had not come when
+    the run ended on purpose never played, and was never kept from it. Agents made during the run, agents no longer in
+    it at the end, agents a stage's `who` picks by luck, and a type none of whose agents ever plays (a passive part of
+    the world, like a market's opening liquidity) may rightly never have had one. (Turns that never offered an action:
+    ``agents_never_able_to_act``.)"""
     contract = env.contract
     if not env.finished:
         return []
     offered = {kind for kind in contract.agent_types()
                if any(stage_actions(contract, stage, kind) for stage in contract.stage_list())}
-    stats, chance, entities = env.state.agent_stats, env.state.diagnosis.chance_woken, env.world.entities
+    stats, entities, diagnosis = env.state.agent_stats, env.world.entities, env.state.diagnosis
     played = {entities[agent].entity_type for agent, entry in stats.items() if entry.wakes and agent in entities}
     idle = sorted(entity.id for entity in entities.values()
                   if entity.alive and entity.luck is None and entity.entity_type in offered & played
-                  and entity.id not in chance and not (entity.id in stats and stats[entity.id].wakes))
+                  and entity.id in diagnosis.passed_over and entity.id not in diagnosis.chance_woken
+                  and not (entity.id in stats and stats[entity.id].wakes))
     if offered and not any(entry.wakes for entry in stats.values()):
         return [_finding("agents_never_played", "stages",
                          f"no agent had a single turn in {env.world.round} round(s): every stage was skipped (its "

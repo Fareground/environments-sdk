@@ -291,6 +291,9 @@ worlds stay fast, and the package is organised by feature.
     argument's description and a view's `empty` (L2).
   - The warning that a simultaneous stage announces each sealed choice quotes one of the contract's agents
     ("Vera: yes.") instead of a made-up "Ann" (L3).
+  - `agents_never_played` names an agent only when the run passed it over (a pass of a stage offering it actions
+    played to its end without waking it); a run that its rules end before an agent's turn comes is not degraded
+    (L5).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
