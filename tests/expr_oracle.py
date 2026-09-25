@@ -235,6 +235,8 @@ class _Compiler:
         return run_or
 
     def _word(self, node: ast.AST) -> list[str]:
+        if isinstance(node, ast.Constant) and node.value is None or isinstance(node, ast.Name) and node.id == "null":
+            return ["null"]
         if isinstance(node, ast.Name) and not node.id.startswith("__") and node.id not in _LITERAL_NAMES:
             return [node.id]
         if isinstance(node, (ast.List, ast.Tuple)):
