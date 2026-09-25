@@ -29,25 +29,11 @@ def test_catalog_ships_every_engine_as_native():
     assert all(engine.status == "native" for engine in fg_env.engines.list_engines())
 
 
-#: Warnings the checker gives a starter that are not problems in it. The discussion stages end when everyone is
-#: ready (the werewolves' night when the pack agrees on a victim), which a coded or model panel reaches but the smoke
-#: play's random agents (who keep talking, and pick victims at random) rarely do in one play; the negotiation's offer
-#: table values each offer for its reader through a def called with the reader itself, which the checker cannot tell
-#: from reading someone else's private weights.
-CHECKER_FALSE_POSITIVES = {
-    ("council", "stages.discussion.until"), ("dispute", "stages.deliberation.until"),
-    ("deliberation", "stages.forum.until"), ("legislature", "stages.chamber.until"),
-    ("negotiation", "views.agreement_table.show"), ("hidden_roles", "stages.night_wolves.until"),
-    ("hidden_roles", "stages.day_discussion.until"),
-}
-
-
 @pytest.mark.parametrize("engine_id", sorted(ENGINE_IDS))
 def test_every_starter_checks_without_warnings(engine_id):
     path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get(engine_id).path)))
     hosts = {"judge": StubEvaluator()} if engine_id == "contest" else None  # a contest is scored by its host judge
-    found = {(engine_id, issue.path): issue.message for issue in fg_env.check(path, hosts=hosts)}
-    assert set(found) <= CHECKER_FALSE_POSITIVES, found
+    assert [str(issue) for issue in fg_env.check(path, hosts=hosts)] == []
 
 
 def test_available_engine_can_clone_customize_and_run(tmp_path):

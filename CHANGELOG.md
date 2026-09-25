@@ -304,6 +304,12 @@ worlds stay fast, and the package is organised by feature.
     15-player table could not have 4 werewolves.
   - The exchange engine's docs say a default session *tends to* end lower after its scripted guidance cut (7 of 10
     seeds do), instead of promising it does.
+  - Every engine checks clean straight after cloning, and the test's allow-list of "checker false positives" is gone.
+    `check` reports a stage whose `until` random agents never let hold only when no policy play lets it hold either
+    (random agents cannot be expected to agree or get ready; the contract's own policies show whether the rules make
+    it happen), and a def called with the reader itself (`$value($actor, $it.terms)`) may read that argument's private
+    properties in what the reader is shown. Before, council, dispute, deliberation, legislature, hidden roles and
+    negotiation warned on a fresh clone.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

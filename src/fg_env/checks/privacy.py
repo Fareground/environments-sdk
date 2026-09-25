@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 from .. import contract as C
 from ..actions.book import announces, stage_actions
 from ..expr import Expr, ExprError, compile_expr
+from ..expr.compile import call_roots
 from ..expr.hidden import reveals
 from ..expr.template import compile_template
 from ..information.reads import inspect_rule
@@ -208,25 +209,30 @@ class PrivacyChecks(Checker):
 
     def _private_via_defs(self, expressions: Iterable[Expr], path: str) -> None:
         """Warn when ``expressions`` call defs (directly or through other defs) that read private properties from
-        their arguments or the entities they loop over: whose they read shows only at run time."""
+        their arguments or the entities they loop over: whose they read shows only at run time. An argument every
+        such call passes the reader itself (``$actor``, or an argument that is the reader in turn) is the reader's
+        own: reading its private properties is allowed."""
         private = {prop for kind in self.c.types for prop, spec in self.c.props_of(kind).items() if spec.private}
         defs = self.c.expr_defs()
-        pending = [name for expr in expressions for name in (expr.functions | expr.roots) if name in defs]
-        seen: set[str] = set()
+        pending: list[tuple[str, frozenset[str]]] = []
+        for expr in expressions:
+            pending += _def_calls(defs, expr, frozenset({"actor"}))
+        seen: set[tuple[str, frozenset[str]]] = set()
         read: set[str] = set()
         while pending:
-            name = pending.pop()
-            if name in seen:
+            call = pending.pop()
+            if call in seen:
                 continue
-            seen.add(name)
+            seen.add(call)
+            name, reader = call
             spec = defs[name]
             try:
                 body = compile_expr(spec.expr or "")
             except ExprError:
                 continue  # already reported by the def check
             read |= {f"{chain[1]} (in ${name})" for chain in body.paths
-                     if len(chain) > 1 and chain[0] in {*spec.args, "it"} and chain[1] in private}
-            pending += [other for other in body.functions | body.roots if other in defs]
+                     if len(chain) > 1 and chain[0] in {*spec.args, "it"} - reader and chain[1] in private}
+            pending += _def_calls(defs, body, reader)
         if read:
             self._private_warning(path, ", ".join(sorted(read)))
 
@@ -254,6 +260,14 @@ class PrivacyChecks(Checker):
         specs = self.c.props_of(of)
         return sorted({chain[1] for expr in expressions for chain in expr.paths
                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private})
+
+
+def _def_calls(defs: Mapping[str, C.DefSpec], expr: Expr, reader: frozenset[str]) -> list[tuple[str, frozenset[str]]]:
+    """The defs ``expr`` calls or reads, each with its arguments that are passed the reader: a root in ``reader``."""
+    calls = [(name, frozenset(defs[name].args[n] for n, root in enumerate(roots)
+                              if root in reader and n < len(defs[name].args)))
+             for name, roots in call_roots(expr.source) if name in defs]
+    return calls + [(name, frozenset()) for name in expr.roots if name in defs]
 
 
 def _expressions(text: object, implicit: str | None = None) -> list[Expr]:

@@ -343,3 +343,15 @@ def test_an_invariants_why_is_a_template_that_shows_only_what_everyone_may_know(
     assert replies[0].text.startswith(f"Your steal was not done: {told}"), replies[0].text
     broken = _secrets(invariants=[{"expr": "$entity(bob).secret >= 0", "why": "{$actor.name} broke it"}])
     assert any(i.severity == "error" and i.path == "invariants[0].why" for i in fg_env.check(broken))
+
+
+def test_a_view_calling_a_def_with_the_reader_itself_reads_its_own_private_properties_without_a_warning():
+    """The check follows the def's arguments: `$bad($actor)` reads the reader's own role, `$bad($it)` anyone's."""
+    own = with_(views={"me": {"of": "player", "where": "$it.alive", "show": "{$it.name}{$' (you are bad)' if "
+                                                                           "$bad($actor) else ''}"}})
+    assert not [i for i in fg_env.check(own) if i.path.startswith("views.me")]
+    result, seen = play(own)
+    assert result.status == "completed", result.error
+    theirs = with_(views={"them": {"of": "player", "where": "$it.alive", "show": "{$it.name}{$' !' if $bad($it) "
+                                                                               "else ''}"}})
+    assert any(i.path == "views.them.show" and "role (in $bad)" in i.message for i in fg_env.check(theirs))

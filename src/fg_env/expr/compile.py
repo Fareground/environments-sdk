@@ -18,7 +18,7 @@ from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
 from .syntax_hints import syntax_message
 
-__all__ = ["Expr", "compile_expr", "filter_parts", "item_conditions"]
+__all__ = ["Expr", "call_roots", "compile_expr", "filter_parts", "item_conditions"]
 
 _MAX_SOURCE = 8_192
 _MAX_NODES = 2_048
@@ -274,6 +274,21 @@ def filter_parts(source: str) -> tuple[str, Expr] | None:
         if isinstance(node, ast.Name) and node.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)):
             node.id = "$" + node.id[len(_ROOT_PREFIX):]
     return body.args[0].id, compile_expr(ast.unparse(body.args[1]))
+
+
+@lru_cache(maxsize=1_024)
+def call_roots(source: str) -> tuple[tuple[str, tuple[str | None, ...]], ...]:
+    """Every function call in the expression: its name and, for each argument, the root it is when it is a bare root
+    (``$actor``), else None — ``$value($actor, $it.terms)`` gives ``("value", ("actor", None))``. An invalid
+    expression raises as :func:`compile_expr` does."""
+    compile_expr(source)
+    tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
+    return tuple((node.func.id[len(_FUNC_PREFIX):],
+                  tuple(arg.id[len(_ROOT_PREFIX):] if isinstance(arg, ast.Name) and arg.id.startswith(_ROOT_PREFIX)
+                        else None for arg in node.args))
+                 for node in ast.walk(tree)
+                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                 and node.func.id.startswith(_FUNC_PREFIX))
 
 
 def _restore_words(nodes: list[ast.AST]) -> None:

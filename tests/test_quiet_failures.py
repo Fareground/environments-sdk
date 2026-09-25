@@ -49,6 +49,21 @@ def test_a_stage_whose_until_gave_up_in_only_one_round_is_reported():
     assert "1 of the 10 time(s)" in finding["message"]
 
 
+def test_check_judges_an_until_by_the_contracts_own_policies_not_by_random_agents():
+    """Random agents rarely all get ready; a panel playing the contract's policy does, so the stage is fine."""
+    panel = {"name": "Panel", "clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"ready": False}}},
+             "entities": {f"p{i}": {"type": "p"} for i in range(6)}, "world": {"notes": 0},
+             "actions": {"note": {"by": "p", "do": "$world.notes += 1"},
+                         "ready": {"by": "p", "when": "not $actor.ready", "do": "$actor.ready = true"}},
+             "stages": [{"name": "talk", "until": "$all(p, $it.ready)", "passes": 2}],
+             "events": [{"on": "round.end", "do": [{"each": "p", "do": ["$it.ready = false"]}]}],
+             "outputs": {"notes": "$world.notes"}}
+    assert any(i.path == "stages.talk.until" for i in fg_env.check(panel))
+    with_policy = {**panel, "types": {"p": {**panel["types"]["p"], "policies": {"agreeable": {"rules": [
+        {"do": "ready"}]}}}}}
+    assert not any(i.path == "stages.talk.until" for i in fg_env.check(with_policy))
+
+
 @pytest.mark.parametrize("value, problem",
                          [("lots", "finite number"), (90, r"entities\.a\.props\.x: a's x cannot go above 50"),
                           (1.5, "whole number")])

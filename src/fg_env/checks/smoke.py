@@ -55,7 +55,7 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     resolution) is scheduled for, so each such event is played (the boundary-value and idle plays last only the first
     few rounds); a wall-clock guard stops a play too slow to finish, and
     says so. A number plays exactly that many rounds. An action that was called in these plays and never once succeeded
-    is reported too."""
+    is reported too; a stage whose `until` the random play never let hold, only when no policy play let it hold."""
     agents = contract.agent_types()
     policies = [(owner, name, [kind for kind in contract.subtypes(owner) if kind in agents])
                 for owner, spec in contract.types.items() for name in spec.policies]
@@ -95,17 +95,21 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
         prober = Prober(seed)
         _play(build(), {"*": prober}, 1, None)
         errors.extend(prober.found.values())
+    policy_plays: list[Env] = []
     for owner, name, players in policies:
         if not players:
             continue  # the static check reports a policy no agent plays
         agent, who = _Probing(contract, name, seed), f"policy '{name}' playing {', '.join(players)}"
-        result = _play(_kept(build(), played), {kind: agent for kind in players}, rounds, seconds)
+        policy_env = _kept(build(), played)
+        policy_plays.append(policy_env)
+        result = _play(policy_env, {kind: agent for kind in players}, rounds, seconds)
         _failure(result, who, errors)
         prefix = f"types.{owner}.policies.{name}."
         warnings.extend(Issue(found["path"], f"{found['message']} (smoke run of {result.rounds} round(s), {who})",
                               found["fix"], "warning")
                         for found in result.diagnostics
                         if found["code"] == "policy_rule_never_acted" and found["path"].startswith(prefix))
+    warnings.extend(_until_capped(random_play, policy_plays))
     reported = {issue.path for issue in errors + warnings}
     warnings.extend(issue for issue in _never_succeeded(contract, played) if issue.path not in reported)
     cut = [env for env in played + [idle_env] if env.status == "stopped"]
@@ -160,13 +164,30 @@ def _random_findings(play: RunResult, errors: list[Issue], warnings: list[Issue]
     every play (:func:`_never_succeeded`)."""
     broken = {found["path"] for found in play.diagnostics if found["code"] == "action_always_faulted"}
     for found in play.diagnostics:
-        if found["code"] in ("output_failed", "budget_cut", "action_never_succeeded") or (
+        if found["code"] in ("output_failed", "budget_cut", "action_never_succeeded", "stage_until_capped") or (
                 found["code"] == "action_offered_but_unusable" and found["path"] in broken):
             continue  # a failing output is reported by _outputs; the failing rule is why the action was unusable
         severity = "error" if found["code"] == "action_always_faulted" else "warning"  # a broken rule, not a hunch
         (errors if severity == "error" else warnings).append(
             Issue(found["path"], f"{found['message']} (smoke run of {play.rounds} round(s), random agents)",
                   found["fix"], severity))
+
+
+def _until_capped(play: RunResult, policy_plays: list[Env]) -> list[Issue]:
+    """The random play's stages whose `until` it never let hold, less those the contract's own policies show it can:
+    random agents cannot be expected to agree or get ready, and a stage whose `until` a policy play reached waits for
+    something the rules make happen."""
+    out = []
+    for found in play.diagnostics:
+        if found["code"] != "stage_until_capped":
+            continue
+        stage = found["path"].split(".")[1]
+        if any(ran > capped for env in policy_plays
+               for _, ran, _, capped in [env.state.diagnosis.stages.get(stage, [0, 0, 0, 0])]):
+            continue
+        out.append(Issue(found["path"], f"{found['message']} (smoke run of {play.rounds} round(s), random agents)",
+                         found["fix"], "warning"))
+    return out
 
 
 def _never_succeeded(contract: Contract, played: list[Env]) -> list[Issue]:

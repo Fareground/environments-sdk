@@ -34,7 +34,8 @@ the first few entities of each type with every prop (`result.state`), so you can
 `fg-env check` plays 12 rounds (fewer when the run is shorter; more to reach the last round an event's `when` names,
 `$round == 30` or a market's resolution) with random agents and again with each policy on every agent type, and reports
 what those plays reveal: crashes as errors (naming the policy that ran into one), diagnostics (including each policy's
-always-refused rules) as warnings. Every check plays the same rounds; a time guard stops only a contract too slow to
+always-refused rules) as warnings. A stage whose `until` random agents never let hold is reported only when no policy
+play lets it hold either: random agents cannot be expected to agree or get ready, a panel playing its policies can. Every check plays the same rounds; a time guard stops only a contract too slow to
 play, and says so. Before a policy rule acts, the later rules whose action is legal are evaluated too, so a broken rule
 is reported even when an earlier one always wins. A population that grows fast enough (agents creating agents) to pass
 the engine's ceiling of 1,000,000 living entities before the run ends is a warning: a run fails when it reaches it.
