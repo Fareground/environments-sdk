@@ -93,8 +93,8 @@ Every section is optional except `name` and `types`; `guide('<section>')` has ea
 1. **Parameters** — `inputs`: `{name: {type, default, min, max, values, description}}`, read as `$inputs.name`
    and set per run (`fg_env.run(..., inputs={...})`). Types: number int bool text enum list map table file.
 2. **State** — `world` holds global props (`$world.fish`); `types` declare each kind's props (a bare value is the
-   default: `"cash": 100` holds any number, 12.5 too — `"type": "int"` for whole numbers only — or
-   `{type, default, min, max, values, private}`); `entities` are named
+   default: `"cash": 100`, any number; `"type": "int"` for whole ones — or `{type, default, min, max, values,
+   private}`); `entities` are named
    (`"ann": {"type": "buyer"}`) or generated (`count`, or `from` an input table, one per `$row`: ids
    `<key>_1` …); `records` are logs (`{chat: {fields, show, visible}}`) that the `post` effect appends to.
 3. **Actors** — a type with `"agent": true` takes turns. Its `policies` are coded participants
