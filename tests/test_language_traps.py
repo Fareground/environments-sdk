@@ -358,3 +358,17 @@ def test_an_empty_map_or_list_shows_as_none_and_a_view_may_list_a_literal():
     assert _errors(contract) == []
     update = fg_env.load(contract, seed=1).preview("a")["update"]
     assert "Bids: none. Hand: none." in update and "- up\n- down" in update
+
+
+@pytest.mark.parametrize("where, text, fix", [("outcome", "You put {params.amount}", "{$params.amount}"),
+                                              ("view", "Pot {world.pot}", "{$world.pot}")])
+def test_a_template_field_that_reads_a_root_without_its_dollar_is_told_the_right_fix(where, text, fix):
+    """`{params.amount}` used to be told to write `{$actor.params.amount}`, itself an error (audit 9 docs M1)."""
+    contract = {"name": "Roots", "clock": {"rounds": 1}, "world": {"pot": 0}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}},
+                "actions": {"put": {"by": "p", "params": {"amount": "int"}, "do": []}}}
+    if where == "outcome":
+        contract["actions"]["put"]["outcome"] = text
+    else:
+        contract["views"] = {"v": {"show": text}}
+    assert any(f"write {fix}" in issue.message for issue in _errors(contract))

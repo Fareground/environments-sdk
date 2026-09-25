@@ -10,7 +10,7 @@ from typing import Any
 __all__ = [
     "EVAL_BUDGET", "MAX_INT_BITS", "MAX_LIST_LEN", "MAX_RANGE", "MAX_TEXT_LEN", "Untrusted", "tainted", "derived",
     "ExprError", "PrivateRead", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy",
-    "EXPRESSION_WORDS",
+    "EXPRESSION_WORDS", "RESERVED_ROOTS", "quoted",
 ]
 
 _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
@@ -48,6 +48,14 @@ class Untrusted(str):
 
     def __format__(self, spec: str) -> str:
         return format(quoted(self), spec)
+
+
+#: The names the engine binds as roots somewhere (``$actor``, ``$world`` …): no local, argument or template field may
+#: take one.
+RESERVED_ROOTS = frozenset({
+    "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round", "stage", "outputs", "series",
+    "arm", "viewer", "event", "outer", "pending", "result", "pattern", "acted", "timed_out",
+})
 
 
 #: Line breaks and the spaces around them: participant text renders on one line.

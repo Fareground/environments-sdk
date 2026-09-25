@@ -317,6 +317,8 @@ worlds stay fast, and the package is organised by feature.
     retries, not to follow its protocol; an authoring session stopped by the provider says what to do about it (the
     fix `provider_failure` gives elsewhere); `guide(part, start)` in the authoring loop never reads from the end; the
     running guide says the built-in LLM participants take sync clients only, under `arun` too.
+  - A template field that reads a root without its `$` (`{params.amount}`, `{world.pot}`) is told to write
+    `{$params.amount}`; the fix suggested was `{$actor.params.amount}`, itself an error.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

@@ -23,7 +23,7 @@ from functools import lru_cache
 from typing import Any
 
 from . import Expr, ExprError, Scope, Untrusted, compile_expr
-from .base import quoted
+from .base import RESERVED_ROOTS, quoted
 
 __all__ = ["Template", "compile_template", "render", "format_value", "apply_format", "entity_handles",
            "quoted_placeholders"]
@@ -212,6 +212,9 @@ def compile_template(source: str, subject: str | None = "it") -> Template:
         if inner.startswith("$") and len(inner) > 1 and not (inner[1].isalpha() or inner[1] == "_"):
             inner = inner[1:].strip()  # `{$'yes' if $x else 'no'}` → the expression after the marker
         if "$" not in inner and not inner.startswith(("'", '"', "(")):
+            root = inner.split(".", 1)[0]
+            if "." in inner and root in RESERVED_ROOTS:
+                raise ExprError(f"'{{{inner}}}' reads ${root}: write {{${inner}}}", source)
             if not _FIELD.match(inner):
                 raise ExprError(f"'{{{inner}}}' is not a field name; write an expression as {{$...}}", source)
             if subject is None:

@@ -11,16 +11,13 @@ from typing import Any
 
 from ..contract import one_or_many
 from ..expr import Expr, ExprError, compile_expr, is_expr
+from ..expr.base import RESERVED_ROOTS
 from ..expr.compile import compile_target
 
 __all__ = ["RESERVED_ROOTS", "Statement", "compile_statement", "statement_parts", "split_statement", "capture_roots",
            "structured_capture_roots"]
 
 
-RESERVED_ROOTS = frozenset({
-    "actor", "params", "it", "i", "row", "inputs", "world", "physics", "clock", "round", "stage", "outputs", "series",
-    "arm", "viewer", "event", "outer", "pending", "result", "pattern", "acted", "timed_out",
-})
 _NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*$")
 
 
