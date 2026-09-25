@@ -35,5 +35,5 @@ bounds apply at physical substeps.
 - `noise`: text — Stochastic term (Euler–Maruyama), drawn from the run's seed: d(prop) = rate·dt + noise·dW.
 
 ```json
-{"mechanisms": {"my_ode": {"kind": "dynamics", "mode": "ode", "params": {"beta": 0.3, "gamma": 0.1}, "read": {"N": "$count(person)"}, "vars": {"S": {"start": 990, "rate": "-beta*S*I/N", "min": 0}, "I": {"start": 10, "rate": "beta*S*I/N - gamma*I", "min": 0}}, "write": {"world.infected": "I"}}}}
+{"mechanisms": {"physics": {"kind": "dynamics", "mode": "ode", "params": {"beta": 0.3, "gamma": 0.1}, "read": {"N": "$count(person)"}, "vars": {"S": {"start": 990, "rate": "-beta*S*I/N", "min": 0}, "I": {"start": 10, "rate": "beta*S*I/N - gamma*I", "min": 0}}, "write": {"world.infected": "I"}}}}
 ```

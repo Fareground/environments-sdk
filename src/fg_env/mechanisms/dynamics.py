@@ -17,7 +17,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..contract import PhysicsSpec
-from ..registry import MechanismError, mode
+from ..registry import mode
 
 __all__ = ["NAME"]
 
@@ -32,9 +32,6 @@ NAME = "physics"
       example={"params": {"beta": 0.3, "gamma": 0.1}, "read": {"N": "$count(person)"},
                "vars": {"S": {"start": 990, "rate": "-beta*S*I/N", "min": 0},
                         "I": {"start": 10, "rate": "beta*S*I/N - gamma*I", "min": 0}},
-               "write": {"world.infected": "I"}})
+               "write": {"world.infected": "I"}}, name=NAME)
 def _expand(name: str, config: PhysicsSpec, contract: Mapping[str, Any]) -> dict[str, Any]:
-    if name != NAME:
-        raise MechanismError(f"the dynamics mechanism is read as ${NAME}, so it is named '{NAME}'",
-                             f"rename mechanisms.{name} to mechanisms.{NAME}")
     return {}

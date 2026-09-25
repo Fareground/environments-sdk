@@ -382,6 +382,9 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
     if isinstance(found, Issue):
         return [found]
     spec, label = found
+    if spec.name is not None and name != spec.name:
+        return [Issue(path, f"the {label} mechanism is read as ${spec.name}, so it is named '{spec.name}'",
+                      f"rename mechanisms.{name} to mechanisms.{spec.name}")]
     try:
         config = spec.config.model_validate(config_data(use))
     except ValidationError as exc:
