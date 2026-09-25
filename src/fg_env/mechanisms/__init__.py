@@ -328,13 +328,25 @@ def _dropped_effects(name: str, fragment: Mapping[str, Any], data: Mapping[str, 
         if not isinstance(mine, Mapping) or not isinstance(generated, Mapping):
             continue
         kept = {_canonical(effect) for effect in _effects(mine)}
-        dropped = [effect for effect in _effects(generated) if _canonical(effect) not in kept]
+        # an argument the author's action leaves out, which the generated one only passed on at its default
+        defaulted = {pname for pname, param in _mapping(generated.get("params")).items()
+                     if pname not in _mapping(mine.get("params")) and isinstance(param, Mapping) and "default" in param}
+        dropped = [effect for effect in _effects(generated)
+                   if _canonical(effect) not in kept and _canonical(_without(effect, defaulted)) not in kept]
         if dropped:
             issues.append(Issue(f"actions.{key}", f"your '{key}' replaces the action mechanism '{name}' generates and "
                                 f"leaves out what it does: {_canonical(dropped)}",
                                 "keep those effects in its `do` (fg-env expand --mechanisms shows the generated "
                                 "action), or delete your version to use the generated one", "warning"))
     return issues
+
+
+def _without(effect: Any, params: set[str]) -> Any:
+    """``effect`` without the keys that pass on one of ``params`` as it is (`"qty": "$params.qty"`)."""
+    if not isinstance(effect, Mapping) or not params:
+        return effect
+    return {key: value for key, value in effect.items()
+            if not (isinstance(value, str) and value.strip() in {f"$params.{name}" for name in params})}
 
 
 #: Goods a mechanism keeps in `<name>_<word>` props, which an author may write bare.

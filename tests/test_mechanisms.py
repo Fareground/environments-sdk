@@ -691,3 +691,15 @@ def test_a_config_expression_error_is_told_once_at_its_own_field():
          "mechanisms": {"k": {"kind": "game", "mode": "cards", "who": "p", "hand_size": "$inputs.missing"}}}
     errors = [(i.path, i.message) for i in fg_env.check(c, rounds=0) if i.severity == "error"]
     assert errors == [("mechanisms.k.hand_size", "$inputs.missing: no such input")]
+
+
+def test_replacing_a_generated_action_without_an_argument_it_only_passed_at_its_default_is_not_warned():
+    """An author's version of a generated action that leaves out an argument the generated one had a default for
+    (a sealed bid's `qty`) still does what it does; leaving out the effect itself is warned (audit 14 mech L4)."""
+    c = {"types": {"b": {"agent": True, "props": {"cash": 500}}}, "entities": {"b": {"type": "b", "count": 2}},
+         "mechanisms": {"a": {"kind": "market", "mode": "auction", "format": "first_price", "who": "b"}},
+         "actions": {"a_bid": {"by": "b", "params": {"price": {"type": "number", "min": 10, "max": "$actor.cash"}},
+                               "do": [{"market": "a", "action": "bid", "price": "$params.price"}]}}}
+    assert not [i for i in fg_env.check(c, rounds=0) if i.path == "actions.a_bid"]
+    c["actions"]["a_bid"]["do"] = []
+    assert [i.severity for i in fg_env.check(c, rounds=0) if i.path == "actions.a_bid"] == ["warning"]
