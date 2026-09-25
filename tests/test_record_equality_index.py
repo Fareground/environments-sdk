@@ -10,7 +10,7 @@ from fg_env.world.record_index import equality_fields
 
 
 def contract(rule='$viewer.team == $it.team', keep=None):
-    record = {'fields': {'team': 'int', 'value': 'int'}, 'visible': rule}
+    record = {'fields': {'team': 'any', 'value': 'int'}, 'visible': rule}  # `any`: a team may be any value
     if keep is not None:
         record['keep'] = keep
     return {'name': 'Shared record access', 'clock': {'rounds': 2},
@@ -111,8 +111,8 @@ def test_forward_nonstandard_and_cross_record_references_keep_live_checks():
 
 @pytest.mark.parametrize('value', [None, 0, 1, True, 1.0, 'north', [1, 2], {'a': 1}])
 def test_scalar_and_unhashable_values_match_expression_equality(value):
-    # The low-level world accepts already materialized values; indexing must not
-    # assume that a declared integer field can only ever contain Python ints.
+    # A field of type `any` holds any value; indexing must match expression equality
+    # for all of them.
     w = fg_env.load(contract()).world
     w.entities['a'].properties['team'] = value
     post(w, value, 1)

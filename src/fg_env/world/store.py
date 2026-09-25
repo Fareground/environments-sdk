@@ -70,6 +70,10 @@ class World(ExpressionWorld):
         self.records_store: dict[str, list[Entry]] = {name: [] for name in contract.records}
         #: Retained record entries by sequence number (entries dropped by `keep` are removed).
         self.entry_by_seq: dict[int, Entry] = {}
+        #: Each record's fields as the property specs of their types (empty until given): an entry's field holds what
+        #: a property of its type holds, by the same rules (:meth:`coerce`).
+        self.record_specs = {name: {field: PropSpec.model_validate({"type": kind, "default": None})
+                                    for field, kind in spec.fields.items()} for name, spec in contract.records.items()}
         self.record_authors = RecordAuthors(
             {name: spec.visible for name, spec in contract.records.items()}, self.records_store)
         #: Per-entity brief text rendered at build (from entities.*.brief / population.brief).
@@ -561,13 +565,9 @@ class World(ExpressionWorld):
                            where)
         entry = Entry()
         entry.world = self
-        for name, kind in spec.fields.items():
-            value = plain_value(fields.get(name))
-            if value is not None and kind == "text" and not isinstance(value, str):
-                value = str(value)
-            elif value is not None and kind == "asset":
-                value = self.assets.ref(value, f"{where}.{name}")
-            entry[name] = value
+        typed = self.record_specs[record]
+        for name in spec.fields:  # a field holds what a property of its type holds, by the same rules
+            entry[name] = self.coerce(typed[name], plain_value(fields.get(name)), f"{where}.{name}")
         self.record_seq += 1
         entry.update({"seq": self.record_seq, "round": self.round, "stage": self.stage,
                       "author": author, "to": list(to) if to is not None else None})

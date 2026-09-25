@@ -1704,7 +1704,7 @@
           "additionalProperties": {
             "type": "string"
           },
-          "description": "{field: type}; text fields written by agents are marked untrusted.",
+          "description": "{field: type}; a field holds what a property of its type holds, by the same rules (a number field refuses text, a text field a number). Text fields written by agents are marked untrusted.",
           "title": "Fields",
           "type": "object"
         },

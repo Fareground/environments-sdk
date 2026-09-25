@@ -89,3 +89,24 @@ def test_an_each_loop_skips_an_entity_removed_earlier_in_the_same_loop(event):
                "outputs": {"b": "$entity(b).coins", "a": "$entity(a).coins"}}
     result = fg_env.run(culling, "idle", seed=1)
     assert result.outputs == {"b": 10, "a": 11}
+
+
+@pytest.mark.parametrize(("kind", "value", "stored"), [
+    ("number", "'cheap'", None), ("int", "$round + 1.5", None), ("int", "$round + 2.0", 3),
+    ("text", "$dict(p, $it.id, 1)", None), ("text", "$round", None), ("text", "5", "5"), ("bool", "$round", None),
+    ("list", "'x'", None), ("map", "[$round]", None), ("any", "[$round]", [1])])
+def test_a_record_field_holds_what_a_property_of_its_type_holds(kind, value, stored):
+    """audit 13 M3: an entry's field is typed as a property is, by the same rules: `"price": "number"` never stores
+    "cheap", a text field never quietly turns a map or a number into text."""
+    contract = {"name": "Notes", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+                "records": {"notes": {"fields": {"v": kind}}},
+                "actions": {"note": {"by": "p", "description": "Note.", "do": [{"post": "notes", "v": value}]}}}
+    seen = []
+    env = fg_env.load(contract, seed=1)
+    env.run({"a": lambda wake: (seen.append(wake.call("note", {})), wake.end())})
+    rows = env.world.records("notes")
+    if stored is None:
+        assert not seen[0].ok and rows == []
+    else:
+        assert seen[0].ok and rows[0]["v"] == stored and type(rows[0]["v"]) is type(stored)

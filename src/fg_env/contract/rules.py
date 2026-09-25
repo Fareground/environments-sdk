@@ -32,8 +32,10 @@ class RecordSpec(_Model):
     """An append-only log (chat, reviews, bids, transcript). New entries reach agents as news."""
 
     fields: dict[str, TypeName] = Field(default_factory=lambda: {"text": "text"},
-                                        description="{field: type}; text fields written by agents are marked "
-                                                    "untrusted.")
+                                        description="{field: type}; a field holds what a property of its type "
+                                                    "holds, by the same rules (a number field refuses text, a "
+                                                    "text field a number). Text fields written by agents are "
+                                                    "marked untrusted.")
     show: str | None = Field(None, description="How one entry reads: '{author}: {text}'.")
     visible: str = Field("all", description="'all' or an expression over $viewer and $it (the entry). It filters "
                          "what agents are shown or offered; game logic reads every entry. An entry's `seq` counts "

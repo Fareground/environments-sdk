@@ -279,6 +279,9 @@ worlds stay fast, and the package is organised by feature.
   - A property written as the map it starts as (`"inventory": {"wood": 3}`), none of whose keys is a property
     setting or close to one, is reported once at the property with the fix `{"default": {"wood": 3}}`, instead of
     "'wood' is not a field here → remove it" (M2).
+  - A record's field types are enforced by the rules a property of the type follows: a `number` field refuses
+    `"cheap"`, an `int` field 2.5, and a `text` field no longer turns a map or a number into text quietly; the
+    post fails with the field's path (M3).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
