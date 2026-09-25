@@ -9,7 +9,7 @@ from __future__ import annotations
 import time
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..actions.book import stage_actions
 from ..actions.faults import refused_text
@@ -57,12 +57,21 @@ _REJECTED = {"error": "rejected"}
 _ENDED = {"error": "ended"}
 _TIMEOUT = {"error": "timeout"}
 _UNDONE = {"error": "undone"}
+
 #: A call refused after it drew randomness or read what its agent may not see: played all the same (attempt counted).
 _SPENT = {"error": "rejected", "spent": True}
 #: What an atomic turn's action says in place of its outcome, until the turn commits.
 _HELD = "Its outcome is shown when your turn ends."
 #: What a closed turn reads instead of its brief or update (its participant has been left behind).
 _CLOSED_TEXT = "This turn is over."
+
+
+class Undo(NamedTuple):
+    """Why an atomic turn was undone, and whether working that out drew luck or read a value hidden from its agent
+    (:func:`~fg_env.runtime.ledger.attempt_cost`): then the turn is over rather than played again."""
+
+    why: str
+    spent: bool
 
 
 class Turn:
@@ -349,9 +358,9 @@ class Turn:
                 self.note(INVALID)
                 return self._after(ToolResult(False, f"You must act during {self.stage.name}. {self._offer()}",
                                               data=_INVALID))
-            why = self.settle()
-            if why is not None:
-                return self._after(self._undone(why))
+            undo = self.settle()
+            if undo is not None:
+                return self._after(self._undone(undo))
             return self._after(ToolResult(True, "Turn ended.", True))
         available = stage_actions(env.contract, self.stage, self.actor.entity_type)
         spec = env.contract.actions.get(name)
@@ -372,18 +381,18 @@ class Turn:
         else:
             result, applied, spent = acted
         if spent and self.ledger.part_open:  # luck or a hidden read settles an atomic turn: nothing may undo it
-            why = self.settle()
-            if why is not None:
-                return self._after(self._undone(why, settled_by=name))
+            undo = self.settle()
+            if undo is not None:
+                return self._after(self._undone(undo, settled_by=name))
             self.ledger.begin_part()
         if applied:
             if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
                 env.rules.react(self.stage)
             if result.ended or env.world.end_request is not None:
                 result.ended = True
-                why = self.settle()
-                if why is not None:
-                    return self._after(self._undone(why))
+                undo = self.settle()
+                if undo is not None:
+                    return self._after(self._undone(undo))
         return self._after(result)
 
     def _act(self, name: str, spec: ActionSpec, args: Any, observed: Observation) -> tuple[ToolResult, bool, bool]:
@@ -468,19 +477,20 @@ class Turn:
         if not self.ledger.part_open:
             self.env.rules.commit(path)
 
-    def settle(self) -> str | None:
+    def settle(self) -> Undo | None:
         """Atomic turns: commit a turn that meets `valid` (then run what waited for it), or undo every action of the
         turn and say why — also when a rule fails or an invariant breaks as it commits. A turn that took no action
         has nothing to check. Call holding the run's gate."""
         ledger = self.ledger
         if not ledger.part_open:
             return None
+        observed = self.env.world.luck.observe()
         why, fault = self.env.rules.guarded(self._commit_turn, ledger.mark)
         if fault is not None:
             why = fault
         if why is not None:  # the open part is undone; what the turn drew stays spent (see AttemptLedger.undo_part)
             self.note(Undone(ledger.undo_part(), faulted=fault is not None))
-            return why
+            return Undo(why, attempt_cost(observed) == "spent")
         ledger.commit_part()
         self.env.rules.react(self.stage)
         return None
@@ -505,17 +515,25 @@ class Turn:
             if not self.ledger.part_open:
                 return
             with env.world.luck.turn_context(None, self.ledger.pending):
-                why = self.settle()
-            if why is not None:
-                env.world.emit("outcome", f"Your turn was undone: {why}.", actor=self.actor.id, to=(self.actor.id,),
+                undo = self.settle()
+            if undo is not None:
+                env.world.emit("outcome", f"Your turn was undone: {undo.why}.", actor=self.actor.id, to=(self.actor.id,),
                                data={"ok": False, "undone": True})
                 env.world.commit()
 
-    def _undone(self, why: str, settled_by: str | None = None) -> ToolResult:
-        if settled_by is None:
+    def _undone(self, undo: Undo, settled_by: str | None = None) -> ToolResult:
+        """The result of an undone turn: played again, unless what undid it (``settled_by``, an action that settled the
+        turn, or the turn's own commit and `valid`) turned on chance or on something hidden from the agent — then
+        the turn is over, since playing it again would retry the luck or probe the hidden value for free."""
+        why = undo.why
+        if settled_by is None and not undo.spent:
             return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
                                      "play your turn again.", data=dict(_UNDONE))
-        self.done = True  # what it drew or read is spent: playing the turn again would retry it
+        self.done = True
+        if settled_by is None:
+            return ToolResult(False, f"That turn is not allowed: {why}. Whether it is allowed turned on chance or on "
+                                     "something hidden from you, so everything you did this turn was undone, and your "
+                                     "turn is over.", True, dict(_UNDONE))
         return ToolResult(False, f"That turn is not allowed: {why}. {settled_by.replace('_', ' ').capitalize()} "
                                  "turned on chance or on something hidden from you, which settles a turn at once, so "
                                  "it was undone with what you did before it this turn, and your turn is over.", True,

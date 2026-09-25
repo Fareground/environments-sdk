@@ -235,6 +235,13 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 10.**
+  - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
+    shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
+    one refused at a private property's bound, or at an element that is not there, spends the action (before, it
+    was free, so an agent could binary-search another's hidden number); and a stage `valid` that reads a hidden
+    value (or draws) and fails undoes the turn and ends it rather than letting the agent play it again. A kernel
+    test probes every such shape against two hidden values.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

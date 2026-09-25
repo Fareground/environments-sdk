@@ -247,10 +247,12 @@ class EffectRunner:
             rest: list[tuple[str, Any]] = []
         else:
             owner, prop, rest = self._owner(stmt, scope, source, f"{path}[{index}]")
+        # Updating reads the value it updates, as game logic does (so a read hidden from the actor is counted: a refusal
+        # past a bound, or an element that is not there, spends the action); a plain `=` reads nothing
         if rest:
-            value = self._set_in(attr(owner, prop, source), rest, stmt.op, value, source, prop)
+            value = self._set_in(attr(owner, prop, source, scope), rest, stmt.op, value, source, prop)
         elif stmt.op != "=":
-            value = self._combine(stmt.op, attr(owner, prop, source), value, source)
+            value = self._combine(stmt.op, attr(owner, prop, source, scope), value, source)
         if stmt.op == "=" and self.world.watched_writes is not None and isinstance(owner, (Entity, PropsView)):
             self.world.watched_writes.assigned(owner, prop, [key for _, key in rest], value, source)
         before = copy.deepcopy(attr(owner, prop, source)) if self.fired is not None else None
@@ -297,7 +299,8 @@ class EffectRunner:
                 found = (current, position)
             if position == len(stmt.steps) - 1:
                 break
-            current = attr(current, key, source) if kind == "field" else self._element(current, key, source)
+            current = attr(current, key, source, scope) if kind == "field" \
+                else self._element(current, key, source, scope)
         if found is None:
             raise RunError(_NOT_ASSIGNABLE.format(source=source), where)
         owner, position = found
@@ -306,7 +309,7 @@ class EffectRunner:
         return owner, prop, rest
 
     @staticmethod
-    def _element(container: Any, key: Any, source: str) -> Any:
+    def _element(container: Any, key: Any, source: str, scope: Any) -> Any:
         if isinstance(container, list):
             if isinstance(key, bool) or not isinstance(key, int) or not -len(container) <= key < len(container):
                 raise ExprError(f"index {key!r} is out of range for a list of {len(container)}", source)
@@ -316,7 +319,7 @@ class EffectRunner:
             if name not in container:
                 raise ExprError(f"no key {name!r} (keys: {', '.join(map(str, list(container)[:12]))})", source)
             return container[name]
-        return attr(container, str(key), source)
+        return attr(container, str(key), source, scope)
 
     def _set_in(self, container: Any, path: list[tuple[str, Any]], op: str, value: Any, source: str,
                 label: str) -> Any:
@@ -528,8 +531,9 @@ class EffectRunner:
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
             raise RunError(f"transfer amount must be a number ≥ 0, got {amount!r}", where)
         into = effect.get("into") or prop
-        have = _amount_held(source, prop, where)
-        held = _amount_held(target, into, where)
+        scope = self.world.evaluation.scope(**vars)  # reading the amounts held counts a read hidden from the actor
+        have = _amount_held(source, prop, where, scope)
+        held = _amount_held(target, into, where, scope)
         # A transfer moves value; it never creates or destroys it. Limits that would clamp
         # either side refuse the transfer instead, never telling an amount hidden from the actor (see
         # EvalContext.refusal).
@@ -545,7 +549,7 @@ class EffectRunner:
             raise refusal(target, into, f"{target.name} can hold at most {format_value(high)} {into}; "
                                         f"at most {format_value(max(0, high - held))} more fits.", instead)
         self.world.set_prop(source, prop, have - amount)
-        self.world.set_prop(target, into, _amount_held(target, into, where) + amount)
+        self.world.set_prop(target, into, _amount_held(target, into, where, scope) + amount)
 
     def _op_link(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
         value = self._eval(effect["value"], vars) if "value" in effect else None
@@ -694,8 +698,8 @@ def _without_one_each(items: list[Any], drop: list[Any]) -> list[Any]:
     return kept
 
 
-def _amount_held(entity: Entity, prop: str, where: str) -> float:
-    value = attr(entity, prop, where)
+def _amount_held(entity: Entity, prop: str, where: str, scope: Any) -> float:
+    value = attr(entity, prop, where, scope)
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         raise RunError(f"`transfer` moves numbers, but {entity.id}.{prop} is {value!r}", where)
     return value

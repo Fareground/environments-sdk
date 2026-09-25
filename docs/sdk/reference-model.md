@@ -59,7 +59,8 @@ turn, uses `max_actions`, or runs out of `max_calls`.
   told `why` and plays the turn again (castling through check, a full backgammon move); `"valid": "true"` makes
   turns atomic with no condition. An action that draws randomness or reads a value hidden from its agent settles the
   turn so far at once, so later actions cannot undo its luck or what it revealed (if `valid` fails then, the turn is
-  undone and over). In a simultaneous stage each agent's
+  undone and over); a `valid` that draws or reads a hidden value and fails likewise undoes the turn and ends it,
+  rather than letting the agent play it again. In a simultaneous stage each agent's
   choices commit or are undone together.
 * Luck never decides whether a call is allowed: `when` requirements and parameters' bounds, defaults, values and
   `where` may not draw at random (a check error), since a refused call costs nothing and calling again would roll
@@ -153,7 +154,8 @@ explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
 is rolled back and the agent is told why. World logic (events) has no one to refuse: the same
 failure there fails the run at its path, so guard such a block with an `if`. A refusal that rolled luck or whose rules
-read a value hidden from the actor (a `when`, a `fail`, an error, a transfer) spends the action (a wrong guess at a
+read a value hidden from the actor (a `when`, a `fail`, an error, a transfer, an update such as `-=` refused at a
+bound) spends the action (a wrong guess at a
 hidden code is a guess); any other refusal — a taken cell, bad arguments — costs nothing. Contract errors (bad expression at run time) stop
 the run with status `failed` and the path of the broken rule.
 

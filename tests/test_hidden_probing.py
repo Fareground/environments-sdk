@@ -8,6 +8,8 @@ to everyone, may not carry what is private either.
 """
 import copy
 
+import pytest
+
 import fg_env
 
 VAULT = {
@@ -205,3 +207,75 @@ def test_an_atomic_turn_cannot_read_a_hidden_value_and_then_undo_it_for_free():
     assert len(probes) == 1  # the first door settled the turn: it was undone and the turn is over
     assert not opened.ok and opened.ended and "hidden" in opened.text
     assert result.outputs["coins"] == 10
+
+
+# -- the one rule, probed across every shape a refusal or an undo can take ------------------------------------------
+
+def _shape(do=None, *, when=None, valid=None, code=None, world=False):
+    """A contract in which agent a probes b's hidden `code` (or the world's) with an argument ``n``, by one shape of
+    rule: ``do``, a `when`, or a stage `valid`."""
+    code_spec = {"type": "int", "default": 0, "private": True, "min": 0, "max": 100, **(code or {})}
+    contract = {
+        "name": "Probe", "clock": {"rounds": 1},
+        "types": {"p": {"agent": True, "props": {"guess": 0, "code": code_spec,
+                                                  "slots": {"type": "list", "default": [], "private": True}}}},
+        "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+        "actions": {"probe": {"by": "p", "params": {"n": {"type": "int", "min": 0, "max": 100}},
+                              "do": do or "$actor.guess = $params.n", **({"when": when} if when else {})}},
+        "outputs": {"guess": "$entity(a).guess"},
+    }
+    if world:
+        contract["world"] = {"code": dict(code_spec)}
+    if valid:
+        contract["stages"] = [{"name": "play", "max_calls": 12, "valid": [{"expr": valid, "why": "Not allowed."}]}]
+    return contract
+
+
+PROBE_SHAPES = {
+    "a write past a hidden number's min": _shape("$entity(b).code -= $params.n"),
+    "a write past a hidden number's max": _shape("$entity(b).code += $params.n"),
+    "a hidden world number past its min": _shape("$world.code -= $params.n", world=True),
+    "an element update past a hidden list's end": _shape("$entity(b).slots[$params.n] = 1"),
+    "a fail in do": _shape({"if": "$params.n > $entity(b).code", "then": [{"fail": "Too high."}]}),
+    "a transfer": _shape({"transfer": "code", "from": "$entity(b)", "to": "$actor", "amount": "$params.n"}),
+    "a when requirement": _shape(when=[{"expr": "$params.n <= $entity(b).code", "why": "Too high."}]),
+    "a stage valid rule": _shape(valid="$entity(b).code >= $actor.guess"),
+}
+
+
+def _probe_run(contract, hidden):
+    """The results agent a is given, calling `probe` with a falling argument and ending its turn after each call that
+    applies, while b's (and the world's) hidden code is ``hidden``."""
+    contract = copy.deepcopy(contract)
+    contract["entities"]["b"]["props"] = {"code": hidden, "slots": [0] * hidden}
+    if "world" in contract:
+        contract["world"]["code"]["default"] = hidden
+    seen = []
+
+    def prober(wake):
+        for n in (90, 70, 50, 30, 10):
+            result = wake.call("probe", {"n": n})
+            if result.ok and not result.ended:
+                result = wake.end()
+            seen.append(result)
+            if wake.done or result.ended:
+                return
+
+    fg_env.run(contract, {"a": prober, "b": "idle"}, seed=1)
+    return seen
+
+
+def _free(result):
+    return not result.ok and not result.ended and not result.data.get("spent")
+
+
+@pytest.mark.parametrize("shape", list(PROBE_SHAPES))
+def test_no_free_refusal_or_undo_turns_on_a_hidden_value_whatever_shape_the_rule_takes(shape):
+    """The kernel's rule, probed generically: whatever the shape of the rule that refuses or undoes a call, a refusal
+    the agent may retry for free reads the same whatever the hidden value is. Two runs differ only in b's hidden code;
+    up to the first call either run pays for, both must have been refused alike."""
+    low, high = _probe_run(PROBE_SHAPES[shape], 20), _probe_run(PROBE_SHAPES[shape], 80)
+    for one, other in zip(low, high):
+        if not (_free(one) or _free(other)):
+            break
+        assert _free(one) and _free(other) and one.text == other.text, (shape, one.text, other.text)
