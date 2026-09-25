@@ -27,7 +27,8 @@ Events on one anchor fire in the order written, the author's before those mechan
 
 A stage wakes agents (`who`, in `order`). An agent's turn is a short session: it reads its
 brief + update, calls tools (legal actions, `look`, `inspect`, `end_turn`) until it ends the
-turn, uses `max_actions`, or runs out of `max_calls`.
+turn, uses `max_actions` (default 1; on a stage mechanisms attach to, left out, the pool of what each allows, one
+more for the stage's own actions), or runs out of `max_calls`.
 * `turns: sequential` — one agent at a time; actions apply immediately and the tool result is
   the actual outcome.
 * `turns: simultaneous` — everyone sees the same state; actions are submitted, then committed one agent

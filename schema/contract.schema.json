@@ -2090,7 +2090,7 @@
             }
           ],
           "default": 1,
-          "description": "Actions an agent may take per turn: a number or an expression over $inputs.",
+          "description": "Actions an agent may take per turn: a number or an expression over $inputs (default 1; left out on a stage mechanisms attach to, the sum of what each allows, and one more for the stage's own actions).",
           "title": "Max Actions"
         },
         "max_calls": {

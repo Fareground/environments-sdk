@@ -23,7 +23,7 @@ resolution when it ends, a default move for an agent that did not act) is an eve
 - `until`: text — Repeat turns within the round until true.
 - `passes`: int | text — Max passes through the agents (default 1, or 10 with until): a number ≥ 1 or an expression over $inputs.
 - `quiet`: text = "wake" — wake | skip — skip agents with nothing new since their last turn.
-- `max_actions`: int | text = 1 — Actions an agent may take per turn: a number or an expression over $inputs.
+- `max_actions`: int | text = 1 — Actions an agent may take per turn: a number or an expression over $inputs (default 1; left out on a stage mechanisms attach to, the sum of what each allows, and one more for the stage's own actions).
 - `max_calls`: int | text = 8 — Tool calls (including looks) per turn: a number or an expression over $inputs.
 - `brief`: text — Instruction shown during this stage (template).
 - `must_act`: bool = false — While an action is available, the agent cannot just end its turn.

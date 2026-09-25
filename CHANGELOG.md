@@ -333,6 +333,8 @@ worlds stay fast, and the package is organised by feature.
   - An error in a mechanism field's expression is told once, at that field: never also at a field whose short text sits
     inside the message (a `who` of `p` inside `inputs`) (mech L1).
   - `$auction()` may leave out the auction's name while the contract has one, and with several names them (mech L2).
+  - The stages guide and `max_actions`' description say what a declared stage that mechanisms attach to allows when it
+    sets none: the pool of what each mechanism allows, one more for its own actions (mech L3).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

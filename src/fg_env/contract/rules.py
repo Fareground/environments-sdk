@@ -172,7 +172,8 @@ class StageSpec(_Model):
     quiet: str = Field("wake", description="wake | skip — skip agents with nothing new since their last turn.")
     max_actions: int | str = Field(1,
                                    description="Actions an agent may take per turn: a number or an expression over "
-                                               "$inputs.")
+                                               "$inputs (default 1; left out on a stage mechanisms attach to, the sum "
+                                               "of what each allows, and one more for the stage's own actions).")
     max_calls: int | str = Field(8,
                                  description="Tool calls (including looks) per turn: a number or an expression over "
                                              "$inputs.")
