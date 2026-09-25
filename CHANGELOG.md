@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - The `dynamics.ode` reference example is a textbook SIR: N is S + I + R (it read `$count(person)`, 5, against a
+    population of 1,000, so S collapsed within five rounds).
   - Default market makers (no `quote_mult` of the author's) size their quotes to the larger of last round's flow and
     what the rest of the coded crowd sends in a round (its traders × `activity` × order size), so a quiet or first
     round does not leave the book too thin: in a 2-maker, 20-trader book, one-sided rounds fell from 12 to 8 of 160.
