@@ -63,8 +63,8 @@ total catch. Report `catch_by_fisher` (fisher id → total catch) and `fish_left
 ```
 
 Every number in the brief is an input defaulting to it. "Secretly" is a simultaneous stage whose choices an event at
-its end shares out, so identical asks get identical catches; regrowth is a `round.end` event. Save it as
-`lake.json` and test a case worked out from the brief:
+its end shares out, so equal asks get equal catches; regrowth is a `round.end` event. Save it as
+`lake.json` and test a case worked out by hand:
 
 ```python
 import fg_env
@@ -84,13 +84,13 @@ assert result.outputs["catch_by_fisher"] == {"fisher_1": 44, "fisher_2": 44, "fi
 
 ## The ten concepts
 
-Every section is optional except `name` and `types`; `guide('<section>')` has each one's fields.
+Every section but `name` and `types` is optional; `guide('<section>')` has each one's fields.
 
 1. **Parameters** — `inputs`: `{name: {type, default, min, max, values, description}}`, read as `$inputs.name`
    and set per run (`fg_env.run(..., inputs={...})`). Types: number int bool text enum list map table file.
 2. **State** — `world` holds global props (`$world.fish`); `types` declare each kind's props (a bare value is the
    default: `"cash": 100`, any number; `"type": "int"` for whole ones — or `{type, default, min, max, values,
-   private}`: an object is always that spec, so a map starts as `{"default": {"wood": 3}}`); `entities` are named
+   private}`, a map `{"default": {…}}`); `entities` are named
    (`"ann": {"type": "buyer"}`) or generated (`count`, or `from` an input table, one per `$row`: ids
    `<key>_1` …); `records` are logs (`{chat: {fields, show, visible}}`) that the `post` effect appends to.
 3. **Actors** — a type with `"agent": true` takes turns. Its `policies` are coded participants

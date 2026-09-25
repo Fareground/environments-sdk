@@ -25,7 +25,8 @@ def post(env, who, value, to=None):
 def values(env, who):
     viewer = env.world.entities[who]
     rows = env.world.visible_records("notes", viewer)
-    expected = [r for r in env.world.records("notes") if env.world.evaluation.entry_visible("notes", r, viewer)]
+    seen = [r for r in env.world.records("notes") if env.world.evaluation.entry_visible("notes", r, viewer)]
+    expected = [r.numbered(n) for n, r in enumerate(seen, 1)]  # a reader numbers what it sees (audit 12 H1)
     assert rows == expected
     return [row["value"] for row in rows]
 

@@ -58,9 +58,11 @@ def test_a_snapshot_resumes_a_run_with_expression_counts_exactly():
     assert resumed.run({"walker": "policy:stepper"}).to_dict() == straight
 
 
-@pytest.mark.parametrize("count", [-1, 2.7])
-def test_a_create_count_that_is_not_a_whole_number_of_at_least_zero_fails_the_run(count):
-    c = {"name": "Spawn", "clock": {"rounds": 1}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
-         "events": [{"do": [{"create": "p", "count": count}]}]}
-    result = fg_env.load(c, seed=1).run("idle")
+def test_a_create_count_that_is_not_a_whole_number_of_at_least_zero_is_refused():
+    def spawn(count):
+        return {"name": "Spawn", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}}, "events": [{"do": [{"create": "p", "count": count}]}]}
+    result = fg_env.load(spawn(-1), seed=1).run("idle")
     assert result.status == "failed" and "count must be a whole number" in result.error
+    # a count that is not whole is refused by its shape before any run (audit 12 H2)
+    assert any(i.path == "events[0].do[0].count" for i in fg_env.check(spawn(2.7), rounds=0))
