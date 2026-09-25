@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import entity_of
+from ._common import declared_entity, entity_of
 from .econ_assets import move_money
 from .econ_base import (
     SUBSCRIPTIONS,
@@ -91,6 +91,7 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
             raise MechanismError(f"plan id '{plan_id}' is not a valid id",
                                  "use letters, digits and _ (not a word expressions use, like in or not)",
                                  f"plans.{plan_id}")
+        declared_entity(contract, spec.provider, f"plans.{plan_id}.provider", "provider")
         entities[plan_id] = {"type": plan, "name": spec.name or plan_id.replace("_", " ").title(), "props": {
             "provider": spec.provider, "price": spec.price, "period": spec.period, "trial": spec.trial,
             "description": spec.description}}

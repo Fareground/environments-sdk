@@ -469,3 +469,24 @@ def test_a_ballots_tools_end_a_question_once_and_leave_a_template_question_to_th
     templated = [t["description"] for t in env.preview("m_1", stage="c").tools]
     assert asked[0].startswith("Approve options on: Which projects? (") and "?." not in " ".join(asked)
     assert not any("{" in text for text in templated)
+
+
+def _spread(seed_id):
+    return {"name": "Spread", "clock": {"rounds": 5}, "types": {"person": {}, "rock": {}},
+            "entities": {"person": {"type": "person", "count": 4}, "boulder": {"type": "rock"}},
+            "inputs": {"e": {"type": "list", "default": [{"from": "person_1", "to": "person_2"},
+                                                         {"from": "person_2", "to": "person_3"}]}},
+            "relations": {"link": {"symmetric": True, "links": [{"rows": "$inputs.e"}]}},
+            "mechanisms": {"d": {"kind": "social", "mode": "diffusion", "who": "person", "over": "link", "p": 1.0,
+                                 "seeds": {"x": [seed_id]}}},
+            "outputs": {"reach": "$adopter_count('x')"}}
+
+
+@pytest.mark.parametrize("seed_id, said", [("person1", "did you mean 'person_1'"),
+                                           ("person", "names a group of entities"), ("boulder", "is a rock")])
+def test_a_seed_that_is_no_entity_of_its_group_is_a_contract_error(seed_id, said):
+    """Every entity id a mechanism's config names is checked against the entities the contract makes, with the one
+    helper the auction house uses (audit 11 mechanisms HIGH-2): a typo seeded nobody, silently."""
+    issues = [i for i in fg_env.check(_spread(seed_id), rounds=0) if i.path == "mechanisms.d.seeds.x[0]"]
+    assert [i.severity for i in issues] == ["error"] and said in str(issues[0]), [str(i) for i in issues]
+    assert fg_env.run(_spread("person_1"), seed=1).outputs["reach"] == 3

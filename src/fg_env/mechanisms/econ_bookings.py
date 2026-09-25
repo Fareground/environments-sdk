@@ -11,7 +11,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import entity_of
+from ._common import declared_entity, entity_of
 from .econ_assets import move_money
 from .econ_base import (
     BOOKINGS,
@@ -109,6 +109,8 @@ def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, A
         if spec.price > 0 and (config.currency is None or spec.provider is None):
             raise MechanismError(f"resource '{rid}' has a price but no currency or provider",
                                  "set the mechanism's `currency` and the resource's `provider`", f"resources.{rid}")
+        if spec.provider is not None:
+            declared_entity(contract, spec.provider, f"resources.{rid}.provider", "provider")
         entities[rid] = {"type": resource, "name": spec.name or rid.replace("_", " ").title(), "props": {
             "provider": spec.provider or "", "capacity": spec.capacity, "price": spec.price, "horizon": spec.horizon,
             "max_party": spec.max_party, "description": spec.description}}

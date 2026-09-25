@@ -18,6 +18,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..expr import Call, ExprError, compile_expr, function
 from ..patterns.base import KINDS, declared
 from ..registry import MechanismError, mode
+from ._common import declared_entity
 from .econ_base import (
     DEMAND,
     EPS,
@@ -192,6 +193,8 @@ def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any])
                              "give both to pay revenue into a ledger, or neither", "account")
     if config.currency is not None:
         require_currency(contract, config.currency)
+    if config.account is not None:
+        declared_entity(contract, config.account, "account", "account")
     if config.stock is not None and not valid_name(config.stock):
         raise MechanismError(f"'{config.stock}' is not a property name", "use letters, digits and _", "stock")
     fragment: dict[str, Any] = {

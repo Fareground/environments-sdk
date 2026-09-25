@@ -298,6 +298,11 @@ worlds stay fast, and the package is organised by feature.
     `check` read no `look` view at all), so a view that broke for one agent's state was certified as working.
   - An auction with a `house` entity counts what the house is paid in its `<name>_revenue` output and metric and in
     `$auction(name).revenue`, which read 0 before while the house's cash grew.
+  - Every entity id a mechanism's config names — diffusion `seeds`, a subscription plan's or a booking resource's
+    `provider`, demand's and replenishment's `account`, besides the auction `house`, a listing's `seller` and
+    supply-chain `nodes` — is checked against the entities the contract makes with one helper: a typo says "did you
+    mean …", a counted group's name says to name one of its members, and a seed of another type is refused. Before,
+    a diffusion seeded with a typo seeded nobody, silently.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

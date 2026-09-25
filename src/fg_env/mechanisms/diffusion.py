@@ -35,6 +35,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, tainted
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
+from ._common import declared_entity, raw_is_a
 from ._social import NAME, check_expr, edges, eid, ids, require_type, seat_order, uses_of
 
 __all__ = ["DiffusionConfig"]
@@ -393,9 +394,14 @@ def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> 
     for value, field in ((config.p, "p"), (config.threshold, "threshold")):
         if not isinstance(value, str) and not 0 <= value <= 1:
             raise MechanismError(f"{field} must be from 0 to 1, got {value}", None, field)
-    for item in config.seeds:
+    for item, seeded in config.seeds.items():
         if not NAME.match(item):
             raise MechanismError(f"'{item}' is not a valid item name", "use letters, digits and _", "seeds")
+        for index, entity_id in enumerate(seeded):
+            kind = declared_entity(contract, entity_id, f"seeds.{item}[{index}]", "seed").get("type")
+            if isinstance(kind, str) and not raw_is_a(contract, kind, config.who):
+                raise MechanismError(f"seed '{entity_id}' is a {kind}, not a {config.who}",
+                                     f"seed one of the {config.who} entities", f"seeds.{item}[{index}]")
     fragment: dict[str, Any] = {
         "world": {name: {"type": "map", "default": {item: _fresh(seeds) for item, seeds in config.seeds.items()},
                          "description": "Spread state per item: adopted, exposed, rejected, frontier, thresholds."}},

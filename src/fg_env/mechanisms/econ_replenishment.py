@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from ..patterns.base import declared
 from ..registry import MechanismError, mode
+from ._common import declared_entity
 from .econ_base import (
     DEMAND,
     REPLENISHMENT,
@@ -156,6 +157,8 @@ def _expand_replenishment(name: str, config: ReplenishmentConfig, contract: Mapp
                              "give both to pay for orders from a ledger, or neither", "account")
     if currency is not None:
         require_currency(contract, currency)
+    if config.account is not None:
+        declared_entity(contract, config.account, "account", "account")
     items = demand.items
     fragment: dict[str, Any] = {
         "types": {items: {"props": _item_props(name)}},

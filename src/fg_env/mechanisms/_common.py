@@ -147,7 +147,23 @@ def declared_entity(contract: Mapping[str, Any], entity_id: Any, field: str, wha
             else f"{entity_id}_1, {entity_id}_2 …"
         raise MechanismError(f"{what} '{entity_id}' names a group of entities, not one", f"name one of them: {ids}",
                              field)
-    raise MechanismError(f"{what} '{entity_id}' is not a declared entity", "declare it under entities", field)
+    if any(isinstance(group, Mapping) and ("from" in group or "id" in group) for group in entities.values()):
+        return {}  # ids from data rows or an id template are known only once built: the run checks it
+    close = get_close_matches(str(entity_id), _ids(entities), n=1)
+    raise MechanismError(f"{what} '{entity_id}' is not a declared entity",
+                         f"did you mean '{close[0]}'?" if close else "declare it under entities", field)
+
+
+def _ids(entities: Mapping[str, Any]) -> list[str]:
+    """Every id the ``entities`` entries make that is known before the build."""
+    ids: list[str] = []
+    for key, entry in entities.items():
+        count = entry.get("count") if isinstance(entry, Mapping) else None
+        if count is None:
+            ids.append(key)
+        elif isinstance(count, int):
+            ids += [f"{key}_{n}" for n in range(1, min(count, 50) + 1)]
+    return ids
 
 
 def check_names(contract: Mapping[str, Any], names: str | Sequence[str], field: str,
