@@ -737,9 +737,3 @@ def all_ops() -> dict[str, tuple[str, ...]]:
 
 def registered_op(name: str) -> OpSpec | None:
     return OPS.get(name)
-
-
-
-from .. import mechanisms as _mechanisms  # noqa: E402,F401  (registers native ops and mechanism kinds)
-
-assert not set(EFFECT_OPS) & set(OPS), "a registered op shadows a core effect"

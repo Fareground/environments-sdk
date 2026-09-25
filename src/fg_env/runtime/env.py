@@ -13,6 +13,7 @@ import threading
 from collections.abc import Callable, Mapping
 from typing import Any, TypeVar
 
+from .. import mechanisms  # noqa: F401  (loading it registers every mechanism's ops, kinds and functions a run calls)
 from ..actions.book import ActionBook
 from ..assets.store import AssetStore
 from ..contract import MAX_ROUNDS, Contract

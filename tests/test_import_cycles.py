@@ -202,3 +202,39 @@ def test_every_module_imports_on_its_own():
     with ThreadPoolExecutor(8) as pool:
         broken = [problem for problem in pool.map(imports, sorted(_modules())) if problem]
     assert not broken, "modules that fail when imported first: " + "; ".join(broken)
+
+
+#: Load-time imports from one package to another that lie on a cycle of packages (world → effects → world …): each
+#: ties the packages' load order together. The list only shrinks: a new one fails, and so does one that is gone.
+PACKAGE_CYCLE_EDGES = frozenset({
+    "actions -> assets", "actions -> effects", "actions -> information", "actions -> world", "api -> checks",
+    "api -> runtime", "assets -> host", "authoring -> guides", "checks -> participants", "checks -> runtime",
+    "copying -> api", "copying -> checks", "copying -> participants", "copying -> runtime", "effects -> information",
+    "effects -> patterns", "effects -> world", "guides -> authoring", "host -> assets", "host -> world",
+    "information -> actions", "information -> assets", "information -> effects", "information -> world",
+    "participants -> runtime", "patterns -> stdlib", "physics -> world", "runtime -> copying",
+    "runtime -> participants", "stdlib -> assets", "stdlib -> world", "world -> assets", "world -> effects",
+    "world -> information", "world -> patterns", "world -> physics", "world -> stdlib",
+})
+
+
+def test_package_cycles_only_shrink():
+    """Package-level cycles (audit 9 arch M1): the mechanisms left the one they formed with the effects when the effect
+    runner stopped importing them to register their ops."""
+    graph, edges = {}, set()
+    for name, targets in _graph(_modules()).items():
+        if name.count(".") < 1:
+            continue
+        part = name.split(".")[1]
+        graph.setdefault(part, set())
+        for target in targets:
+            other = target.split(".")[1] if target.count(".") >= 1 else None
+            if other and other != part:
+                graph[part].add(other)
+                graph.setdefault(other, set())
+                edges.add((part, other))
+    components = [set(component) for component in _cycles(graph)]
+    found = {f"{a} -> {b}" for a, b in edges if any(a in c and b in c for c in components)}
+    new = sorted(found - PACKAGE_CYCLE_EDGES)
+    assert not new, f"new imports that close a cycle of packages: {new}"
+    assert not PACKAGE_CYCLE_EDGES - found, f"gone, so remove them: {sorted(PACKAGE_CYCLE_EDGES - found)}"

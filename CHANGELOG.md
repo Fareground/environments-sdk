@@ -322,6 +322,9 @@ worlds stay fast, and the package is organised by feature.
   - `check` warns when an agent type's own fixed private property is shown to it nowhere (no view, brief, outcome,
     tool or policy, and no inspect): its agent can never learn it, as a haggler never told its own value. The
     authoring guide no longer says a private prop is "seen" by its owner, only that it may be read by it.
+  - The effect runner no longer imports the mechanisms at the bottom of its module to register them: the run
+    (`runtime/env.py`) loads them, which takes the mechanisms out of the cycle of packages they formed with the
+    effects, and a test fails on any new import that closes a cycle of packages.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

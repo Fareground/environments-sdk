@@ -743,3 +743,8 @@ from . import economy  # noqa: E402,F401  (registers the economy mechanisms)
 from . import ops_queue  # noqa: E402,F401  (the economy's service queues)
 from . import dynamics, pattern_modes  # noqa: E402,F401  (the world's continuous change and its patterns)
 # isort: on
+
+from ..effects.runner import EFFECT_OPS  # noqa: E402
+from ..registry import OPS  # noqa: E402
+
+assert not set(EFFECT_OPS) & set(OPS), "a registered op shadows a core effect"
