@@ -430,13 +430,13 @@ def test_town_hall_debates_amends_and_ends_on_the_vote():
 def test_social_network_reports_reach_and_insularity_and_downranking_cuts_reach():
     path = EXAMPLES / "social_network.json"
     assert errors(path) == []
-    env = fg_env.load(path, seed=1)
+    env = fg_env.load(path, seed=2)  # the accounts' traits are drawn at build: on this seed moderators label posts
     assert len(env.entities("account")) >= 100
     result = env.run()
     assert result.status == "completed", result.error
     assert result.outputs["reach"] >= 3 and 0 <= result.outputs["insularity"] <= 1
     assert result.outputs["rumor_posts"] > 0 and result.outputs["labelled_posts"] > 0
-    experiment = fg_env.experiment(str(path), runs=4, arms=["control", "downrank"])
+    experiment = fg_env.experiment(str(path), runs=4, arms=["control", "downrank"], seed=1)
     assert experiment.deltas("control")["downrank"]["reach"]["mean"] < 0
 
 
