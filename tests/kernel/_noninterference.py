@@ -175,10 +175,17 @@ class _Player:
         """The calls to repeat, or None to play at random (the first world, or another's sealed choice)."""
         if self.replay is None:
             return None
-        if self.sealed and agent != self.observer and wake.stage in self.simultaneous:
-            return None
         turns = self.replay.calls.get(agent, [])
-        return turns[index] if index < len(turns) else []
+        planned = turns[index] if index < len(turns) else []
+        if self.sealed and agent != self.observer and (wake.stage in self.simultaneous or self._unseen(planned)):
+            return None
+        return planned
+
+    def _unseen(self, calls: list[tuple[str, dict[str, Any]]]) -> bool:
+        """Whether a turn's calls were all to actions nobody else learns of (silent ones): sealed choices wherever
+        their stage plays them."""
+        actions = self.env.contract.actions
+        return bool(calls) and all(name in actions and actions[name].silent for name, _ in calls)
 
 
 class _Recorded:
@@ -201,7 +208,8 @@ class _Recorded:
 def play(source: Any, seed: int, observer: str, inputs: Any = None, replay: Play | None = None,
          rounds: int | None = None, sealed: bool = False, perturb: bool = True, participants: Any = None) -> Play:
     """Play ``source`` watching ``observer``: at random, or — given the first world's play to ``replay`` — as the second
-    world, with what the observer must not know changed (and, with ``sealed``, other agents' sealed choices too).
+    world, with what the observer must not know changed (and, with ``sealed``, other agents' sealed choices too: a
+    simultaneous stage's, and calls of actions nobody else learns of).
     ``perturb=False`` leaves the second world as ``source`` builds it (a contract whose hidden values already
     differ); ``participants`` plays the agents it names in place of the random player (a policy, by type)."""
     env = fg_env.load(source, seed=seed, inputs=inputs)

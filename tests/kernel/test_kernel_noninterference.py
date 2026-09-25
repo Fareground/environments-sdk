@@ -72,3 +72,28 @@ def test_what_an_agent_must_not_know_in_many_contracts_changes_nothing_it_is_sho
 @pytest.mark.parametrize("path", EXAMPLES, ids=[p.stem for p in EXAMPLES])
 def test_what_an_agent_must_not_know_in_every_example_changes_nothing_it_is_shown(path):
     _noninterference(path, OBSERVERS_SLOW)
+
+
+#: Sealed bids attached to a declared stage written as sequential, with every collector's cash on show: the bids are
+#: held until everyone has chosen, so no bid moves what a later bidder sees (audit 14 mech H2).
+SEALED_ON_A_DECLARED_STAGE = [
+    {"name": "Sealed", "types": {"collector": {"agent": True, "props": {"cash": 500}}},
+     "entities": {"collector": {"type": "collector", "count": 3}},
+     "views": {"standings": {"of": "collector", "show": "{$it.name}: {$it.cash} cash"}},
+     "mechanisms": {"art": {"kind": "market", "mode": "auction", "format": fmt, "who": "collector",
+                            "item": "a painting", "stage": "bids"}},
+     "stages": [{"name": "bids", "turns": "sequential"}], "clock": {"rounds": 3}}
+    for fmt in ("first_price", "second_price", "uniform")]
+
+
+@pytest.mark.parametrize("contract", SEALED_ON_A_DECLARED_STAGE, ids=lambda c: c["mechanisms"]["art"]["format"])
+def test_a_sealed_bid_on_a_declared_stage_changes_nothing_another_bidder_sees(contract):
+    """Another bidder's sealed bid changes nothing a bidder sees before it bids — not the world (a bid's escrowed
+    cash would be a reveal of its amount, which the comparison of shown texts alone would take for the rules'), and
+    not what it is shown."""
+    for observer in ("collector_2", "collector_3"):
+        first = play(contract, 1, observer)
+        second = play(contract, 1, observer, replay=first, sealed=True)  # the others bid afresh
+        before, after = first.turns[0], second.turns[0]  # its first bid, after the others' in turn order
+        assert before.seen == after.seen and before.shown == after.shown, observer
+        assert not leaks(first, second, observer)

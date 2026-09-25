@@ -321,6 +321,8 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
         fragment["stages"] = [stage]
     else:
         hook: dict[str, Any] = {"actions": names}
+        if sealed:  # a sealed bid changes what others may see (the cash it holds): held until everyone has chosen
+            hook["sealed"] = True
         if packaged:
             hook["max_actions"] = cfg.packages
         fragment["stage_hooks"] = {cfg.stage: hook}

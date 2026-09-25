@@ -307,6 +307,12 @@ worlds stay fast, and the package is organised by feature.
     declare a `fallback`, so they run without a host, and `tests/test_doc_samples.py` checks and plays every contract
     and mechanism example on every docs page (a block that cannot run is marked `<!-- not run: why -->`). The JSON
     Schema changes accordingly.
+  - **Sealed bids stay sealed on a declared stage** (mech H2): a mechanism whose choices are sealed (a first-price,
+    second-price, uniform, double or combinatorial auction) makes the declared stage it attaches to play as
+    `turns: simultaneous`, so its bids are held until everyone has chosen; in turn order the escrowed cash (or a
+    double auction's units) showed later bidders each earlier bid. `check` warns where this overrides a stage written
+    as `sequential`. The noninterference tests perturb other agents' calls of unannounced actions in any stage, and
+    hold sealed bids on a declared stage to change nothing a later bidder sees.
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

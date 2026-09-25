@@ -127,7 +127,9 @@ def test_package_bids_are_escrowed_at_the_highest_one_and_limited_per_bidder():
         wake.end()
 
     env.run(bid, rounds=1)
-    assert seen[("north",)].ok and seen[("south",)].ok and seen["escrow"] == 45
+    # sealed on a declared stage too: the bids are held until everyone has chosen, so nothing moves while it plays
+    # (another bidder would see the escrowed cash), and the escrow is taken as they commit (audit 14 mech H2)
+    assert seen[("north",)].ok and seen[("south",)].ok and seen["escrow"] == 0
     assert not seen[("north", "south")].ok and "already hold 2 package bids" in seen[("north", "south")].text
     assert not seen[("west",)].ok
     assert (props(env, "a")["cash"] == 95 and props(env, "a")["house_items"]

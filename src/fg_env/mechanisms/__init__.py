@@ -15,8 +15,10 @@ declares gain the mechanism's properties without losing their own. A mechanism m
 (``action_hooks``) and stages (``stage_hooks``: tools and turn settings; what it runs when a stage starts or ends, or
 after each turn, is an event on the stage's anchor), and generate other mechanisms. A declared stage that offers only
 mechanisms' actions and sets no ``max_actions`` allows, per turn, what each mechanism attached to it allows (a hook's
-``max_actions``, default 1). A mechanism's tools attached to a stage are that stage's own: another stage offers them
-only by listing them. A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
+``max_actions``, default 1). A mechanism whose choices are sealed (a sealed-bid auction's bids) makes a declared stage
+it attaches to play as `turns: simultaneous`: its choices are held until everyone has chosen, since in turn order a
+later agent would see what an earlier one changed (the cash a bid holds). A mechanism's tools attached to a stage are
+that stage's own: another stage offers them only by listing them. A generated tool that no stage offers (a ledger's `pay`, loans) joins the first stage in
 which each type using it already acts.
 """
 from __future__ import annotations
@@ -51,7 +53,7 @@ _KEYED = ("inputs", "world", "relations", "records", "actions", "views", "polici
 #: Stage settings a mechanism may fill in on a stage the author declared (never overriding the author).
 _HOOK_SETTINGS = ("turns", "order", "who", "until", "passes", "quiet", "must_act", "brief")
 #: ``max_actions`` in a hook is the mechanism's share of the stage's turn (see :func:`_share_turns`).
-_HOOK_KEYS = frozenset({"actions", "max_actions", *_HOOK_SETTINGS})
+_HOOK_KEYS = frozenset({"actions", "max_actions", "sealed", *_HOOK_SETTINGS})
 #: Sections merged by appending generated items (an identical item is never added twice).
 _LISTED = ("population", "links", "events", "end", "invariants")
 #: Listed sections whose items may have a `name`: a declared item of that name replaces the generated one.
@@ -296,6 +298,25 @@ def authored_slips(data: Mapping[str, Any]) -> list[Issue]:
             continue
         issues.extend(_dropped_effects(str(name), fragment, data))
         issues.extend(_lookalike_holdings(str(name), fragment, data))
+        issues.extend(_sealed_stages(str(name), fragment, data))
+    return issues
+
+
+def _sealed_stages(name: str, fragment: Mapping[str, Any], data: Mapping[str, Any]) -> list[Issue]:
+    """A declared stage the author made sequential that a mechanism's sealed choices attach to: its choices are held
+    until everyone has chosen (it plays as `turns: simultaneous`), since in turn order a later agent would see what an
+    earlier sealed choice changed (the cash a bid holds)."""
+    issues = []
+    declared = [stage for stage in data.get("stages") or [] if isinstance(stage, Mapping)]
+    for index, stage in enumerate(declared):
+        hook = _mapping(fragment.get("stage_hooks")).get(stage.get("name"))
+        if isinstance(hook, Mapping) and hook.get("sealed") and stage.get("turns") == "sequential":
+            issues.append(Issue(f"stages[{index}].turns",
+                                f"is sequential, but the {name} mechanism's choices on it are sealed, so they are held "
+                                "until everyone has chosen: the stage plays as `turns: simultaneous` (in turn order a "
+                                "later agent would see what an earlier sealed choice changed, such as the cash a bid "
+                                "holds)", "write `\"turns\": \"simultaneous\"`, or give the mechanism a stage of "
+                                          "its own (leave out its `stage`)", "warning"))
     return issues
 
 
@@ -704,6 +725,8 @@ def _hook_stages(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -
         for key in _HOOK_SETTINGS:  # turn settings the author left unset
             if key in hook:
                 stage.setdefault(key, copy.deepcopy(hook[key]))
+        if hook.get("sealed"):  # sealed choices are held until everyone has chosen, whatever the stage said
+            stage["turns"] = "simultaneous"
 
 
 def _hook_actions(data: dict[str, Any], hooks: Mapping[str, Mapping[str, Any]]) -> None:

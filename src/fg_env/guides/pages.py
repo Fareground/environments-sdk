@@ -259,7 +259,10 @@ def mechanisms_page() -> str:
              "stage that sets no `max_actions`",
              "holds one pool of actions per turn: the sum of what each attached mechanism allows in its own stage, "
              "and one more when the stage offers actions of your own. Any tool may spend it (a trader can spend "
-             "the pool on trades); set `max_actions` to say how many a turn holds. A mechanism with no `stage` "
+             "the pool on trades); set `max_actions` to say how many a turn holds. A mechanism whose choices are "
+             "sealed (a sealed-bid auction) makes the declared stage it attaches to play as `turns: simultaneous`: "
+             "its choices are held until everyone has chosen, since in turn order a later agent would see what an "
+             "earlier one changed (the cash a bid holds). A mechanism with no `stage` "
              "gets a stage of its own, which runs after your "
              "stages, in the order the mechanisms are declared. Combine",
              "them freely, several of one mode included: a function reading a mechanism takes its name as the last",
