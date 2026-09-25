@@ -304,6 +304,10 @@ worlds stay fast, and the package is organised by feature.
     name it does is unbound (`"gm"` for `"game_master"`), is refused at load naming both.
   - `fg_env.author`: empty replies that were retried count in its usage and token budget; an OpenAI `refusal` stops
     the session as `refused`; a `retry-after` past the session's time budget says that is why it stopped.
+  - `fg_env.author` keeps the best revision against more ways of gutting one: an output that moved in the kept
+    revision's test runs and comes out the same in every one now counts as removed, and so does a view's text or a
+    brief section cut to almost nothing. Its `check` tool also says what testing the revision showed (as the save's
+    reply does), and a revision that only renames the environment reuses the last test.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

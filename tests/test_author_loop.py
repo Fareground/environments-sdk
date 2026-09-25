@@ -37,7 +37,7 @@ def test_a_rule_rewritten_to_do_nothing_is_named_and_kept_only_once_confirmed():
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
 
     replies = tool_replies(client)
-    assert "But it removed events.0 (its do now does nothing), which revision 1 has" in replies[1]
+    assert "But it removed events.0 (its do now does nothing)" in replies[1]  # and the output it paid, now flat
     assert replies[2] == "Revision 2 saved again unchanged: its removals are confirmed, and it is kept."
     assert result.ok and result.kept == 2
     summary = result.summary()
@@ -52,8 +52,7 @@ def test_a_rule_whose_effects_fired_before_and_never_fire_now_does_nothing_howev
 
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
 
-    assert "But it removed events.0 (its effects changed nothing in any test run), which revision 1 has" in \
-        tool_replies(client)[1]
+    assert "But it removed events.0 (its effects changed nothing in any test run)" in tool_replies(client)[1]
     assert result.contract == LEMONADE and result.kept == 1
 
     itself = lemonade(events=[{**event, "do": [{**event["do"][0], "do": ["$it.earned = $it.earned"]}]}])
@@ -70,8 +69,7 @@ def test_a_rule_gutted_by_an_arithmetic_identity_changes_nothing_and_counts_as_r
 
     result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
 
-    assert "But it removed events.0 (its effects changed nothing in any test run), which revision 1 has" in \
-        tool_replies(client)[1]
+    assert "But it removed events.0 (its effects changed nothing in any test run)" in tool_replies(client)[1]
     assert result.contract == LEMONADE and result.kept == 1
 
 
@@ -129,7 +127,8 @@ def test_a_contract_saved_before_is_not_tested_again(monkeypatch):
     tests = []
     real = workbench.tested
     monkeypatch.setattr(workbench, "tested", lambda *args: tests.append(args) or real(*args))
-    client = FakeOpenAI([write(WORKING)], [write({**WORKING, "name": "Other"})], [write(WORKING)], [])
+    retold = {**WORKING, "brief": {**WORKING["brief"], "situation": "Two players share a pile of stones."}}
+    client = FakeOpenAI([write(WORKING)], [write(retold)], [write(WORKING)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
 
@@ -218,3 +217,41 @@ def test_the_guide_tool_reads_from_the_start_when_asked_to_start_before_it():
         assert bench.tool_guide("actions", start=-50) == fg_env.guide("actions")
     finally:
         bench.box.close()
+
+
+def test_an_output_zeroed_or_a_view_blanked_counts_as_removed():
+    """Gutting a contract without deleting anything is caught too: an output that moved in revision 1's test runs and
+    comes out the same in every one now, and a view cut to almost nothing."""
+    zeroed = lemonade(outputs={**LEMONADE["outputs"], "avg_price": {**LEMONADE["outputs"]["avg_price"],
+                                                                     "expr": "$avg(seller, $it.price) * 0"}})
+    blanked = lemonade(views={"market": {**LEMONADE["views"]["market"], "show": "."}})
+    for gutted, removed in ((zeroed, "outputs.avg_price (came out the same in every test run, where it varied "
+                                     "before)"),
+                            (blanked, "views.market.show (cut from")):
+        client = FakeOpenAI([write(LEMONADE)], [write(gutted)], [])
+        result = fg_env.author("A lemonade stand duel.", "openai:m", client=client)
+        assert removed in tool_replies(client)[1] and result.kept == 1, tool_replies(client)[1]
+
+
+def test_renaming_the_environment_reuses_the_last_test(monkeypatch):
+    from fg_env.authoring import workbench
+
+    tests = []
+    real = workbench.tested
+    monkeypatch.setattr(workbench, "tested", lambda *args: tests.append(args) or real(*args))
+    client = FakeOpenAI([write(WORKING)], [edit(("name", "Pile"), ("description", "A pile of stones."))], [])
+
+    result = fg_env.author("A game.", "openai:m", client=client)
+
+    assert len(tests) == 1 and result.working == [1, 2] and result.contract["name"] == "Pile"
+
+
+def test_the_check_tool_says_what_the_saves_test_showed_too():
+    """The save's reply and the check tool agree: a warning only the test runs showed is in both."""
+    client = FakeOpenAI([write(lemonade(events=[]))], [call("check")], [])
+
+    fg_env.author("A lemonade stand duel.", "openai:m", client=client)
+
+    saved, checked = tool_replies(client)[:2]
+    flat = '[warning] outputs.winner: came out "Ana" in every test run'
+    assert flat in saved and flat in checked

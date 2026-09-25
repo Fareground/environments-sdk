@@ -131,8 +131,32 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
     shrunk = [f"clock.rounds (shortened from {_brief(old)} to {_brief(new)})"] if old != new and not lengthened else []
     constant = [f"outputs.{name} (now a constant)" for name, old in old_parts["outputs"].items()
                 if name in new_parts["outputs"] and _reads(old) and not _reads(new_parts["outputs"][name])]
+    if tests is not None:  # an output that moved in before's test runs and comes out the same in every one of after's
+        said = {path.split(" ")[0] for path in constant}
+        constant += [f"outputs.{name} (came out the same in every test run, where it varied before)"
+                     for name in tests[1].flat if name not in tests[0].flat and name in old_parts["outputs"]
+                     and f"outputs.{name}" not in said]
     return [path for path in gone
-            if not any(path.startswith(other + ".") for other in gone)] + gutted + shrunk + constant
+            if not any(path.startswith(other + ".") for other in gone)] + gutted + shrunk + constant + _cut(before, after)
+
+
+def _cut(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """The texts agents read — a view's `show`, the brief's situation, rules and roles — that ``after`` cut to almost
+    nothing (a view blanked to ".", the rules replaced by "Play.")."""
+    def texts(contract: dict[str, Any]) -> dict[str, str]:
+        views, brief = contract.get("views"), contract.get("brief")
+        found = {f"views.{name}.show": view.get("show") for name, view in (views or {}).items()
+                 if isinstance(view, dict)} if isinstance(views, dict) else {}
+        if isinstance(brief, dict):
+            found.update({f"brief.{key}": brief.get(key) for key in ("situation", "rules")})
+            roles = brief.get("roles")
+            found.update({f"brief.roles.{kind}": text for kind, text in roles.items()} if isinstance(roles, dict)
+                         else {})
+        return {path: text for path, text in found.items() if isinstance(text, str)}
+
+    old, new = texts(before), texts(after)
+    return [f"{path} (cut from {len(old[path])} to {len(new[path])} characters)" for path in old.keys() & new.keys()
+            if len(old[path]) >= _SUBSTANTIAL and len(new[path]) * _CUT_TO < len(old[path])]
 
 
 def _rounds(contract: dict[str, Any]) -> Any:
@@ -153,6 +177,9 @@ _SECTIONS = ("inputs", "world", "types", "entities", "relations", "records", "ac
 _NAMING = ("name", "description", "fg_env")
 #: The most characters of a changed setting a change summary shows.
 _SHOWN = 80
+#: A text agents read this long or longer that a revision cuts to less than a :data:`_CUT_TO`-th of it is gutted.
+_SUBSTANTIAL = 40
+_CUT_TO = 8
 #: The sections whose parts are rules with effects (`do`).
 _RULES = ("actions", "events")
 #: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1, assigning a value to itself.
@@ -219,6 +246,13 @@ def _abridged(source: dict[str, Any]) -> str:
         text += (f"\n[shown with only the first {_SHOWN_ROWS} rows of {', '.join(cuts)}: the saved contract holds "
                  "them all; change it with edit_contract, which keeps them, rather than writing it all again]")
     return text
+
+
+def _content(contract: dict[str, Any]) -> str:
+    """What testing a contract depends on, as a hash: everything but its name and description, so a revision that only
+    renames the environment reuses the last test."""
+    tested_part = {key: value for key, value in contract.items() if key not in ("name", "description")}
+    return hashlib.sha256(json.dumps(tested_part, sort_keys=True).encode()).hexdigest()
 
 
 def _tool(name: str, path: str, args: dict[str, Any]) -> str:
@@ -360,8 +394,8 @@ class Workbench:
         self.writes.append(data)
         self.revisions.append(data)
         self.path.write_text(json.dumps(data, indent=2))
-        content = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
-        if content not in self._tested:  # a revision saved before, back again, is not tested again
+        content = _content(data)
+        if content not in self._tested:  # a revision saved before (or renamed), back again, is not tested again
             self._tested[content] = tested(str(self.path), self.box, self._left())
         found = self._tested[content]
         self.problem, number = found.problem[:MAX_RESULT], len(self.revisions)
@@ -392,7 +426,15 @@ class Workbench:
         return f"Nothing changed: this is revision {number} as saved, not a new revision; {state}"
 
     def tool_check(self) -> str:
-        return self._in_child("check")
+        """The saved contract's check, with what testing it when it was saved showed besides (the same warnings the
+        save's reply gave), so the two never disagree."""
+        text = self._in_child("check")
+        found = self._tested.get(_content(self.latest)) if self.latest is not None else None
+        more = [warning for warning in (found.warnings if found is not None else ()) if warning not in text]
+        if not more:
+            return text
+        head = "" if text.strip() == "No issues." else text + "\n"
+        return head + "Testing this revision when it was saved also showed:\n" + "\n".join(more)
 
     def tool_run(self, seed: int = 1, participants: dict[str, str] | None = None) -> str:
         return self._in_child("run", seconds=RUN_SECONDS, seed=seed, participants=participants)

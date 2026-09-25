@@ -20,7 +20,7 @@ from ..runtime.diagnostics import DEGRADING
 from ..runtime.measure import RunResult
 from ..runtime.session import Wake
 from ..runtime.turn import Turn
-from .findings import Seen
+from .findings import Seen, flat_measures
 from .sandbox import Sandbox, TooBig, TooSlow, step
 
 __all__ = ["TEST_SEEDS", "MOST_SEEDS", "TEST_SECONDS", "Tested", "tested", "contract_problem", "StubHosts"]
@@ -57,6 +57,8 @@ class Tested(NamedTuple):
     #: The contract's own rules whose effects fired in some run, as parts: ``actions.<name>``, ``events.<name or
     #: position>``. A rule missing from it never did anything in any test run.
     fired: tuple[str, ...] = ()
+    #: The outputs that came out the same in every test run.
+    flat: tuple[str, ...] = ()
 
 
 def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.inf) -> Tested:
@@ -99,7 +101,7 @@ def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.
     except RuntimeError as exc:  # the child died: a contract can break the engine in any way
         return Tested(str(exc))
     return Tested(found["problem"], found["untested"], tuple(found["warnings"]), found["seeds"], tuple(found["hosts"]),
-                  tuple(found["prompt"]), tuple(found["fired"]))
+                  tuple(found["prompt"]), tuple(found["fired"]), tuple(found["flat"]))
 
 
 def contract_problem(source: ContractLike) -> str:
@@ -118,7 +120,7 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
     """:func:`tested`'s work, in the child process: its findings as JSON data."""
     hosts, deadline, seen = StubHosts(source), time.monotonic() + seconds, Seen()
     found: dict[str, Any] = {"problem": "", "untested": "", "warnings": [], "seeds": 0, "hosts": [], "prompt": [0, 0],
-                             "fired": []}
+                             "fired": [], "flat": []}
     try:
         step("checking it")
         issues = check(source, hosts=hosts)
@@ -137,6 +139,7 @@ def _test(source: Any, seconds: float, seeds: list[int], most: int) -> dict[str,
             found["warnings"] += [str(i) for i in seen.warnings(contract) if i.path not in warned]
             found["prompt"] = list(seen.prompt)
             found["fired"] = _fired_parts(contract, seen.fired)
+            found["flat"] = [issue.path.removeprefix("outputs.") for issue in flat_measures(contract, seen.runs)]
     except Exception as exc:  # a model's contract can break the engine in any way: that is its problem to fix
         found["problem"] = f"{type(exc).__name__}: {exc}"
     found["hosts"] = list(hosts.asked)
