@@ -108,9 +108,9 @@ def test_the_model_is_told_its_limits_and_the_tools_take_json_values():
 
 
 def test_one_edit_call_is_one_revision_and_a_save_that_changes_nothing_is_none():
-    revised = {**WORKING, "name": "Pile", "clock": {**WORKING["clock"], "rounds": 12},
+    revised = {**WORKING, "name": "Pile", "clock": {**WORKING["clock"], "rounds": 18},
                "outputs": {**WORKING["outputs"], "left": "$world.stones"}}
-    edits = edit(("name", "Pile"), ("clock.rounds", 12), ("outputs.left", "$world.stones"))
+    edits = edit(("name", "Pile"), ("clock.rounds", 18), ("outputs.left", "$world.stones"))
     client = FakeOpenAI([write(WORKING)], [edits], [edit(("name", "Pile"))], [write(revised)], [])
 
     result = fg_env.author("A game.", "openai:m", client=client)
@@ -120,7 +120,7 @@ def test_one_edit_call_is_one_revision_and_a_save_that_changes_nothing_is_none()
     assert replies[2] == replies[3] == ("Nothing changed: this is revision 2 as saved, not a new revision; it is "
                                         "kept")
     assert result.ok and result.kept == 2 and len(result.writes) == 2
-    assert result.contract["name"] == "Pile" and result.contract["clock"]["rounds"] == 12
+    assert result.contract["name"] == "Pile" and result.contract["clock"]["rounds"] == 18
 
 
 def test_a_contract_saved_before_is_not_tested_again(monkeypatch):

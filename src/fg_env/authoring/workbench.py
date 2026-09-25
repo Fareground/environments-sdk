@@ -91,7 +91,20 @@ def describe_changes(before: dict[str, Any], after: dict[str, Any]) -> str:
         words += [f"~{k}" for k in changed if not key.endswith(".params")]  # an action's changed params: it changed
         if words:
             changes.append(f"{key} " + " ".join(words))
+    changes += [f"{key} {_brief(before.get(key))} → {_brief(after.get(key))}" for key in _settings(before, after)]
     return "; ".join(changes)
+
+
+def _settings(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """The top-level fields outside the sections of parts (`clock`, `brief`, `space` …) that ``after`` changed."""
+    return sorted(key for key in before.keys() | after.keys()
+                  if key not in _SECTIONS and key not in _NAMING and before.get(key) != after.get(key))
+
+
+def _brief(value: Any) -> str:
+    """``value`` as a change summary shows it: its JSON, shortened."""
+    text = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str) if value is not None else "none"
+    return text if len(text) <= _SHOWN else text[:_SHOWN - 1] + "…"
 
 
 def removed_parts(before: dict[str, Any], after: dict[str, Any],
@@ -112,13 +125,33 @@ def removed_parts(before: dict[str, Any], after: dict[str, Any],
         gutted += [f"{key}.{name} (its effects changed nothing in any test run)" for key in _RULES
                    for name in old_parts[key] if name in new_parts[key] and f"{key}.{name}" not in said
                    and f"{key}.{name}" in was and f"{key}.{name}" not in now]
+    old, new = _rounds(before), _rounds(after)
+    lengthened = isinstance(old, (int, float)) and isinstance(new, (int, float)) and new > old
+    shrunk = [f"clock.rounds (shortened from {_brief(old)} to {_brief(new)})"] if old != new and not lengthened else []
+    constant = [f"outputs.{name} (now a constant)" for name, old in old_parts["outputs"].items()
+                if name in new_parts["outputs"] and _reads(old) and not _reads(new_parts["outputs"][name])]
     return [path for path in gone
-            if not any(path.startswith(other + ".") for other in gone)] + gutted  # an action, not its params
+            if not any(path.startswith(other + ".") for other in gone)] + gutted + shrunk + constant
+
+
+def _rounds(contract: dict[str, Any]) -> Any:
+    clock = contract.get("clock")
+    return clock.get("rounds") if isinstance(clock, dict) else None
+
+
+def _reads(output: Any) -> bool:
+    """Whether an output reads anything (else it is a constant)."""
+    expr = output.get("expr") if isinstance(output, dict) else output
+    return isinstance(expr, str) and "$" in expr
 
 
 #: The contract sections made of parts: together, what an environment is.
 _SECTIONS = ("inputs", "world", "types", "entities", "relations", "records", "actions", "stages", "views", "events",
              "outputs", "end", "arms", "invariants", "defs", "mechanisms")
+#: The top-level fields that name or describe the environment, which a change summary leaves out.
+_NAMING = ("name", "description", "fg_env")
+#: The most characters of a changed setting a change summary shows.
+_SHOWN = 80
 #: The sections whose parts are rules with effects (`do`).
 _RULES = ("actions", "events")
 #: An effect that changes nothing: adding or taking away 0, multiplying or dividing by 1, assigning a value to itself.

@@ -305,6 +305,10 @@ worlds stay fast, and the package is organised by feature.
     `agents_never_acted` and `agents_often_failed`, with `time_limit` in the fix.
   - A tool whose list of entities needs more choices than there are right now is not offered, like a tool with no
     entity to choose, and no tool schema carries an empty `enum` (a provider may refuse it and fail the run).
+  - `fg_env.author` names changes to top-level settings (`clock`, `brief`, `space` …) in its change summary, and
+    treats a revision that shortens the run (`clock.rounds`) or rewrites an output to a constant like one that removes
+    a part: it keeps the earlier revision until the model saves again to confirm. Before, a working edit cutting the
+    run from 5 seasons to 1 was kept with no change mentioned.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves
