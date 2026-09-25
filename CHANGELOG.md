@@ -291,6 +291,8 @@ worlds stay fast, and the package is organised by feature.
   - A ballot's tools end its question once ("Approve options on: Which projects?", not "…?."), and leave out a
     question written as a template (its braces showed raw; the rendered question is in the stage's brief and the
     result). A tool refused as not allowed now reads "You cannot call b_vote now: …", not "You cannot b vote now".
+  - `check` warns about an entity choice among entities the rules create without a name (offered by id alone) that no
+    view its actors read lists and they may not inspect: nothing tells them apart.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

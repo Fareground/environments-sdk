@@ -1,6 +1,7 @@
 """Checking actions and their parameters, stages, and views."""
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections.abc import Mapping
@@ -11,7 +12,7 @@ from ..actions.params import choice_list
 from ..contract import Contract
 from ..expr import ExprError, compile_expr, is_expr
 from ..information.perception import SPECTATOR
-from ..information.reads import READS
+from ..information.reads import READS, inspect_rule
 from ..runtime.session import END_TURN
 from .effects import EffectChecks
 from .params import check_param_bounds
@@ -64,6 +65,7 @@ class ActionChecks(EffectChecks):
                                   {"actor": by_types, "it": {param.of}}, spec.params)
                         with self._reading(by_types):
                             self._private_filter(param.where, param.of, f"{ppath}.where")
+                        self._unseen_choice(param.of, by_types, ppath)
                 elif param.type == "list":
                     self._list_param(param, ppath, by_types, types, spec.params)
                 elif param.type == "enum":
@@ -231,6 +233,24 @@ class ActionChecks(EffectChecks):
             self._private_stage_when(stage, f"{path}.when")
         self._open_stages()
 
+    def _unseen_choice(self, of: str, by: set[str], path: str) -> None:
+        """An entity parameter choosing among ``of`` entities the rules create without a name (so the tool offers
+        each by its id alone) that no view its actors read lists or names, and that they may not inspect: nothing
+        tells which is which. Agents are left out: every agent reads who the others are."""
+        if self.c.is_agent(of) or inspect_rule(self.c, of) is not False or not _unnamed_creates(self.c, of):
+            return
+        word = re.compile(rf"\b{re.escape(of)}\b")
+        for view in self.c.views.values():
+            readers = [view.for_] if isinstance(view.for_, str) else view.for_
+            if view.for_ != "all" and not any(self.c.is_a(kind, reader) for kind in by for reader in readers):
+                continue
+            if view.of == of or word.search(json.dumps(view.model_dump(by_alias=True), default=str)):
+                return
+        self.warn(path, f"offers {of} entities to choose from, but no view its actors read lists them (and they may "
+                        f"not inspect them), so the choice is between ids with nothing to tell them apart",
+                  f"add a view listing them, e.g. {{\"of\": \"{of}\", \"show\": \"{{id}}: {{name}}\"}}, or "
+                  f"let agents inspect them (types.{of}.inspect)")
+
     def _open_stages(self) -> None:
         """A stage without `actions` offers every action — including ones another stage lists as its own, which
         agents can then take in the wrong phase. (An explicit `"actions": "all"` says every action is meant.)"""
@@ -329,3 +349,18 @@ def _provider_name(name: str) -> str:
     """``name`` made into a tool name providers accept: accents dropped, other characters as _, at most 64."""
     plain = unicodedata.normalize("NFKD", name).encode("ascii", "ignore").decode()
     return re.sub(r"[^a-zA-Z0-9_-]+", "_", plain).strip("_")[:64] or "action"
+
+
+def _unnamed_creates(contract: Contract, kind: str) -> bool:
+    """Whether some rule creates a ``kind`` entity (of a subtype included) without giving it a name."""
+    kinds = set(contract.subtypes(kind))
+
+    def found(data: Any) -> bool:
+        if isinstance(data, dict):
+            if data.get("create") in kinds and not data.get("name"):
+                return True
+            return any(found(value) for value in data.values())
+        return isinstance(data, list) and any(found(value) for value in data)
+
+    return found(contract.model_dump(by_alias=True, include={"actions", "events", "defs", "stages"}))
+

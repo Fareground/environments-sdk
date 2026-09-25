@@ -474,3 +474,20 @@ def test_a_bare_word_naming_a_property_is_warned_about_even_when_an_output_share
              "outputs": {"done": "$count(task, $it.done)"}}
     assert any(i.path == "views.tasks.show" and "bare word 'done'" in i.message and "$it.done" in i.fix
                for i in fg_env.check(tasks, rounds=0))
+
+
+def _notes(views):
+    return {"name": "Notes", "clock": {"rounds": 2}, "types": {"p": {"agent": True}, "note": {"props": {"text": ""}}},
+            "entities": {"p": {"type": "p", "count": 2}},
+            "actions": {"write": {"by": "p", "do": {"create": "note", "props": {"text": "hi"}}},
+                        "keep": {"by": "p", "params": {"note": {"type": "entity", "of": "note"}}, "do": []}},
+            "views": views}
+
+
+def test_a_choice_among_unnamed_created_entities_no_view_shows_is_warned_about():
+    """Entities the rules create without a name are offered by id alone: with no view listing them, an agent has
+    nothing to tell them apart by."""
+    unseen = [i for i in fg_env.check(_notes({}), rounds=0) if i.path == "actions.keep.params.note"]
+    assert unseen and "nothing to tell them apart" in unseen[0].message
+    listed = _notes({"notes": {"for": "p", "of": "note", "show": "{id}: {text}"}})
+    assert not [i for i in fg_env.check(listed, rounds=0) if i.path == "actions.keep.params.note"]
