@@ -452,3 +452,12 @@ def test_a_type_default_that_does_not_fit_its_type_is_a_static_error_at_the_type
          "entities": {"advertiser": {"type": "a", "count": 2}},
          "actions": {"go": {"by": "a", "description": "g", "do": []}}, "outputs": {"n": "$count(a)"}}
     assert [i.path for i in _errors(c, rounds=0)] == ["types.a.props.clicks.default"]
+
+
+def test_len_of_a_type_name_is_refused_with_count_as_the_fix():
+    """`$len(trader)` would count the letters of the text 'trader', where `$count(trader)` counts the traders."""
+    market = {"name": "Market", "clock": {"rounds": 1}, "types": {"trader": {}},
+              "entities": {"trader": {"type": "trader", "count": 5}},
+              "outputs": {"n": "$len(trader)", "ids": "$len($map(trader, $it.id))"}}
+    errors = [i for i in fg_env.check(market) if i.severity == "error"]
+    assert [i.path for i in errors] == ["outputs.n"] and "$count(trader)" in errors[0].fix

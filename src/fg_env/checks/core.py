@@ -235,6 +235,10 @@ class Checker:
                     continue
                 self.error(path, f"${name}({symbol}, …): '{symbol}' is not a declared type",
                            self._suggest(symbol, self.c.types) or f"types: {', '.join(self.c.types)}")
+            if name == "len" and symbol is not None and symbol in self.c.types:
+                self.error(path, f"$len({symbol}): '{symbol}' here is the text '{symbol}', whose letters $len counts "
+                                 "(a type name means its entities only where a list of items goes)",
+                           f"$count({symbol}) counts the {symbol} entities")
             if name in ("empty", "random_empty") and symbol is not None and symbol not in self.c.types:
                 self.error(path, f"${name}({symbol}): '{symbol}' is not a declared type",
                            self._suggest(symbol, self.c.types) or f"types: {', '.join(self.c.types)}")

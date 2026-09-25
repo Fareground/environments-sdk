@@ -256,6 +256,8 @@ worlds stay fast, and the package is organised by feature.
   - Bare text in a stage's `who` or an action's `terminal` is a check error ("is the text …, which is always true"),
     as in every other field that holds a condition; before, `"who": "fisher_1"` woke every agent. A test holds every
     condition field to this, and the checker to checking each as a condition.
+  - `$len(<type>)` is a check error with `$count(<type>)` as the fix: a bare word there is text, so it counted the
+    letters of the type's name.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
