@@ -13,6 +13,7 @@ from test_runtime import SHOP
 import fg_env
 from fg_env import host, participants
 from fg_env.__main__ import main
+from fg_env.host.hosts import credit_tokens
 from fg_env.host.stubs import StubEvaluator
 
 
@@ -224,3 +225,38 @@ def test_a_host_models_cache_tokens_count_toward_the_run_budget():
     result = env.run(pitcher, budget={"tokens": 100})
     assert result.ended_by == "budget" and result.budget["used"]["tokens"] == 620
     assert result.stats["cache_read_tokens"] == 1_000 and result.stats["cache_write_tokens"] == 500
+
+
+def _crowded_debate():
+    with open("examples/contracts/host/debate_judged.json") as handle:
+        debate = json.load(handle)
+    debate["entities"] = {f"d{i}": {"type": "debater", "name": f"D{i}", "props": {"side": "pro" if i % 2 else "con"}}
+                          for i in range(10)}
+    debate["clock"]["rounds"] = 1
+    debate["outputs"] = {"speeches": debate["outputs"]["speeches"]}
+    return debate
+
+
+def _speaker(wake):
+    wake.call("speak", {"text": "Free transport pays for itself."})
+
+
+class _CountingJudge(StubEvaluator):
+    def __init__(self):
+        super().__init__()
+        self.asked = 0
+
+    def judge(self, request):
+        self.asked += 1
+        credit_tokens(input_tokens=4_950, output_tokens=50)
+        return super().judge(request)
+
+
+@pytest.mark.parametrize("budget, exhausted", [({"host_calls": 2}, "host_calls"), ({"tokens": 6_000}, "tokens")])
+def test_host_calls_within_one_stage_stop_at_the_budget_and_the_run_says_it_ran_out(budget, exhausted):
+    """Ten speeches are judged as one stage ends, with no safe point between: each judge call counts as it returns and
+    none is made past the limit, and the run's end reports the limit that ran out."""
+    judge = _CountingJudge()
+    result = host.load(_crowded_debate(), hosts={"judge": judge}, seed=1).run(_speaker, budget=budget)
+    assert judge.asked == 2  # the second call reaches the limit (a limit is overshot by about one call)
+    assert result.budget["exhausted"] == exhausted and not result.ok

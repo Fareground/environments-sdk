@@ -4,8 +4,8 @@ Contracts name hosts (``"host": "judge"``); a :class:`Hosts` maps those names to
 objects. A run is bound to its hosts for its lifetime without touching the core objects: the
 binding is held here, keyed weakly by the run's world.
 
-The model tokens a host call spends join the stats — and so the token budget — of the run that made the call, at the
-run's safe points and when its result is read. The reference adapters report each call's tokens as they make it
+The model tokens a host call spends join the stats — and so the token budget — of the run that made the call as the
+call returns, and a live call is made only while the run's budget has room (see :func:`fg_env.host.tape.consult`). The reference adapters report each call's tokens as they make it
 (:func:`credit_tokens`), so runs in parallel that share one adapter each count exactly their own; an adapter of your
 own is counted by how much its ``usage`` counters (``input_tokens``, ``output_tokens``, ``cache_read_tokens``,
 ``cache_write_tokens``) grew during the call, which is exact unless parallel runs share it.
@@ -22,8 +22,8 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..runtime.env import Env
 
-__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "count_host_tokens", "counting", "credit_tokens",
-           "time_left"]
+__all__ = ["Hosts", "HostsLike", "as_hosts", "bind", "hosts_for", "run_of", "count_host_tokens", "counting",
+           "credit_tokens", "time_left"]
 
 #: The counters of a host's ``usage`` a run counts: its model tokens, and its calls whose provider reported none.
 _TOKENS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "unreported_usage")
@@ -77,6 +77,9 @@ class Hosts:
 HostsLike = Hosts | Mapping[str, Any] | None
 
 _BOUND: weakref.WeakKeyDictionary[Any, Hosts] = weakref.WeakKeyDictionary()
+#: The run each bound world belongs to (weakly: a world never keeps its run alive), whose budget a host call counts
+#: toward.
+_RUNS: weakref.WeakKeyDictionary[Any, weakref.ref[Env]] = weakref.WeakKeyDictionary()
 
 
 def as_hosts(value: HostsLike) -> Hosts | None:
@@ -96,13 +99,21 @@ def bind(env: Env, hosts: HostsLike) -> Env:
     resolved = as_hosts(hosts)
     if resolved is None:
         _BOUND.pop(env.world, None)
+        _RUNS.pop(env.world, None)
         return env
     _BOUND[env.world] = resolved
+    _RUNS[env.world] = weakref.ref(env)
     return env
 
 
 def hosts_for(world: Any) -> Hosts | None:
     return _BOUND.get(world)
+
+
+def run_of(world: Any) -> Env | None:
+    """The run a bound ``world`` belongs to, or None."""
+    ref = _RUNS.get(world)
+    return ref() if ref is not None else None
 
 
 def count_host_tokens(env: Env) -> None:

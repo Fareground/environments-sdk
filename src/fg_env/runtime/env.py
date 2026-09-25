@@ -267,6 +267,8 @@ class Env:
             self.schedule.on_event = on_event
             try:
                 self.schedule.play(rounds, stop)
+                if self.budget is not None:  # what was spent since the last safe point, host calls included
+                    self.budget.check(self)
             except (RunError, ExprError) as exc:
                 self.schedule.fail(str(exc))
                 if raise_errors:

@@ -245,6 +245,11 @@ worlds stay fast, and the package is organised by feature.
   - A mechanism attached to a stage (`stage:`) owns its tools there: a stage that offers every action no longer
     offers them too, so a ballot for the `vote` stage cannot be cast (and counted) while agents talk, nor an order
     book's orders placed as sealed choices in another stage. A stage that lists a tool by name still offers it.
+  - A run's budget binds host (judge, game master, tool) calls: their tokens count as each call returns, a live host
+    call is not made once the token or host-call limit is reached (a judge leaves the text unscored, a game master
+    refuses the attempt), and the run's end checks the budget once more. Before, host tokens were counted only at
+    the next safe point, so ten judge calls at one stage's end all went through a budget of one and the run reported
+    `exhausted: None`.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

@@ -5,7 +5,9 @@
 participants and hosts report (the built-in LLM participants, or ``wake.record_usage``) — input, output and cache
 writes in full, cache reads at :data:`CACHED_WEIGHT` of one, as providers bill them — ``calls``
 the agents' tool calls, ``host_calls`` the host answers on the run's tape (live or replayed; a declared
-fallback costs nothing), ``seconds`` the wall-clock time spent inside ``run``.
+fallback costs nothing), ``seconds`` the wall-clock time spent inside ``run``. A host call's tokens count as it returns,
+and a live host call is not made once the token or host-call limit is reached (a judge leaves that text unscored, a
+game master refuses that attempt); the run's end checks the budget once more, so a run that overspent says so.
 
 A budget is checked at the run's safe points — before every round, stage, pass and sequential turn — so, for coded
 participants, the run stops at the same point on every replay (``seconds`` is wall-clock time, so it is the one limit
@@ -176,6 +178,16 @@ class Budget:
             with env.gate:
                 self._reserved -= held
                 env.gate.notify()
+
+    def host_refusal(self, env: Env) -> str | None:
+        """Why a live host call may not be made now — the token limit (counting what host calls spent so far) or the
+        host-call limit is reached — or None."""
+        count_host_tokens(env)
+        used = self.used(env)
+        key = next((key for key in ("tokens", "host_calls") if key in self.limits and used[key] >= self.limits[key]),
+                   None)
+        return None if key is None else f"the run's {_WHAT[key]} budget ran out " \
+                                        f"({spent(key, used[key], self.limits[key])})"
 
     def check(self, env: Env) -> str | None:
         """The limit that has run out (recorded the first time one does), or None. Called at safe points: the

@@ -21,7 +21,7 @@ from typing import Any
 from ..contract.base import TAPE
 from ..errors import FatalRunError, RunError
 from ..expr import Untrusted
-from .hosts import counting, hosts_for
+from .hosts import count_host_tokens, counting, hosts_for, run_of
 from .protocols import HostError, HostUnavailable
 
 __all__ = ["MAX_RESPONSE_CHARS", "HostUnusable", "plain", "request_key", "consult", "discard", "tape_of"]
@@ -75,8 +75,9 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
     or raises :class:`HostError`. Without a recorded answer, a live adapter or a ``fallback``
     the run stops with a contract error naming the host it needs. A host that gives no usable
     answer, also when asked again, raises :class:`HostUnusable` (recorded, so a replay raises it
-    too). Callers outside the run's lock pass it as ``lock``: the host is asked without it, and
-    the tape is written under it.
+    too). A live host is asked only while the run's budget has room (tokens, counting what earlier host calls spent, and
+    host calls): past it the call raises :class:`HostUnusable`, unrecorded. Callers outside the run's lock pass it as
+    ``lock``: the host is asked without it, and the tape is written under it.
     """
     key = request_key(world, service, site, actor, identity, moment)
     hosts = hosts_for(world)
@@ -105,8 +106,15 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
     else:
         if not callable(getattr(adapter, method, None)):
             raise FatalRunError(f"the host '{service}' ({type(adapter).__name__}) has no {method}() method", site)
+        run = run_of(world)
+        budget = getattr(run, "budget", None)
+        refused = budget.host_refusal(run) if budget is not None else None
+        if refused is not None:  # not recorded: the same call in a run with room left is asked
+            raise HostUnusable(f"host '{service}' was not asked: {refused}", site)
         with counting(world, adapter):
             answer, unusable, why = _live(adapter, service, site, ask, validate)
+        if run is not None:
+            count_host_tokens(run)  # what the call spent counts toward the budget as it returns
     entry: dict[str, Any] = {"service": service, "site": site, "round": world.round, "actor": actor,
                              "response": answer}
     if adapter is None:
