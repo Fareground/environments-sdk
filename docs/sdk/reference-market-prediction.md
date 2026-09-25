@@ -12,7 +12,7 @@ Config:
 - `fee_pct` (default 0): Fee on each trade's value, to $world.<name>_fees.
 - `question` (default ""): What the market is about, shown with prices.
 - `resolve_at` (default null): Round at whose end the market resolves (number or expression).
-- `resolve_when` (default null): Resolve at the end of the first round this holds.
+- `resolve_when` (default null): Resolve at the end of the first round this holds (with `resolve_at`, whichever comes first).
 - `outcome` (default null): Expression giving the winning outcome when the market resolves.
 - `stage` (default null): Trade during this declared stage; default: a sequential stage named after the market.
 - `max_actions` (default 2): Trades per turn in the generated stage.

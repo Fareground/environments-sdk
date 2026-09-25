@@ -247,6 +247,8 @@ worlds stay fast, and the package is organised by feature.
   - An entity named from participant text keeps the text as typed in its `name`, so comparisons, lengths and
     outputs read it; it renders in «» wherever it is shown (participant text now quotes itself whenever it is
     formatted into text), and snapshots keep its provenance. Before, the name stored the display quotes.
+  - A prediction market with both `resolve_at` and `resolve_when` resolves at whichever comes first. Before,
+    `resolve_when` was dropped silently; it is now an expression field, so a syntax error is reported at it.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

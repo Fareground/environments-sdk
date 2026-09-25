@@ -427,6 +427,25 @@ def test_prediction_market_trades_with_limits_resolves_and_pays(maker):
     assert not amm.audit(env.world, "pm")
 
 
+def test_a_prediction_market_resolves_at_resolve_at_or_when_resolve_when_holds_whichever_comes_first():
+    """Both set used to drop `resolve_when` silently (audit 9 mech H1)."""
+    def resolved_in(**config):
+        contract = market("lmsr", stage=False, **config)
+        contract["clock"]["rounds"] = 8
+        env = fg_env.load(contract, seed=1)
+        for round_ in range(1, 9):
+            env.run(rounds=1)
+            if env.props["pm_resolved"]:
+                return round_
+        return None
+
+    assert resolved_in(resolve_at=6, resolve_when="$round == 2") == 2
+    assert resolved_in(resolve_at=3, resolve_when="$round == 7") == 3
+    assert resolved_in(resolve_at=None, resolve_when="$round == 4") == 4
+    broken = market("lmsr", resolve_when="$round ==")
+    assert any(i.path == "mechanisms.pm.resolve_when" for i in fg_env.check(broken) if i.severity == "error")
+
+
 @pytest.mark.parametrize("maker", ["lmsr", "cpmm"])
 def test_prediction_market_conserves_cash_under_random_traders(maker):
     contract = market(maker, stage=False, resolve_at=8)

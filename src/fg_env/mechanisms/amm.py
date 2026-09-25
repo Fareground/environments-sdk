@@ -156,7 +156,8 @@ class PredictionMarketConfig(BaseModel):
     question: str = Field("", description="What the market is about, shown with prices.")
     resolve_at: int | str | None = Field(None,
                                          description="Round at whose end the market resolves (number or expression).")
-    resolve_when: str | None = Field(None, description="Resolve at the end of the first round this holds.")
+    resolve_when: Expr | None = Field(None, description="Resolve at the end of the first round this holds (with "
+                                                        "`resolve_at`, whichever comes first).")
     outcome: Expr | None = Field(None, description="Expression giving the winning outcome when the market resolves.")
     stage: str | None = Field(None,
                               description="Trade during this declared stage; default: a sequential stage named after "
@@ -531,10 +532,9 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
     if cfg.resolve_at is not None or cfg.resolve_when is not None:
         event: dict[str, Any] = {"name": f"{name}_resolve", "phase": "end", "once": True,
                                  "do": [{"market": name, "action": "resolve", "outcome": cfg.outcome}]}
-        if cfg.resolve_at is not None:
-            event["at"] = cfg.resolve_at
-        else:
-            event["when"] = f"({cfg.resolve_when}) and $world.{name}_resolved == ''"
+        due = [f"$round >= ({cfg.resolve_at})" if cfg.resolve_at is not None else None,
+               f"({cfg.resolve_when})" if cfg.resolve_when is not None else None]
+        event["when"] = f"({' or '.join(term for term in due if term)}) and $world.{name}_resolved == ''"
         fragment["events"].append(event)
     names = list(actions)
     if cfg.stage is None:
