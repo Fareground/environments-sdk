@@ -309,7 +309,7 @@ def _sealed_stages(name: str, fragment: Mapping[str, Any], data: Mapping[str, An
     issues = []
     declared = [stage for stage in data.get("stages") or [] if isinstance(stage, Mapping)]
     for index, stage in enumerate(declared):
-        hook = _mapping(fragment.get("stage_hooks")).get(stage.get("name"))
+        hook = _mapping(fragment.get("stage_hooks")).get(str(stage.get("name")))
         if isinstance(hook, Mapping) and hook.get("sealed") and stage.get("turns") == "sequential":
             issues.append(Issue(f"stages[{index}].turns",
                                 f"is sequential, but the {name} mechanism's choices on it are sealed, so they are held "

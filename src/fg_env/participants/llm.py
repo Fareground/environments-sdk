@@ -256,7 +256,8 @@ class _LLMParticipant:
             try:
                 self._turn(wake)
             except _Forfeit as lost:
-                self._record(wake, error=lost.cause, forfeits=1, too_long=int(lost.too_long))
+                wake.record_provider_error(lost.cause)  # what the provider answered, for the run's diagnostics
+                self._record(wake, forfeits=1, too_long=int(lost.too_long))
                 return  # returning ends a forfeited turn: an end_turn of its own would count as a call it never made
             except _Over:
                 pass
@@ -357,10 +358,10 @@ class _LLMParticipant:
     def _failure(self, wake: Wake, exc: BaseException) -> RunError:
         return RunError(provider_failure(exc, self.CALL, self.CLIENT, self.model), f"participant:{wake.entity_id}")
 
-    def _record(self, wake: Wake, error: str = "", **counts: int) -> None:
+    def _record(self, wake: Wake, **counts: int) -> None:
         if counts.get("llm_calls"):
             self._last_cost = tokens_of(Stats(**{name: counts.get(name, 0) for name in _TOKEN_COUNTS}))
-        wake.record_usage(**counts, error=error)
+        wake.record_usage(**counts)
         mapping = {"llm_calls": "calls", "llm_retries": "retries"}
         with self._usage_lock:
             for name, value in counts.items():

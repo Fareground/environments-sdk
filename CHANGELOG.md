@@ -311,7 +311,7 @@ worlds stay fast, and the package is organised by feature.
   - LLM interface polish (agentif LOWs): a variation selector that marks nothing is escaped like any invisible
     character (the emoji one after a symbol stays); a turn's recap leaves out the advice to call again, which was
     for that turn; a turn that ran out of time is recapped as such; `turns_forfeited` names what the provider last
-    answered (`Wake.record_usage` takes it as `error`).
+    answered (`Wake.record_provider_error`).
   - A provider's 413 (`request_too_large`) forfeits the turn as too long; a web search quotes the agent's query as a
     participant's text, never instructions; a tool call a proxy sent without an id is given one its result answers;
     a judge's answer is read whole when it is one JSON value, else by the last one in it (never a quoted
