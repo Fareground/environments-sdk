@@ -26,8 +26,8 @@ def _renderings(value: Any) -> set[str]:
     if isinstance(value, (int, float)):  # as the engine shows numbers: plain (2 decimals at most) and as money
         shown = {format_value(value), f"{value:,.2f}", f"{value:,.2f}".rstrip("0").rstrip(".")}
         return {text for text in shown if sum(ch.isdigit() for ch in text) >= DISTINCT}
-    if isinstance(value, str):
-        return {value} if len(value) >= DISTINCT else set()
+    if isinstance(value, str):  # a mask with nothing in it yet ("_ _ _ _") tells nothing but its length
+        return {value} if len(value) >= DISTINCT and any(ch.isalnum() for ch in value) else set()
     if isinstance(value, (list, tuple)):
         return set().union(*(_renderings(item) for item in value)) if value else set()
     if isinstance(value, dict):
