@@ -299,6 +299,9 @@ worlds stay fast, and the package is organised by feature.
     request, oldest first, to the nearest free driver not offered another. Mean waits now fall with the fleet
     (about 10.5 / 7.4 / 6.3 minutes at 30 / 80 / 150 drivers); before, the first driver in turn order took any request
     within the pickup radius and waits stayed at 10.9 minutes whatever the fleet. The example's golden changes with it.
+  - The hidden-roles engine (and the `werewolf` example) deals as many werewolves as the table allows: the fixed
+    maximum of 3 is gone, and the build still refuses a deal with no seer, doctor and villager left. Before, a
+    15-player table could not have 4 werewolves.
 
 - **The run's kernel.** Guessing a hidden value through an atomic turn is closed: a refusal that read a hidden value
   or drew luck stays spent when its `valid` turn is undone (an agent found a 0–9 vault code in one two-action turn;

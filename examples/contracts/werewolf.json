@@ -24,7 +24,7 @@
         {"id": "p9", "name": "Iris"}
       ]
     },
-    "werewolves": {"type": "int", "default": 2, "min": 1, "max": 3, "description": "Werewolves dealt among the players; one seer and one doctor are dealt too, and everyone else is a villager (at least one)."}
+    "werewolves": {"type": "int", "default": 2, "min": 1, "description": "Werewolves dealt among the players, as many as the table allows; one seer and one doctor are dealt too, and everyone else is a villager (at least one)."}
   },
   "clock": {"rounds": 8, "unit": "round"},
   "world": {

@@ -512,3 +512,15 @@ def test_the_auction_engines_open_formats_sell_all_three_lots_like_the_sealed_on
     for seed in range(3):
         result = fg_env.run(path, seed=seed, arm=arm, inputs={"collectors": collectors})
         assert result.ok and result.outputs["house_sold"] == 3 and result.ended_by == "sold_out", result.summary()
+
+
+def test_the_hidden_roles_engine_deals_as_many_werewolves_as_the_table_allows():
+    """The werewolf count is bounded by the table, not a fixed number: the build refuses only a deal that leaves no
+    seer, doctor and villager."""
+    path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get("hidden_roles").path)))
+    table = [{"id": f"p{i}", "name": f"P{i}"} for i in range(15)]
+    env = fg_env.load(path, seed=1, inputs={"players": table, "werewolves": 4})
+    assert env.run("random").status in ("completed", "ended")
+    assert sum(p.properties["role"] == "werewolf" for p in env.world.entities_of("player")) == 4
+    with pytest.raises(fg_env.RunError, match="give inputs.players more rows"):
+        fg_env.run(path, seed=1, inputs={"werewolves": 7})
