@@ -183,3 +183,20 @@ def test_a_feed_with_a_fallback_is_tested_with_its_fallback_not_the_stub():
 
     assert result.ok, result.problem
     assert "stand-in stubs" not in replies[0]
+
+
+def test_an_openai_refusal_after_a_working_revision_stops_as_refused():
+    """OpenAI says it refused in the reply's `refusal` field, with no content filter: the loop still says so."""
+    replies = iter([SimpleNamespace(content="", refusal=None, tool_calls=[SimpleNamespace(
+        id="t1", function=SimpleNamespace(name="write_contract", arguments=json.dumps({"contract": WORKING})))]),
+        SimpleNamespace(content="", refusal="I can't help with that.", tool_calls=None)])
+
+    def create(**kwargs):
+        return SimpleNamespace(choices=[SimpleNamespace(message=next(replies), finish_reason="stop")],
+                               usage=SimpleNamespace(prompt_tokens=5, completion_tokens=5))
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    result = fg_env.author("A game.", "openai:m", client=client)
+
+    assert (result.ok, result.stop, result.contract) == (True, "refused", WORKING)
+

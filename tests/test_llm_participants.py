@@ -157,6 +157,16 @@ class FailingAnthropic(FakeAnthropic):
         return super().create(**request)
 
 
+def test_a_retry_never_waits_past_the_runs_seconds_budget(monkeypatch):
+    """A provider asking to wait 15 s may not hold a run with a 2 s budget: each wait is cut to what is left of it."""
+    sleeps = []
+    monkeypatch.setattr(time, "sleep", sleeps.append)
+    client = FailingAnthropic([[("end_turn", {})]], [Flaky(429, retry_after="15")] * 4)
+    agent = participants.anthropic(client, "claude-sonnet-5", retries=3)
+    fg_env.load(SHOP, seed=1, inputs={"shoppers": 1}).run(agent, rounds=1, budget={"seconds": 2})
+    assert sleeps and all(wait <= 2 for wait in sleeps)
+
+
 def test_transient_provider_errors_are_retried_with_backoff(monkeypatch):
     sleeps = []
     monkeypatch.setattr(time, "sleep", sleeps.append)

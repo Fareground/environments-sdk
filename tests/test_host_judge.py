@@ -3,6 +3,7 @@ replay without the evaluator is identical."""
 import copy
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -122,3 +123,41 @@ def test_judge_config_problems_are_reported_before_the_run():
     staged["mechanisms"]["panel"]["stage"] = "play"
     with pytest.raises(fg_env.ContractError, match="record"):
         fg_env.load(staged)
+
+
+def _openai_client(message, usage=None):
+    def create(**kwargs):
+        return SimpleNamespace(choices=[SimpleNamespace(message=message, finish_reason="stop")], usage=usage)
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+REQUEST = {"judge": "bench", "text": "A speech.", "criteria": [{"name": "logic", "min": 0, "max": 10}]}
+
+
+def test_a_host_given_an_async_client_says_to_pass_the_sync_one():
+    async def create(**kwargs):
+        return None
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    with pytest.raises(fg_env.RunError, match="async client. Pass the sync client, openai.OpenAI()"):
+        host.adapters.openai(client, "gpt-x").judge(REQUEST)
+
+
+def test_a_host_recognises_an_openai_refusal():
+    refusing = _openai_client(SimpleNamespace(content=None, refusal="I can't judge that."))
+    with pytest.raises(host.HostError, match="declined"):
+        host.adapters.openai(refusing, "gpt-x").judge(REQUEST)
+
+
+def test_a_host_reads_usage_given_as_a_plain_dict():
+    answer = SimpleNamespace(content=json.dumps({"scores": {"logic": 5}, "rationale": "ok"}), refusal=None)
+    adapter = host.adapters.openai(_openai_client(answer, {"prompt_tokens": 40, "completion_tokens": 7}), "gpt-x")
+    adapter.judge(REQUEST)
+    assert (adapter.usage["input_tokens"], adapter.usage["output_tokens"], adapter.usage["unreported_usage"]) \
+        == (40, 7, 0)
+
+
+def test_a_host_bound_under_a_name_the_contract_never_consults_is_refused_at_load_naming_both():
+    with pytest.raises(ValueError, match="'jdg' is bound, but the contract never consults it; it consults 'judge'"):
+        host.load(DEBATE, hosts={"jdg": StubEvaluator()})
+    assert host.load(DEBATE, hosts={"judge": StubEvaluator()}) is not None

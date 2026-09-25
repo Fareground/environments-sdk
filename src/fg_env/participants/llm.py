@@ -197,6 +197,18 @@ def too_long(exc: BaseException) -> bool:
     return getattr(exc, "status_code", None) in (400, 413) and any(part in text for part in _TOO_LONG)
 
 
+def refuse_awaitable(response: Any, call: str, client: str, where: str) -> None:
+    """Refuse (:class:`RunError`) what an async client's ``call`` returned — an awaitable, closed so it never lingers
+    unawaited — naming the sync ``client`` to pass instead."""
+    if not inspect.isawaitable(response):
+        return
+    if inspect.iscoroutine(response):
+        response.close()
+    raise RunError(f"{call} returned an awaitable, so this is an async client. Pass the sync client, {client}: "
+                   "simultaneous turns already run in parallel, and `await env.arun(...)` keeps your event loop free "
+                   "while the run plays", where)
+
+
 def provider_failure(exc: BaseException, call: str, client: str, model: str, retries: int = 0) -> str:
     """What a failed provider call (``call`` on a ``client``) says: the error, and how to fix it — for an error retrying
     could fix that still failed after ``retries``, to try again later."""
@@ -263,9 +275,18 @@ class _EmptyReply(Exception):
 
 
 def _over(wake: Wake) -> bool:
-    """Whether the turn is over, or its time is up and the engine is about to close it."""
-    left = wake.time_left
+    """Whether the turn is over, or its time (or the run's seconds budget) is up and the engine is about to close it."""
+    left = _time_left(wake)
     return wake.done or (left is not None and left <= 0)
+
+
+def _time_left(wake: Wake) -> float | None:
+    """Seconds a call or a wait in this turn may take: until the turn's deadline or the run's seconds budget runs out,
+    whichever comes first (None: neither limits it)."""
+    budget = wake._turn.env.budget
+    ends = budget.deadline() if budget is not None else None
+    left, run_left = wake.time_left, None if ends is None else max(0.0, ends - time.monotonic())
+    return run_left if left is None else left if run_left is None else min(left, run_left)
 
 
 def request_timeout(left: float | None) -> float:
@@ -385,7 +406,7 @@ class _LLMParticipant:
                 if attempt >= self.retries:
                     raise _Forfeit() from exc
                 self._record(wake, llm_retries=1)
-                left = wake.time_left
+                left = _time_left(wake)
                 time.sleep(_backoff(attempt, exc) if left is None else min(_backoff(attempt, exc), left))
         raise AssertionError("unreachable")
 
@@ -400,12 +421,7 @@ class _LLMParticipant:
             raise _Over()
         try:
             response = request()
-            if inspect.isawaitable(response):
-                if inspect.iscoroutine(response):
-                    response.close()  # never awaited: closed so it does not linger
-                raise RunError(f"{self.CALL} returned an awaitable, so this is an async client. Pass the sync client, "
-                               f"{self.CLIENT}: simultaneous turns already run in parallel, and `await env.arun(...)` "
-                               "keeps your event loop free while the run plays", f"participant:{wake.entity_id}")
+            refuse_awaitable(response, self.CALL, self.CLIENT, f"participant:{wake.entity_id}")
             spent = call_usage(getattr(response, "usage", None), self.PROVIDER, prompt)
             self._record(wake, llm_calls=1, **spent.counts(), unreported_usage=int(spent.unreported))
         finally:
@@ -490,7 +506,7 @@ class _Anthropic(_LLMParticipant):
             sent = _cached(messages) if several and prompt >= _CACHE_MIN_TOKENS else messages
             response = self._create(wake, lambda: self.client.messages.create(
                 model=self.model, max_tokens=self.max_tokens, system=system, tools=tools, messages=sent,  # noqa: B023 — called within this iteration
-                timeout=request_timeout(wake.time_left), **self.extra), prompt)
+                timeout=request_timeout(_time_left(wake)), **self.extra), prompt)
             if getattr(response, "stop_reason", None) == "refusal":
                 self._record(wake, refusals=1)
                 return  # asking again after a refusal only invites another
@@ -658,7 +674,7 @@ class _OpenAI(_LLMParticipant):
                 return
             tools = offered.definitions
             response = self._create(wake, lambda: self.client.chat.completions.create(
-                model=self.model, messages=messages, tools=tools, timeout=request_timeout(wake.time_left),  # noqa: B023 — called within this iteration
+                model=self.model, messages=messages, tools=tools, timeout=request_timeout(_time_left(wake)),  # noqa: B023 — called within this iteration
                 **self.options, **self.extra),
                 _tokens(tools, messages))
             choice = response.choices[0]

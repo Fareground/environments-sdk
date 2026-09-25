@@ -297,6 +297,13 @@ worlds stay fast, and the package is organised by feature.
     tag character) are shown as their codes (`\u202e`) on every channel an agent reads — views, news, outcomes, tool
     results — through the one helper that quotes participant text, and in the requests hosts get; before, they
     reached other agents, judges and transcripts as themselves. Joiners that scripts and emoji need stay.
+  - Model participants and hosts: a retry never waits past the run's seconds budget (a `retry-after: 15` held a
+    3-second run for 30 s); an async client passed to a host stops with the same "pass the sync client" error
+    participants give (it played on with every judge request refused); an OpenAI `message.refusal` is a host's
+    decline; usage given as a plain dict is read; and a host bound under a name the contract never consults, while a
+    name it does is unbound (`"gm"` for `"game_master"`), is refused at load naming both.
+  - `fg_env.author`: empty replies that were retried count in its usage and token budget; an OpenAI `refusal` stops
+    the session as `refused`; a `retry-after` past the session's time budget says that is why it stopped.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

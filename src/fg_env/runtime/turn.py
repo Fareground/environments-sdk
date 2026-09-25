@@ -517,8 +517,8 @@ class Turn:
             with env.world.luck.turn_context(None, self.ledger.pending):
                 undo = self.settle()
             if undo is not None:
-                env.world.emit("outcome", f"Your turn was undone: {undo.why}.", actor=self.actor.id, to=(self.actor.id,),
-                               data={"ok": False, "undone": True})
+                env.world.emit("outcome", f"Your turn was undone: {undo.why}.", actor=self.actor.id,
+                               to=(self.actor.id,), data={"ok": False, "undone": True})
                 env.world.commit()
 
     def _undone(self, undo: Undo, settled_by: str | None = None) -> ToolResult:

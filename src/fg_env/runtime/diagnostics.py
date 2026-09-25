@@ -40,8 +40,9 @@ MIN_ROUNDS = 2
 ALWAYS_FAULTED = 2
 #: Findings that mean the run does not show what the environment is for: an action that can never happen, or that
 #: never did (every call refused, so nothing it feeds ran), agents that never acted or too many of whose turns failed,
-#: agents that never had an action to take, a run in which no agent ever had a turn with one, turns lost to a failing provider, an output that raised an error, a run
-#: its budget cut short, host answers that were the contract's stand-ins or that it could not use.
+#: agents that never had an action to take, a run in which no agent ever had a turn, turns lost to a failing provider,
+#: an output that raised an error, a run its budget cut short, host answers that were the contract's stand-ins or that
+#: it could not use.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
                        "agents_never_able_to_act", "nobody_played", "turns_forfeited", "output_failed", "budget_cut",

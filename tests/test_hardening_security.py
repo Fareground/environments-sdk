@@ -565,8 +565,8 @@ def test_invisible_and_control_characters_in_participant_text_are_shown_as_codes
     chat = {"name": "Chat", "clock": {"rounds": 1},
             "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
             "records": {"chat": {"fields": {"text": "text"}}},
-            "actions": {"say": {"by": "p", "params": {"text": {"type": "text"}},
-                                "do": [{"post": "chat", "text": "$params.text"}], "outcome": "You said {$params.text}."}},
+            "actions": {"say": {"by": "p", "params": {"text": {"type": "text"}}, "outcome": "You said {$params.text}.",
+                                "do": [{"post": "chat", "text": "$params.text"}]}},
             "stages": [{"name": "talk", "turns": "sequential"}],
             "views": {"chat": {"for": "p", "of": "chat", "show": "{author}: {text}"}}}
     typed = "hi‮evil\x1b[2J\x00end mi‌xed"

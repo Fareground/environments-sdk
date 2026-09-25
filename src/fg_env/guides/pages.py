@@ -306,7 +306,8 @@ def mode_page(spec: ModeSpec) -> str:
             takes = f" — takes {', '.join(f'`{k}`' for k in keys)}" if keys else ""
             required = f" (needs {', '.join(f'`{k}`' for k in needs)})" if needs else ""
             lines.append(f"- `{action}`{takes}{required}: {op.example}")
-    lines += ["", "```json", json.dumps({"mechanisms": {spec.name or f"my_{spec.mode}": spec.example}}, ensure_ascii=False), "```"]
+    shown = {"mechanisms": {spec.name or f"my_{spec.mode}": spec.example}}  # the name a mode must have, else any
+    lines += ["", "```json", json.dumps(shown, ensure_ascii=False), "```"]
     return "\n".join(lines)
 
 

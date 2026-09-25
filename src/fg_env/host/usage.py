@@ -6,6 +6,7 @@ flagged as unreported, so a token budget still binds and the run (or the session
 """
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -45,7 +46,7 @@ def call_usage(usage: Any, provider: str, prompt_tokens: int) -> CallUsage:
         read, written = _whole(usage, "cache_read_input_tokens", 0), _whole(usage, "cache_creation_input_tokens", 0)
     else:
         prompt, output = _whole(usage, "prompt_tokens"), _whole(usage, "completion_tokens")
-        read, written = _whole(getattr(usage, "prompt_tokens_details", None), "cached_tokens", 0), 0
+        read, written = _whole(_field(usage, "prompt_tokens_details"), "cached_tokens", 0), 0
         fresh = None if prompt is None or read is None else max(0, prompt - read)
     if fresh is None or output is None or read is None or written is None:
         return CallUsage(input_tokens=prompt_tokens, unreported=True)
@@ -55,7 +56,16 @@ def call_usage(usage: Any, provider: str, prompt_tokens: int) -> CallUsage:
 def _whole(owner: Any, name: str, missing: int | None = None) -> int | None:
     """``owner``'s ``name`` when it is a whole number ≥ 0; ``missing`` when it is absent (None: it must be there);
     None when it is anything else."""
-    value = getattr(owner, name, None) if owner is not None else None
+    value = _field(owner, name)
     if value is None:
         return missing
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def _field(owner: Any, name: str) -> Any:
+    """``owner``'s ``name``: an attribute of a client's response object, or a key of the plain dict some clients and
+    proxies return instead."""
+    if owner is None:
+        return None
+    return owner.get(name) if isinstance(owner, Mapping) else getattr(owner, name, None)
+

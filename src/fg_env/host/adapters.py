@@ -100,22 +100,32 @@ class _Provider:
         A failure is never a :class:`HostError` that asks the model again with a correction: nothing was wrong with its
         answer, there was none. One retrying could fix that still fails is :class:`HostUnavailable` (that request goes
         unanswered); any other stops the run."""
-        from ..participants.llm import PROVIDER_CALLS, _backoff, _retryable, provider_failure, request_timeout
+        from ..participants.llm import (
+            PROVIDER_CALLS,
+            _backoff,
+            _retryable,
+            provider_failure,
+            refuse_awaitable,
+            request_timeout,
+        )
 
+        call, client = PROVIDER_CALLS[self.provider]
         for attempt in range(self.retries + 1):
             try:
-                return request(request_timeout(time_left()))
+                response = request(request_timeout(time_left()))
             except Exception as exc:
                 wait, left = _backoff(attempt, exc), time_left()
                 retry = attempt < self.retries and _retryable(exc)
                 late = retry and left is not None and left < wait
                 if not retry or late:
-                    call, client = PROVIDER_CALLS[self.provider]
                     text = provider_failure(exc, call, client, self.model, attempt)
                     text += " (The turn's time ran out before another try.)" if late else ""
                     raise (HostUnavailable(text) if _retryable(exc) else RunError(text)) from exc
                 self._add(retries=1)
                 time.sleep(wait)
+                continue
+            refuse_awaitable(response, call, client, f"host:{self.model}")
+            return response
         raise AssertionError("unreachable")
 
     def _add(self, **counts: int) -> None:
@@ -210,6 +220,8 @@ class LLMHost(_Provider):
             raise HostError("the model answered with no choices")
         if getattr(choices[0], "finish_reason", None) == "length":
             raise HostError(self._cut_off())
+        if getattr(choices[0].message, "refusal", None):
+            raise HostError("the model declined the request")
         return getattr(choices[0].message, "content", None) or ""
 
     def _cut_off(self) -> str:

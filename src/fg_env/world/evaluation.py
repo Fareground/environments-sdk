@@ -233,9 +233,9 @@ class EvalContext:
                props: dict[str, Any], at: Any, scope: Scope, where: str, evaluate: bool = True) -> Entity:
         """Create an entity. ``props`` values that are expressions are evaluated when ``evaluate`` is
         true (contract text); runtime values from native ops pass ``evaluate=False``. Participant text
-        is never evaluated, whatever it looks like. The type's defaults for the rest are evaluated in ``scope``. Outside any
-        block of logic (the build) each prop draws from a stream keyed by the entity and the prop, so adding an entity
-        or a prop never re-deals another's."""
+        is never evaluated, whatever it looks like. The type's defaults for the rest are evaluated in ``scope``.
+        Outside any block of logic (the build) each prop draws from a stream keyed by the entity and the prop, so
+        adding an entity or a prop never re-deals another's."""
         world = self.world
         entity = world.new_entity(type_name, entity_id, name, props, at, where)
         declared = world.type_props[type_name]

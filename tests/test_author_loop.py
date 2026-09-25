@@ -182,7 +182,7 @@ def test_retries_never_wait_past_the_seconds_budget(monkeypatch):
 
     result = fg_env.author("A game.", "openai:m", client=client, budget={"seconds": 3.5})
 
-    assert waits == [1.0, 2.0] and "still failed after 2 retries with ProviderError (HTTP 429)" in result.stop
+    assert waits == [1.0, 2.0] and "HTTP 429" in result.stop and "past the session's time budget" in result.stop
 
 
 def test_an_empty_anthropic_reply_is_retried(monkeypatch):
@@ -198,6 +198,7 @@ def test_an_empty_anthropic_reply_is_retried(monkeypatch):
     result = fg_env.author("A game.", "anthropic:m", client=SimpleNamespace(messages=SimpleNamespace(create=create)))
 
     assert waits == [1.0] and result.ok and result.contract == WORKING and result.stop == "done"
+    assert result.usage["calls"] == 3 and result.usage["input_tokens"] == 3  # the empty reply was a call all the same
 
 
 def test_a_written_contract_is_advertised_as_an_object_but_json_text_still_saves():

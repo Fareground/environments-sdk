@@ -5,10 +5,11 @@ objects. A run is bound to its hosts for its lifetime without touching the core 
 binding is held here, keyed weakly by the run's world.
 
 The model tokens a host call spends join the stats — and so the token budget — of the run that made the call as the
-call returns, and a live call is made only while the run's budget has room (see :func:`fg_env.host.tape.consult`). The reference adapters report each call's tokens as they make it
-(:func:`credit_tokens`), so runs in parallel that share one adapter each count exactly their own; an adapter of your
-own is counted by how much its ``usage`` counters (``input_tokens``, ``output_tokens``, ``cache_read_tokens``,
-``cache_write_tokens``) grew during the call, which is exact unless parallel runs share it.
+call returns, and a live call is made only while the run's budget has room (see :func:`fg_env.host.tape.consult`).
+The reference adapters report each call's tokens as they make it (:func:`credit_tokens`), so runs in parallel that
+share one adapter each count exactly their own; an adapter of your own is counted by how much its ``usage`` counters
+(``input_tokens``, ``output_tokens``, ``cache_read_tokens``, ``cache_write_tokens``) grew during the call, which is
+exact unless parallel runs share it.
 """
 from __future__ import annotations
 
@@ -101,9 +102,52 @@ def bind(env: Env, hosts: HostsLike) -> Env:
         _BOUND.pop(env.world, None)
         _RUNS.pop(env.world, None)
         return env
+    _misnamed(env.contract, resolved)
     _BOUND[env.world] = resolved
     _RUNS[env.world] = weakref.ref(env)
     return env
+
+
+def consulted(contract: Any) -> set[str]:
+    """The host names a contract may consult: every mechanism's `host` fields (its defaults included: a judge asks
+    "judge") and the hosts that describe its files."""
+    from pydantic import BaseModel, ValidationError
+
+    from ..registry import FAMILIES, config_data
+
+    def named(value: Any) -> set[str]:
+        if isinstance(value, BaseModel):
+            return {text for field, text in value if field in ("host", "reflect_host") and isinstance(text, str)} \
+                | {name for _, inner in value for name in named(inner)}
+        if isinstance(value, Mapping):
+            return {name for inner in value.values() for name in named(inner)}
+        if isinstance(value, (list, tuple)):
+            return {name for inner in value for name in named(inner)}
+        return set()
+
+    names: set[str] = set()
+    for use in contract.mechanisms.values():
+        family = FAMILIES.get(use.get("kind")) if isinstance(use, Mapping) else None
+        spec = family.modes.get(use.get("mode")) if family is not None else None
+        if spec is not None:
+            try:
+                names |= named(spec.config.model_validate(config_data(use)))
+            except ValidationError:
+                continue
+    describers = {getattr(spec, "describe", None) for spec in contract.inputs.values()}
+    return names | {name for name in describers if isinstance(name, str)}
+
+
+def _misnamed(contract: Any, hosts: Hosts) -> None:
+    """Refuse hosts bound under names the contract never consults while a name it does consult is left unbound: a
+    misnamed host (``"gm"`` for ``"game_master"``) would otherwise fail only at its first request, mid-run."""
+    wanted = consulted(contract)
+    unused = [name for name in hosts.names if name not in wanted]
+    missing = sorted(wanted - set(hosts.names))
+    if unused and missing:
+        raise ValueError(f"host {', '.join(map(repr, unused))} is bound, but the contract never consults "
+                         f"{'it' if len(unused) == 1 else 'them'}; it consults {', '.join(map(repr, missing))}, "
+                         "which is not bound: bind the adapter under the name the contract uses")
 
 
 def hosts_for(world: Any) -> Hosts | None:
@@ -128,13 +172,16 @@ def count_host_tokens(env: Env) -> None:
 
 
 @contextmanager
-def counting(world: Any, adapter: Any) -> Iterator[None]:
+def counting(world: Any, adapter: Any, deadline: float | None = None) -> Iterator[None]:
     """Count the model tokens a host call made inside the block spends toward the run of ``world``: what the adapter
-    reports with :func:`credit_tokens` while the block runs on this thread, else how much its ``usage`` grew."""
+    reports with :func:`credit_tokens` while the block runs on this thread, else how much its ``usage`` grew. The
+    call ends by the turn's deadline or ``deadline`` (the run's seconds budget), whichever comes first."""
     before = _tokens(adapter)
     outer, outer_deadline = getattr(_CALL, "reported", None), getattr(_CALL, "deadline", None)
     reported: dict[str, int] = {}
-    _CALL.reported, _CALL.deadline = reported, world.luck.here().deadline
+    turn_deadline = world.luck.here().deadline
+    ends = [moment for moment in (turn_deadline, deadline) if moment is not None]
+    _CALL.reported, _CALL.deadline = reported, min(ends) if ends else None
     try:
         yield
     finally:

@@ -179,6 +179,14 @@ class Budget:
                 self._reserved -= held
                 env.gate.notify()
 
+    def deadline(self) -> float | None:
+        """When (``time.monotonic()``) the seconds limit runs out, or None without one: what a wait inside a turn (a
+        model call's retry) must not sleep past."""
+        limit = self.limits.get("seconds")
+        if limit is None or self._mark is None:
+            return None
+        return self._mark + limit - self.seconds
+
     def host_refusal(self, env: Env) -> str | None:
         """Why a live host call may not be made now — the token limit (counting what host calls spent so far) or the
         host-call limit is reached — or None."""

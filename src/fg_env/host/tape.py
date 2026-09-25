@@ -111,7 +111,7 @@ def consult(world: Any, *, service: str, method: str, site: str, identity: Any, 
         refused = budget.host_refusal(run) if budget is not None else None
         if refused is not None:  # not recorded: the same call in a run with room left is asked
             raise HostUnusable(f"host '{service}' was not asked: {refused}", site)
-        with counting(world, adapter):
+        with counting(world, adapter, budget.deadline() if budget is not None else None):
             answer, unusable, why = _live(adapter, service, site, ask, validate)
         if run is not None:
             count_host_tokens(run)  # what the call spent counts toward the budget as it returns
