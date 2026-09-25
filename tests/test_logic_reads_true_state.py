@@ -1,8 +1,8 @@
 """Game logic reads the true state of records and events; only what agents are shown or offered is filtered.
 
 The auditor below cannot see the bidders' private note, yet its `audit` action, the round's event, a trigger,
-the stage conditions, metrics and outputs must all count it — while its views, tools, outcome text and policy
-stay blind.
+metrics and outputs must all count it — while its views, tools, outcome text and policy stay blind. What selects a
+stage is seen by every agent, so a stage condition may not read it (audit 13 M1).
 """
 import json
 
@@ -32,7 +32,7 @@ def contract(**overrides):
         "stages": [
             {"name": "talk", "who": "$it.id == a", "actions": ["note"]},
             {"name": "audit", "who": "$it.type == auditor", "actions": ["audit"],
-             "when": "$len($records(notes)) > 0", "on_enter": ["$world.entered = true"]},
+             "on_enter": ["$world.entered = true"]},
         ],
         "events": [{"name": "tally", "phase": "end", "do": ["$world.in_event = $len($records(notes))"]}],
         "triggers": [{"name": "noticed", "when": "$len($records(notes)) > 0", "do": ["$world.triggered = true"]}],
@@ -110,3 +110,9 @@ def test_policies_act_on_what_their_agent_can_see():
     assert result.status == "completed", result.error
     assert result.outputs["audited"] is False  # the policy's auditor cannot see the note
 
+
+
+def test_a_stage_held_by_what_not_every_agent_sees_is_a_check_error():
+    held = contract()
+    held["stages"][1]["when"] = "$len($records(notes)) > 0"
+    assert [i.path for i in fg_env.check(held, rounds=0) if i.severity == "error"] == ["stages[1].when"]
