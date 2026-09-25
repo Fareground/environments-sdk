@@ -11,7 +11,7 @@
     "hands": {"type": "int", "default": 2, "min": 1, "max": 20, "description": "Hands of 13 tricks to play."},
     "target": {"type": "int", "default": 100, "min": 1, "description": "The game ends when a player reaches this score."}
   },
-  "clock": {"rounds": "13 * $inputs.hands", "unit": "trick"},
+  "clock": {"rounds": "13 * $inputs.hands", "unit": "turn"},
   "world": {
     "leader": {"type": "text", "default": "", "description": "Player who leads the current trick."},
     "lead_suit": {"type": "text", "default": ""},
@@ -56,7 +56,7 @@
       "order": "($it.seat - $entity($world.leader).seat + 4) % 4",
       "must_act": true,
       "max_calls": 6,
-      "brief": "Trick {$world.trick + 1} of 13. {$'Led: ' + $world.lead_suit + '.' if $world.lead_suit != '' else 'You lead.'} Hearts are {$'broken' if $world.hearts_broken else 'not broken yet'}."
+      "brief": "Hand {$world.hand} of {$inputs.hands}, trick {$world.trick + 1} of 13. {$'Led: ' + $world.lead_suit + '.' if $world.lead_suit != '' else 'You lead.'} Hearts are {$'broken' if $world.hearts_broken else 'not broken yet'}."
     }
   ],
   "views": {

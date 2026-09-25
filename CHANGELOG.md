@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - Hearts reads "Turn 15 of 26" (the run) and "Hand 2 of 2, trick 2 of 13" (the stage) instead of a header "Trick 15
+    of 26" beside a brief "Trick 2 of 13".
   - A diagnostic about turns out of time names the model calls retried after a rate limit or an overload, which is
     what spent that time.
   - `visible()` writes an invisible character above U+FFFF as the surrogate pair JSON reads (`\udb40\udc41`), not
