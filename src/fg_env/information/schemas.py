@@ -174,7 +174,7 @@ class ToolSchemas:
             choices = book.choices(actor, action, pname, param)  # every candidate when they depend on other arguments
             if book.depends_on_params(param):
                 description = (description + " Valid choices depend on the other arguments.").strip()
-            if len(choices) <= _ENUM_CHOICES:
+            if 0 < len(choices) <= _ENUM_CHOICES:  # never an empty enum, which providers may refuse
                 out["enum"] = [c.id for c in choices]
             if len(choices) <= _NAMED_CHOICES:
                 listing = "; ".join(f"{c.id} = {c.name}" for c in choices if c.name != c.id)

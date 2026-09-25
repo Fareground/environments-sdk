@@ -680,7 +680,7 @@ def test_offers_show_private_worth_and_walk_away_only_to_their_owner():
     assert "worth 10 to you" in bo and "price 10 credits, quota 5, years 1" in bo
     assert "worth 50" not in bo  # the other side's worth is never shown
     assert tool(env, "bo", "trade_accept")["offer"]["enum"] == ["trade_offer_1"]
-    assert tool(env, "ar", "trade_accept")["offer"]["enum"] == []  # nothing is open to Arland
+    assert "enum" not in tool(env, "ar", "trade_accept")["offer"]  # nothing is open to Arland: no empty enum
 
 
 def test_a_refused_on_breach_hook_never_undoes_the_rest_of_the_negotiation_tick():

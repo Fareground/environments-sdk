@@ -37,7 +37,7 @@ from ..world.randomness import LuckAhead
 from ..world.store import World
 from ..world.values import plain_value
 from .faults import fault_reason
-from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _tidy
+from .params import MAX_SAFE_INT, TEXT_MAX_LEN, _item_spec, _tidy
 from .validation import ActionValidation
 
 __all__ = ["ACTION_BUDGET", "TEXT_MAX_LEN", "MAX_SAFE_INT", "Outcome", "ActionBook", "stage_actions",
@@ -143,8 +143,11 @@ class ActionBook:
             if param.type == "enum" and isinstance(param.values, str) \
                     and self.static(actor, param.values, f"actions.{name}.params.{pname}.values") == []:
                 return f"there is no value you can choose for {pname} right now"
-            if param.type == "list" and param.values is not None and isinstance(param.min_items, int) \
-                    and param.min_items > 0:
+            if param.type == "list" and isinstance(param.min_items, int) and param.min_items > 0:
+                item = _item_spec(param)
+                if item.type == "entity" and item.of is not None and not self.depends_on_params(item) \
+                        and len(self.choices(actor, name, pname, item)) < param.min_items:
+                    return f"there are not enough {item.of} entities to choose for {pname} right now"
                 values = (self.static(actor, param.values, f"actions.{name}.params.{pname}.values")
                           if isinstance(param.values, str) else param.values)
                 if isinstance(values, list) and len(values) < param.min_items:

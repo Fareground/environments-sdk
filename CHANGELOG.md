@@ -303,6 +303,8 @@ worlds stay fast, and the package is organised by feature.
     advising a shorter update or a larger-context model (it said the provider "still failed after every retry" and
     advised more `retries`); `stats["too_long"]` counts them. Turns out of time are listed among what went wrong in
     `agents_never_acted` and `agents_often_failed`, with `time_limit` in the fix.
+  - A tool whose list of entities needs more choices than there are right now is not offered, like a tool with no
+    entity to choose, and no tool schema carries an empty `enum` (a provider may refuse it and fail the run).
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

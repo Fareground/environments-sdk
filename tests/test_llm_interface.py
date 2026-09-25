@@ -197,3 +197,18 @@ def test_a_host_request_times_out_with_the_turn_that_asked():
     env = host.load(PITCH, hosts={"judge": host.adapters.anthropic(client, "claude-host")}, seed=1)
     host.run(env, pitcher, time_limit=30)
     assert all(0 < request["timeout"] <= 30 for request in client.requests)
+
+
+def test_a_list_of_entities_with_too_few_choices_is_not_offered_and_no_enum_is_ever_empty():
+    """A list needing an entity that nobody may choose could never succeed, and `enum: []` is a schema a provider may
+    refuse (audit 9 LLM M4)."""
+    MINE = {"type": "entity", "of": "item", "where": "$it.holder == $actor.id"}  # noqa: N806
+    contract = {"name": "Edge", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True}, "item": {"props": {"holder": ""}}},
+                "entities": {"a": {"type": "p"}, "i1": {"type": "item", "props": {"holder": "zzz"}}},
+                "actions": {"many": {"by": "p", "do": [], "params": {"its": {"type": "list", "items": MINE,
+                                                                             "min_items": 1}}},
+                            "some": {"by": "p", "do": [], "params": {"its": {"type": "list", "items": MINE}}}}}
+    tools = {tool["name"]: tool for tool in fg_env.load(contract, seed=1).preview("a")["tools"]}
+    assert "many" not in tools
+    assert "enum" not in tools["some"]["input_schema"]["properties"]["its"]["items"]
