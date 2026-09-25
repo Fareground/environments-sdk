@@ -20,6 +20,7 @@ from ..participants.builtin import PolicyAgent, RandomAgent, _fill_dependent, _s
 from ..runtime.diagnostics import MIN_CALLS
 from ..runtime.measure import RunResult
 from .probing import Prober, hides_numbers
+from .reading import Reading
 from .rules import scheduled_rounds
 
 if TYPE_CHECKING:
@@ -68,7 +69,7 @@ def smoke_issues(contract: Contract, build: Callable[[], Env], rounds: int | Non
     random_env = _kept(build(), played)
     default = rounds is None
     rounds = _default_rounds(random_env) if rounds is None else rounds
-    random_play = _play(random_env, {"*": _reading(RandomAgent(seed))}, rounds, seconds, census)
+    random_play = _play(random_env, {"*": Reading(RandomAgent(seed))}, rounds, seconds, census)
     census.take(random_env)
     _failure(random_play, "random agents", errors)
     runaway = census.runaway(random_env)
@@ -307,18 +308,6 @@ class _Probing(PolicyAgent):
     """A policy that also evaluates the later rules an earlier one beat to the turn."""
 
     _probe_later = True
-
-
-def _reading(agent: Any) -> Any:
-    """``agent`` after reading everything it is shown (brief and update), so a play exercises every view and
-    template, not just the rules."""
-
-    def participant(wake: Any) -> None:
-        wake.brief
-        wake.update
-        agent(wake)
-
-    return participant
 
 
 class _Edges(random.Random):

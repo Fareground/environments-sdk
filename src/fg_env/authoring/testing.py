@@ -9,17 +9,15 @@ from types import SimpleNamespace
 from typing import Any, NamedTuple
 
 from ..api import ContractLike, check, contract_source, load, parse
+from ..checks.reading import Reading
 from ..checks.smoke import EdgeAgent
 from ..contract import Contract
 from ..describe.metadata import game_metadata
 from ..host.hosts import Hosts
 from ..host.stubs import StubDescriber, StubEvaluator, StubFeed, StubGameMaster, StubRanker, StubTools, StubWriter
-from ..information.reads import inspect_tool, inspectable
 from ..participants import Idle, RandomAgent
 from ..runtime.diagnostics import DEGRADING
 from ..runtime.measure import RunResult
-from ..runtime.session import Wake
-from ..runtime.turn import Turn
 from .findings import Seen, flat_measures
 from .sandbox import Sandbox, TooBig, TooSlow, step
 
@@ -69,10 +67,11 @@ def tested(source: ContractLike, box: Sandbox | None = None, left: float = math.
     :data:`MOST_SEEDS`, while test time is left — that fails, has an output that fails, does not show how the
     environment plays (``RunResult.degraded``; for idle and edge-value agents, beyond their not acting — so random
     agents, who write a real sentence for free text, must get some action through) or in which an agent's choice breaks
-    a rule. Every test agent reads its brief and update each turn, and in every stage of every round each view its type
-    may look at and an entity of every type it may inspect are read, however few free reads a turn allows, so a view
-    that breaks on a state play reaches is found. Anything evaluating the contract raises is its problem too. Its
-    ``warnings`` are its check's, then what the runs showed (:mod:`fg_env.authoring.findings`).
+    a rule. Every test agent reads its brief and update each turn, and each view it may look at and an entity of every
+    type it may inspect: every agent the first time it is woken in a stage, and in each round the first of its type
+    (:class:`~fg_env.checks.reading.Reading`, as `check`'s plays read), however few free reads a turn allows, so a view
+    that breaks for one agent's state, or on a state play reaches, is found. Anything evaluating the contract raises
+    is its problem too. Its ``warnings`` are its check's, then what the runs showed (:mod:`fg_env.authoring.findings`).
 
     It all runs in a child process within :data:`TEST_SECONDS`: the check first, then the runs, each taking an even
     share of what is left. A run still going when its share ends has passed the rounds it reached, and ``untested``
@@ -180,10 +179,10 @@ def _plays(source: Any, contract: Contract, hosts: Hosts, seconds: float, deadli
     """``(problem, untested, random seeds)`` from :func:`tested`'s runs, within ``deadline`` (the end of the
     ``seconds`` of the test budget); ``seen`` gathers what they show besides."""
     plays: list[tuple[Any, str, int, frozenset]] = [
-        (_Reading(RandomAgent(seed), seen) if agents == "random" else _Reading(Idle(), seen), f"{agents} agents",
+        (Reading(RandomAgent(seed) if agents == "random" else Idle(), seen.read), f"{agents} agents",
          seed, frozenset() if agents == "random" else _NOT_ACTING)
         for seed in seeds for agents in ("random", "idle")]
-    plays.append((_Reading(EdgeAgent(1), seen), "agents choosing edge values", 1, _NOT_ACTING))
+    plays.append((Reading(EdgeAgent(1), seen.read), "agents choosing edge values", 1, _NOT_ACTING))
     reached, total = [], 0
     for n, (participant, who, seed, exempt) in enumerate(plays):
         step(f"the run with {who} (seed {seed})")
@@ -217,7 +216,7 @@ def _more_seeds(source: Any, hosts: Hosts, deadline: float, seeds: list[int], mo
         began = time.monotonic()
         env = load(source, seed=seed, hosts=hosts)
         env.effects.fired = seen.fired
-        result = env.run({"*": _Reading(RandomAgent(seed), seen)}, budget={"seconds": deadline - began})
+        result = env.run({"*": Reading(RandomAgent(seed), seen.read)}, budget={"seconds": deadline - began})
         problem = _run_problem(result, f"random agents (seed {seed})", frozenset())
         if problem:
             return problem, "", played
@@ -255,44 +254,6 @@ _TEST_SETUP = frozenset({"budget_cut", "host_fallback"})
 #: What says nothing about a contract when its test agents mean not to act, or act only on the edges: that they never
 #: acted, and that agents waiting on them (a chair with no raised hand to recognise) never could.
 _NOT_ACTING = frozenset({"agents_never_acted", "agents_never_able_to_act"})
-
-
-class _Reading:
-    """``agent``, reading first each turn as a model does — its brief and update, whose size ``seen`` counts — and, the
-    first time an agent of its type is woken in a stage of a round, every view it may look at and an entity of every
-    type it may inspect, beyond the turn's free reads (they spend none of them): a view or template that fails on a
-    state play reaches fails the run, however many views there are and however few reads a turn allows."""
-
-    def __init__(self, agent: Any, seen: Seen) -> None:
-        self.agent, self.seen, self.round = agent, seen, 0
-        #: What agents have read this round: ``(stage, agent type, "look" or "inspect", view or entity type)``.
-        self.read: set[tuple[str, str, str, str]] = set()
-
-    def __call__(self, wake: Wake) -> None:
-        self.seen.read(len(wake.brief) + len(wake.update))
-        turn = wake._turn  # read straight from the turn, as its look and inspect tools do, but without their allowance
-        with turn.gate:
-            if turn.round != self.round:
-                self.round, self.read = turn.round, set()
-            for kind, name, args in _reads(turn):
-                key = (turn.stage.name, turn.actor.entity_type, kind, name)
-                if key not in self.read:
-                    self.read.add(key)
-                    turn._look(args) if kind == "look" else turn._inspect(args)
-        self.agent(wake)
-
-
-def _reads(turn: Turn) -> list[tuple[str, str, dict[str, Any]]]:
-    """``(kind, what, args)`` of a ``look`` at every view ``turn`` offers, and an ``inspect`` of one entity of every
-    type it may inspect (a different one each round)."""
-    env, actor = turn.env, turn.actor
-    reads = [("look", view, {"view": view}) for view in env.information.look_views(actor)]
-    if inspect_tool(env.information, actor, turn.ledger.max_calls) is not None:
-        members: dict[str, list[str]] = {}
-        for entity in inspectable(env.information, actor):
-            members.setdefault(entity.entity_type, []).append(entity.id)
-        reads += [("inspect", kind, {"id": ids[turn.round % len(ids)]}) for kind, ids in members.items()]
-    return reads
 
 
 class StubHosts(Hosts):

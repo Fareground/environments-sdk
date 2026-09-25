@@ -292,6 +292,10 @@ worlds stay fast, and the package is organised by feature.
     after the last of them (an undone turn says so and why, audit 11 M6). Before, a refused call after a done action
     overwrote it ("pay was not done"), so a model believed it had done nothing and paid again; a call made after the
     turn was over counted too.
+  - `check`'s plays and `fg_env.author`'s test runs read views the same way (one reading agent): every agent reads
+    every view it may look at and inspects an entity of every type the first time it is woken in a stage, and each
+    round the first agent of its type reads them again. Before, only the first agent of each type read them (and
+    `check` read no `look` view at all), so a view that broke for one agent's state was certified as working.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

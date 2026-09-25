@@ -198,3 +198,23 @@ BASE = {"name": "x", "clock": {"rounds": 2}, "types": {"p": {"agent": True, "pro
 ])
 def test_a_contract_mistake_the_engine_would_misread_is_an_error_at_its_path(patch, path):
     assert path in [i.path for i in fg_env.check(BASE | patch) if i.severity == "error"]
+
+
+def test_a_view_that_breaks_for_one_agent_is_found_by_check_and_by_the_authoring_tests(tmp_path):
+    """Test agents read every view each agent may look at the first time it is woken in a stage, not once per type
+    (audit 11 B-H1): a view that breaks only for bob, whose list is empty, fails check and the author's test."""
+    import json
+
+    from fg_env.authoring.testing import _test
+
+    contract = {"name": "Purses", "clock": {"rounds": 2},
+                "types": {"player": {"agent": True, "props": {"coins": 10, "items": ["a"]}}},
+                "entities": {"ann": {"type": "player"}, "bob": {"type": "player", "props": {"items": []}}},
+                "actions": {"spend": {"by": "player", "do": ["$actor.coins -= 1"]}},
+                "views": {"purse": {"for": "player", "look": True,
+                                    "show": "You have {$actor.coins} coins; first item {$actor.items[0]}."}},
+                "outputs": {"coins": "$sum(player, $it.coins)"}}
+    assert any(i.path == "views.purse" and "out of range" in i.message for i in errors(fg_env.check(contract)))
+    path = tmp_path / "purses.json"
+    path.write_text(json.dumps(contract))
+    assert "views.purse" in _test(str(path), 5, [1], 1)["problem"]
