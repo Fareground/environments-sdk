@@ -133,4 +133,4 @@ def test_an_approval_ballot_with_no_options_is_not_offered_and_counts_nothing():
     result = fg_env.run(c, voter, seed=1)
     assert "poll_vote" not in offered
     # a ballot nobody could touch is not counted: no announcement, and no result yet (audit 13 mechanisms M4)
-    assert [e["text"] for e in result.events if e["kind"] == "poll"] == [] and result.outputs["r"] == {}
+    assert [e["text"] for e in result.events if e["kind"] == "poll"] == [] and result.outputs["r"]["decided"] is False and result.outputs["r"]["round"] is None

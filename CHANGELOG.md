@@ -313,6 +313,10 @@ worlds stay fast, and the package is organised by feature.
     double auction's units) showed later bidders each earlier bid. `check` warns where this overrides a stage written
     as `sequential`. The noninterference tests perturb other agents' calls of unannounced actions in any stage, and
     hold sealed bids on a declared stage to change nothing a later bidder sees.
+  - A ballot's `$world.<name>_result` holds every key before its first count, as nothing decided yet (`winner: null,
+    decided: false, passed: null, counts: {}` …), and keeps them after a count, so `"when": "$world.v_result.passed
+    == true"` works from the first round instead of failing the run (and the smoke run's "no agent had a single
+    turn" warning that followed from it) (mech M1).
 - **Audit 13.**
   - A refused or undone action leaves no trace: how many entities each block created this round (`births`, what a
     new entity's luck is keyed by) is journaled and comes back with the undo, so a free refusal that created an

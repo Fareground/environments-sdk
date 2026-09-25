@@ -82,6 +82,12 @@ def tally(method: str, ballots: Any, options: Sequence[Any] | None = None, thres
     return result
 
 
+#: A ballot's result before its first count: every key a count gives, as nothing yet decided, so a rule may read
+#: `$world.<name>_result.passed` from the first round.
+UNCOUNTED: dict[str, Any] = {"winner": None, "decided": False, "passed": None, "counts": {}, "ranking": [], "votes": 0,
+                             "cast": 0, "turnout": None, "tie": False, "tied": [], "vetoed": [], "round": None}
+
+
 def _weight(weights: Mapping[str, float] | None, voter: Any) -> float:
     return 1.0 if weights is None or voter is None else float(weights.get(_key(voter), 1.0))
 
@@ -389,7 +395,7 @@ def _tally_op(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: 
     except ValueError as exc:
         raise RunError(f"tally {name}: {exc}", where) from None
     result["round"] = world.round
-    world.set_world(f"{name}_result", result)
+    world.set_world(f"{name}_result", {**UNCOUNTED, **result})  # every key read before the first count stays readable
     for voter in cast:  # a fresh ballot for the next vote
         world.set_prop(voter, prop, None)
     text = (runner.text(config.announce, {**vars, "result": result}, EVERYONE) if config.announce
@@ -450,8 +456,9 @@ def _announcement(world: Any, config: BallotConfig, result: dict[str, Any]) -> s
            "A vote among agents: a `<name>_vote` tool (and `<name>_abstain`), counted by plurality, majority or "
            "supermajority with an optional quorum when the vote's stage ends — after the contract's own events on its "
            "end, so read the result in a later stage or event, not in an event on the vote stage's end. The result is "
-           "in $world.<name>_result ({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; an empty "
-           "map until the first count) and is announced, options that are entity ids named — every time the vote's "
+           "in $world.<name>_result ({winner, decided, passed, counts, ranking, votes, turnout, tie, vetoed}; before "
+           "the first count every key is there, as nothing yet: winner null, decided false, passed null, counts {} "
+           "…) and is announced, options that are entity ids named — every time the vote's "
            "stage ends with a ballot some voter cast or abstained on; a ballot nobody touched leaves the last result "
            "standing: `decided` is true when there is a winner, `passed` when the first option won, so list a motion's "
            "yes first. Turnout counts the voters still in the game. `weight` gives shareholder-style votes, "
@@ -512,7 +519,7 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
         if action.get("outcome") is None:
             action.pop("outcome", None)
     fragment: dict[str, Any] = {
-        "world": {result: {"type": "map", "default": {}}},
+        "world": {result: {"type": "map", "default": {**UNCOUNTED, "method": config.method}}},
         "types": {config.who: {"props": {ballot: {"type": "any", "default": None, "private": config.private}}}},
         "actions": actions,
     }

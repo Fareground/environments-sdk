@@ -6,6 +6,7 @@ import tracemalloc
 import pytest
 
 import fg_env
+from fg_env.mechanisms.voting import UNCOUNTED
 from fg_env.errors import ContractError
 from fg_env.mechanisms.voting import tally
 
@@ -664,13 +665,15 @@ def test_a_config_error_is_told_at_the_one_field_that_holds_what_it_quotes():
 
 
 def test_a_ballot_nobody_touched_is_not_counted_even_the_first_time():
-    """audit 13 mechanisms M4: the result stays an empty map until the first count, as the page says."""
+    """audit 13 mechanisms M4: the result stays as nothing decided until the first count, as the page says (every key
+    there, audit 14 mech M1)."""
     contract = {"name": "Quiet", "clock": {"rounds": 2}, "types": {"m": {"agent": True}},
                 "entities": {"m": {"type": "m", "count": 2}},
                 "mechanisms": {"v": {"kind": "decision", "mode": "ballot", "who": "m", "options": ["a", "b"]}},
                 "outputs": {"result": "$world.v_result"}}
     result = fg_env.run(contract, "idle", seed=1)
-    assert result.outputs["result"] == {} and not any("no votes" in (e.get("text") or "") for e in result.events)
+    uncounted = {**UNCOUNTED, "method": contract["mechanisms"]["v"].get("method", "plurality")}
+    assert result.outputs["result"] == uncounted and not any("no votes" in (e.get("text") or "") for e in result.events)
 
 
 def test_a_prediction_market_outcome_may_be_a_quoted_constant():
