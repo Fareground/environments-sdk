@@ -6,6 +6,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from ..registry import MechanismError, mode, use_key
+from ._common import raw_is_a
 from .cards import KEY, CardActionConfig, CardsConfig, Zone, card_family, id_prefix, slug, standard_cards, zones_for
 
 __all__: list[str] = []
@@ -162,6 +163,31 @@ def _events(name: str, config: CardsConfig) -> list[dict[str, Any]]:
     return events
 
 
+def _deck_holds_the_deal(config: CardsConfig, contract: Mapping[str, Any]) -> None:
+    """A deal of `hand_size` to every player needs that many cards in the shared draw pile: a deck too small would deal
+    some players fewer cards without a word. Checked when the numbers are written out (a literal hand size, a
+    shared deck, players named or counted)."""
+    if not isinstance(config.hand_size, int) or config.hand_size <= 0 or config.personal or config.deal_to:
+        return
+    if config.deck == "standard":
+        cards = 52 + config.jokers
+    else:
+        cards = sum(len(entry.suits or [None]) * len(entry.ranks or [None]) * entry.copies for entry in config.deck
+                    if entry.zone == "deck" and not entry.per_player)
+    players = 0
+    for entity in (contract.get("entities") or {}).values():
+        if not isinstance(entity, Mapping) or not raw_is_a(contract, str(entity.get("type")), config.who):
+            continue
+        count = entity.get("count", None if "from" in entity else 1)
+        if isinstance(count, bool) or not isinstance(count, int):
+            return  # how many players there are is worked out as the world is built
+        players += count
+    if config.hand_size * players > cards:
+        raise MechanismError(f"dealing {config.hand_size} cards to each of {players} players takes "
+                             f"{config.hand_size * players:,}, but the deck has {cards:,}",
+                             f"deal at most {cards // max(1, players)} each, or use a bigger deck", "hand_size")
+
+
 @mode("game", "cards", CardsConfig,
       "A deck of cards as world state: card entities with a zone (deck, hand, discard, burn or declared zones), "
       "owner and order; who sees a card is enforced by the engine (views, inspect, tools). Generates the card "
@@ -185,6 +211,7 @@ def _expand_cards(name: str, config: CardsConfig, contract: Mapping[str, Any]) -
         raise MechanismError(f"type '{config.type}' is declared without the card visibility rule, so hidden cards "
                              "could be inspected",
                              f"remove the declaration, or add \"inspect\": \"{_INSPECT}\"", "type")
+    _deck_holds_the_deal(config, contract)
     for zone_name in config.zones:
         if not _NAME.match(zone_name):
             raise MechanismError(f"'{zone_name}' is not a valid zone name", "use letters, digits and _",

@@ -656,3 +656,14 @@ def test_suits_are_read_alike_however_they_are_spelled(trump, lead):
     assert evaluate(f"$follow_suit(['2H', '3S'], '{lead}')") == ["2H"]
     with pytest.raises(ExprError, match="is not a suit"):
         evaluate("$follow_suit(['2H', '3S'], 'X')")
+
+
+def test_a_deck_too_small_for_the_deal_is_a_check_error():
+    """30 cards to each of 3 players from 52 dealt 18/17/17 without a word (audit 12 mech M9)."""
+    contract = {"name": "C", "clock": {"rounds": 1}, "types": {"player": {"agent": True}},
+                "entities": {"p": {"type": "player", "count": 3}},
+                "mechanisms": {"cards": {"kind": "game", "mode": "cards", "who": "player", "hand_size": 30}}}
+    issues = [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    assert [i.path for i in issues] == ["mechanisms.cards.hand_size"] and "the deck has 52" in issues[0].message
+    contract["mechanisms"]["cards"]["hand_size"] = 17
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]

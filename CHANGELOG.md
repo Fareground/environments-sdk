@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A cards deal that needs more cards than the shared deck holds (`hand_size` × players, when both are written out) is
+    a check error at `hand_size`, instead of some players silently getting fewer cards.
   - One rule for a property a mechanism starts from a setting: a type declaring it with another default is an error,
     for a pot's `stack` as for a ledger's `start` (a player type's `stack: 5` silently gave every player 5 chips).
   - The `dynamics.ode` reference example is a textbook SIR: N is S + I + R (it read `$count(person)`, 5, against a
