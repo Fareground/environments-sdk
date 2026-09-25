@@ -19,6 +19,7 @@ every kind of trader).
 - `extends`: text — Parent type whose props and role this type inherits.
 - `description`: text
 - `props`: object
+- `owner`: text — The property naming each entity's owner: the id of the agent (or a list of the ids of the agents) that reads its private properties, as an agent reads its own (`"owner": "seller"` on a listing). Without it, only the entity itself and the agent types a property's `private` lists read them.
 - `policies`: object — Coded participants for agents of this type (and its subtypes), played as `policy:<name>`: crowds and baselines.
 - `policy`: text — The policy agents of this type play when a run names none.
 - `score`: ScoreSpec — What each agent of this type scores as a seat, for returns, tournaments, game search and gyms.
@@ -33,7 +34,7 @@ parent's ``private``, ``type``, ``min``, ``max`` and ``values`` still apply.
 - `min`: number — Lowest allowed value: a write below it is refused, never clamped (saturate with $clamp).
 - `max`: number — Highest allowed value: a write above it is refused, never clamped (saturate with $clamp).
 - `values`: [any]
-- `private`: bool | [text] = false — Hidden from every agent but its owner: an agent owns its own; the world's and any other entity's are hidden from all, except to the reader a view's or entity choice's `where` picks them for (`$it.owner == $actor.id`). A list of agent types instead of true also shows it to agents of those types (a chair, an auditor). Reading one in what an agent is shown or offered, or in text sent to several, is an error at run time; a refusal whose rules read one spends the action.
+- `private`: bool | [text] = false — Hidden from every agent but the entity itself and its owner (the agent its type's `owner` property names); the world's are hidden from all. A list of agent types instead of true also shows it to agents of those types (a chair, an auditor). Reading one in what an agent is shown or offered, or in text sent to several, is an error at run time; a refusal whose rules read one spends the action.
 - `description`: text
 - `unit`: text
 **PolicySpec** — A coded participant: the first rule whose condition holds and whose action is legal is taken.

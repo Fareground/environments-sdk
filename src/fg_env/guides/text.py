@@ -122,12 +122,17 @@ always renders «quoted» on one line, in news, views and outcomes.
 
 An agent learns only what the contract shows it: `private` props, per-type views, record `visible` rules, `to` on
 posts and emits, and `announce: false` on actions (nobody else learns they happened) say what each one sees. Agents get `inspect` only for types that set `inspect`.
-A `private` prop is hidden from every agent but its owner: an agent owns its own; a list of agent types in place of
-`true` (`"private": ["chair"]`) also shows it to agents of those types — an area chair reading every review's score,
-an auditor every ledger — enforced like any private prop for everyone else. The world's and any other
-entity's are hidden from every agent unless a view's or entity choice's `where`, or a policy rule's
-`each: $filter(<type>, <condition>)`, picks the items by the reader and a prop of theirs (`$it.owner == $actor.id`) —
-the reader owns what it picks (by id names no owner). Reading a hidden
+A `private` prop is read by the entity itself, by its owner and by the agent types it lists — nobody else. An
+entity's owner is a stated fact: its type names the prop holding the owner's id (`"owner": "seller"` on a listing
+type; a list of ids names several owners), read from the entity's own value whenever it is shown, so handing a card
+to another player hands over what it may read. A list of agent types in place of `true`
+(`"private": ["chair"]`) also shows it to agents of those types — an area chair reading every review's score, an
+auditor every ledger — and nothing widens it further: the author of a paper does not read the chair-only score of a
+review of it unless the review's type makes that author its owner. The world's private props have no owner. A view's
+or entity choice's `where` (or a policy rule's `each: $filter(<type>, <condition>)`) never grants anything: it picks
+only among what its reader may read, so `"where": "$it.seller == $actor.id"` over a listing type with
+`"owner": "seller"` lists the reader's own listings with their private props, and an item the `where` could decide
+only by a hidden value is simply left out. Reading a hidden
 value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
 outcome text, whether an action ends the turn (`terminal`), briefs, policies, defs they call, series outputs worked out
 from private props) is an error,

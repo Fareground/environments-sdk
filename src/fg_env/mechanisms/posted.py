@@ -421,7 +421,7 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                                f"{name}_bought": {"type": "map", "default": {}, "private": True},
                                f"{name}_counters": {"type": "map", "default": {}, "private": True},
                                f"{name}_rated": {"type": "list", "default": [], "private": True}}},
-        f"{name}_listing": {"description": "A listing at a posted price.", "props": {
+        f"{name}_listing": {"description": "A listing at a posted price.", "owner": "seller", "props": {
             "seller": {"type": "text", "default": ""}, "item": {"type": "text", "default": ""},
             "price": {"type": "number", "default": 0}, "stock": {"type": "int", "default": 0},
             "capacity": {"type": "int", "default": 0}, "sold_round": {"type": "int", "default": 0},

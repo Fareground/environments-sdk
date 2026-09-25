@@ -44,9 +44,15 @@ worlds stay fast, and the package is organised by feature.
   `simulation`); `duel`, `shop`, `simulation` (as it was) and `meeting` are gone. Contracts written by `fg-env new`,
   `fg-env migrate` and `engines.clone` put sections in the contract's order and short entries on one line.
 
-- **One rule for what is hidden.** A `private` property is hidden from every agent but its owner: an agent owns its
-  own, and the world's and every other entity's private properties are hidden from all agents unless a view's or an
-  entity choice's `where` picks items by the reader (`$it.owner == $actor.id`). One check enforces it in every channel an
+- **One rule for what is hidden.** A `private` property is read by the entity itself, by its owner and by the agent
+  types its `private` lists — nobody else. **BREAKING:** whose an entity is is now stated, never inferred from how a
+  `where` is written (a `where` that merely mentioned the reader used to make it the owner of every item it picked, so
+  `$it.author != $actor.id` showed everyone else's secrets and a chair-only score reached a paper's author). A type
+  names the public property holding each entity's owner — the id of an agent, or a list of ids — with
+  `"owner": "<prop>"` (`"owner": "seller"` on a listing type), read from the entity's own value whenever it is shown;
+  a `where` only picks, and `private: [types]` is never widened. To migrate, add `owner` to each type whose private
+  properties a view or choice showed to the agent it picked them by: `check` reports every such view and names the
+  property to use. One check enforces it in every channel an
   agent is shown or offered — views, tool bounds, choices and defaults, `who`, announcements, posts, outcomes, refusals,
   inspect. Any refusal (a `when`, a `fail`, an error, a transfer) whose rules read a hidden value spends the action, and
   refusals about another's hidden balance are generic. `private` on a link field is an error. Arguments nested too

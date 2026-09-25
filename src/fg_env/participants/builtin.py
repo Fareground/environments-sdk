@@ -10,8 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..effects.runner import each_items
 from ..errors import ContractError, Issue, RunError
-from ..expr import ExprError, compile_expr, filter_parts, resolve, truthy
-from ..expr.hidden import REVEALS, reveals
+from ..expr import ExprError, compile_expr, resolve, truthy
 from ..runtime.facts import PolicyRule
 from ..runtime.session import Wake
 from ..sampling.probability import is_probability
@@ -204,27 +203,16 @@ class PolicyAgent:
 
     @staticmethod
     def _each(turn: Any, each: str, scope: Any, path: str) -> list[Any]:
-        """A scope per item of a rule's `each` ($it, $i). Items a `$filter(<type>, <condition>)` picks by the agent
-        and one of their properties (`$it.owner == $actor.id`) are the agent's, as a view's `where` makes them: the
-        condition reads each item's private properties for the agent (`... and $it.secret == 0`), and so does the rule
-        (see expr/hidden.py)."""
+        """A scope per item of a rule's `each` ($it, $i), read as the agent reads them (see expr/hidden.py)."""
         world, contract = turn.env.world, turn.env.contract
         if each in contract.types:
             return [scope.child(it=item, i=position) for position, item in enumerate(world.entities_of(each))]
         try:
-            parts = filter_parts(each)
-            owned = parts is not None and reveals(contract, parts[1], parts[0])
             with turn.gate, turn.after_choices():
-                if parts is not None and owned:
-                    kind, condition = parts
-                    items = [item for item in world.entities_of(kind)
-                             if truthy(condition(scope.child(it=item, **{REVEALS: item})))]
-                else:
-                    items = each_items(compile_expr(each)(scope), world, f"{path}.each")
+                items = each_items(compile_expr(each)(scope), world, f"{path}.each")
         except ExprError as exc:
             raise RunError(str(exc), f"{path}.each") from None
-        return [scope.child(it=item, i=position, **({REVEALS: item} if owned else {}))
-                for position, item in enumerate(items)]
+        return [scope.child(it=item, i=position) for position, item in enumerate(items)]
 
     def _try(self, wake: Wake, spec: PolicySpec, base: str, index: int, scope: Any, rng: Any) -> str:
         """Try one rule: "acted", "passed" (the turn ends), or "skipped"."""

@@ -133,12 +133,12 @@ def test_an_out_of_bounds_refusal_does_not_show_a_private_value():
     assert "bob's cash cannot go below 0." in seen["calls"][0] and "-7" not in seen["calls"][0]
 
 
-def test_the_checker_warns_when_a_filtered_view_reads_private_state():
-    c = with_(views={"leak": {"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"},
-                     "ranked": {"of": "player", "sort": "$it.cash", "show": "{$it.name}"}})
-    issues = {i.path: i for i in fg_env.check(copy.deepcopy(c))}
-    assert issues["views.leak.show"].severity == "warning"
-    assert issues["views.ranked.show"].severity == "error"
+def test_the_checker_reports_a_view_that_reads_anothers_private_state_whatever_its_where():
+    c = with_(views={"leak": {"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"}})
+    issues = [i for i in fg_env.check(copy.deepcopy(c)) if i.path.startswith("views.leak")]
+    assert [i.severity for i in issues] == ["error"] and "cash is private" in issues[0].message
+    ranked = with_(views={"ranked": {"of": "player", "sort": "$it.cash", "show": "{$it.name}"}})
+    assert {i.path: i for i in fg_env.check(ranked)}["views.ranked.show"].severity == "error"
 
 
 def test_a_stepped_game_and_its_clones_enforce_it_too():
@@ -411,12 +411,14 @@ def test_whether_an_action_ends_the_turn_may_not_read_a_hidden_value():
 
 
 def test_a_policy_filter_that_picks_the_agents_own_items_may_also_test_their_private_props():
-    """As a view's `where` may: `$it.holder == $actor.id and $it.secret == 0` picks r_1's unmarked tokens."""
+    """Tokens whose `owner` is their holder: `$it.holder == $actor.id and $it.secret == 0` picks r_1's unmarked
+    tokens."""
     c = {"name": "own", "clock": {"rounds": 1},
          "types": {"r": {"agent": True, "policies": {"p": {"rules": [
              {"each": "$filter(tok, $it.holder == $actor.id and $it.secret == 0)", "do": "mark",
               "with": {"t": "$it"}}]}}},
-             "tok": {"props": {"holder": "", "secret": {"type": "int", "default": 0, "private": True}}}},
+             "tok": {"owner": "holder",
+                     "props": {"holder": "", "secret": {"type": "int", "default": 0, "private": True}}}},
          "entities": {"r": {"type": "r", "count": 2},
                       "tok": {"type": "tok", "count": 4, "props": {"holder": "'r_1' if $i <= 2 else 'r_2'",
                                                                   "secret": "1 if $i == 1 else 0"}}},

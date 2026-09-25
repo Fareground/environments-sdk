@@ -46,20 +46,23 @@ TRIAL = {
         "attorney": {"agent": True, "props": {"side": {"type": "enum", "values": ["plaintiff", "defense"],
                                                        "default": "plaintiff"}}},
         "judge": {"agent": True},
-        "exhibit": {"props": {"side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"},
-                              "file": {"type": "asset", "private": True}, "offered": False, "title": ""}},
+        "exhibit": {"owner": "counsel",
+                    "props": {"side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"},
+                              "counsel": "pat", "file": {"type": "asset", "private": True}, "offered": False,
+                              "title": ""}},
     },
     "entities": {
         "pat": {"type": "attorney"},
         "dana": {"type": "attorney", "props": {"side": "defense"}},
         "ito": {"type": "judge"},
         "p1": {"type": "exhibit", "props": {"file": "report", "title": "Report"}},
-        "d1": {"type": "exhibit", "props": {"side": "defense", "file": "photos/seam.png", "title": "Seam"}},
+        "d1": {"type": "exhibit", "props": {"side": "defense", "counsel": "dana", "file": "photos/seam.png",
+                                            "title": "Seam"}},
     },
     "records": {"evidence": {"fields": {"text": "text", "file": "asset"}, "show": "{text}"}},
     "actions": {
         "offer": {"by": "attorney", "params": {"exhibit": {"type": "entity", "of": "exhibit",
-                                                          "where": "$it.side == $actor.side and not $it.offered"}},
+                                                          "where": "$it.counsel == $actor.id and not $it.offered"}},
                   "do": "$params.exhibit.offered = true", "private": True, "attach": "$params.exhibit.file"},
         "argue": {"by": "attorney", "params": {"text": {"type": "text", "max_len": 200}}, "do": []},
         "note": {"by": "judge", "do": []},
@@ -72,8 +75,8 @@ TRIAL = {
              {"each": "exhibit", "where": "$it.offered",
               "do": ["$revealed = $it.file", {"post": "evidence", "text": "$it.title", "file": "$revealed"}]}]}]},
     ],
-    "views": {"own": {"for": "attorney", "stages": ["preparation"], "of": "exhibit", "where": "$it.side == $actor.side",
-                      "show": "{title}", "attach": "$it.file"}},
+    "views": {"own": {"for": "attorney", "stages": ["preparation"], "of": "exhibit",
+                      "where": "$it.counsel == $actor.id", "show": "{title}", "attach": "$it.file"}},
 }
 
 

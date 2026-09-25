@@ -1,7 +1,7 @@
 """Checking reads of hidden values in what agents are shown (a part of the contract checker).
 
-A property declared `private` is hidden from every agent but its owner: an agent owns its own; the world's and any other
-entity's have no owner unless a `where` picks the items by the reader (see expr/hidden.py).
+A property declared `private` is hidden from every agent but the entity itself, its owner (the agent its type's
+`owner` property names) and the agent types its `private` lists; the world's have no owner (see expr/hidden.py).
 The engine refuses reading a hidden value in what an agent is shown or offered; these checks report such reads before
 a run hits them.
 """
@@ -15,7 +15,7 @@ from .. import contract as C
 from ..actions.book import announces, stage_actions
 from ..expr import Expr, ExprError, compile_expr
 from ..expr.compile import call_roots
-from ..expr.hidden import readers, reveals
+from ..expr.hidden import readers
 from ..expr.template import compile_template
 from ..information.reads import inspect_rule
 from .core import Checker
@@ -214,10 +214,10 @@ class PrivacyChecks(Checker):
                            "work out what agents may learn in game logic (an action's do, an event) and show that")
 
     def _private_listing(self, view: C.ViewSpec, path: str) -> None:
-        """A view listing the entities of a type by a private property (shown, attached, sorted or filtered by) shows it
-        to each reader, unless its `where` picks the items the reader owns (see expr/hidden.py). An agent's own private
-        property may be shown to it: a `where` may guard to that, so over agents this is a warning (reading another
-        agent's is an error at run time)."""
+        """A view listing the entities of a type by a private property (shown, attached, sorted or filtered by) shows
+        each reader only the items it may read: the entities it owns, which its `where` picks (see expr/hidden.py).
+        Without a `where` it would show every reader every item's; over a type with no owner, only the entity itself
+        and the listed types read them, so nobody else is ever shown one."""
         of = str(view.of)
         try:
             expressions = list(compile_template(view.show, "it").expressions)
@@ -226,14 +226,33 @@ class PrivacyChecks(Checker):
         except ExprError:
             return  # already reported by the template and expression checks
         read = [*expressions, *([where] if where is not None else [])]
-        shown = [] if where is not None and reveals(self.c, where, of) else self._private_fields(read, of)
-        if shown and (where is None or not self.c.is_agent(of)):
+        shown = self._private_fields(read, of)
+        if shown and not self._ownable(of):
+            self.error(path, f"shows (or sorts or filters by) private {', '.join(shown)} of {of}, which no reader "
+                             f"owns: an entity's private properties are read only by itself, its owner and the types "
+                             f"its `private` lists",
+                       self._owner_fix(of, where))
+        elif shown and where is None:
             self.error(path, f"shows (or sorts or filters by) private {', '.join(shown)} of every {of} to each reader",
-                       "pick the items the reader owns in `where` (e.g. `$it.owner == $actor.id`, or `$it.id == "
-                       "$actor.id` for an agent's own), or leave the private field out")
-        elif shown:
-            self._private_warning(path, ", ".join(shown))
-        self._private_via_defs(read, path)  # a def is called without the reveal: it reads as for anyone
+                       "pick the items the reader owns in `where` (`$it.id == $actor.id` for an agent's own, "
+                       "`$it.owner == $actor.id` for a type whose `owner` is owner), or leave the private field out")
+        self._private_via_defs(read, path)  # a def may read another entity's: whose shows only at run time
+
+    def _ownable(self, kind: str) -> bool:
+        """Whether some agent owns each entity of ``kind``: an agent owns itself; any other entity has an owner when
+        its type names the property holding it (`owner`)."""
+        return self.c.is_agent(kind) or self.c.owner_of(kind) is not None
+
+    def _owner_fix(self, kind: str, where: Expr | None) -> str:
+        """How to let a reader read the private properties of the ``kind`` entities it owns: name the property that
+        holds each one's owner (the one ``where`` picks them by, when it names one)."""
+        specs = self.c.props_of(kind)
+        named = [chain[1] for chain in (where.paths if where is not None else ())
+                 if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and not specs[chain[1]].private]
+        prop = named[0] if named else "<the property holding the owner's id>"
+        return (f"if each {kind} belongs to an agent, say which property holds its owner's id (`\"owner\": "
+                f"\"{prop}\"` in types.{kind}) and pick the reader's in `where`; to show it to a kind of agent, list "
+                "that type in the property's `private`; otherwise leave it out")
 
     def _private_warning(self, path: str, read: str) -> None:
         self.warn(path, f"reads private {read}: what an agent is shown or offered may read only its own private "
@@ -272,21 +291,22 @@ class PrivacyChecks(Checker):
 
     def _private_filter(self, where: str | None, of: str, path: str) -> None:
         """A choice filtered by a private property reveals it — the tool lists only the entities that pass — unless
-        the `where` picks the items the actor owns (see expr/hidden.py)."""
+        the entities have an owner (see expr/hidden.py), whose own the `where` may test: reading anyone else's is then
+        refused at run time."""
         if where is None:
             return
         try:
             compiled = compile_expr(where)
         except ExprError:
             return  # already reported by the expression check
-        shown = [] if reveals(self.c, compiled, of) else self._private_fields([compiled], of)
-        if shown:
+        shown = self._private_fields([compiled], of)
+        if shown and self.c.owner_of(of) is None:
             self.error(path, f"filters the choices by private {', '.join(shown)} of {of}: the tool's list of choices "
                              "would reveal it to the actor",
                        "filter by what the actor may know (public properties, its own, a relation or a function such "
-                       "as $known_role), pick the items the actor owns (`$it.owner == $actor.id`), or accept any "
-                       "choice and decide in `do`")
-        elif self.c.is_agent(of):  # a def may read another agent's; the run refuses any other hidden read loudly
+                       "as $known_role), or accept any choice and decide in `do`"
+                       + ("" if self.c.is_agent(of) else "; or " + self._owner_fix(of, compiled)))
+        else:
             self._private_via_defs([compiled], path)
 
     def _private_fields(self, expressions: Iterable[Expr], of: str) -> list[str]:

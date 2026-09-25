@@ -39,8 +39,10 @@
     "judge": {"agent": true},
     "exhibit": {
       "inspect": "$world.trial_open and $it.offered or $viewer.type == 'attorney' and $viewer.side == $it.side",
+      "owner": "counsel",
       "props": {
         "title": "",
+        "counsel": {"type": "text", "default": "pat", "description": "The attorney whose exhibit it is."},
         "side": {"type": "enum", "values": ["plaintiff", "defense"], "default": "plaintiff"},
         "file": {"type": "asset", "private": true},
         "offered": false
@@ -59,12 +61,12 @@
     "d1": {
       "type": "exhibit",
       "name": "Exhibit D-1",
-      "props": {"title": "Photo of a weld seam", "side": "defense", "file": "photos/weld_seam.png"}
+      "props": {"title": "Photo of a weld seam", "side": "defense", "counsel": "dana", "file": "photos/weld_seam.png"}
     },
     "d2": {
       "type": "exhibit",
       "name": "Exhibit D-2",
-      "props": {"title": "Photo of the loading dock", "side": "defense", "file": "photos/loading_dock.png"}
+      "props": {"title": "Photo of the loading dock", "side": "defense", "counsel": "dana", "file": "photos/loading_dock.png"}
     }
   },
   "records": {
@@ -84,7 +86,7 @@
       "by": "attorney",
       "description": "Offer one of your side's exhibits; it is revealed to the court when trial opens.",
       "params": {
-        "exhibit": {"type": "entity", "of": "exhibit", "where": "$it.side == $actor.side and not $it.offered"}
+        "exhibit": {"type": "entity", "of": "exhibit", "where": "$it.counsel == $actor.id and not $it.offered"}
       },
       "do": "$params.exhibit.offered = true",
       "outcome": "You offered {$params.exhibit.name}.",
@@ -122,7 +124,7 @@
     {"name": "verdict", "when": "$round == 3", "actions": ["rule"]}
   ],
   "views": {
-    "own_exhibits": {"for": "attorney", "title": "Your side's exhibits (sealed)", "of": "exhibit", "where": "$it.side == $actor.side", "show": "{name} [{id}]: {title}{' — offered' if $it.offered else ''}", "attach": "$it.file", "when": "$stage in ['preparation']"},
+    "own_exhibits": {"for": "attorney", "title": "Your side's exhibits (sealed)", "of": "exhibit", "where": "$it.counsel == $actor.id", "show": "{name} [{id}]: {title}{' — offered' if $it.offered else ''}", "attach": "$it.file", "when": "$stage in ['preparation']"},
     "admitted": {"title": "Admitted exhibits", "of": "evidence", "show": "{text}", "empty": "No exhibit was admitted.", "when": "$stage in ['verdict']"},
     "scores": {"for": "judge", "of": "attorney", "show": "{name} ({side}): {score|1} points from the court's evaluator", "when": "$stage in ['verdict']"}
   },

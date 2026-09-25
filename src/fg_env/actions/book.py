@@ -27,7 +27,6 @@ from ..expr import (
     shared_budget,
     truthy,
 )
-from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..information.announce import Redaction, notified_since
@@ -236,20 +235,17 @@ class ActionBook:
         if param.where is None:
             return items
         expr = compile_expr(param.where)
-        reveal = reveals(self.contract, expr, param.of)
         if "params" in expr.roots:
-            return items if params is None else self._qualifying(actor, action, pname, expr, items, params, first,
-                                                                 reveal)
+            return items if params is None else self._qualifying(actor, action, pname, expr, items, params, first)
         if first:
-            return self._qualifying(actor, action, pname, expr, items, None, first, reveal)
+            return self._qualifying(actor, action, pname, expr, items, None, first)
         return self.world.evaluation.remembered(
             ("choices", action, pname, actor.id, param.of, param.where),
-            lambda: self._qualifying(actor, action, pname, expr, items, None, False, reveal))
+            lambda: self._qualifying(actor, action, pname, expr, items, None, False))
 
     def _qualifying(self, actor: Entity, action: str, pname: str, expr: Any, items: list[Entity],
-                    params: dict[str, Any] | None, first: bool, reveal: bool) -> list[Entity]:
-        """The ``items`` the `where` ``expr`` picks, read as the actor sees them; with ``reveal`` (see
-        expr/hidden.py) it reads each item's private properties."""
+                    params: dict[str, Any] | None, first: bool) -> list[Entity]:
+        """The ``items`` the `where` ``expr`` picks, read as the actor sees them."""
         out = []
         base = self.world.evaluation.scope(actor=actor, viewer=actor, params=params or {})
         ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
@@ -261,9 +257,8 @@ class ActionBook:
                 if first:
                     break
                 continue
-            here = base.child(it=item, i=position, **{REVEALS: item}) if reveal else base.child(it=item, i=position)
             try:
-                if truthy(expr(here)):
+                if truthy(expr(base.child(it=item, i=position))):
                     out.append(item)
                     if first:
                         break

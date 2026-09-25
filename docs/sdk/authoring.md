@@ -112,8 +112,10 @@ Every section is optional except `name` and `types`; `guide('<section>')` has ea
    `when` is the condition: `"$round == 5"`, `"$round % 7 == 1"`, `"$chance(0.1)"`.
 7. **Information** — `brief` (`{situation, rules, roles: {type: text}}`) is read first; `views`
    (`{v: {for, title, of, where, sort, desc, limit, show}}`) are read every turn: `of` omitted is one line about
-   `$actor`, and a list includes the viewer unless `where: "$it.id != $actor.id"`. A `private` prop is seen only by
-   its owner; a record's `visible` says who reads each entry; `announce` is the line others read when an action
+   `$actor`, and a list includes the viewer unless `where: "$it.id != $actor.id"`. A `private` prop may be read only by
+   the entity itself, its owner (a type's `owner` names the prop holding the owner's id: `"owner": "seller"`) and
+   the agent types it lists (`"private": ["chair"]`) — and an agent learns it only where a view, its brief or a
+   tool shows it; a record's `visible` says who reads each entry; `announce` is the line others read when an action
    happens (`false`: nobody learns of it).
 8. **Outcomes** — `outputs`: `{name: expr}` or `{name: {expr, type, series}}`; `series: true` samples it every round
    (`$series.name`). `end`: `[{when, winner, say}]` stops the run early. `invariants`: `[expr or {expr, why}]` must

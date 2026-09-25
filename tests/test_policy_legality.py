@@ -110,14 +110,15 @@ def test_a_policy_rule_no_agent_of_its_type_can_take_is_an_error():
 
 
 def test_a_policy_rule_over_the_items_its_agent_owns_may_read_their_private_values():
-    """`each: $filter(card, $it.owner == $actor.id)` picks the items the agent owns, as a view's `where` does, so the
-    rule may read their private properties; the other agent's card stays hidden (audit hands-on M1)."""
+    """Cards whose type names their `owner`: `each: $filter(card, $it.owner == $actor.id)` picks the agent's own, whose
+    private properties the rule may read; the other agent's card stays hidden."""
     contract = {"name": "Owned", "clock": {"rounds": 1},
                 "types": {"r": {"agent": True, "props": {"played": 0},
                                 "policies": {"p": {"rules": [{"each": "$filter(card, $it.owner == $actor.id)",
                                                               "do": "play", "with": {"card": "$it",
                                                                                      "n": "$it.secret"}}]}}},
-                          "card": {"props": {"owner": "", "secret": {"type": "int", "default": 0, "private": True}}}},
+                          "card": {"owner": "owner",
+                                   "props": {"owner": "", "secret": {"type": "int", "default": 0, "private": True}}}},
                 "entities": {"r1": {"type": "r"}, "r2": {"type": "r"},
                              "c1": {"type": "card", "props": {"owner": "r1", "secret": 4}},
                              "c2": {"type": "card", "props": {"owner": "r2", "secret": 7}}},

@@ -1677,7 +1677,7 @@
             }
           ],
           "default": false,
-          "description": "Hidden from every agent but its owner: an agent owns its own; the world's and any other entity's are hidden from all, except to the reader a view's or entity choice's `where` picks them for (`$it.owner == $actor.id`). A list of agent types instead of true also shows it to agents of those types (a chair, an auditor). Reading one in what an agent is shown or offered, or in text sent to several, is an error at run time; a refusal whose rules read one spends the action.",
+          "description": "Hidden from every agent but the entity itself and its owner (the agent its type's `owner` property names); the world's are hidden from all. A list of agent types instead of true also shows it to agents of those types (a chair, an auditor). Reading one in what an agent is shown or offered, or in text sent to several, is an error at run time; a refusal whose rules read one spends the action.",
           "title": "Private"
         },
         "description": {
@@ -2164,6 +2164,19 @@
           },
           "title": "Props",
           "type": "object"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "The property naming each entity's owner: the id of the agent (or a list of the ids of the agents) that reads its private properties, as an agent reads its own (`\"owner\": \"seller\"` on a listing). Without it, only the entity itself and the agent types a property's `private` lists read them.",
+          "title": "Owner"
         },
         "policies": {
           "additionalProperties": {

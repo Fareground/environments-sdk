@@ -16,7 +16,6 @@ from ..contract import Contract, StageSpec, ViewSpec
 from ..errors import RunError
 from ..expr import EVERYONE, ExprError, PrivateRead, compile_expr, truthy
 from ..expr.base import _BUDGET, charge
-from ..expr.hidden import REVEALS, reveals
 from ..expr.objects import Entity
 from ..expr.scope import Scope
 from ..expr.template import compile_template, entity_handles, format_value
@@ -64,7 +63,6 @@ class Perception:
     was copied from, whose reading of the contract it shares."""
 
     _takes_text: bool
-    _revealing: frozenset[str]
     _shared: set[str]
     _silent_records: set[str]
 
@@ -75,13 +73,10 @@ class Perception:
         self._selections: dict[str, tuple[Any, list[Any], int]] = {}
         self._news = NewsIndex(world.log)
         if like is not None:
-            self._takes_text, self._revealing, self._shared = like._takes_text, like._revealing, like._shared
+            self._takes_text, self._shared = like._takes_text, like._shared
             self._silent_records = like._silent_records
             return
         self._takes_text = any(p.type == "text" for a in contract.actions.values() for p in a.params.values())
-        #: The list views whose `where` reveals their items' private properties to the reader (see expr/hidden.py).
-        self._revealing = frozenset(name for name, view in contract.views.items() if view.where is not None
-                                    and reveals(contract, compile_expr(view.where), view.of))
         #: The list views whose items (`of`, `where`, `sort`, `limit`) name nothing of their reader: worked out once
         #: per world state for every reader (see :meth:`_shared_items`).
         self._shared = {name for name, view in contract.views.items() if _reads_no_reader(contract, view)}
@@ -200,15 +195,14 @@ class Perception:
                 if attached is not None:
                     attached.extend(files)
                 return f"{title}: {body}" if title else body
-            reveal = actor is not None and name in self._revealing
             items = self._shared_items(name, view) if actor is not None and name in self._shared else None
             if items is None:
-                items = self._select(view, scope, reveal)
+                items = self._select(view, scope)
             template = compile_template(view.show, "it")
             marker = "- " if view.bullet else ""
             rendered = []
             for i, it in enumerate(items):
-                here = scope.child(it=it, i=i + 1, **{REVEALS: it}) if reveal else scope.child(it=it, i=i + 1)
+                here = scope.child(it=it, i=i + 1)
                 rendered.append(self._attach(view, here, it, marker + template.render(here), files, path))
         except ExprError as exc:
             raise RunError(str(exc), path) from None
@@ -242,7 +236,7 @@ class Perception:
         used, handles = budget.used, _Handles()
         try:
             with world.luck.forbidden(), entity_handles(handles):
-                items = self._select(view, world.evaluation.scope(viewer=EVERYONE), False)
+                items = self._select(view, world.evaluation.scope(viewer=EVERYONE))
         except (PrivateRead, LuckAhead):
             items = None
         except ExprError:
@@ -256,14 +250,13 @@ class Perception:
             self._selections[name] = (state, items, budget.used - used)
         return items
 
-    def _select(self, view: ViewSpec, scope: Any, reveal: bool) -> list[Any]:
-        """The items a list view shows: filtered, sorted and cut to its limit. With ``reveal``, its `where` reads each
-        item's private properties for the reader, and its sort those of the items the `where` picked."""
+    def _select(self, view: ViewSpec, scope: Any) -> list[Any]:
+        """The items a list view shows: filtered, sorted and cut to its limit, read as its reader reads them."""
         items = self._items(view, scope)
         vars, world = scope.vars, scope.world
 
         def at(it: Any, i: int) -> Scope:  # one item's scope, built in one step: this runs for every item
-            return Scope({**vars, "it": it, "i": i, REVEALS: it} if reveal else {**vars, "it": it, "i": i}, world)
+            return Scope({**vars, "it": it, "i": i}, world)
 
         if view.where is not None:
             where = compile_expr(view.where)

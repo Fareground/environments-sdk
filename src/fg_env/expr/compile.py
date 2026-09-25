@@ -18,7 +18,7 @@ from .codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, Codegen
 from .scope import Scope
 from .syntax_hints import syntax_message
 
-__all__ = ["Expr", "call_roots", "compile_expr", "filter_parts", "item_conditions"]
+__all__ = ["Expr", "call_roots", "compile_expr", "item_conditions"]
 
 _MAX_SOURCE = 8_192
 _MAX_NODES = 2_048
@@ -264,23 +264,6 @@ def item_conditions(source: str) -> tuple[tuple[str, Expr], ...] | None:
 
 
 @lru_cache(maxsize=1_024)
-def filter_parts(source: str) -> tuple[str, Expr] | None:
-    """``$filter(<type>, <condition>)``: its type word and its condition as an expression of ``$it``; None for any
-    other expression (and an invalid one raises as :func:`compile_expr` does)."""
-    compile_expr(source)
-    tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
-    _restore_words(list(ast.walk(tree)))
-    body = tree.body
-    if not (isinstance(body, ast.Call) and isinstance(body.func, ast.Name) and body.func.id == f"{_FUNC_PREFIX}filter"
-            and len(body.args) == 2 and not body.keywords and isinstance(body.args[0], ast.Name)
-            and not body.args[0].id.startswith((_ROOT_PREFIX, _FUNC_PREFIX))):
-        return None
-    for node in ast.walk(body.args[1]):  # back to the language's spelling: the condition is an expression of its own
-        if isinstance(node, ast.Name) and node.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)):
-            node.id = "$" + node.id[len(_ROOT_PREFIX):]
-    return body.args[0].id, compile_expr(ast.unparse(body.args[1]))
-
-
 @lru_cache(maxsize=1_024)
 def call_roots(source: str) -> tuple[tuple[str, tuple[str | None, ...]], ...]:
     """Every function call in the expression: its name and, for each argument, the root it is when it is a bare root

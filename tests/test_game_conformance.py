@@ -46,10 +46,11 @@ def test_a_matrix_game_scores_a_missed_move_by_its_stated_rule(stem, tool, move,
 
 
 def test_a_hidden_card_only_its_owner_reads_is_no_leak_and_one_shown_to_all_is_refused():
-    # A private property of an entity that is not an agent is hidden from every agent, unless a `where` names its owner.
+    # A private property of an entity that is not an agent is hidden from every agent but the owner its type names.
     sealed = load_game("kuhn_poker")
-    sealed["types"]["envelope"] = {"props": {"card": {"type": "int", "default": 0, "private": True},
-                                             "holder": {"type": "text", "default": "p1"}}}
+    sealed["types"]["envelope"] = {"owner": "holder",
+                                   "props": {"card": {"type": "int", "default": 0, "private": True},
+                                               "holder": {"type": "text", "default": "p1"}}}
     sealed["entities"]["envelope"] = {"type": "envelope"}
     sealed["events"][0]["do"][1]["do"].append("$entity('envelope').card = $first")  # P0's card, which P1 holds
     sealed["views"]["envelope"] = {"of": "envelope", "where": "$it.holder == $actor.id", "show": "P0 has: {card}."}

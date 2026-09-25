@@ -204,8 +204,9 @@
     },
     "impression": {
       "description": "How one juror privately perceived one admitted exhibit.",
+      "owner": "juror",
       "props": {
-        "juror": {"type": "text", "default": "", "private": true},
+        "juror": {"type": "text", "default": "", "description": "The juror whose impression it is."},
         "exhibit": {"type": "text", "default": "", "private": true},
         "title": {"type": "text", "default": "", "private": true},
         "side": {"type": "text", "default": "", "private": true},

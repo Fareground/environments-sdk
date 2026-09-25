@@ -1,8 +1,8 @@
 """One hidden-information model, enforced everywhere an agent looks.
 
-A property declared `private` is hidden from every agent but its owner: an agent owns its own properties; the world's
-and any other entity's are hidden from every agent unless a `where` picks the items by the reader
-(`$it.owner == $actor.id`). Every channel an agent reads refuses the rest, and any refusal whose evaluation read a value
+A property declared `private` is hidden from every agent but the entity itself, its owner (named by its type's
+`owner` property) and the agent types it lists; the world's have no owner, and no `where` widens who reads anything.
+Every channel an agent reads refuses the rest, and any refusal whose evaluation read a value
 hidden from the actor spends the action, so a hidden value cannot be probed for free.
 """
 import copy
@@ -134,7 +134,7 @@ CARDS = {
     "types": {"p": {"agent": True, "props": {"score": 0}},
               "card": {"props": {"face": {"type": "enum", "values": ["ace", "two"], "default": "two",
                                           "private": True},
-                                 "holder": {"type": "text", "default": "", "private": True}}}},
+                                 "holder": {"type": "text", "default": ""}}}},
     "entities": {"ann": {"type": "p"}, "bob": {"type": "p"},
                  "c1": {"type": "card", "props": {"holder": "ann"}},
                  "c2": {"type": "card", "props": {"face": "ace", "holder": "bob"}},
@@ -153,8 +153,9 @@ def test_a_choice_filtered_by_a_non_agent_private_property_is_refused():
         fg_env.load(around, seed=1).preview("ann")
 
 
-def test_a_where_that_picks_the_items_the_reader_owns_shows_it_their_private_properties():
+def test_a_type_that_names_its_owner_shows_each_owner_the_private_properties_of_its_own():
     mine = copy.deepcopy(CARDS)
+    mine["types"]["card"]["owner"] = "holder"
     mine["actions"]["draw"]["params"]["card"]["where"] = "$it.holder == $actor.id"
     mine["views"] = {"hand": {"of": "card", "where": "$it.holder == $actor.id", "show": "{id}: {face}"}}
     assert not _errors(mine)
@@ -247,20 +248,20 @@ def test_a_transfer_refused_for_anothers_hidden_amount_is_generic_and_spent():
     assert "Bob" not in seen[0].text and "cover" not in seen[0].text
 
 
-def test_inspect_hides_every_private_property_but_the_agents_own():
+def test_inspect_hides_every_private_property_but_from_the_entitys_owner():
     inspectable = copy.deepcopy(CARDS)
-    inspectable["types"]["card"]["inspect"] = True
+    inspectable["types"]["card"].update(inspect=True, owner="holder")
     inspectable["types"]["card"]["props"]["color"] = "red"
     inspectable["actions"]["draw"]["params"]["card"]["where"] = "$it.holder == $actor.id"
-    seen = []
+    seen = {}
 
     def play(wake):
-        if wake.entity_id == "ann":
-            seen.append(wake.call("inspect", {"id": "c2"}).text)
+        seen[wake.entity_id] = wake.call("inspect", {"id": "c2"}).text
         wake.end()
 
     fg_env.run(inspectable, play, seed=1)
-    assert "color: red" in seen[0] and "ace" not in seen[0] and "bob" not in seen[0]
+    assert "color: red" in seen["ann"] and "ace" not in seen["ann"]
+    assert "face: ace" in seen["bob"]  # bob holds c2
 
 
 @pytest.mark.parametrize("args", ["deep", {"g": "hi\ud800"}])

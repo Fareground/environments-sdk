@@ -220,6 +220,12 @@ class Contract(_Model):
         """``type_name`` and every type that extends it (directly or not)."""
         return [name for name in self.types if self.is_a(name, type_name)]
 
+    def owner_of(self, type_name: str) -> str | None:
+        """The property naming the owner of each entity of ``type_name`` (its own `owner`, else the nearest
+        ancestor's), or None."""
+        return next((self.types[name].owner for name in reversed(self.lineage(type_name))
+                     if self.types[name].owner is not None), None)
+
     def props_of(self, type_name: str) -> dict[str, PropSpec]:
         """Every property of ``type_name``, inherited ones included. A subtype's override changes
         only the fields it writes, so ``"secret": 5`` over ``{"default": 1, "private": true}``

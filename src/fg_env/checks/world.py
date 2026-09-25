@@ -153,6 +153,8 @@ class WorldChecks(Checker):
                                self._suggest(spec.extends, self.c.types))
                 elif name in self.c.lineage(spec.extends):
                     self.error(f"types.{name}.extends", "types extend each other in a cycle")
+            if spec.owner is not None:
+                self._owner(name, spec.owner)
             if isinstance(spec.inspect, str):
                 self.condition(spec.inspect, f"types.{name}.inspect", BASE | {"viewer", "it"},
                           {"viewer": set(self.agents), "it": set(self.c.subtypes(name))})
@@ -172,6 +174,20 @@ class WorldChecks(Checker):
             self.error(f"world.{cycle[0]}.default", "world defaults read each other in a circle: "
                        + " → ".join(f"$world.{name}" for name in cycle),
                        "give one of them a literal default and set it in an opening event")
+
+    def _owner(self, kind: str, owner: str) -> None:
+        """A type's `owner` names a public property of it: whose each entity is must be readable by the `where` that
+        picks a reader's own."""
+        props = self.c.props_of(kind)
+        if owner not in props:
+            self.error(f"types.{kind}.owner", f"'{owner}' is not a property of {kind}",
+                       self._suggest(owner, props) or "name the property that holds the id of the agent each one "
+                                                      "belongs to")
+        elif props[owner].private:
+            self.error(f"types.{kind}.owner", f"'{owner}' is private, so no agent could pick its own {kind} entities "
+                                              "by it (`$it." + owner + " == $actor.id` reads it for every one)",
+                       f"make {owner} public: a {kind}'s properties reach agents only through the views and tools that "
+                       "show them")
 
     def _entities(self) -> None:
         self._generated_ids()
