@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - An atomic (`valid`) turn that luck or a hidden read settled part of says what it undid: what came after that
+    action, not "everything you did this turn".
   - The author loop counts as removed a view its test runs showed before and never show now (a `when` that never
     holds), a type's `score`, and an action's `announce` or `when`; `check` warns on a view whose `when` is a constant
     that is false.

@@ -117,6 +117,9 @@ class Turn:
         #: (set when the turn is finished).
         self.did_not_act = False
         self.done = False
+        #: The last action that settled part of an atomic turn (it drew luck or read something hidden): what the turn
+        #: did up to it stands, whatever `valid` says of the rest.
+        self._stands: str | None = None
         #: The turn's own numbers: a fold over its facts (see :meth:`note`).
         self.stats = Stats()
         self._offered = False
@@ -411,6 +414,7 @@ class Turn:
             undo = self.settle()
             if undo is not None:
                 return self._after(self._undone(undo, settled_by=name))
+            self._stands = name
             self.ledger.begin_part()
         if applied:
             if not self.ledger.part_open:  # reactions wait for the commit (atomic turns: for the whole turn)
@@ -556,18 +560,22 @@ class Turn:
         the turn is over, since playing it again would retry the luck or probe the hidden value for free."""
         why = undo.why
         self._undo_outcome(why)
+        stood = self._stands.replace("_", " ").strip() if self._stands is not None else None
+        undone = (f"what you did after {stood} was undone ({stood} and what came before it stand)" if stood
+                  else "everything you did this turn was undone")
         if settled_by is None and not undo.spent:
-            return ToolResult(False, f"That turn is not allowed: {why}. Everything you did this turn was undone; "
-                                     "play your turn again.", data=dict(_UNDONE))
+            again = "the rest of your turn" if stood else "your turn"
+            return ToolResult(False, f"That turn is not allowed: {why}. {undone[0].upper()}{undone[1:]}; play {again} "
+                                     "again.", data=dict(_UNDONE))
         self.done = True
         if settled_by is None:
             return ToolResult(False, f"That turn is not allowed: {why}. Whether it is allowed turned on chance or on "
-                                     "something hidden from you, so everything you did this turn was undone, and your "
-                                     "turn is over.", True, dict(_UNDONE))
+                                     f"something hidden from you, so {undone}, and your turn is over.", True,
+                              dict(_UNDONE))
+        before = f"what you did after {stood}" if stood else "what you did before it this turn"
         return ToolResult(False, f"That turn is not allowed: {why}. {settled_by.replace('_', ' ').capitalize()} "
                                  "turned on chance or on something hidden from you, which settles a turn at once, so "
-                                 "it was undone with what you did before it this turn, and your turn is over.", True,
-                          dict(_UNDONE))
+                                 f"it was undone with {before}, and your turn is over.", True, dict(_UNDONE))
 
     def _after(self, result: ToolResult) -> ToolResult:
         released = self.ledger.released()

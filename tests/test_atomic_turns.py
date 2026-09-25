@@ -221,3 +221,26 @@ def test_the_next_update_says_a_turn_was_undone_not_what_its_undone_action_retur
         fg_env.run(walk, {"ann": ann, "bo": "idle"}, seed=1)
         assert "Your last turn: Your turn was undone: You must end on an even square, not 1." in updates[1]
         assert "Done: step" not in updates[1]
+
+
+def test_an_undone_turn_says_what_stands_when_luck_settled_part_of_it():
+    """A, then B (it draws luck, so A and B stand), then C and BAD: `valid` undoes only C and BAD, and the agent is
+    told so rather than that everything was undone (audit 12 M2)."""
+    contract = {"name": "V", "clock": {"rounds": 1}, "world": {"a": 0, "b": 0, "c": 0, "bad": 0},
+                "types": {"p": {"agent": True, "props": {"x": 0}}}, "entities": {"ann": {"type": "p"}},
+                "stages": [{"name": "s", "max_actions": 5, "valid": [{"expr": "$world.bad == 0", "why": "bad"}]}],
+                "actions": {"A": {"by": "p", "do": "$world.a += 1"},
+                            "B": {"by": "p", "do": "$world.b += $randint(1, 6)"},
+                            "C": {"by": "p", "do": "$world.c += 1"}, "BAD": {"by": "p", "do": "$world.bad = 1"}},
+                "outputs": {"s": "[$world.a, $world.c, $world.bad]"}}
+    told = []
+
+    def play(wake):
+        for name in ("A", "B", "C", "BAD"):
+            wake.call(name, {})
+        told.append(wake.end().text)
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    assert result.outputs["s"] == [1, 0, 0]
+    assert "What you did after B was undone (B and what came before it stand); play the rest of your turn" in told[0]
