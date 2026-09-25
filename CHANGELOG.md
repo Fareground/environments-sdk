@@ -254,6 +254,8 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A diagnostic about turns out of time names the model calls retried after a rate limit or an overload, which is
+    what spent that time.
   - `visible()` writes an invisible character above U+FFFF as the surrogate pair JSON reads (`\udb40\udc41`), not
     `\U000e0041`, so a host request escaped with it is still valid JSON that decodes to what was typed.
   - `AnthropicWebSearch` handles a refusal and a cut-off reply as `LLMHost` does: a refusal is not asked again

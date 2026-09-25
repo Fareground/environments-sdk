@@ -231,10 +231,14 @@ def _never_acted(env: Env) -> list[dict[str, str]]:
 
 
 def _out_of_time(agents: list[tuple[str, Any]]) -> str:
-    """The fix for turns out of time, when some of ``agents``' were."""
+    """The fix for turns out of time, when some of ``agents``' were — naming the provider retries (a rate limit, an
+    overload) that spent the time, when there were any."""
     if not any(stats.timeouts for _, stats in agents):
         return ""
-    return "; turns out of time need a longer `time_limit` or a faster participant"
+    retries = sum(stats.llm_retries for _, stats in agents)
+    spent = (f" ({retries} model call(s) were retried after a rate limit or an overload, which uses a turn's time)"
+             if retries else "")
+    return f"; turns out of time{spent} need a longer `time_limit`, a faster participant or a less loaded provider"
 
 
 def _named(agents: list[tuple[str, Any]]) -> str:

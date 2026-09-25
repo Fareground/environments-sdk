@@ -223,3 +223,14 @@ def test_what_an_action_set_for_later_is_counted_when_its_agent_left_first():
     result = fg_env.run(contract, play, seed=1)
     assert result.outputs["hits"] == 0
     assert [d["path"] for d in result.diagnostics if d["code"] == "after_dropped"] == ["actions.sched"]
+
+
+def test_turns_out_of_time_name_the_provider_retries_that_spent_it():
+    """A turn lost to rate-limit retries says so, not only that it ran out of time (audit 12 agentif A-L4)."""
+    from fg_env.runtime.diagnostics import _out_of_time
+    from fg_env.runtime.facts import Stats
+
+    assert "8 model call(s) were retried after a rate limit" in _out_of_time([("north", Stats(timeouts=4,
+                                                                                               llm_retries=8))])
+    assert "retried" not in _out_of_time([("north", Stats(timeouts=4))])
+    assert _out_of_time([("north", Stats(llm_retries=8))]) == ""
