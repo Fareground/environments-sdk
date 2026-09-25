@@ -84,7 +84,8 @@ class Turn:
         memory = memory or Memory()
         self._since = memory.cursor
         #: What the agent's last action of its previous turn returned (shown atop the update), and of this turn.
-        self._last, self.last_outcome = memory.last, None
+        self._last: str | None = memory.last
+        self.last_outcome: str | None = None
         self._brief: str | None = None
         self._update: str | None = None
         #: The assets delivered with the brief and with the update.
