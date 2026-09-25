@@ -121,8 +121,10 @@ def auction_config(world: Any, name: Any) -> AuctionConfig:
 
 
 def _lot(world: Any, name: str) -> dict[str, Any]:
+    """The open lot to change: a fresh map and bid list, sharing the bids themselves, which nothing changes in place
+    (a replaced bid is a new one), so saving it back needs no copy (``set_world(..., trusted=True)``)."""
     lot = world.props.get(f"{name}_lot") or {}
-    return {**lot, "bids": [dict(b) for b in lot.get("bids", [])]}
+    return {**lot, "bids": list(lot.get("bids", []))}
 
 
 def _parties(world: Any, cfg: AuctionConfig) -> list[Entity]:
@@ -258,7 +260,7 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
         seq = int(world.props.get(f"{name}_seq") or 0) + 1
         world.set_world(f"{name}_seq", seq)
         lot["bids"] = [{"bidder": trader.id, "price": clean(price), "qty": 1, "seq": seq, "side": "bid"}]
-        world.set_world(f"{name}_lot", lot)
+        world.set_world(f"{name}_lot", lot, trusted=True)
         return _receipt(world, name, f"You lead with {fmt(price, 4)} for the {item}.")
     # sealed: replace any earlier bid of this side
     kept = []
@@ -276,7 +278,7 @@ def bid(world: Any, name: str, trader: Entity, side: str, price: Any, qty: Any =
     world.set_world(f"{name}_seq", seq)
     kept.append({"bidder": trader.id, "price": clean(price), "qty": qty, "seq": seq, "side": side})
     lot["bids"] = kept
-    world.set_world(f"{name}_lot", lot)
+    world.set_world(f"{name}_lot", lot, trusted=True)
     verb = "ask" if side == "ask" else "offer" if cfg.reverse else "bid"
     amount = item if qty == 1 else f"{qty} × {item}"
     return _receipt(world, name, f"Your sealed {verb} of {fmt(price, 4)} for {amount} is in.")
@@ -512,7 +514,7 @@ def _bid_package(world: Any, name: str, cfg: AuctionConfig, trader: Entity, pric
     elif held > needed:
         move(world, escrow, cash, clean(held - needed), what="escrow")
     lot["bids"] = kept
-    world.set_world(f"{name}_lot", lot)
+    world.set_world(f"{name}_lot", lot, trusted=True)
     return _receipt(world, name, f"Your sealed bid of {fmt(price, 4)} for {' + '.join(wanted)} is in. You win at most "
                                  f"one of your packages, so {fmt(needed, 4)} (your highest bid) is held.")
 

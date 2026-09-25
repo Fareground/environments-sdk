@@ -315,6 +315,9 @@ worlds stay fast, and the package is organised by feature.
     the part generated from it (`world.au_stock.default`) or only after a smoke run; the fields whose text may be
     a name or a date (a demand `rate` naming a pattern, a pattern's `origin`) say so in their type. A crowd's
     `count` is a whole number ≥ 0 and a book's `volatility` above 0, both checked at the field (mechanism M2).
+  - An auction bid no longer deep-copies every bid of the lot and copies them again as it saves the lot: the bids
+    are shared, never changed in place. 5,000 sealed bidders run in 2.2 s instead of 8.5 s, 10,000 in 5.3 s
+    (mechanism M3).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).
