@@ -4,7 +4,7 @@
 
 Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); a break by anything else fails the run.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | * | — |

@@ -135,15 +135,17 @@ Optional features may add dev-only dependencies under `[project.optional-depende
 
 ## Documentation
 
-The Environments SDK documentation lives in `docs/sdk/`. Edit the tutorials there. The reference pages
-(`docs/sdk/reference*.md`, `docs/sdk/api.md`) and the contracts table in `examples/README.md` are generated from the
-SDK's guides, public API and example contracts: never edit them by hand.
+The documentation is `fg_env.guide`: the start page (`src/fg_env/guides/authoring.py`), the cookbook (the recipe
+contracts in `src/fg_env/authoring/recipes/`, with their known answers in `authoring/scaffold.py`), the prose parts
+(`guides/text.py`) and the pages generated from the models, functions, effects, mechanisms and engines. Every page in
+`docs/sdk/` is rendered from it, with the Python API page and the contracts table in `examples/README.md`, except
+`index.md` and `migration.md`, which are written by hand. Edit the guide, never a generated page.
 
 ```bash
 make docs          # regenerate: PYTHONPATH=src python scripts/build_docs_reference.py
 make check-docs    # fails if a generated file differs from the committed one
 ```
 
-Every python and bash sample in `README.md` and the hand-written `docs/sdk/` pages runs under
-`tests/test_doc_samples.py`. The website imports these Markdown sources with `site/sync_sdk_docs.py`; do not
-independently edit its SDK copies. Run `pytest tests/test_documented_inventory.py` when changing the quickstart.
+Every python and bash sample in `README.md` and in `docs/sdk/` runs under `tests/test_doc_samples.py`, which also
+holds every cookbook recipe to its known answer. The website imports these Markdown sources with
+`site/sync_sdk_docs.py`; do not independently edit its SDK copies.

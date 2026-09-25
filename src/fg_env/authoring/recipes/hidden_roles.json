@@ -1,0 +1,98 @@
+{
+  "fg_env": "2",
+  "name": "Wolves in the village",
+  "description": "Hidden roles: each player's role is a `private` prop dealt from a shuffled list; the wolves' night attack is a sealed stage open only to them (`who`, with every action unannounced), the day is an open accusation, and a role is revealed only when its player leaves. The `groups` mechanism deals, reveals and eliminates for you (guide('groups.roles')).",
+  "brief": {
+    "situation": "A village hides {$inputs.wolves} wolf among its {$inputs.players} players.",
+    "rules": "Each night the wolves secretly choose a player to attack; that player leaves the game. Each day everyone accuses one player; the most accused leaves (a tie is broken at random). A player's role is revealed when it leaves. The village wins when no wolf is left; the wolves win when they are as many as the villagers.",
+    "roles": {"player": "Your role is in your view. Villagers: find the wolves. Wolves: stay hidden."}
+  },
+  "inputs": {"players": {"type": "int", "default": 5, "min": 3}, "wolves": {"type": "int", "default": 1, "min": 1}},
+  "clock": {"rounds": "$inputs.players", "unit": "day"},
+  "world": {
+    "deck": {"type": "list", "default": "$shuffle($map($range($inputs.players), 'wolf' if $it < $inputs.wolves else 'villager'))", "private": true}
+  },
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {
+        "role": {"type": "enum", "values": ["wolf", "villager"], "default": "villager", "private": true},
+        "attacks": {"type": "int", "default": 0, "private": true},
+        "accused": 0
+      },
+      "policies": {
+        "first": {
+          "rules": [
+            {"do": "attack", "with": {"target": "$pick(player, $it.id != $actor.id)"}},
+            {"do": "accuse", "with": {"target": "$pick(player, $it.id != $actor.id)"}}
+          ]
+        }
+      }
+    }
+  },
+  "entities": {"player": {"type": "player", "count": "$inputs.players", "props": {"role": "$world.deck[$i - 1]"}}},
+  "actions": {
+    "attack": {
+      "by": "player",
+      "description": "Wolves: choose tonight's victim.",
+      "when": "$actor.role == wolf",
+      "params": {"target": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
+      "do": "$params.target.attacks += 1",
+      "announce": false,
+      "outcome": "You attack {$params.target.name}."
+    },
+    "accuse": {
+      "by": "player",
+      "description": "Accuse a player of being a wolf.",
+      "params": {"target": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
+      "do": "$params.target.accused += 1"
+    }
+  },
+  "stages": [
+    {"name": "night", "turns": "simultaneous", "actions": ["attack"], "who": "$it.role == wolf"},
+    {
+      "name": "day",
+      "when": "$wolves_left > 0 and $wolves_left < $count(player) - $wolves_left",
+      "turns": "simultaneous",
+      "actions": ["accuse"]
+    }
+  ],
+  "views": {
+    "you": {"for": "player", "show": "You are a {role}."},
+    "players": {"for": "player", "title": "Players still in", "of": "player", "show": "{name}"}
+  },
+  "events": [
+    {
+      "on": "stage.night.end",
+      "when": "$any(player, $it.attacks > 0)",
+      "do": [
+        {"call": "leave", "with": {"who": "$best(player, $it.attacks)", "how": "was attacked in the night"}},
+        {"each": "player", "do": "$it.attacks = 0"}
+      ]
+    },
+    {
+      "on": "stage.day.end",
+      "when": "$any(player, $it.accused > 0)",
+      "do": [
+        {"call": "leave", "with": {"who": "$best(player, $it.accused)", "how": "was sent away by the village"}},
+        {"each": "player", "do": "$it.accused = 0"}
+      ]
+    }
+  ],
+  "outputs": {"winner": "$result.winner", "players_left": "$count(player)"},
+  "end": [
+    {"name": "village_wins", "when": "$wolves_left == 0", "winner": "villagers", "say": "No wolf is left: the village wins."},
+    {"name": "wolves_win", "when": "$wolves_left >= $count(player) - $wolves_left", "winner": "wolves", "say": "The wolves are as many as the villagers: the wolves win."}
+  ],
+  "defs": {
+    "leave": {
+      "args": ["who", "how"],
+      "do": [
+        "$role = $who.role",
+        {"emit": "left", "say": "{$who.name} {$how}. They were a {$role}."},
+        {"remove": "$who"}
+      ]
+    },
+    "wolves_left": {"expr": "$count(player, $it.role == wolf)"}
+  }
+}

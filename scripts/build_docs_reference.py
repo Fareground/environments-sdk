@@ -1,5 +1,6 @@
-"""Generate the reference docs from the installed SDK: one page per guide part, the Python API page, and the table of
-example contracts in examples/README.md.
+"""Generate the docs from the installed SDK: the start page, the cookbook and the engines page, one reference page per
+other guide part, the Python API page, and the table of example contracts in examples/README.md. Only
+docs/sdk/index.md and docs/sdk/migration.md are written by hand.
 
     python scripts/build_docs_reference.py           # regenerate (what `make docs` runs)
     python scripts/build_docs_reference.py --check   # exit 1 if a committed file differs (what `make check-docs` runs)
@@ -29,24 +30,49 @@ ENV_METHODS = ["preview", "run", "arun", "step", "snapshot", "restore", "clone",
                "result", "spectate"]
 
 
+#: Guide parts published as pages of their own rather than as reference pages: the start page, the cookbook and the
+#: engines, which a reader opens first.
+OWN_PAGES = {"authoring": "authoring.md", "cookbook": "cookbook.md", "engines": "engines.md"}
+
+
 def page_name(part: str) -> str:
-    return f"reference-{part.replace('.', '-')}.md"
+    return OWN_PAGES.get(part) or f"reference-{part.replace('.', '-')}.md"
+
+
+def _link(part: str) -> str:
+    return f"[{part.replace('.', ' / ')}]({page_name(part)})"
 
 
 def reference_pages() -> dict[str, str]:
-    """One page per guide part, and the index that lists them."""
-    pages: dict[str, str] = {}
+    """One page per guide part, and the index that lists them by tier."""
+    from fg_env.guides.pages import CORE_SECTIONS, SECTIONS
+    from fg_env.registry import FAMILIES
+
+    parts = [part for part in guide_parts() if part != "all"]
+    pages = {page_name(part): f"{fg_env.guide(part)}\n" if part in OWN_PAGES else
+             f"# {part.replace('.', ' / ')}\n\n{fg_env.guide(part)}\n" for part in parts}
+    sections = [name for name, *_ in SECTIONS if name in parts]
+    families = [part for part in parts if part.partition(".")[0] in FAMILIES]
+    functions = [part for part in parts if part.startswith("functions.")]
+    grouped = {*sections, *families, *functions, *OWN_PAGES, "core"}
+    groups = [
+        ("Start here", ["authoring", "cookbook", "core"]),
+        ("Core sections", [name for name in sections if name in CORE_SECTIONS]),
+        ("Extended sections", [name for name in sections if name not in CORE_SECTIONS]),
+        ("The language in detail", [part for part in parts if part not in grouped and part not in
+                                    ("engines", "inspect", "running", "optimise", "checklist")]),
+        ("Functions by group", functions),
+        ("Mechanisms", families),
+        ("Running and analysing", ["running", "inspect", "optimise", "checklist", "engines"]),
+    ]
     index = ["# Contract reference", "",
-             "Generated from the installed source models, expression registry and authoring guides. Regenerate with "
-             "`make docs`.", "",
-             "[Python API](api.md) · [Authoring principles](authoring.md)", "", "## Guide sections", ""]
-    for part in guide_parts():
-        if part == "all":
-            continue
-        title = part.replace(".", " / ")
-        pages[page_name(part)] = f"# {title}\n\n{fg_env.guide(part)}\n"
-        index.append(f"- [{title}]({page_name(part)})")
-    pages["reference.md"] = "\n".join(index) + "\n"
+             "Every page here is generated from `fg_env.guide` (the installed models, functions, effects, mechanisms "
+             "and engines), so it matches what the engine accepts. Regenerate with `make docs`. The core sections are "
+             "what the start page teaches and enough for most environments; reach for an extended one when the core "
+             "cannot say it. [Python API](api.md)", ""]
+    for title, names in groups:
+        index += [f"## {title}", "", " · ".join(_link(name) for name in names), ""]
+    pages["reference.md"] = "\n".join(index)
     return pages
 
 
@@ -146,6 +172,7 @@ def generated() -> dict[Path, str]:
 def stale(files: dict[Path, str]) -> list[Path]:
     """Reference pages on disk that no guide part generates any more."""
     return sorted(p for p in DOCS.glob("reference-*.md") if p not in files)
+
 
 
 def main() -> int:

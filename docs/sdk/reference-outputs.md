@@ -4,7 +4,7 @@
 
 The typed results of a run; with `series: true` also sampled every round ($outputs.x latest, $series.x every round).
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | * | $outputs (series outputs' latest samples; earlier outputs, except in a sampled one) $result (winner, ended_by; not in a sampled one) |

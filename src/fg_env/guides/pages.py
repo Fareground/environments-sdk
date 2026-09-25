@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from pydantic_core import PydanticUndefined
 
 from .. import contract as C
+from ..checks.roots import BASE
 from ..effects.runner import EFFECT_OPS
 from ..expr import FUNCTIONS, FunctionSpec
 from ..expr.calls import CORE_FUNCTIONS
@@ -25,8 +26,10 @@ __all__ = ["SECTIONS", "CORE_SECTIONS", "CORE_FUNCTIONS", "section_page", "roots
            "FUNCTION_GROUPS", "function_groups", "functions_index", "functions_page", "effects_page", "mechanisms_page",
            "family_page", "mode_page"]
 
-#: Roots every expression may read, wherever it is written.
-EVERYWHERE = "$inputs $world $physics $clock $round $stage $metrics $series $arm $pattern"
+#: Roots every expression may read, wherever it is written (the checker's own list, in reading order).
+_READING_ORDER = ("inputs", "world", "clock", "round", "stage", "outputs", "series", "arm", "pattern", "physics")
+EVERYWHERE = " ".join(f"${name}" for name in [*(n for n in _READING_ORDER if n in BASE),
+                                              *sorted(BASE.difference(_READING_ORDER))])
 
 #: (section, where in it, the extra roots available there).
 ROOTS: list[tuple[str, str, str]] = [
@@ -139,7 +142,7 @@ def roots_table() -> str:
 
 
 def expressions_page() -> str:
-    return EXPRESSIONS.replace("ROOTS_TABLE", roots_table())
+    return EXPRESSIONS.replace("ROOTS_TABLE", roots_table()).replace("EVERYWHERE", EVERYWHERE)
 
 
 def section_page(section: str) -> str:

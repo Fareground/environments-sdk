@@ -1,11 +1,13 @@
-"""Every python and bash sample in the README and the hand-written guide pages runs as written, first time.
+"""Every python and bash sample in the README and the docs pages runs as written, first time, and every cookbook
+recipe checks clean and gives the known answer the cookbook states.
 
 A page's samples run in order in one fresh folder, the python ones sharing one namespace, as a reader following the
-page would run them. Pages that use ``inventory.json`` find the contract the quickstart saves. LLM clients are
-stand-ins that end each turn. A sample that cannot run here (it installs a package, needs an API key or names a
-placeholder) is marked on the line before it with ``<!-- not run: why -->``.
+page would run them. The start page's contract is saved as ``lake.json`` first, as the page tells its reader to. LLM
+clients are stand-ins that end each turn. A sample that cannot run here (it installs a package, needs an API key or
+names a placeholder) is marked on the line before it with ``<!-- not run: why -->``.
 """
 import inspect
+import json
 import re
 import runpy
 import shlex
@@ -18,10 +20,11 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
+from fg_env.authoring.scaffold import RECIPES, new
 
 ROOT = Path(__file__).resolve().parents[1]
 PAGES = [ROOT / "README.md", *sorted(p for p in (ROOT / "docs" / "sdk").glob("*.md")
-                                    if not p.name.startswith("reference"))]
+                                    if not p.name.startswith("reference") and p.name != "api.md")]
 #: CPU seconds one sample may take (CPU, not wall time, so a busy machine does not fail it): a first-time reader
 #: should not wait on a documented example.
 SLOW = 10
@@ -43,9 +46,8 @@ def _samples(page: Path):
         start = None
 
 
-def _quickstart_contract() -> str:
-    text = (ROOT / "docs" / "sdk" / "getting-started.md").read_text(encoding="utf-8")
-    return re.search(r"```json\n(.*?)```", text, re.S)[1]
+def _start_page_contract() -> str:
+    return re.search(r"```json\n(.*?)```", fg_env.guide("authoring"), re.S)[1]
 
 
 class _StandInLLM:
@@ -85,7 +87,7 @@ def test_every_sample_on_the_page_runs(page, tmp_path, monkeypatch, capsys):
     monkeypatch.setitem(sys.modules, "anthropic", NS(Anthropic=_StandInLLM))
     monkeypatch.setitem(sys.modules, "openai", NS(OpenAI=_StandInLLM))
     monkeypatch.setenv("SIMULATION_MODEL", "stand-in-model")
-    (tmp_path / "inventory.json").write_text(_quickstart_contract(), encoding="utf-8")
+    (tmp_path / "lake.json").write_text(_start_page_contract(), encoding="utf-8")
     namespace: dict = {"__name__": "__main__"}
     for number, (lang, code) in enumerate(samples, 1):
         started = time.process_time()
@@ -102,3 +104,26 @@ def test_a_model_docstring_reads_unindented_in_the_guide_on_every_python():
     from fg_env.contract import InputSpec
 
     assert inspect.cleandoc(InputSpec.__doc__) in fg_env.guide("inputs")
+
+
+@pytest.mark.parametrize("name", list(RECIPES))
+def test_every_cookbook_recipe_checks_clean_and_gives_its_known_answer(name):
+    contract = new(name)
+    assert [str(issue) for issue in fg_env.check(contract)] == []
+    assert fg_env.run(contract, seed=1).ok  # random agents
+    spec = RECIPES[name]
+    result = fg_env.run(contract, spec.policy, seed=1)
+    assert result.ok, result.summary()
+    if spec.answer is not None:
+        assert {key: result.outputs[key] for key in spec.answer} == spec.answer
+        assert json.dumps(spec.answer[next(iter(spec.answer))]) in fg_env.guide(f"cookbook.{name}")
+
+
+def test_the_cookbook_shows_every_recipe_as_the_file_new_writes(tmp_path):
+    page = fg_env.guide("cookbook")
+    for name in RECIPES:
+        path = tmp_path / f"{name}.json"
+        assert main(["new", name, str(path)]) == 0
+        written = json.loads(path.read_text())
+        shown = json.loads(fg_env.guide(f"cookbook.{name}").split("```json\n")[1].split("```")[0])
+        assert written == {**shown, "name": written["name"]} and f"## {name}" in page

@@ -1,0 +1,68 @@
+{
+  "fg_env": "2",
+  "name": "Service desk",
+  "description": "A queue served first come, first served: customers arrive as entities each round (from a demand list, the last value repeating), a manager staffs the desk, and an event serves the oldest customers up to capacity with `$sort`, adding up each one's wait. Measures cost, customers served and the mean wait.",
+  "brief": {
+    "situation": "Customers queue at a service desk.",
+    "rules": "Each round new customers arrive and join the back of the queue. The manager opens 1 to {$inputs.max_servers} counters; each serves {$inputs.per_server} customers a round, oldest first, and costs {$inputs.wage|money} a round. Keep both the waiting and the cost low.",
+    "roles": {"manager": "Balance the customers' waiting against the cost of open counters."}
+  },
+  "inputs": {
+    "arrivals": {
+      "type": "list",
+      "default": [4, 6, 8, 5],
+      "description": "Customers arriving each round; the last value repeats."
+    },
+    "rounds": {"type": "int", "default": 4, "min": 1},
+    "per_server": {"type": "int", "default": 3, "min": 1},
+    "max_servers": {"type": "int", "default": 5, "min": 1},
+    "wage": {"type": "number", "default": 10, "min": 0}
+  },
+  "clock": {"rounds": "$inputs.rounds"},
+  "world": {"servers": 1, "served": 0, "waited": 0, "cost": 0},
+  "types": {
+    "manager": {"agent": true, "policies": {"two": {"rules": [{"do": "staff", "with": {"counters": 2}}]}}},
+    "customer": {"props": {"arrived": 0}}
+  },
+  "entities": {"boss": {"type": "manager", "name": "Manager"}},
+  "actions": {
+    "staff": {
+      "by": "manager",
+      "description": "Choose how many counters are open this round.",
+      "params": {"counters": {"type": "int", "min": 1, "max": "$inputs.max_servers"}},
+      "do": "$world.servers = $params.counters",
+      "announce": "{$params.counters} counter(s) open."
+    }
+  },
+  "stages": [{"name": "staffing"}],
+  "views": {
+    "desk": {"for": "manager", "show": "{$count(customer)} customers are waiting; {$world.served} served so far at a cost of {$world.cost|money}."}
+  },
+  "events": [
+    {
+      "name": "arrivals",
+      "do": {
+        "create": "customer",
+        "count": "$get($inputs.arrivals, $round - 1, $last($inputs.arrivals))",
+        "props": {"arrived": "$round"}
+      }
+    },
+    {
+      "name": "service",
+      "on": "round.end",
+      "do": [
+        "$world.cost += $world.servers * $inputs.wage",
+        {
+          "each": "$sort(customer, $it.arrived, $world.servers * $inputs.per_server)",
+          "do": ["$world.waited += $round - $it.arrived", "$world.served += 1", {"remove": "$it"}]
+        }
+      ]
+    }
+  ],
+  "outputs": {
+    "served": "$world.served",
+    "waiting": {"expr": "$count(customer)", "type": "int", "series": true},
+    "mean_wait": {"expr": "$world.waited / $world.served if $world.served else 0", "type": "number", "unit": "round"},
+    "cost": {"expr": "$world.cost", "type": "number", "format": "money"}
+  }
+}

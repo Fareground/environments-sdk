@@ -4,7 +4,7 @@
 
 Conditions that end the run early, with an optional winner ($result.winner in outputs).
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | when/winner/say | — |

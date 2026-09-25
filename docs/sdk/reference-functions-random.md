@@ -13,7 +13,7 @@
 - `$geometric(p)` — Trials up to and including the first success (1, 2, 3, …) with success probability p > 0.
 - `$lognormal(mu, sigma)` — Log-normally distributed number.
 - `$multinomial(n, weights)` — n draws split across categories in proportion to `weights` (list → list of counts, map → map of counts).
-- `$mvnormal(means, cov)` — A list of normal numbers with these means and covariance matrix (correlated draws; cov must be symmetric positive semi-definite). In population props, draw once and read parts with $it: {"z": "$mvnormal([0, 0], [[1, 0.6], [0.6, 1]])", "a": "$it.z[0]"}.
+- `$mvnormal(means, cov)` — A list of normal numbers with these means and covariance matrix (correlated draws; cov must be symmetric positive semi-definite). In entity props, draw once and read parts with $it: {"z": "$mvnormal([0, 0], [[1, 0.6], [0.6, 1]])", "a": "$it.z[0]"}.
 - `$normal(mean, sd)` — Normally distributed number.
 - `$poisson(mean)` — Poisson-distributed whole number.
 - `$randint(low, high)` — Whole number between low and high inclusive.

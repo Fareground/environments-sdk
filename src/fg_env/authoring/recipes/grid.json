@@ -1,0 +1,75 @@
+{
+  "fg_env": "2",
+  "name": "Foragers on a grid",
+  "description": "Movement in space: foragers on a grid step up, down, left or right to a free cell and eat the berries there; berries are a layer, a value on every cell, that regrows each round. A def turns a direction into a cell, one requirement keeps moves on the board and off other foragers, and the space's capacity holds one forager per cell.",
+  "brief": {
+    "situation": "Foragers roam a {$inputs.size} by {$inputs.size} meadow of berry bushes.",
+    "rules": "Each round step up, down, left or right to a free cell and eat every berry there. Each cell regrows one berry a round, up to 3."
+  },
+  "inputs": {
+    "size": {"type": "int", "default": 5, "min": 2},
+    "foragers": {"type": "int", "default": 2, "min": 1},
+    "rounds": {"type": "int", "default": 6, "min": 1}
+  },
+  "clock": {"rounds": "$inputs.rounds"},
+  "space": {
+    "grid": {"rows": "$inputs.size", "cols": "$inputs.size"},
+    "capacity": 1,
+    "layers": {"berries": {"type": "int", "default": 2, "min": 0, "max": 3}}
+  },
+  "types": {
+    "forager": {
+      "agent": true,
+      "props": {"eaten": 0},
+      "policies": {
+        "greedy": {
+          "rules": [
+            {
+              "do": "move",
+              "with": {"direction": "$best($filter(['up', 'down', 'left', 'right'], $free($step($actor, $it))), $layer(berries, $step($actor, $it)))"}
+            }
+          ]
+        }
+      },
+      "score": {"value": "$it.eaten"}
+    }
+  },
+  "entities": {"forager": {"type": "forager", "count": "$inputs.foragers", "at": "$random_empty()"}},
+  "actions": {
+    "move": {
+      "by": "forager",
+      "description": "Step to a free neighbouring cell and eat its berries.",
+      "params": {"direction": {"type": "enum", "values": ["up", "down", "left", "right"]}},
+      "when": {"expr": "$free($step($actor, $params.direction))", "why": "That way is off the meadow or taken."},
+      "do": [
+        {"move": "$actor", "to": "$step($actor, $params.direction)"},
+        "$ate = $layer(berries, $actor)",
+        "$actor.eaten += $ate",
+        {"layer": "berries", "at": "$actor", "set": 0}
+      ],
+      "outcome": "You ate {$ate} berries."
+    }
+  },
+  "stages": [{"name": "forage", "order": "random"}],
+  "views": {
+    "here": {"for": "forager", "show": "You are at {at} and have eaten {eaten} berries."},
+    "around": {"for": "forager", "title": "One step away", "of": "$filter(['up', 'down', 'left', 'right'], $free($step($actor, $it)))", "show": "{$it}: {$layer(berries, $step($actor, $it))} berries", "empty": "Every way is blocked."}
+  },
+  "events": [{"name": "regrow", "on": "round.end", "do": {"layer": "berries", "set": "$min($value + 1, 3)"}}],
+  "outputs": {
+    "eaten": "$dict(forager, $it.id, $it.eaten)",
+    "berries_left": {"expr": "$sum($cells(), $layer(berries, $it))", "type": "int", "series": true}
+  },
+  "defs": {
+    "step": {
+      "args": ["who", "direction"],
+      "expr": "[$who.at[0] + $get({up: -1, down: 1}, $direction, 0), $who.at[1] + $get({left: -1, right: 1}, $direction, 0)]",
+      "description": "The cell one step from who in a direction."
+    },
+    "free": {
+      "args": ["cell"],
+      "expr": "$cell[0] >= 0 and $cell[0] < $inputs.size and $cell[1] >= 0 and $cell[1] < $inputs.size and $len($at($cell)) == 0",
+      "description": "Whether a cell is on the board and empty."
+    }
+  }
+}

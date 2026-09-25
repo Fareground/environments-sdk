@@ -1,0 +1,71 @@
+{
+  "fg_env": "2",
+  "name": "Town vote",
+  "description": "Talk, then vote: a sequential stage where each neighbour posts to a shared record, then a simultaneous ballot whose sealed choices an event at the stage's end tallies (plurality, a tie broken at random). For ranked, approval or majority-with-quorum ballots use the `decision` mechanism (guide('decision.ballot')).",
+  "brief": {
+    "situation": "Neighbours decide how to spend the town's small budget.",
+    "rules": "Everyone speaks once, then everyone votes in secret for one option. The option with the most votes is built; a tie is broken at random."
+  },
+  "inputs": {
+    "options": {"type": "list", "default": ["park", "library", "road"], "description": "What the town can build."}
+  },
+  "clock": {"rounds": 1, "unit": "meeting"},
+  "world": {"result": ""},
+  "types": {
+    "neighbour": {
+      "agent": true,
+      "props": {
+        "favourite": {"type": "text", "default": "", "private": true},
+        "vote": {"type": "text", "default": "", "private": true}
+      },
+      "policies": {
+        "sincere": {
+          "rules": [
+            {"do": "speak", "with": {"text": "I would like a {$actor.favourite}."}},
+            {"do": "vote", "with": {"choice": "$actor.favourite"}}
+          ]
+        }
+      }
+    }
+  },
+  "entities": {
+    "ana": {"type": "neighbour", "name": "Ana", "props": {"favourite": "park"}},
+    "ben": {"type": "neighbour", "name": "Ben", "props": {"favourite": "park"}},
+    "cai": {"type": "neighbour", "name": "Cai", "props": {"favourite": "library"}}
+  },
+  "records": {"chat": {"fields": {"text": "text"}, "show": "{author}: {text}"}},
+  "actions": {
+    "speak": {
+      "by": "neighbour",
+      "description": "Say what you think the town should build.",
+      "params": {"text": {"type": "text", "max_len": 280}},
+      "do": {"post": "chat", "text": "$params.text"}
+    },
+    "vote": {
+      "by": "neighbour",
+      "description": "Cast your secret vote.",
+      "params": {"choice": {"type": "enum", "values": "$inputs.options"}},
+      "do": "$actor.vote = $params.choice",
+      "announce": false,
+      "outcome": "You voted for {$params.choice}."
+    }
+  },
+  "stages": [
+    {"name": "talk", "actions": ["speak"]},
+    {"name": "ballot", "turns": "simultaneous", "actions": ["vote"], "must_act": true}
+  ],
+  "views": {
+    "you": {"for": "neighbour", "show": "You would most like a {favourite}."},
+    "meeting": {"for": "neighbour", "title": "The meeting so far", "of": "chat", "show": "{author}: {text}", "empty": "Nobody has spoken yet."}
+  },
+  "events": [
+    {
+      "on": "stage.ballot.end",
+      "do": [
+        "$world.result = $best($inputs.options, $count(neighbour, $it.vote == $outer))",
+        {"emit": "result", "say": "The town will build a {$world.result}."}
+      ]
+    }
+  ],
+  "outputs": {"result": "$world.result", "votes": "$tally($map(neighbour, $it.vote))"}
+}

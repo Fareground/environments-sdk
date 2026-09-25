@@ -25,7 +25,8 @@ nothing: fit inputs before loading with :func:`fg_env.analysis.calibrate` and pa
 ``events=False`` keeps no event log, for a big crowd played for many rounds:
 ``result.events`` is empty (``on_event`` still streams every event) and the run forgets each event once no agent's
 news can reach it, so its memory stays flat however long it plays; everything the run does is the same (a contract
-that reads `$events` or `$seen` keeps its log).
+that reads `$events` or `$seen` keeps its log). A contract written in an earlier form of the language loads in the
+current form, with one ``DeprecationWarning`` saying how to migrate it (:func:`migrate`).
 
 ## `run`
 
@@ -59,7 +60,8 @@ scheduled for), the same on every machine: a time guard stops only a contract to
 when it does. ``rounds`` plays exactly that many rounds instead (0 checks statically only). Inputs with a
 ``source`` are read from ``data_dir`` (default: the contract file's folder); ``hosts`` answers what the contract
 asks of a host during those plays. ``inputs`` checks a configured scenario without editing its defaults; supplied
-inputs are validated even with ``rounds=0``, and the plays exercise them.
+inputs are validated even with ``rounds=0``, and the plays exercise them. A contract written in an earlier form of
+the language gets one warning saying how to migrate it (:func:`migrate`).
 
 ## `parse`
 
@@ -70,7 +72,8 @@ parse(source: 'ContractLike', data_dir: 'DataDir' = None) -> 'Contract'
 Read and structurally validate a contract (dict, path, JSON text or :class:`Contract`).
 
 The contract remembers where its input data files are read from: ``data_dir`` when given, else the
-contract file's folder, so every run, check and analysis of it finds them.
+contract file's folder, so every run, check and analysis of it finds them. A contract written in an earlier form
+of the language is read in the current form, with one ``DeprecationWarning`` saying how to migrate it.
 
 ## `expand`
 
@@ -83,6 +86,20 @@ The contract data the engine reads: imports merged and earlier forms rewritten (
 since the generated effects read their config there, and loading the result again changes nothing).
 
 Raises :class:`ContractError` for problems found while expanding; ``check`` reports the rest.
+
+## `migrate`
+
+```pyi
+migrate(source: 'ContractLike') -> 'tuple[dict[str, Any], list[str]]'
+```
+
+``source`` rewritten in the current form of the contract language, and a note of every rewrite ("path: what
+became what"); no notes means it is already current. Only this contract is rewritten, not the files it
+imports: migrate each of them too. Sections come back in the contract's order. ``fg-env migrate FILE --write``
+saves the result.
+
+Loading an earlier form works for now (the same rewrites are made on load, with one warning), but earlier forms
+stop loading in fg-env 1.0.
 
 ## `experiment`
 
@@ -148,9 +165,10 @@ guide(part: 'str | None' = None) -> 'str'
 ```
 
 The map of every part, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
-``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group
-(``"functions.stats"``), a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for
-everything. With no part, the map of every part; start with ``guide("authoring")``.
+``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"cookbook"``, ``"running"`` …), a function group
+(``"functions.stats"``), a cookbook recipe (``"cookbook.auction"``), a mechanism family (``"market"``) or mode
+(``"market.auction"``) — or ``"all"`` for everything. With no part, the map of every part; start with
+``guide("authoring")``.
 
 ## `schema`
 
@@ -166,7 +184,8 @@ JSON Schema of the contract (structure only; ``fg_env.check`` verifies meaning).
 new(template: 'str' = 'blank', path: 'str | os.PathLike[str] | None' = None, *, name: 'str | None' = None, overwrite: 'bool' = False) -> 'dict[str, Any]'
 ```
 
-A ready-to-run contract from a template (blank, duel, shop, simulation, meeting).
+A ready-to-run contract from a template: ``blank`` or a cookbook recipe (``auction``, ``vote``, ``market`` …;
+``TEMPLATES`` lists them all).
 
 With ``path`` it is also written there as JSON (an existing file is kept unless ``overwrite``); ``name``
 replaces the contract's name (default: the template's, or the file name when a path is given).
@@ -202,7 +221,7 @@ and :meth:`fork`.
 ## `Contract`
 
 ```pyi
-Contract(*, fg_env: str = '1', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
+Contract(*, fg_env: str = '2', name: str, description: str = '', imports: list[str] = <factory>, brief: fg_env.contract.world.Brief = <factory>, inputs: dict[str, fg_env.contract.world.InputSpec] = <factory>, clock: fg_env.contract.world.Clock = <factory>, space: fg_env.contract.world.Space | None = None, world: dict[str, fg_env.contract.world.PropSpec] = <factory>, types: dict[str, fg_env.contract.world.TypeSpec], entities: dict[str, fg_env.contract.world.EntitySpec] = <factory>, relations: dict[str, fg_env.contract.world.RelationSpec] = <factory>, records: dict[str, fg_env.contract.rules.RecordSpec] = <factory>, actions: dict[str, fg_env.contract.rules.ActionSpec] = <factory>, stages: list[fg_env.contract.rules.StageSpec] = <factory>, views: dict[str, fg_env.contract.rules.ViewSpec] = <factory>, events: list[fg_env.contract.rules.EventSpec] = <factory>, outputs: dict[str, fg_env.contract.measure.OutputSpec] = <factory>, end: list[fg_env.contract.measure.EndSpec] = <factory>, arms: dict[str, fg_env.contract.measure.ArmSpec] = <factory>, invariants: list[fg_env.contract.measure.InvariantSpec] = <factory>, defs: dict[str, fg_env.contract.measure.DefSpec] = <factory>, mechanisms: dict[str, dict[str, typing.Any]] = <factory>) -> None
 ```
 
 An environment: world, people, rules, what agents see, what is measured.

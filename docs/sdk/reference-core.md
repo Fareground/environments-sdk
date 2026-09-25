@@ -44,11 +44,12 @@ Reach for one of these when the core cannot say it.
 | `defs` | Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with {"call": name, "with": {...}}. |
 | `imports` | Contract files merged into this one (relative to it, inside its folder); this contract's own entries win, and imported files may import others. |
 
-## Mechanism, engine or template?
+## Recipe, mechanism or engine?
 
-A mechanism (`market`, `decision` …) is a building block inside your contract. An engine (`retail`, `council` …) is a
-complete contract to copy and edit: `fg-env new --engine <id>`. A starting template is a small contract to start from:
-`fg-env new <template>` with `blank`, `duel`, `shop`, `simulation`, `meeting`.
+A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `spread`, `board_game`, `economy`, `grid`, `simulation`
+(`guide('cookbook')` shows each with its known answer). A mechanism (`market`, `decision` …) is a building block
+inside your contract. An engine (`retail`, `council` …) is a complete, larger contract to copy and edit:
+`fg-env new --engine <id>`.
 
 ## Mechanisms
 
@@ -96,15 +97,16 @@ cloned, to copy and make your own (topic, roles, people, inputs, rules) rather t
 ## Every other part
 
 `fg_env.guide('<part>')` or `fg-env guide <part>`:
-- `authoring` — the start page: a worked contract, the loop and the core language; read it first
-- `model` — how a run works in detail: turns, time limits, hooks, invariants, what an agent reads
+- `authoring` — the start page: a worked contract, the loop and the ten concepts; read it first
+- `cookbook` — complete contracts for common patterns, each with a known answer; `cookbook.<recipe>` for one
+- `model` — how a run works in detail: turns, events, invariants, what an agent reads and may not see
 - `expressions` — the expression language in full, with every root by location
 - `templates` — templates and formats
 - `effects` — every effect op with an example
 - `functions` — every function by group; `functions.<group>` for one group (e.g. `functions.stats`)
 - `mechanisms` — what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)
+- `engines` — every engine: what it simulates, its roles, coded policies and inputs; sampling people for it
 - `patterns` — seasons, trends, responses, random processes, draws and noise, and fitting them from data
-- `recipes` — data files, queues, markets, hidden roles, spaces, networks, physics, feeds
 - `assets` — files beside the contract (images, PDFs, text) delivered to agents: `file` inputs
 - `inspect` — debugging a run: summary, diagnostics, events, traces, replay
 - `running` — Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI

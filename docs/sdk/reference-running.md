@@ -148,6 +148,9 @@ and `out_of_steps`: turns that used all `max_steps` model calls); a model seat m
 (a turn whose reply the provider refused or cut off counts as failed) degrades the run — passing with `end_turn` where
 the stage allows it is a move, not a failure;
 your own participants can add theirs with `wake.record_usage(...)`.
+Each turn is a fresh conversation: the participant sends the brief, that turn's update and its tool calls, and
+resends nothing from earlier turns. What carries over is what the environment shows (the update says what changed,
+views show the world now); for an agent to keep its own notes across rounds, give it a `host.memory` mechanism.
 Built-ins: `"random"`, `"idle"`, `"policy:<name>"`, and game algorithms `"mcts:N"`, `"ismcts:N"`, `"minimax[:depth]"`, `"cfr:<policy.json|iterations>"`.
 
 `result.events` is the ordered log: `{seq, round, kind, text, actor, to, stage, data}` where kind is

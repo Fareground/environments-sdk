@@ -89,7 +89,7 @@ class DemandConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     items: str = Field(...,
-                       description="Entity type of the items (one entity per SKU or product, e.g. a population from a "
+                       description="Entity type of the items (one entity per SKU or product, e.g. generated from a "
                                    "table).")
     rate: Factor = Field(..., description=_RATE + " This is the main segment; `segments` adds others.")
     factors: list[Factor] = Field([], description=_FACTORS)

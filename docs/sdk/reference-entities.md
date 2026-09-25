@@ -4,7 +4,7 @@
 
 Named entities (the name defaults to the id), and generated ones: `count` of them, or one per data row (`from`), with sampled traits; ids `<key>_<n>`.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | brief | $actor (generated: $row $i too) |

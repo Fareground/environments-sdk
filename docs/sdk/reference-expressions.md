@@ -26,7 +26,7 @@ Any string containing `$name` is an expression; other strings are literal text.
   validation enforces the rule). An enum's `values` may read earlier params the same way
   (`{"to": {"type": "enum", "values": "$params.army.exits"}}`): the tool lists every value they can give.
 * Reserved roots cannot be used as local names: $actor $params $it $i $row $inputs $world $physics
-  $clock $round $stage $metrics $series $arm $viewer $event $outer $pending $result.
+  $clock $round $stage $outputs $series $arm $pattern $viewer $event $outer $pending $result.
 * Contract `defs` are called like built-ins: `$utility($actor, $params.offer)`. A def reads `$records` and
   `$events` as its caller does: in a view or an agent's choices, only what that agent may see.
 * Bare words are text even when they match a property name: write `$actor.bet`, not `bet`.
@@ -35,8 +35,7 @@ Any string containing `$name` is an expression; other strings are literal text.
   items in their order (for a type, creation order) and `$top`, which is `$sort` reversed, the other way round; give
   a list of keys (`[$it.score, $it.age]`) to decide ties yourself.
 
-Roots available by location (plus everywhere: $inputs $world $physics $clock $round $stage
-$metrics $series $arm):
+Roots available by location (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | actions.when | $actor ($params too: such a requirement is checked when the action is called) |
@@ -72,5 +71,6 @@ $metrics $series $arm):
 | types.score.value | $it (the seat) $result (winner, ended_by) |
 | invariants.* | — |
 
-`$clock` fields: round rounds left unit date label. `$metrics.x` = latest value; `$series.x` = list per round.
+`$clock` fields: round rounds left unit date label. For a series output, `$outputs.x` is its latest sample and
+`$series.x` the list of every round's.
 

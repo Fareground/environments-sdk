@@ -1,0 +1,51 @@
+{
+  "name": "Bread market",
+  "brief": {
+    "situation": "A baker sells bread to three households each day.",
+    "rules": "Each morning the baker sets a price. Then households buy what they can afford.",
+    "roles": {"baker": "Earn as much as you can.", "household": "Feed your family on a budget."}
+  },
+  "inputs": {"cost": {"type": "number", "default": 1.0, "description": "What one loaf costs the baker."}},
+  "clock": {"rounds": 7, "unit": "day"},
+  "types": {
+    "baker": {"agent": true, "props": {"cash": 0.0, "price": 2.0}},
+    "household": {"agent": true, "props": {"cash": 20.0, "loaves": 0}}
+  },
+  "entities": {
+    "mo": {"type": "baker", "name": "Mo"},
+    "household": {"type": "household", "count": 3, "name": "Household {$i}"}
+  },
+  "actions": {
+    "set_price": {
+      "by": "baker",
+      "description": "Set today's price per loaf.",
+      "params": {"price": {"type": "number", "min": 1, "max": 6}},
+      "do": "$actor.price = $params.price",
+      "announce": "Bread costs {$params.price|money} today."
+    },
+    "buy": {
+      "by": "household",
+      "description": "Buy loaves at today's price.",
+      "params": {"qty": {"type": "int", "min": 1, "max": "$min(3, $floor($actor.cash / $entity(mo).price))"}},
+      "when": {"expr": "$actor.cash >= $entity(mo).price", "why": "You cannot afford a loaf"},
+      "do": [
+        {"transfer": "cash", "from": "$actor", "to": "mo", "amount": "$params.qty * $entity(mo).price"},
+        "$entity(mo).cash -= $params.qty * $inputs.cost",
+        "$actor.loaves += $params.qty"
+      ]
+    }
+  },
+  "stages": [
+    {"name": "morning", "actions": ["set_price"]},
+    {"name": "shopping", "actions": ["buy"], "order": "random"}
+  ],
+  "views": {
+    "shop": {"for": "household", "show": "Bread costs {$entity(mo).price|money}. You have {cash|money}."},
+    "books": {"for": "baker", "show": "Cash {cash|money}, price {price|money}."}
+  },
+  "outputs": {
+    "profit": {"expr": "$entity(mo).cash", "type": "number"},
+    "loaves_sold": {"expr": "$sum(household, $it.loaves)", "type": "int", "series": true},
+    "price": {"expr": "$entity(mo).price", "series": true}
+  }
+}

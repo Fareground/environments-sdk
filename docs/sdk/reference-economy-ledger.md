@@ -13,7 +13,7 @@ Config:
 
 Nested config:
 **CurrencySpec** — 
-- `start`: number | text = 0.0 — Starting balance of every holder (number or expression); a holder type must not declare the currency too, but a population or entity may set its own.
+- `start`: number | text = 0.0 — Starting balance of every holder (number or expression); a holder type must not declare the currency too, but an entity (named or generated) may set its own.
 - `credit`: number | text — How far below zero a holder may go (number or expression); none when omitted.
 - `unit`: text — Unit shown with amounts.
 - `value`: number = 1 — Worth of one unit in $net_worth.

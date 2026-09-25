@@ -42,8 +42,8 @@ class CurrencySpec(BaseModel):
 
     start: float | str = Field(0.0,
                                description="Starting balance of every holder (number or expression); a holder type "
-                                           "must not declare the currency too, but a population or entity may set its "
-                                           "own.")
+                                           "must not declare the currency too, but an entity (named or generated) may "
+                                           "set its own.")
     credit: float | str | None = Field(None,
                                        description="How far below zero a holder may go (number or expression); none "
                                                    "when omitted.")

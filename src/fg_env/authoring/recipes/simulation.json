@@ -1,0 +1,38 @@
+{
+  "fg_env": "2",
+  "name": "Wealth exchange",
+  "description": "A simulation over time with no agents: every round each person with money gives one unit to someone chosen at random. Equal starting wealth turns into strong inequality; series outputs record the Gini coefficient each round and an invariant checks that money is conserved.",
+  "brief": {
+    "situation": "People start with the same wealth and trade at random.",
+    "rules": "Every round each person with money gives one unit to another person chosen at random."
+  },
+  "inputs": {
+    "people": {"type": "int", "default": 50, "min": 2},
+    "wealth": {"type": "int", "default": 5, "min": 0, "description": "Everyone's starting wealth."},
+    "rounds": {"type": "int", "default": 30, "min": 1}
+  },
+  "clock": {"rounds": "$inputs.rounds"},
+  "types": {"person": {"props": {"wealth": {"type": "int", "default": 0, "min": 0}}}},
+  "entities": {"person": {"type": "person", "count": "$inputs.people", "props": {"wealth": "$inputs.wealth"}}},
+  "events": [
+    {
+      "name": "exchange",
+      "do": {
+        "each": "person",
+        "where": "$giver.wealth > 0",
+        "as": "giver",
+        "do": [
+          {"transfer": "wealth", "from": "$giver", "to": "$choice($filter(person, $it.id != $giver.id))", "amount": 1}
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "gini": {"expr": "$gini(person, $it.wealth)", "type": "number", "series": true},
+    "broke": {"expr": "$count(person, $it.wealth == 0)", "type": "int", "series": true},
+    "richest": {"expr": "$max(person, $it.wealth)", "type": "int"}
+  },
+  "invariants": [
+    {"expr": "$sum(person, $it.wealth) == $inputs.wealth * $inputs.people", "why": "Money is only passed on, never made or lost.", "check": "round"}
+  ]
+}

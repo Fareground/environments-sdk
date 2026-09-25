@@ -35,7 +35,7 @@ path (`"columns": {"image": "asset"}`): the cell `photos/mug.jpg` is the asset `
 text a `describe` host extracted.
 
 **Delivering.** An agent receives a file only through something it may see:
-* a view's `attach` (an id, a list, or null per listed item — `where`, `for`, `stages` apply);
+* a view's `attach` (an id, a list, or null per listed item — `where`, `for`, `when` apply);
 * a record entry's `asset` fields, wherever the entry reaches the agent (news or a view; `visible` and `to` apply);
 * `brief.attach` (over `$actor`), its own action's `attach` (the tool result, or the outcome news of a sealed
   choice), and `inspect` (asset properties inspect shows: never another entity's private ones).

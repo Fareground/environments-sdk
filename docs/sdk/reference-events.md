@@ -4,7 +4,7 @@
 
 What the world does outside agents' turns. `on` is when an event is considered — round.start (the default), round.end, stage.<s>.start, stage.<s>.end, stage.<s>.turn (after each agent's turn: $actor, $acted, $timed_out), create.<type>, remove.<type> ($it), or change (the moment `when` becomes true) — and `when` whether it fires: on given rounds ("$round == 5", "$round % 7 == 1"), in an arm ("$arm == 't'"), by chance. Events on one anchor fire in the order written, before those mechanisms generate.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | on: round.* / stage.<s>.start / stage.<s>.end / change | — |

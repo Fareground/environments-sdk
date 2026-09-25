@@ -1,0 +1,74 @@
+{
+  "fg_env": "2",
+  "name": "Bread market",
+  "description": "Posted prices and trading: the seller sets a price in its own stage, then buyers, in random order, buy what they can afford; each purchase moves money with one `transfer`, which refuses a buyer who is short and never lets cash go negative. An invariant guards the books.",
+  "brief": {
+    "situation": "A baker sells bread to households each day.",
+    "rules": "Each morning the baker sets the price of a loaf. Then, in random order, each household may buy up to 3 loaves it can afford. A loaf costs the baker {$inputs.cost|money} to bake.",
+    "roles": {"baker": "Earn as much as you can.", "household": "Feed your family on a budget."}
+  },
+  "inputs": {
+    "days": {"type": "int", "default": 7, "min": 1, "unit": "day"},
+    "households": {"type": "int", "default": 3, "min": 1},
+    "cash": {"type": "number", "default": 20, "min": 0, "description": "Each household's starting cash."},
+    "cost": {"type": "number", "default": 1, "min": 0, "description": "What one loaf costs the baker."}
+  },
+  "clock": {"rounds": "$inputs.days", "unit": "day"},
+  "types": {
+    "baker": {
+      "agent": true,
+      "props": {"cash": 0, "price": 2, "sold": 0},
+      "policies": {"steady": {"rules": [{"do": "set_price", "with": {"price": 2}}]}}
+    },
+    "household": {
+      "agent": true,
+      "props": {"cash": 0, "loaves": 0},
+      "policies": {"steady": {"rules": [{"do": "buy", "with": {"qty": 2}}]}}
+    }
+  },
+  "entities": {
+    "mo": {"type": "baker", "name": "Mo"},
+    "household": {
+      "type": "household",
+      "count": "$inputs.households",
+      "name": "Household {$i}",
+      "props": {"cash": "$inputs.cash"}
+    }
+  },
+  "actions": {
+    "set_price": {
+      "by": "baker",
+      "description": "Set today's price per loaf.",
+      "params": {"price": {"type": "number", "min": 0.5, "max": 10}},
+      "do": "$actor.price = $params.price",
+      "announce": "Bread costs {$params.price|money} today."
+    },
+    "buy": {
+      "by": "household",
+      "description": "Buy loaves at today's price.",
+      "params": {"qty": {"type": "int", "min": 1, "max": "$min(3, $floor($actor.cash / $entity(mo).price))"}},
+      "when": {"expr": "$actor.cash >= $entity(mo).price", "why": "You cannot afford a loaf."},
+      "do": [
+        {"transfer": "cash", "from": "$actor", "to": "mo", "amount": "$params.qty * $entity(mo).price"},
+        "$entity(mo).cash -= $params.qty * $inputs.cost",
+        "$entity(mo).sold += $params.qty",
+        "$actor.loaves += $params.qty"
+      ],
+      "outcome": "You bought {$params.qty} loaves; {$actor.cash|money} left."
+    }
+  },
+  "stages": [
+    {"name": "morning", "actions": ["set_price"]},
+    {"name": "shopping", "actions": ["buy"], "order": "random"}
+  ],
+  "views": {
+    "shop": {"for": "household", "show": "Bread costs {$entity(mo).price|money}. You have {cash|money} and {loaves} loaves."},
+    "books": {"for": "baker", "show": "Cash {cash|money}; {sold} loaves sold at {price|money}."}
+  },
+  "outputs": {
+    "profit": {"expr": "$entity(mo).cash", "type": "number", "format": "money"},
+    "loaves_sold": {"expr": "$entity(mo).sold", "type": "int", "series": true},
+    "price": {"expr": "$entity(mo).price", "type": "number", "series": true}
+  },
+  "invariants": [{"expr": "$all(household, $it.cash >= 0)", "why": "A household cannot spend money it does not have."}]
+}

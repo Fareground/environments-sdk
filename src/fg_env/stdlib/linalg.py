@@ -118,7 +118,7 @@ def cholesky(cov: Matrix) -> tuple[list[list[float]], str]:
 
 
 @function("mvnormal(means, cov)", "A list of normal numbers with these means and covariance matrix (correlated draws; "
-          "cov must be symmetric positive semi-definite). In population props, draw once and read parts with $it: "
+          "cov must be symmetric positive semi-definite). In entity props, draw once and read parts with $it: "
           "{\"z\": \"$mvnormal([0, 0], [[1, 0.6], [0.6, 1]])\", \"a\": \"$it.z[0]\"}.", min_args=2, max_args=2)
 def _mvnormal(call: Call) -> list[float]:
     means = _vector(call, 0, "the means")

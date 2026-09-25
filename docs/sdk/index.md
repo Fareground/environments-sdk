@@ -1,50 +1,36 @@
 # Environments SDK
 
-**Describe the world. Define its rules. Run the scenario.**
-
-The Environments SDK (`fg-env`) turns a JSON contract into a rounds-based simulation. Use it to model inventory, pricing, sales pipelines, capacity, negotiations, campaigns, or other interacting decisions. A human or an agent authors the contract; the engine executes it.
-
-**Start here:** `fg-env guide authoring` (or `fg_env.guide("authoring")`; [the same page here](reference-authoring.md)).
-One page: a complete worked contract, the write → check → preview → run loop, the core language and a known-answer
-test. It is also the page to give an authoring agent as its starting context; everything below is reference it points
-to.
-
-[Business walkthrough](getting-started.md) · [Engine starters](engines.md) · [Authoring principles](authoring.md) · [API reference](api.md)
-
-## One contract, one engine
-
-A contract describes people and organizations, products and resources, available actions, information, timing, constraints, and outcomes. Participants can use language models, Python callables, or declarative policies. Use the same engine locally or within a host application.
-
-| You need to… | Start here |
-|---|---|
-| Write your first contract | [The authoring guide](reference-authoring.md) (`fg-env guide authoring`) |
-| Run a complete business example | [Business walkthrough](getting-started.md) |
-| Clone an existing engine and sample personas | [Engine starters](engines.md) |
-| Translate a scenario brief into rules | [Authoring principles](authoring.md) |
-| Understand rounds, actions and state | [Core concepts](concepts.md) |
-| Add demand, lead times, capacity or networks | [Business modeling](business-modeling.md) |
-| Connect an agent or integrate a runner | [Participants and hosting](integration.md) |
-| Compare decisions and inspect uncertainty | [Experiments and validation](validation.md) |
-| Diagnose a failed or unfaithful simulation | [Troubleshooting](troubleshooting.md) |
-| Look up an exact field or expression | [Contract reference](reference.md) |
-
-## What makes a simulation useful
-
-The engine enforces the rules you specify. Scenario quality also depends on choosing the right rules, realistic inputs, and meaningful tests. A contract that runs is not automatically a calibrated forecast. Keep assumptions explicit, compare against known outcomes, and report uncertainty.
-
-## Install and compatibility
-
-Python 3.11 or later. The core package depends on Pydantic; language-model clients are optional and supplied by the host.
+`fg-env` runs environments for AI agents. You write one JSON contract — who exists, what they can do, when, what each
+one sees and what is measured — and the engine runs it, the same way for every seed.
 
 <!-- not run: installs the package -->
 ```bash
 python -m pip install fg-env
 ```
 
-These pages track the contract API on `main`. Check the version you are actually
-running with `python -c "import fg_env; print(fg_env.__version__)"`, and use the
-[changelog](../../CHANGELOG.md) for release-specific behavior. The
-[migration guide](migration.md) explains the public rename and the removed
-template API.
+## One path
 
-[GitHub repository](https://github.com/Fareground/environments-sdk) · [PyPI](https://pypi.org/project/fg-env/) · [Apache-2.0 license](https://github.com/Fareground/environments-sdk/blob/main/LICENSE)
+1. **[Start here](authoring.md)** (`fg-env guide authoring`): the write → check → preview → run loop, one worked
+   contract with a known-answer test, and the ten concepts of the language in order. Give the same page to an
+   authoring agent as its starting context.
+2. **[Cookbook](cookbook.md)** (`fg-env guide cookbook`): a complete contract for each common pattern, with its known
+   answer. `fg-env new <recipe> my_env.json` writes one to start from.
+3. **[Reference](reference.md)** (`fg-env guide <part>`): every section, function, effect and mechanism, core and
+   extended, generated from the code; running, inspecting and analysing runs; the [Python API](api.md).
+
+**[Engines](engines.md)** are larger, worked-out environments (a retail market, a trial, an exchange, an epidemic …)
+to clone when one is close to what you need. A contract written for an earlier release still loads; see
+**[migration](migration.md)** to save it in the current form.
+
+Every page here except this one and the migration page is generated from `fg_env.guide`, so the documentation, the
+guide an agent reads and the engine cannot disagree.
+
+## Running it inside an application
+
+A host stores the contract and its data, chooses the participants, runs the environment and shows outputs and
+traces. It also owns authentication, tenant boundaries, resource limits (`budget=` caps tokens, calls and time),
+credentials and file access: the SDK is not a sandbox for arbitrary host code. Pin the SDK version for deployed
+scenarios and keep it, with the exact contract and inputs, beside each run.
+
+[GitHub](https://github.com/Fareground/environments-sdk) · [PyPI](https://pypi.org/project/fg-env/) ·
+[Changelog](../../CHANGELOG.md) · [Apache-2.0](https://github.com/Fareground/environments-sdk/blob/main/LICENSE)

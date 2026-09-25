@@ -2,9 +2,9 @@
 
 ## How a run works
 
-Every round: scheduled effects → feeds → `round.start` events → physics step → each stage in order →
-`round.end` events → metrics sampled → invariants and end conditions checked. A run ends when
-an `end` condition holds, an effect `end`s it, or `clock.rounds` is used up.
+Every round: `after` effects that are due → `host.feed` answers → `round.start` events → the `dynamics` step →
+each stage in order → `round.end` events → series outputs sampled → invariants and end conditions checked. A run ends
+when an `end` condition holds, an effect `end`s it, or `clock.rounds` is used up.
 
 Events are the world's logic outside turns, one list: `on` is when an event is considered, `when` whether it
 fires, `do` what it does (atomically), `say` the headline agents get as news, `once` at most once per run.
@@ -109,6 +109,32 @@ Unless an action sets `announce` (a template, or `false`: nobody else learns it 
 unless `announce` reveals them), and without the arguments the action writes into a private property;
 an action that posts to a record announces nothing extra (the entry is the news). Text an agent types (text params) keeps its provenance wherever it is stored and
 always renders «quoted» on one line, in news, views and outcomes.
+
+### Who sees what
+
+An agent learns only what the contract shows it: `private` props, per-type views, record `visible` rules, `to` on
+posts and emits, and `announce: false` on actions (nobody else learns they happened) say what each one sees. Agents get `inspect` only for types that set `inspect`.
+A `private` prop is hidden from every agent but its owner: an agent owns its own; the world's and any other
+entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
+prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
+value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
+outcome text, briefs, policies, defs they call, series outputs worked out from private props) is an error at run time,
+however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
+stage whose actions are announced. Reveal what an agent may learn by working it out in game logic
+(`"do": ["$seen = $params.target.role"], "outcome": "... {$seen}"`, or a prop the agent owns). Text sent to
+several agents — an `announce`, an event's `say`, an emit's `say` without a lone `to` — may read no
+private prop, not even the actor's: reveal it the same way (`"$shown = $actor.card"`, then `{$shown}`).
+A public fact about private data (how many cards a hand holds) is a public prop the rules keep up to date: write it
+wherever the private one changes (`"$actor.cards = $len($actor.hand)"`).
+The engine's own refusals (a transfer that does not fit, a bound) never show a hidden value. A `when` that reads a
+hidden value does not hide the tool: it stays listed and a call is refused (and spent) when the `when` fails. A
+non-agent entity reaches agents only through what the contract shows, so a prop the views already gate needs no
+`private`. An entity's type is public (inspect names it): keep a secret role in a private prop, not a subtype. A refusal
+is information too — a `when` or `fail` that reads hidden state tells the actor something about it. Visibility
+shapes only what an agent is shown or offered (brief, updates, views, tool choices, outcome text, its policy); game logic — action
+`when`/`do`, events, stages, `end`, outputs, invariants — reads every record entry and event,
+so an auditor's `accuse` can count messages it never saw. To ask what one agent can see inside logic, filter
+explicitly: `$records(chat, $it.author == $actor or $actor.id in ($it.to or []))`.
 
 An action applies atomically: if any effect `fail`s or a `transfer` lacks funds, every change
 is rolled back and the agent is told why. World logic (events) has no one to refuse: the same

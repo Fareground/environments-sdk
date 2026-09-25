@@ -4,7 +4,7 @@
 
 Kinds of entities and their properties; `agent: true` makes a type act, its `policies` are coded participants for its agents, for crowds and baselines (`policy:<name>`), and its `score` is what each of its agents scores as a seat, for tournaments, game search and gyms.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | inspect | $viewer $it |

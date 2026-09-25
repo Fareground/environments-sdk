@@ -1,0 +1,74 @@
+{
+  "fg_env": "2",
+  "name": "Frontier village",
+  "description": "A resource economy: each turn a settler gathers food or wood, or builds a house from wood; everyone eats every evening, and a settler who cannot eat leaves. Production, consumption and investment compete for the same turns; houses built is the score.",
+  "brief": {
+    "situation": "Settlers must feed themselves while building a village.",
+    "rules": "Each day you take one action: gather {$inputs.food_yield} food, gather {$inputs.wood_yield} wood, or build a house for {$inputs.house_cost} wood. Every evening you eat 1 food; if you have none, you leave the village."
+  },
+  "inputs": {
+    "settlers": {"type": "int", "default": 3, "min": 1},
+    "days": {"type": "int", "default": 8, "min": 1, "unit": "day"},
+    "food_yield": {"type": "int", "default": 2, "min": 1},
+    "wood_yield": {"type": "int", "default": 2, "min": 1},
+    "house_cost": {"type": "int", "default": 5, "min": 1}
+  },
+  "clock": {"rounds": "$inputs.days", "unit": "day"},
+  "types": {
+    "settler": {
+      "agent": true,
+      "props": {"food": 2, "wood": 0, "houses": 0},
+      "policies": {
+        "balanced": {
+          "rules": [
+            {"do": "build"},
+            {"when": "$actor.food < 2", "do": "gather", "with": {"resource": "food"}},
+            {"do": "gather", "with": {"resource": "wood"}}
+          ]
+        }
+      },
+      "score": {"value": "$it.houses"}
+    }
+  },
+  "entities": {"settler": {"type": "settler", "count": "$inputs.settlers"}},
+  "actions": {
+    "gather": {
+      "by": "settler",
+      "description": "Gather food or wood.",
+      "params": {"resource": {"type": "enum", "values": ["food", "wood"]}},
+      "do": [
+        {"if": "$params.resource == food", "then": "$actor.food += $inputs.food_yield", "else": "$actor.wood += $inputs.wood_yield"}
+      ],
+      "outcome": "You have {$actor.food} food and {$actor.wood} wood."
+    },
+    "build": {
+      "by": "settler",
+      "description": "Build a house from wood.",
+      "when": {"expr": "$actor.wood >= $inputs.house_cost", "why": "You need {$inputs.house_cost} wood."},
+      "do": ["$actor.wood -= $inputs.house_cost", "$actor.houses += 1"],
+      "announce": "{$actor.name} builds a house."
+    }
+  },
+  "stages": [{"name": "work", "must_act": true}],
+  "views": {"stores": {"for": "settler", "show": "You have {food} food, {wood} wood and {houses} house(s)."}},
+  "events": [
+    {
+      "name": "supper",
+      "on": "round.end",
+      "do": {
+        "each": "settler",
+        "do": [
+          {
+            "if": "$it.food > 0",
+            "then": "$it.food -= 1",
+            "else": [{"emit": "left", "say": "{$it.name} had nothing to eat and left."}, {"remove": "$it"}]
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "houses": {"expr": "$sum(settler, $it.houses)", "type": "int", "series": true},
+    "settlers_left": {"expr": "$count(settler)", "type": "int"}
+  }
+}

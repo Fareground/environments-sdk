@@ -4,7 +4,7 @@
 
 Reusable expressions, called like built-ins ($utility($actor, 3)), and effect lists (`do`), run with {"call": name, "with": {...}}.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | expr | the def's args |

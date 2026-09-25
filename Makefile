@@ -36,8 +36,8 @@ check-schema:
 		exit 1; \
 	fi
 
-# Regenerate the reference docs (docs/sdk/reference*.md, docs/sdk/api.md) and the examples table after a change to
-# the guides, the public API or an example contract.
+# Regenerate the docs (every docs/sdk page but index.md and migration.md) and the examples table after a change to
+# the guides, a recipe, the public API, an engine or an example contract.
 docs:
 	$(RUN) scripts/build_docs_reference.py
 

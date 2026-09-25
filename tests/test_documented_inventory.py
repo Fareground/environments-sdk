@@ -1,21 +1,11 @@
-"""Known business outcomes promised by the public quickstart."""
-import json
-import re
+"""Known business outcomes of the weekly inventory example."""
 from pathlib import Path
 
 import fg_env
-from fg_env.contract.normalize import normalize
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT = ROOT / "examples/contracts/weekly_inventory.json"
 POLICY = {"retailer": "policy:steady"}
-
-
-def test_quickstart_contract_matches_downloadable_example():
-    page = (ROOT / "docs/sdk/getting-started.md").read_text()
-    embedded = re.search(r"```json\n(.*?)\n```", page, re.S).group(1)
-    assert normalize(json.loads(embedded))[0] == normalize(json.loads(CONTRACT.read_text()))[0]
-    assert not fg_env.check(CONTRACT)
 
 
 def test_documented_inventory_balances_and_shortage():

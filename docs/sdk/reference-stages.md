@@ -4,7 +4,7 @@
 
 The steps of every round: who acts, how (sequential or sealed simultaneous), which actions.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | who/order | $it $i |

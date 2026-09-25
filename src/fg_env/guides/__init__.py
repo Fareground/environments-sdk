@@ -15,12 +15,15 @@ from typing import Any
 from .. import contract as C
 from ..analysis.optimise_guide import OPTIMISE
 from ..assets.guide import ASSETS
+from ..authoring.scaffold import RECIPES as STARTING_RECIPES
 from ..authoring.scaffold import TEMPLATES as STARTING_TEMPLATES
 from ..engines import list_engines
 from ..expr.template import FORMATS
 from ..patterns.guide import patterns_page
 from ..registry import FAMILIES
 from .authoring import AUTHORING
+from .cookbook import cookbook_page, recipe_page
+from .engines import engines_page
 from .pages import (
     CORE_FUNCTIONS,
     CORE_SECTIONS,
@@ -35,7 +38,7 @@ from .pages import (
     mode_page,
     section_page,
 )
-from .text import CHECKLIST, INSPECT, MODEL, RECIPES, RUNNING, TEMPLATES
+from .text import CHECKLIST, INSPECT, MODEL, RUNNING, TEMPLATES
 
 __all__ = ["guide", "schema", "guide_parts"]
 
@@ -73,11 +76,12 @@ Reach for one of these when the core cannot say it.
 
 EXTENDED
 
-## Mechanism, engine or template?
+## Recipe, mechanism or engine?
 
-A mechanism (`market`, `decision` …) is a building block inside your contract. An engine (`retail`, `council` …) is a
-complete contract to copy and edit: `fg-env new --engine <id>`. A starting template is a small contract to start from:
-`fg-env new <template>` with TEMPLATES.
+A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with TEMPLATES
+(`guide('cookbook')` shows each with its known answer). A mechanism (`market`, `decision` …) is a building block
+inside your contract. An engine (`retail`, `council` …) is a complete, larger contract to copy and edit:
+`fg-env new --engine <id>`.
 
 ## Mechanisms
 
@@ -101,15 +105,16 @@ PARTS
 """
 
 _PARTS_MAP = [
-    ("authoring", "the start page: a worked contract, the loop and the core language; read it first"),
-    ("model", "how a run works in detail: turns, time limits, hooks, invariants, what an agent reads"),
+    ("authoring", "the start page: a worked contract, the loop and the ten concepts; read it first"),
+    ("cookbook", "complete contracts for common patterns, each with a known answer; `cookbook.<recipe>` for one"),
+    ("model", "how a run works in detail: turns, events, invariants, what an agent reads and may not see"),
     ("expressions", "the expression language in full, with every root by location"),
     ("templates", "templates and formats"),
     ("effects", "every effect op with an example"),
     ("functions", "every function by group; `functions.<group>` for one group (e.g. `functions.stats`)"),
     ("mechanisms", "what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)"),
+    ("engines", "every engine: what it simulates, its roles, coded policies and inputs; sampling people for it"),
     ("patterns", "seasons, trends, responses, random processes, draws and noise, and fitting them from data"),
-    ("recipes", "data files, queues, markets, hidden roles, spaces, networks, physics, feeds"),
     ("assets", "files beside the contract (images, PDFs, text) delivered to agents: `file` inputs"),
     ("inspect", "debugging a run: summary, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
@@ -141,6 +146,8 @@ def _core() -> str:
 _TOPICS: dict[str, Callable[[], str]] = {
     "core": _core,
     "authoring": lambda: AUTHORING,
+    "cookbook": cookbook_page,
+    "engines": engines_page,
     "model": lambda: MODEL,
     "expressions": expressions_page,
     "templates": lambda: TEMPLATES.replace("FORMATS", ", ".join(f"`{f}`" for f in FORMATS)),
@@ -148,7 +155,6 @@ _TOPICS: dict[str, Callable[[], str]] = {
     "functions": functions_index,
     "mechanisms": mechanisms_page,
     "patterns": patterns_page,
-    "recipes": lambda: RECIPES,
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
     "optimise": lambda: OPTIMISE,
@@ -158,15 +164,17 @@ _TOPICS: dict[str, Callable[[], str]] = {
 
 
 def guide_parts() -> list[str]:
-    """Every name ``guide`` accepts, in the order ``guide('all')`` renders them (``all`` itself last)."""
+    """Every part, in the order ``guide('all')`` renders them (``all`` itself last). ``guide`` also takes one cookbook
+    recipe on its own (``cookbook.<recipe>``), which the cookbook page already shows."""
     sections = [name for name, *_ in SECTIONS if name not in _TOPICS and name not in FAMILIES]
-    names = ["core", "authoring", "model", *sections, "assets", "expressions", "templates", "effects", "functions"]
+    names = ["core", "authoring", "cookbook", "model", *sections, "assets", "expressions", "templates", "effects",
+             "functions"]
     names += [f"functions.{group}" for group in function_groups() if group not in FAMILIES]
-    names += ["patterns", "recipes", "mechanisms"]
+    names += ["patterns", "mechanisms"]
     for name, family in FAMILIES.items():
         names += [name, *[spec.key for spec in family.modes.values()]]
     names += [f"functions.{group}" for group in function_groups() if group in FAMILIES]
-    return [*names, "inspect", "running", "optimise", "checklist", "all"]
+    return [*names, "engines", "inspect", "running", "optimise", "checklist", "all"]
 
 
 def _render(part: str) -> str | None:
@@ -177,6 +185,8 @@ def _render(part: str) -> str | None:
     if any(part == name for name, *_ in SECTIONS):
         return section_page(part)
     head, _, rest = part.partition(".")
+    if head == "cookbook" and rest in STARTING_RECIPES:
+        return recipe_page(rest)
     if head == "functions" and rest in function_groups():
         return functions_page(rest)
     if head in FAMILIES and rest in FAMILIES[head].modes:
@@ -186,9 +196,10 @@ def _render(part: str) -> str | None:
 
 def guide(part: str | None = None) -> str:
     """The map of every part, or one part by name: a section (``"actions"``), a topic (``"expressions"``, ``"effects"``,
-    ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"recipes"``, ``"running"`` …), a function group
-    (``"functions.stats"``), a mechanism family (``"market"``) or mode (``"market.auction"``) — or ``"all"`` for
-    everything. With no part, the map of every part; start with ``guide("authoring")``."""
+    ``"functions"``, ``"mechanisms"``, ``"patterns"``, ``"cookbook"``, ``"running"`` …), a function group
+    (``"functions.stats"``), a cookbook recipe (``"cookbook.auction"``), a mechanism family (``"market"``) or mode
+    (``"market.auction"``) — or ``"all"`` for everything. With no part, the map of every part; start with
+    ``guide("authoring")``."""
     if part is None:
         return _core()
     if part == "all":

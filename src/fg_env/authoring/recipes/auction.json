@@ -1,0 +1,81 @@
+{
+  "fg_env": "2",
+  "name": "Sealed-bid auction",
+  "description": "Sealed bids: each bid is recorded in a simultaneous stage with `announce: false`, and one event at the stage's end resolves them together: the highest bid wins the lot and pays its bid, a tie broken at random. For a second-price auction, charge the second-highest bid instead.",
+  "brief": {
+    "situation": "One lot is auctioned each round. Each bidder knows only what the lot is worth to itself.",
+    "rules": "Every round each bidder secretly bids at most its cash. The highest bid wins the lot and pays its bid; a tie is broken at random. Your profit is the lot's worth to you minus what you paid."
+  },
+  "inputs": {
+    "values": {
+      "type": "list",
+      "default": [50, 40, 30],
+      "description": "What a lot is worth to each bidder, one per bidder."
+    },
+    "lots": {"type": "int", "default": 3, "min": 1},
+    "cash": {"type": "number", "default": 200, "min": 0, "description": "Each bidder's starting cash."}
+  },
+  "clock": {"rounds": "$inputs.lots", "unit": "lot"},
+  "world": {"revenue": 0},
+  "types": {
+    "bidder": {
+      "agent": true,
+      "props": {
+        "value": {"type": "number", "default": 0, "private": true},
+        "bid": {"type": "number", "default": 0, "private": true},
+        "cash": 0,
+        "profit": 0,
+        "won": 0
+      },
+      "policies": {"shade": {"rules": [{"do": "bid", "with": {"amount": "$floor($actor.value * 0.8)"}}]}},
+      "score": {"value": "$it.profit"}
+    }
+  },
+  "entities": {
+    "bidder": {
+      "type": "bidder",
+      "count": "$len($inputs.values)",
+      "props": {"value": "$inputs.values[$i - 1]", "cash": "$inputs.cash"}
+    }
+  },
+  "actions": {
+    "bid": {
+      "by": "bidder",
+      "description": "Bid for this round's lot.",
+      "params": {"amount": {"type": "number", "min": 0, "max": "$actor.cash"}},
+      "do": "$actor.bid = $params.amount",
+      "announce": false,
+      "outcome": "You bid {$params.amount|money}."
+    }
+  },
+  "stages": [{"name": "bidding", "turns": "simultaneous"}],
+  "views": {
+    "me": {"for": "bidder", "show": "A lot is worth {value|money} to you. You have {cash|money}; profit so far {profit|money}."}
+  },
+  "events": [
+    {
+      "on": "stage.bidding.end",
+      "do": [
+        "$top = $max(bidder, $it.bid)",
+        {
+          "if": "$top > 0",
+          "then": [
+            "$winner = $choice($filter(bidder, $it.bid == $top))",
+            "$winner.cash -= $top",
+            "$winner.profit += $winner.value - $top",
+            "$winner.won += 1",
+            "$world.revenue += $top",
+            {"emit": "sale", "say": "{$winner.name} wins lot {$round} for {$top|money}."}
+          ]
+        },
+        {"each": "bidder", "do": "$it.bid = 0"}
+      ]
+    }
+  ],
+  "outputs": {
+    "revenue": "$world.revenue",
+    "lots_won": "$dict(bidder, $it.id, $it.won)",
+    "profit": "$dict(bidder, $it.id, $it.profit)"
+  },
+  "invariants": [{"expr": "$all(bidder, $it.cash >= 0)", "why": "Nobody pays more than its cash."}]
+}

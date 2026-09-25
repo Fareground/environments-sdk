@@ -1,0 +1,58 @@
+{
+  "fg_env": "2",
+  "name": "Outbreak on a network",
+  "description": "Spreading on a network: people linked in a small-world contact graph, an infection that passes along links with a set chance per sick contact, and recovery after a few days. One `each` loop with `sync: true` updates everyone from the same picture of yesterday. No agents: a simulation measured over time with series outputs.",
+  "brief": {
+    "situation": "An infection spreads through a town's contact network.",
+    "rules": "Each day a healthy person catches it from each sick contact with the given chance; the sick recover after a few days and cannot catch it again."
+  },
+  "inputs": {
+    "people": {"type": "int", "default": 60, "min": 2},
+    "contacts": {"type": "int", "default": 4, "min": 2, "description": "Mean contacts per person."},
+    "infectivity": {"type": "number", "default": 0.25, "min": 0, "max": 1, "description": "Chance a sick contact passes it on in a day."},
+    "sick_days": {"type": "int", "default": 4, "min": 1},
+    "days": {"type": "int", "default": 30, "min": 1, "unit": "day"}
+  },
+  "clock": {"rounds": "$inputs.days", "unit": "day"},
+  "types": {
+    "person": {
+      "props": {
+        "state": {"type": "enum", "values": ["healthy", "sick", "recovered"], "default": "healthy"},
+        "sick_for": 0
+      }
+    }
+  },
+  "entities": {
+    "person": {"type": "person", "count": "$inputs.people", "props": {"state": "sick if $i == 1 else healthy"}}
+  },
+  "relations": {
+    "contact": {
+      "symmetric": true,
+      "links": [{"among": "person", "graph": "small_world", "degree": "$inputs.contacts", "p": 0.1}]
+    }
+  },
+  "events": [
+    {
+      "name": "day",
+      "do": {
+        "each": "person",
+        "sync": true,
+        "do": [
+          {
+            "if": "$it.state == sick",
+            "then": ["$it.sick_for += 1", {"if": "$it.sick_for >= $inputs.sick_days", "then": "$it.state = recovered"}],
+            "else": [
+              {"if": "$it.state == healthy and $chance(1 - (1 - $inputs.infectivity) ** $count($neighbors($it, contact), $it.state == sick))", "then": "$it.state = sick"}
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "outputs": {
+    "sick": {"expr": "$count(person, $it.state == sick)", "type": "int", "series": true},
+    "ever_sick": {"expr": "$count(person, $it.state != healthy)", "type": "int"},
+    "peak_sick": {"expr": "$max($series.sick) or 0", "type": "int"}
+  },
+  "end": [{"name": "over", "when": "$count(person, $it.state == sick) == 0", "say": "Nobody is sick any more."}]
+}

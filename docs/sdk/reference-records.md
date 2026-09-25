@@ -4,7 +4,7 @@
 
 Append-only logs (chat, reviews, bids) with per-viewer visibility; written with `post`.
 
-Roots (plus everywhere: $inputs $world $physics $clock $round $stage $metrics $series $arm $pattern):
+Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $arm $pattern $physics $pending):
 | where | extra roots |
 |---|---|
 | visible | $viewer $it (entry) |

@@ -1,0 +1,54 @@
+{
+  "fg_env": "2",
+  "name": "Tic-tac-toe",
+  "description": "A turn-based board game: the board is a world list, a move's legality is a requirement on its parameter, and the move that completes a line ends the game at once with an `end` effect naming the winner. Each seat scores 1, 0 or -1 (`score`, zero-sum), so tournaments, game search and gyms can play it.",
+  "brief": {
+    "situation": "Two players take turns on a 3 by 3 board, X first.",
+    "rules": "On your turn mark one empty cell (0 to 8, row by row). Three of your marks in a row, column or diagonal wins; a full board with no line is a draw."
+  },
+  "clock": {"rounds": 5, "unit": "turn"},
+  "world": {"board": {"type": "list", "default": ["", "", "", "", "", "", "", "", ""]}},
+  "types": {
+    "player": {
+      "agent": true,
+      "props": {"mark": ""},
+      "policies": {
+        "first_free": {"rules": [{"do": "place", "with": {"cell": "$pick($range(9), $world.board[$it] == '')"}}]}
+      },
+      "score": {"value": "0 if $result.winner == null else 1 if $result.winner == $it else -1", "utility": "zero_sum"}
+    }
+  },
+  "entities": {
+    "x": {"type": "player", "name": "X", "props": {"mark": "X"}},
+    "o": {"type": "player", "name": "O", "props": {"mark": "O"}}
+  },
+  "actions": {
+    "place": {
+      "by": "player",
+      "description": "Mark an empty cell.",
+      "params": {"cell": {"type": "int", "min": 0, "max": 8}},
+      "when": {"expr": "$world.board[$params.cell] == ''", "why": "That cell is taken."},
+      "do": [
+        "$world.board[$params.cell] = $actor.mark",
+        {
+          "if": "$line($actor.mark)",
+          "then": {"end": "line", "winner": "$actor", "say": "{$actor.name} completes a line and wins."}
+        },
+        {"if": "$count($world.board, $it == '') == 0", "then": {"end": "draw", "say": "The board is full: a draw."}}
+      ],
+      "announce": "{$actor.name} marks cell {$params.cell}."
+    }
+  },
+  "stages": [{"name": "play", "must_act": true}],
+  "views": {
+    "board": {"for": "player", "show": "You play {mark}. Board, row by row: {$join($map($range(9), $world.board[$it] or $text($it)), ' ')} (numbers are empty cells)."}
+  },
+  "outputs": {"winner": "$result.winner.name if $result.winner else 'draw'"},
+  "defs": {
+    "line": {
+      "args": ["m"],
+      "expr": "$any([[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]], $world.board[$it[0]] == $m and $world.board[$it[1]] == $m and $world.board[$it[2]] == $m)",
+      "description": "Whether mark m holds a whole line."
+    }
+  }
+}

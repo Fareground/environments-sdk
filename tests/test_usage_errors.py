@@ -1,11 +1,16 @@
 """Mistakes a first-time user makes with the Python API raise the SDK's own errors, each with its fix."""
+import json
+from pathlib import Path
+
 import pytest
 
 import fg_env
 
+FIXTURES = Path(__file__).parent / "fixtures"
+
 
 def _game():
-    return fg_env.new("duel")
+    return json.loads((FIXTURES / "duel.json").read_text())
 
 
 @pytest.mark.parametrize("participants, path, fix", [
@@ -22,7 +27,7 @@ def test_an_unknown_participant_or_key_is_a_contract_error_with_a_fix(participan
 
 def test_an_unknown_policy_lists_the_declared_ones():
     with pytest.raises(fg_env.ContractError) as info:
-        fg_env.run(fg_env.new("shop"), {"household": "policy:thrifty"})
+        fg_env.run(FIXTURES / "shop.json", {"household": "policy:thrifty"})
     assert "unknown participant 'policy:thrifty'" in info.value.issues[0].message
     assert "policies: none" in info.value.issues[0].fix
 

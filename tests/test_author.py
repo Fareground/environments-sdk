@@ -1,5 +1,6 @@
 """fg_env.author: a brief → a working contract, with scripted model clients (no network)."""
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -7,7 +8,8 @@ import pytest
 import fg_env
 from fg_env.__main__ import main
 
-WORKING = fg_env.new("duel")
+#: A working two-player game (take the last stone), the contract the scripted models write.
+WORKING = json.loads((Path(__file__).parent / "fixtures" / "duel.json").read_text())
 BROKEN = {**WORKING, "bogus": 1}
 
 

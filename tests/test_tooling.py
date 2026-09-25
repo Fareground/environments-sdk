@@ -23,8 +23,8 @@ def test_the_core_guide_is_short_and_maps_every_part():
         assert f"`{name}`" in core
     for family in FAMILIES:
         assert f"| `{family}` |" in core
-    for topic in ("model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns", "recipes",
-                  "running", "checklist"):
+    for topic in ("cookbook", "model", "expressions", "templates", "effects", "functions", "mechanisms", "patterns",
+                  "engines", "running", "checklist"):
         assert f"- `{topic}` —" in core
     assert guide("core") == core
 
@@ -227,9 +227,6 @@ def test_authoring_guide_example_and_known_answer_run_verbatim(tmp_path, monkeyp
     assert len(page) < 11_000  # One page an authoring agent starts from.
     contract_text = page.split('```json\n')[1].split('```')[0]
     scripts = [block.split('```')[0] for block in page.split('```python\n')[1:]]
-    money_page = (Path(__file__).resolve().parents[1] / 'docs/sdk/business-modeling.md').read_text()
-    money_section = money_page.split('## Money and settlement\n')[1].split('\n## ')[0]
-    scripts += [block.split('```')[0] for block in money_section.split('```python\n')[1:]]
     (tmp_path / 'lake.json').write_text(contract_text)
     monkeypatch.chdir(tmp_path)
     for script in scripts:
@@ -291,7 +288,7 @@ def test_ordered_processing_reference_runs_without_priority_scaling():
 
 def test_run_says_when_it_stopped_before_the_end_and_its_help_names_real_commands(tmp_path, capsys):
     path = tmp_path / "game.json"
-    fg_env.new("duel", path)
+    path.write_text((Path(__file__).parent / "fixtures" / "duel.json").read_text())
     assert main(["run", str(path), "--rounds", "2", "--seed", "1"]) == 0
     first = capsys.readouterr().out.splitlines()[0]
     assert first.startswith("running after 2 turns — stopped before the end (seed 1"), first

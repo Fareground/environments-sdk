@@ -150,7 +150,7 @@ def test_the_guide_teaches_every_kind_and_each_kind_is_a_mode_of_the_pattern_fam
     for name in ("trend", "seasonal", "calendar", "random_walk", "volatility", "elasticity", "cross_price", "counts",
                  "censored", "carryover", "promotion", "draw", "diffusion", "product"):
         assert f"#### `{name}`" in page
-    assert "`patterns`" in fg_env.guide() and "recipes" in fg_env.guide("all")
+    assert "`patterns`" in fg_env.guide()
     trend = fg_env.guide("pattern.trend")
     assert trend.startswith("### `pattern.trend`") and "- `slope`" in trend and "- `kind`" not in trend
     assert "patterns" not in fg_env.schema()["properties"]

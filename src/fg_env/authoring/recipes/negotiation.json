@@ -1,0 +1,75 @@
+{
+  "fg_env": "2",
+  "name": "Price negotiation",
+  "description": "Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades.",
+  "brief": {
+    "situation": "A seller and a buyer haggle over one used car.",
+    "rules": "Each round the seller, then the buyer, may accept the offer on the table (if the other side made it) or make a new offer. A deal ends the talks. After {$inputs.deadline} rounds without a deal, nobody trades.",
+    "roles": {"seller": "Sell for as much as you can, never below your cost.", "buyer": "Buy for as little as you can, never above what the car is worth to you."}
+  },
+  "inputs": {
+    "deadline": {"type": "int", "default": 5, "min": 1, "unit": "round"},
+    "cost": {"type": "number", "default": 40, "min": 0, "description": "The seller's lowest price."},
+    "worth": {"type": "number", "default": 80, "min": 0, "description": "What the car is worth to the buyer."}
+  },
+  "clock": {"rounds": "$inputs.deadline"},
+  "world": {
+    "offer": {"type": "number", "default": 0},
+    "offered_by": "",
+    "price": {"type": "number", "default": 0},
+    "deal": false
+  },
+  "types": {
+    "party": {"agent": true, "props": {"limit": {"type": "number", "default": 0, "private": true}}},
+    "seller": {
+      "extends": "party",
+      "policies": {
+        "concede": {
+          "rules": [
+            {"when": "$world.offered_by == buyer and $world.offer >= $actor.limit + 10", "do": "accept"},
+            {"do": "offer", "with": {"price": "$max($actor.limit + 10, 90 - 10 * $round)"}}
+          ]
+        }
+      }
+    },
+    "buyer": {
+      "extends": "party",
+      "policies": {
+        "concede": {
+          "rules": [
+            {"when": "$world.offered_by == seller and $world.offer <= $actor.limit - 10", "do": "accept"},
+            {"do": "offer", "with": {"price": "$min($actor.limit - 10, 20 + 10 * $round)"}}
+          ]
+        }
+      }
+    }
+  },
+  "entities": {
+    "seller": {"type": "seller", "name": "Seller", "props": {"limit": "$inputs.cost"}},
+    "buyer": {"type": "buyer", "name": "Buyer", "props": {"limit": "$inputs.worth"}}
+  },
+  "actions": {
+    "offer": {
+      "by": "party",
+      "description": "Put a price on the table.",
+      "params": {"price": {"type": "number", "min": 0}},
+      "do": ["$world.offer = $params.price", "$world.offered_by = $actor.id"],
+      "announce": "{$actor.name} offers {$params.price|money}."
+    },
+    "accept": {
+      "by": "party",
+      "description": "Accept the other side's offer.",
+      "when": {"expr": "$world.offered_by != '' and $world.offered_by != $actor.id", "why": "There is no offer from the other side to accept."},
+      "do": [
+        "$world.price = $world.offer",
+        "$world.deal = true",
+        {"end": "deal", "say": "Deal at {$world.price|money}."}
+      ]
+    }
+  },
+  "stages": [{"name": "talks", "order": "seat"}],
+  "views": {
+    "table": {"for": "party", "show": "{'On the table: ' + $text($world.offer) + ' from ' + $world.offered_by if $world.offered_by else 'No offer yet.'} Your limit is {limit|money}."}
+  },
+  "outputs": {"deal": "$world.deal", "price": "$world.price if $world.deal else null"}
+}
