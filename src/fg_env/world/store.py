@@ -168,7 +168,7 @@ class World(ExpressionWorld):
         it."""
         if type_name not in self.contract.types:
             raise ExprError(f"'{type_name}' is not a declared type (types: {', '.join(self.contract.types)})")
-        return self.types.alive(type_name, compact=self.journal.mark() == 0)
+        return self.types.alive(type_name)
 
     def subtypes_of(self, type_name: str) -> Any:
         """``type_name`` and every type that extends it."""

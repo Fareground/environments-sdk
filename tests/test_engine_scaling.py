@@ -110,3 +110,29 @@ MOST_SLOWER_AMONG_ITEMS = 3
 def test_a_turn_costs_the_same_however_many_entities_it_cannot_inspect():
     slower = _seconds(_among_items(20_000), "random") / _seconds(_among_items(0), "random")
     assert slower < MOST_SLOWER_AMONG_ITEMS, f"20,000 items no agent may inspect made a turn {slower:.1f} times slower"
+
+
+CHURN = {"name": "Churn", "clock": {"rounds": 1000},
+         "types": {"t": {"agent": True, "props": {"cash": 0}}, "tok": {"props": {"v": 0}}},
+         "entities": {"t": {"type": "t", "count": 20}},
+         "actions": {"work": {"by": "t", "do": ["$actor.cash += 1", {"create": "tok"}, {"remove": "$first(tok)"}]}}}
+
+#: The last 100 of 1,000 rounds in which every action creates one entity and removes another against the first 100:
+#: reading a type's living members by passing over every member it ever had measured about 4 times by the end; with
+#: the living list kept current, about 1.
+MOST_SLOWER_WITH_CHURN = 2
+
+
+def test_creating_and_removing_entities_in_actions_costs_the_same_late_in_the_run_as_early():
+    env = fg_env.load(CHURN, seed=1)
+    rounds = []
+    gc.disable()
+    try:
+        for _ in range(1000):
+            start = time.process_time()
+            env.run(lambda wake: wake.call("work", {}), rounds=1)
+            rounds.append(time.process_time() - start)
+    finally:
+        gc.enable()
+    slower = statistics.median(rounds[-100:]) / statistics.median(rounds[:100])
+    assert slower < MOST_SLOWER_WITH_CHURN, f"a round late in the run took {slower:.1f} times an early one"

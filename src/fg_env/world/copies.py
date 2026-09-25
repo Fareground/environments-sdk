@@ -63,7 +63,7 @@ def copy_world(source: World) -> World:
     journal._undo = [(tuple(_plain_copy(part) for part in op), version) for op, version in source.journal._undo]
     journal.version, journal._settled = source.journal.version, source.journal._settled
     types = TypeIndex.__new__(TypeIndex)
-    types.__dict__.update(_kinds=source.types._kinds, _queries=source.types._queries, _members=source.types._members)
+    types.__dict__.update(_kinds=source.types._kinds, _queries=source.types._queries, _living=source.types._living)
     types.rebuild(entities.values())
     data.update(
         luck=source.luck.copy(), entities=entities, props=_plain_copy(source.props),

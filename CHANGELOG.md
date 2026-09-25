@@ -267,6 +267,9 @@ worlds stay fast, and the package is organised by feature.
     by the entity (or the world) and the prop, as luck during the run is keyed by where it is written. Before, they
     came from one stream in order, so adding a buyer re-dealt every seller's cost. Contracts with random starting
     values start differently (22 goldens changed for this reason alone).
+  - Creating and removing entities inside actions no longer slows a long run down: each type's living members are
+    kept current as entities are removed (and brought back by an undo), instead of rescanning every member the type
+    ever had, removed ones included.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
