@@ -254,6 +254,9 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - Mechanism polish: an auction's "You have no …" names its `currency`; a ballot's `weight` may be a number (`2`);
+    the approval ballot says to abstain to approve of none; the order book's page says `_mid` falls back to the one
+    side left and that `idle` idles its coded crowd too; the market reference examples give their traders cash.
   - Engines: the network engine links only the ties between people in its participants table and says, as an
     invariant, when a tie names someone missing (a shorter table crashed the build naming an edge); the contact
     centre's `calls_scale` has a minimum of 0 and its arrivals never go below zero (a scale near 0 drew negative).

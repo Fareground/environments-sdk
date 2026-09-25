@@ -6,7 +6,7 @@ import math
 from collections.abc import Collection, Mapping, Sequence
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, function, truthy
@@ -325,7 +325,8 @@ class BallotConfig(BaseModel):
         "votes", description="What the threshold is a share of: the votes cast (abstentions aside), or all members "
                              "still in the game (e.g. cloture at 3/5 of the senate).")
     weight: EachWho | None = Field(None, description="Votes each voter casts, an expression over the voter $it (e.g. "
-                                                 "\"$it.shares\"); default 1. Turnout and quorum count weight too.")
+                                                 "\"$it.shares\", or a number); default 1. Turnout and quorum count "
+                                                 "weight too.")
     veto: EachWho | None = Field(None, description="Who holds a veto, an expression over the voter $it (e.g. "
                                                "\"$it.permanent\"): one of them voting for the second option defeats "
                                                "the first. Needs exactly two options, the motion first.")
@@ -349,6 +350,12 @@ class BallotConfig(BaseModel):
     announce: str = Field("",
                           description="Result text (template over $result); default names the winner or says it "
                                       "failed.")
+
+    @field_validator("weight", mode="before")
+    @classmethod
+    def _number_weight(cls, value: Any) -> Any:
+        """A fixed weight may be written as a number (`2`), as well as an expression."""
+        return str(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else value
 
 
 def _options(runner: Any, config: BallotConfig, vars: dict[str, Any]) -> list[Any]:
@@ -485,7 +492,8 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
                    "condorcet": ("the options in order of preference, most preferred first", "Rank the options")}
         what, how = wording[config.method]
         ballot_param = {"choices": {"type": "list", "values": config.options, "min_items": 1, "unique": True,
-                                    "description": f"List {what}."}}
+                                    "description": f"List {what} (at least one; to approve of none, abstain)."
+                                    if config.method == "approval" else f"List {what}."}}
         cast, told = "$params.choices", "Your ballot: {$params.choices}."
     actions: dict[str, Any] = {
         vote: {"by": config.who, "description": _sentence(f"{how}{question}"),

@@ -43,5 +43,5 @@ Actions of the `market` op:
 - `sponsor` — takes `who`, `listing`, `rounds` (needs `listing`, `rounds`): {"market": "market", "action": "sponsor", "listing": "$params.listing", "rounds": 2}  (a seller puts its listing first on the shelf)
 
 ```json
-{"types": {"farmer": {"agent": true}}, "entities": {"ana": {"type": "farmer"}}, "mechanisms": {"my_posted": {"kind": "market", "mode": "posted", "who": "shopper", "sellers": "farmer", "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 40, "negotiable": true, "floor": 2.5}}}}}
+{"types": {"farmer": {"agent": true}, "shopper": {"agent": true, "props": {"cash": 100}}}, "entities": {"ana": {"type": "farmer"}}, "mechanisms": {"my_posted": {"kind": "market", "mode": "posted", "who": "shopper", "sellers": "farmer", "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 40, "negotiable": true, "floor": 2.5}}}}}
 ```

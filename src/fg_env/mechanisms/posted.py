@@ -408,7 +408,8 @@ _register_actions()
            example={"who": "shopper", "sellers": "farmer",
                     "listings": {"apples": {"seller": "ana", "item": "apples", "price": 3, "stock": 40,
                                             "negotiable": True, "floor": 2.5}}},
-           context={"types": {"farmer": {"agent": True}}, "entities": {"ana": {"type": "farmer"}}})
+           context={"types": {"farmer": {"agent": True}, "shopper": {"agent": True, "props": {"cash": 100}}},
+                    "entities": {"ana": {"type": "farmer"}}})
 def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):

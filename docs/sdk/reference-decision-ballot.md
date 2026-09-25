@@ -9,7 +9,7 @@ Config:
 - `method` (default "plurality"): plurality (most votes) | majority (more than half) | supermajority (threshold, default 2/3) | approval (approve any number) | ranked (instant runoff) | borda | condorcet (Copeland); the last four take a list ballot. (score ballots are a map: count them with $tally_votes.)
 - `threshold` (default null): Share of votes needed to pass (majority/supermajority).
 - `threshold_of` (default "votes"): What the threshold is a share of: the votes cast (abstentions aside), or all members still in the game (e.g. cloture at 3/5 of the senate).
-- `weight` (default null): Votes each voter casts, an expression over the voter $it (e.g. "$it.shares"); default 1. Turnout and quorum count weight too.
+- `weight` (default null): Votes each voter casts, an expression over the voter $it (e.g. "$it.shares", or a number); default 1. Turnout and quorum count weight too.
 - `veto` (default null): Who holds a veto, an expression over the voter $it (e.g. "$it.permanent"): one of them voting for the second option defeats the first. Needs exactly two options, the motion first.
 - `quorum` (default null): Share of eligible voters who must cast a ballot (abstentions count).
 - `abstain` (default true): Voters may abstain.

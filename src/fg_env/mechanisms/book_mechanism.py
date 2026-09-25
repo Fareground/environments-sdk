@@ -168,11 +168,14 @@ def _views(name: str, cfg: OrderBookConfig) -> dict[str, Any]:
            "`stop_loss` param (in multiples of the per-round volatility) liquidates a losing position at market. "
            "$book(name).flow is the last round's aggressive quantity by trader kind. Fundamentalists estimate "
            "`fair_value`, by default $world.<name>_value: a random walk from the start price at the book's "
-           "`volatility`. Metrics <name>_price (last trade), _mid (mid quote: returns without the bid-ask bounce), "
-           "_volume, _spread (null while a side of the book is empty), _orders feed $market_realism.",
+           "`volatility`. Metrics <name>_price (last trade), _mid (mid quote: returns without the bid-ask bounce; "
+           "the one side's best price while the other side is empty), _volume, _spread (null while a side of the "
+           "book is empty), _orders feed $market_realism. The `idle` participant idles the crowd too: its traders "
+           "are agents, and a participant given for every agent plays them all.",
            example={"who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5,
                     "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400},
-                                               "noise": {"count": 6, "cash": 5000, "shares": 100}}})
+                                               "noise": {"count": 6, "cash": 5000, "shares": 100}}},
+           context={"types": {"trader": {"agent": True, "props": {"cash": 1000}}}})
 def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     if cfg.who not in types:

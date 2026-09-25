@@ -156,7 +156,8 @@ def _check_packages(cfg: AuctionConfig) -> None:
            " unit; in a uniform auction every winner pays it), qty (units sold), note}, null before the first lot "
            "closes; output `<name>_prices` lists the price of every winning entry. The other fields of $auction(name) "
            "describe the open lot; $auction_text(name, viewer) describes it.",
-           example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50})
+           example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50},
+           context={"types": {"collector": {"agent": True, "props": {"cash": 500}}}})
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     for field, kind in (("who", cfg.who), ("sellers", cfg.sellers)):
@@ -230,7 +231,7 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                              else f"$actor.{cfg.currency}",
                              "description": "Price for the whole package." if packaged else "Price per unit."}
     when = [{"expr": f"$auction({name}).open", "why": "No lot is open."},
-            {"expr": f"$actor.{cfg.currency} > 0", "why": "You have no cash."}]
+            {"expr": f"$actor.{cfg.currency} > 0", "why": f"You have no {cfg.currency}."}]
     if cfg.reverse:
         price = {"type": "number", "min": MIN_PRICE, "max": f"$auction({name}).reserve",
                  "description": "Price per unit you want to be paid."}

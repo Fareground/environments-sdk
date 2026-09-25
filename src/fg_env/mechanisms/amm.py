@@ -451,7 +451,7 @@ def _metric_key(outcome: str) -> str:
            "$amm_outcomes(name, viewer) and $amm_cost(name, outcome, shares); metrics <name>_p_<outcome> track prices.",
            example={"who": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr", "liquidity": 50,
                     "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"},
-           context={"world": {"truth": "yes"}})
+           context={"world": {"truth": "yes"}, "types": {"forecaster": {"agent": True, "props": {"cash": 100}}}})
 def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
     if cfg.who not in types:
