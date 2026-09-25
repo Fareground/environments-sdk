@@ -557,3 +557,29 @@ def test_grammar_fuzz_never_crashes_or_hangs():
             pytest.fail(f"case {case} ran longer than {FUZZ_SECONDS}s: {source!r} / {effects!r}")
         except Exception as exc:  # noqa: BLE001 — the point of the test
             pytest.fail(f"case {case} raised {type(exc).__name__}: {exc} — {source!r} / {effects!r}")
+
+
+def test_invisible_and_control_characters_in_participant_text_are_shown_as_codes_on_every_channel():
+    """A right-to-left override, a terminal escape or NUL typed by one agent reaches no reader as itself: the tool
+    result, other agents' views and news show each as its code, and joiners that scripts and emoji need stay."""
+    chat = {"name": "Chat", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+            "records": {"chat": {"fields": {"text": "text"}}},
+            "actions": {"say": {"by": "p", "params": {"text": {"type": "text"}},
+                                "do": [{"post": "chat", "text": "$params.text"}], "outcome": "You said {$params.text}."}},
+            "stages": [{"name": "talk", "turns": "sequential"}],
+            "views": {"chat": {"for": "p", "of": "chat", "show": "{author}: {text}"}}}
+    typed = "hi‮evil\x1b[2J\x00end mi‌xed"
+    seen = {}
+
+    def play(wake):
+        if wake.entity_id == "a":
+            seen["result"] = wake.call("say", {"text": typed}).text
+        else:
+            seen["update"] = wake.update
+        wake.end()
+
+    fg_env.run(chat, play, seed=1)
+    for text in seen.values():
+        assert "«hi\\u202eevil\\u001b[2J\\u0000end mi‌xed»" in text
+        assert not any(char in text for char in "‮\x1b\x00")

@@ -293,6 +293,10 @@ worlds stay fast, and the package is organised by feature.
     result). A tool refused as not allowed now reads "You cannot call b_vote now: …", not "You cannot b vote now".
   - `check` warns about an entity choice among entities the rules create without a name (offered by id alone) that no
     view its actors read lists and they may not inspect: nothing tells them apart.
+  - Control and invisible format characters in participant text (a right-to-left override, a terminal escape, NUL, a
+    tag character) are shown as their codes (`\u202e`) on every channel an agent reads — views, news, outcomes, tool
+    results — through the one helper that quotes participant text, and in the requests hosts get; before, they
+    reached other agents, judges and transcripts as themselves. Joiners that scripts and emoji need stay.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

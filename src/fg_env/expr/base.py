@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import re
 import threading
+import unicodedata
 from collections.abc import Callable, Mapping
 from typing import Any
 
 __all__ = [
     "EVAL_BUDGET", "MAX_INT_BITS", "MAX_LIST_LEN", "MAX_RANGE", "MAX_TEXT_LEN", "Untrusted", "tainted", "derived",
     "ExprError", "PrivateRead", "charge", "check_size", "shared_budget", "nested_free", "is_expr", "truthy",
-    "EXPRESSION_WORDS", "RESERVED_ROOTS", "quoted",
+    "EXPRESSION_WORDS", "RESERVED_ROOTS", "quoted", "visible",
 ]
 
 _EXPR_MARK = re.compile(r"\$[A-Za-z_]")
@@ -72,9 +73,34 @@ def view_as_value(value: Any) -> ExprError | None:
     return ExprError(f"${root} is not a value to keep or show: read one of its fields (${root}.<field>)")
 
 
+#: Anything but printable ASCII: where a character may be one no reader sees.
+_UNUSUAL = re.compile(r"[^\x20-\x7e]")
+#: Characters that stay as they are: the joiners scripts and emoji sequences need, and a line break (text that must
+#: render on one line has lost its breaks already).
+_KEPT = frozenset("\u200c\u200d\n")
+
+
 def quoted(text: str) -> str:
-    """Participant ``text`` as it renders: in «» on one line, its own guillemets made plain."""
-    return "«" + _BREAKS.sub(" ", str.__str__(text)).replace("«", "‹").replace("»", "›") + "»"
+    """Participant ``text`` as it renders, the one way for every channel an agent reads (views, news, outcomes, tool
+    results): in «» on one line, its own guillemets made plain, and :func:`visible`, so no reader of it, or of a
+    transcript, is misled by what it cannot see (a host's request is made :func:`visible` whole)."""
+    return "«" + visible(_BREAKS.sub(" ", str.__str__(text)).replace("«", "‹").replace("»", "›")) + "»"
+
+
+def visible(text: str) -> str:
+    """``text`` with every control or invisible format character (a terminal escape, NUL, a right-to-left override, a
+    tag character; a tab is a space) shown as its code, ``\\u202e``: the same escape JSON reads, so it can be applied
+    to a JSON document too. Letters, line breaks and the joiners scripts and emoji need stay as they are."""
+    return "".join(_visible(char) for char in text) if _UNUSUAL.search(text) else text
+
+
+def _visible(char: str) -> str:
+    if char == "\t":
+        return " "
+    if char in _KEPT or unicodedata.category(char) not in ("Cc", "Cf"):
+        return char
+    code = ord(char)
+    return f"\\u{code:04x}" if code <= 0xFFFF else f"\\U{code:08x}"
 
 
 def tainted(value: Any) -> bool:

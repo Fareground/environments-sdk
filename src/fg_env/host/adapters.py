@@ -28,6 +28,7 @@ from typing import Any
 
 from ..assets.multimodal import ANTHROPIC_MEDIA, OPENAI_MEDIA, Carried, anthropic_parts, openai_parts, without_content
 from ..errors import RunError
+from ..expr.base import visible
 from .hosts import credit_tokens, time_left
 from .protocols import HostError, HostUnavailable
 from .usage import call_usage, rough_tokens
@@ -183,7 +184,7 @@ class LLMHost(_Provider):
         system = own + _SYSTEM.format(role=_ROLES[role], answer=_ANSWERS[role])
         files = [Carried(item) for item in request.get("attachments") or []]
         shown = {**request, "attachments": without_content(request["attachments"])} if files else dict(request)
-        content = json.dumps(shown, ensure_ascii=False, indent=1)
+        content = visible(json.dumps(shown, ensure_ascii=False, indent=1))  # nothing in it the model cannot see
         if self.provider == "anthropic":
             parts = anthropic_parts(files, ANTHROPIC_MEDIA)
             message: Any = [{"type": "text", "text": content}, *parts] if parts else content
