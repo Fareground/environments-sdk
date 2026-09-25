@@ -144,6 +144,12 @@ class ActionBook:
             if param.type == "enum" and isinstance(param.values, str) \
                     and self.static(actor, param.values, f"actions.{name}.params.{pname}.values") == []:
                 return f"there is no value you can choose for {pname} right now"
+            if param.type == "list" and param.values is not None and isinstance(param.min_items, int) \
+                    and param.min_items > 0:
+                values = (self.static(actor, param.values, f"actions.{name}.params.{pname}.values")
+                          if isinstance(param.values, str) else param.values)
+                if isinstance(values, list) and len(values) < param.min_items:
+                    return f"there are not enough values to choose for {pname} right now"
         return None
 
     def unmet(self, actor: Entity, name: str, params: dict[str, Any] | None, offered: bool = False) -> str | None:

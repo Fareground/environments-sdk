@@ -116,3 +116,20 @@ def test_a_declared_stage_refining_a_generated_one_is_held_only_when_both_whens_
     assert not issues and expanded["stages"][0]["when"] == "($round >= 1) and ($round == 99)"
     result = fg_env.run(c, "random", seed=1)
     assert [e for e in result.events if e["kind"] == "poll"] == []
+
+
+def test_an_approval_ballot_with_no_options_is_not_offered_and_says_no_votes_were_cast():
+    c = {"name": "r", "clock": {"rounds": 1}, "world": {"opts": {"type": "list", "default": []}},
+         "types": {"v": {"agent": True}}, "entities": {"v": {"type": "v", "count": 3}},
+         "mechanisms": {"poll": {"kind": "decision", "mode": "ballot", "who": "v", "method": "approval",
+                                 "options": "$world.opts"}},
+         "outputs": {"r": "$world.poll_result"}}
+    offered = []
+
+    def voter(wake):
+        offered.extend(tool.name for tool in wake.tools)
+        wake.end()
+
+    result = fg_env.run(c, voter, seed=1)
+    assert "poll_vote" not in offered
+    assert [e["text"] for e in result.events if e["kind"] == "poll"] == ["The vote: no decision (no votes were cast)."]

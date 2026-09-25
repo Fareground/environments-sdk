@@ -327,6 +327,9 @@ worlds stay fast, and the package is organised by feature.
     the entity its number in a prop (`"n": "$i"`) and read `$outer.n` inside the function.
   - A stage `when` that reads a hidden value is warned, as a `who` is: every agent learns it from whether the stage
     was held.
+  - A tool whose list parameter has fewer values than its `min_items` (an approval ballot with no options) is not
+    offered, as an enum with none is not; a ballot nobody voted in is announced as "no decision (no votes were
+    cast)". Before, the vote was offered with an empty schema and announced as "no decision (tie; )".
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

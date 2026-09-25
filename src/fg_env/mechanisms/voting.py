@@ -429,6 +429,8 @@ def _announcement(world: Any, config: BallotConfig, result: dict[str, Any]) -> s
         return f"{subject}: no quorum ({result['cast']} ballot(s) cast)."
     if result.get("vetoed"):
         return f"{subject}: vetoed by {', '.join(label(v) for v in result['vetoed'])} ({counts})."
+    if result["winner"] is None and not any(result["counts"].values()):
+        return f"{subject}: no decision (no votes were cast)."
     if result["winner"] is None:
         return f"{subject}: no decision ({result.get('reason') or 'tie'}; {counts})."
     tie = " after a tie" if result["tie"] else ""
