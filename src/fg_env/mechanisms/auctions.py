@@ -27,8 +27,9 @@ until it closes:
   escrow is its highest package bid.
 
 Every bid escrows its money (and every ask its units) so a winner can always pay; losers and
-change are refunded from escrow. Proceeds go to the ``house`` entity, or to
-``$world.<name>_revenue`` for a house auction selling from ``$world.<name>_stock``.
+change are refunded from escrow. Proceeds go to the ``house`` entity, or are held in
+``$world.<name>_proceeds`` when there is none; ``$world.<name>_revenue`` counts them either way, a report that holds no
+money (so a ledger never counts them twice).
 """
 from __future__ import annotations
 
@@ -144,16 +145,15 @@ def _payee(world: Any, name: str, cfg: AuctionConfig) -> tuple[Account, Account]
         house = entity_of(world, cfg.house, f"mechanisms.{name}.house", "the auction house")
         source = Account(None, f"{name}_stock") if _house_stock(cfg) else Account(house, f"{name}_units")
         return Account(house, cfg.currency), source
-    return Account(None, f"{name}_revenue"), Account(None, f"{name}_stock")
+    return Account(None, f"{name}_proceeds"), Account(None, f"{name}_stock")
 
 
 def _proceeds(world: Any, name: str, source: Account, payee: Account, amount: float, what: str) -> None:
-    """Pay a sale's ``amount`` from ``source`` to ``payee`` — the house entity, or ``$world.<name>_revenue`` — which
-    counts the house's proceeds either way (its output, metric and ``$auction(name).revenue`` read it)."""
+    """Pay a sale's ``amount`` from ``source`` to ``payee`` — the house entity, or ``$world.<name>_proceeds`` — and
+    count it in ``$world.<name>_revenue``, the report its output, metric and ``$auction(name).revenue`` read."""
     move(world, source, payee, amount, what=what)
-    if payee.entity is not None:
-        key = f"{name}_revenue"
-        world.set_world(key, clean(float(world.props.get(key) or 0) + amount))
+    key = f"{name}_revenue"
+    world.set_world(key, clean(float(world.props.get(key) or 0) + amount))
 
 
 def _house_stock(cfg: AuctionConfig) -> bool:

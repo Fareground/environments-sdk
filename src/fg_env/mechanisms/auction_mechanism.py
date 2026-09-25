@@ -143,19 +143,19 @@ def _check_packages(cfg: AuctionConfig) -> None:
 
 @mode("market", "auction", AuctionConfig,
            "An auction: sealed first_price, second_price (Vickrey), english (ascending, increment, timeout), dutch "
-           "(falling clock), double (call market at one price) or uniform (multi-unit, one price). Tools "
-           "`<name>_bid` (price, qty) and, for double, `<name>_ask`. Each party holds the units it bought, or a "
-           "double auction's sellers the units they offer, in `<name>_units` (give sellers their stock there). Bids "
-           "escrow cash, asks escrow units; proceeds go to the `house` entity or $world.<name>_revenue. `reverse: "
-           "true` makes it a procurement tender (the house buys; the lowest offer at or below the reserve wins, is "
-           "paid and supplies one unit to the house's `<name>_units`, taken from its `deliver_from` stock when set); "
-           "`score` awards a first_price lot to the best score instead of the best price. Each closed lot is posted "
-           "to the `<name>_results` record, one entry per winner (winner, price, qty, lot, note; an unsold lot has "
-           "one entry with winner ''). $auction(<name>).last is the latest closed lot, sold or not: {lot, winner "
-           "(the first winner, '' when unsold), winners, price (the first winner's price per unit; in a uniform "
-           "auction every winner pays it), qty (units sold), note}, null before the first lot closes; output "
-           "`<name>_prices` lists the price of every winning entry. The other fields of $auction(name) describe the "
-           "open lot; $auction_text(name, viewer) describes it.",
+           "(falling clock), double (call market at one price) or uniform (multi-unit, one price). Tools `<name>_bid` "
+           "(price, qty) and, for double, `<name>_ask`. Each party holds the units it bought, or a double auction's "
+           "sellers the units they offer, in `<name>_units` (give sellers their stock there). Bids escrow cash, asks "
+           "escrow units; proceeds go to the `house` entity or $world.<name>_proceeds, and $world.<name>_revenue "
+           "counts them. `reverse: true` makes it a procurement tender (the house buys; the lowest offer at or below "
+           "the reserve wins, is paid and supplies one unit to the house's `<name>_units`, taken from its "
+           "`deliver_from` stock when set); `score` awards a first_price lot to the best score instead of the best "
+           "price. Each closed lot is posted to the `<name>_results` record, one entry per winner (winner, price, qty,"
+           " lot, note; an unsold lot has one entry with winner ''). $auction(<name>).last is the latest closed lot, "
+           "sold or not: {lot, winner (the first winner, '' when unsold), winners, price (the first winner's price per"
+           " unit; in a uniform auction every winner pays it), qty (units sold), note}, null before the first lot "
+           "closes; output `<name>_prices` lists the price of every winning entry. The other fields of $auction(name) "
+           "describe the open lot; $auction_text(name, viewer) describes it.",
            example={"format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50})
 def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     types = contract.get("types") or {}
@@ -273,7 +273,11 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                   **({f"{name}_items": {"type": "list", "default": list(cfg.items),
                                         "description": "Items still for sale."}}
                      if packaged else {}),
-                  f"{name}_revenue": {"type": "number", "default": 0, "description": "House proceeds."},
+                  f"{name}_revenue": {"type": "number", "default": 0,
+                                      "description": "What the sales paid in all: a report, holding no money."},
+                  **({} if cfg.house else {f"{name}_proceeds": {"type": "number", "default": 0,
+                                                                "description": "The money the sales paid, held by the "
+                                                                               "auction (it has no `house`)."}}),
                   f"{name}_stock": {"type": "int", "default": len(cfg.items) if packaged else
                                     0 if (cfg.house and not cfg.reverse) or cfg.format == "double" else cfg.stock,
                                     "description": "Units the house still has to sell."},

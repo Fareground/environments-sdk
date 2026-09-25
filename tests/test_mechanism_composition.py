@@ -1,5 +1,7 @@
 """Mechanisms compose: several of one kind share a contract, clashing names are refused, nothing ends the run unasked.
 """
+import pytest
+
 import fg_env
 from fg_env.expr import compile_expr
 from fg_env.mechanisms import generated_summary
@@ -173,3 +175,38 @@ def test_a_declared_stage_gives_each_attached_mechanism_its_actions_and_the_auth
     assert day.max_actions == alone["v"] + alone["x"] + 1
     contract["stages"][0]["max_actions"] = 2
     assert fg_env.load(contract).contract.stage_list()[0].max_actions == 2
+
+
+def _ledger_market(market, house):
+    """Three traders and a ledger's cash, with one money-moving market (and a house holding units, when it has one)."""
+    return {"name": "Money", "clock": {"rounds": 4},
+            "types": {"trader": {"agent": True}, "house": {}},
+            "entities": {"a": {"type": "trader"}, "b": {"type": "trader"}, "c": {"type": "trader"},
+                         **({"hq": {"type": "house", "props": {"m_units": 3}}} if house else {})},
+            "mechanisms": {"money": {"kind": "economy", "mode": "ledger", "who": ["trader", "house"] if house
+                                     else ["trader"], "currencies": {"cash": {"start": 1000}}},
+                           "m": {"kind": "market", "who": "trader", **market, **({"house": "hq"} if house else {})}},
+            "outputs": {"conserved": "$conserved('money')"}}
+
+
+_AUCTIONS = [{"mode": "auction", "format": fmt} for fmt in ("first_price", "second_price", "english", "uniform")] + [
+    {"mode": "auction", "format": "dutch", "start_price": 400}]
+
+
+@pytest.mark.parametrize("market, house", [
+    *((auction, house) for auction in _AUCTIONS for house in (False, True)),
+    ({"mode": "auction", "format": "double"}, False),
+    ({"mode": "auction", "format": "first_price", "reverse": True, "reserve": 200}, True),
+    ({"mode": "order_book", "start_price": 50}, False),
+    ({"mode": "prediction", "outcomes": ["yes", "no"]}, False),
+    ({"mode": "posted"}, False),
+], ids=lambda value: value.get("format") or value.get("mode") if isinstance(value, dict) else f"house={value}")
+def test_every_money_moving_market_conserves_a_ledgers_money_with_and_without_a_house(market, house):
+    """A market's proceeds, escrows and vaults are counted by the ledger once each: a house paid by an auction used
+    to be counted with the auction's running revenue too, so every run failed its conservation invariant (audit 12
+    mechanisms H1)."""
+    contract = _ledger_market(market, house)
+    assert not [i for i in fg_env.check(contract, rounds=0) if i.severity == "error"]
+    for seed in range(3):
+        result = fg_env.run(contract, "random", seed=seed)
+        assert result.status == "completed" and result.outputs["conserved"] is True, (seed, result.error)

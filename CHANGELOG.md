@@ -254,6 +254,10 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - An auction with a `house` composes with a ledger: `$world.<name>_revenue` is now only the report of what the
+    sales paid, and an auction with no house holds that money in `$world.<name>_proceeds`, the one place a ledger
+    counts. The house's proceeds used to be counted twice, so every such run failed the ledger's conservation
+    invariant. A test plays every money-moving market with a ledger, with and without a house.
   - Every `result.events` row has `text` (empty when the event says nothing), as documented; before, a row without
     words had no `text` key. Example goldens regenerated: only their event-log hashes change.
   - One documented rule for empty lists: a function that summarises or picks items (`$avg`, `$min`, `$max`,

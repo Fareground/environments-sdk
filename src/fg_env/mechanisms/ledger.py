@@ -9,7 +9,7 @@ dividends on the same cash. An ``economy`` ledger that proves its currency is co
 markets hold for their traders (:func:`market_places`).
 
 An account is an entity property (``Account(entity, "cash")``) or a world property
-(``Account(None, "auction_revenue")``).
+(``Account(None, "auction_proceeds")``).
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ def whole(value: float) -> bool:
 _HELD = {
     "market.order_book": (("{}_reserved_cash",), ("{}_fees",)),
     "market.prediction": ((), ("{}_vault", "{}_fees")),
-    "market.auction": (("{}_escrow",), ("{}_revenue",)),
+    "market.auction": (("{}_escrow",), ("{}_proceeds",)),
     "market.posted": ((), ("{}_ad_revenue",)),
 }
 
