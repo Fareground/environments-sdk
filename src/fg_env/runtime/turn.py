@@ -447,7 +447,8 @@ class Turn:
         pending = self.ledger.pending
         pending.append({"action": name, **plain_value(params)})  # what the commit's rules read as $pending
         try:
-            self.committed(f"actions.{name}")
+            with env.world.luck.acting_as(self.actor, name):  # the change events it sets off are the action's
+                self.committed(f"actions.{name}")
             ended = env.actions.ends_turn(self.actor, name, params)
         except BaseException:
             pending.truncate(len(pending) - 1)

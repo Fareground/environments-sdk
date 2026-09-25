@@ -21,7 +21,7 @@ from contextlib import contextmanager
 from typing import TYPE_CHECKING, Any, TypeVar
 
 from ..actions.book import ACTION_BUDGET, ActionBook, Outcome
-from ..actions.faults import fault_reason, world_logic_refused
+from ..actions.faults import LogicRefused, fault_reason, world_logic_refused
 from ..contract import Contract, StageSpec
 from ..effects.runner import EffectRunner
 from ..errors import FatalRunError, InvariantViolation, RunError
@@ -108,10 +108,12 @@ class Rules:
                 world.rollback(mark)
                 if refusable:
                     raise
+                # told to the agent whose action set it off only when it was worked out for that agent
+                why = refusal.reason if world.luck.here().actor is not None else ""
                 if isinstance(refusal, OutOfBounds):
-                    raise RunError(f"{refusal.reason} Keep it in range where it is written, e.g. with "
-                                   "$clamp(x, low, high), or guard the write with an `if`", path) from None
-                raise RunError(world_logic_refused(refusal.reason), path) from None
+                    raise LogicRefused(f"{refusal.reason} Keep it in range where it is written, e.g. with "
+                                       "$clamp(x, low, high), or guard the write with an `if`", path, why) from None
+                raise LogicRefused(world_logic_refused(refusal.reason), path, why) from None
             except BaseException:
                 world.rollback(mark)
                 raise

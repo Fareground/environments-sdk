@@ -12,7 +12,17 @@ from __future__ import annotations
 
 from ..errors import InvariantViolation, RunError
 
-__all__ = ["refused_text", "fault_reason", "world_logic_refused"]
+__all__ = ["LogicRefused", "refused_text", "fault_reason", "world_logic_refused"]
+
+
+class LogicRefused(RunError):
+    """World logic refused — a `fail`, a transfer or write that does not fit. Inside an agent's action (a `change`
+    event its commit set off) it refuses the action, whose agent is told ``why``: the refusal as rendered for it, or
+    empty when it was not rendered for one (then nothing of it may be shown). Anywhere else it fails the run."""
+
+    def __init__(self, message: str, path: str | None = None, why: str = ""):
+        self.why = why
+        super().__init__(message, path)
 
 
 def refused_text(name: str, reason: str) -> str:
@@ -33,6 +43,8 @@ def fault_reason(error: RunError) -> str:
     hidden state)."""
     if isinstance(error, InvariantViolation):
         return error.why.strip().rstrip(".") or "it would break a rule of this environment"
+    if isinstance(error, LogicRefused) and error.why:
+        return error.why.strip().rstrip(".")
     text = str(error)
     if "division by zero" in text:
         return "it would divide by zero"

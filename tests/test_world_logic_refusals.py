@@ -84,3 +84,22 @@ def test_what_an_action_schedules_for_later_stays_that_actions_and_is_refused_no
     assert any("pledge" in update and "did not happen" in update and "ann has only 0 cash" in update
                for update in updates)
     assert env.state.diagnosis.actions["pledge"]["refused"] == 1
+
+
+def test_a_fail_in_a_change_event_an_action_set_off_tells_its_agent_the_fail_text():
+    """A `change` event set off by an agent's action is that action's: its `fail` refuses the action with the fail
+    text, rendered for the agent, as a `fail` in a create event does (audit 11 L2)."""
+    contract = {"name": "Flag", "clock": {"rounds": 1}, "world": {"flag": 0},
+                "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}},
+                "actions": {"set": {"by": "p", "do": ["$world.flag = 1"]}},
+                "events": [{"on": "change", "when": "$world.flag == 1", "do": [{"fail": "The flag stays down."}]}]}
+    replies = []
+
+    def play(wake):
+        replies.append(wake.call("set", {}).text)
+        wake.end()
+
+    result = fg_env.run(contract, play, seed=1)
+    assert result.status == "completed", result.error
+    assert replies == ["Your set was not done: The flag stays down. Nothing changed; try other arguments or another "
+                       "action."]

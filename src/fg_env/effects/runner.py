@@ -609,8 +609,9 @@ class EffectRunner:
         return "drop" in effect and dropped(self.world, self._eval(effect["drop"], vars), f"{where}.drop")
 
     def _op_fail(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
-        actor = vars.get("actor")  # the refusal is text the actor is shown
-        text = self.text(effect["fail"], vars, actor if isinstance(actor, Entity) else None)
+        # the refusal is text the actor is shown: the rules' $actor, or the agent whose action they run for
+        actor = vars.get("actor") if isinstance(vars.get("actor"), Entity) else self.world.luck.here().actor
+        text = self.text(effect["fail"], vars, actor)
         raise Abort(text or "That is not possible right now.")
 
     def _op_end(self, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:

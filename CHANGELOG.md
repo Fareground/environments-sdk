@@ -281,6 +281,9 @@ worlds stay fast, and the package is organised by feature.
     instead of what the undone action had returned ("Done: sched."), which told it a move had happened.
   - `$sort` and `$top` over keys that mix numbers and text say so ("the sort keys mix numbers and text") instead of
     showing Python's `TypeError`.
+  - A `fail` in a `change` event an agent's action set off tells the agent the fail text ("Your set was not done:
+    The flag stays down."), rendered for it, as a `fail` in a create event does; the change events an action sets
+    off run as that action's. Before, it was told "the environment's rules could not be worked out".
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so
