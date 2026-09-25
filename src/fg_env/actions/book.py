@@ -342,13 +342,14 @@ class ActionBook:
             assets = attached_ids(world, spec.attach, world.evaluation.scope(**vars), f"{path}.attach") \
                 if spec.attach else []
             announce = spec.announce
+            shared = {**vars, "params": self.redaction.shared(name, params)}  # what text sent to several reads
             if trial:
                 if isinstance(announce, str):
-                    render(world, announce, vars, viewer=EVERYONE, path=f"{path}.announce")
+                    render(world, announce, shared, viewer=EVERYONE, path=f"{path}.announce")
             elif announce is not False:
                 public = self.redaction.public_params(world, name, params, record_mark)
                 if announce is not None:
-                    line = render(world, announce, vars, viewer=EVERYONE, path=f"{path}.announce")
+                    line = render(world, announce, shared, viewer=EVERYONE, path=f"{path}.announce")
                 elif notified_since(world, log_mark):
                     line = ""  # the posted entry itself is the news
                 else:

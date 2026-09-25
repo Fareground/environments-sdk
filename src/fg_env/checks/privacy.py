@@ -15,9 +15,9 @@ from typing import TYPE_CHECKING
 
 from .. import contract as C
 from ..actions.book import announces, stage_actions
-from ..expr import Expr, ExprError, compile_expr
+from ..expr import Expr, ExprError, compile_expr, is_expr
 from ..expr.compile import and_terms, call_roots
-from ..expr.hidden import readers
+from ..expr.hidden import Hidden, readers
 from ..expr.template import compile_template
 from ..information.reads import inspect_rule
 from .core import Checker
@@ -56,6 +56,15 @@ class PrivacyChecks(Checker):
         that reads one decides by what the actor cannot know."""
         if isinstance(spec.announce, str):
             self._shared_text(spec.announce, f"{path}.announce", types, spec.params)
+            worked_out = sorted({chain[1] for expr in _expressions(spec.announce) for chain in expr.paths
+                                 if chain[0] == "params" and len(chain) > 1 and chain[1] in spec.params
+                                 and is_expr(spec.params[chain[1]].default)})
+            if worked_out:
+                self.error(f"{path}.announce",
+                           f"reads {', '.join('$params.' + name for name in worked_out)}, whose default is worked out "
+                           "as the actor sees the world, and this text is sent to more than one agent",
+                           "give the argument a plain default (or none), or work out what they may learn in `do` "
+                           "(`\"$shown = $params.<name>\"`) and show `{$shown}`")
         with self._reading(types.get("actor", ())):
             self._actor_texts(spec, path)
 

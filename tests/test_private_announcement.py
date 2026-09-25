@@ -118,3 +118,39 @@ def test_a_parameter_default_reading_another_agents_private_property_is_a_check_
     assert [i.severity for i in found] == ["error"]
     with pytest.raises(fg_env.ContractError):
         fg_env.load(contract)
+
+
+def _defaulted(**action):
+    return {"name": "Defaults", "clock": {"rounds": 1},
+            "types": {"p": {"agent": True, "props": {"secret": {"default": 0, "private": True}, "pub": 0}}},
+            "entities": {"a": {"type": "p", "props": {"secret": 42}}, "b": {"type": "p"}},
+            "actions": {"cho": {"by": "p", "params": {"n": {"type": "int", "default": "$actor.secret", "min": 0,
+                                                            "max": 100}},
+                                "do": ["$actor.pub = 2"], **action}},
+            "stages": [{"name": "s", "order": "$it.id"}], "outputs": {"p": "$entity(a).pub"}}
+
+
+def test_an_argument_with_a_worked_out_default_is_never_announced():
+    """A default is worked out as its actor sees the world, so what it fills in is the actor's to know (audit 11 H1):
+    the announcement and the action's event leave it out, whether or not the agent passed it."""
+    for args in ({}, {"n": 42}):
+        seen = {}
+
+        def play(wake, args=args):
+            if wake.entity_id == "a":
+                assert wake.call("cho", args).ok
+            else:
+                seen["update"] = wake.update
+            wake.end()
+
+        result = fg_env.run(_defaulted(), play, seed=1)
+        assert "- a: cho." in seen["update"] and "42" not in seen["update"]
+        assert [e["data"]["params"] for e in result.events if e["kind"] == "action"] == [{}]
+
+
+def test_an_announcement_reading_an_argument_with_a_worked_out_default_is_a_check_error():
+    contract = _defaulted(announce="{$actor.name} chose {$params.n}")
+    found = [i for i in fg_env.check(contract, rounds=0) if i.path == "actions.cho.announce"]
+    assert [i.severity for i in found] == ["error"] and "$params.n" in found[0].message
+    with pytest.raises(fg_env.ContractError):
+        fg_env.load(contract)

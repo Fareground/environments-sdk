@@ -240,6 +240,11 @@ worlds stay fast, and the package is organised by feature.
 
 ### Fixed
 
+- **Audit 11.**
+  - An argument whose default is worked out (an expression) is never repeated in text sent to several agents: the
+    default announcement and the action's event leave it out, and an `announce` that reads it (`{$params.n}`) is a
+    check error. A default is worked out as its actor sees the world, so `"default": "$actor.secret"` used to
+    announce the secret to everyone ("a: cho (n=42).").
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

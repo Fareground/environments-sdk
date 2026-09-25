@@ -4,7 +4,9 @@ Every agent reads an action's announcement, so it repeats no argument the action
 into a record entry that is not broadcast to everyone (a record that does not notify, a directed or restricted entry),
 none at all of an action whose effects may write a private property (an argument can decide such a write through a
 condition, a key or a transfer as surely as by being copied into it), and none at all of a simultaneous stage's sealed
-choices — a losing sealed bid stays sealed unless the action's own `announce` says otherwise.
+choices — a losing sealed bid stays sealed unless the action's own `announce` says otherwise. Nor does any text sent to
+several repeat an argument whose default is worked out (an expression): it is worked out as its actor sees the world,
+which others may not, so it is the actor's to know (its `announce` may not read it either).
 """
 from __future__ import annotations
 
@@ -13,7 +15,7 @@ from typing import Any
 
 from ..contract import Contract, DefSpec, RecordSpec
 from ..effects.statements import compile_statement
-from ..expr import ExprError
+from ..expr import ExprError, is_expr
 from ..world.store import World
 from ..world.values import plain_value
 
@@ -28,6 +30,14 @@ class Redaction:
         self.contract = contract
         #: Per action, whether its effects may write a private property.
         self._writes_private: dict[str, bool] = {}
+        #: Per action, the arguments whose default is worked out as the actor sees the world.
+        self.withheld = {name: frozenset(pname for pname, param in spec.params.items() if is_expr(param.default))
+                         for name, spec in contract.actions.items()}
+
+    def shared(self, name: str, params: dict[str, Any]) -> dict[str, Any]:
+        """The arguments of action ``name`` text sent to several may read: all but those :attr:`withheld`."""
+        withheld = self.withheld[name]
+        return {key: value for key, value in params.items() if key not in withheld} if withheld else params
 
     def public_params(self, world: World, name: str, params: dict[str, Any], record_mark: int) -> dict[str, Any]:
         """The arguments of action ``name`` its announcement may repeat, the entries it posted being those after
@@ -37,7 +47,7 @@ class Redaction:
         if self._keeps_secrets(world, name):
             return {}
         posted = [(spec, entry) for _, spec, entry in self._posted_since(world, record_mark)]
-        return _public_params(params, posted)
+        return _public_params(self.shared(name, params), posted)
 
     def restricted_since(self, world: World, record_mark: int) -> list[list[Any]]:
         """``[record, seq]`` of each entry posted after ``record_mark`` that not every agent may see (directed, or
