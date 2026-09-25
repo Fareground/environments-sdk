@@ -448,7 +448,8 @@ class World(ExpressionWorld):
         if unknown:
             raise RunError(f"'{type_name}' has no properties {sorted(unknown)} (declared: "
                            f"{', '.join(declared) or 'none'})", where)
-        entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None)
+        entity = Entity(id=eid, name=name or eid, entity_type=type_name, properties={}, location_id=None,
+                        luck=self.luck.birth(self.round) if self.round else None)
         if at is not None:  # placed first, so props can read the position: `$layer(sugar, $it.at)`
             entity.location_id = self.place(at, where)
         return entity

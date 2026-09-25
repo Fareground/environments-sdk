@@ -91,20 +91,29 @@ class Randomness:
     """The luck of one run: its seed tree, its main stream, how many times each draw site has drawn this round, and the
     context of each thread or task running its logic."""
 
-    def __init__(self, seeds: SeedTree, main: random.Random, firings: dict[str, int] | None = None):
+    def __init__(self, seeds: SeedTree, main: random.Random, firings: dict[str, int] | None = None,
+                 births: dict[str, int] | None = None):
         self.seeds = seeds
         #: What logic outside any draw site, turn or view draws from.
         self.main = main
         #: How many times each draw site has drawn this round (see :class:`~fg_env.sampling.seeds.DrawSite`). Part of
         #: the run's state, never undone.
         self.firings: dict[str, int] = {} if firings is None else firings
+        #: How many entities each draw site has created this round (see :meth:`birth`). Part of the run's state, never
+        #: undone.
+        self.births: dict[str, int] = {} if births is None else births
         self._threads = threading.local()
 
     def copy(self) -> Randomness:
         """The same luck, drawing on apart from this one's from here on (no context is copied)."""
         main = random.Random.__new__(random.Random)
         main.setstate(self.main.getstate())
-        return Randomness(self.seeds, main, dict(self.firings))
+        return Randomness(self.seeds, main, dict(self.firings), dict(self.births))
+
+    def new_round(self) -> None:
+        """A round begins: its draw sites have drawn and created nothing yet."""
+        self.firings.clear()
+        self.births.clear()
 
     # -- the running context ---------------------------------------------------------------------------------------
 
@@ -194,7 +203,20 @@ class Randomness:
         """:meth:`using` the stream of the draw site ``site`` — where a block of logic is written — as the block of
         ``owner`` (an action's actor, an `each` item) when it is an entity: each entity has luck of its own, which
         others coming or going never shifts."""
-        return self.using(DrawSite(f"{site}@{owner.id}" if isinstance(owner, Entity) else site))
+        return self.using(DrawSite(f"{site}@{owner.luck or owner.id}" if isinstance(owner, Entity) else site))
+
+    def birth(self, round: int) -> str | None:
+        """The key of the luck of an entity created now in ``round``: the block creating it — where it is written and
+        whose block it runs as — and how many that block has created this round, so what other agents create never
+        shifts it. None outside a block of logic, or in a trial (see :meth:`forbidden`): the entity is keyed by its
+        id."""
+        context = self.here()
+        rng = context.rng
+        if rng.__class__ is not DrawSite or context.forbid is not None:
+            return None  # a trial draws nothing, so what it creates needs no luck, and it spends no count
+        count = self.births.get(rng.key, 0)
+        self.births[rng.key] = count + 1
+        return f"{rng.key}#{round}.{count}"
 
     def item(self, site: str, item: Any) -> Any:
         """:meth:`using` a stream of its own for one item of the loop written at ``site``, inside the block running now:
@@ -202,7 +224,8 @@ class Randomness:
         over nor what they draw shift another item's luck or the draws the block makes after the loop."""
         outer = self.here().rng
         base = f"{outer.key}/" if outer.__class__ is DrawSite else ""
-        return self.using(DrawSite(f"{base}{site}@{item.id}" if isinstance(item, Entity) else f"{base}{site}"))
+        return self.using(DrawSite(f"{base}{site}@{item.luck or item.id}" if isinstance(item, Entity)
+                                   else f"{base}{site}"))
 
     @contextmanager
     def forbidden(self, reason: str | None = None) -> Iterator[None]:

@@ -212,7 +212,8 @@ class RunState:
         return {
             "round": w.round, "rounds": w.rounds, "stage": w.stage,
             "entities": [{"id": e.id, "type": e.entity_type, "name": e.name, "props": encode(e.properties),
-                          "alive": e.alive, "at": e.location_id} for e in w.entities.values()],
+                          "alive": e.alive, "at": e.location_id, **({"luck": e.luck} if e.luck else {})}
+                         for e in w.entities.values()],
             "entity_briefs": encode(w.entity_briefs),
             "briefs": encode(self.briefs),
             "props": encode(w.props),
@@ -227,7 +228,8 @@ class RunState:
             "schedule_seq": w.schedule_seq,
             "wake_requests": encode(w.wake_requests),
             "reactions": encode(w.reactions),
-            "counters": dict(w.counters), "firings": dict(w.luck.firings), "end_request": encode(w.end_request),
+            "counters": dict(w.counters), "firings": dict(w.luck.firings),
+            "births": dict(w.luck.births), "end_request": encode(w.end_request),
             "fired_once": sorted(w.fired_once),
             "turn_count": self.turn_count,
             "armed": {str(k): v for k, v in w.armed.items()},
@@ -255,7 +257,7 @@ class RunState:
         for row in data["entities"]:
             w.entities[row["id"]] = Entity(id=row["id"], name=row["name"], entity_type=row["type"],
                                            properties=decode(row["props"]), location_id=row.get("at"),
-                                           alive=row["alive"])
+                                           alive=row["alive"], luck=row.get("luck"))
         w.rebuild_index()
         if w.space is not None:
             w.space.restore(data.get("layers") or {})
@@ -299,6 +301,7 @@ class RunState:
         w.reactions = [(entity_id, why, actions) for entity_id, why, actions in decode(data.get("reactions") or [])]
         w.counters = dict(data["counters"])
         w.luck.firings = {str(k): int(v) for k, v in data["firings"].items()}
+        w.luck.births = {str(k): int(v) for k, v in (data.get("births") or {}).items()}
         w.end_request = decode(data.get("end_request"))
         w.round, w.rounds, w.stage = data["round"], data["rounds"], data.get("stage")
         state = data["rng"]

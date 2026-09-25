@@ -236,6 +236,10 @@ worlds stay fast, and the package is organised by feature.
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those
     events, so a turn whose derived state ("in check", "overloaded") broke it committed silently.
+  - An entity created during a run draws luck keyed by the block that created it (where it is written and whose
+    block it is) and how many that block created this round, not by its id. Ids come from a counter every creator
+    shares, so whether one agent created something shifted the luck of what another created. Runs that draw for
+    created entities draw differently (the `wolf_sheep` golden changed); snapshots carry the new counts.
 - **Audit 8.**
   - "did not act" and "ran out of time" follow the stage's announcement rule: when a stage's actions are not
     announced, only the agent itself is told. Before, everyone read them, so a night stage waking only the wolves

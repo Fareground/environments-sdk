@@ -81,6 +81,35 @@ def test_what_one_agent_draws_or_creates_does_not_shift_the_other_agents_luck():
     assert _others_luck(lambda w: w.call("spawn", {}) if w.round == 1 else None) == idle
 
 
+ORDERS = {"name": "Orders", "clock": {"rounds": 2},
+          "types": {"player": {"agent": True}, "order": {"props": {"by": "", "v": 0}}},
+          "entities": {"ann": {"type": "player"}, "bob": {"type": "player"}},
+          "actions": {"place": {"by": "player", "do": {"create": "order", "props": {"by": "$actor.id"}}},
+                      "wait": {"by": "player", "do": []}},
+          "events": [{"on": "round.end", "do": {"each": "order", "do": "$it.v += $randint(1, 1000000)"}}],
+          "outputs": {"bob": "$map($filter(order, $it.by == bob), $it.v)"}}
+
+
+def test_an_entity_one_agent_creates_keeps_its_luck_whatever_another_agent_creates():
+    """A created entity's luck is keyed by the block that created it and its count there, not by its id, which
+    comes from a counter every creator shares (audit 9 core H3)."""
+    def bob_orders(ann_places):
+        def play(wake):
+            wake.call("place" if wake.entity_id == "bob" or ann_places else "wait")
+            wake.end()
+        return fg_env.run(ORDERS, play, seed=5).outputs["bob"]
+
+    alone = bob_orders(False)
+    assert len(alone) == 2 and bob_orders(True) == alone
+    env = fg_env.load(ORDERS, seed=5)  # and a snapshot carries it
+    env.run(lambda w: (w.call("place"), w.end()), rounds=1)
+    resumed = fg_env.Env.restore(ORDERS, json.loads(json.dumps(env.snapshot())))
+    straight = fg_env.load(ORDERS, seed=5)
+    straight.run(lambda w: (w.call("place"), w.end()), rounds=1)
+    assert resumed.run(lambda w: (w.call("place"), w.end())).outputs == \
+        straight.run(lambda w: (w.call("place"), w.end())).outputs
+
+
 def test_reading_an_update_whose_view_draws_luck_does_not_change_the_run():
     c = {"name": "Views", "clock": {"rounds": 4},
          "types": {"p": {"agent": True, "props": {"cash": 0, "luck": 0}}},

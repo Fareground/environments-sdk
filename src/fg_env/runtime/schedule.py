@@ -145,7 +145,7 @@ class Schedule:
         if env.status in ("ready", "stopped"):
             env.status = "running"
         world.round += 1
-        world.luck.firings.clear()  # counts of this round's luck, and of its uses of actions: never undone
+        world.luck.new_round()  # counts of this round's luck, and of its uses of actions: never undone
         world.used_round.clear()
         world.stage = None
         rules.run_scheduled()

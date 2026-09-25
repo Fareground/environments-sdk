@@ -31,6 +31,9 @@ class Entity:
     properties: dict[str, PropertyValue] = field(default_factory=dict)
     location_id: str | None = None
     alive: bool = True
+    #: What its luck is keyed by, when not its id: an entity created during a run is keyed by the block that created
+    #: it (see ``Randomness.birth``), since its id comes from a counter every creator shares.
+    luck: str | None = None
 
     def get(self, prop_name: str, default: PropertyValue = None) -> PropertyValue:
         """Get a property value."""
