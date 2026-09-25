@@ -161,3 +161,14 @@ def test_a_map_default_is_written_under_default():
     assert fg_env.load(contract).entity("a")["props"]["stock"] == {"wood": 3}
     issues = fg_env.check(_contract(**{"types.p.props.stock": {}}), rounds=0)
     assert any("empty object declares nothing" in i.message for i in issues), [str(i) for i in issues]
+
+
+def test_a_map_written_as_a_property_says_how_to_write_its_default():
+    """audit 13 M2: an object none of whose keys is a property setting is a map written as it starts."""
+    contract = {"name": "P", "clock": {"rounds": 1}, "world": {"prices": {"apple": 3, "pear": 2}},
+                "types": {"t": {"agent": True, "props": {"inventory": {"wood": 3}, "x": {"defualt": 3}}}},
+                "entities": {"a": {"type": "t"}}}
+    issues = {issue.path: issue for issue in fg_env.check(contract) if issue.severity == "error"}
+    assert '{"default": {"apple": 3, "pear": 2}}' in issues["world.prices"].message
+    assert '{"default": {"wood": 3}}' in issues["types.t.props.inventory"].message
+    assert issues["types.t.props.x.defualt"].fix == "did you mean 'default'?"  # a misspelt setting stays a typo

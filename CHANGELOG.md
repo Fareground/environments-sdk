@@ -276,6 +276,9 @@ worlds stay fast, and the package is organised by feature.
   - A stage's `when`, `until` or `passes` that reads a private value is a check error, as a `who` that reads one
     is: whether a stage is held, or how many passes it plays, is seen by every agent (M1). An event's `when` or an
     `if` that decides news for everyone stays a warning: the rules may mean to reveal a value (a showdown).
+  - A property written as the map it starts as (`"inventory": {"wood": 3}`), none of whose keys is a property
+    setting or close to one, is reported once at the property with the fix `{"default": {"wood": 3}}`, instead of
+    "'wood' is not a field here → remove it" (M2).
 - **Audit 12.**
   - The author's tests no longer call an output flat when it reads what a host answers and the tests' hosts were the
     SDK's stand-in stubs (the contest starter's `judged`).

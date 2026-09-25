@@ -2,6 +2,8 @@
 relations; physics; and feeds."""
 from __future__ import annotations
 
+import json
+from difflib import get_close_matches
 from typing import Any, Literal
 
 from pydantic import Field, field_validator, model_validator
@@ -255,6 +257,13 @@ class PropSpec(_Model):
         if not data:
             raise ValueError('an empty object declares nothing: give a default (`0`, `""`, `[]`), or write '
                              '{"default": {}} for a property that starts as an empty map')
+        settings = {name for name, field in cls.model_fields.items() for name in (name, field.alias) if name}
+        near = [key for key in data if get_close_matches(str(key), settings, n=1, cutoff=0.7)]
+        if not settings.intersection(data) and not near:  # a map written as it starts, not a spec: say how to write it
+            shown = json.dumps(data, default=str)
+            shown = shown if len(shown) <= 60 else "{...}"
+            raise ValueError(f"no key of this object is a property setting ({', '.join(map(str, data))}): a "
+                             f"property that starts as a map is written {{\"default\": {shown}}}")
         return data
 
 
