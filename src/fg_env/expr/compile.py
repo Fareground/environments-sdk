@@ -264,6 +264,26 @@ def item_conditions(source: str) -> tuple[tuple[str, Expr], ...] | None:
 
 
 @lru_cache(maxsize=1_024)
+def and_terms(source: str) -> tuple[str, ...]:
+    """The terms an expression joins by a top-level ``and``, in order, each in the language's spelling (the whole
+    expression as its one term when it is no such chain). An invalid expression raises as :func:`compile_expr`
+    does."""
+    compile_expr(source)
+    tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
+    body = tree.body
+    if not (isinstance(body, ast.BoolOp) and isinstance(body.op, ast.And)):
+        return (source,)
+    terms = []
+    for term in body.values:
+        nodes = list(ast.walk(term))
+        _restore_words(nodes)
+        for node in nodes:
+            if isinstance(node, ast.Name) and node.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)):
+                node.id = "$" + node.id[len(_ROOT_PREFIX):]
+        terms.append(ast.unparse(term))
+    return tuple(terms)
+
+
 @lru_cache(maxsize=1_024)
 def call_roots(source: str) -> tuple[tuple[str, tuple[str | None, ...]], ...]:
     """Every function call in the expression: its name and, for each argument, the root it is when it is a bare root

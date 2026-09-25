@@ -59,11 +59,12 @@ def with_(**parts):
 
 
 def test_a_view_cannot_show_or_sort_by_anothers_private_property_whatever_its_where():
-    for view in ({"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"},
-                 {"of": "player", "sort": "$it.cash", "show": "{$it.name}", "where": "true"}):
-        result, seen = play(with_(views={"leak": view}))
-        assert result.status == "failed" and "bob's cash is private" in result.error, view
-        assert "update" not in seen
+    with pytest.raises(fg_env.ContractError, match="views.leak.where: reads private cash of player before picking"):
+        play(with_(views={"leak": {"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"}}))
+    result, seen = play(with_(views={"leak": {"of": "player", "sort": "$it.cash", "show": "{$it.name}",
+                                              "where": "true"}}))
+    assert result.status == "failed" and "bob's cash is private" in result.error
+    assert "update" not in seen
     with pytest.raises(fg_env.ContractError, match="views.leak.show: reads private cash of every player"):
         play(with_(views={"leak": {"show": "top: {$best(player, $it.cash, 'random').name}"}}))
 
@@ -136,7 +137,7 @@ def test_an_out_of_bounds_refusal_does_not_show_a_private_value():
 def test_the_checker_reports_a_view_that_reads_anothers_private_state_whatever_its_where():
     c = with_(views={"leak": {"of": "player", "where": "$it.cash >= 0", "show": "{$it.name}: {$it.cash}"}})
     issues = [i for i in fg_env.check(copy.deepcopy(c)) if i.path.startswith("views.leak")]
-    assert [i.severity for i in issues] == ["error"] and "cash is private" in issues[0].message
+    assert [i.severity for i in issues] == ["error"] and "private cash of player" in issues[0].message
     ranked = with_(views={"ranked": {"of": "player", "sort": "$it.cash", "show": "{$it.name}"}})
     assert {i.path: i for i in fg_env.check(ranked)}["views.ranked.show"].severity == "error"
 

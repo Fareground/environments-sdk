@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 from .. import contract as C
 from ..actions.book import announces, stage_actions
 from ..expr import Expr, ExprError, compile_expr
-from ..expr.compile import call_roots
+from ..expr.compile import and_terms, call_roots
 from ..expr.hidden import readers
 from ..expr.template import compile_template
 from ..information.reads import inspect_rule
@@ -286,7 +286,29 @@ class PrivacyChecks(Checker):
             self.error(path, f"shows (or sorts or filters by) private {', '.join(shown)} of every {of} to each reader",
                        "pick the items the reader owns in `where` (`$it.id == $actor.id` for an agent's own, "
                        "`$it.owner == $actor.id` for a type whose `owner` is owner), or leave the private field out")
+        elif early := self._unguarded(str(view.where), of):
+            self.error(f"{path.removesuffix('.show')}.where",
+                       f"reads private {', '.join(early)} of {of} before picking the reader's own: for an item the "
+                       "reader does not own, that read is an error at run time",
+                       "test ownership first, as the first term of an `and` (`$it.id == $actor.id and ...`, or "
+                       "`$it.<its owner property> == $actor.id and ...`)")
         self._private_via_defs(read, path)  # a def may read another entity's: whose shows only at run time
+
+    def _unguarded(self, where: str, of: str) -> list[str]:
+        """The private properties of ``of`` a view's ``where`` reads before a term that picks the reader's own items
+        (``$it.id`` or ``$it.<owner>`` against ``$actor``): the terms of an `and` are read in order and stop at the
+        first false one, so what is read before that term (or in a `where` with none) is read for items the reader
+        does not own."""
+        ownership = {"id", self.c.owner_of(of)}
+        read: list[str] = []
+        for term in and_terms(where):
+            expr = compile_expr(term)
+            private = self._private_fields([expr], of)
+            if not private and "actor" in expr.roots \
+                    and any(len(chain) == 2 and chain[0] == "it" and chain[1] in ownership for chain in expr.paths):
+                return read
+            read += [name for name in private if name not in read]
+        return read
 
     def _ownable(self, kind: str) -> bool:
         """Whether some agent owns each entity of ``kind``: an agent owns itself; any other entity has an owner when

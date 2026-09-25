@@ -133,9 +133,10 @@ auditor every ledger — and nothing widens it further: the author of a paper do
 review of it unless the review's type makes that author its owner. The world's private props have no owner. A view's
 or entity choice's `where` (or a policy rule's `each: $filter(<type>, <condition>)`) never grants anything: it picks
 only among what its reader may read, so `"where": "$it.seller == $actor.id"` over a listing type with
-`"owner": "seller"` lists the reader's own listings with their private props, and an item the `where` could decide
-only by a hidden value is simply left out. Reading a hidden
-value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
+`"owner": "seller"` lists the reader's own listings with their private props. A `where` reads its terms in order and
+stops at the first false one, so test ownership first (`"$it.seller == $actor.id and $it.floor > 3"`): one that reads
+a hidden value of an item the reader does not own is an error, which `check` reports and `load` refuses. Reading a
+hidden value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
 outcome text, whether an action ends the turn (`terminal`), briefs, policies, defs they call, series outputs worked out
 from private props) is an error,
 however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a
