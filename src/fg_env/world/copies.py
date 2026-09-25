@@ -4,10 +4,11 @@ Everything the run changes is copied — entities and their properties, global p
 schedule of effects, counters, the rules' journaled bookkeeping, the open journal itself (its undo ops are data, so an
 atomic turn part-way through its changes copies too), luck, physics, the space and its layers, exposures, assets — and
 every index over it is rebuilt or copied. What only the contract and its build decide (types, what is private, compiled
-physics, pattern parameters) is shared: nothing changes it while a run plays. Caches start empty — the copy's
-:class:`~fg_env.world.evaluation.EvalContext` is its own, and what mechanisms keep in ``world.caches`` stays behind —
-and the callbacks the run wires into its world (its facts, its lifecycle and join hooks, a chance chooser) are left for
-the copy's run to set. ``tests/kernel/test_kernel_copies.py`` holds a copy to sharing nothing mutable with its original.
+physics, pattern parameters) is shared: nothing changes it while a run plays. The copy's
+:class:`~fg_env.world.evaluation.EvalContext` is its own, its caches empty; what mechanisms keep in ``world.caches`` is
+copied as plain data, as they left it, so a copy reads the cached values its original would. The callbacks the run
+wires into its world (its facts, its lifecycle and join hooks, a chance chooser) are left for the copy's run to set.
+``tests/kernel/test_kernel_copies.py`` holds a copy to sharing nothing mutable with its original.
 """
 from __future__ import annotations
 
@@ -34,7 +35,7 @@ _SHARED = frozenset({
     "contract", "inputs", "arm", "physics_writes", "entity_dynamics", "start", "type_props", "hidden", "private_names",
     "private_metrics", "_subtypes"})
 #: Wired by the run, or caches: a copy starts without them.
-_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None, "caches": dict}
+_UNSET = {"lifecycle": None, "joined": None, "facts": None, "chance_picker": None}
 #: Copied by what they are (below).
 _COPIED = frozenset({
     "luck", "entities", "props", "links", "link_fields", "adjacent", "records_store", "entry_by_seq", "entity_briefs",
@@ -55,7 +56,7 @@ def copy_world(source: World) -> World:
             empty = _UNSET[key]
             data[key] = empty() if callable(empty) else empty
         elif key not in _COPIED:
-            data[key] = _plain_copy(value)  # plain data: counters, metrics, the rules' bookkeeping
+            data[key] = _plain_copy(value)  # plain data: counters, metrics, the rules' bookkeeping, caches
     entities = {key: _copy_entity(entity) for key, entity in source.entities.items()}
     records, by_seq = _copy_records(source, world)
     journal = Journal(world)

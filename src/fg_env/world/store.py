@@ -126,7 +126,7 @@ class World(ExpressionWorld):
         #: The run's sink of facts (a :class:`~fg_env.runtime.facts.Facts`), set by the run.
         self.facts: Any = None
         #: What mechanisms work out from this world and keep while it holds, by name: caches keyed on the version (or
-        #: the contract) they were worked out at, never state, so a copy starts without them.
+        #: the contract) they were worked out at. A copy of the world takes them as they are.
         self.caches: dict[str, Any] = {}
         #: The files the run knows (the contract's catalog, once loaded from its folder, and submitted files).
         self.assets = AssetStore()
