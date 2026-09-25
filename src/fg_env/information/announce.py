@@ -105,9 +105,10 @@ def _writes_private(private: frozenset[str], effects: Any, defs: Mapping[str, De
     if "create" in effects and isinstance(effects.get("props"), dict) and set(effects["props"]) & private:
         return True
     name = effects.get("call")
-    spec = defs.get(name) if isinstance(name, str) and name not in called else None
-    if spec is not None and spec.do is not None and _writes_private(private, spec.do, defs, called | {name}):
-        return True
+    if isinstance(name, str) and name not in called:
+        spec = defs.get(name)
+        if spec is not None and spec.do is not None and _writes_private(private, spec.do, defs, called | {name}):
+            return True
     return any(_writes_private(private, value, defs, called) for value in effects.values())
 
 
