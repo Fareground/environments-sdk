@@ -69,6 +69,15 @@ def test_a_crowd_setting_is_checked_where_it_is_written():
     assert [i.path for i in issues] == ["mechanisms.acme.base_qty"] and "$it" in issues[0].message
 
 
+@pytest.mark.parametrize("price, says", [(-5, "greater than 0"), (0, "greater than 0"),
+                                         ("-5", "a number above 0 or an expression")])
+def test_an_order_book_needs_a_start_price_above_zero_said_at_the_field(price, says):
+    """A price at or below zero made a dead market, reported only as actions that never succeeded (audit 9 mech
+    M2); a number that does not fit reports that alone, not also that it is not text."""
+    issues = [i for i in fg_env.check(book(start_price=price)) if i.severity == "error"]
+    assert [i.path for i in issues] == ["mechanisms.acme.start_price"] and says in issues[0].message
+
+
 def test_price_time_priority_and_partial_fills():
     env, replies = play(book(), {
         (1, "a"): [("acme_sell", {"qty": 10, "price": 50})],

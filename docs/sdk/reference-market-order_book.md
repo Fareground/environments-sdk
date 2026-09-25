@@ -5,7 +5,7 @@ One instrument on a continuous limit order book with price-time priority, partia
 
 Config:
 - `who` (required): Agent type that trades (subtypes included).
-- `start_price` (required): Opening reference price (number or expression).
+- `start_price` (required): Opening reference price, above 0 (number or expression).
 - `currency` (default "cash"): Trader property holding money (added with 0 if the type lacks it).
 - `instrument` (default ""): Display name of the instrument (default: the book's name).
 - `tick_size` (default 0.01): Minimum price increment (number or expression over $inputs, resolved when the world is built).

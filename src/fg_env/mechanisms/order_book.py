@@ -30,9 +30,10 @@ import math
 from functools import lru_cache
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from ..errors import RunError
+from ..expr import is_expr
 from ..expr.objects import Entity
 from ..registry import mechanism_config
 from ..world.abort import Abort
@@ -77,7 +78,7 @@ class OrderBookConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     who: str = Field(..., description="Agent type that trades (subtypes included).")
-    start_price: float | str = Field(..., description="Opening reference price (number or expression).")
+    start_price: _Positive | str = Field(..., description="Opening reference price, above 0 (number or expression).")
     currency: str = Field("cash", description="Trader property holding money (added with 0 if the type lacks it).")
     instrument: str = Field("", description="Display name of the instrument (default: the book's name).")
     tick_size: _Positive | str = Field(0.01, description="Minimum price increment" + _EXPR + ".")
@@ -163,6 +164,13 @@ class OrderBookConfig(BaseModel):
         True, description="Declare the invariant that reserves match the book and balances stay within limits: true "
                           "or action (checked after every action), round (after every round: much cheaper for big "
                           "crowds), end (once, when the run finishes), or false.")
+
+    @field_validator("start_price")
+    @classmethod
+    def _price_or_expression(cls, value: Any) -> Any:
+        if isinstance(value, str) and not is_expr(value):
+            raise ValueError(f"must be a number above 0 or an expression with $, got {value!r}")
+        return value
 
 
 _CONFIGS: dict[tuple[int, str], tuple[Any, OrderBookConfig]] = {}

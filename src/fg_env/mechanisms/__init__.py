@@ -368,7 +368,7 @@ def _expand_one(out: dict[str, Any], name: Any, use: Any, owners: dict[tuple[str
     try:
         config = spec.config.model_validate(config_data(use))
     except ValidationError as exc:
-        return [_config_issue(path, label, spec.config, error) for error in exc.errors()]
+        return [_config_issue(path, label, spec.config, error) for error in _union_resolved(exc.errors())]
     broken = [Issue(f"{path}.{field}", exc.detail, f"expression: {source}")
               for field, source, exc in _broken_expressions(config)]
     broken += _forgotten_items(config, out, path)
@@ -490,6 +490,33 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
     hint = get_close_matches(str(kind), _kinds(), n=1)
     return Issue(f"{path}.kind", f"'{kind}' is not a mechanism family",
                  f"did you mean '{hint[0]}'?" if hint else f"families: {', '.join(_kinds())}")
+
+
+#: The type names pydantic tags a union member's error with (beside tags that are no field name: `constrained-float`).
+_TYPE_TAGS = frozenset({"str", "int", "float", "bool", "list", "dict", "none"})
+
+
+def _union_resolved(errors: list[Any]) -> list[Any]:
+    """``errors`` with each union field's reported once: a field that takes a number or an expression (`float |
+    str`) given a number that does not fit reports why the number does not fit, not also that it is no text; the
+    member's tag leaves the path."""
+    def tag(loc: tuple[Any, ...]) -> bool:
+        last = loc[-1] if loc else None
+        return isinstance(last, str) and (last in _TYPE_TAGS or not last.isidentifier())
+
+    tagged: dict[tuple[Any, ...], int] = {}
+    for error in errors:
+        loc = tuple(error["loc"])
+        if tag(loc):
+            tagged[loc[:-1]] = tagged.get(loc[:-1], 0) + 1
+    out = []
+    for error in errors:
+        loc = tuple(error["loc"])
+        if not tag(loc) or tagged[loc[:-1]] < 2:
+            out.append(error)
+        elif error["type"] != "string_type":
+            out.append({**error, "loc": loc[:-1]})
+    return out
 
 
 def _config_issue(path: str, label: str, model: Any, error: Mapping[str, Any]) -> Issue:
