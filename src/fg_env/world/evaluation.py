@@ -174,7 +174,8 @@ class EvalContext:
         """The entries of record ``name`` ``viewer`` may see: an agent (an :class:`Entity`) those its `visible` rule and
         their `to` let it see; everyone (:data:`~fg_env.expr.EVERYONE`, text sent to several) only those every agent
         sees; game logic (None) every entry, a read of what may be hidden from the acting agent when the record may
-        hold one it cannot see (see expr/hidden.py)."""
+        hold one it cannot see (see expr/hidden.py). A reader's entries are numbered (``seq``) in its own view, from 1;
+        game logic reads the world's numbering."""
         world = self.world
         rows = world.records(name)
         if viewer is None:
@@ -182,11 +183,17 @@ class EvalContext:
                 world.read_hidden()
             return rows
         if not isinstance(viewer, Entity):
-            return rows if name not in world.hidden.records else []
-        indexed = world.record_authors.candidates(name, viewer)
-        if indexed is not None:
-            rows = indexed
-        return [row for row in rows if self.entry_visible(name, row, viewer)]
+            seen = rows if name not in world.hidden.records else []
+        else:
+            indexed = world.record_authors.candidates(name, viewer)
+            seen = [row for row in (rows if indexed is None else indexed) if self.entry_visible(name, row, viewer)]
+        return [row.numbered(position) for position, row in enumerate(seen, 1)]
+
+    def entry_as_read(self, name: str, entry: Entry, viewer: Entity) -> Entry:
+        """``entry`` of record ``name`` as ``viewer`` reads it: numbered by its place among the entries it sees."""
+        position = next((at for at, row in enumerate(self.visible_records(name, viewer), 1) if row.key == entry.key),
+                        None)
+        return entry.numbered(position) if position is not None else entry
 
     def entry_visible(self, record: str, entry: Entry, viewer: Entity | None) -> bool:
         if viewer is None:

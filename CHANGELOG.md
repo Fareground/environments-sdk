@@ -249,6 +249,10 @@ worlds stay fast, and the package is organised by feature.
 ### Fixed
 
 - **Audit 12.**
+  - A record entry's `seq`, wherever an agent reads it (a record's `show`, a view's `show` or `sort`, `$records` in
+    what it is shown), is its number in that reader's own view of the record, from 1. It used to be one count over
+    every entry of every record, so the gap between two numbers told a reader how many entries it could not see.
+    Game logic still reads the world's count.
   - Every field of every effect operation has one declared shape (`fg_env.effects.shapes`), read by the checker and
     the runner alike: a list or object as an `if`/`where`/`while`/`now` condition, `each: null`, a text `sync` or a
     number where a name goes is a check error at its field, and a condition of another shape is refused at run time

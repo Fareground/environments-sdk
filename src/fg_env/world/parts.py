@@ -38,9 +38,28 @@ def private_metrics(contract: Contract, private: frozenset[str]) -> frozenset[st
 
 
 class Entry(dict):
-    """One record entry. ``author`` reads as the authoring entity."""
+    """One record entry. ``author`` reads as the authoring entity.
+
+    Its ``seq`` is the world's count of every entry posted to every record, for game logic. What an agent reads is a
+    copy numbered in that agent's own view of the record (:meth:`numbered`), so no reader learns from its ``seq`` how
+    many entries it cannot see; :attr:`key` is the world's number in either."""
 
     world: World
+    _key: int | None = None
+
+    @property
+    def key(self) -> int:
+        """The entry's number among every entry posted: the same for every reader of it."""
+        return self._key if self._key is not None else self["seq"]
+
+    def numbered(self, position: int) -> Entry:
+        """The entry as a reader sees it: numbered by its ``position`` (from 1) among the entries that reader sees."""
+        if position == self["seq"]:
+            return self
+        copy = Entry(self)
+        copy.world, copy._key = self.world, self.key
+        copy["seq"] = position
+        return copy
 
     def expr_attr(self, name: str, source: str | None) -> Any:
         if name == "author":

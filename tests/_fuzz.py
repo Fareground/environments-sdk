@@ -205,5 +205,13 @@ def secretive(seed: int) -> dict[str, Any]:
                                         "who": {"type": "entity", "of": kind, "where": "$it.id != $actor.id"}},
                              "when": [{"expr": "$params.g == $params.who.secret % 4", "why": "Wrong."}],
                              "do": ["$actor.score += 2"], "announce": False}
-    c["views"]["whispers"] = {"of": "$records(dm)", "show": "{$it.author}: {$it.text}", "empty": "No whispers."}
+    c["views"]["whispers"] = {"of": "$records(dm)", "show": "#{$it.seq} {$it.author}: {$it.text}",
+                              "sort": "$it.seq", "empty": "No whispers."}
+    # Numbers every reader sees: an entry's `seq` in a record's `show` and a view must not count the whispers it
+    # cannot read (audit 12 H1).
+    c["records"]["dm"]["show"] = "#{$it.seq} {$it.author} whispers: {$it.text}"
+    c["records"]["board"] = {"fields": {"text": "text"}, "show": "#{$it.seq} {$it.author}: {$it.text}"}
+    c["actions"]["note"] = {"by": kind, "description": "Pin a note to the board.", "announce": False,
+                            "params": {"text": {"type": "text", "max_len": 30}},
+                            "do": [{"post": "board", "text": "$params.text"}]}
     return c

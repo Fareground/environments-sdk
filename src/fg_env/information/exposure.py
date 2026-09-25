@@ -90,7 +90,7 @@ class Shown:
     def item(self, value: Any) -> None:
         """Note an item a view listed, when it is something `$seen` can ask about."""
         if isinstance(value, Entry):
-            self.entries.append(value["seq"])
+            self.entries.append(value.key)
         elif isinstance(value, LogEvent):
             self.events.append(value.seq)
 
@@ -261,7 +261,7 @@ class ExposureLog:
         if isinstance(item, LogEvent):
             return item.seq in self._events.get(viewer_id, ())
         if isinstance(item, Entry):
-            return item.get("seq") in self._entries.get(viewer_id, ())
+            return item.key in self._entries.get(viewer_id, ())
         if isinstance(item, str):
             return item in self._views.get(viewer_id, ())
         return None

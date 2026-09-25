@@ -36,7 +36,9 @@ class RecordSpec(_Model):
                                                     "untrusted.")
     show: str | None = Field(None, description="How one entry reads: '{author}: {text}'.")
     visible: str = Field("all", description="'all' or an expression over $viewer and $it (the entry). It filters "
-                         "what agents are shown or offered; game logic reads every entry.")
+                         "what agents are shown or offered; game logic reads every entry. An entry's `seq` counts "
+                         "from 1 in what each reader sees of the record (game logic: every entry of every record), "
+                         "so it never tells a reader of entries it cannot see.")
     keep: int | None = Field(None, description="Keep only the latest N entries.")
     notify: bool = Field(True, description="Deliver new entries to agents in 'since your last turn'.")
     description: str = ""

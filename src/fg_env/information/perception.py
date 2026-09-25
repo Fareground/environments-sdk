@@ -412,6 +412,8 @@ class Perception:
         if entry is None or entry.get("author") == actor.id or not self.entry_visible(name, entry, actor):
             return None
         template = spec.show or _default_show(spec.fields)
+        if "seq" in template:  # numbered as the reader sees the record (only worked out when shown)
+            entry = self.world.evaluation.entry_as_read(name, entry, actor)
         try:
             scope = self.world.evaluation.scope(actor=actor, viewer=actor, it=entry)
             body = compile_template(template, "it").render(scope)

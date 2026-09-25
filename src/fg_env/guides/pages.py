@@ -46,7 +46,8 @@ ROOTS: list[tuple[str, str, str]] = [
     ("views", "where/sort/show", "$actor $it $i"),
     ("views", "with for: spectator", "no $actor ($it $i in lists)"),
     ("records", "visible", "$viewer $it (entry)"),
-    ("records", "show", "$it (entry: its fields directly, $it.text, plus author, round, seq, stage, to)"),
+    ("records", "show", "$it (entry: its fields directly, $it.text, plus author, round, stage, to, and seq: its "
+                        "number in what the reader sees of the record)"),
     ("events", "on: round.* / stage.<s>.start / stage.<s>.end / change", "—"),
     ("events", "on: stage.<s>.turn", "$actor $acted $timed_out"),
     ("events", "on: create.<t> / remove.<t>", "$it (the entity)"),
