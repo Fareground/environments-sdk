@@ -2,9 +2,10 @@
 
 A property declared `private` is hidden from every agent but its owner. An agent owns its own properties. The world's
 and any other entity's private properties have no owner — they are hidden from every agent — until a `where` the author
-wrote names one: a view's or an entity parameter's `where` that picks items by one of their properties and by the
-reader (``$it.owner == $actor.id``, ``$it.side == $actor.side``) makes the reader the owner of the items it picks, so
-it may be shown or offered them, private properties and all. (Picking by the item's id — ``$it.id != $actor.id`` —
+wrote names one: a view's or an entity parameter's `where`, or a policy rule's ``each: $filter(<type>, <condition>)``,
+that picks items by one of their properties and by the reader (``$it.owner == $actor.id``, ``$it.side ==
+$actor.side``) makes the reader the owner of the items it picks, so it may be shown or offered them, private
+properties and all. (Picking by the item's id — ``$it.id != $actor.id`` —
 names no owner; a record's `visible` rule decides who reads each entry the same way.) Everything else an agent is shown
 or offered — views, tools and their bounds, choices and defaults, `who`, announcements, news, outcomes, refusals,
 inspect — refuses a hidden value (see ``expr/values.py``), and a refusal whose rules read one spends the action (see

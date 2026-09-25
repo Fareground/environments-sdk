@@ -107,3 +107,27 @@ def test_a_policy_rule_no_agent_of_its_type_can_take_is_an_error():
     del contract["policies"]
     [error] = [i for i in fg_env.check(contract) if i.severity == "error"]
     assert error.path == "types.a.policies.up.rules[0].do" and "types.b.policies" in error.fix
+
+
+def test_a_policy_rule_over_the_items_its_agent_owns_may_read_their_private_values():
+    """`each: $filter(card, $it.owner == $actor.id)` picks the items the agent owns, as a view's `where` does, so the
+    rule may read their private properties; the other agent's card stays hidden (audit hands-on M1)."""
+    contract = {"name": "Owned", "clock": {"rounds": 1},
+                "types": {"r": {"agent": True, "props": {"played": 0},
+                                "policies": {"p": {"rules": [{"each": "$filter(card, $it.owner == $actor.id)",
+                                                              "do": "play", "with": {"card": "$it",
+                                                                                     "n": "$it.secret"}}]}}},
+                          "card": {"props": {"owner": "", "secret": {"type": "int", "default": 0, "private": True}}}},
+                "entities": {"r1": {"type": "r"}, "r2": {"type": "r"},
+                             "c1": {"type": "card", "props": {"owner": "r1", "secret": 4}},
+                             "c2": {"type": "card", "props": {"owner": "r2", "secret": 7}}},
+                "actions": {"play": {"by": "r", "params": {
+                    "card": {"type": "entity", "of": "card", "where": "$it.owner == $actor.id"},
+                    "n": {"type": "int", "min": 0, "max": 9}}, "do": "$actor.played = $params.n"}},
+                "outputs": {"r1": "$entity(r1).played", "r2": "$entity(r2).played"}}
+    assert [str(i) for i in fg_env.check(contract) if i.severity == "error"] == []
+    result = fg_env.run(contract, "policy:p", seed=1)
+    assert result.ok, result.summary()
+    assert result.outputs == {"r1": 4, "r2": 7}
+    contract["types"]["r"]["policies"]["p"]["rules"][0]["each"] = "card"  # every card: another's secret is hidden
+    assert any("secret is private" in str(i) for i in fg_env.check(contract))

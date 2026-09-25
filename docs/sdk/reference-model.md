@@ -118,8 +118,9 @@ always renders «quoted» on one line, in news, views and outcomes.
 An agent learns only what the contract shows it: `private` props, per-type views, record `visible` rules, `to` on
 posts and emits, and `announce: false` on actions (nobody else learns they happened) say what each one sees. Agents get `inspect` only for types that set `inspect`.
 A `private` prop is hidden from every agent but its owner: an agent owns its own; the world's and any other
-entity's are hidden from every agent unless a view's or entity choice's `where` picks the items by the reader and a
-prop of theirs (`$it.owner == $actor.id`) — the reader owns what it picks (by id names no owner). Reading a hidden
+entity's are hidden from every agent unless a view's or entity choice's `where`, or a policy rule's
+`each: $filter(<type>, <condition>)`, picks the items by the reader and a prop of theirs (`$it.owner == $actor.id`) —
+the reader owns what it picks (by id names no owner). Reading a hidden
 value in anything worked out for one agent (views and their where/sort/attach, tool choices, bounds and defaults,
 outcome text, briefs, policies, defs they call, series outputs worked out from private props) is an error at run time,
 however it is spelled; so is a stage `order` that reads one, since every agent sees the turn order, and a `who` in a

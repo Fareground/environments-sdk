@@ -103,7 +103,8 @@ def _check_visible(owner: Any, name: str, scope: Any, source: str | None) -> Non
     raise PrivateRead(
         f"{whose} {name} is private, and this is what {getattr(viewer, 'name', viewer)} is shown or offered: show an "
         "agent only its own (guard with `$it.id == $actor.id`), pick the items it owns in a `where` "
-        "(`$it.owner == $actor.id`), or work out what it may learn in game logic and show that", source)
+        "(`$it.owner == $actor.id`; in a policy rule, `each: $filter(<type>, $it.owner == $actor.id)`), or work out "
+        "what it may learn in game logic and show that", source)
 
 
 def _check_metric(values: Mapping[str, Any], name: str, scope: Any, source: str | None) -> None:
