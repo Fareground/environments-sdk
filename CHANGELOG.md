@@ -342,6 +342,9 @@ worlds stay fast, and the package is organised by feature.
   - A custom host whose method is `async` fails the run saying so and what to write instead, as an async provider
     client does; before, its coroutine was never awaited and the run went on degraded with a message about JSON
     data.
+  - A host request longer than its model reads leaves that one request unanswered (`host_unusable`), as a
+    participant forfeits that turn, instead of failing the run; the provider-error fix no longer mentions a
+    participant's `extra` to hosts.
 - **Audit 10.**
   - A refusal or undo that turned on a value hidden from the actor spends the action or ends the turn, whatever
     shape the rule takes. An update (`-=`, `+=`, an element write) reads the value it updates as game logic does, so

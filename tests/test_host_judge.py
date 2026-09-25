@@ -161,3 +161,53 @@ def test_a_host_bound_under_a_name_the_contract_never_consults_is_refused_at_loa
     with pytest.raises(ValueError, match="'jdg' is bound, but the contract never consults it; it consults 'judge'"):
         host.load(DEBATE, hosts={"jdg": StubEvaluator()})
     assert host.load(DEBATE, hosts={"judge": StubEvaluator()}) is not None
+
+
+_DEBATE = Path(__file__).parents[1] / "examples" / "contracts" / "host" / "debate_judged.json"
+
+
+class _TooLong(Exception):
+    status_code = 400
+
+
+class _RefusingClient:
+    """An Anthropic-shaped client whose every request is longer than the model reads."""
+
+    def __init__(self):
+        self.messages = SimpleNamespace(create=self._create)
+
+    def _create(self, **request):
+        raise _TooLong("prompt is too long: 250000 tokens > 200000 maximum")
+
+
+def _speak(wake):
+    wake.call("speak", {"text": "Free transit cuts congestion."})
+    wake.end()
+
+
+def test_a_request_longer_than_the_judges_model_reads_leaves_that_text_unscored_and_says_so():
+    """Too long for the model is that request's failure, not the run's (audit 11 A-M1), and the speaker is told its text
+    went unscored, in words no score uses (A-M3)."""
+    judge = host.adapters.anthropic(_RefusingClient(), "judge-m", retries=1)
+    env = host.load(_DEBATE, hosts={"judge": judge}, seed=1)
+    updates = []
+
+    def speaker(wake):
+        updates.append(wake.update)
+        _speak(wake)
+
+    result = env.run(speaker)
+    assert result.status == "completed" and "host_unusable" in result.degraded
+    unusable = next(d["message"] for d in result.diagnostics if d["code"] == "host_unusable")
+    assert "longer than model 'judge-m' reads" in unusable and "extra" not in unusable
+    assert any("The judge could not score" in text and "unscored" in text for text in updates)
+
+
+def test_an_async_host_method_fails_the_run_saying_so():
+    """An `async def` host method is never awaited: the run says what to write instead (audit 11 A-M2)."""
+    class AsyncJudge:
+        async def judge(self, request):
+            return {"scores": {"logic": 5, "evidence": 5, "rebuttal": 5}}
+
+    result = host.load(_DEBATE, hosts={"judge": AsyncJudge()}, seed=1).run(_speak)
+    assert result.status == "failed" and "answered with an awaitable" in result.error

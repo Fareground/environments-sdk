@@ -92,8 +92,8 @@ def _permanent_fix(exc: BaseException, client: str, model: str) -> str:
     if status == 404 or "NotFound" in name:
         return f"Check that the model id '{model}' is right and available to your account."
     if isinstance(status, int):
-        return ("The provider rejected the request; fix what its message names (for instance a field passed in "
-                "`extra` that this model does not accept).")
+        return ("The provider rejected the request; fix what its message names (for instance a field this model "
+                "does not accept).")
     return f"The call itself failed: pass the sync client, {client}, or one with its interface; or fix the code."
 
 

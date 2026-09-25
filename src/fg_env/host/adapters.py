@@ -31,7 +31,15 @@ from ..errors import RunError
 from ..expr.base import visible
 from .hosts import credit_tokens, time_left
 from .protocols import HostError, HostUnavailable
-from .providers import PROVIDER_CALLS, backoff, provider_failure, refuse_awaitable, request_timeout, retryable
+from .providers import (
+    PROVIDER_CALLS,
+    backoff,
+    provider_failure,
+    refuse_awaitable,
+    request_timeout,
+    retryable,
+    too_long,
+)
 from .usage import call_usage, rough_tokens
 
 __all__ = ["LLMHost", "AnthropicWebSearch", "HistoricalFeed", "anthropic", "openai", "anthropic_web_search",
@@ -106,6 +114,10 @@ class _Provider:
             try:
                 response = request(request_timeout(time_left()))
             except Exception as exc:
+                if too_long(exc):  # this request cannot be answered by this model; the next, shorter one may be
+                    raise HostUnavailable(f"{call} refused the request as longer than model '{self.model}' reads "
+                                          f"({exc}): that request goes unanswered; send the host less (fewer or "
+                                          "shorter records, texts or rules) or use a model that reads more") from exc
                 wait, left = backoff(attempt, exc), time_left()
                 retry = attempt < self.retries and retryable(exc)
                 late = retry and left is not None and left < wait
