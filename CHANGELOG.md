@@ -335,9 +335,8 @@ worlds stay fast, and the package is organised by feature.
     adapters and author loop share (which failures to retry, how long to wait, what a failure says) are one public
     module, `fg_env.host.providers`, so the host layer no longer reaches up into participants; and the cross-package
     private helpers others used are public (`usable_output`, `CompiledExpr`, `read_source`).
-  - Small: `make test-oracle` runs the expression-oracle tier (documented in CONTRIBUTING); the start page names the
-    type spellings read as int, number, text and bool; the examples page says its commands run from `examples/`; an
-    unused physics method is gone.
+  - Small: `make test-oracle` runs the expression-oracle tier (documented in CONTRIBUTING); the examples page says
+    its commands run from `examples/`; an unused physics method is gone.
 - **Audit 9.**
   - A stage's `valid` judges the world the turn's `change` events leave: the turn and its events commit, then `valid`
     is checked, and a turn that breaks it is undone whole (sealed choices too). Before, `valid` ran before those

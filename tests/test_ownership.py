@@ -40,7 +40,8 @@ def test_the_owner_reads_its_own_and_no_where_widens_it_to_anothers():
     assert "ann: 111" in mine.preview("ann")["update"] and "222" not in mine.preview("ann")["update"]
     for where in ("$it.holder != $actor.id", "$it.holder == $actor.id or true", "true", "$it.secret > 0"):
         contract = _vaults(where)
-        assert any("v2's secret is private" in issue.message for issue in _errors(contract)), where
+        assert any("v2's secret is private" in issue.message or "reads private secret of vault" in issue.message
+                   for issue in _errors(contract)), where
         env = fg_env.Env(fg_env.checks.parse_contract(contract), {}, 1)
         with pytest.raises(fg_env.RunError, match="v2's secret is private"):
             env.preview("ann")

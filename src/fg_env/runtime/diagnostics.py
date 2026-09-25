@@ -20,6 +20,7 @@ import re
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Any
 
+from ..actions.book import stage_actions
 from ..contract.base import TAPE
 
 if TYPE_CHECKING:
@@ -129,11 +130,14 @@ def _forfeits(env: Env) -> list[dict[str, str]]:
 
 
 def _nobody_played(env: Env) -> list[dict[str, str]]:
-    """A finished run of a contract with agents and actions in which no agent ever had a turn: whatever it measured,
-    no agent's choice shaped it. (Turns that never offered an action: ``agents_never_able_to_act``.)"""
+    """A finished run of a contract whose stages offer agents actions in which no agent ever had a turn: whatever it
+    measured, no agent's choice shaped it. (Turns that never offered an action: ``agents_never_able_to_act``.)"""
     contract = env.contract
-    if not env.finished or not contract.actions or not contract.agent_types() or env.state.stats.actions:
+    if not env.finished or env.state.stats.actions:
         return []
+    if not any(stage_actions(contract, stage, kind) for stage in contract.stage_list()
+               for kind in contract.agent_types()):
+        return []  # no stage offers agents anything: a world that plays itself (stages of `actions: []`)
     if any(stats.wakes for stats in env.state.agent_stats.values()):
         return []
     return [_finding("nobody_played", "stages",

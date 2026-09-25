@@ -264,10 +264,10 @@ def item_conditions(source: str) -> tuple[tuple[str, Expr], ...] | None:
 
 
 @lru_cache(maxsize=1_024)
-def item_words(source: str) -> tuple[tuple[str, str, str], ...]:
-    """``(function, type word, bare word)`` for each call of a function over a type (``$sum(fisher, caught)``) that is
-    passed a bare word after the type: text, where a per-item value (``$it.caught``) is almost always meant. An invalid
-    expression raises as :func:`compile_expr` does."""
+def item_words(source: str) -> tuple[tuple[str, str, str, int], ...]:
+    """``(function, type word, bare word, its argument's position)`` for each call of a function over a type
+    (``$sum(fisher, caught)``) passed a bare word after the type. An invalid expression raises as :func:`compile_expr`
+    does."""
     compile_expr(source)
     tree = ast.parse(_preprocess(source.strip()).strip(), mode="eval")
     _restore_words(list(ast.walk(tree)))
@@ -276,9 +276,9 @@ def item_words(source: str) -> tuple[tuple[str, str, str], ...]:
         if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id.startswith(_FUNC_PREFIX)
                 and node.args and isinstance(node.args[0], ast.Name) and not node.args[0].id.startswith("__")):
             continue
-        for arg in node.args[1:]:
+        for position, arg in enumerate(node.args[1:], start=1):
             if isinstance(arg, ast.Name) and not arg.id.startswith("__") and arg.id not in _LITERAL_NAMES:
-                found.append((node.func.id[len(_FUNC_PREFIX):], node.args[0].id, arg.id))
+                found.append((node.func.id[len(_FUNC_PREFIX):], node.args[0].id, arg.id, position))
     return tuple(found)
 
 

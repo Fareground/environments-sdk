@@ -270,8 +270,9 @@ class Checker:
         for name, signature in getattr(compiled, "arity_errors", ()):
             if name not in self.c.defs and callable_in(name, self.families):  # else it is reported as unavailable
                 self.error(path, f"wrong number of arguments: ${signature}", f"in `{compiled.source}`")
-        for function, kind, word in item_words(compiled.source) if compiled.calls else ():
-            if kind in self.c.types and word in self.c.props_of(kind):
+        for function, kind, word, position in item_words(compiled.source) if compiled.calls else ():
+            per_item = function in FUNCTIONS and position in FUNCTIONS[function].lazy  # evaluated for each item
+            if per_item and kind in self.c.types and word in self.c.props_of(kind):
                 self.error(path, f"${function}({kind}, {word}): `{word}` is the text '{word}' here, not each "
                                  f"{kind}'s {word}", f"write $it.{word} — in `{compiled.source}`")
         for chain, word in compiled.comparisons:
