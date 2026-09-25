@@ -303,3 +303,23 @@ def test_an_enum_schema_names_the_type_its_values_share():
                                              "w": {"type": "enum", "values": [1, "x"]}}}}}
     schema = _first_tools(mixed, "a")["tools"]["pick"].input_schema["properties"]
     assert schema["v"]["type"] == "number" and "type" not in schema["w"]
+
+
+def test_an_agents_update_opens_with_what_its_last_action_returned_even_when_that_action_ended_its_turn():
+    """The built-in LLM participants stop when a turn ends, so a turn-ending action's result is never sent to the
+    model: the next update says it."""
+    contract = {"name": "Well", "clock": {"rounds": 3}, "types": {"person": {"agent": True, "props": {"coins": 0}}},
+                "entities": {"ann": {"type": "person"}}, "stages": [{"name": "day"}],
+                "actions": {"dig": {"by": "person", "terminal": True, "do": ["$actor.coins += 2"],
+                                    "outcome": "You dig up 2 coins; you have {$actor.coins}."}}}
+    updates = []
+
+    def ann(wake):
+        updates.append(wake.update)
+        if wake.round < 3:
+            assert wake.call("dig", {}).ended
+
+    fg_env.run(contract, ann, seed=1)
+    assert "Your last turn" not in updates[0]
+    assert updates[1].splitlines()[1] == "Your last turn: You dig up 2 coins; you have 2."
+    assert updates[2].splitlines()[1] == "Your last turn: You dig up 2 coins; you have 4."

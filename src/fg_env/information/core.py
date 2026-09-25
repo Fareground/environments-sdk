@@ -89,12 +89,13 @@ class Information:
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int, turn_no: int,
                time_limit: float | None = None, shown: Shown | None = None, attached: list[str] | None = None,
-               calls: int | None = None, reads: bool = False) -> str:
+               calls: int | None = None, reads: bool = False, last: str | None = None) -> str:
         """``actor``'s update in its turn ``turn_no`` (see :meth:`Perception.update`), its [id] handles shown for
         the entities it may inspect and its views' luck drawn from the turn's own stream."""
         with shared_budget(ACTION_BUDGET, "update"), entity_handles(handle_filter(self, actor)), \
                 self.world.luck.stream("update", turn_no):
-            return self.perception.update(actor, stage, reason, since, time_limit, shown, attached, calls, reads)
+            return self.perception.update(actor, stage, reason, since, time_limit, shown, attached, calls, reads,
+                                          last)
 
     # -- views and news --------------------------------------------------------------------------------------------
 

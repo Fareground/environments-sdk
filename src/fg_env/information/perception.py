@@ -135,10 +135,15 @@ class Perception:
 
     def update(self, actor: Entity, stage: StageSpec, reason: str, since: int,
                time_limit: float | None = None, shown: Shown | None = None,
-               attached: list[str] | None = None, calls: int | None = None, reads: bool = False) -> str:
+               attached: list[str] | None = None, calls: int | None = None, reads: bool = False,
+               last: str | None = None) -> str:
         """``actor``'s update; the assets it delivers (news and views) are added to ``attached``. ``calls``: the tool
-        calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect."""
+        calls the turn has, shown when the stage limits them; ``reads``: whether the turn offers look or inspect;
+        ``last``: what the agent's last action of its previous turn returned — an action that ended the turn told the
+        agent nothing before (the built-in LLM participants stop at the end of a turn), so every update opens with it."""
         lines: list[str] = [f"{self.world.clock_label()} · {stage.name}"]
+        if last:
+            lines.append(f"Your last turn: {last}")
         if stage.brief:
             lines.append(self._render(stage.brief, actor, f"stages.{stage.name}.brief"))
         if reason:

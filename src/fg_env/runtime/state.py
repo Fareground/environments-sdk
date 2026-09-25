@@ -47,17 +47,19 @@ UNDONE = frozenset({
 
 
 class Memory:
-    """What the engine remembers per agent between turns: where its news starts, and how many turns it had."""
+    """What the engine remembers per agent between turns: where its news starts, how many turns it had, and what its
+    last action of its last turn returned (its next update opens with it)."""
 
-    __slots__ = ("cursor", "turns")
+    __slots__ = ("cursor", "turns", "last")
 
     def __init__(self) -> None:
         self.cursor = 0
         self.turns = 0
+        self.last: str | None = None
 
     def copy(self) -> Memory:
         memory = Memory()
-        memory.cursor, memory.turns = self.cursor, self.turns
+        memory.cursor, memory.turns, memory.last = self.cursor, self.turns, self.last
         return memory
 
 
@@ -230,7 +232,8 @@ class RunState:
             "turn_count": self.turn_count,
             "armed": {str(k): v for k, v in w.armed.items()},
             "used_round": {actor: dict(used) for actor, used in w.used_round.items()},
-            "memory": {k: {"cursor": m.cursor, "turns": m.turns} for k, m in self.memories.items()},
+            "memory": {k: {"cursor": m.cursor, "turns": m.turns, **({"last": m.last} if m.last else {})}
+                       for k, m in self.memories.items()},
             "rng": [rng[0], list(rng[1]), rng[2]],
             "stats": self.stats.to_dict(),
             "agent_stats": {key: self.agent_stats[key].to_dict() for key in sorted(self.agent_stats)},
@@ -307,7 +310,7 @@ class RunState:
                         for actor, used in (data.get("used_round") or {}).items()}
         for key, m in data["memory"].items():
             memory = self.memory(key)
-            memory.cursor, memory.turns = m["cursor"], m["turns"]
+            memory.cursor, memory.turns, memory.last = m["cursor"], m["turns"], m.get("last")
         for name in Stats.__dataclass_fields__:
             setattr(self.stats, name, data["stats"].get(name, 0))
         self.agent_stats = {key: Stats(**{name: counts.get(name, 0) for name in Stats.__dataclass_fields__})

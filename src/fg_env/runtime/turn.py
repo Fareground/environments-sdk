@@ -83,6 +83,8 @@ class Turn:
         memory = env.state.memories.get(actor.id) if peek else env.state.memory(actor.id)
         memory = memory or Memory()
         self._since = memory.cursor
+        #: What the agent's last action of its previous turn returned (shown atop the update), and of this turn.
+        self._last, self.last_outcome = memory.last, None
         self._brief: str | None = None
         self._update: str | None = None
         #: The assets delivered with the brief and with the update.
@@ -192,6 +194,7 @@ class Turn:
         self.ledger = AttemptLedger(self.env.world, self.actor.id, ledger.max_actions, ledger.max_calls, atomic=False)
         self.started = self.done = self.closed = self.timed_out = self.did_not_act = False
         self.deadline, self.rng, self.steps, self._reads, self._tools = None, None, [], [], None
+        self.last_outcome = None
         self.stats = Stats()
 
     # Brief and update render on first read, so coded participants that never read them cost nothing.
@@ -221,7 +224,8 @@ class Turn:
                 self._update = info.update(self.actor, self.stage, self.reason, self._since, self.number,
                                            self.time_limit, shown, attached,
                                            self.ledger.calls_left if self.call_limit else None,
-                                           self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls))
+                                           self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls),
+                                           self._last)
                 self.note(Read("update", len(self._update)))
                 self._deliver(attached, "update")
                 if self.exposure is not None and shown is not None:
@@ -292,6 +296,8 @@ class Turn:
                 gate.notify()
             if self.exposure is not None:
                 self.exposure.called(name, args, result)
+            if not (self.staged or self.closed) and isinstance(name, str) and name in self.env.contract.actions:
+                self.last_outcome = result.text  # a sealed choice's result reaches its agent as news when it commits
             self.note(Answered(name, args, result))
             return result
 

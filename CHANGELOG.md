@@ -254,6 +254,10 @@ worlds stay fast, and the package is organised by feature.
     did not allow that" (its `reason` field is gone; the actor's `<name>_told` keeps why), and no allow-list reason
     quotes a property's current value. Before, a delta refusal posted "Bram's health may change by at most 3 at once
     (from 4.5)" to everyone, although Bram's health was private.
+  - An agent's update opens with what its last action of its previous turn returned ("Your last turn: …"), for every
+    action. Before, a turn-ending action's result (a game master's narration and changes, a terminal action's outcome)
+    went only into a tool result the built-in LLM participants never send, since they stop when the turn ends, so the
+    agent never learned what its own move did. A sealed choice's result still arrives as news when it commits.
 - **Audit 7.**
   - An action that posts an entry not every agent may see (a directed message, a record whose `visible` is a rule)
     is seen, in `$events()`, news and memory, only by the readers who may see that entry: its event carries the

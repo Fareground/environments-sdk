@@ -292,6 +292,8 @@ class Driver:
         """Close a played turn: no more calls, its statistics added to the run's (see :meth:`Stats.finish`)."""
         with self.gate:
             turn.done = True
+            if not turn.peek:  # what its last action returned opens the agent's next update
+                self.env.state.memory(turn.actor.id).last = turn.last_outcome
             turn.note(Finished(chose=bool(turn.ledger.intents),
                                had_to=turn.stage.must_act or turn.ledger.calls_left <= 0, timed_out=turn.timed_out,
                                able=lambda: turn.actor.alive and bool(turn._legal())))
