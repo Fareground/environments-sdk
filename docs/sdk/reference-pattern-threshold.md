@@ -36,5 +36,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_threshold": {"kind": "pattern", "mode": "threshold", "at": 0.3, "below": 1, "above": 1.8, "width": 0.05}}}
+{"types": {}, "mechanisms": {"my_threshold": {"kind": "pattern", "mode": "threshold", "at": 0.3, "below": 1, "above": 1.8, "width": 0.05}}}
 ```

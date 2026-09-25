@@ -37,5 +37,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_random_walk": {"kind": "pattern", "mode": "random_walk", "start": 100, "drift": 0.001, "sd": 0.02, "form": "multiply"}}}
+{"types": {}, "mechanisms": {"my_random_walk": {"kind": "pattern", "mode": "random_walk", "start": 100, "drift": 0.001, "sd": 0.02, "form": "multiply"}}}
 ```

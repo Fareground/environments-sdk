@@ -264,8 +264,9 @@ def test_ballot_weights_votes_measures_the_threshold_over_members_and_honours_a_
     shareholders["entities"]["e3"]["props"] = {"shares": 10}
     held = result(shareholders, {"p1": "adopt", "p2": "adopt", "e1": "adopt", "e2": "adopt", "e3": "reject"})
     assert held["winner"] == "reject" and held["counts"] == {"reject": 10, "adopt": 4}
-    words = fg_env.load({**shareholders, "mechanisms": {"resolution": {**shareholders["mechanisms"]["resolution"],
-                                                                     "weight": "$it.name"}}}, seed=1).run(_votes({"p1": "adopt"}))
+    worded = {**shareholders, "mechanisms": {"resolution": {**shareholders["mechanisms"]["resolution"],
+                                                            "weight": "$it.name"}}}
+    words = fg_env.load(worded, seed=1).run(_votes({"p1": "adopt"}))
     assert words.status == "failed" and "a voter's weight must be a number ≥ 0, got 'p1'" in words.error
 
 

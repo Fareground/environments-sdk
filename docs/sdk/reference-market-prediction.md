@@ -24,5 +24,5 @@ Actions of the `market` op:
 - `resolve` — takes `outcome` (needs `outcome`): {"market": "election", "action": "resolve", "outcome": "$world.truth"}  (pay 1 per winning share and close trading)
 
 ```json
-{"world": {"truth": "yes"}, "types": {"forecaster": {"agent": true, "props": {"cash": 100}}}, "mechanisms": {"my_prediction": {"kind": "market", "mode": "prediction", "who": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr", "liquidity": 50, "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"}}}
+{"world": {"truth": "yes"}, "types": {"forecaster": {"agent": true, "props": {"cash": 100}}}, "entities": {"forecaster": {"type": "forecaster", "count": 2}}, "mechanisms": {"my_prediction": {"kind": "market", "mode": "prediction", "who": "forecaster", "outcomes": ["yes", "no"], "maker": "lmsr", "liquidity": 50, "question": "Will the bill pass?", "resolve_at": 5, "outcome": "$world.truth"}}}
 ```

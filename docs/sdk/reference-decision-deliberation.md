@@ -39,5 +39,5 @@ Actions of the `decision` op:
 - `vote` — takes `choice` (needs `choice`): {"decision": "hall", "action": "vote", "choice": "$params.choice"}  (yes, no or abstain on the question put)
 
 ```json
-{"types": {"moderator": {"agent": true}}, "entities": {"chair": {"type": "moderator"}}, "mechanisms": {"my_deliberation": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator", "floor": true, "question": "Should the town build a skate park?", "passes": 8}}}
+{"types": {"moderator": {"agent": true}, "resident": {"agent": true}}, "entities": {"chair": {"type": "moderator"}, "resident": {"type": "resident", "count": 2}}, "mechanisms": {"my_deliberation": {"kind": "decision", "mode": "deliberation", "who": "resident", "chair": "moderator", "floor": true, "question": "Should the town build a skate park?", "passes": 8}}}
 ```

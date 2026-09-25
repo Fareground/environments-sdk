@@ -18,5 +18,5 @@ Actions of the `host` op:
 - `call` — takes `args` (needs `args`): {"host": "search", "action": "call", "args": "$params"}  (call the host service for the actor; the result is added to $actor.search_evidence)
 
 ```json
-{"mechanisms": {"my_tool": {"kind": "host", "mode": "tool", "host": "web_search", "who": "panelist", "max_calls_per_turn": 2, "max_calls_per_run": 6}}}
+{"types": {"panelist": {"agent": true}}, "entities": {"panelist": {"type": "panelist", "count": 2}}, "mechanisms": {"my_tool": {"kind": "host", "mode": "tool", "host": "web_search", "who": "panelist", "max_calls_per_turn": 2, "max_calls_per_run": 6}}}
 ```

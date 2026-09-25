@@ -17,6 +17,7 @@ determinism hold for it. New mechanisms are added as modes of a family, never as
 """
 from __future__ import annotations
 
+import copy
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from difflib import get_close_matches
@@ -78,14 +79,31 @@ class ModeSpec:
     ends: Callable[[Any], bool] = lambda config: False
     #: The one name a use of this mode must have (its mechanism is read by that root, as ``physics``), or None: any.
     name: str | None = None
-    #: The contract parts the example builds on besides a type for its `who` (other types, entities, mechanisms
-    #: declared before it): shown with it, so the reference example works as written.
+    #: The contract parts the example builds on besides its `who` (other types, entities, mechanisms declared
+    #: before it): shown with it (see :meth:`reference`).
     context: dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> str:
         """``family.mode`` — how code refers to this mode."""
         return f"{self.family}.{self.mode}"
+
+    def reference(self) -> dict[str, Any]:
+        """The contract the reference shows the example in, which works as pasted (with a `name`): its context, an
+        agent type for each `who` it names and two agents of it (unless the context declares them), and the
+        mechanisms it builds on declared before it."""
+        shown = copy.deepcopy(self.context)
+        who = self.example.get("who")
+        types, entities = shown.setdefault("types", {}), shown.setdefault("entities", {})
+        for kind in [who] if isinstance(who, str) else who or []:
+            types.setdefault(kind, {"agent": True})
+            if not any(isinstance(spec, Mapping) and spec.get("type") == kind for spec in entities.values()):
+                entities[kind] = {"type": kind, "count": 2}
+        if not entities:
+            del shown["entities"]
+        name = self.name or f"my_{self.mode}"
+        shown["mechanisms"] = {**shown.get("mechanisms", {}), name: copy.deepcopy(self.example)}
+        return shown
 
 
 @dataclass
@@ -225,7 +243,7 @@ def mode(family_name: str, mode: str, config: type[BaseModel], doc: str, example
 
     ``example`` is the config without ``kind`` and ``mode``; ``ends(config)`` says whether a use can end the run;
     ``name`` is the one name a use of the mode must have (the reference shows its example under it), else any;
-    ``context`` the contract parts the example builds on besides a type for its `who`, shown with it."""
+    ``context`` the contract parts the example builds on besides its `who`, shown with it (``ModeSpec.reference``)."""
 
     def register(expand: Callable[..., dict[str, Any]]) -> Callable[..., dict[str, Any]]:
         spec = FAMILIES.get(family_name)

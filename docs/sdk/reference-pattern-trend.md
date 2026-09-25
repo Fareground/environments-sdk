@@ -40,5 +40,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"inputs": {"growth": {"type": "number", "default": 0.02}}, "mechanisms": {"my_trend": {"kind": "pattern", "mode": "trend", "form": "exponential", "start": 100, "rate": "$inputs.growth"}}}
+{"inputs": {"growth": {"type": "number", "default": 0.02}}, "types": {}, "mechanisms": {"my_trend": {"kind": "pattern", "mode": "trend", "form": "exponential", "start": 100, "rate": "$inputs.growth"}}}
 ```

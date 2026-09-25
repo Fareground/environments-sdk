@@ -37,5 +37,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"clock": {"rounds": 3, "unit": "day", "start": "2025-03-01"}, "mechanisms": {"my_diffusion": {"kind": "pattern", "mode": "diffusion", "p": 0.03, "q": 0.38, "market": 5000, "start": "2025-03-01", "output": "new"}}}
+{"clock": {"rounds": 3, "unit": "day", "start": "2025-03-01"}, "types": {}, "mechanisms": {"my_diffusion": {"kind": "pattern", "mode": "diffusion", "p": 0.03, "q": 0.38, "market": 5000, "start": "2025-03-01", "output": "new"}}}
 ```

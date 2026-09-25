@@ -39,5 +39,5 @@ Nested config:
 - `times`: number | text — Multiplies the value.
 
 ```json
-{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "mechanisms": {"my_step": {"kind": "pattern", "mode": "step", "start": 0.2, "changes": [{"at": "2026-01-01", "to": 0.23}]}}}
+{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "types": {}, "mechanisms": {"my_step": {"kind": "pattern", "mode": "step", "start": 0.2, "changes": [{"at": "2026-01-01", "to": 0.23}]}}}
 ```

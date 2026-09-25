@@ -96,7 +96,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pat
 - `capacity`: number | text = 1.0 — The level it saturates at (logistic).
 - `midpoint`: number | text = 0.0 — Clock units after `origin` when it is half way (logistic).
 - `steepness`: number | text = 1.0 — How fast it rises around the midpoint (logistic).
-- `origin`: number | text = 0.0 — Where t counts from: clock units from round 1, or an ISO date.
+- `origin`: number | Annotated = 0.0 — Where t counts from: clock units from round 1, or an ISO date.
 
 #### `seasonal` (time, signal)
 
@@ -134,7 +134,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pat
 A life after a date: before → ramp up to a peak → decay toward a floor (a product launch, a price falling after a new model). Several starts multiply.
 
 Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pattern", "mode": "lifecycle", "start": "2025-09-19", "before": 1, "peak": 0.93, "floor": 0.6, "half_life": 40}`
-- `start`: number | text | list (required) — When it begins: clock units, an ISO date, or a list (one curve per start, multiplied: each later model launch).
+- `start`: number | Annotated | list (required) — When it begins: clock units, an ISO date, or a list (one curve per start, multiplied: each later model launch).
 - `before`: number | text = 1.0 — Value before the start.
 - `peak`: number | text = 1.0 — Value when the ramp ends.
 - `floor`: number | text = 0.0 — Level it decays toward.
@@ -388,7 +388,7 @@ Read: `$pattern.<name>` (keyed: `$pattern.<name>(key)`). Example: `{"kind": "pat
 - `p`: number | text (required) — Innovation: the share adopting on their own each unit.
 - `q`: number | text (required) — Imitation: how strongly adopters draw in others (word of mouth).
 - `market`: number | text = 1.0 — Everyone who will eventually adopt.
-- `start`: number | text = 0.0 — When adoption begins: clock units or an ISO date.
+- `start`: number | Annotated = 0.0 — When adoption begins: clock units or an ISO date.
 - `output`: adopters | new | share | hazard = "adopters" — adopters: total so far | new: adopting this round | share: of the market | hazard: called with the adopted share, the chance a non-adopter adopts now (p + q·share).
 
 #### `hazard` (population, response)

@@ -29,5 +29,5 @@ Actions of the `host` op:
 - `recall` — takes `query` (needs `query`): {"host": "memory", "action": "recall", "query": "$params.query"}  (the actor's most relevant memories as text in $actor.memory_recalled; recalled memories strengthen)
 
 ```json
-{"mechanisms": {"my_memory": {"kind": "host", "mode": "memory", "who": "panelist", "half_life": 5, "budget": 250}}}
+{"types": {"panelist": {"agent": true}}, "entities": {"panelist": {"type": "panelist", "count": 2}}, "mechanisms": {"my_memory": {"kind": "host", "mode": "memory", "who": "panelist", "half_life": 5, "budget": 250}}}
 ```

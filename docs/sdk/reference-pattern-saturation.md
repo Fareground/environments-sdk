@@ -40,5 +40,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_saturation": {"kind": "pattern", "mode": "saturation", "form": "hill", "limit": 0.35, "half": 2000, "shape": 1.2}}}
+{"types": {}, "mechanisms": {"my_saturation": {"kind": "pattern", "mode": "saturation", "form": "hill", "limit": 0.35, "half": 2000, "shape": 1.2}}}
 ```

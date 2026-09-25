@@ -40,7 +40,7 @@ Config:
 
 Nested config:
 **CrowdSpec** — A group of coded traders generated for the book.
-- `count`: int | text (required) — How many (number or expression).
+- `count`: int | text (required) — How many (a whole number ≥ 0, or an expression).
 - `cash`: number | text = 0.0 — Starting cash each (number or expression).
 - `shares`: number | text = 0.0 — Starting shares each (number or expression).
 - `params`: object — Strategy parameter overrides (see the guide): numbers, or expressions read once per trader when its parameters are drawn.
@@ -55,5 +55,5 @@ Actions of the `market` op:
 - `close`: {"market": "acme", "action": "close"}  (close the round (once a round; the book's own end event runs it after yours, so run it first in an end event that reads the closed round or bar): breaker check, record the bar)
 
 ```json
-{"types": {"trader": {"agent": true, "props": {"cash": 1000}}}, "mechanisms": {"my_order_book": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5, "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400}, "noise": {"count": 6, "cash": 5000, "shares": 100}}}}}
+{"types": {"trader": {"agent": true, "props": {"cash": 1000}}}, "entities": {"trader": {"type": "trader", "count": 2}}, "mechanisms": {"my_order_book": {"kind": "market", "mode": "order_book", "who": "trader", "start_price": 50, "tick_size": 0.01, "taker_fee_bps": 5, "halt_pct": 0.1, "crowd": {"market_maker": {"count": 2, "cash": 20000, "shares": 400}, "noise": {"count": 6, "cash": 5000, "shares": 100}}}}}
 ```

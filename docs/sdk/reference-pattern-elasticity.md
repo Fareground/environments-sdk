@@ -35,5 +35,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"inputs": {"elasticity": {"type": "number", "default": -1.5}}, "mechanisms": {"my_elasticity": {"kind": "pattern", "mode": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99}}}
+{"inputs": {"elasticity": {"type": "number", "default": -1.5}}, "types": {}, "mechanisms": {"my_elasticity": {"kind": "pattern", "mode": "elasticity", "elasticity": "$inputs.elasticity", "reference": 24.99}}}
 ```

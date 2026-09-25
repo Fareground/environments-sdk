@@ -35,5 +35,5 @@ bounds apply at physical substeps.
 - `noise`: text — Stochastic term (Euler–Maruyama), drawn from the run's seed: d(prop) = rate·dt + noise·dW.
 
 ```json
-{"world": {"infected": 0.0, "mixing": 1.0}, "mechanisms": {"physics": {"kind": "dynamics", "mode": "ode", "params": {"beta": 0.3, "gamma": 0.1}, "read": {"mixing": "$world.mixing"}, "vars": {"S": {"start": 990, "rate": "-beta*mixing*S*I/(S+I+R)", "min": 0}, "I": {"start": 10, "rate": "beta*mixing*S*I/(S+I+R) - gamma*I", "min": 0}, "R": {"start": 0, "rate": "gamma*I", "min": 0}}, "write": {"world.infected": "I"}}}}
+{"world": {"infected": 0.0, "mixing": 1.0}, "types": {}, "mechanisms": {"physics": {"kind": "dynamics", "mode": "ode", "params": {"beta": 0.3, "gamma": 0.1}, "read": {"mixing": "$world.mixing"}, "vars": {"S": {"start": 990, "rate": "-beta*mixing*S*I/(S+I+R)", "min": 0}, "I": {"start": 10, "rate": "beta*mixing*S*I/(S+I+R) - gamma*I", "min": 0}, "R": {"start": 0, "rate": "gamma*I", "min": 0}}, "write": {"world.infected": "I"}}}}
 ```

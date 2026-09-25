@@ -39,5 +39,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_volatility": {"kind": "pattern", "mode": "volatility", "omega": 1e-05, "alpha": 0.08, "beta": 0.9, "output": "level", "start": 50}}}
+{"types": {}, "mechanisms": {"my_volatility": {"kind": "pattern", "mode": "volatility", "omega": 1e-05, "alpha": 0.08, "beta": 0.9, "output": "level", "start": 50}}}
 ```

@@ -38,5 +38,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "mechanisms": {"my_seasonal": {"kind": "pattern", "mode": "seasonal", "period": "year", "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]}}}
+{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "types": {}, "mechanisms": {"my_seasonal": {"kind": "pattern", "mode": "seasonal", "period": "year", "profile": [0.8, 0.8, 0.9, 1, 1.1, 1.2, 1.3, 1.2, 1.1, 1, 0.9, 0.7]}}}
 ```

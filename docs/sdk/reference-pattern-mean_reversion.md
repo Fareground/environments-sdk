@@ -37,5 +37,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_mean_reversion": {"kind": "pattern", "mode": "mean_reversion", "mean": 0.7, "rate": 0.05, "sd": 0.02}}}
+{"types": {}, "mechanisms": {"my_mean_reversion": {"kind": "pattern", "mode": "mean_reversion", "mean": 0.7, "rate": 0.05, "sd": 0.02}}}
 ```

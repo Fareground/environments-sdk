@@ -37,5 +37,5 @@ Nested config:
 - `key`: text (required) — Its key, as an expression over $key, $row and $inputs ($row.category).
 
 ```json
-{"inputs": {"skus": {"type": "table", "default": [{"sku": "a", "category": "tools", "base": 10}]}}, "mechanisms": {"trend": {"kind": "pattern", "mode": "trend", "start": 1, "rate": 0.01}, "season": {"kind": "pattern", "mode": "draw", "dist": "normal", "mean": 1, "sd": 0.1, "keys": ["tools"]}, "my_product": {"kind": "pattern", "mode": "product", "of": ["trend", {"pattern": "season", "key": "$row.category"}], "scale": "$row.base", "table": "$inputs.skus", "column": "sku"}}}
+{"inputs": {"skus": {"type": "table", "default": [{"sku": "a", "category": "tools", "base": 10}]}}, "mechanisms": {"trend": {"kind": "pattern", "mode": "trend", "start": 1, "rate": 0.01}, "season": {"kind": "pattern", "mode": "draw", "dist": "normal", "mean": 1, "sd": 0.1, "keys": ["tools"]}, "my_product": {"kind": "pattern", "mode": "product", "of": ["trend", {"pattern": "season", "key": "$row.category"}], "scale": "$row.base", "table": "$inputs.skus", "column": "sku"}}, "types": {}}
 ```

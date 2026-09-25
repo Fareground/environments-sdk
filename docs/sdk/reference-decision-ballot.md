@@ -24,5 +24,5 @@ Actions of the `decision` op:
 - `tally`: {"decision": "election", "action": "tally"}  (count the ballot now: sets $world.election_result, announces it, opens a fresh ballot)
 
 ```json
-{"mechanisms": {"my_ballot": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5, "question": "Adopt the budget?"}}}
+{"types": {"member": {"agent": true}}, "entities": {"member": {"type": "member", "count": 2}}, "mechanisms": {"my_ballot": {"kind": "decision", "mode": "ballot", "who": "member", "options": ["approve", "reject"], "method": "majority", "quorum": 0.5, "question": "Adopt the budget?"}}}
 ```

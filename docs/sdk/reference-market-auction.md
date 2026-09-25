@@ -35,5 +35,5 @@ Actions of the `market` op:
 - `ask` — takes `who`, `price`, `qty` (needs `price`): {"market": "house", "action": "ask", "price": 90, "qty": 1}  (offer units in a double auction)
 
 ```json
-{"types": {"collector": {"agent": true, "props": {"cash": 500}}}, "mechanisms": {"my_auction": {"kind": "market", "mode": "auction", "format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50}}}
+{"types": {"collector": {"agent": true, "props": {"cash": 500}}}, "entities": {"collector": {"type": "collector", "count": 2}}, "mechanisms": {"my_auction": {"kind": "market", "mode": "auction", "format": "second_price", "who": "collector", "item": "a painting", "stock": 3, "reserve": 50}}}
 ```

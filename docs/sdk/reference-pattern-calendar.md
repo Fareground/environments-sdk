@@ -42,5 +42,5 @@ Nested config:
 - `after`: int = 0 — Days after each matched date also affected (dates, days_of_month).
 
 ```json
-{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "mechanisms": {"my_calendar": {"kind": "pattern", "mode": "calendar", "effects": [{"on": "weekend", "effect": 1.3}, {"on": "dates", "dates": ["12-25"], "effect": 0.1, "before": 0}]}}}
+{"clock": {"rounds": 3, "unit": "day", "start": "2025-12-20"}, "types": {}, "mechanisms": {"my_calendar": {"kind": "pattern", "mode": "calendar", "effects": [{"on": "weekend", "effect": 1.3}, {"on": "dates", "dates": ["12-25"], "effect": 0.1, "before": 0}]}}}
 ```

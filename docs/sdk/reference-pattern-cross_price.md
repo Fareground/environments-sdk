@@ -37,5 +37,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_cross_price": {"kind": "pattern", "mode": "cross_price", "keys": ["economy", "premium"], "reference": {"economy": 20, "premium": 35}, "own": -1.8, "cross": 0.6}}}
+{"types": {}, "mechanisms": {"my_cross_price": {"kind": "pattern", "mode": "cross_price", "keys": ["economy", "premium"], "reference": {"economy": 20, "premium": 35}, "own": -1.8, "cross": 0.6}}}
 ```

@@ -37,5 +37,5 @@ Nested config:
 - `key`: text — Its key, as an expression over $key and $row (the product's table row): $row.category.
 
 ```json
-{"mechanisms": {"my_autoregressive": {"kind": "pattern", "mode": "autoregressive", "coefficients": [0.6, 0.2], "mean": 20, "sd": 2}}}
+{"types": {}, "mechanisms": {"my_autoregressive": {"kind": "pattern", "mode": "autoregressive", "coefficients": [0.6, 0.2], "mean": 20, "sd": 2}}}
 ```

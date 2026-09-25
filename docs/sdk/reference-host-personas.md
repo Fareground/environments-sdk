@@ -17,5 +17,5 @@ Actions of the `host` op:
 - `write`: {"host": "lives", "action": "write"}  (write any missing personas now; generated for round 1)
 
 ```json
-{"types": {"shopper": {"agent": true, "props": {"age": 30, "budget": 50}}}, "mechanisms": {"my_personas": {"kind": "host", "mode": "personas", "who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.", "fallback": "A shopper, age {age}."}}}
+{"types": {"shopper": {"agent": true, "props": {"age": 30, "budget": 50}}}, "entities": {"shopper": {"type": "shopper", "count": 2}}, "mechanisms": {"my_personas": {"kind": "host", "mode": "personas", "who": "shopper", "prompt": "A {age}-year-old shopper with a budget of {budget|money}.", "fallback": "A shopper, age {age}."}}}
 ```

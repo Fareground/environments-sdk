@@ -35,5 +35,5 @@ Actions of the `game` op:
 - `cleanse` — takes `status`, `who` (needs `status`, `who`): {"game": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"}  (a status, a list, or "all" for every cleansable one; on_expire does not run)
 
 ```json
-{"types": {"unit": {"agent": true, "props": {"hp": 20, "armor": 0}}}, "actions": {"attack": {"by": "unit", "do": "$actor.hp += 0"}}, "mechanisms": {"my_status": {"kind": "game", "mode": "status", "who": "unit", "statuses": {"poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]}, "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"}, "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}}}}
+{"types": {"unit": {"agent": true, "props": {"hp": 20, "armor": 0}}}, "actions": {"attack": {"by": "unit", "do": "$actor.hp += 0"}}, "entities": {"unit": {"type": "unit", "count": 2}}, "mechanisms": {"my_status": {"kind": "game", "mode": "status", "who": "unit", "statuses": {"poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]}, "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"}, "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}}}}
 ```

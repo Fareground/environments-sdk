@@ -43,5 +43,5 @@ Nested config:
 - `description`: text
 
 ```json
-{"inputs": {"calls": {"type": "list", "default": [20, 30, 25]}, "staffing": {"type": "list", "default": [4, 5, 5]}}, "clock": {"rounds": 3, "unit": "second"}, "mechanisms": {"my_queue": {"kind": "economy", "mode": "queue", "unit": "second", "interval": 1800, "channels": {"calls": {"arrivals": "$inputs.calls[$interval]", "service": {"dist": "lognormal", "mean": 380, "cv": 0.6}, "patience": {"mean": 160}, "threshold": 20, "target": 0.8, "callback": {"when": 90, "accept": 0.6}}}, "servers": {"agents": {"staff": "$inputs.staffing[$interval]", "cost": 26, "shrinkage": 0.3}}}}}
+{"inputs": {"calls": {"type": "list", "default": [20, 30, 25]}, "staffing": {"type": "list", "default": [4, 5, 5]}}, "clock": {"rounds": 3, "unit": "second"}, "types": {}, "mechanisms": {"my_queue": {"kind": "economy", "mode": "queue", "unit": "second", "interval": 1800, "channels": {"calls": {"arrivals": "$inputs.calls[$interval]", "service": {"dist": "lognormal", "mean": 380, "cv": 0.6}, "patience": {"mean": 160}, "threshold": 20, "target": 0.8, "callback": {"when": 90, "accept": 0.6}}}, "servers": {"agents": {"staff": "$inputs.staffing[$interval]", "cost": 26, "shrinkage": 0.3}}}}}
 ```

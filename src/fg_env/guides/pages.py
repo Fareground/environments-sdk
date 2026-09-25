@@ -312,10 +312,8 @@ def mode_page(spec: ModeSpec) -> str:
             takes = f" — takes {', '.join(f'`{k}`' for k in keys)}" if keys else ""
             required = f" (needs {', '.join(f'`{k}`' for k in needs)})" if needs else ""
             lines.append(f"- `{action}`{takes}{required}: {op.example}")
-    name = spec.name or f"my_{spec.mode}"  # the name a mode must have, else any
-    # with what it builds on, the mechanisms it builds on declared before it: it works as written, given its `who`
-    shown = {**spec.context, "mechanisms": {**spec.context.get("mechanisms", {}), name: spec.example}}
-    lines += ["", "```json", json.dumps(shown, ensure_ascii=False), "```"]
+    # with what it builds on and its `who`: it works as pasted, given a `name`
+    lines += ["", "```json", json.dumps(spec.reference(), ensure_ascii=False), "```"]
     return "\n".join(lines)
 
 
