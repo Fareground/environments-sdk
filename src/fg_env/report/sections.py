@@ -355,7 +355,7 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
         if failing:
             told = "; ".join(f"{namer.name(r.measure)} {_ranged(namer, r.measure, option)}" for r in failing)
             section.lines.append(f"With {label(option)}: {told}.")
-    if ev.kind == "run":
+    if ev.kind == "run" or sum(len(option.runs) for option in ev.options) == 1:
         section.lines.append("One run shows one possible outcome; the range of outcomes is not known from it.")
     if ev.validation is not None:
         section.lines += _data_risks(ev, namer, owner)

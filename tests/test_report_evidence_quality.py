@@ -184,3 +184,13 @@ def test_an_optimisation_overlay_cannot_restore_advice_from_degraded_run_evidenc
     restored = fg_env.analysis.report(healthy, audience, contract=CASE, optimisation=optimisation)
     assert restored.recommendation["decision"] == {"fragile": False}
     assert "Set fragile to" in restored.markdown
+
+
+@pytest.mark.parametrize('audience', ['owner', 'analyst'])
+def test_single_run_batch_preserves_the_single_observation_risk_warning(audience):
+    contract = {**CASE, 'events': []}
+    result = fg_env.run(contract)
+    for evidence in (result, [result]):
+        written = fg_env.analysis.report(evidence, audience, contract=contract)
+        assert 'One run shows one possible outcome' in written.markdown
+        assert 'No risk stands out' not in written.markdown
