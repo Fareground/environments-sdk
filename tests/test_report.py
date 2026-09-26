@@ -128,9 +128,12 @@ def test_a_validation_is_told_as_how_far_off_and_how_often_ranges_held():
               "actuals": {"centre_offered_by_interval": truth.outputs["centre_offered_by_interval"]}}]
     checked = fg_env.analysis.validate(CENTRE, cases, runs=6)
     written = fg_env.analysis.report(checked, contract=CENTRE)
-    [line, cases_line] = _section(written, "How well it matched the data").lines
+    lines = _section(written, "How well it matched the data").lines
+    line = next(line for line in lines if line.startswith("Customers by half-hour:"))
+    cases_line = lines[-1]
     assert line.startswith("Customers by half-hour: off by") and "80% ranges held" in line
-    assert cases_line == "Checked on 1 case(s) × 6 run(s)."
+    assert cases_line == "Requested evaluation: 1 case(s) × 6 run(s)."
+    assert all(note in written.markdown for note in checked.notes)
 
 
 def test_a_sweep_names_the_input_that_moves_the_outcome_most():

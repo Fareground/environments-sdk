@@ -426,11 +426,12 @@ def fit(ev: Evidence, namer: Namer) -> Section:
         section.lines.append("No outcome-validation results were supplied. These runs do not establish predictive "
                              "accuracy.")
         return section
-    if not ev.options:
-        # Validation-only reports have no Risks section. Keep omitted runs and
-        # other qualification of the accuracy evidence visible before its scores.
-        section.lines.extend(f"The data check warns: {text}" for text in validation.warnings)
-        section.lines.extend(validation.notes)
+    # Keep evidence qualifications next to its scores, even when the owner
+    # Risks summary is shortened or a validation-only report has no such section.
+    section.lines.extend(f"The data check warns: {text}" for text in validation.warnings)
+    section.lines.extend(validation.notes)
+    if not validation.measures:
+        section.lines.append("No usable outcome comparisons remain; accuracy could not be assessed.")
     for measure, found in validation.measures.items():
         held = found.get("held_out")
         accuracy = held or found["overall"]
@@ -447,7 +448,7 @@ def fit(ev: Evidence, namer: Namer) -> Section:
         if coverage is not None:
             text += f"; its 80% ranges held {coverage:.0%} of actual values"
         section.lines.append(text + ".")
-    section.lines.append(f"Checked on {len(validation.cases)} case(s) × {validation.runs} run(s).")
+    section.lines.append(f"Requested evaluation: {len(validation.cases)} case(s) × {validation.runs} run(s).")
     return section
 
 

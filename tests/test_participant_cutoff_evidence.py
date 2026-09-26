@@ -73,6 +73,9 @@ def test_accuracy_validation_excludes_cutoff_runs_and_discloses_missing_evidence
     assert any('2 of 4' in warning and 'degraded' in warning for warning in validation.warnings)
     report = fg_env.analysis.report(validation, contract=contract)
     assert 'degraded' in report.markdown
+    healthy = fg_env.run(contract, lambda wake: (wake.call('buy', {}), wake.end()))
+    combined = fg_env.analysis.report(healthy, validation=validation, contract=contract)
+    assert '2 of 4' in combined.markdown and 'degraded' in combined.markdown
 
 
 def test_no_accuracy_is_claimed_when_every_validation_run_is_degraded():
@@ -84,4 +87,7 @@ def test_no_accuracy_is_claimed_when_every_validation_run_is_degraded():
                                            participants=participant, baselines=())
     assert validation.measures == {} and validation.rows == []
     assert any('2 of 2' in warning for warning in validation.warnings)
-    assert 'degraded' in fg_env.analysis.report(validation, contract=CASE).markdown
+    report = fg_env.analysis.report(validation, contract=CASE)
+    assert 'degraded' in report.markdown
+    assert 'accuracy could not be assessed' in report.markdown
+    assert 'Requested evaluation: 1 case(s)' in report.markdown
