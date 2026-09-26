@@ -47,7 +47,7 @@ Reach for one of these when the core cannot say it.
 
 ## Recipe, mechanism or engine?
 
-A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `spread`, `board_game`, `economy`, `grid`, `simulation`
+A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `observed_queue`, `spread`, `board_game`, `economy`, `grid`, `simulation`
 (`guide('cookbook')` shows each with its known answer). A mechanism (`market`, `decision` …) is a building block
 inside your contract. An engine (`retail`, `council` …) is a complete, larger contract to copy and edit:
 `fg-env new --engine <id>`.

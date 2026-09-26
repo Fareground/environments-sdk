@@ -13,6 +13,7 @@ policy (`--agent policy:<name>` plays it for every agent).
 | [`hidden_roles`](#hidden_roles) | private roles, a secret night stage and open accusations |
 | [`market`](#market) | posted prices, and buyers paying with a transfer |
 | [`queue`](#queue) | arrivals served first come, first served |
+| [`observed_queue`](#observed_queue) | exact recorded arrivals and service times, with agent-controlled staffing |
 | [`spread`](#spread) | an infection passing along a contact network (no agents) |
 | [`board_game`](#board_game) | a turn-based board game with a winner and zero-sum seats |
 | [`economy`](#economy) | gathering, eating and building with one action a day |
@@ -534,6 +535,181 @@ Known answer: `fg-env new market && fg-env run market.json --agent policy:steady
 ```
 
 Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --seed 1` gives `served` 22, `cost` 80: 2 counters serve 6 a round: 4 + 6 + 6 + 6 of the 23 arrivals; 2 counters × 10 × 4 rounds.
+
+## observed_queue
+
+**Repair desk with observed arrivals.** An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences, setup time or abandonment are modeled. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged.
+
+```json
+{
+  "fg_env": "2",
+  "name": "Repair desk with observed arrivals",
+  "description": "An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences, setup time or abandonment are modeled. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged.",
+  "brief": {
+    "situation": "Manage a repair desk while jobs arrive.",
+    "rules": "Each minute choose 0 to {$inputs.max_technicians} technicians. Waiting jobs start first come, first served; ongoing repairs finish even if you reduce staffing. Balance waiting and unfinished work against staffing cost. You see current aggregate queue outcomes, not the future arrival table.",
+    "roles": {
+      "manager": "Choose staffing to reduce waiting and unfinished work while controlling cost."
+    }
+  },
+  "clock": {
+    "rounds": "$inputs.horizon_minutes",
+    "unit": "minute"
+  },
+  "inputs": {
+    "jobs": {
+      "type": "table",
+      "description": "Observed or authored times in minutes from opening. Replace this illustrative data with documented operational observations.",
+      "fields": {
+        "at": {
+          "type": "number",
+          "min": 0,
+          "label": "Arrival",
+          "unit": "minute",
+          "required": true
+        },
+        "service": {
+          "type": "number",
+          "min": 0,
+          "label": "Service duration",
+          "unit": "minute",
+          "required": true
+        }
+      },
+      "default": [
+        {
+          "at": 0,
+          "service": 5
+        },
+        {
+          "at": 2,
+          "service": 5
+        },
+        {
+          "at": 4,
+          "service": 5
+        }
+      ]
+    },
+    "horizon_minutes": {
+      "type": "int",
+      "min": 1,
+      "default": 20,
+      "unit": "minute"
+    },
+    "max_technicians": {
+      "type": "int",
+      "min": 1,
+      "default": 3
+    },
+    "hourly_cost": {
+      "type": "number",
+      "min": 0,
+      "default": 30,
+      "unit": "USD/hour"
+    }
+  },
+  "world": {
+    "staff": 1
+  },
+  "types": {
+    "manager": {
+      "agent": true,
+      "policies": {
+        "one": {
+          "rules": [
+            {
+              "do": "staff",
+              "with": {
+                "count": 1
+              }
+            }
+          ]
+        }
+      }
+    }
+  },
+  "entities": {
+    "manager": {
+      "type": "manager"
+    }
+  },
+  "actions": {
+    "staff": {
+      "by": "manager",
+      "description": "Choose on-duty staffing for the next minute. Existing service is not interrupted.",
+      "params": {
+        "count": {
+          "type": "int",
+          "min": 0,
+          "max": "$inputs.max_technicians"
+        }
+      },
+      "do": "$world.staff = $params.count"
+    }
+  },
+  "stages": [
+    {
+      "name": "staffing"
+    }
+  ],
+  "views": {
+    "status": {
+      "for": "manager",
+      "show": "{$world.q_totals.offered} arrivals so far; {$world.q_totals.waiting} waiting. Accrued busy time: {$world.q_totals.busy} minutes. Staffing cost: {$world.q_totals.cost|money}."
+    }
+  },
+  "mechanisms": {
+    "q": {
+      "kind": "economy",
+      "mode": "queue",
+      "unit": "minute",
+      "record_customers": true,
+      "channels": {
+        "repair": {
+          "scheduled": "$inputs.jobs"
+        }
+      },
+      "servers": {
+        "technicians": {
+          "staff": "$world.staff",
+          "cost": "$inputs.hourly_cost"
+        }
+      }
+    }
+  },
+  "outputs": {
+    "completed_jobs": {
+      "expr": "$count($world.q_customer_events, $it.event == 'completed')",
+      "type": "int",
+      "description": "Jobs observed completing by closing; no retries in this room."
+    },
+    "waiting_jobs": {
+      "expr": "$world.q_totals.waiting",
+      "type": "int"
+    },
+    "unfinished_arrived_jobs": {
+      "expr": "$world.q_totals.offered - $count($world.q_customer_events, $it.event == 'completed')",
+      "type": "int",
+      "description": "Arrived jobs not complete at closing, including in-service work; excludes future arrivals."
+    },
+    "busy_minutes": {
+      "expr": "$world.q_totals.busy",
+      "unit": "minute"
+    },
+    "starts": {
+      "expr": "$map($filter($world.q_customer_events, $it.event == 'started'), $it.time)",
+      "type": "list"
+    },
+    "finishes": {
+      "expr": "$map($filter($world.q_customer_events, $it.event == 'completed'), $it.time)",
+      "type": "list"
+    }
+  }
+}
+```
+
+Known answer: `fg-env new observed_queue && fg-env run observed_queue.json --agent policy:one --seed 1` gives `completed_jobs` 3, `unfinished_arrived_jobs` 0, `busy_minutes` 15, `starts` [0, 5, 10], `finishes` [5, 10, 15]: one technician serves arrivals at 0, 2 and 4 for 5 minutes each; starts are 0, 5, 10, finishes 5, 10, 15. At closing (20), all three are complete with 15 busy minutes.
 
 ## spread
 

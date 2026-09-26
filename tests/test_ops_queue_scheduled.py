@@ -145,3 +145,24 @@ def test_customer_history_records_abandonment_without_inventing_service():
     assert [(e['customer'], e['time']) for e in events if e['event'] == 'abandoned'] == [(2, 1.5)]
     assert [e['customer'] for e in events if e['event'] == 'started'] == [1]
     assert not [e for e in events if e['event'] == 'completed']
+
+
+@pytest.mark.parametrize('inputs, expected', [
+    ({'horizon_minutes': 3}, {'completed_jobs': 0, 'unfinished_arrived_jobs': 2, 'busy_minutes': 3}),
+    ({'jobs': [{'at': 0, 'service': 2.5}, {'at': 2, 'service': 2.5}, {'at': 4, 'service': 2.5}]},
+     {'completed_jobs': 3, 'starts': [0, 2.5, 5], 'finishes': [2.5, 5, 7.5], 'busy_minutes': 7.5}),
+    ({'jobs': [{'at': 25, 'service': 5}]}, {'completed_jobs': 0, 'unfinished_arrived_jobs': 0, 'busy_minutes': 0}),
+    ({'jobs': []}, {'completed_jobs': 0, 'unfinished_arrived_jobs': 0, 'busy_minutes': 0}),
+])
+def test_observed_queue_cookbook_exercises_the_audited_boundary_cases(inputs, expected):
+    from fg_env.authoring.scaffold import new
+    result = fg_env.run(new('observed_queue'), 'policy:one', inputs=inputs, seed=1)
+    assert result.ok and not result.output_issues
+    assert {key: result.outputs[key] for key in expected} == expected
+
+
+def test_observed_queue_cookbook_rejects_invalid_rows_before_running():
+    from fg_env.authoring.scaffold import new
+    for jobs in ([{'at': -1, 'service': 1}], [{'at': 0, 'service': -1}], [{'at': 0}]):
+        with pytest.raises(fg_env.ContractError):
+            fg_env.load(new('observed_queue'), inputs={'jobs': jobs})
