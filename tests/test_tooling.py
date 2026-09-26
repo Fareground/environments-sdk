@@ -322,6 +322,7 @@ def test_the_command_list_names_each_command_once_by_workflow_and_no_two_alike(c
     with pytest.raises(SystemExit):
         main(["bogus"])
     offered = capsys.readouterr().err.split("choose from ")[1].rstrip(")\n").split(", ")
+    offered = [command.strip("'\"") for command in offered]  # argparse quotes choices on Python 3.11
     assert set(offered) - {"optimize"} == set(listed)  # every command is listed; `optimize` is accepted, not listed
     # `checks` next to `check`, both spellings of optimise and `info` beside `describe` confused first-time users.
     assert not {"checks", "optimize", "info"} & set(listed)
