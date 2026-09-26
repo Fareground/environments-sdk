@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Calibration stops with actionable diagnostics when search or held-out runs have degraded execution, preventing parameter fitting from absorbing incomplete agent decisions.
+
 - Accuracy validation excludes degraded agent runs and warns about the missing evidence. Validation-only reports retain warnings and omission notes before presenting scores, including when no usable runs remain.
 
 - Model turns cut short by the participant call limit now mark execution as degraded even if the agent acted earlier in the turn. Partial outcomes remain available, but owner and analyst reports disclose affected agents and withhold recommendations based on those runs. An explicit end-turn remains healthy.

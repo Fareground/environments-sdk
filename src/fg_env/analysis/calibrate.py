@@ -279,6 +279,12 @@ class _Problem:
                      for i, s in enumerate(seeds)]
         results = runner.run_jobs(self.contract, jobs, participants=self.participants, rounds=self.rounds,
                                   workers=self.workers, pool=pool, hosts=self.hosts)
+        degraded = [r for r in results if r.degraded]
+        if degraded:
+            diagnostics = sorted({code for r in degraded for code in r.degraded})
+            raise runner.AnalysisError(
+                f"calibration stopped: {len(degraded)} of {len(results)} run(s) had degraded execution "
+                f"({', '.join(diagnostics)}); repair participant execution and rerun before fitting parameters")
         # targets read outputs, metrics and series only; a contract's data tables live in its inputs, and a search
         # keeps every evaluated point's runs
         return runner.by_cell(jobs, [replace(r, inputs={}) for r in results], len(self.cases))
