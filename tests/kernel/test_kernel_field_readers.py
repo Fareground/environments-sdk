@@ -279,6 +279,7 @@ PLACES: dict[str, Callable[[dict[str, Any]], str]] = {
     "OutputSpec.expr": _set(["outputs", "x"], NUM),
     "OutputSpec.type": _set(["outputs", "x"], {"expr": "1", "type": TEXT}),
     "OutputSpec.description": _set(["outputs", "x"], {"expr": "1", "description": TEXT}),
+    "OutputSpec.label": _set(["outputs", "x"], {"expr": "1", "label": TEXT}),
     "OutputSpec.unit": _set(["outputs", "x"], {"expr": "1", "unit": TEXT}),
     "OutputSpec.format": _set(["outputs", "x"], {"expr": "1", "format": TEXT}),
     "OutputSpec.series": _set(["outputs", "x"], {"expr": "1", "series": BOOL}),
