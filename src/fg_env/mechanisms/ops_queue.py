@@ -113,6 +113,12 @@ class PoolSpec(Config):
 class QueueConfig(Config):
     """A service system: channels of customers served by pools of servers, interval by interval."""
 
+    record_customers: bool = Field(
+        False, description="Record arrivals, service starts, observed completions, abandonments and callbacks in "
+                           "$world.<name>_customer_events and output <name>_customer_events. Customer sequence IDs "
+                           "link events; retry attempts retain their ID. Completions at interval end are recorded "
+                           "once; scheduled_finish on a start is a plan, not observed completion. Opt in for "
+                           "per-customer diagnosis; histories grow with activity.")
     channels: dict[str, ChannelSpec] = Field(..., description="{channel: {arrivals, service, patience, priority, "
                                                               "threshold, target, callback, retry}}.")
     servers: dict[str, PoolSpec] = Field(..., description="{pool: {staff, skills, cost, shrinkage}}.")
@@ -221,6 +227,9 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_totals": {"type": "map", "default": empty_totals(channels),
                            "description": "Totals over every interval."},
     }
+    if config.record_customers:
+        world[f"{name}_customer_events"] = {"type": "list", "default": [],
+                                          "description": "Observed customer events; starts are not completions."}
     events = [{"name": f"{name}: interval", "phase": "end", "do": [{"economy": name, "action": "tick"}]}]
     totals, intervals = f"$world.{name}_totals", f"$world.{name}_intervals"
     outputs: dict[str, Any] = {
@@ -255,6 +264,9 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_service_level_by_interval": {"expr": f"$map({intervals}, $it.service_level)", "type": "list"},
         f"{name}_abandon_rate_by_interval": {"expr": f"$map({intervals}, $it.abandon_rate)", "type": "list"},
     }
+    if config.record_customers:
+        outputs[f"{name}_customer_events"] = {"expr": f"$world.{name}_customer_events", "type": "list",
+                                               "description": "Observed customer event history (opt-in)."}
     if any(c.callback for c in config.channels.values()):
         outputs[f"{name}_callbacks"] = {"expr": f"{totals}.callbacks", "type": "int", "description": "Callbacks taken."}
         outputs[f"{name}_callbacks_unserved"] = {"expr": f"{totals}.callbacks_waiting", "type": "int",
@@ -391,7 +403,10 @@ def _play(world: Any, name: str, config: QueueConfig, now: dict[str, Any]) -> di
     state = world.props[f"{name}_state"]
     index = int(state["interval"])
     channels, pools = _engine_inputs(now)
-    engine_state, counts = run_interval(state, length, channels, pools, world.seeds, name)
+    engine_state, counts = run_interval(state, length, channels, pools, world.seeds, name, config.record_customers)
+    if config.record_customers:
+        world.set_world(f"{name}_customer_events", [*world.props[f"{name}_customer_events"], *counts.events],
+                        trusted=True)
     targets = {cname: spec.target for cname, spec in config.channels.items()}
     hours = length * UNIT_SECONDS[config.unit] / 3600.0
     record = record_for(index, index * length, length, hours, now, counts, targets)

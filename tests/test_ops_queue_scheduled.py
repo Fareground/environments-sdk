@@ -105,3 +105,43 @@ def test_an_agent_can_change_staffing_without_changing_observed_customers():
     result = env.run(controller)
     assert result.outputs['q_offered'] == 3 and result.outputs['q_asa'] == pytest.approx(1 / 3)
     assert actions[:3] == [(1, 1), (2, 1), (3, 2)]
+
+
+def trace(contract):
+    contract = copy.deepcopy(contract)
+    contract['mechanisms']['q']['record_customers'] = True
+    return contract
+
+
+def test_customer_history_distinguishes_started_completed_and_future_work():
+    result = measured(trace(repair()))
+    events = result.pop('q_customer_events')
+    assert result == measured(repair())  # recording changes observations, never mechanics
+    assert [e['time'] for e in events if e['event'] == 'started'] == [0, 5, 10]
+    assert [e['time'] for e in events if e['event'] == 'completed'] == [5, 10, 15]
+    assert [e['customer'] for e in events if e['event'] == 'completed'] == [1, 2, 3]
+    partial = measured(trace(repair(horizon=3)))['q_customer_events']
+    assert [e['time'] for e in partial if e['event'] == 'arrived'] == [0, 2]
+    assert not [e for e in partial if e['event'] == 'completed']
+    started = next(e for e in partial if e['event'] == 'started')
+    assert started['scheduled_finish'] == 5  # planned finish beyond horizon is not completion
+
+
+def test_completion_at_closing_is_observed_once_across_snapshot_continuation():
+    contract = trace(repair([{'at': 0, 'service': 3}, {'at': 2, 'service': 2}], horizon=6))
+    env = fg_env.load(contract)
+    partial = env.run(rounds=3)
+    assert [e['time'] for e in partial.outputs['q_customer_events'] if e['event'] == 'completed'] == [3]
+    restored = fg_env.Env.restore(contract, copy.deepcopy(env.snapshot()))
+    resumed = restored.run().outputs
+    assert resumed == measured(contract)
+    assert [e['time'] for e in resumed['q_customer_events'] if e['event'] == 'completed'] == [3, 5]
+
+
+def test_customer_history_records_abandonment_without_inventing_service():
+    result = measured(trace(repair([{'at': 0, 'service': 5},
+                                    {'at': 1, 'service': 2, 'patience': .5}], horizon=3)))
+    events = result['q_customer_events']
+    assert [(e['customer'], e['time']) for e in events if e['event'] == 'abandoned'] == [(2, 1.5)]
+    assert [e['customer'] for e in events if e['event'] == 'started'] == [1]
+    assert not [e for e in events if e['event'] == 'completed']
