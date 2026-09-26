@@ -59,11 +59,20 @@
 ## What the model assumes
 
 - Calls arrive at random at the expected rate of each half-hour; service takes 379.5 seconds on average; customers give up after waiting 155.1 seconds on average, changed by the contract at times; a callback is offered when the wait would pass 90 seconds.
-- ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages, set to 0.6.
-- ASSUMED: minutes for an outage surge to halve, set to 80.
-- ASSUMED: callers' patience during an outage surge, as a share of normal patience, set to 0.55.
-- ASSUMED: share of callers offered a callback who take it, set to 0.6.
+- The optimised plan: ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages — aht cv = 0.6.
+- The manager's rule: ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages — aht cv = 0.6.
+- A network outage at 09:30 with the recommended plan: ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages — aht cv = 0.6.
+- The optimised plan: ASSUMED: minutes for an outage surge to halve — outage half life = 80.
+- The manager's rule: ASSUMED: minutes for an outage surge to halve — outage half life = 80.
+- A network outage at 09:30 with the recommended plan: ASSUMED: minutes for an outage surge to halve — outage half life = 80.
+- The optimised plan: ASSUMED: callers' patience during an outage surge, as a share of normal patience — outage patience share = 0.55.
+- The manager's rule: ASSUMED: callers' patience during an outage surge, as a share of normal patience — outage patience share = 0.55.
+- A network outage at 09:30 with the recommended plan: ASSUMED: callers' patience during an outage surge, as a share of normal patience — outage patience share = 0.55.
+- The optimised plan: ASSUMED: share of callers offered a callback who take it — callback accept = 0.6.
+- The manager's rule: ASSUMED: share of callers offered a callback who take it — callback accept = 0.6.
+- A network outage at 09:30 with the recommended plan: ASSUMED: share of callers offered a callback who take it — callback accept = 0.6.
 - 3 parameters are estimated from the data; the analyst report lists them.
+- One day (08:00-20:00, half-hours) at a broadband provider's contact centre, played call by call by an operations queue. Calls arrive at a fitted base x a day-of-week index x a time-of-day index (fitted from contact_centre/history.csv with fg_env.analysis.fit_patterns), surging after a network outage; handle times are lognormal around the average handle time in the history; callers give up after a patience calibrated to the history's abandonment, shorter during an outage. Agents on duty per half-hour are an input vector (empty: the manager's rule, 10% over the forecast workload plus two). Arms compare the manager's rule with the plan fg_env.analysis.optimise found (the cheapest where every half-hour's expected service level reaches 80% of calls answered within 20 seconds and the day's does in 90% of runs, each held with 90% confidence), an outage at 09:30, and callbacks that keep agents free for live calls. examples/contact_centre_history.py regenerates the history from the truth arm and re-estimates the model; examples/contact_centre_plan.py searches the plan (kept in contact_centre/plan.json) and, with --report, validates the model on the two held-out weeks and prints the owner report.
 
 ## How well it matched the data
 

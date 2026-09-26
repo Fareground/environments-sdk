@@ -29,6 +29,7 @@
 ## What the model assumes
 
 - 9 parameters are estimated from the data; the analyst report lists them.
+- A bulk reseller of used iPhones (four models, four grades each) on the economy demand and replenishment modes. A graded phone's wholesale value is the model's price when new × a resale share × its grade, falling with age and stepping down over three weeks at every later iPhone launch (a lifecycle pattern). Retail buyers online pay the listing (value × markup, less the marketplace fee), answer the markup with a fitted elasticity and a weekday profile, and send 5–13% of phones back; wholesale buyers take bulk at a share of value and rarely return. The reseller buys graded lots every week up to a few weeks of forecast demand (or to a service level), paying a share of value plus refurbishment, within a lot minimum, case packs and a weekly budget, with delivery and grading times drawn per lot. Demand and lead times are fitted from bundled sales and purchase histories that the `truth` arm records (examples/phone_reseller_study.py regenerates them, compares channels, forks a new-model launch and validates on held-out months).
 
 ## How well it matched the data
 

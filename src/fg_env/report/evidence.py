@@ -198,6 +198,9 @@ def choose(options: Sequence[Option], goal: Goal | None, requirements: Sequence[
         reasons = []
         if option.failed:
             reasons.append(f"{option.failed} run(s) failed")
+        degraded = sum(bool(r.degraded) for r in option.runs)
+        if degraded:
+            reasons.append(f"{degraded} run(s) had degraded execution")
         unfinished = sum(
             r.status not in ("completed", "ended") and not
             (r.status == "running" and option.rounds is not None and r.rounds == option.rounds)

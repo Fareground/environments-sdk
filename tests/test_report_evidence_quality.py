@@ -1,6 +1,8 @@
 """Recommendations need complete decision evidence, not a favorable surviving subset."""
 import copy
 
+import pytest
+
 import fg_env
 
 CASE = {
@@ -83,3 +85,36 @@ def test_explicit_sweep_window_is_eligible_but_short_run_is_not():
     assert fg_env.analysis.report(result, objective="max:profit").recommendation is not None
     result.cells[0].runs[0] = replace(result.cells[0].runs[0], rounds=1)
     assert fg_env.analysis.report(result, objective="max:profit").recommendation is None
+
+
+@pytest.mark.parametrize("audience", ["owner", "analyst"])
+def test_degraded_agent_and_host_evidence_precedes_outcomes_and_cannot_win(audience):
+    from dataclasses import replace
+
+    healthy = fg_env.run(CASE)
+    degraded = replace(healthy, outputs={"profit": 1000}, diagnostics=[
+        {"code": "agents_often_failed", "path": "agents.buyer", "message": "Buyer lost a turn to a timeout.",
+         "fix": "Check the provider."},
+        {"code": "host_fallback", "path": "host.judge", "message": "Judge used stand-in answers.",
+         "fix": "Bind the host."}], agent_stats={"buyer": {"turns": 4, "failed_turns": 1, "timeouts": 1}})
+    report = fg_env.analysis.report([healthy, degraded], audience, contract=CASE, objective="max:profit")
+    assert report.recommendation is None
+    assert report.sections[0].title == "Execution health"
+    assert "1 of 2 recorded runs" in report.markdown
+    assert "missing decision" in report.markdown and "Judge used stand-in answers" in report.markdown
+    assert report.sections[0].tables[0].rows == [["Runs", "buyer", "4", "1", "1"]]
+    assert "No risk stands out" not in report.markdown
+    assert "beyond chance" not in report.markdown
+
+
+def test_assumptions_use_every_recorded_input_and_preserve_provenance():
+    contract = copy.deepcopy(CASE)
+    contract["inputs"]["fragile"]["description"] = "ASSUMED: fragile operation"
+    contract["description"] = "Synthetic test, not calibrated to a real facility."
+    contract["events"] = []
+    results = [fg_env.run(contract, inputs={"fragile": value}) for value in (True, False)]
+    report = fg_env.analysis.report(results, contract=contract)
+    assert "fragile = true, false" in report.markdown
+    assert contract["description"] in report.markdown
+    single = fg_env.analysis.report(results[0], contract=contract)
+    assert "fragile = true" in single.markdown and "fragile = false" not in single.markdown

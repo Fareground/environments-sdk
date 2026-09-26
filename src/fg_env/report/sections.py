@@ -10,7 +10,7 @@ from typing import Any
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
 from ..runtime.clock_words import plural, unit_word
-from ..runtime.measure import usable_output
+from ..runtime.measure import shown, usable_output
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
 from .demand import demand_lines
@@ -19,7 +19,7 @@ from .noise import MEANINGFUL_SHARE
 from .queue import QueueView
 from .words import Namer
 
-__all__ = ["Table", "Section", "decision", "outcomes", "drivers", "risks", "assumptions", "fit", "method"]
+__all__ = ["Table", "Section", "decision", "outcomes", "drivers", "risks", "assumptions", "fit", "method", "health"]
 
 #: Highlights at least this surprising count as a cause worth naming (a two-sided 10% tail).
 _NOTABLE_SCORE = 1.645
@@ -91,7 +91,8 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
                 section.lines.append(plan)
         expected = [f"{namer.name(m)} {text}" for m in measures for text in [_ranged(namer, m, subject)] if text]
         if expected:
-            section.lines.append("Expected: " + "; ".join(expected) + ".")
+            prefix = "Observed (degraded execution): " if any(r.degraded for r in subject.runs) else "Expected: "
+            section.lines.append(prefix + "; ".join(expected) + ".")
         if ev.kind == "run":
             section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
                                  "one.")
@@ -140,7 +141,8 @@ def drivers(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str],
                    if h.score >= _NOTABLE_SCORE and h.subject not in decided]
         section.lines += [f"In a typical run, {text}." for text in moments[: _TYPICAL_MOMENTS if owner else None]]
     if not section.lines:
-        section.lines.append("Nothing in these runs separates one outcome from another beyond chance.")
+        section.lines.append("No driver was established from the recorded evidence. "
+                             "This does not establish a chance explanation.")
     return section
 
 
@@ -233,9 +235,41 @@ def _representative(option: Option | None, choice: Choice, measures: Sequence[st
     return option.runs[scored[len(scored) // 2][1]]
 
 
+def health(ev: Evidence) -> Section | None:
+    """Execution failures precede interpretation; private observations are never copied into this summary."""
+    degraded = [run for run in ev.runs if run.degraded]
+    if not degraded:
+        return None
+    section = Section("Execution health")
+    section.lines.append(f"{len(degraded)} of {len(ev.runs)} recorded runs had degraded execution. "
+                         "These outcomes do not reliably show how the agents would behave with healthy execution.")
+    section.lines.append("A failed or timed-out turn is a missing decision, not an intentional choice to do nothing.")
+    findings = list(dict.fromkeys(
+        f"{item['code']}: {item['message']}" for run in degraded for item in run.diagnostics
+        if item['code'] in run.degraded))
+    section.lines.extend(findings)
+    rows = []
+    for option in ev.options:
+        agents = sorted({actor for run in option.runs for actor in run.agent_stats})
+        for actor in agents:
+            counts = [sum(run.agent_stats.get(actor, {}).get(key, 0) for run in option.runs)
+                      for key in ("turns", "failed_turns", "timeouts")]
+            if any(counts[1:]):
+                rows.append([label(option, start=True), actor, *map(str, counts)])
+    if rows:
+        section.tables.append(Table("Affected agents", ["Option", "Agent", "Turns", "Failed turns", "Timeouts"], rows))
+    return section
+
+
 def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], queues: Sequence[QueueView],
           owner: bool) -> Section:
     section = Section("Risks")
+    for option in ev.options:
+        degraded = [run for run in option.runs if run.degraded]
+        if degraded:
+            section.lines.append(f"{label(option, start=True)} has degraded execution in {len(degraded)} of "
+                                 f"{len(option.runs)} recorded runs; outcomes are descriptive only, not reliable "
+                                 "evidence of agent behaviour.")
     for option in ev.options:
         invalid = [run for run in option.runs if run.output_issues]
         if invalid:
@@ -315,17 +349,21 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
         section.lines += view.assumptions(owner)
     assumed = [(name, spec) for name, spec in contract.inputs.items() if "assum" in spec.description.lower()]
     for name, spec in assumed:
-        value = spec.default
-        shown = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
-        section.lines.append(f"{spec.description.rstrip('.')}, set to {shown}." if owner else
-                             f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
+        if not ev.runs:
+            section.lines.append(f"{spec.description.rstrip('.')} — declared default {shown(spec.default)} "
+                                 "(no recorded run inputs available).")
+        for option in ev.options:
+            values = list(dict.fromkeys(shown(run.inputs[name]) for run in option.runs if name in run.inputs))
+            value = ", ".join(values) if values else "not recorded"
+            prefix = f"{label(option, start=True)}: " if len(ev.options) > 1 else ""
+            section.lines.append(f"{prefix}{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {value}.")
     fitted = [name for name, spec in contract.inputs.items()
               if "fitted by fg_env.analysis.fit_patterns" in spec.description]
     if fitted:
         count = (f"{len(fitted)} {plural('parameter', len(fitted))} {'is' if len(fitted) == 1 else 'are'} estimated "
                  "from the data")
         section.lines.append(f"{count}; the analyst report lists them." if owner else f"{count}: {', '.join(fitted)}.")
-    if contract.description and not section.lines:
+    if contract.description:
         section.lines.append(contract.description)
     return section
 

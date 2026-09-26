@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Reports disclose degraded execution and affected agents before outcomes, exclude degraded alternatives from recommendations, use recorded assumption values, preserve model descriptions and avoid unsupported chance claims.
+
 The contract language is smaller — one construct for each idea — and the documentation is rewritten around it:
 a start page, a cookbook and a generated reference. Runs are now correct or loud about what went wrong, luck and hidden
 information cannot be probed, `check` catches far more authoring mistakes, `fg_env.author` keeps its best work, big

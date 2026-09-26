@@ -30,7 +30,7 @@ from . import optimisation as optimised
 from .confidence import assess
 from .evidence import Choice, Evidence, Goal, Requirement, choose, gather, parse_goal, parse_requirements
 from .queue import QueueView, queues_in
-from .sections import Section, assumptions, decision, drivers, fit, method, risks
+from .sections import Section, assumptions, decision, drivers, fit, health, method, risks
 from .words import Namer
 
 __all__ = ["report", "Report", "AUDIENCES"]
@@ -115,7 +115,7 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
                   first.clock if first is not None else (queues[0].clock if queues else _clock(ev.contract)),
                   ev.contract, {q.name: q.unit for q in queues})
     measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {})
-    choice = choose(ev.options, goal, requirements) if goal is not None else Choice(None, None, requirements)
+    choice = choose(ev.options, goal, requirements)
     sure = assess(ev, choice, measures)
     sections: list[Section] = []
     if ev.options:
@@ -129,6 +129,9 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
         sections.append(method(ev, namer, choice))
         if optimisation is not None:
             sections[-1].lines += optimised.summary(optimisation)
+    execution_health = health(ev)
+    if execution_health is not None:
+        sections.insert(0, execution_health)
     title = (ev.contract.name if ev.contract is not None else ev.name
              or (optimisation.contract if optimisation else "")) \
         or "Model report"

@@ -28,9 +28,12 @@
 
 ## What the model assumes
 
-- Demand lost after a promotion per unit of remembered promotion (assumed, not fitted), set to 0.25.
-- How strongly demand moves between tiers when their relative price changes (assumed), set to 0.8.
+- The store's current rule: Demand lost after a promotion per unit of remembered promotion (assumed, not fitted) — promo dip = 0.25.
+- Order up to the expected demand over lead time and review, with safety stock for a 95% service level: Demand lost after a promotion per unit of remembered promotion (assumed, not fitted) — promo dip = 0.25.
+- The store's current rule: How strongly demand moves between tiers when their relative price changes (assumed) — cross elasticity = 0.8.
+- Order up to the expected demand over lead time and review, with safety stock for a 95% service level: How strongly demand moves between tiers when their relative price changes (assumed) — cross elasticity = 0.8.
 - 8 parameters are estimated from the data; the analyst report lists them.
+- A parts store's weekly trade in 12 SKUs (brake pads, batteries and wiper blades for two makes, each in a premium and a value tier), on the economy demand and replenishment modes. Demand per SKU is a fitted base × a trend × a per-category season × a price response × a promotion with a dip after it × substitution between the tiers, drawn as negative-binomial counts; sales are capped by stock, part of a premium stockout buys the value tier, and orders arrive after a lead time drawn per order. The demand patterns are fitted from auto_parts_store/history.csv (fg_env.analysis.fit_patterns; examples/auto_parts_history.py regenerates the history from the `truth` arm and refits). Arms compare the store's lean reorder rule with a service-level policy; examples/auto_parts_policies.py compares them, optimises a service level per category and validates the forecast on held-out quarters.
 
 ## How well it matched the data
 
