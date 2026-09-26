@@ -3,6 +3,7 @@ recovers the truth and forecasts the held-out weeks, and its plan, outage and ca
 import csv
 import importlib.util
 import json
+import re
 import statistics
 import sys
 from pathlib import Path
@@ -102,7 +103,8 @@ def test_the_owner_report_names_the_plan_the_monday_peak_and_the_outage():
     assert "Staff between" in text or "Staff " in text
     assert "day of the week (Monday) adds" in text
     assert "A network outage at 09:30 with the recommended plan: service level −" in text
-    assert "round" not in text.lower()
+    # Authored model context may say "around"; reject the simulation clock jargon itself.
+    assert not re.search(r"\brounds?\b", text.lower())
 
 
 def test_a_day_that_does_not_open_at_eight_is_refused():

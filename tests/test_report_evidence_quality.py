@@ -118,3 +118,46 @@ def test_assumptions_use_every_recorded_input_and_preserve_provenance():
     assert contract["description"] in report.markdown
     single = fg_env.analysis.report(results[0], contract=contract)
     assert "fragile = true" in single.markdown and "fragile = false" not in single.markdown
+
+
+@pytest.mark.parametrize("deal", [True, False])
+def test_negotiation_primary_outcomes_answer_deal_and_terms_before_activity(deal):
+    contract = fg_env.engines.get("negotiation").materialized_source()
+    if not deal:
+        for party in contract["inputs"]["participants"]["default"]:
+            party["reservation"] = 1000000
+    result = fg_env.run(contract, seed=17)
+    assert result.outputs["deal_signed"] is deal
+    written = fg_env.analysis.report(result, contract=contract)
+    primary = written.sections[0].tables[0]
+    assert primary.title == "Primary outcomes"
+    assert primary.rows[0][1:] == ["Deal signed", "Yes" if deal else "No"]
+    assert "Expected: agreement round" not in written.markdown
+    assert "Expected: offers" not in written.markdown
+    if deal:
+        assert '"amount": 88.5' in primary.rows[1][2]
+        assert '"Party A": 25.7' in primary.rows[2][2]
+    else:
+        assert "No value reported" in primary.rows[1][2]
+        assert "No value reported" in primary.rows[2][2]
+
+
+def test_primary_outcomes_keep_missing_values_and_do_not_average_structured_terms():
+    from dataclasses import replace
+
+    contract = copy.deepcopy(CASE)
+    contract["outputs"] = {
+        "profit": {"expr": "10", "primary": True, "label": "Net value", "unit": "USD"},
+        "deal": {"expr": "true", "primary": True},
+        "terms": {"expr": "null", "primary": True},
+    }
+    first = fg_env.run(contract)
+    runs = [replace(first, seed=i, outputs={"profit": 10, "deal": deal, "terms": terms})
+            for i, (deal, terms) in enumerate([(True, {"price": 10}), (False, None), (True, {"price": 20})])]
+    written = fg_env.analysis.report(runs, contract=contract)
+    table = written.sections[0].tables[0]
+    assert table.rows[0][1] == "Net value (USD)"
+    assert table.rows[1][2] == "Yes in 2 of 3 observed runs (67%)"
+    assert '"price": 10' in table.rows[2][2] and '"price": 20' in table.rows[2][2]
+    assert '"price": 15' not in table.rows[2][2]
+    assert "1 of 3 run(s) without a usable value" in table.rows[2][2]

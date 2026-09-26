@@ -1,6 +1,7 @@
 """The sections of a report, each a list of short sentences and a few compact tables."""
 from __future__ import annotations
 
+import json
 import math
 import re
 from collections.abc import Mapping, Sequence
@@ -38,9 +39,13 @@ class Table:
     rows: list[list[str]]
 
     def markdown(self) -> str:
-        head = "| " + " | ".join(self.columns) + " |"
+        def cell(value: str) -> str:
+            return value.replace("|", "\\|").replace("\n", "<br>")
+
+        head = "| " + " | ".join(cell(value) for value in self.columns) + " |"
         rule = "|" + "|".join("---" for _ in self.columns) + "|"
-        return "\n".join([f"**{self.title}**", "", head, rule, *("| " + " | ".join(row) + " |" for row in self.rows)])
+        return "\n".join([f"**{self.title}**", "", head, rule,
+                          *("| " + " | ".join(cell(value) for value in row) + " |" for row in self.rows)])
 
     def to_dict(self) -> dict[str, Any]:
         return {"title": self.title, "columns": self.columns, "rows": self.rows}
@@ -70,6 +75,11 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
              sure: Confidence) -> Section:
     confident = choice.best is not None and not sure.tied
     section = Section("Recommendation" if confident else "What the model says")
+    primary = _primary_outcomes(ev, namer)
+    if primary is not None:
+        section.tables.append(primary)
+        section.lines.append("Primary outcomes below describe the recorded model runs. Structured outcomes stay "
+                             "together; values from different runs are not combined into a synthetic outcome.")
     subject = choice.best or (ev.options[0] if len(ev.options) == 1 else None)
     if choice.goal is not None and choice.best is None and ev.options:
         wanted = "; ".join(f"{namer.name(r.measure)} {r.op} {namer.value(r.measure, r.value)}"
@@ -108,6 +118,42 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
                                                           f"Worst {unit_word(view.clock)}"],
                                         view.plan_rows(subject, namer)))
     return section
+
+
+def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
+    """Declared outcomes retain their types and missing observations, including deals and their terms."""
+    primary = {name: spec for name, spec in ev.contract.outputs.items() if spec.primary} if ev.contract else {}
+    if not primary:
+        return None
+    rows = []
+    for option in ev.options:
+        for name, spec in primary.items():
+            values = [run.outputs[name] for run in option.runs
+                      if name in run.outputs and run.outputs[name] is not None and usable_output(run, name)]
+            total = len(option.runs) + option.failed
+            missing = total - len(values)
+            if not values:
+                text = "No value reported"
+            elif all(isinstance(value, bool) for value in values):
+                text = ("Yes" if values[0] else "No") if total == 1 else \
+                    f"Yes in {sum(values)} of {len(values)} observed runs ({sum(values) / len(values):.0%})"
+            elif all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
+                text = _ranged(namer, name, option) or "No finite value reported"
+            else:
+                counts: dict[str, int] = {}
+                for value in values:
+                    shown_value = json.dumps(value, ensure_ascii=False, sort_keys=True, default=str)
+                    counts[shown_value] = counts.get(shown_value, 0) + 1
+                entries = sorted(counts.items(), key=lambda item: -item[1])
+                text = "; ".join(f"{value} ({count} run(s))" if total > 1 else value
+                                 for value, count in entries[:5])
+                if len(entries) > 5:
+                    text += f"; {len(entries) - 5} further distinct values in the run results"
+            if missing:
+                text += f"; {missing} of {total} run(s) without a usable value"
+            outcome = namer.name(name) + (f" ({spec.unit})" if spec.unit else "")
+            rows.append([label(option, start=True), outcome, text])
+    return Table("Primary outcomes", ["Option", "Outcome", "Observed"], rows)
 
 
 def outcomes(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], sure: Confidence) -> Table:

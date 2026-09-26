@@ -23,6 +23,9 @@ class OutputSpec(_ExprShorthand):
     expr: str
     type: TypeName = Field("any", description="One of: " + ", ".join(OUTPUT_TYPES))
     description: str = ""
+    label: str = Field("", description="Short name for this outcome in reports; description explains its meaning.")
+    primary: StrictBool = Field(False, description="Show this outcome first in owner reports, including boolean "
+                                                 "and structured values.")
     unit: str = ""
     format: str = Field("",
                         description="How result.summary() and the CLI show it: a template format (money, pct, pct1, "

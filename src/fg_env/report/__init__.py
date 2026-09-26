@@ -114,7 +114,8 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
     namer = Namer(first.formats if first is not None else _formats(ev.contract), [q.name for q in queues],
                   first.clock if first is not None else (queues[0].clock if queues else _clock(ev.contract)),
                   ev.contract, {q.name: q.unit for q in queues})
-    measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {})
+    primary = [name for name, spec in ev.contract.outputs.items() if spec.primary] if ev.contract else []
+    measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {}, primary)
     choice = choose(ev.options, goal, requirements)
     sure = assess(ev, choice, measures)
     sections: list[Section] = []
@@ -212,8 +213,8 @@ def _rule(goal: Goal | None, requirements: list[Requirement], queues: list[Queue
 
 
 def _measures(outputs: Mapping[str, Any], goal: Goal | None, requirements: list[Requirement],
-              queues: list[QueueView], formats: Mapping[str, str]) -> list[str]:
-    chosen: list[str] = []
+              queues: list[QueueView], formats: Mapping[str, str], primary: list[str] | None = None) -> list[str]:
+    chosen: list[str] = list(primary or [])
     for name in [*(r.measure for r in requirements), *([goal.measure] if goal else [])]:
         if name not in chosen:
             chosen.append(name)

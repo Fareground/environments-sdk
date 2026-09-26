@@ -85,10 +85,10 @@
     "private_position": {"for": "party", "title": "Your private position", "bullet": false, "show": "Walk-away value {agreement_reservation|1}. Priorities: amount {amount_weight|2}, scope {scope_weight|2}, timing {timing_weight|2}."}
   },
   "outputs": {
-    "deal_signed": {"type": "bool", "expr": "$count(agreement_deal) > 0", "description": "Whether the parties reached an agreement."},
+    "deal_signed": {"type": "bool", "primary": true, "label": "Deal signed", "expr": "$count(agreement_deal) > 0", "description": "Whether the parties reached an agreement."},
     "agreement_round": {"type": "int", "expr": "$pick(agreement_deal, true).signed if $count(agreement_deal) > 0 else null", "description": "Round in which the agreement was signed, or null."},
-    "terms": {"type": "map", "expr": "$pick(agreement_deal, true).terms if $count(agreement_deal) > 0 else null", "description": "The accepted terms, or null."},
-    "surplus": {"type": "map", "expr": "$dict(party, $it.name, $round($agreement_value($it, $pick(agreement_deal, true).terms) - $it.agreement_reservation, 2)) if $count(agreement_deal) > 0 else null", "description": "What the deal is worth to each party above its walk-away value, or null."},
+    "terms": {"type": "map", "primary": true, "label": "Accepted terms", "expr": "$pick(agreement_deal, true).terms if $count(agreement_deal) > 0 else null", "description": "The accepted terms, or null."},
+    "surplus": {"type": "map", "primary": true, "label": "Surplus above walk-away value", "expr": "$dict(party, $it.name, $round($agreement_value($it, $pick(agreement_deal, true).terms) - $it.agreement_reservation, 2)) if $count(agreement_deal) > 0 else null", "description": "What the deal is worth to each party above its walk-away value, or null."},
     "offers": {"type": "int", "expr": "$world.agreement_stats.offers"},
     "counteroffers": {"type": "int", "expr": "$world.agreement_stats.counters"},
     "rejections": {"type": "int", "expr": "$world.agreement_stats.rejected"},

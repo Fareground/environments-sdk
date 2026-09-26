@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Outputs accept `primary: true` and a short `label`. Owner reports supplied with the contract lead with these outcomes, retain boolean/structured values and disclose missing observations. The negotiation starter now leads with agreement, accepted terms and each party's surplus instead of activity counters.
 - Reports disclose degraded execution and affected agents before outcomes, exclude degraded alternatives from recommendations, use recorded assumption values, preserve model descriptions and avoid unsupported chance claims.
 
 The contract language is smaller — one construct for each idea — and the documentation is rewritten around it:

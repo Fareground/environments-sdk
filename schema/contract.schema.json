@@ -1206,6 +1206,18 @@
           "title": "Description",
           "type": "string"
         },
+        "label": {
+          "default": "",
+          "description": "Short name for this outcome in reports; description explains its meaning.",
+          "title": "Label",
+          "type": "string"
+        },
+        "primary": {
+          "default": false,
+          "description": "Show this outcome first in owner reports, including boolean and structured values.",
+          "title": "Primary",
+          "type": "boolean"
+        },
         "unit": {
           "default": "",
           "title": "Unit",

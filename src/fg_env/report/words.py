@@ -86,6 +86,9 @@ class Namer:
         return None
 
     def name(self, measure: str) -> str:
+        spec = self.contract.outputs.get(measure) if self.contract is not None else None
+        if spec is not None and spec.label:
+            return spec.label
         found = self._queue_part(measure)
         if found is not None:
             _, part = found
