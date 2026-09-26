@@ -237,3 +237,28 @@ def test_observed_queue_report_states_the_replay_assumption_and_primary_outcomes
     expected_line = next(line for line in report.splitlines() if 'Expected:' in line)
     assert expected_line.lower().count('staffing cost') == 1
     assert 'service level' not in expected_line
+
+
+def test_manager_observations_do_not_reveal_future_job_rows():
+    from fg_env.authoring.scaffold import new
+
+    def observed(jobs):
+        readings = []
+        env = fg_env.load(new('observed_queue'), inputs={'jobs': jobs}, seed=1)
+
+        def manager(wake):
+            readings.append((wake.brief, wake.update,
+                             [(tool.name, tool.description, tool.input_schema) for tool in wake.tools]))
+            assert wake.call('staff', {'count': 1}).ok
+            wake.end()
+
+        env.run(manager, rounds=6)
+        return readings
+
+    first = observed([{'at': 0, 'service': 5}, {'at': 2, 'service': 5}, {'at': 4, 'service': 5}])
+    changed = observed([{'at': 0, 'service': 5}, {'at': 2, 'service': 5}, {'at': 10, 'service': 777}])
+    # Decisions at t=0 through t=4 see the same past, despite different hidden future work.
+    assert first[:5] == changed[:5]
+    assert first[5][1] != changed[5][1]  # once the job arrives, the observed queue changes
+    assert all({tool[0] for tool in tools} == {'staff', 'end_turn'} for _, _, tools in first)
+    assert all('777' not in brief + update for brief, update, _ in changed)
