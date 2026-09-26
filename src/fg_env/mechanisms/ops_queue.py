@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Literal
 
-from pydantic import Field
+from pydantic import Field, ValidationError
 
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
@@ -23,7 +23,7 @@ from .econ_base import valid_name
 from .ops_engine import Channel, Duration, Pool, empty_state, run_interval
 from .ops_stats import empty_totals, latest, merge_counts, record_for, updated_totals
 
-__all__ = ["QueueConfig", "ChannelSpec", "PoolSpec", "DurationSpec", "interval_length"]
+__all__ = ["QueueConfig", "ChannelSpec", "PoolSpec", "DurationSpec", "ScheduledArrivalSpec", "interval_length"]
 
 KEY = "economy.queue"
 #: Seconds in each time unit the mode and a clock may use.
@@ -63,13 +63,27 @@ class RetrySpec(Config):
     max: int = Field(1, ge=1, description="Most retries per customer.")
 
 
+class ScheduledArrivalSpec(Config):
+    """One observed or authored customer, at absolute time from the start of the run."""
+
+    at: float = Field(..., ge=0, strict=True, allow_inf_nan=False)
+    service: float = Field(..., ge=0, strict=True, allow_inf_nan=False)
+    patience: float | None = Field(None, ge=0, strict=True, allow_inf_nan=False)
+
+
 class ChannelSpec(Config):
     """A kind of customer: calls, chats, emails, walk-ins."""
 
-    arrivals: Number = Field(..., description="Expected arrivals in the interval (number or expression over "
+    arrivals: Number | None = Field(None, description="Expected arrivals in the interval (number or expression over "
                                               "$interval, $inputs, $world, $pattern); arrivals are a Poisson process "
                                               "at that rate.")
-    service: DurationSpec = Field(..., description="Service (handle) time.")
+    service: DurationSpec | None = Field(None, description="Service (handle) distribution for Poisson arrivals.")
+    scheduled: list[ScheduledArrivalSpec] | str | None = Field(
+        None, description="Exact arrivals: [{at, service, patience?}], or an expression giving that list. Times are "
+                          "absolute from run start in the mode's unit; service and patience are durations. "
+                          "Alternative to arrivals/service/patience distributions. Zero service duration is allowed. "
+                          "Equal-time rows retain list order. "
+                          "Intervals include their start and exclude their end; future rows are not backlog.")
     patience: DurationSpec | None = Field(None, description="How long a customer waits before giving up (null: never).")
     priority: int = Field(0, description="Higher is served first; equal priorities are served in arrival order.")
     threshold: float = Field(20.0, ge=0,
@@ -136,6 +150,13 @@ def _check(config: QueueConfig) -> None:
         path = f"channels.{name}"
         if not valid_name(name):
             raise MechanismError(f"channel '{name}' is not a valid name", "use letters, digits and _", path)
+        if channel.scheduled is None:
+            if channel.arrivals is None or channel.service is None:
+                raise MechanismError("needs arrivals and service, or scheduled customer rows",
+                                     "supply a Poisson arrival rate and service distribution, or scheduled", path)
+        elif channel.arrivals is not None or channel.service is not None or channel.patience is not None:
+            raise MechanismError("scheduled rows cannot also use arrival or duration distributions",
+                                 "put service and optional patience on each scheduled row", path)
         durations = [("service", channel.service), ("patience", channel.patience),
                      ("retry.delay", channel.retry.delay if channel.retry else None)]
         for field, spec in durations:
@@ -164,7 +185,8 @@ def _check_duration(spec: DurationSpec, path: str) -> None:
 
 @mode("economy", "queue", QueueConfig,
       "A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at "
-      "the interval's expected `arrivals`), are answered at once by a free server of a pool with the skill, or wait in "
+      "the interval's expected `arrivals`, or exact `scheduled` rows), are answered at once by a free server "
+      "of a pool with the skill, or wait in "
       "line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers "
       "facing a long wait a call back, served when nobody is waiting, and `retry` brings some who gave up back later. "
       "Servers finish what they started when staff drops. Every number is read when the interval is played and may "
@@ -288,6 +310,26 @@ def _duration(world: Any, spec: DurationSpec, path: str, index: int) -> dict[str
     return {"dist": spec.dist, "mean": mean, "cv": cv, "k": spec.k, "low": low, "high": high}
 
 
+def _scheduled(world: Any, raw: list[ScheduledArrivalSpec] | str, path: str, index: int,
+               length: float) -> list[dict[str, Any]]:
+    """Validate the entire supplied schedule; select only this half-open interval."""
+    try:
+        rows = compile_expr(raw)(world.evaluation.scope(interval=index)) if isinstance(raw, str) else raw
+    except ExprError as exc:
+        raise RunError(str(exc), path) from None
+    if not isinstance(rows, list):
+        raise RunError("must give a list of scheduled customer rows", path)
+    selected = []
+    for offset, row in enumerate(rows):
+        try:
+            item = row if isinstance(row, ScheduledArrivalSpec) else ScheduledArrivalSpec.model_validate(row)
+        except ValidationError as exc:
+            raise RunError(f"invalid scheduled customer: {exc}", f"{path}[{offset}]") from None
+        if index * length <= item.at < (index + 1) * length:
+            selected.append(item.model_dump())
+    return selected
+
+
 def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str, Any]:
     """Every number of interval ``index``, as plain data."""
     base = f"mechanisms.{name}"
@@ -302,8 +344,16 @@ def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str,
         if spec.retry is not None:
             retry = [_number(world, spec.retry.chance, f"{path}.retry.chance", index, 0.0, 1.0),
                      _duration(world, spec.retry.delay, f"{path}.retry.delay", index), spec.retry.max]
-        channels[cname] = {"arrivals": _number(world, spec.arrivals, f"{path}.arrivals", index, 0.0),
-                           "service": _duration(world, spec.service, f"{path}.service", index),
+        scheduled = (None if spec.scheduled is None else
+                     _scheduled(world, spec.scheduled, f"{path}.scheduled", index,
+                                interval_length(config, _clock_data(world))))
+        # The mean is used only by the optional callback offer heuristic for recorded arrivals.
+        service = (_duration(world, spec.service, f"{path}.service", index) if spec.service is not None else
+                   {"dist": "fixed", "mean": sum(row["service"] for row in scheduled or []) / len(scheduled)
+                    if scheduled else 0.0})
+        channels[cname] = {"arrivals": len(scheduled) if scheduled is not None else
+                           _number(world, spec.arrivals, f"{path}.arrivals", index, 0.0),
+                           "service": service, "scheduled": scheduled,
                            "patience": None if spec.patience is None
                            else _duration(world, spec.patience, f"{path}.patience", index),
                            "priority": spec.priority, "threshold": spec.threshold, "callback": callback, "retry": retry}
@@ -328,7 +378,9 @@ def _engine_inputs(now: Mapping[str, Any]) -> tuple[dict[str, Channel], dict[str
         channels[cname] = Channel(cname, c["arrivals"], Duration(**c["service"]),
                                   None if c["patience"] is None else Duration(**c["patience"]), c["priority"],
                                   c["threshold"], tuple(c["callback"]) if c["callback"] else None,  # type: ignore[arg-type]
-                                  (retry[0], Duration(**retry[1]), retry[2]) if retry else None)
+                                  (retry[0], Duration(**retry[1]), retry[2]) if retry else None,
+                                  tuple((row["at"], row["service"], row["patience"]) for row in c["scheduled"])
+                                  if c.get("scheduled") is not None else None)
     pools = {pname: Pool(pname, p["staff"], tuple(p["skills"])) for pname, p in now["pools"].items()}
     return channels, pools
 

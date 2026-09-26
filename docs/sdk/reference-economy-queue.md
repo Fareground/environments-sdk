@@ -1,7 +1,7 @@
 # economy / queue
 
 ### `economy.queue`
-A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at the interval's expected `arrivals`), are answered at once by a free server of a pool with the skill, or wait in line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers facing a long wait a call back, served when nobody is waiting, and `retry` brings some who gave up back later. Servers finish what they started when staff drops. Every number is read when the interval is played and may read `$interval` (0 for the first), `$inputs`, `$world` and `$pattern`. Each round is one interval, played after the round's stages. Results: $world.<name>_intervals (one record per interval: offered, answered, within, abandoned, callbacks, retrials, service_level, asa, abandon_rate, staff, utilisation, queue, max_queue, paid_hours, cost, and per channel and pool) and $world.<name>_totals; outputs <name>_service_level, _asa, _abandon_rate, _utilisation, _offered, _abandoned, _cost, _paid_hours, _intervals_below_target, and _offered_by_interval, _staff_by_interval, _service_level_by_interval, _abandon_rate_by_interval; metrics <name>_service_level, _offered, _staff and _waiting (the latest interval). Rates count customers who joined the line (offered less callbacks taken): service level is the share answered within the channel's `threshold`. Queue operations cost O(log n); arrivals and each customer's durations come from streams of their own, so arms with different staffing see the same customers.
+A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at the interval's expected `arrivals`, or exact `scheduled` rows), are answered at once by a free server of a pool with the skill, or wait in line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers facing a long wait a call back, served when nobody is waiting, and `retry` brings some who gave up back later. Servers finish what they started when staff drops. Every number is read when the interval is played and may read `$interval` (0 for the first), `$inputs`, `$world` and `$pattern`. Each round is one interval, played after the round's stages. Results: $world.<name>_intervals (one record per interval: offered, answered, within, abandoned, callbacks, retrials, service_level, asa, abandon_rate, staff, utilisation, queue, max_queue, paid_hours, cost, and per channel and pool) and $world.<name>_totals; outputs <name>_service_level, _asa, _abandon_rate, _utilisation, _offered, _abandoned, _cost, _paid_hours, _intervals_below_target, and _offered_by_interval, _staff_by_interval, _service_level_by_interval, _abandon_rate_by_interval; metrics <name>_service_level, _offered, _staff and _waiting (the latest interval). Rates count customers who joined the line (offered less callbacks taken): service level is the share answered within the channel's `threshold`. Queue operations cost O(log n); arrivals and each customer's durations come from streams of their own, so arms with different staffing see the same customers.
 
 Config:
 - `channels` (required): {channel: {arrivals, service, patience, priority, threshold, target, callback, retry}}.
@@ -11,8 +11,9 @@ Config:
 
 Nested config:
 **ChannelSpec** — A kind of customer: calls, chats, emails, walk-ins.
-- `arrivals`: number | text (required) — Expected arrivals in the interval (number or expression over $interval, $inputs, $world, $pattern); arrivals are a Poisson process at that rate.
-- `service`: DurationSpec (required) — Service (handle) time.
+- `arrivals`: number | text — Expected arrivals in the interval (number or expression over $interval, $inputs, $world, $pattern); arrivals are a Poisson process at that rate.
+- `service`: DurationSpec — Service (handle) distribution for Poisson arrivals.
+- `scheduled`: [ScheduledArrivalSpec] | text — Exact arrivals: [{at, service, patience?}], or an expression giving that list. Times are absolute from run start in the mode's unit; service and patience are durations. Alternative to arrivals/service/patience distributions. Zero service duration is allowed. Equal-time rows retain list order. Intervals include their start and exclude their end; future rows are not backlog.
 - `patience`: DurationSpec — How long a customer waits before giving up (null: never).
 - `priority`: int = 0 — Higher is served first; equal priorities are served in arrival order.
 - `threshold`: number = 20.0 — Service level threshold: answered within this long (the mode's unit).
@@ -27,6 +28,10 @@ Nested config:
 - `k`: int = 2 — erlang: phases (cv = 1/√k).
 - `low`: number | text = 0.0 — uniform: shortest.
 - `high`: number | text = 0.0 — uniform: longest.
+**ScheduledArrivalSpec** — One observed or authored customer, at absolute time from the start of the run.
+- `at`: number (required)
+- `service`: number (required)
+- `patience`: number
 **CallbackSpec** — A callback offered to customers facing a long wait; callbacks are served when nobody is waiting.
 - `when`: number | text = 0.0 — Offer it when the expected wait is longer than this (the mode's unit): (customers waiting on the channel + 1) × mean service ÷ servers on the channel.
 - `accept`: number | text = 1.0 — Share of customers offered a callback who take it, from 0 to 1.

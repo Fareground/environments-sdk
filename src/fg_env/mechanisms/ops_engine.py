@@ -80,6 +80,8 @@ class Channel:
     callback: tuple[float, float, float] | None = None
     #: ``(chance an abandoned customer tries again, delay, most retries)``, or None.
     retry: tuple[float, Duration, int] | None = None
+    #: Exact absolute arrival time, service duration, patience; None selects Poisson arrivals.
+    scheduled: tuple[tuple[float, float, float | None], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -217,6 +219,12 @@ class _Interval:
         draw."""
         out = []
         for name, channel in self.channels.items():
+            if channel.scheduled is not None:
+                draws = self.seeds.rng(self.name, "scheduled_callbacks", name, self.index)
+                for at, service, patience in channel.scheduled:
+                    self.seq += 1
+                    out.append((at, self.seq, name, service, patience, draws.random()))
+                continue
             if channel.arrivals <= 0:
                 continue
             points = self.seeds.rng(self.name, "arrivals", name, self.index)
