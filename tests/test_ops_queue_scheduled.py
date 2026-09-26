@@ -220,3 +220,20 @@ def test_callback_service_estimate_does_not_change_poisson_service_requirements(
     channel['callback']['service_estimate'] = 10000
     assert measured(contract, seed=1) == baseline
     assert baseline['q_aht'] == 2
+
+
+def test_observed_queue_report_states_the_replay_assumption_and_primary_outcomes():
+    from fg_env.authoring.scaffold import new
+    contract = new('observed_queue')
+    result = fg_env.run(contract, 'policy:one', seed=1)
+    report = fg_env.analysis.report(result, contract=contract).markdown
+    assert 'supplied arrival timestamps and service durations' in report
+    assert 'does not establish future demand uncertainty' in report
+    assert 'arrive at random' not in report
+    assert 'Completed repairs' in report and 'Unfinished arrived jobs' in report
+    assert 'Staffing cost' in report
+    assert 'do not establish predictive accuracy' in report
+    assert 'pass validation=' not in report
+    expected_line = next(line for line in report.splitlines() if 'Expected:' in line)
+    assert expected_line.lower().count('staffing cost') == 1
+    assert 'service level' not in expected_line

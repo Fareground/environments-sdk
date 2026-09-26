@@ -78,8 +78,7 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
     primary = _primary_outcomes(ev, namer)
     if primary is not None:
         section.tables.append(primary)
-        section.lines.append("Primary outcomes below describe the recorded model runs. Structured outcomes stay "
-                             "together; values from different runs are not combined into a synthetic outcome.")
+        section.lines.append("Primary outcomes below describe the recorded model runs.")
     subject = choice.best or (ev.options[0] if len(ev.options) == 1 else None)
     if choice.goal is not None and choice.best is None and ev.options:
         wanted = "; ".join(f"{namer.name(r.measure)} {r.op} {namer.value(r.measure, r.value)}"
@@ -418,8 +417,8 @@ def fit(ev: Evidence, namer: Namer) -> Section:
     section = Section("How well it matched the data")
     validation = ev.validation
     if validation is None:
-        section.lines.append("Not checked against data here: pass validation=fg_env.analysis.validate(contract, "
-                             "cases).")
+        section.lines.append("No outcome-validation results were supplied. These runs do not establish predictive "
+                             "accuracy.")
         return section
     for measure, found in validation.measures.items():
         held = found.get("held_out")

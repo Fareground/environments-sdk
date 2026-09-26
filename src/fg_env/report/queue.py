@@ -242,16 +242,25 @@ class QueueView:
                 continue
             service = channel.get("service") or {}
             patience = channel.get("patience")
-            text = (f"{name.replace('_', ' ').capitalize()} arrive at random at the expected rate of each "
-                    f"{unit_word(self.clock)}; service takes {_duration(service, self.unit, self.inputs)}")
-            text += (f"; customers give up after waiting {_duration(patience, self.unit, self.inputs)}"
-                     if isinstance(patience, Mapping)
-                     else "; nobody gives up waiting")
+            if channel.get("scheduled") is not None:
+                text = (f"{name.replace('_', ' ').capitalize()} use supplied arrival timestamps and service durations "
+                        f"in {plural(self.unit, 2)}; each row's patience controls abandonment, and omitted patience "
+                        "means waiting indefinitely. Replaying these rows does not establish future demand uncertainty")
+            else:
+                text = (f"{name.replace('_', ' ').capitalize()} arrive at random at the expected rate of each "
+                        f"{unit_word(self.clock)}; service takes {_duration(service, self.unit, self.inputs)}")
+                text += (f"; customers give up after waiting {_duration(patience, self.unit, self.inputs)}"
+                         if isinstance(patience, Mapping)
+                         else "; nobody gives up waiting")
             if isinstance(channel.get("callback"), Mapping):
                 callback = channel["callback"]
                 when, adjusted = _amount(callback.get("when", 0), self.inputs)
                 text += (f"; a callback is offered when the wait would pass {when} {plural(self.unit, 2)}"
                          + (" (normally)" if adjusted else ""))
+                if callback.get("service_estimate") is not None:
+                    estimate, varies = _amount(callback["service_estimate"], self.inputs)
+                    text += (f", using a declared service estimate of {estimate} {plural(self.unit, 2)}"
+                             + (" (normally)" if varies else ""))
             out.append(text + ".")
         return out
 

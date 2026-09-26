@@ -33,4 +33,4 @@
 
 ## How well it matched the data
 
-- Not checked against data here: pass validation=fg_env.analysis.validate(contract, cases).
+- No outcome-validation results were supplied. These runs do not establish predictive accuracy.

@@ -682,7 +682,9 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
     "completed_jobs": {
       "expr": "$count($world.q_customer_events, $it.event == 'completed')",
       "type": "int",
-      "description": "Jobs observed completing by closing; no retries in this room."
+      "description": "Jobs observed completing by closing; no retries in this room.",
+      "primary": true,
+      "label": "Completed repairs"
     },
     "waiting_jobs": {
       "expr": "$world.q_totals.waiting",
@@ -691,7 +693,9 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
     "unfinished_arrived_jobs": {
       "expr": "$world.q_totals.offered - $count($world.q_customer_events, $it.event == 'completed')",
       "type": "int",
-      "description": "Arrived jobs not complete at closing, including in-service work; excludes future arrivals."
+      "description": "Arrived jobs not complete at closing, including in-service work; excludes future arrivals.",
+      "primary": true,
+      "label": "Unfinished arrived jobs"
     },
     "busy_minutes": {
       "expr": "$world.q_totals.busy",
@@ -704,6 +708,13 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
     "finishes": {
       "expr": "$map($filter($world.q_customer_events, $it.event == 'completed'), $it.time)",
       "type": "list"
+    },
+    "staffing_cost": {
+      "expr": "$world.q_totals.cost",
+      "type": "number",
+      "format": "money",
+      "primary": true,
+      "label": "Staffing cost"
     }
   }
 }

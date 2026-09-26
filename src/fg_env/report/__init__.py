@@ -224,7 +224,8 @@ def _measures(outputs: Mapping[str, Any], goal: Goal | None, requirements: list[
     for name in [*(r.measure for r in requirements), *([goal.measure] if goal else [])]:
         if name not in chosen:
             chosen.append(name)
-    for view in queues:
+    # Explicit outcomes define the owner summary; queue defaults remain a fallback.
+    for view in ([] if primary else queues):
         for part in ("service_level", "worst_interval_service_level", "abandon_rate", "asa", "cost"):
             name = f"{view.name}_{part}"
             if name in outputs and name not in chosen:
