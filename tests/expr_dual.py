@@ -115,7 +115,12 @@ def _restore(world: Any, state: dict[str, Any]) -> None:
         if state["patterns"] is not None:
             patterns, saved = state["patterns"]
             for name, entries in saved.items():
-                setattr(patterns, name, {k: _pattern_entry(v, restore=True) for k, v in entries.items()})
+                # Clones share these derived caches. Replacing a cache only on this runtime would leave
+                # siblings with advanced path values but the same rewound RNG, changing their future draws.
+                restored = {k: _pattern_entry(v, restore=True) for k, v in entries.items()}
+                cache = getattr(patterns, name)
+                cache.clear()
+                cache.update(restored)
 
 
 def _pattern_entry(entry: Any, restore: bool = False) -> Any:

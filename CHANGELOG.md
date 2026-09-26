@@ -7,8 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **BREAKING**: the retail starter's `cups_sold` daily series, `turned_away` and `active_subscribers` now use the same city population scale as its totals. Consumers must no longer multiply these series by the household expansion weight. `cups_sold` uses `cups` (a total or a count within each daily interval), not `cups/day`; the final total remains cumulative. Fractional capacity and city-scale demand conservation are tested at multiple sample sizes. The starter now labels its defaults as illustrative and warns that the minimum sample size is not a convergence guarantee.
+- Large agent crowds reuse parsed ID suffixes and bind public entity-field comparison attributes once per candidate filter, reducing repeated tool-description and selection work without changing legal choices.
+
 - `agents_never_played` no longer treats a skipped actor whose actions are all blocked (for example, an eliminated player) as a missed participant. Previously recorded missed opportunities remain diagnostic evidence after later state changes and snapshot restoration.
 - Outputs accept `primary: true` and a short `label`. Owner reports supplied with the contract lead with these outcomes, retain boolean/structured values and disclose missing observations. The negotiation starter now leads with agreement, accepted terms and each party's surplus instead of activity counters.
+- Optimisation overlays no longer reintroduce advice into reports whose accompanying run evidence has degraded execution.
 - Reports disclose degraded execution and affected agents before outcomes, exclude degraded alternatives from recommendations, use recorded assumption values, preserve model descriptions and avoid unsupported chance claims.
 
 The contract language is smaller — one construct for each idea — and the documentation is rewritten around it:

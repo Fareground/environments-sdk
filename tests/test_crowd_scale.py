@@ -150,6 +150,19 @@ def test_a_choice_that_only_excludes_by_inequality_lists_exactly_what_its_rule_a
     assert _choices_of("$it.team != 'red' or $it.id == 'a'") == ["a", "c", "d"]
 
 
+@pytest.mark.parametrize("condition, expected", [
+    ("$it.id != $actor.id", ["b", "c", "d"]),
+    ("$it.name != $actor.name", ["b", "c", "d"]),
+    ("$it.type == 'p'", ["a", "b", "c", "d"]),
+    ("$it.alive == true", ["a", "b", "c", "d"]),
+    ("$it.at == null", ["a", "b", "c", "d"]),
+])
+def test_builtin_field_choices_match_unoptimized_evaluation(monkeypatch, condition, expected):
+    assert _choices_of(condition) == expected
+    monkeypatch.setattr(expr.EqualityGuard, "key", lambda self, scope: expr._NO_KEY)
+    assert _choices_of(condition) == expected
+
+
 BALANCE = {
     "name": "Balance",
     "clock": {"rounds": 3},

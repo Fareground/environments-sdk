@@ -100,6 +100,8 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
         raise TypeError("report needs a result to report on, a validation or an optimisation")
     if optimisation is not None and not ev.options:
         ev.kind = "optimisation"
+    degraded_optimisation = optimisation is not None and any(
+        run.degraded for option in ev.options for run in option.runs)
     owner = audience == "owner"
     first = ev.first
     outputs = first.outputs if first is not None else {}
@@ -123,20 +125,24 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
         sections += [decision(ev, choice, namer, measures, queues, sure),
                      drivers(ev, choice, namer, measures, queues, owner),
                      risks(ev, choice, namer, measures, queues, owner)]
-    if optimisation is not None:
+    if optimisation is not None and not degraded_optimisation:
         _add_optimisation(sections, optimisation, namer, queues, measures_known, owner)
     sections += [assumptions(ev, queues, owner), fit(ev, namer)]
     if not owner:
         sections.append(method(ev, namer, choice))
-        if optimisation is not None:
+        if optimisation is not None and not degraded_optimisation:
             sections[-1].lines += optimised.summary(optimisation)
     execution_health = health(ev)
     if execution_health is not None:
+        if degraded_optimisation:
+            execution_health.lines.append("Optimisation advice is withheld because the accompanying run evidence "
+                                          "includes degraded execution; repair and rerun it before using "
+                                          "the recommendation.")
         sections.insert(0, execution_health)
     title = (ev.contract.name if ev.contract is not None else ev.name
              or (optimisation.contract if optimisation else "")) \
         or "Model report"
-    recommendation = optimised.as_dict(optimisation) if optimisation is not None else None
+    recommendation = optimised.as_dict(optimisation) if optimisation is not None and not degraded_optimisation else None
     if choice.best is not None:
         recommendation = {**(recommendation or {}), "option": choice.best.label, "description": choice.best.description,
                           "inputs": choice.best.inputs,

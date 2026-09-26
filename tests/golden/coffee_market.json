@@ -19,9 +19,9 @@
     "avg_list_price": 4.11,
     "avg_paid_price": 3.83,
     "chain_share": 0.0,
-    "cups_sold": 65,
+    "cups_sold": 10881.0,
     "spend_share_of_income": 0.00912,
-    "turned_away": 0
+    "turned_away": 0.0
   },
   "rounds": 4,
   "status": "running",

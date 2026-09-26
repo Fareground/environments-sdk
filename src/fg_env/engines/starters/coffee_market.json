@@ -1,7 +1,7 @@
 {
   "fg_env": "2",
   "name": "Coffee Market",
-  "description": "A month in a city's coffee market: sampled households choose daily whether to buy (against making coffee at home) and where; cafés (an input) reprice weekly toward more profit, and may promote and sell loyalty subscriptions. Arm chain_launch opens the chain café with a launch promotion.",
+  "description": "A month in a city's coffee market: sampled households choose daily whether to buy (against making coffee at home) and where; cafés (an input) reprice weekly toward more profit, and may promote and sell loyalty subscriptions. Arm chain_launch opens the chain café with a launch promotion. The bundled household table and behavior coefficients are illustrative, not empirical calibration. Weighted households approximate a larger city; small samples can exaggerate congestion. Compare larger samples and multiple seeds before interpreting capacity losses.",
   "brief": {
     "situation": "A month in the city's coffee market. Households in five neighborhoods (Downtown, Riverside, Eastside, Northgate, University) buy coffee from a handful of cafés. Each café has a list price, a weekly promotion, a loyalty subscription (monthly fee for a per-cup discount), a daily cup capacity and a public star rating built from customer reviews.",
     "rules": "Every day each household decides whether to buy coffee and where, or to make it at home when no café is worth it; a household buys one cup per member who wants one. Price matters more to lower-income households, distance matters to everyone, ratings and friends' habits spread by word of mouth. A café that has hit its daily capacity turns customers away. Every Monday (days 8, 15, 22 …) cafés see last week's results and may change price, promotion and subscription terms; changes apply from that day on.",
@@ -10,7 +10,7 @@
   "inputs": {
     "households": {
       "type": "table",
-      "description": "Survey household table. income = annual USD; weight = households in the city this row represents (their total is the city the sample stands for).",
+      "description": "Household table. The bundled rows are illustrative; replace them with sourced observations for a grounded study. income = annual USD; weight = households in the city this row represents (their total is the city the sample stands for).",
       "columns": {"household_id": "text", "income": "number", "household_size": "int", "neighborhood": "text", "weight": "number"},
       "default": [
         {"household_id": "DT-01", "income": 72000, "household_size": 1, "neighborhood": "Downtown", "weight": 640},
@@ -85,7 +85,7 @@
         {"id": "nova", "name": "Nova Coffee Co.", "neighborhood": "Northgate", "price": 4.0, "quality": 3.9, "unit_cost": 1.15, "capacity": 10000, "rating": 4.2, "sub_fee": 20, "sub_discount": 0.25, "chain": true}
       ]
     },
-    "sample_size": {"type": "int", "default": 150, "min": 80, "max": 2000, "description": "Households drawn (weighted, with replacement) from the table. The sample stands for the whole city: café capacities are scaled to it and extensive outputs are reported at city scale, so a bigger sample is a finer estimate of the same market, not a bigger market. At least 80, because in a smaller sample each household stands for so many that a few of them choosing the same café on the same day fill it and turn phantom crowds away."},
+    "sample_size": {"type": "int", "default": 150, "min": 80, "max": 2000, "description": "Households drawn (weighted, with replacement) from the table. The sample stands for the whole city: café capacities are scaled to it and extensive outputs are reported at city scale, so a bigger sample is a finer estimate of the same market, not a bigger market. The minimum of 80 is not a convergence guarantee. Each choice represents a cohort; coarse sampling can exaggerate congestion. Compare larger samples and multiple seeds before treating turnaways as a capacity forecast."},
     "days": {"type": "int", "default": 28, "min": 7, "max": 120, "unit": "day"},
     "launch_day": {"type": "int", "default": 10, "min": 2, "max": 60, "unit": "day", "description": "Day the new chain opens; only the chain_launch arm opens it (arm='chain_launch')."},
     "launch_promo": {"type": "number", "default": 0.2, "min": 0, "max": 0.5, "description": "Launch discount off the chain's list price (chain_launch arm only)."},
@@ -587,16 +587,16 @@
     "leader": {"type": "text", "expr": "$top(cafe, $it.cups_total, 1)[0].name"},
     "subscription_uptake": {"type": "number", "description": "Share of households that subscribed at any point (null without households).", "expr": "$round($count(household, $it.ever_subscribed) / $count(household), 4) if $count(household) > 0 else null"},
     "active_subscribers_end": {"type": "int", "expr": "$outputs.active_subscribers"},
-    "cups_sold": {"type": "number", "description": "Cups sold over the run, at city scale.", "expr": "$round($world.cups_total * $represents)", "series": "$world.cups_today", "unit": "cups/day"},
+    "cups_sold": {"type": "number", "description": "Total cups sold over the run, at city scale; the series counts cups sold each day at the same city scale.", "expr": "$round($world.cups_total * $represents)", "series": "$world.cups_today * $represents", "unit": "cups"},
     "average_price_paid": {"type": "number", "description": "USD per cup actually paid over the run (excl. fees); null when no cup was sold.", "expr": "$round($world.paid_total / $world.cups_total, 2) if $world.cups_total > 0 else null"},
     "average_list_price_over_run": {"type": "number", "expr": "$round($avg($series.avg_list_price, $it), 2)"},
     "coffee_spend_share_of_income": {"type": "number", "description": "Mean household coffee spend (cups + fees) over the run as a share of income for the same days.", "expr": "$outputs.spend_share_of_income"},
-    "turned_away_total": {"type": "int", "expr": "$round($sum($series.turned_away, $it) * $represents)", "description": "Household visits turned away by a full café over the run, at city scale."},
+    "turned_away_total": {"type": "int", "expr": "$round($sum($series.turned_away, $it))", "description": "Household visits turned away by a full café over the run, at city scale."},
     "chain_share_series": {"type": "list", "expr": "$series.chain_share", "description": "The chain café's daily share of cups sold."},
     "avg_paid_price": {"expr": "$round($world.paid_today / $world.cups_today, 2) if $world.cups_today > 0 else null", "unit": "USD/cup", "description": "Average price actually paid per cup today (null on a day without sales).", "series": true},
     "avg_list_price": {"expr": "$round($avg(cafe, $it.price * (1 - $it.promo), $it.open), 2)", "unit": "USD/cup", "description": "Mean promoted list price across open cafés.", "series": true},
-    "active_subscribers": {"expr": "$count(household, $it.sub != 'none')", "series": true},
-    "turned_away": {"expr": "$sum(cafe, $it.turned_away_today)", "series": true},
+    "active_subscribers": {"expr": "$round($count(household, $it.sub != 'none') * $represents)", "description": "Subscribed households at city scale, counted each day.", "unit": "households", "series": true},
+    "turned_away": {"expr": "$sum(cafe, $it.turned_away_today) * $represents", "description": "Unserved household visits each day at city scale, including partly served visits proportionally. This is a weighted estimate, sensitive to sample resolution.", "unit": "visits", "series": true},
     "chain_share": {"expr": "$round($pct($sum(cafe, $it.cups_today, $it.chain), $world.cups_today), 4)", "description": "Share of today's cups sold by the chain café (0 until it opens).", "series": true},
     "spend_share_of_income": {"expr": "$round($avg(household, $pct($it.spend, $it.income * $round / 365)), 5)", "description": "Mean household coffee spend so far as a share of income earned over the same days.", "series": true}
   },

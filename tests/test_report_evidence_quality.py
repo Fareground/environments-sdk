@@ -161,3 +161,26 @@ def test_primary_outcomes_keep_missing_values_and_do_not_average_structured_term
     assert '"price": 10' in table.rows[2][2] and '"price": 20' in table.rows[2][2]
     assert '"price": 15' not in table.rows[2][2]
     assert "1 of 3 run(s) without a usable value" in table.rows[2][2]
+
+
+@pytest.mark.parametrize("audience", ["owner", "analyst"])
+def test_an_optimisation_overlay_cannot_restore_advice_from_degraded_run_evidence(audience):
+    from dataclasses import replace
+
+    from fg_env.analysis.optimise_result import OptimisationResult
+
+    healthy = fg_env.run(CASE)
+    degraded = replace(healthy, diagnostics=[{"code": "host_fallback", "path": "host.judge",
+                                             "message": "Judge used stand-in answers.", "fix": "Bind the host."}])
+    optimisation = OptimisationResult(
+        contract=CASE["name"], method="grid", decisions=["fragile"], objectives=["max profit"], constraints=[],
+        runs=1, seed=0, evaluations=1, total_runs=1, best={"fragile": False}, feasible=True, verdict="feasible",
+        estimates={"runs": 1, "objectives": [{"objective": "max profit", "value": 10, "low": 10, "high": 10, "n": 1}],
+                   "constraints": []})
+    report = fg_env.analysis.report(degraded, audience, contract=CASE, optimisation=optimisation)
+    assert report.recommendation is None
+    assert "Optimisation advice is withheld" in report.markdown
+    assert "Set fragile to" not in report.markdown
+    restored = fg_env.analysis.report(healthy, audience, contract=CASE, optimisation=optimisation)
+    assert restored.recommendation["decision"] == {"fragile": False}
+    assert "Set fragile to" in restored.markdown

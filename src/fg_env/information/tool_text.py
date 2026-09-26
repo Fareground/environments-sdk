@@ -76,9 +76,8 @@ def compact_ids(ids: Sequence[str]) -> str:
     first = last = prefix = ""  # the current run of consecutive numbered ids: its ends, their text and last number
     number = length = 0
     for key in ids:
-        stem, digits = _numbered(key)
-        if digits and (digits[0] != "0" or digits == "0"):
-            value = int(digits)
+        stem, value = _numbered(key)
+        if value is not None:
             if length and stem == prefix and value == number + 1:
                 last, number, length = key, value, length + 1
                 continue
@@ -106,11 +105,16 @@ def _close_run(parts: list[str], first: str, last: str, length: int) -> None:
 
 
 @lru_cache(maxsize=1 << 16)
-def _numbered(key: str) -> tuple[str, str]:
-    """``key`` split into its text and its trailing digits ("" when it has none) — without a pattern match for the
-    usual ASCII digits, and kept per id: every turn's tools list and split the same candidates' ids again."""
+def _numbered(key: str) -> tuple[str, int | None]:
+    """The stem and integer suffix, when range compression preserves the id's spelling.
+
+    Cache the conversion as well as the split: a crowd's turns offer the same ids repeatedly. None keeps
+    nonnumbered and zero-padded ids literal, as they are not interchangeable with an unpadded range.
+    """
     stem = key.rstrip("0123456789")
-    if stem and stem[-1].isdecimal():  # digits of another script before or instead of them: the pattern decides
+    if stem and stem[-1].isdecimal():
         match = _NUMBERED.match(key)
-        return (match.group(1), match.group(2)) if match else (key, "")
-    return stem, key[len(stem):]
+        stem, digits = (match.group(1), match.group(2)) if match else (key, "")
+    else:
+        digits = key[len(stem):]
+    return stem, int(digits) if digits and (digits[0] != "0" or digits == "0") else None

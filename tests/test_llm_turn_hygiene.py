@@ -255,6 +255,11 @@ def test_compact_ids_keep_order_and_cut_a_long_listing():
 
     assert compact_ids(["p1", "p2", "p3", "x", "p5", "p6", "a07"]) == "p1–p3, x, p5, p6, a07"
     assert compact_ids([f"k{i}" for i in range(0, 200, 2)]).endswith(" and 40 more")
+    for _ in range(2):  # the cached suffix has the same spelling and ordering semantics
+        assert compact_ids(["p0", "p1", "p2"]) == "p0–p2"
+        assert compact_ids(["p01", "p02", "p03"]) == "p01, p02, p03"
+        assert compact_ids(["p3", "p2", "p1", "p1"]) == "p3, p2, p1, p1"
+        assert compact_ids(["p٩", "p١٠", "p١١"]) == "p٩–p١١"
 
 
 def test_a_crowded_update_keeps_the_latest_news_and_says_how_much_it_left_out():

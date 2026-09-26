@@ -288,17 +288,55 @@ def test_competing_cafes_keep_their_margins_over_a_long_run():
     assert all(c["props"]["price"] > 2.2 * c["props"]["unit_cost"] for c in env.entities("cafe") if c["props"]["open"])
 
 
-def test_the_smallest_sample_does_not_invent_crowds():
-    assert all(run("retail", seed=seed, inputs={"sample_size": 80, "days": 14}).outputs["turned_away_total"] == 0
-               for seed in range(3))
+@pytest.mark.parametrize("size", [80, 160])
+@pytest.mark.parametrize("capacity_share", [0.0001, 0.50123, 1, 2])
+def test_retail_capacity_conserves_city_demand_at_each_sample_resolution(size, capacity_share):
+    """Every household requests one cup: served + unserved equals the city's households, at any resolution.
+
+    Unlike a stochastic default run, this counterfactual has a known demand. Spare capacity must never reject a
+    customer; a fractional capacity must not be rounded up/down in sample units or hide real turnaways.
+    """
+    city = sum(row["weight"] for row in default("retail", "households"))
+    cafe = {**default("retail", "cafes")[0], "capacity": city * capacity_share}
+
+    def buy(wake):
+        receipt = wake.call("buy", {"cafe": cafe["id"], "cups": 1})
+        assert receipt.ok, receipt.text
+        wake.end()
+
+    result = run("retail", {"household": buy}, inputs={"sample_size": size, "days": 7, "cafes": [cafe]},
+                 rounds=1)
+    served = min(city, cafe["capacity"])
+    assert result.series["cups_sold"] == pytest.approx([served])
+    assert result.series["turned_away"] == pytest.approx([city - served])
+    assert result.outputs["cups_sold"] == round(served)
+    assert result.outputs["turned_away_total"] == round(city - served)
+    assert sum(result.series["cups_sold"]) + sum(result.series["turned_away"]) == pytest.approx(city)
+
+
+def test_retail_rejects_samples_below_its_supported_resolution():
     with pytest.raises(fg_env.InputError, match="sample_size"):
         run("retail", inputs={"sample_size": 10})
 
 
-def test_the_cafes_are_an_input():
-    renamed = _cafes(name=lambda row: f"Shop {row['id']}")
+def test_retail_reports_subscribers_and_daily_sales_at_the_same_city_scale():
+    env = fg_env.engines.load("retail", inputs={"sample_size": 80, "days": 7}, seed=0)
+    result = env.run()
+    assert result.error is None
+    households = env.entities("household")
+    represents = sum(row["weight"] for row in env.inputs["households"]) / len(households)
+    subscribed = sum(household["props"]["sub"] != "none" for household in households)
+    assert result.outputs["active_subscribers_end"] == round(subscribed * represents)
+    assert result.series["active_subscribers"][-1] == result.outputs["active_subscribers_end"]
+    assert result.outputs["cups_sold"] == round(sum(result.series["cups_sold"]))
+    assert result.outputs["turned_away_total"] == round(sum(result.series["turned_away"]))
+
+
+@pytest.mark.parametrize("open_chain", [False, True])
+def test_the_cafes_are_an_input(open_chain):
+    renamed = _cafes(name=lambda row: f"Shop {row['id']}", chain=lambda row: row["chain"] and not open_chain)
     shares = run("retail", inputs={"cafes": renamed, "days": 7, "sample_size": 80}).outputs["market_shares"]
-    assert {name for name, _ in shares} == {f"Shop {row['id']}" for row in renamed}
+    assert {name for name, _ in shares} == {f"Shop {row['id']}" for row in renamed if not row["chain"]}
 
 
 # --------------------------------------------------------------------------------------------------------- exchange

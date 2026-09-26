@@ -93,6 +93,18 @@ class EqualityGuard:
         except Exception:  # evaluating per item raises the same way; nothing is skipped
             return _NO_KEY
 
+    def bound(self, key: Any) -> Callable[[Any], bool]:
+        """Bind the fixed comparison once for a collection, keeping the exact-entity guard.
+
+        Public built-in fields have a fixed storage attribute. Resolve that attribute here rather than looking
+        it up for every candidate in every agent's turn. Property checks retain their missing-value fallback.
+        The caller must still obtain the key through ``key`` so private fields are never shortcut.
+        """
+        if self.field in _ENTITY_FIELDS:
+            attribute = _FIELD_ATTRS.get(self.field, self.field)
+            return lambda item: type(item) is _Entity and bool(getattr(item, attribute) != key)
+        return lambda item: self.rules_out(item, key)
+
     def rules_out(self, item: Any, key: Any) -> bool:
         """True when ``item`` is an entity whose field is certainly not ``key``."""
         if type(item) is not _Entity:
@@ -179,7 +191,8 @@ class Call:
         if key is _NO_KEY:
             return enumerate(items)
         assert guard is not None
-        return ((pos, item) for pos, item in enumerate(items) if not guard.rules_out(item, key))
+        ruled_out = guard.bound(key)
+        return ((pos, item) for pos, item in enumerate(items) if not ruled_out(item))
 
     def number(self, index: int, default: Any = None) -> Any:
         value = self.arg(index, default)

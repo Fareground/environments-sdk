@@ -175,7 +175,7 @@ class Expr:
         key = guard.key(scope)
         if key is _NO_KEY:
             return None
-        return lambda item: guard.rules_out(item, key)
+        return guard.bound(key)
 
 
 @lru_cache(maxsize=16_384)

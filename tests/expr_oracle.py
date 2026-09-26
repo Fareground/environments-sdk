@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from fg_env.expr.base import _BUDGET, EVAL_BUDGET, ExprError, charge, truthy
-from fg_env.expr.calls import FUNCTIONS, Call, EqualityGuard, Evaluator
+from fg_env.expr.calls import FUNCTIONS, Call, EqualityGuard, Evaluator, suggest_function
 from fg_env.expr.codegen import _FUNC_PREFIX, _LITERAL_NAMES, _ROOT_PREFIX, _chain, _entity_chain
 from fg_env.expr.compile import _ALLOWED, _MAX_NODES, _MAX_SOURCE, _preprocess, _restore_words
 from fg_env.expr.scope import Scope
@@ -58,6 +58,18 @@ class OracleExpr:
             raise ExprError(f"could not evaluate: {type(exc).__name__}: {str(exc)[:200]}", self.source) from None
 
 
+def _function_hint(called: str | None) -> str:
+    """Current author-facing diagnostics; evaluator and compile-fact comparisons remain independent."""
+    if called is None:
+        return ""
+    if called in FUNCTIONS:
+        return f": write ${called}(...)"
+    suggestion = suggest_function(called, list(FUNCTIONS))
+    if suggestion is None:
+        return ""
+    return f": write {suggestion}" if "(" in suggestion else f": did you mean {suggestion}(...)?"
+
+
 def compile_oracle(source: str) -> OracleExpr:
     if not isinstance(source, str) or not source.strip():
         raise ExprError("expression is empty", str(source))
@@ -85,7 +97,7 @@ def compile_oracle(source: str) -> OracleExpr:
         )):
             called = node.func.id if isinstance(node.func, ast.Name) and not node.keywords else None
             raise ExprError("only $functions can be called, with positional arguments"
-                            + (f": write ${called}(...)" if called else ""), source)
+                            + _function_hint(called), source)
         if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) \
                 and not node.value.id.startswith((_ROOT_PREFIX, _FUNC_PREFIX)) and node.value.id not in _LITERAL_NAMES:
             raise ExprError(f"'{node.value.id}.{node.attr}' reads a field of plain text: write "

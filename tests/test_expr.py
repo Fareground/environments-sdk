@@ -132,3 +132,10 @@ def test_templates():
 ])
 def test_boolean_negation_can_start_an_expression(source, expected):
     assert evaluate(source, _scope()) is expected
+
+
+def test_entity_field_filter_shortcuts_do_not_skip_maps_or_missing_field_errors():
+    scope = _scope()
+    assert evaluate("$count([{'id': 'a'}, {'id': 'b'}], $it.id == 'b')", scope) == 1
+    with pytest.raises(ExprError, match="cannot read '.id' of null"):
+        evaluate("$count([null], $it.id == 'b')", scope)

@@ -219,7 +219,11 @@ def _evaluate(text, scope):
 
 def test_the_grammar_fuzz_evaluates_identically(both_ways):
     rng = random.Random(FUZZ_SEED)
-    env = fg_env.load(_world(), seed=1)
+    # Like the hardening fuzz harness, register the action before construction:
+    # action metadata is compiled on load; only this slot's effects vary per case.
+    world_data = _world()
+    world_data["actions"] = {**world_data.get("actions", {}), "fuzz": {"by": "person", "do": []}}
+    env = fg_env.load(world_data, seed=1)
     world = env.world
     actor = world.entities["ann"]
     params = {"s": Untrusted("hi «there»"), "n": 7, "l": [1, "a", Untrusted("u")], "m": {"k": Untrusted("v")},
