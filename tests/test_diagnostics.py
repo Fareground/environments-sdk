@@ -204,6 +204,26 @@ def test_an_agent_a_stage_offers_actions_that_never_has_a_turn_is_degraded():
     assert fg_env.run(contract, "random", seed=1).ok
 
 
+@pytest.mark.parametrize("turns", ["sequential", "simultaneous"])
+def test_excluded_actors_with_no_available_action_are_not_missed_turns(turns):
+    contract = {"clock": {"rounds": 3}, "types": {"p": {"agent": True, "props": {"active": True, "n": 0}}},
+                "entities": {"north": {"type": "p"}, "south": {"type": "p", "props": {"active": False}}},
+                "actions": {"bump": {"by": "p", "when": [{"expr": "$actor.active"}], "do": "$actor.n += 1"}},
+                "stages": [{"name": "s", "turns": turns, "who": "$it.id == 'north'"}],
+                "outputs": {"total": "$sum(p, $it.n)"}}
+    result = fg_env.run(contract, "random", seed=1)
+    assert "agents_never_played" not in result.degraded
+    # A real opportunity missed in an earlier pass is not erased by later elimination.
+    contract["entities"]["south"]["props"]["active"] = True
+    contract["events"] = [{"on": "round.end", "do": "$entity('south').active = false"}]
+    straight = fg_env.run(contract, "random", seed=1)
+    assert "agents_never_played" in straight.degraded
+    env = fg_env.load(contract, seed=1)
+    env.run("random", rounds=1)
+    restored = fg_env.Env.restore(contract, json.loads(json.dumps(env.snapshot())))
+    assert restored.run("random").to_dict() == straight.to_dict()
+
+
 def test_what_an_action_set_for_later_is_counted_when_its_agent_left_first():
     """An action's `after` block runs as that action's, so it is dropped once its agent is removed: said, not silent
     (audit 12 M4)."""

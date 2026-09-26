@@ -270,7 +270,8 @@ class Schedule:
             if stage.who is not None:  # the pass played to its end: whom it did not wake, it passed over
                 woken = {agent.id for agent in agents}
                 env.state.diagnosis.passed_over.update(
-                    agent.id for agent in self.eligible(stage, ordered=False, who=False) if agent.id not in woken)
+                    agent.id for agent in self.eligible(stage, ordered=False, who=False)
+                    if agent.id not in woken and self._could_act(stage, agent))
             if stage.until is not None:
                 try:
                     until = viewer_for("StageSpec.until", self._woken_learn(stage))
@@ -293,6 +294,20 @@ class Schedule:
             return truthy(compile_expr(stage.when)(held))
         except ExprError as exc:
             raise RunError(str(exc), f"stages.{stage.name}.when") from None
+
+    def _could_act(self, stage: StageSpec, agent: Entity) -> bool:
+        """A skipped actor counts only if an action is available at this completed pass. This is diagnostic work:
+        no random draw or hidden read belongs to the next participant's decision, and a broken unplayed rule must
+        not fail the run merely because it was inspected here."""
+        stats = self.env.state.agent_stats.get(agent.id)
+        if stats is not None and stats.wakes:
+            return False  # an actor already woken cannot be a never-played actor
+        try:
+            with self.env.world.luck.apart():
+                return any(self.env.actions.blocked(agent, name, {}, {}) is None
+                           for name in stage_actions(self.env.contract, stage, agent.entity_type))
+        except (RunError, ExprError):
+            return True  # uncertainty is not evidence that the actor could not participate
 
     def eligible(self, stage: StageSpec, ordered: bool = True, pass_index: int = 0, who: bool = True) -> list[Entity]:
         """Agents woken in ``stage`` (in its pass ``pass_index``), in turn order. ``ordered=False`` skips ordering (no

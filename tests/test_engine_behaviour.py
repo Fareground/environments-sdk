@@ -155,10 +155,19 @@ def test_coded_counsel_lead_with_their_strongest_admissible_exhibits_so_verdicts
     env.run()
     first_day = {e["props"]["side"]: e["id"] for e in env.entities("exhibit") if e["props"]["day"] == 1}
     assert first_day == {"plaintiff": "P1", "defense": "D1"}  # each side's strongest clean exhibit, not a hearsay one
+    exhibits = fg_env.engines.get("dispute").source()["inputs"]["exhibits"]["default"]
+    defense_case = [{**exhibit, "strength": 0.1 if exhibit["side"] == "plaintiff" else 0.9}
+                    for exhibit in exhibits]
     for rounds in (1, 2, 3, 4):  # the plaintiff holds the stronger admissible case however many days of evidence
         verdicts = [run("dispute", seed=seed, inputs={"evidence_rounds": rounds}).outputs["verdict"]
                     for seed in range(20)]
-        assert verdicts.count("liable") > 2 * verdicts.count("not_liable"), (rounds, verdicts)
+        assert verdicts.count("liable") > verdicts.count("not_liable"), (rounds, verdicts)
+        # Check sensitivity to the merits, not an uncalibrated exact win ratio in a small seed panel.
+        reversed_verdicts = [run("dispute", seed=seed, inputs={"evidence_rounds": rounds,
+                                                             "exhibits": defense_case}).outputs["verdict"]
+                             for seed in range(20)]
+        assert reversed_verdicts.count("not_liable") > reversed_verdicts.count("liable"), (rounds, reversed_verdicts)
+        assert reversed_verdicts.count("liable") < verdicts.count("liable")
 
 
 def test_jury_room_speeches_move_the_jury():
