@@ -153,6 +153,12 @@ def validate(contract: ContractLike, cases: Sequence[Mapping[str, Any]], *, runs
     failed = sum(1 for case_runs in grouped for r in case_runs if r.status == "failed")
     if failed:
         notes.append(f"{failed} run(s) failed and were left out")
+    degraded = sum(bool(r.degraded) for case_runs in grouped for r in case_runs if r.status != "failed")
+    if degraded:
+        total = sum(len(case_runs) for case_runs in grouped)
+        warnings.append(f"{degraded} of {total} run(s) had degraded execution and were excluded from accuracy scores; "
+                        "scores describe only the remaining evidence, not the full set of requested cases. "
+                        "Repair and rerun the affected cases before using this as validation.")
     return ValidationResult(parsed.name, runs, [float(level) for level in levels], names, result_measures, rows,
                             warnings, notes)
 
@@ -175,7 +181,7 @@ def _pairs(name: str, measure: tuple[str, str], cases: Sequence[Mapping[str, Any
     for index, (case, case_runs) in enumerate(zip(cases, grouped)):
         if name not in case["actuals"]:
             continue
-        values = [runner.raw_value(r, measure) for r in case_runs if r.status != "failed"]
+        values = [runner.raw_value(r, measure) for r in case_runs if r.status != "failed" and not r.degraded]
         for key, actual in _keyed(case["actuals"][name], f"case '{names[index]}' actual {name}"):
             members = tuple(float(v) for v in (_member(value, key) for value in values) if is_number(v))
             if not members:

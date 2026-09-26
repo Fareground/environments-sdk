@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Accuracy validation excludes degraded agent runs and warns about the missing evidence. Validation-only reports retain warnings and omission notes before presenting scores, including when no usable runs remain.
+
 - Model turns cut short by the participant call limit now mark execution as degraded even if the agent acted earlier in the turn. Partial outcomes remain available, but owner and analyst reports disclose affected agents and withhold recommendations based on those runs. An explicit end-turn remains healthy.
 
 - **BREAKING**: the retail starter's `cups_sold` daily series, `turned_away` and `active_subscribers` now use the same city population scale as its totals. Consumers must no longer multiply these series by the household expansion weight. `cups_sold` uses `cups` (a total or a count within each daily interval), not `cups/day`; the final total remains cumulative. Fractional capacity and city-scale demand conservation are tested at multiple sample sizes. The starter now labels its defaults as illustrative and warns that the minimum sample size is not a convergence guarantee.

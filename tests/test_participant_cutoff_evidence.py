@@ -53,3 +53,35 @@ def test_partial_turn_cutoff_is_disclosed_without_discarding_its_outcome(finish,
         assert table.rows[0][-1] == '1'
         assert table.rows[0][2] == '1'
         assert result.stats['invalid_calls'] == 0
+
+
+def test_accuracy_validation_excludes_cutoff_runs_and_discloses_missing_evidence():
+    import copy
+    contract = copy.deepcopy(CASE)
+    contract['inputs'] = {'cutoff': {'type': 'bool', 'default': False}}
+    contract['brief'] = {'situation': 'Cutoff: {$inputs.cutoff}'}
+    def participant(wake):
+        wake.call('buy', {})
+        if 'Cutoff: yes' in wake.brief:
+            wake.record_usage(out_of_steps=1)
+        wake.end()
+    cases = [{'name': 'finished', 'inputs': {'cutoff': False}, 'actuals': {'units': 1}},
+             {'name': 'cut short', 'inputs': {'cutoff': True}, 'actuals': {'units': 1}}]
+    validation = fg_env.analysis.validate(contract, cases, runs=2, participants=participant, baselines=())
+    assert validation.measures['units']['overall']['n'] == 1
+    assert {row['case'] for row in validation.rows} == {'finished'}
+    assert any('2 of 4' in warning and 'degraded' in warning for warning in validation.warnings)
+    report = fg_env.analysis.report(validation, contract=contract)
+    assert 'degraded' in report.markdown
+
+
+def test_no_accuracy_is_claimed_when_every_validation_run_is_degraded():
+    def participant(wake):
+        wake.call('buy', {})
+        wake.record_usage(out_of_steps=1)
+        wake.end()
+    validation = fg_env.analysis.validate(CASE, [{'actuals': {'units': 1}}], runs=2,
+                                           participants=participant, baselines=())
+    assert validation.measures == {} and validation.rows == []
+    assert any('2 of 2' in warning for warning in validation.warnings)
+    assert 'degraded' in fg_env.analysis.report(validation, contract=CASE).markdown
