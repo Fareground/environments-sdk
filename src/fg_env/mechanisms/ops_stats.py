@@ -52,20 +52,26 @@ def record_for(index: int, start: float, length: float, hours: float, now: Mappi
         staff = numbers["staff"]
         busy = counts.busy.get(name, 0.0)
         paid = staff * hours / (1.0 - numbers["shrinkage"])
-        pools[name] = {"staff": staff, "busy": busy,
-                       "utilisation": min(1.0, busy / (staff * length)) if staff else None,
-                       "paid_hours": paid, "cost": paid * numbers["cost"]}
+        overrun = counts.overrun.get(name, 0.0)
+        overrun_hours = overrun * hours / length
+        duty = staff * length + overrun
+        pools[name] = {"staff": staff, "busy": busy, "staff_time": duty, "overrun_hours": overrun_hours,
+                       "utilisation": busy / duty if duty else None,
+                       "paid_hours": paid + overrun_hours,
+                       "cost": paid * numbers["cost"] + overrun_hours * numbers.get("overrun_cost", numbers["cost"])}
     record: dict[str, Any] = {"interval": index, "start": start, **_zero_counts(),
                               "expected": sum(c["expected"] for c in channels.values()),
                               "queue": sum(c["queue"] for c in channels.values()),
                               "max_queue": sum(c["max_queue"] for c in channels.values()),
                               "staff": sum(p["staff"] for p in pools.values()),
                               "busy": sum(p["busy"] for p in pools.values()),
+                              "staff_time": sum(p["staff_time"] for p in pools.values()),
+                              "overrun_hours": sum(p["overrun_hours"] for p in pools.values()),
                               "paid_hours": sum(p["paid_hours"] for p in pools.values()),
                               "cost": sum(p["cost"] for p in pools.values()),
                               "channels": channels, "pools": pools, "below_target": False}
-    staffed = record["staff"] * length
-    record["utilisation"] = min(1.0, record["busy"] / staffed) if staffed else None
+    staffed = record["staff_time"]
+    record["utilisation"] = record["busy"] / staffed if staffed else None
     return _finish(record, targets)
 
 
@@ -101,7 +107,8 @@ def merge_counts(records: list[dict[str, Any]], counts: Counts, targets: Mapping
 def empty_totals(channels: list[str]) -> dict[str, Any]:
     """Totals before the first interval (every key present, so expressions reading them check cleanly)."""
     return {**_zero_counts(), "channels": {name: _zero_counts() for name in channels}, "intervals": 0,
-            "intervals_below_target": 0, "staff_time": 0.0, "busy": 0.0, "paid_hours": 0.0, "cost": 0.0,
+            "intervals_below_target": 0, "staff_time": 0.0, "busy": 0.0, "paid_hours": 0.0,
+            "cost": 0.0, "overrun_hours": 0.0,
             "utilisation": None, "waiting": 0, "callbacks_waiting": 0,
             "latest": {"interval": None, "service_level": None, "offered": 0, "abandon_rate": None, "staff": 0,
                        "queue": 0.0}}
@@ -113,8 +120,8 @@ def updated_totals(totals: Mapping[str, Any], new: dict[str, Any], changed: list
     the interval's counts touched."""
     out = {**totals, "channels": {name: dict(cell) for name, cell in totals["channels"].items()}}
     out["intervals"] += 1
-    out["staff_time"] += new["staff"] * length
-    for key in ("busy", "paid_hours", "cost"):
+    out["staff_time"] += new["staff_time"]
+    for key in ("busy", "paid_hours", "cost", "overrun_hours"):
         out[key] += new[key]
     below = out["intervals_below_target"] + (1 if new["below_target"] else 0)
     for before, after in changed:

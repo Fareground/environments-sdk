@@ -106,6 +106,8 @@ class Counts:
     max_queue: dict[str, int] = field(default_factory=dict)
     #: Server time spent serving in the interval, per pool (in the mode's unit).
     busy: dict[str, float] = field(default_factory=dict)
+    #: Service time above scheduled pool capacity, after a staffing reduction.
+    overrun: dict[str, float] = field(default_factory=dict)
 
     def cell(self, origin: int, channel: str) -> dict[str, float]:
         """The counts of ``channel``'s customers who arrived in interval ``origin`` (created at 0)."""
@@ -173,6 +175,7 @@ class _Interval:
         self.time = self.start
         self.queue_area = {c: 0.0 for c in channels}
         self.busy_area = {p: 0.0 for p in pools}
+        self.overrun_area = {p: 0.0 for p in pools}
         self.max_queue = dict(self.waiting)
 
     # -- the clock ---------------------------------------------------------------------------------------------
@@ -184,6 +187,7 @@ class _Interval:
                 self.queue_area[channel] += count * span
             for pool, count in self.busy_count.items():
                 self.busy_area[pool] += count * span
+                self.overrun_area[pool] += max(0, count - self.pools[pool].staff) * span
         self.time = to
 
     def play(self) -> None:
@@ -387,4 +391,5 @@ def run_interval(state: dict[str, Any], length: float, channels: dict[str, Chann
     counts.queue = {c: area / length for c, area in played.queue_area.items()}
     counts.max_queue = dict(played.max_queue)
     counts.busy = dict(played.busy_area)
+    counts.overrun = dict(played.overrun_area)
     return played.state(), counts

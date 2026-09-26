@@ -538,16 +538,16 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
 
 ## observed_queue
 
-**Repair desk with observed arrivals.** An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences, setup time or abandonment are modeled. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged.
+**Repair desk with observed arrivals.** An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences, setup time or abandonment are modeled. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged. Continuing service above scheduled staffing accrues overrun hours, priced using the declared overrun-rate multiplier (ordinary rate by default).
 
 ```json
 {
   "fg_env": "2",
   "name": "Repair desk with observed arrivals",
-  "description": "An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences, setup time or abandonment are modeled. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged.",
+  "description": "An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences, setup time or abandonment are modeled. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged. Continuing service above scheduled staffing accrues overrun hours, priced using the declared overrun-rate multiplier (ordinary rate by default).",
   "brief": {
     "situation": "Manage a repair desk while jobs arrive.",
-    "rules": "Each minute choose 0 to {$inputs.max_technicians} technicians. Waiting jobs start first come, first served; ongoing repairs finish even if you reduce staffing. Balance waiting and unfinished work against staffing cost. You see current aggregate queue outcomes, not the future arrival table.",
+    "rules": "Each minute choose 0 to {$inputs.max_technicians} technicians. Waiting jobs start first come, first served; ongoing repairs finish even if you reduce staffing. Balance waiting and unfinished work against staffing cost. You see current aggregate queue outcomes, not the future arrival table. Service above the reduced staffing level still accrues cost at {$inputs.overrun_rate_multiplier} times the hourly rate.",
     "roles": {
       "manager": "Choose staffing to reduce waiting and unfinished work while controlling cost."
     }
@@ -607,6 +607,12 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
       "min": 0,
       "default": 30,
       "unit": "USD/hour"
+    },
+    "overrun_rate_multiplier": {
+      "type": "number",
+      "default": 1,
+      "min": 0,
+      "description": "Hourly rate for service continuing above scheduled staffing, as a multiple of hourly_cost. Default 1 pays the normal rate; 0 explicitly assumes unpaid overrun."
     }
   },
   "world": {
@@ -673,7 +679,8 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
       "servers": {
         "technicians": {
           "staff": "$world.staff",
-          "cost": "$inputs.hourly_cost"
+          "cost": "$inputs.hourly_cost",
+          "overrun_cost": "$inputs.hourly_cost * $inputs.overrun_rate_multiplier"
         }
       }
     }

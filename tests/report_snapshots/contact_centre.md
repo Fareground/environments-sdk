@@ -3,18 +3,18 @@
 ## Recommendation
 
 - Choose the optimised plan.
-- How sure: its staffing cost is lower than with the manager's rule by $276 (95% CI −$551 to −$2, 3 paired runs).
+- How sure: its staffing cost is lower than with the manager's rule by $277 (95% CI −$551 to −$3, 3 paired runs).
 - Its service level is clearly above 80% (mean 90.2%, 95% CI 83.7%–96.7%).
 - Staff between 11 and 27 agents per half-hour, most (27) 09:30–10:00; the plan table lists every change.
-- Expected: service level 90.3% (80% range 88.1%–92.3%); staffing cost $8,836; service level in the worst half-hour 73.3% (80% range 66.6%–73.7%); abandonment 2.9% (80% range 2.4%–3.2%); average wait to answer 4 s (80% range 3 s–5 s).
+- Expected: service level 90.3% (80% range 88.1%–92.3%); staffing cost $8,836 (80% range $8,836–$8,837); service level in the worst half-hour 73.3% (80% range 66.6%–73.7%); abandonment 2.9% (80% range 2.4%–3.2%); average wait to answer 4 s (80% range 3 s–5 s).
 
 **Options**
 
 | Option | Service level | Staffing cost | Service level in the worst half-hour | Abandonment | Average wait to answer |
 |---|---|---|---|---|---|
-| The optimised plan ✓ | 90.3% (80% range 88.1%–92.3%) | $8,836 | 73.3% (80% range 66.6%–73.7%) | 2.9% (80% range 2.4%–3.2%) | 4 s (80% range 3 s–5 s) |
-| The manager's rule | 93.3% (80% range 92.4%–93.9%) | $9,157 (80% range $9,021–$9,187) | 73.3% (80% range 65.1%–74.3%) | 2% (80% range 1.8%–2%) | 3 s (80% range 2 s–3 s) |
-| A network outage at 09:30 with the recommended plan | 35.6% (80% range 34.3%–37.4%) | $8,836 | 0% (80% range 0%–0.3%) | 37.1% (80% range 35.4%–37.4%) | 30 s (80% range 30 s–31 s) |
+| The optimised plan ✓ | 90.3% (80% range 88.1%–92.3%) | $8,836 (80% range $8,836–$8,837) | 73.3% (80% range 66.6%–73.7%) | 2.9% (80% range 2.4%–3.2%) | 4 s (80% range 3 s–5 s) |
+| The manager's rule | 93.3% (80% range 92.4%–93.9%) | $9,157 (80% range $9,022–$9,187) | 73.3% (80% range 65.1%–74.3%) | 2% (80% range 1.8%–2%) | 3 s (80% range 2 s–3 s) |
+| A network outage at 09:30 with the recommended plan | 35.6% (80% range 34.3%–37.4%) | $8,838 (80% range $8,838–$8,839) | 0% (80% range 0%–0.3%) | 37.1% (80% range 35.4%–37.4%) | 30 s (80% range 30 s–31 s) |
 
 **Staffing plan**
 
@@ -48,8 +48,8 @@
 - The busiest half-hour is 12:30–13:00, with about 112 customers: of the 103 expected, time of day adds 26, day of the week (Monday) adds 25.
 - Over the day, of about 1,821 expected calls: time of day adds 45% at 09:30–10:00 and takes away 57% at 19:30–20:00; the day of the week (Monday) adds 33%.
 - A network outage at 09:30 with the recommended plan: service level −54.4 points against the optimised plan (95% CI −56.1 points to −52.7 points).
-- In a typical run, waiting rose 2 at 15:30–16:00, then gave back all of it by 16:00–16:30.
-- In a typical run, service level fell 26 points at 12:00–12:30, then recovered all of it by 14:30–15:00.
+- In a typical run, customers rose 44 (+63%) at 12:00–12:30, then gave back all of it by 19:30–20:00, while service level fell 35 points.
+- In a typical run, waiting rose 2 at 12:30–13:00, then gave back all of it by 13:00–13:30.
 
 ## Risks
 
@@ -59,6 +59,7 @@
 ## What the model assumes
 
 - Calls arrive at random at the expected rate of each half-hour; service takes 379.5 seconds on average; customers give up after waiting 155.1 seconds on average, changed by the contract at times; a callback is offered when the wait would pass 90 seconds.
+- Service continuing above scheduled staffing is counted as overrun time and priced at the configured overrun rate (the ordinary hourly rate by default).
 - The optimised plan: ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages — aht cv = 0.6.
 - The manager's rule: ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages — aht cv = 0.6.
 - A network outage at 09:30 with the recommended plan: ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages — aht cv = 0.6.

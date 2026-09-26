@@ -109,6 +109,10 @@ class PoolSpec(Config):
                                                                   "free server takes the waiting customer first by "
                                                                   "priority, then arrival).")
     cost: Number = Field(0.0, description="Cost of one server per paid hour.")
+    overrun_cost: Number | None = Field(
+        None, description="Cost per hour of continuing service above scheduled staffing after staff drops. "
+                          "Defaults to cost; set an explicit rate for premiums or unpaid overrun. "
+                          "Overrun hours count actual service time without shrinkage gross-up.")
     shrinkage: Number = Field(0.0, description="Share of paid time not on duty (breaks, training), from 0 to below 1: "
                                                "paid hours = staff × hours ÷ (1 − shrinkage).")
     description: str = ""
@@ -256,9 +260,11 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_offered": {"expr": f"{totals}.offered", "type": "int", "description": "Customers who arrived."},
         f"{name}_abandoned": {"expr": f"{totals}.abandoned", "type": "int", "description": "Customers who gave up."},
         f"{name}_cost": {"expr": f"{totals}.cost", "type": "number", "format": "money",
-                         "description": "Paid server hours × cost."},
+                         "description": "Scheduled paid hours × cost, plus service overrun hours × overrun cost."},
         f"{name}_paid_hours": {"expr": f"{totals}.paid_hours", "type": "number", "format": "1",
-                               "description": "Server hours paid (staff on duty grossed up for shrinkage)."},
+                               "description": "Scheduled hours with shrinkage, plus actual service overrun hours."},
+        f"{name}_overrun_hours": {"expr": f"{totals}.overrun_hours", "type": "number", "unit": "hour",
+                                  "description": "Service hours continuing above scheduled staffing."},
         f"{name}_intervals_below_target": {"expr": f"{totals}.intervals_below_target", "type": "int",
                                            "description": "Intervals where a channel's service level was below its "
                                                           "target."},
@@ -387,9 +393,12 @@ def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str,
         if staff != int(staff):
             raise RunError(f"must give a whole number of servers, got {staff:g} (interval {index}); round it, e.g. "
                            f"$round(...)", f"{path}.staff")
+        cost = _number(world, pool.cost, f"{path}.cost", index, 0.0)
+        overrun_cost = cost if pool.overrun_cost is None else _number(
+            world, pool.overrun_cost, f"{path}.overrun_cost", index, 0.0)
         pools[pname] = {"staff": int(staff),
                         "skills": list(config.channels) if pool.skills == "all" else list(pool.skills),
-                        "cost": _number(world, pool.cost, f"{path}.cost", index, 0.0),
+                        "cost": cost, "overrun_cost": overrun_cost,
                         "shrinkage": _number(world, pool.shrinkage, f"{path}.shrinkage", index, 0.0, 0.99)}
     return {"channels": channels, "pools": pools}
 

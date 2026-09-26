@@ -46,6 +46,7 @@ Nested config:
 - `staff`: number | text (required) — Servers on duty in the interval: a whole number or an expression giving one ($inputs.staffing[$interval]); a shift is staff that changes by interval.
 - `skills`: [text] | any = "all" — Channels the pool serves, most preferred first (a free server takes the waiting customer first by priority, then arrival).
 - `cost`: number | text = 0.0 — Cost of one server per paid hour.
+- `overrun_cost`: number | text — Cost per hour of continuing service above scheduled staffing after staff drops. Defaults to cost; set an explicit rate for premiums or unpaid overrun. Overrun hours count actual service time without shrinkage gross-up.
 - `shrinkage`: number | text = 0.0 — Share of paid time not on duty (breaks, training), from 0 to below 1: paid hours = staff × hours ÷ (1 − shrinkage).
 - `description`: text
 

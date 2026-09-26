@@ -262,6 +262,9 @@ class QueueView:
                     text += (f", using a declared service estimate of {estimate} {plural(self.unit, 2)}"
                              + (" (normally)" if varies else ""))
             out.append(text + ".")
+        if self.config.get("servers"):
+            out.append("Service continuing above scheduled staffing is counted as overrun time and priced at the "
+                       "configured overrun rate (the ordinary hourly rate by default).")
         return out
 
 
