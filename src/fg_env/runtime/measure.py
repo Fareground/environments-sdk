@@ -69,7 +69,8 @@ class RunResult:
     @property
     def degraded(self) -> list[str]:
         """The codes of the diagnostics that mean this run does not show what the environment is for — an action no
-        agent could ever take, agents that never acted or whose turns mostly failed, agents that never had an action
+        agent could ever take, agents that never acted or whose turns mostly failed, model turns cut short by their
+        call limit even after a partial action, agents that never had an action
         to take, turns lost to a failing provider, a budget that cut the run short, host answers that were the
         contract's stand-ins, an output that raised an error (``output_failed``; an output that is only null is not
         one). Empty for a sound run; a degraded run is not :attr:`ok`."""

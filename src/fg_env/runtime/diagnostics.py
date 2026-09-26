@@ -43,11 +43,11 @@ ALWAYS_FAULTED = 2
 #: never did (every call refused, so nothing it feeds ran), agents that never acted or too many of whose turns failed,
 #: agents that never had an action to take, agents a stage offers actions that never had a turn, turns lost to a
 #: failing provider, an output that raised an error, a run its budget cut short, host answers that were the contract's
-#: stand-ins or that it could not use.
+#: stand-ins or that it could not use, or model turns cut short by their call limit even after a partial action.
 #: ``RunResult.degraded`` lists them, and such a run is not ``ok``.
 DEGRADING = frozenset({"action_always_faulted", "action_never_succeeded", "agents_never_acted", "agents_often_failed",
                        "agents_never_able_to_act", "agents_never_played", "turns_forfeited", "output_failed",
-                       "budget_cut", "host_fallback", "host_unusable"})
+                       "budget_cut", "host_fallback", "host_unusable", "out_of_steps"})
 #: An agent more than this share of whose turns failed (``Stats.failed_turns``) does not show how it plays.
 FAILED_SHARE = 0.5
 #: The same for a model participant, held to a much lower share: every failed turn of a model is a move it never made

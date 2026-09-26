@@ -294,15 +294,21 @@ def health(ev: Evidence) -> Section | None:
         if item['code'] in run.degraded))
     section.lines.extend(findings)
     rows = []
+    cutoffs = any(run.stats.get("out_of_steps", 0) for run in ev.runs)
+    keys = ("turns", "failed_turns", "timeouts") + (("out_of_steps",) if cutoffs else ())
     for option in ev.options:
         agents = sorted({actor for run in option.runs for actor in run.agent_stats})
         for actor in agents:
-            counts = [sum(run.agent_stats.get(actor, {}).get(key, 0) for run in option.runs)
-                      for key in ("turns", "failed_turns", "timeouts")]
+            counts = [sum(run.agent_stats.get(actor, {}).get(
+                "wakes" if key == "turns" and "wakes" in run.agent_stats.get(actor, {}) else key, 0)
+                for run in option.runs) for key in keys]
             if any(counts[1:]):
                 rows.append([label(option, start=True), actor, *map(str, counts)])
     if rows:
-        section.tables.append(Table("Affected agents", ["Option", "Agent", "Turns", "Failed turns", "Timeouts"], rows))
+        headings = ["Option", "Agent", "Turns", "Failed turns", "Timeouts"]
+        if cutoffs:
+            headings.append("Call-limit cutoffs")
+        section.tables.append(Table("Affected agents", headings, rows))
     return section
 
 
