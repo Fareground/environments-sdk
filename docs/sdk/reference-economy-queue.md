@@ -34,6 +34,7 @@ Nested config:
 - `service`: number (required)
 - `patience`: number
 **CallbackSpec** — A callback offered to customers facing a long wait; callbacks are served when nobody is waiting.
+- `service_estimate`: number | text — Expected service duration used only in the callback offer's wait estimate. Required with scheduled arrivals; supply information available when deciding, not future realized service times. Poisson channels default to their service distribution mean.
 - `when`: number | text = 0.0 — Offer it when the expected wait is longer than this (the mode's unit): (customers waiting on the channel + 1) × mean service ÷ servers on the channel.
 - `accept`: number | text = 1.0 — Share of customers offered a callback who take it, from 0 to 1.
 - `reserve`: number | text = 0.0 — Servers kept free for live customers: a callback is served only while more than this many servers of the pool are free (0: whenever nobody is waiting, which can take the server the next caller needed).

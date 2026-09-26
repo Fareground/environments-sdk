@@ -46,6 +46,10 @@ class DurationSpec(Config):
 class CallbackSpec(Config):
     """A callback offered to customers facing a long wait; callbacks are served when nobody is waiting."""
 
+    service_estimate: Number | None = Field(
+        None, description="Expected service duration used only in the callback offer's wait estimate. Required with "
+                          "scheduled arrivals; supply information available when deciding, not future realized "
+                          "service times. Poisson channels default to their service distribution mean.")
     when: Number = Field(0.0, description="Offer it when the expected wait is longer than this (the mode's unit): "
                                           "(customers waiting on the channel + 1) × mean service ÷ servers on the "
                                           "channel.")
@@ -163,6 +167,11 @@ def _check(config: QueueConfig) -> None:
         elif channel.arrivals is not None or channel.service is not None or channel.patience is not None:
             raise MechanismError("scheduled rows cannot also use arrival or duration distributions",
                                  "put service and optional patience on each scheduled row", path)
+        if channel.scheduled is not None and channel.callback is not None and channel.callback.service_estimate is None:
+            raise MechanismError("scheduled callbacks need an explicit service_estimate",
+                                 "supply the expected service duration known at offer time; "
+                                 "do not infer it from future rows",
+                                 f"{path}.callback.service_estimate")
         durations = [("service", channel.service), ("patience", channel.patience),
                      ("retry.delay", channel.retry.delay if channel.retry else None)]
         for field, spec in durations:
@@ -359,13 +368,15 @@ def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str,
         scheduled = (None if spec.scheduled is None else
                      _scheduled(world, spec.scheduled, f"{path}.scheduled", index,
                                 interval_length(config, _clock_data(world))))
-        # The mean is used only by the optional callback offer heuristic for recorded arrivals.
+        # Scheduled service values must not leak future realized work into callback offers.
         service = (_duration(world, spec.service, f"{path}.service", index) if spec.service is not None else
-                   {"dist": "fixed", "mean": sum(row["service"] for row in scheduled or []) / len(scheduled)
-                    if scheduled else 0.0})
+                   {"dist": "fixed", "mean": 0.0})
+        callback_service = (_number(world, spec.callback.service_estimate,
+                                    f"{path}.callback.service_estimate", index, 0.0)
+                            if spec.callback is not None and spec.callback.service_estimate is not None else None)
         channels[cname] = {"arrivals": len(scheduled) if scheduled is not None else
                            _number(world, spec.arrivals, f"{path}.arrivals", index, 0.0),
-                           "service": service, "scheduled": scheduled,
+                           "service": service, "scheduled": scheduled, "callback_service": callback_service,
                            "patience": None if spec.patience is None
                            else _duration(world, spec.patience, f"{path}.patience", index),
                            "priority": spec.priority, "threshold": spec.threshold, "callback": callback, "retry": retry}
@@ -392,7 +403,7 @@ def _engine_inputs(now: Mapping[str, Any]) -> tuple[dict[str, Channel], dict[str
                                   c["threshold"], tuple(c["callback"]) if c["callback"] else None,  # type: ignore[arg-type]
                                   (retry[0], Duration(**retry[1]), retry[2]) if retry else None,
                                   tuple((row["at"], row["service"], row["patience"]) for row in c["scheduled"])
-                                  if c.get("scheduled") is not None else None)
+                                  if c.get("scheduled") is not None else None, c.get("callback_service"))
     pools = {pname: Pool(pname, p["staff"], tuple(p["skills"])) for pname, p in now["pools"].items()}
     return channels, pools
 

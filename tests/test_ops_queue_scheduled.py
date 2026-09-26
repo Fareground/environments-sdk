@@ -166,3 +166,57 @@ def test_observed_queue_cookbook_rejects_invalid_rows_before_running():
     for jobs in ([{'at': -1, 'service': 1}], [{'at': 0, 'service': -1}], [{'at': 0}]):
         with pytest.raises(fg_env.ContractError):
             fg_env.load(new('observed_queue'), inputs={'jobs': jobs})
+
+
+def test_scheduled_callback_history_links_service_to_the_original_customer():
+    contract = trace(repair([{'at': 0, 'service': 5}, {'at': 1, 'service': 2}], horizon=8))
+    contract['mechanisms']['q']['channels']['repair']['callback'] = {'when': 0, 'accept': 1, 'service_estimate': 3}
+    output = measured(contract)
+    events = output['q_customer_events']
+    assert [(e['customer'], e['time']) for e in events if e['event'] == 'callback'] == [(2, 1)]
+    assert [(e['customer'], e['time']) for e in events if e['event'] == 'started'] == [(1, 0), (2, 5)]
+    assert [(e['customer'], e['time']) for e in events if e['event'] == 'completed'] == [(1, 5), (2, 7)]
+    assert output['q_callbacks'] == 1 and output['q_callbacks_unserved'] == 0
+
+
+def test_retry_history_preserves_customer_identity_and_distinguishes_attempts():
+    contract = trace(repair([{'at': 0, 'service': 5}, {'at': 1, 'service': 1, 'patience': .5}], horizon=7))
+    contract['mechanisms']['q']['channels']['repair']['retry'] = {
+        'chance': 1, 'delay': {'dist': 'fixed', 'mean': 1}, 'max': 2}
+    output = measured(contract)
+    events = output['q_customer_events']
+    arrivals = [(e['customer'], e['time'], e['retry']) for e in events if e['event'] == 'arrived']
+    assert arrivals == [(1, 0, 0), (2, 1, 0), (2, 2.5, 1), (2, 4, 2)]
+    assert [(e['customer'], e['time']) for e in events if e['event'] == 'abandoned'] == [(2, 1.5), (2, 3), (2, 4.5)]
+    assert [(e['customer'], e['time']) for e in events if e['event'] == 'completed'] == [(1, 5)]
+    assert output['q_offered'] == 4  # customer attempts, not four unique people
+
+
+def test_scheduled_callbacks_require_a_known_service_estimate():
+    contract = repair()
+    contract['mechanisms']['q']['channels']['repair']['callback'] = {'when': 1, 'accept': 1}
+    with pytest.raises(fg_env.ContractError, match='explicit service_estimate'):
+        fg_env.load(contract)
+
+
+def test_future_realized_service_cannot_change_a_current_callback_offer():
+    contract = trace(repair([{'at': 0, 'service': 5}, {'at': .1, 'service': 1},
+                            {'at': .9, 'service': 1}], horizon=1))
+    contract['mechanisms']['q']['channels']['repair']['callback'] = {
+        'when': 2, 'accept': 1, 'service_estimate': 1}
+    before = measured(contract)['q_customer_events']
+    contract['inputs']['jobs']['default'][2]['service'] = 10000
+    after = measured(contract)['q_customer_events']
+    assert [e for e in before if e['time'] < .9] == [e for e in after if e['time'] < .9]
+    assert not [e for e in before if e['event'] == 'callback']
+
+
+def test_callback_service_estimate_does_not_change_poisson_service_requirements():
+    contract = repair(horizon=20)
+    channel = {'arrivals': 3, 'service': {'dist': 'fixed', 'mean': 2},
+               'callback': {'when': 0, 'accept': 0}}
+    contract['mechanisms']['q']['channels']['repair'] = channel
+    baseline = measured(contract, seed=1)
+    channel['callback']['service_estimate'] = 10000
+    assert measured(contract, seed=1) == baseline
+    assert baseline['q_aht'] == 2

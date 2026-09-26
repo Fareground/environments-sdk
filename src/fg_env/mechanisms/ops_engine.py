@@ -82,6 +82,7 @@ class Channel:
     retry: tuple[float, Duration, int] | None = None
     #: Exact absolute arrival time, service duration, patience; None selects Poisson arrivals.
     scheduled: tuple[tuple[float, float, float | None], ...] | None = None
+    callback_service: float | None = None
 
 
 @dataclass(frozen=True)
@@ -295,7 +296,9 @@ class _Interval:
     def _expected_wait(self, channel: str) -> float:
         """How long a new customer would wait: everyone in line ahead of them served at the channel's mean pace."""
         servers = sum(self.pools[pool].staff for pool in self.pools_of[channel])
-        return (self.waiting[channel] + 1) * self.channels[channel].service.mean / max(1, servers)
+        spec = self.channels[channel]
+        estimate = spec.service.mean if spec.callback_service is None else spec.callback_service
+        return (self.waiting[channel] + 1) * estimate / max(1, servers)
 
     # -- service -----------------------------------------------------------------------------------------------
 
