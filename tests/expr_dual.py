@@ -23,7 +23,7 @@ from expr_oracle import compile_oracle
 
 from fg_env.expr import compile as expr_compile
 from fg_env.expr.base import _BUDGET, ExprError
-from fg_env.sampling.seeds import DrawSite
+from fg_env.sampling.seeds import DrawSite, LazyStream
 from fg_env.stdlib import tables
 
 #: Every difference found: ``(expression, what differed)``.
@@ -58,16 +58,33 @@ def _streams(world: Any) -> list[Any]:
     for rng in candidates:
         if isinstance(rng, DrawSite):
             rng = rng.stream
-        if rng is not None and hasattr(rng, "getstate") and not any(rng is known for known in found):
+        if rng is not None and (isinstance(rng, LazyStream) or hasattr(rng, "getstate")) \
+                and not any(rng is known for known in found):
             found.append(rng)
     return found
+
+
+def _stream_state(rng: Any) -> Any:
+    """Observe lazy streams without seeding them: whether they were used affects participation diagnostics."""
+    if isinstance(rng, LazyStream):
+        return rng._make, rng._stream, None if rng._stream is None else rng._stream.getstate()
+    return rng.getstate()
+
+
+def _restore_stream(rng: Any, saved: Any) -> None:
+    if isinstance(rng, LazyStream):
+        rng._make, rng._stream, state = saved
+        if rng._stream is not None:
+            rng._stream.setstate(state)
+    else:
+        rng.setstate(saved)
 
 
 def _capture(world: Any) -> dict[str, Any]:
     state: dict[str, Any] = {"budget": tuple(getattr(_BUDGET, name) for name in _BUDGET_FIELDS)}
     if world is None:
         return state
-    state["streams"] = [(rng, rng.getstate()) for rng in _streams(world)]
+    state["streams"] = [(rng, _stream_state(rng)) for rng in _streams(world)]
     if hasattr(world, "luck"):
         here = world.luck.here()
         site = here.rng
@@ -98,7 +115,7 @@ def _restore(world: Any, state: dict[str, Any]) -> None:
         world.luck.firings.update(firings)
         del world.journal._undo[mark:]
     for rng, saved in state["streams"]:
-        rng.setstate(saved)
+        _restore_stream(rng, saved)
     if "counters" in state:
         here, draws, depth = state["counters"]
         here.draws, here.depth = draws, depth
@@ -167,7 +184,9 @@ def _same_outcome(old: tuple[str, Any], new: tuple[str, Any]) -> bool:
 
 
 def _left_behind(state: dict[str, Any]) -> tuple[Any, ...]:
-    streams = tuple(saved for _, saved in state.get("streams", []))
+    # Each evaluation may instantiate its own lazy backing stream. Compare its state, not its object identity.
+    streams = tuple(("lazy", saved[2]) if isinstance(rng, LazyStream) else saved
+                    for rng, saved in state.get("streams", []))
     counters = state.get("counters", (None, None, None))[1:]
     defs = state.get("defs")
     return state["budget"], streams, counters, (sorted(map(repr, defs[0].items())), defs[1]) if defs else None
