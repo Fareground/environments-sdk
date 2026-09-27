@@ -54,6 +54,10 @@ class OracleExpr:
             raise
         except RecursionError:
             raise ExprError("evaluation nested too deeply", self.source) from None
+        except OverflowError:
+            # Keep the public diagnostic current without changing the independent
+            # closure evaluator or relaxing exact differential comparisons.
+            raise ExprError("a number is too large for a fraction (past about 1.8e308)", self.source) from None
         except (ArithmeticError, IndexError, KeyError, TypeError, ValueError, AttributeError) as exc:
             raise ExprError(f"could not evaluate: {type(exc).__name__}: {str(exc)[:200]}", self.source) from None
 
