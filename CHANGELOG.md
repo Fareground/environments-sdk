@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Reports disclose every declared input from recorded runs, including inputs without assumption keywords, default comparisons and missing values. Displays are bounded and point to exact recorded inputs. Single-run and repeated-run uncertainty guidance separates fixed replay, stochastic variability, assumption sensitivity and empirical accuracy without inferring randomness from absent evidence.
+
 - Circular record visibility dependencies fail immediately at the authored rule, rather than exhausting the Python call stack. Failed reads release their dependency guards so later valid reads can proceed.
 
 - Grounding data sources reject duplicate or blank CSV headers, malformed CSV quoting, duplicate JSON/JSONL object keys and non-finite JSON numbers with actionable errors. Previously accepted ambiguous files must use unique nonblank column names, unique object keys, valid quoting and finite numeric values; measured values are no longer silently overwritten during parsing.

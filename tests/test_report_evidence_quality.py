@@ -192,5 +192,65 @@ def test_single_run_batch_preserves_the_single_observation_risk_warning(audience
     result = fg_env.run(contract)
     for evidence in (result, [result]):
         written = fg_env.analysis.report(evidence, audience, contract=contract)
-        assert 'One run shows one possible outcome' in written.markdown
+        assert 'A single recorded run does not establish whether outcomes vary' in written.markdown
         assert 'No risk stands out' not in written.markdown
+
+
+@pytest.mark.parametrize("description", ["Daily demand", ""])
+@pytest.mark.parametrize("audience", ["owner", "analyst"])
+def test_input_disclosure_does_not_require_assumption_keyword(description, audience):
+    contract = {"name": "Demand", "types": {}, "clock": {"rounds": 1},
+                "inputs": {"demand": {"type": "number", "default": 100, "description": description}},
+                "outputs": {"served": "$inputs.demand"},
+                "arms": {"base": {"inputs": {"demand": 100}}, "high": {"inputs": {"demand": 250}}}}
+    results = fg_env.experiment(contract, runs=1)
+    text = fg_env.analysis.report(results, audience, contract=contract).markdown
+    assert "demand = 100 (matches declared default)" in text
+    assert "demand = 250 (differs from declared default)" in text
+    assert "Base:" in text and "High:" in text
+
+
+def test_missing_recorded_input_is_not_filled_from_default():
+    from dataclasses import replace
+    contract = {**CASE, "events": []}
+    result = fg_env.run(contract)
+    text = fg_env.analysis.report([result, replace(result, inputs={})], contract=contract).markdown
+    assert "absent from 1 of 2 recorded runs" in text
+
+
+@pytest.mark.parametrize("audience", ["owner", "analyst"])
+@pytest.mark.parametrize("with_contract", [False, True])
+@pytest.mark.parametrize("count", [1, 3])
+def test_fixed_results_do_not_imply_chance_or_benefit_from_replay(audience, with_contract, count):
+    contract = {"name": "Fixed", "types": {}, "clock": {"rounds": 1}, "outputs": {"served": "7"}}
+    results = [fg_env.run(contract, seed=i) for i in range(count)]
+    text = fg_env.analysis.report(results, audience, contract=contract if with_contract else None).markdown
+    assert "beyond chance" not in text
+    assert "run an experiment for" not in text
+    assert "One run shows one possible outcome" not in text
+    assert "sensitivity" in text and "independent observations" in text
+    assert ("adds no uncertainty estimate" if count == 1 else "do not prove the model is deterministic") in text
+
+
+def test_stochastic_paired_report_keeps_ranges_but_qualifies_their_scope():
+    contract = copy.deepcopy(CASE)
+    contract["events"] = []
+    contract["outputs"] = {"profit": "$uniform(0, 100)"}
+    experiment = fg_env.experiment(contract, runs=8, seed=19)
+    text = fg_env.analysis.report(experiment, contract=contract).markdown
+    assert "80% range" in text
+    assert "not all real-world uncertainty" in text
+    assert "stochastic runs estimate variability" in text
+
+
+def test_shared_dataset_inputs_are_compact_and_grouped_across_options():
+    contract = copy.deepcopy(CASE)
+    contract["events"] = []
+    contract["inputs"]["history"] = {"type": "list", "default": []}
+    rows = [{"day": i, "demand": i * 2} for i in range(1344)]
+    result = fg_env.experiment(contract, runs=1, inputs={"history": rows})
+    text = fg_env.analysis.report(result, contract=contract).markdown
+    assert text.count("history = 1344 records (day, demand)") == 1
+    assert "All options: history" in text
+    assert '\"demand\": 2686' not in text
+    assert "exact values are retained" in text

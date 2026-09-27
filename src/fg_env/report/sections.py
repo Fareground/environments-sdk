@@ -103,8 +103,8 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
             prefix = "Observed (degraded execution): " if any(r.degraded for r in subject.runs) else "Expected: "
             section.lines.append(prefix + "; ".join(expected) + ".")
         if ev.kind == "run":
-            section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
-                                 "one.")
+            section.lines.append("This is one run of the model at the recorded inputs and agent configuration; "
+                                 "it does not measure variability across runs or sensitivity to assumptions.")
     if choice.goal is None and len(ev.options) > 1:
         section.lines.append("No decision rule was given (objective and require), so the options are compared, not "
                              "ranked.")
@@ -356,7 +356,14 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
             told = "; ".join(f"{namer.name(r.measure)} {_ranged(namer, r.measure, option)}" for r in failing)
             section.lines.append(f"With {label(option)}: {told}.")
     if ev.kind == "run" or sum(len(option.runs) for option in ev.options) == 1:
-        section.lines.append("One run shows one possible outcome; the range of outcomes is not known from it.")
+        section.lines.append("A single recorded run does not establish whether outcomes vary. Replaying a fixed "
+                             "deterministic scenario adds no uncertainty estimate. Vary uncertain assumptions "
+                             "to assess sensitivity; use independent observations to assess predictive accuracy.")
+    elif ev.runs:
+        section.lines.append("Reported ranges describe variation in the supplied runs, not all real-world "
+                             "uncertainty. Identical recorded outcomes do not prove the model is deterministic. "
+                             "Repeated stochastic runs estimate variability under the configured model; "
+                             "varying assumptions tests sensitivity, and independent observations test accuracy.")
     if ev.validation is not None:
         section.lines += _data_risks(ev, namer, owner)
     failed = sum(option.failed for option in ev.options)
@@ -389,8 +396,7 @@ def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> list[str]:
 
 
 def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Section:
-    """What the model takes as given: the queue's behaviour, inputs described as assumed, and how many parameters the
-    data estimated. An owner reads values in words; the analyst also reads the inputs' names."""
+    """Recorded scenario inputs, queue assumptions and fitted parameters, without inferring provenance from prose."""
     section = Section("What the model assumes")
     contract = ev.contract
     if contract is None:
@@ -398,16 +404,46 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
         return section
     for view in queues:
         section.lines += view.assumptions(owner)
-    assumed = [(name, spec) for name, spec in contract.inputs.items() if "assum" in spec.description.lower()]
-    for name, spec in assumed:
+    for name, spec in contract.inputs.items():
+        heading = spec.description.rstrip('.') or name.replace('_', ' ')
         if not ev.runs:
-            section.lines.append(f"{spec.description.rstrip('.')} — declared default {shown(spec.default)} "
+            section.lines.append(f"{heading} — declared default {shown(spec.default)} "
                                  "(no recorded run inputs available).")
+            continue
+        grouped: dict[str, tuple[list[str], str]] = {}
         for option in ev.options:
-            values = list(dict.fromkeys(shown(run.inputs[name]) for run in option.runs if name in run.inputs))
-            value = ", ".join(values) if values else "not recorded"
-            prefix = f"{label(option, start=True)}: " if len(ev.options) > 1 else ""
-            section.lines.append(f"{prefix}{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {value}.")
+            # Deduplicate exact values before formatting: shown() deliberately rounds and truncates.
+            values: dict[str, Any] = {}
+            missing = 0
+            for run in option.runs:
+                if name not in run.inputs:
+                    missing += 1
+                    continue
+                value = run.inputs[name]
+                values.setdefault(json.dumps(value, sort_keys=True, default=str), value)
+            preview = ", ".join(_input_preview(value) for value in list(values.values())[:5]) or "not recorded"
+            if len(values) > 5:
+                preview += f"; {len(values) - 5} further distinct values in recorded run inputs"
+            source = ""
+            if values:
+                changed = sum(value != spec.default for value in values.values())
+                source = ("matches declared default" if not changed else "differs from declared default"
+                          if changed == len(values) else "includes default and non-default values")
+                source = f" ({source})"
+            if missing:
+                source += f"; absent from {missing} of {len(option.runs)} recorded runs"
+            identity = json.dumps([sorted(values), missing, len(option.runs)], sort_keys=True)
+            if identity not in grouped:
+                grouped[identity] = ([], f"{heading} — {name.replace('_', ' ')} = {preview}{source}.")
+            grouped[identity][0].append(label(option, start=True))
+        for names, text in grouped.values():
+            prefix = ""
+            if len(ev.options) > 1:
+                prefix = "All options: " if len(names) == len(ev.options) else ", ".join(names) + ": "
+            section.lines.append(prefix + text)
+    if contract.inputs and ev.runs:
+        section.lines.append("Input values above are bounded display summaries; exact values are retained in each "
+                             "recorded run's inputs. Matching a default does not establish how a value was supplied.")
     fitted = [name for name, spec in contract.inputs.items()
               if "fitted by fg_env.analysis.fit_patterns" in spec.description]
     if fitted:
@@ -417,6 +453,21 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
     if contract.description:
         section.lines.append(contract.description)
     return section
+
+
+def _input_preview(value: Any) -> str:
+    """Dataset inputs are described, not dumped as truncated record JSON into report prose."""
+    if isinstance(value, list) and value and all(isinstance(row, dict) for row in value):
+        columns = list(dict.fromkeys(key for row in value for key in row))
+        names = ", ".join(str(key) for key in columns[:6])
+        more = f", +{len(columns) - 6} more" if len(columns) > 6 else ""
+        return f"{len(value)} records ({names}{more})"
+    if isinstance(value, dict):
+        names = ", ".join(str(key) for key in list(value)[:6])
+        return f"{len(value)} fields ({names}, …)" if len(value) > 6 else shown(value)
+    if isinstance(value, list) and len(value) > 10:
+        return f"{len(value)} values; first 5: {shown(value[:5])}"
+    return shown(value)
 
 
 def fit(ev: Evidence, namer: Namer) -> Section:
