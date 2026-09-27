@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Calibration reserves bounded local sensitivity probes within the requested candidate budget, reports rank deficiency separately from searched-point support, and accepts an explicit `fit_tolerance` for normalized observation error. Joint support retains parameter correlations; no reported range is a confidence interval or proof of empirical/global identification. Unsupported or insufficient-budget diagnostics are explicitly not assessed.
+
 - Reports disclose every declared input from recorded runs, including inputs without assumption keywords, default comparisons and missing values. Displays are bounded and point to exact recorded inputs. Single-run and repeated-run uncertainty guidance separates fixed replay, stochastic variability, assumption sensitivity and empirical accuracy without inferring randomness from absent evidence.
 
 - Circular record visibility dependencies fail immediately at the authored rule, rather than exhausting the Python call stack. Failed reads release their dependency guards so later valid reads can proceed.

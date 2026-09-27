@@ -339,9 +339,11 @@ fg_env.analysis.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}},
 # every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
 v = fg_env.analysis.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
                     runs=20, season=4); print(v.report())   # bias, MAPE/WAPE per key, interval coverage, baselines
-cal = fg_env.analysis.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}})   # cases: {name, inputs, targets}
+cal = fg_env.analysis.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}}, fit_tolerance=0.01)   # cases: {name, inputs, targets}
 # a rate per case: {"value": 0.03, "count": calls} weighs it by its data; "pool": true matches the cases together
-fg_env.analysis.validate("shop.json", cases, uncertainty=cal)   # also experiment, sweep, backtest: draw params per run
+fg_env.analysis.validate("shop.json", cases, uncertainty=cal)   # draws joint searched points, not a parameter posterior
+cal.identification   # local sensitivity rank; not global uniqueness or empirical certainty
+# fit_tolerance is a declared normalized RMS allowance. Held-out observations must remain independent.
 fg_env.analysis.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
 fg_env.rl.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant

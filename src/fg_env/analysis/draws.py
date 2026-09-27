@@ -1,9 +1,11 @@
 """Parameter uncertainty in runs: each run draws its parameters, so a forecast's range includes not knowing them.
 
-A calibration leaves a set of points that fit as well as the best within the objective's noise; a forecast run only at
-the best point pretends those parameters are known, and its intervals are too narrow. ``uncertainty=`` on
-:func:`fg_env.experiment`, :func:`fg_env.analysis.sweep`, :func:`fg_env.analysis.backtest` and
-:func:`fg_env.analysis.validate` draws them per run instead, from:
+A calibration retains jointly evaluated points within simulator noise and a declared fit tolerance.
+Drawing those points preserves their sampled correlations, but does not explore unsearched ridges or
+establish parameter confidence. Inspect the calibration's identification diagnostic and use independent
+observations and domain-informed priors where parameter uncertainty remains unresolved.
+``uncertainty=`` on :func:`fg_env.experiment`, :func:`fg_env.analysis.sweep`,
+:func:`fg_env.analysis.backtest` and :func:`fg_env.analysis.validate` draws per run from:
 
 * a :class:`~fg_env.analysis.calibrate.CalibrationResult` — one of its plausible points, the parameters together;
 * a list of points ``[{"price_level": 0.94}, …]`` — one of them;
