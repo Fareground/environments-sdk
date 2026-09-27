@@ -11,7 +11,7 @@ from typing import Any
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
 from ..runtime.clock_words import plural, unit_word
-from ..runtime.measure import shown, usable_output
+from ..runtime.measure import RunResult, shown, usable_output
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
 from .demand import demand_lines
@@ -316,14 +316,40 @@ def _representative(option: Option | None, choice: Choice, measures: Sequence[st
     return option.runs[scored[len(scored) // 2][1]]
 
 
+def _turn_count(run: RunResult, key: str) -> int | None:
+    """Prefer aggregate counts; incomplete older per-agent evidence remains unknown."""
+    if key in run.stats:
+        return int(run.stats[key])
+    if run.agent_stats and all(key in row for row in run.agent_stats.values()):
+        return sum(int(row[key]) for row in run.agent_stats.values())
+    return None
+
+
+def _failed_turns(run: RunResult) -> bool:
+    return (any((_turn_count(run, key) or 0) > 0 for key in ("failed_turns", "timeouts"))
+            or any(row.get("failed_turns", 0) or row.get("timeouts", 0) for row in run.agent_stats.values())
+            or any(item["code"] == "some_turns_failed" for item in run.diagnostics))
+
+
 def health(ev: Evidence) -> Section | None:
     """Execution failures precede interpretation; private observations are never copied into this summary."""
     degraded = [run for run in ev.runs if run.degraded]
-    if not degraded:
+    affected = [run for run in ev.runs if _failed_turns(run)]
+    if not degraded and not affected:
         return None
     section = Section("Execution health")
-    section.lines.append(f"{len(degraded)} of {len(ev.runs)} recorded runs had degraded execution. "
-                         "These outcomes do not reliably show how the agents would behave with healthy execution.")
+    if degraded:
+        section.lines.append(f"{len(degraded)} of {len(ev.runs)} recorded runs had degraded execution. "
+                             "These outcomes do not reliably show how the agents would behave with healthy execution.")
+    if affected:
+        counts = []
+        for key, noun in (("failed_turns", "failed turn(s)"), ("timeouts", "timeout(s)")):
+            values = [_turn_count(run, key) for run in ev.runs]
+            counts.append(f"{sum(value for value in values if value is not None)} {noun}"
+                          if all(value is not None for value in values) else f"{noun} count unavailable")
+        section.lines.append(f"{len(affected)} of {len(ev.runs)} recorded runs had agent failures; "
+                             f"recorded totals: {', '.join(counts)}. "
+                             "Whether these failures changed an outcome requires decision-time evidence.")
     section.lines.append("A failed or timed-out turn is a missing decision, not an intentional choice to do nothing.")
     findings = list(dict.fromkeys(
         f"{item['code']}: {item['message']}" for run in degraded for item in run.diagnostics
@@ -335,11 +361,16 @@ def health(ev: Evidence) -> Section | None:
     for option in ev.options:
         agents = sorted({actor for run in option.runs for actor in run.agent_stats})
         for actor in agents:
-            counts = [sum(run.agent_stats.get(actor, {}).get(
-                "wakes" if key == "turns" and "wakes" in run.agent_stats.get(actor, {}) else key, 0)
-                for run in option.runs) for key in keys]
-            if any(counts[1:]):
-                rows.append([label(option, start=True), actor, *map(str, counts)])
+            records = [run.agent_stats[actor] for run in option.runs if actor in run.agent_stats]
+            if not any(record.get(key, 0) for record in records for key in keys[1:]):
+                continue
+            counts = []
+            for key in keys:
+                values = [record.get("wakes" if key == "turns" and "wakes" in record else key)
+                          for record in records]
+                counts.append(str(sum(value for value in values if value is not None))
+                              if all(value is not None for value in values) else "Not recorded")
+            rows.append([label(option, start=True), actor, *counts])
     if rows:
         headings = ["Option", "Agent", "Turns", "Failed turns", "Timeouts"]
         if cutoffs:
@@ -357,6 +388,9 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
             section.lines.append(f"{label(option, start=True)} has degraded execution in {len(degraded)} of "
                                  f"{len(option.runs)} recorded runs; outcomes are descriptive only, not reliable "
                                  "evidence of agent behaviour.")
+    if any(_failed_turns(run) for run in ev.runs):
+        section.lines.append("Some agent decisions failed or timed out; see Execution health. "
+                             "Their effect on the outcomes is not established by the failure count.")
     for option in ev.options:
         invalid = [run for run in option.runs if run.output_issues]
         if invalid:
