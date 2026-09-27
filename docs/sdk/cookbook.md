@@ -192,13 +192,13 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
 
 ## negotiation
 
-**Price negotiation.** Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades.
+**Price negotiation.** Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades. Both private reservation limits are enforced as settlement constraints, independent of who proposed. Preferences are assumed, not calibrated human behavior.
 
 ```json
 {
   "fg_env": "2",
   "name": "Price negotiation",
-  "description": "Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades.",
+  "description": "Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades. Both private reservation limits are enforced as settlement constraints, independent of who proposed. Preferences are assumed, not calibrated human behavior.",
   "brief": {
     "situation": "A seller and a buyer haggle over one used car.",
     "rules": "Each round the seller, then the buyer, may accept the offer on the table (if the other side made it) or make a new offer. A deal ends the talks. After {$inputs.deadline} rounds without a deal, nobody trades.",
@@ -258,6 +258,8 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
       "description": "Accept the other side's offer.",
       "when": {"expr": "$world.offered_by != '' and $world.offered_by != $actor.id", "why": "There is no offer from the other side to accept."},
       "do": [
+        {"if": "not ($world.offer >= $entity(seller).limit and $world.offer <= $entity(buyer).limit)",
+         "then": [{"fail": "The offer does not satisfy the settlement constraints."}]},
         "$world.price = $world.offer",
         "$world.deal = true",
         {"end": "deal", "say": "Deal at {$world.price|money}."}
@@ -268,6 +270,7 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
   "views": {
     "table": {"for": "party", "show": "{'On the table: ' + $text($world.offer) + ' from ' + $world.offered_by if $world.offered_by else 'No offer yet.'} Your limit is {limit|money}."}
   },
+  "invariants": [{"expr": "not $world.deal or ($world.price >= $entity(seller).limit and $world.price <= $entity(buyer).limit)", "why": "A completed deal must satisfy both parties’ reservation constraints."}],
   "outputs": {"deal": "$world.deal", "price": "$world.price if $world.deal else null"}
 }
 ```
