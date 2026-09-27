@@ -6,6 +6,7 @@ from typing import Any, Literal
 from pydantic import Field, StrictBool, model_validator
 
 from .base import OUTPUT_TYPES, Effects, TypeName, _ExprShorthand, _Model
+from .quantity import Quantity
 
 __all__ = ["OutputSpec", "EndSpec", "DefSpec", "ArmSpec", "INVARIANT_CHECKS", "END_CHECKS",
            "InvariantSpec"]
@@ -65,6 +66,8 @@ class OutputSpec(_ExprShorthand):
         None, description="Report columns, row identity and optional interval timeline; "
                           "hidden suppresses redundant display, not storage.")
     unit: str = ""
+    quantity: Quantity | None = Field(None, description="Explicit dimensions and scale expected from the output "
+                                     "expression; display unit labels alone remain unchecked.")
     format: str = Field("",
                         description="How result.summary() and the CLI show it: a template format (money, pct, pct1, "
                                     "int, 0-4 decimals …); the stored value stays exact. Unset: numbers to 4 decimals.")

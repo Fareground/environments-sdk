@@ -108,6 +108,7 @@ cloned, to copy and make your own (topic, roles, people, inputs, rules) rather t
 - `mechanisms` — what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)
 - `engines` — every engine: what it simulates, its roles, coded policies and inputs; sampling people for it
 - `patterns` — seasons, trends, responses, random processes, draws and noise, and fitting them from data
+- `quantities` — explicit dimensions, unit conversion and the limits of dimensional checking
 - `assets` — files beside the contract (images, PDFs, text) delivered to agents: `file` inputs
 - `inspect` — debugging a run: summary, diagnostics, events, traces, replay
 - `running` — Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI

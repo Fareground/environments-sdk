@@ -788,6 +788,18 @@
           "title": "Unit",
           "type": "string"
         },
+        "quantity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit dimensions and scale of this numeric value; display unit labels alone remain unchecked. No automatic conversion."
+        },
         "label": {
           "default": "",
           "description": "Human-readable input label; defaults to the input name in a host UI.",
@@ -1306,6 +1318,18 @@
           "default": "",
           "title": "Unit",
           "type": "string"
+        },
+        "quantity": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Quantity"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Explicit dimensions and scale expected from the output expression; display unit labels alone remain unchecked."
         },
         "format": {
           "default": "",
@@ -1833,6 +1857,47 @@
       },
       "title": "PropSpec",
       "type": "object"
+    },
+    "Quantity": {
+      "anyOf": [
+        {
+          "additionalProperties": false,
+          "description": "One numeric unit: base value = value * scale + offset; absolute quantities have an origin.",
+          "properties": {
+            "dimensions": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "title": "Dimensions",
+              "type": "object"
+            },
+            "scale": {
+              "default": 1,
+              "exclusiveMinimum": 0,
+              "title": "Scale",
+              "type": "number"
+            },
+            "offset": {
+              "default": 0,
+              "title": "Offset",
+              "type": "number"
+            },
+            "absolute": {
+              "default": false,
+              "title": "Absolute",
+              "type": "boolean"
+            }
+          },
+          "title": "Quantity",
+          "type": "object"
+        },
+        {
+          "description": "Known unit or compound unit, e.g. minute, item/hour, m^3.",
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        }
+      ]
     },
     "RecordSpec": {
       "additionalProperties": false,

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Add opt-in input/output quantity dimensions, explicit unit and dated currency conversions, and scoped dimensional diagnostics; descriptive unit labels remain unchecked.
+
 - Outputs accept optional `presentation` metadata: authored column labels/units/formats, stable row identity, interval timeline fields, and suppression of redundant report blocks without deleting recorded values. Native reports render bounded record tables; Fareground can render timelines and export exact recorded data.
 
 - The negotiation recipe enforces both parties’ private reservation limits at settlement and with an invariant. A proposer cannot bind itself to infeasible terms by having the other party accept; generic rejection messages do not disclose private limits.

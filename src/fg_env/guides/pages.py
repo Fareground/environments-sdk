@@ -172,7 +172,7 @@ _CORE_GROUPS = {
 _MODULE_GROUPS = {
     "stdlib.mathx": "math", "stdlib.linalg": "random", "stdlib.dists": "random", "stdlib.strings": "text",
     "stdlib.words": "words", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
-    "stdlib.sets": "lists", "stdlib.stats": "stats",
+    "stdlib.sets": "lists", "stdlib.stats": "stats", "stdlib.quantities": "quantities",
     "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "words",
     "mechanisms.market_stats": "stats", "mechanisms.voting": "stats",
 }
@@ -182,6 +182,7 @@ FUNCTION_GROUPS = {
                    "items is null",
     "world": "entities, records, events and what agents were shown",
     "math": "arithmetic, trigonometry, interpolation",
+    "quantities": "explicit units, dimensions and authored currency conversions",
     "random": "seeded draws and distributions; a pick from no items is null",
     "text": "text and formatting",
     "dates": "calendar arithmetic and parts of ISO dates",

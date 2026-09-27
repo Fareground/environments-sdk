@@ -38,6 +38,7 @@ from .pages import (
     mode_page,
     section_page,
 )
+from .quantities import QUANTITIES
 from .text import CHECKLIST, INSPECT, MODEL, RUNNING, TEMPLATES
 
 __all__ = ["guide", "schema", "guide_parts"]
@@ -116,6 +117,7 @@ _PARTS_MAP = [
     ("mechanisms", "what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)"),
     ("engines", "every engine: what it simulates, its roles, coded policies and inputs; sampling people for it"),
     ("patterns", "seasons, trends, responses, random processes, draws and noise, and fitting them from data"),
+    ("quantities", "explicit dimensions, unit conversion and the limits of dimensional checking"),
     ("assets", "files beside the contract (images, PDFs, text) delivered to agents: `file` inputs"),
     ("inspect", "debugging a run: summary, diagnostics, events, traces, replay"),
     ("running", "Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI"),
@@ -156,6 +158,7 @@ _TOPICS: dict[str, Callable[[], str]] = {
     "functions": functions_index,
     "mechanisms": mechanisms_page,
     "patterns": patterns_page,
+    "quantities": lambda: QUANTITIES,
     "inspect": lambda: INSPECT,
     "running": lambda: RUNNING,
     "optimise": lambda: OPTIMISE,
@@ -171,7 +174,7 @@ def guide_parts() -> list[str]:
     names = ["core", "authoring", "cookbook", "model", *sections, "assets", "expressions", "templates", "effects",
              "functions"]
     names += [f"functions.{group}" for group in function_groups() if group not in FAMILIES]
-    names += ["patterns", "mechanisms"]
+    names += ["patterns", "quantities", "mechanisms"]
     for name, family in FAMILIES.items():
         names += [name, *[spec.key for spec in family.modes.values()]]
     names += [f"functions.{group}" for group in function_groups() if group in FAMILIES]
