@@ -268,6 +268,7 @@ def test_manager_observations_do_not_reveal_future_job_rows():
 def test_observed_queue_optional_patience_is_exposed_and_reported(patience, completed, abandoned):
     from fg_env.authoring.scaffold import new
     contract = new('observed_queue')
+    assert fg_env.check(contract) == []
     assert contract['inputs']['jobs']['fields']['patience']['required'] is False
     jobs = [{'at': 0, 'service': 5}, {'at': 1, 'service': 5}]
     if patience is not None:

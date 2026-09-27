@@ -37,7 +37,8 @@
           "min": 0,
           "label": "Maximum wait",
           "unit": "minute",
-          "required": false
+          "required": false,
+          "default": null
         }
       },
       "default": [

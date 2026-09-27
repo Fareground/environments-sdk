@@ -580,7 +580,8 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
           "min": 0,
           "label": "Maximum wait",
           "unit": "minute",
-          "required": false
+          "required": false,
+          "default": null
         }
       },
       "default": [
