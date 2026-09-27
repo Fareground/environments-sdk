@@ -56,7 +56,8 @@ def test_initial_tools_do_not_reveal_the_other_partys_private_limit(actor, other
             if wake.entity_id == actor:
                 observed.append(wake.tools)
             wake.end()
-        result = fg_env.load(json.loads(RECIPE.read_text()), inputs={other_input: other_limit}, seed=0).run(participant, rounds=1)
+        result = fg_env.load(json.loads(RECIPE.read_text()), inputs={other_input: other_limit}, seed=0).run(
+            participant, rounds=1)
         assert result.error is None and len(observed) == 1
         return observed
     assert tools_for(20) == tools_for(100)
