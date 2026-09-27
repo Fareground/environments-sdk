@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Negotiation tools only offer prices within the proposing party's own reservation limit and acceptance within the receiving party's limit. Opponent limits remain private; bilateral settlement checks remain enforced. The buyer's default policy also respects the zero-price boundary.
+
 - Keyed trend fitting resolves each key's own numeric or calendar time origin. Row-based origins no longer fail with a null row; linear, exponential and logistic estimates retain the correct time reference.
 
 - Add opt-in input/output quantity dimensions, explicit unit and dated currency conversions, and scoped dimensional diagnostics; descriptive unit labels remain unchecked.

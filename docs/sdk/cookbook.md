@@ -235,7 +235,7 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
         "concede": {
           "rules": [
             {"when": "$world.offered_by == seller and $world.offer <= $actor.limit - 10", "do": "accept"},
-            {"do": "offer", "with": {"price": "$min($actor.limit - 10, 20 + 10 * $round)"}}
+            {"do": "offer", "with": {"price": "$max(0, $min($actor.limit - 10, 20 + 10 * $round))"}}
           ]
         }
       }
@@ -248,15 +248,15 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
   "actions": {
     "offer": {
       "by": "party",
-      "description": "Put a price on the table.",
-      "params": {"price": {"type": "number", "min": 0}},
+      "description": "Put a price within your own reservation limit on the table.",
+      "params": {"price": {"type": "number", "min": "$actor.limit if $actor.id == seller else 0", "max": "$actor.limit if $actor.id == buyer else null"}},
       "do": ["$world.offer = $params.price", "$world.offered_by = $actor.id"],
       "announce": "{$actor.name} offers {$params.price|money}."
     },
     "accept": {
       "by": "party",
       "description": "Accept the other side's offer.",
-      "when": {"expr": "$world.offered_by != '' and $world.offered_by != $actor.id", "why": "There is no offer from the other side to accept."},
+      "when": {"expr": "$world.offered_by != '' and $world.offered_by != $actor.id and ($world.offer >= $actor.limit if $actor.id == seller else $world.offer <= $actor.limit)", "why": "There is no offer from the other side within your reservation limit."},
       "do": [
         {"if": "not ($world.offer >= $entity(seller).limit and $world.offer <= $entity(buyer).limit)",
          "then": [{"fail": "The offer does not satisfy the settlement constraints."}]},
