@@ -1,4 +1,5 @@
 import json
+import os
 from importlib.resources import files
 from pathlib import Path
 
@@ -30,10 +31,25 @@ def test_catalog_ships_every_engine_as_native():
 
 
 @pytest.mark.parametrize("engine_id", sorted(ENGINE_IDS))
-def test_every_starter_checks_without_warnings(engine_id):
+def test_every_starter_checks_without_warnings(engine_id, monkeypatch):
     path = Path(str(files("fg_env.engines").joinpath(fg_env.engines.get(engine_id).path)))
     hosts = {"judge": StubEvaluator()} if engine_id == "contest" else None  # a contest is scored by its host judge
-    assert [str(issue) for issue in fg_env.check(path, hosts=hosts)] == []
+    if os.environ.get("FG_ENV_EXPR_ORACLE"):
+        from expr_dual import _ORIGINAL
+
+        from fg_env.checks.smoke import _default_rounds
+        from fg_env.expr.compile import Expr
+
+        # Measure the unchanged production time guard without oracle instrumentation.
+        with monkeypatch.context() as timing:
+            timing.setattr(Expr, "__call__", _ORIGINAL)
+            assert [str(issue) for issue in fg_env.check(path, hosts=hosts)] == []
+        # Then cover the full default horizon with both evaluators. Explicit rounds
+        # also extend edge/idle plays to this horizon; no warning is filtered out.
+        rounds = _default_rounds(fg_env.load(path, hosts=hosts))
+        assert [str(issue) for issue in fg_env.check(path, hosts=hosts, rounds=rounds)] == []
+    else:
+        assert [str(issue) for issue in fg_env.check(path, hosts=hosts)] == []
 
 
 def test_available_engine_can_clone_customize_and_run(tmp_path):

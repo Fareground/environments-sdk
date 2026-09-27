@@ -43,6 +43,8 @@ class EvalContext:
         self.caching = False
         self._defs: dict[Any, Any] = {}
         self._defs_state: Any = None
+        # Active visibility dependencies, scoped to this world and unwound after every read.
+        self._visibility_reads: set[tuple[str, int, str]] = set()
         #: What :meth:`remembered` worked out for the current world state.
         self._remembered: dict[Any, Any] = {}
         self._remembered_state: Any = None
@@ -209,6 +211,10 @@ class EvalContext:
             return True
         if author_only(visible) and entry.get("author") != viewer.id:
             return False  # Exact author-only predicates cannot hold for another reader.
+        dependency = (record, entry.key, viewer.id)
+        if dependency in self._visibility_reads:
+            raise RunError("evaluation nested too deeply: circular record visibility", f"records.{record}.visible")
+        self._visibility_reads.add(dependency)
         try:
             expr = compile_expr(visible)
             # A pure reader/entry rule needs no clock, metric, pattern or turn roots.
@@ -218,6 +224,8 @@ class EvalContext:
             return truthy(expr(scope))
         except ExprError as exc:
             raise RunError(str(exc), f"records.{record}.visible") from None
+        finally:
+            self._visibility_reads.remove(dependency)
 
     def events(self, kind: str | None, viewer: Any = None) -> list[LogEvent]:
         """Events so far (of ``kind``; None: every kind): those an agent ``viewer`` may know of; for everyone

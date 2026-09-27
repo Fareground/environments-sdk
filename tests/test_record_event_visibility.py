@@ -259,3 +259,23 @@ def test_keep_counts_for_each_reader_only_the_entries_it_sees():
     world.rollback(mark)
     assert [r["seq"] for r in world.records_store["dm"]] == before
     assert [r["text"] for r in world.visible_records("dm", world.entities["c"])] == ["public 1", "public 2", "public 3"]
+
+
+@pytest.mark.parametrize("via_events", [True, False])
+def test_circular_visibility_is_bounded_and_does_not_poison_later_reads(via_events):
+    from fg_env.errors import RunError
+
+    c = contract(0)
+    read = "$events()" if via_events else "$records(decisions)"
+    c["records"]["decisions"]["visible"] = f"$world.shared or $len({read}) > 0"
+    env = fg_env.load(c, seed=1)
+    world = env.world
+    world.post("decisions", {"text": "PRIVATE-DECISION"}, "a", None, "probe")
+    viewer = world.entities["b"]
+    for _ in range(2):
+        with pytest.raises(RunError, match="circular record visibility"):
+            world.visible_records("decisions", viewer)
+        assert world.evaluation._visibility_reads == set()
+    world.set_world("shared", True)
+    assert [row["text"] for row in world.visible_records("decisions", viewer)] == ["PRIVATE-DECISION"]
+    assert world.evaluation._visibility_reads == set()
