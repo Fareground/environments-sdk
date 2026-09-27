@@ -1,7 +1,7 @@
 """Contract sections of measurement, ending, reuse, experiments and invariants."""
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field, StrictBool, model_validator
 
@@ -12,6 +12,41 @@ __all__ = ["OutputSpec", "EndSpec", "DefSpec", "ArmSpec", "INVARIANT_CHECKS", "E
 # ---------------------------------------------------------------------------
 # Measurement, ending, experiment, invariants
 # ---------------------------------------------------------------------------
+
+
+class OutputColumn(_Model):
+    """Presentation of one recorded field; the source value is never modified."""
+
+    label: str = ""
+    unit: str = ""
+    format: str = ""
+
+
+class OutputTimeline(_Model):
+    """Fields holding numeric interval endpoints in one shared unit."""
+
+    start: str
+    end: str
+    label: str
+    group: str | None = None
+    unit: str = ""
+
+
+class OutputPresentation(_Model):
+    """Authored report semantics, independent from the output's recorded value."""
+
+    kind: Literal["auto", "table", "timeline", "hidden"] = "auto"
+    columns: dict[str, OutputColumn] = Field(default_factory=dict)
+    row_key: str | None = None
+    timeline: OutputTimeline | None = None
+
+    @model_validator(mode="after")
+    def _timeline_fields(self) -> OutputPresentation:
+        if self.kind == "timeline" and self.timeline is None:
+            raise ValueError("timeline presentation requires start, end and label field names")
+        if self.timeline is not None and self.kind != "timeline":
+            raise ValueError("timeline fields require kind=timeline")
+        return self
 
 
 class OutputSpec(_ExprShorthand):
@@ -26,6 +61,9 @@ class OutputSpec(_ExprShorthand):
     label: str = Field("", description="Short name for this outcome in reports; description explains its meaning.")
     primary: StrictBool = Field(False, description="Show this outcome first in owner reports, including boolean "
                                                  "and structured values.")
+    presentation: OutputPresentation | None = Field(
+        None, description="Report columns, row identity and optional interval timeline; "
+                          "hidden suppresses redundant display, not storage.")
     unit: str = ""
     format: str = Field("",
                         description="How result.summary() and the CLI show it: a template format (money, pct, pct1, "

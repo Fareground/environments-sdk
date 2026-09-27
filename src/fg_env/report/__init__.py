@@ -116,8 +116,14 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
     namer = Namer(first.formats if first is not None else _formats(ev.contract), [q.name for q in queues],
                   first.clock if first is not None else (queues[0].clock if queues else _clock(ev.contract)),
                   ev.contract, {q.name: q.unit for q in queues})
-    primary = [name for name, spec in ev.contract.outputs.items() if spec.primary] if ev.contract else []
+    hidden = {name for name, spec in ev.contract.outputs.items()
+              if spec.presentation and spec.presentation.kind == "hidden"} if ev.contract else set()
+    primary = [name for name, spec in ev.contract.outputs.items() if spec.primary and name not in hidden] \
+        if ev.contract else []
     measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {}, primary)
+    # An explicit decision rule must remain visible even if its output is otherwise hidden.
+    required = {r.measure for r in requirements} | ({goal.measure} if goal else set())
+    measures = [name for name in measures if name not in hidden or name in required]
     choice = choose(ev.options, goal, requirements)
     sure = assess(ev, choice, measures)
     sections: list[Section] = []

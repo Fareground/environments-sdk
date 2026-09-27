@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Outputs accept optional `presentation` metadata: authored column labels/units/formats, stable row identity, interval timeline fields, and suppression of redundant report blocks without deleting recorded values. Native reports render bounded record tables; Fareground can render timelines and export exact recorded data.
+
 - The negotiation recipe enforces both parties’ private reservation limits at settlement and with an invariant. A proposer cannot bind itself to infeasible terms by having the other party accept; generic rejection messages do not disclose private limits.
 
 - Calibration reserves bounded local sensitivity probes within the requested candidate budget, reports rank deficiency separately from searched-point support, and accepts an explicit `fit_tolerance` for normalized observation error. Joint support retains parameter correlations; no reported range is a confidence interval or proof of empirical/global identification. Unsupported or insufficient-budget diagnostics are explicitly not assessed.

@@ -105,6 +105,7 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
         if ev.kind == "run":
             section.lines.append("This is one run of the model at the recorded inputs and agent configuration; "
                                  "it does not measure variability across runs or sensitivity to assumptions.")
+    section.tables.extend(_recorded_tables(ev))
     if choice.goal is None and len(ev.options) > 1:
         section.lines.append("No decision rule was given (objective and require), so the options are compared, not "
                              "ranked.")
@@ -127,6 +128,8 @@ def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
     rows = []
     for option in ev.options:
         for name, spec in primary.items():
+            if spec.presentation and spec.presentation.kind == "hidden":
+                continue
             values = [run.outputs[name] for run in option.runs
                       if name in run.outputs and run.outputs[name] is not None and usable_output(run, name)]
             total = len(option.runs) + option.failed
@@ -138,6 +141,8 @@ def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
                     f"Yes in {sum(values)} of {len(values)} observed runs ({sum(values) / len(values):.0%})"
             elif all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
                 text = _ranged(namer, name, option) or "No finite value reported"
+            elif all(isinstance(value, list) and all(isinstance(row, dict) for row in value) for value in values):
+                text = "; ".join(f"{len(value)} records" for value in values[:5]) + "; see recorded tables"
             else:
                 counts: dict[str, int] = {}
                 for value in values:
@@ -153,6 +158,37 @@ def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
             outcome = namer.name(name) + (f" ({spec.unit})" if spec.unit else "")
             rows.append([label(option, start=True), outcome, text])
     return Table("Primary outcomes", ["Option", "Outcome", "Observed"], rows)
+
+
+def _recorded_tables(ev: Evidence) -> list[Table]:
+    """Bounded native report tables retain authored record labels and units, without dumping JSON."""
+    if ev.contract is None:
+        return []
+    tables = []
+    for name, spec in ev.contract.outputs.items():
+        presentation = spec.presentation
+        if presentation and presentation.kind == "hidden":
+            continue
+        columns = presentation.columns if presentation else {}
+        for option in ev.options:
+            for index, run in enumerate(option.runs[:5]):
+                records = run.outputs.get(name)
+                if not isinstance(records, list) or not records or not all(isinstance(row, dict) for row in records):
+                    continue
+                fields = list(dict.fromkeys([*columns, *(key for row in records for key in row)]))
+                headings = [(columns[key].label or key) if key in columns else key for key in fields]
+                headings = [heading + (f" ({columns[key].unit})" if key in columns and columns[key].unit else "")
+                            for key, heading in zip(fields, headings)]
+                rows = [[("—" if row.get(key) is None else "Yes" if row[key] is True else "No" if row[key] is False
+                          else shown(row[key], columns[key].format if key in columns else None))
+                         for key in fields] for row in records[:20]]
+                title = f"{spec.label or name} · {label(option, start=True)} · run {index + 1}"
+                if len(option.runs) > 5:
+                    title += f" (showing first 5 of {len(option.runs)} runs)"
+                if len(records) > 20:
+                    title += f" (first 20 of {len(records)} records; exact data retained in the run)"
+                tables.append(Table(title, headings, rows))
+    return tables
 
 
 def outcomes(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], sure: Confidence) -> Table:
