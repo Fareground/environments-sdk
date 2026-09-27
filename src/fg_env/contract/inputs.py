@@ -223,14 +223,38 @@ def load_source(spec: InputSpec, data_dir: str | os.PathLike[str] | None) -> Any
                                  "check quoting and delimiters in the source file") from None
     try:
         if suffix == ".json":
-            return json.loads(text)
-        rows = [json.loads(line) for line in text.splitlines() if line.strip()]
+            return _json_data(text)
+        rows = [_json_data(line) for line in text.splitlines() if line.strip()]
     except json.JSONDecodeError as exc:
         raise _SourceProblem(f"'{name}' is not valid JSON: {exc.msg} at line {exc.lineno}", "fix the file") from None
+    except ValueError as exc:
+        raise _SourceProblem(f"'{name}' is not valid JSON: {exc}",
+                             "use unique object keys and finite numbers") from None
     if len(rows) > MAX_DATA_ROWS:
         raise _SourceProblem(f"'{name}' has {len(rows):,} rows; the limit is {MAX_DATA_ROWS:,}",
                              "use a smaller extract")
     return rows
+
+
+def _json_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ValueError(f"duplicate object key {key!r}")
+        result[key] = value
+    return result
+
+
+def _json_number(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError(f"non-finite number {text!r}")
+    return value
+
+
+def _json_data(text: str) -> Any:
+    return json.loads(text, object_pairs_hook=_json_object,
+                      parse_constant=_json_number, parse_float=_json_number)
 
 
 def _csv_rows(text: str, columns: Mapping[str, str], name: str,

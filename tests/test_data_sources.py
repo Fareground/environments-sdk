@@ -183,3 +183,19 @@ def test_quoted_csv_evidence_preserves_embedded_commas_and_newlines(tmp_path):
         'rows': {'type': 'table', 'source': 'rows.csv', 'columns': {'service': 'int'}}}}
     assert fg_env.load(contract, data_dir=tmp_path).inputs['rows'] == [
         {'service': 5, 'source,note': 'first line\nsecond line'}]
+
+
+@pytest.mark.parametrize('suffix', ['json', 'jsonl'])
+@pytest.mark.parametrize('row, message', [
+    ('{"service":5,"service":50}', 'duplicate object key'),
+    ('{"service":5,"details":{"duration":5,"duration":50}}', 'duplicate object key'),
+    ('{"service":5,"details":NaN}', 'non-finite'),
+    ('{"service":5,"details":1e1000}', 'non-finite'),
+])
+def test_ambiguous_json_evidence_is_rejected(tmp_path, suffix, row, message):
+    name = f'rows.{suffix}'
+    (tmp_path / name).write_text(f'[{row}]' if suffix == 'json' else row + '\n')
+    contract = {'name': 'Evidence', 'types': {}, 'inputs': {
+        'rows': {'type': 'table', 'source': name, 'columns': {'service': 'int'}}}}
+    with pytest.raises(InputError, match=message):
+        fg_env.load(contract, data_dir=tmp_path)
