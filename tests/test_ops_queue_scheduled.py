@@ -262,3 +262,20 @@ def test_manager_observations_do_not_reveal_future_job_rows():
     assert first[5][1] != changed[5][1]  # once the job arrives, the observed queue changes
     assert all({tool[0] for tool in tools} == {'staff', 'end_turn'} for _, _, tools in first)
     assert all('777' not in brief + update for brief, update, _ in changed)
+
+
+@pytest.mark.parametrize('patience,completed,abandoned', [(None, 2, 0), (1, 1, 1)])
+def test_observed_queue_optional_patience_is_exposed_and_reported(patience, completed, abandoned):
+    from fg_env.authoring.scaffold import new
+    contract = new('observed_queue')
+    assert contract['inputs']['jobs']['fields']['patience']['required'] is False
+    jobs = [{'at': 0, 'service': 5}, {'at': 1, 'service': 5}]
+    if patience is not None:
+        jobs[1]['patience'] = patience
+    result = fg_env.run(contract, 'policy:one', inputs={'jobs': jobs}, seed=1)
+    assert result.outputs['completed_jobs'] == completed
+    assert result.outputs['q_abandoned'] == abandoned
+    report = fg_env.analysis.report(result, contract=contract).markdown
+    assert 'Optional job patience limits waiting before abandonment' in report
+    assert 'omitted patience means waiting indefinitely' in report
+    assert 'or abandonment are modeled' not in report

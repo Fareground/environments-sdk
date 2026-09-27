@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The observed-queue recipe exposes optional job patience in its input table and accurately describes abandonment; omitted patience still means indefinite waiting.
+
 - Single-run batches retain the single-observation risk warning instead of claiming that no risk stands out.
 
 - Calibration stops with actionable diagnostics when search or held-out runs have degraded execution, preventing parameter fitting from absorbing incomplete agent decisions.
