@@ -29,9 +29,8 @@ def end_state(contract: Contract, world: World) -> dict[str, Any]:
     type with living entities, how many there are and the first :data:`STATE_ROWS` with every property, private ones
     included."""
     alive: dict[str, list[Any]] = {}
-    for entity in world.entities.values():
-        if entity.alive:
-            alive.setdefault(entity.entity_type, []).append(entity)
+    for entity in world.types.living_entities():
+        alive.setdefault(entity.entity_type, []).append(entity)
     types = {kind: {"alive": len(alive[kind]),
                     "entities": [{"id": e.id, "props": plain_value(dict(e.properties))}
                                  for e in alive[kind][:STATE_ROWS]]}

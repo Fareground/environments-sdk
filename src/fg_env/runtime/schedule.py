@@ -315,7 +315,7 @@ class Schedule:
         contract, world = self.env.contract, self.env.world
         agent_types = set(contract.agent_types())  # includes types that inherit `agent`
         acting = {kind: bool(stage_actions(contract, stage, kind)) for kind in agent_types}
-        agents = [e for e in world.entities.values() if e.alive and acting.get(e.entity_type)]
+        agents = world.types.living_entities(kind for kind, offered in acting.items() if offered)
         path = f"stages.{stage.name}"
         try:
             if stage.who is not None and who:

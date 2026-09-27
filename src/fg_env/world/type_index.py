@@ -93,6 +93,12 @@ class TypeIndex:
         self._alive[type_name] = cached
         return cached
 
+    def living_entities(self, kinds: Iterable[str] | None = None) -> list[Entity]:
+        """Living entities of exact types, merged in creation order without scanning removed entities."""
+        selected = self._living if kinds is None else dict.fromkeys(kinds)
+        return list(heapq.merge(*(self._living[kind] for kind in selected),
+                                key=lambda entity: self.ordinal[entity.id]))
+
     def rebuild(self, entities: Iterable[Entity]) -> None:
         """Index ``entities`` (in creation order, removed ones included) from scratch, e.g. after a restore."""
         self._living = {name: [] for name in self._living}

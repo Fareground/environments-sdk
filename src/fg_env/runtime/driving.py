@@ -163,10 +163,10 @@ class Driver:
         if not isinstance(participants, Mapping):
             raise TypeError("participants must be a callable, a string, or a mapping")
         env = self.env
-        known = set(env.contract.types) | set(env.world.entities) | {"*"}
         for key, value in participants.items():
             path = "participants" if key == "*" else f"participants.{key}"
-            if key not in known:
+            if key != "*" and key not in env.contract.types and key not in env.world.entities:
+                known = set(env.contract.types) | set(env.world.entities) | {"*"}
                 hint = get_close_matches(str(key), sorted(known), n=1)
                 raise ContractError([Issue(path, f"'{key}' is not an entity id, a type, or '*'",
                                            f"did you mean '{hint[0]}'?" if hint else

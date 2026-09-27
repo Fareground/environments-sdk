@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Repeated runs with entity creation/removal schedule living agents and summarize living state without rescanning removed entities. Participant binding checks known IDs directly; creation order, rollback and copy behavior remain unchanged.
+
 - The observed-queue recipe exposes optional job patience in its input table and accurately describes abandonment; omitted patience still means indefinite waiting.
 
 - Single-run batches retain the single-observation risk warning instead of claiming that no risk stands out.
