@@ -160,3 +160,26 @@ def test_typed_table_fields_parse_csv_and_default_missing_columns(tmp_path):
 def test_invalid_input_controls_and_nested_specs_are_rejected(spec):
     assert any(issue.severity == "error"
                for issue in fg_env.check({"name": "Invalid controls", "types": {}, "inputs": {"value": spec}}))
+
+
+@pytest.mark.parametrize('text, message', [
+    ('service,service\n5,50\n', 'duplicate column headers'),
+    ('"service",service\n5,50\n', 'duplicate column headers'),
+    ('service,\n5,50\n', 'empty column header'),
+    ('service,   \n5,50\n', 'empty column header'),
+    ('service,note\n5,"unfinished\n', 'invalid CSV'),
+])
+def test_ambiguous_csv_evidence_is_rejected(tmp_path, text, message):
+    (tmp_path / 'rows.csv').write_text(text)
+    contract = {'name': 'Evidence', 'types': {}, 'inputs': {
+        'rows': {'type': 'table', 'source': 'rows.csv', 'columns': {'service': 'int'}}}}
+    with pytest.raises(InputError, match=message):
+        fg_env.load(contract, data_dir=tmp_path)
+
+
+def test_quoted_csv_evidence_preserves_embedded_commas_and_newlines(tmp_path):
+    (tmp_path / 'rows.csv').write_text('service,"source,note"\n5,"first line\nsecond line"\n')
+    contract = {'name': 'Evidence', 'types': {}, 'inputs': {
+        'rows': {'type': 'table', 'source': 'rows.csv', 'columns': {'service': 'int'}}}}
+    assert fg_env.load(contract, data_dir=tmp_path).inputs['rows'] == [
+        {'service': 5, 'source,note': 'first line\nsecond line'}]

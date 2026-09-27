@@ -216,7 +216,11 @@ def load_source(spec: InputSpec, data_dir: str | os.PathLike[str] | None) -> Any
     if suffix == ".csv":
         if spec.type != "table":
             raise _SourceProblem(f"a CSV file gives a table, but this input is {spec.type}", "set type: table")
-        return _csv_rows(text, spec.columns or {}, name, spec.fields)
+        try:
+            return _csv_rows(text, spec.columns or {}, name, spec.fields)
+        except csv.Error as exc:
+            raise _SourceProblem(f"'{name}' is invalid CSV: {exc}",
+                                 "check quoting and delimiters in the source file") from None
     try:
         if suffix == ".json":
             return json.loads(text)
@@ -231,9 +235,13 @@ def load_source(spec: InputSpec, data_dir: str | os.PathLike[str] | None) -> Any
 
 def _csv_rows(text: str, columns: Mapping[str, str], name: str,
               fields: dict[str, InputSpec] | None = None) -> list[dict[str, Any]]:
-    reader = csv.DictReader(io.StringIO(text))
+    reader = csv.DictReader(io.StringIO(text), strict=True)
     if reader.fieldnames is None:
         raise _SourceProblem(f"'{name}' has no header row", "put column names on the first line")
+    if any(not column.strip() for column in reader.fieldnames):
+        raise _SourceProblem(f"'{name}' has an empty column header", "give every CSV column a nonempty name")
+    if len(set(reader.fieldnames)) != len(reader.fieldnames):
+        raise _SourceProblem(f"'{name}' has duplicate column headers", "give every CSV column a unique name")
     missing = [column for column in columns if column not in reader.fieldnames]
     if missing:
         raise _SourceProblem(f"'{name}' has no column(s) {', '.join(missing)} (columns: "
