@@ -17,6 +17,7 @@ import gc
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from dataclasses import fields
 from typing import Any
 
 from expr_oracle import compile_oracle
@@ -25,6 +26,7 @@ from fg_env.expr import compile as expr_compile
 from fg_env.expr.base import _BUDGET, ExprError
 from fg_env.sampling.seeds import DrawSite, LazyStream
 from fg_env.stdlib import tables
+from fg_env.world.parts import LogEvent
 
 #: Every difference found: ``(expression, what differed)``.
 MISMATCHES: list[tuple[str, str]] = []
@@ -157,6 +159,10 @@ def same(a: Any, b: Any) -> bool:
     """Equal values of the same types, all the way down (entities by identity, decimals by representation)."""
     if type(a) is not type(b):
         return False
+    if isinstance(a, LogEvent):
+        # Viewer-local numbering returns distinct copies. Compare every field,
+        # including the private source key, without changing entity identity.
+        return all(same(getattr(a, field.name), getattr(b, field.name)) for field in fields(a))
     if isinstance(a, float):
         return repr(a) == repr(b)
     if isinstance(a, (list, tuple)):
