@@ -65,8 +65,8 @@ def _x(problem: Problem, row: Row) -> float:
     return row.x["x"]
 
 
-def _origin(problem: Problem) -> float:
-    return tb.to_t(problem.clock, problem.current("origin", None)) if hasattr(problem.cfg, "origin") else 0.0
+def _origin(problem: Problem, key: str | None) -> float:
+    return tb.to_t(problem.clock, problem.current("origin", key)) if hasattr(problem.cfg, "origin") else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -78,7 +78,8 @@ def _origin(problem: Problem) -> float:
 def _trend(problem: Problem, key: str | None) -> Estimate:
     rows = _series(problem)
     y = _values(problem, rows)
-    tau = [row.t - _origin(problem) for row in rows]
+    origin = _origin(problem, key)
+    tau = [row.t - origin for row in rows]
     form = problem.cfg.form
     if form == "linear":
         fit = least_squares([[1.0, t] for t in tau], y)

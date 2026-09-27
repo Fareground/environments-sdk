@@ -43,6 +43,35 @@ def test_a_linear_trend_is_recovered_with_a_standard_error_that_covers_the_truth
     assert result.fits[0].r2 > 0.99 and "least squares" in result.fits[0].method
 
 
+@pytest.mark.parametrize("form", ["linear", "exponential", "logistic"])
+@pytest.mark.parametrize("calendar", [False, True])
+def test_keyed_origin_is_resolved_for_each_trend_fit(form, calendar):
+    start = date(2020, 1, 1)
+    def when(t):
+        return (start + timedelta(days=t)).isoformat() if calendar else t
+
+    rows, catalogue = [], []
+    for key, origin in [("a", 0), ("b", 7)]:
+        catalogue.append({"sku": key, "origin": when(origin)})
+        for t in range(24):
+            y = (5 + 2*t if form == "linear" else 3*math.exp(0.06*t) if form == "exponential"
+                 else 100 / (1 + math.exp(-0.4*(t - 9))))
+            rows.append({"sku": key, "t": when(origin+t), "y": y})
+    result = _fitted({"g": {"kind": "trend", "form": form, "table": "$inputs.catalogue", "column": "sku",
+                            "origin": "$row.origin", "fit": {"data": "$inputs.history", "value": "y",
+                                                                 "time": "t", "key": "sku"}}}, rows,
+                     clock={"unit": "day", "start": start.isoformat()},
+                     inputs={"catalogue": {"type": "table", "default": catalogue}})
+    fitted = {row["sku"]: row for row in result.contract["inputs"]["g_fit"]["default"]}
+    expected = ({"start": 5, "slope": 2} if form == "linear" else {"start": 3, "rate": 0.06}
+                if form == "exponential" else {"capacity": 100, "midpoint": 9, "steepness": 0.4})
+    for key in ["a", "b"]:
+        for field, value in expected.items():
+            assert fitted[key][field] == pytest.approx(value, rel=1e-3, abs=1e-3)
+    assert result.fits[0].keys == 2 and result.fits[0].n == 48
+    assert result.fits[0].rmse < 0.01
+
+
 def test_an_exponential_trend_and_a_monthly_profile_are_recovered_from_weekly_history():
     rng = random.Random(2)
     profile = [0.8, 0.85, 1.0, 1.1, 1.2, 1.15, 1.05, 1.0, 0.95, 0.95, 0.9, 1.05]
