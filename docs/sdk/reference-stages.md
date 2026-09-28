@@ -15,6 +15,7 @@ Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $ar
 **StageSpec** — One step of every round. Stages run in order; each wakes agents to take turns. What happens around a stage (a
 resolution when it ends, a default move for an agent that did not act) is an event on the stage's anchors.
 - `name`: text (required)
+- `description`: text — One sentence saying what happens in this stage, for people reading the rules. Presentation only.
 - `when`: text — Run this stage only when true (e.g. $round == 1, $round % 7 == 0).
 - `actions`: text | [text] | object = "all" — 'all', a list, or {type: [actions]}.
 - `turns`: text = "sequential" — sequential (one after another, effects immediate) | simultaneous (everyone chooses from the same picture; the sealed choices then commit one agent after another, in `order` or else a random order — resolve them jointly in an event on `stage.<name>.end`).

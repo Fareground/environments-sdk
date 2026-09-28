@@ -151,6 +151,8 @@ class StageSpec(_Model):
     resolution when it ends, a default move for an agent that did not act) is an event on the stage's anchors."""
 
     name: str
+    description: str = Field("", description="One sentence saying what happens in this stage, for people reading "
+                                             "the rules. Presentation only.")
     when: str | None = Field(None, description="Run this stage only when true (e.g. $round == 1, $round % 7 == 0).")
     actions: str | list[str] | dict[str, list[str]] = Field("all", description="'all', a list, or {type: [actions]}.")
     turns: str = Field("sequential",
@@ -259,6 +261,8 @@ class EventSpec(_Model):
     """World logic outside agent turns: `on` says when it is considered, `when` whether it fires."""
 
     name: str | None = None
+    description: str = Field("", description="One sentence saying what this event does, for people reading the "
+                                             "rules. Presentation only.")
     on: str = Field("round.start",
                     description="round.start (before the stages) | round.end (after them, before outputs are "
                                 "sampled) | stage.<s>.start (when stage s starts) | stage.<s>.end (after it; a "

@@ -61,7 +61,7 @@ FIELDS: dict[str, Reader] = {
     "InputSpec.type": W, "InputSpec.default": W, "InputSpec.values": W, "InputSpec.columns": W,
     "InputSpec.source": W, "InputSpec.description": W, "InputSpec.unit": W, "InputSpec.label": W,
     "InputSpec.caption": W, "InputSpec.alt": W, "InputSpec.tags": W, "InputSpec.describe": W,
-    "InputSpec.display": W,
+    "InputSpec.display": W, "InputSpec.group": W, "InputSpec.basis": W,
     # the run's length and its space: settings the build works out
     "Clock.rounds": R, "Clock.unit": W, "Clock.start": W,
     "GridSpace.rows": R, "GridSpace.cols": R, "GridSpace.neighborhood": W,
@@ -97,6 +97,7 @@ FIELDS: dict[str, Reader] = {
     # stages: whether one was held and in what order agents act, every agent learns; whom it woke, those it woke
     "StageSpec.name": W, "StageSpec.when": S, "StageSpec.actions": W, "StageSpec.turns": W, "StageSpec.order": S,
     "StageSpec.who": K, "StageSpec.until": K, "StageSpec.passes": K, "StageSpec.quiet": W,
+    "StageSpec.description": W, "EventSpec.description": W,
     "StageSpec.max_actions": R, "StageSpec.max_calls": R, "StageSpec.brief": O,
     # views: what each reader is shown
     "ViewSpec.for_": W, "ViewSpec.title": O, "ViewSpec.of": O, "ViewSpec.where": O, "ViewSpec.sort": O,

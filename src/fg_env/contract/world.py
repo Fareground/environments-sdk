@@ -57,6 +57,10 @@ class InputSpec(_Model):
     display: Literal["number", "text", "textarea", "select", "toggle", "date", "slider", "knob", "table", "object",
                      "list", "json"] | None = Field(
         None, description="Optional host UI control. Presentation only: does not change simulation semantics.")
+    group: str = Field("", description="Section a host UI lists this input under (e.g. prices). Presentation only.")
+    basis: Literal["", "given", "researched", "assumed"] = Field(
+        "", description="Where the default comes from: given (by whoever asked for the environment), researched "
+                        "(from a source; say which in `description`) or assumed. Presentation only.")
     step: float | None = Field(None, gt=0, allow_inf_nan=False,
                                description="Suggested numeric control increment; min/max still validate supplied "
                                            "values.")

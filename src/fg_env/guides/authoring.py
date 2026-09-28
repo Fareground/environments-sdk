@@ -21,8 +21,7 @@ input whose default *is* the brief's value. Keep every stated requirement while 
 3. `fg-env preview lake.json fisher_1` (`env.preview(id)`): exactly what that agent reads and which tools it gets.
    Each role should see what the brief says, nothing more.
 4. `fg-env run lake.json --seed 1` (`fg_env.run`): compare the outputs with an answer worked out by hand for a small
-   case. A clean check means the rules are consistent and short plays did not fail; it proves neither that every
-   choice agents can make works nor that the environment is right.
+   case. A clean check shows the rules are consistent, not that they are right.
 
 ## Worked example
 
@@ -92,6 +91,7 @@ Every section but `name` and `types` is optional; `guide('<section>')` has each 
 
 1. **Parameters** — `inputs`: `{name: {type, default, min, max, values, description}}`, read as `$inputs.name`
    and set per run (`fg_env.run(..., inputs={...})`). Types: number int bool text enum list map table file.
+   Hosts show `label`, `unit`, `display`, `group` and `basis` (given, researched, assumed).
 2. **State** — `world` holds global props (`$world.fish`); `types` declare each kind's props (a bare value is the
    default: `"cash": 100`, any number; `"type": "int"` for whole ones — or `{type, default, min, max, values,
    private}`, a map `{"default": {…}}`); `entities` are named

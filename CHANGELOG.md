@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Presentation fields for host UIs, none of which change a run: inputs take `group` (the section a UI lists them
+  under) and `basis` (`given`, `researched` or `assumed`: where the default comes from); stages and events take a
+  one-sentence `description` of what they do.
 - **BREAKING:** a model turn cut short by the participant's call limit (`out_of_steps`) now degrades the run, even
   when the agent acted earlier in the turn: its outcome is kept, but `result.ok` is false and `out_of_steps` is in
   `result.degraded`. An explicit end of turn stays healthy.
