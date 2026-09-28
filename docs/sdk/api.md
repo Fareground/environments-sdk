@@ -594,7 +594,7 @@ SensitivityResult(contract: 'str', output: 'str', method: 'str', runs: 'int', ra
 ### `analysis.calibrate`
 
 ```pyi
-calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping[str, Any]], *, runs: int = 5, budget: int = 30, holdout: int | None = None, method: str = 'auto', inputs: Mapping[str, Any] | None = None, arm: str | None = None, participants: Any = None, rounds: int | None = None, seed: int = 0, workers: int = 1, test: Any = None, folds: int | None = None, data_dir: Any = None, hosts: Any = None, fit_tolerance: float = 0.0) -> CalibrationResult
+calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping[str, Any]], *, runs: int = 5, budget: int = 30, holdout: int | None = None, method: str = 'auto', inputs: Mapping[str, Any] | None = None, arm: str | None = None, participants: Any = None, rounds: int | None = None, seed: int = 0, workers: int = 1, test: Any = None, folds: int | None = None, data_dir: Any = None, hosts: Any = None) -> CalibrationResult
 ```
 
 Search ``params`` (``{input: {"low", "high", "log"?}}``) so the contract matches ``targets``.
@@ -608,18 +608,15 @@ parameter, Nelder–Mead for several). ``budget`` caps distinct evaluated points
 With cases, ``test`` returns the fit to the other cases with its error on the held-out ones, and
 ``folds`` adds a cross-validated error to the fit on every case (one extra search per fold).
 ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
-host requests (feeds, judges) in every run. ``fit_tolerance`` adds an explicit normalized RMS
-observation-error allowance to retained joint search support; it is not a probabilistic noise model.
-When the budget permits, up to two evaluations per continuous parameter are reserved within ``budget``
-for a local sensitivity-rank diagnostic. This does not establish global or empirical identification.
+host requests (feeds, judges) in every run.
 
 ### `analysis.CalibrationResult`
 
 ```pyi
-CalibrationResult(contract: str, params: dict[str, Any], method: str, fit: float, targets: list[dict[str, Any]], validation: dict[str, Any], uncertainty: dict[str, dict[str, Any]], evaluations: int, history: list[dict[str, Any]] = <factory>, notes: list[str] = <factory>, cases: list[str] = <factory>, holdout: dict[str, Any] | None = None, plausible: list[dict[str, Any]] = <factory>, pooled: list[dict[str, Any]] = <factory>, identification: dict[str, Any] = <factory>) -> None
+CalibrationResult(contract: str, params: dict[str, Any], method: str, fit: float, targets: list[dict[str, Any]], validation: dict[str, Any], uncertainty: dict[str, dict[str, Any]], evaluations: int, history: list[dict[str, Any]] = <factory>, notes: list[str] = <factory>, cases: list[str] = <factory>, holdout: dict[str, Any] | None = None, plausible: list[dict[str, Any]] = <factory>, pooled: list[dict[str, Any]] = <factory>, degraded_runs: int = 0) -> None
 ```
 
-CalibrationResult(contract: 'str', params: 'dict[str, Any]', method: 'str', fit: 'float', targets: 'list[dict[str, Any]]', validation: 'dict[str, Any]', uncertainty: 'dict[str, dict[str, Any]]', evaluations: 'int', history: 'list[dict[str, Any]]' = <factory>, notes: 'list[str]' = <factory>, cases: 'list[str]' = <factory>, holdout: 'dict[str, Any] | None' = None, plausible: 'list[dict[str, Any]]' = <factory>, pooled: 'list[dict[str, Any]]' = <factory>, identification: 'dict[str, Any]' = <factory>)
+CalibrationResult(contract: 'str', params: 'dict[str, Any]', method: 'str', fit: 'float', targets: 'list[dict[str, Any]]', validation: 'dict[str, Any]', uncertainty: 'dict[str, dict[str, Any]]', evaluations: 'int', history: 'list[dict[str, Any]]' = <factory>, notes: 'list[str]' = <factory>, cases: 'list[str]' = <factory>, holdout: 'dict[str, Any] | None' = None, plausible: 'list[dict[str, Any]]' = <factory>, pooled: 'list[dict[str, Any]]' = <factory>, degraded_runs: 'int' = 0)
 
 ### `analysis.score`
 

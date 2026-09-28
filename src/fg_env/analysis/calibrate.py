@@ -17,7 +17,9 @@ The objective is the weighted root-mean-square of normalized errors, so a fit of
 which makes the objective a deterministic function of the inputs (with cases, each case has its
 own seeds, so averaging over cases averages their noise away too); the best fit is then re-run
 on held-out seeds that played no part in the search, and that validation is what the report
-leads with. A number target fitted case by case is also compared with its pooled level over the cases
+leads with. A run with degraded execution (``RunResult.degraded``: a model cut off by its call limit, agents that
+never acted …) does not show how the contract behaves, so it is left out of every fit like a failed run, and
+``degraded_runs`` counts it. A number target fitted case by case is also compared with its pooled level over the cases
 (``pooled``): when the two disagree beyond noise, the per-case errors are pulling the fit away from the
 level the cases share, and the report says so.
 """
@@ -69,6 +71,8 @@ class CalibrationResult:
     #: pooled levels, the gap's standard error, whether they disagree, and the evaluated inputs closest to the pooled
     #: level.
     pooled: list[dict[str, Any]] = field(default_factory=list)
+    #: Search and validation runs left out of the fit because their execution was degraded.
+    degraded_runs: int = 0
 
     def report(self) -> str:
         v = self.validation
@@ -96,7 +100,8 @@ class CalibrationResult:
         return {"contract": self.contract, "params": self.params, "method": self.method, "fit": self.fit,
                 "targets": self.targets, "validation": self.validation, "uncertainty": self.uncertainty,
                 "evaluations": self.evaluations, "history": self.history, "notes": self.notes, "cases": self.cases,
-                "holdout": self.holdout, "plausible": self.plausible, "pooled": self.pooled}
+                "holdout": self.holdout, "plausible": self.plausible, "pooled": self.pooled,
+                "degraded_runs": self.degraded_runs}
 
 
 def _target_text(detail: dict[str, Any]) -> str:
@@ -285,12 +290,13 @@ class _Problem:
 
     def evaluate(self, runs: Sequence[Sequence[RunResult]]) -> tuple[float, list[dict[str, Any]]]:
         """Weighted RMS of normalized errors over every case's targets, a pooled target counted once over the cases
-        (``inf`` when one has no value). Rows: every case's targets in order, then one per pooled target."""
+        (``inf`` when one has no value). Rows: every case's targets in order, then one per pooled target. Degraded
+        runs are left out, like failed ones."""
         details: list[dict[str, Any]] = []
         pools: dict[str, list[tuple[Target, dict[str, Any]]]] = {}
         scored: list[tuple[float, float | None]] = []
         for case, case_runs in zip(self.cases, runs):
-            _, case_details = evaluate_targets(case.goals, case_runs)
+            _, case_details = evaluate_targets(case.goals, [r for r in case_runs if not r.degraded])
             for goal, detail in zip(case.goals, case_details):
                 details.append({**detail, "case": case.name} if self.tagged else detail)
                 if goal.pool:
@@ -319,9 +325,11 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
                                       budget=budget)
     chosen = _search(method, problem.names, problem.goals, evaluator, budget, seed)
     best = evaluator.best
+    searched = [r for _, _, d in evaluator.history for runs_ in d[2] for r in runs_]
     if best is None or not math.isfinite(best[1]):
+        degraded = _degraded_note(searched)
         raise runner.AnalysisError("no evaluated point produced every target (check the target names and that runs "
-                                   "complete)")
+                                   "complete)" + (f"; {degraded}" if degraded else ""))
     unit, fit, (values, _, best_runs) = best
     notes = []
     single_value = len(problem.names) == 1 and len(problem.goals) == 1 and problem.goals[0].kind == "value"
@@ -330,7 +338,12 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
     at_edge = [n for n, u in zip(problem.names, unit) if u in (0.0, 1.0)]
     if at_edge:
         notes.append(f"best value at the edge of its range for {', '.join(at_edge)}: the true fit may lie outside it")
-    validation_fit, validation_details = problem.evaluate(problem.run(values, seed, runs, held, pool))
+    validation_runs = problem.run(values, seed, runs, held, pool)
+    validation_fit, validation_details = problem.evaluate(validation_runs)
+    scored_runs = searched + [r for runs_ in validation_runs for r in runs_]
+    degraded = _degraded_note(scored_runs)
+    if degraded:
+        notes.append(degraded)
     uncertainty = _uncertainty(problem, evaluator, best_runs, fit, SeedTree(seed))
     noise = next(iter(uncertainty.values()))["objective_noise"] if uncertainty else 0.0
     plausible = [dict(d[0]) for _, loss, d in evaluator.history if loss <= fit + _PLAUSIBLE_SE * noise]
@@ -344,7 +357,16 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
                              {"runs": held, "fit": validation_fit, "targets": validation_details},
                              uncertainty, len(evaluator.history), history, notes,
                              [case.name for case in problem.cases] if problem.tagged else [], plausible=plausible,
-                             pooled=pooled)
+                             pooled=pooled, degraded_runs=sum(bool(r.degraded) for r in scored_runs))
+
+
+def _degraded_note(results: Sequence[RunResult]) -> str:
+    """How many of ``results`` were left out of the fit for degraded execution, and why ("" when none was)."""
+    degraded = [r for r in results if r.degraded]
+    if not degraded:
+        return ""
+    codes = ", ".join(sorted({code for r in degraded for code in r.degraded}))
+    return (f"{len(degraded)} of {len(results)} run(s) had degraded execution ({codes}) and were left out of the fit")
 
 
 def _pooled_notes(checks: Sequence[dict[str, Any]], best: Mapping[str, Any]) -> list[str]:
@@ -447,7 +469,7 @@ def _uncertainty(problem: _Problem, evaluator: unit_search.Evaluator, best_runs:
     The noise is the bootstrap standard error of the best point's objective (resampling each case's runs).
     """
     rng = tree.rng("calibration-noise")
-    ok = [[r for r in runs if r.status != "failed"] for runs in best_runs]
+    ok = [[r for r in runs if r.status != "failed" and not r.degraded] for runs in best_runs]
     draws = []
     for _ in range(_NOISE_RESAMPLES if all(len(runs) > 1 for runs in ok) else 0):
         sample = [[runs[rng.randrange(len(runs))] for _ in runs] for runs in ok]

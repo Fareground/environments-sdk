@@ -19,6 +19,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **BREAKING:** the retail starter's daily series `cups_sold`, `turned_away` and `active_subscribers` are at the same
   city scale as its totals (`turned_away_total` no longer scales them again). Stop multiplying them by the household
   weight; `cups_sold`'s unit is `cups`.
+- `calibrate` leaves runs with degraded execution out of the fit, like failed runs, instead of scoring them;
+  `CalibrationResult.degraded_runs` counts them and a note names why. When no point has a sound run, the error says
+  so.
 - `validate` leaves degraded runs out of the accuracy scores and warns how many; the report's data section shows the
   check's warnings and notes beside the scores.
 - Reports open with an **Execution health** section when a run is degraded or had failed agent turns: how many runs,

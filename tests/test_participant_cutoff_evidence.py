@@ -90,26 +90,43 @@ def test_no_accuracy_is_claimed_when_every_validation_run_is_degraded():
     report = fg_env.analysis.report(validation, contract=CASE)
     assert 'degraded' in report.markdown
     assert 'accuracy could not be assessed' in report.markdown
-    assert 'Requested evaluation: 1 case(s)' in report.markdown
+    assert 'Checked on 1 case(s)' in report.markdown
 
 
-@pytest.mark.parametrize('cutoff_after', [0, 2])
-def test_calibration_rejects_degraded_search_and_held_out_runs(cutoff_after):
+def _cutoff_contract():
     import copy
-
-    from fg_env.analysis.runner import AnalysisError
     contract = copy.deepcopy(CASE)
     contract['inputs'] = {'quantity': {'type': 'number', 'default': 1}}
     contract['actions']['buy']['do'] = ['$actor.units += $inputs.quantity']
+    return contract
+
+
+def test_calibration_leaves_a_cut_off_run_out_of_the_fit_and_records_it():
     calls = 0
+
     def participant(wake):
         nonlocal calls
         calls += 1
         wake.call('buy', {})
-        if calls > cutoff_after:
+        if calls == 2:  # one participant call-limit cutoff in the whole calibration
             wake.record_usage(out_of_steps=1)
         wake.end()
+
+    result = fg_env.analysis.calibrate(_cutoff_contract(), {'units': 1}, {'quantity': {'low': 1, 'high': 2}},
+                                       participants=participant, runs=2, holdout=2, budget=2)
+    assert result.degraded_runs == 1 and result.to_dict()['degraded_runs'] == 1
+    assert any('1 of' in note and 'out_of_steps' in note for note in result.notes)
+    assert result.params == {'quantity': 1} and result.fit == 0 and result.validation['fit'] == 0
+
+
+def test_calibration_with_only_degraded_runs_says_why_nothing_was_fitted():
+    from fg_env.analysis.runner import AnalysisError
+
+    def participant(wake):
+        wake.call('buy', {})
+        wake.record_usage(out_of_steps=1)
+        wake.end()
+
     with pytest.raises(AnalysisError, match='degraded execution.*out_of_steps'):
-        fg_env.analysis.calibrate(contract, {'units': 1}, {'quantity': {'low': 1, 'high': 2}},
+        fg_env.analysis.calibrate(_cutoff_contract(), {'units': 1}, {'quantity': {'low': 1, 'high': 2}},
                                   participants=participant, runs=1, holdout=1, budget=2)
-    assert calls == cutoff_after + 1
