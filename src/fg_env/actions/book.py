@@ -248,6 +248,12 @@ class ActionBook:
         out = []
         viewer = viewer_for("ParamSpec.where", actor)
         base = self.world.evaluation.scope(actor=actor, viewer=viewer, params=params or {})
+        if not first:
+            excluded = expr.excluded_entity_id(base)
+            if excluded is not None:
+                # These are the world's native entities from alive_of, with unique public ids. Avoid a
+                # predicate call and field lookup for every candidate in every crowd member's turn.
+                return [item for item in items if item.id != excluded]
         ruled_out, ruled_in = expr.rules_out(base), expr.rules_in(base)
         for position, item in enumerate(items):
             if ruled_out is not None and ruled_out(item):

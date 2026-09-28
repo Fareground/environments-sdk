@@ -167,6 +167,18 @@ class Expr:
         evaluated. None for any other condition."""
         return self._differs("unequal", scope)
 
+    def excluded_entity_id(self, scope: Scope) -> str | None:
+        """For a pure entity-id inequality, the public id excluded from a list of world entities.
+
+        Only callers holding native world entities may use this shortcut. Keep private reads, missing roots,
+        compound conditions and nested evaluation budgets on the normal evaluator path.
+        """
+        guard: EqualityGuard | None = getattr(self.run, "unequal", None)
+        if guard is None or guard.field != "id" or not nested_free():
+            return None
+        key = guard.key(scope)
+        return key if isinstance(key, str) else None
+
     def _differs(self, kind: str, scope: Scope) -> Callable[[Any], bool] | None:
         """A test true for items whose field certainly differs from the value of the ``kind`` guard, if any."""
         guard: EqualityGuard | None = getattr(self.run, kind, None)

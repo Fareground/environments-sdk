@@ -163,6 +163,82 @@ def test_builtin_field_choices_match_unoptimized_evaluation(monkeypatch, conditi
     assert _choices_of(condition) == expected
 
 
+@pytest.mark.parametrize("condition", [
+    "$it.id != $actor.id", "$actor.id != $it.id", "$it != $actor.id",
+    "$it.id != 'missing'", "$it.id != ''",
+])
+def test_id_exclusions_keep_choice_order_with_the_shortcut_disabled(monkeypatch, condition):
+    expected = _choices_of(condition)
+    monkeypatch.setattr(expr.Expr, "excluded_entity_id", lambda self, scope: None)
+    assert _choices_of(condition) == expected
+
+
+@pytest.mark.parametrize("condition", [
+    "$it.id != null", "$it.id != 3", "$it.id != $missing.id",
+    "$it.id != $text($actor.id)", "$it.id != $actor.id and $it.team == 'red'",
+    "$it.team != $actor.team",
+])
+def test_id_exclusion_falls_back_for_nonliteral_or_compound_guards(condition):
+    env = fg_env.load(HERD)
+    scope = env.world.evaluation.scope(actor=env.world.entities["k"])
+    assert expr.compile_expr(condition).excluded_entity_id(scope) is None
+
+
+def test_id_exclusion_keeps_private_field_and_nested_budget_checks():
+    from fg_env.expr import shared_budget
+
+    env = fg_env.load(HERD)
+    scope = env.world.evaluation.scope(actor=env.world.entities["k"])
+    condition = expr.compile_expr("$it.id != $actor.id")
+    assert condition.excluded_entity_id(scope) == "k"
+    with shared_budget(100):
+        assert condition.excluded_entity_id(scope) is None
+    env.world.private_names = env.world.private_names | {"id"}
+    assert condition.excluded_entity_id(scope) is None
+
+
+def test_id_exclusion_avoids_a_bound_predicate_call_for_every_candidate(monkeypatch):
+    contract = {"name": "Choices", "clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"p": {"type": "p", "count": 128}},
+                "actions": {"choose": {"by": "p", "params": {
+                    "who": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}}, "do": []}}}
+    calls = []
+    original = expr.EqualityGuard.bound
+
+    def counted(self, key):
+        bound = original(self, key)
+
+        def check(item):
+            calls.append(item.id)
+            return bound(item)
+
+        return check
+
+    monkeypatch.setattr(expr.EqualityGuard, "bound", counted)
+    env = fg_env.load(contract)
+    env.preview(next(iter(env.world.entities)))
+    assert len(calls) < 10  # first-choice legality probes only, not a full crowd predicate scan
+
+
+def test_id_exclusion_preserves_full_runs_through_removal_creation_and_restore(monkeypatch):
+    contract = {"name": "Changing crowd", "clock": {"rounds": 4},
+                "types": {"p": {"agent": True}}, "entities": {"p": {"type": "p", "count": 24}},
+                "actions": {"remove": {"by": "p", "terminal": True, "params": {
+                    "who": {"type": "entity", "of": "p", "where": "$it.id != $actor.id"}},
+                    "do": [{"remove": "$params.who"}]}},
+                "events": [{"phase": "end", "do": [{"create": "p", "count": 2}]}]}
+
+    def play():
+        env = fg_env.load(contract, seed=5)
+        env.run("random", rounds=2)
+        restored = fg_env.Env.restore(contract, json.loads(json.dumps(env.snapshot())))
+        return restored.run("random").to_dict()
+
+    expected = play()
+    monkeypatch.setattr(expr.Expr, "excluded_entity_id", lambda self, scope: None)
+    assert play() == expected
+
+
 BALANCE = {
     "name": "Balance",
     "clock": {"rounds": 3},

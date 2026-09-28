@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Entity choices with a pure public-id exclusion (such as choosing someone other than yourself) filter native
+  candidates directly, preserving their order and the existing expression/privacy fallbacks while reducing crowd cost.
+
 - Fix Linux authoring sandbox memory accounting so a fresh child is not rejected for its launcher's prior peak; the configured memory ceiling is unchanged. Declare the JSON Schema test dependency in the dev extra.
 
 - Standalone reports disclose isolated failed agent turns below the degraded-run threshold, preserve unknown counts, and distinguish missing decisions from deliberate inaction.
