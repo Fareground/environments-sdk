@@ -40,24 +40,6 @@ def _inputs(subject):
     return SMALL.get(subject.stem) if hasattr(subject, "stem") else None
 
 
-def _compatible_status(first, second, observer, sealed):
-    # After an explicit public reveal, the contract may legitimately take a
-    # different branch or finish. The observation comparison still checks every
-    # earlier turn; a runtime failure or an unexplained status change must fail.
-    revealed = any(a.seen != b.seen for a, b in zip(first.turns, second.turns))
-    normal = {first.status, second.status} <= {"running", "completed", "ended"}
-    assert second.status == first.status or (revealed and normal), (observer, sealed, second.status, first.status)
-
-
-def test_status_divergence_requires_a_recorded_public_reveal_and_normal_execution():
-    from _noninterference import Play, Turn
-    first = Play({}, [Turn("same public world", {})], "ended")
-    for status, seen in (("running", "same public world"), ("failed", "revealed world")):
-        with pytest.raises(AssertionError):
-            _compatible_status(first, Play({}, [Turn(seen, {})], status), "observer", True)
-    _compatible_status(first, Play({}, [Turn("revealed world", {})], "running"), "observer", True)
-
-
 def _noninterference(subject, observers, seed=1):
     rounds = ROUNDS if hasattr(subject, "stem") else None
     found = []
@@ -65,7 +47,7 @@ def _noninterference(subject, observers, seed=1):
         first = play(source(subject), seed, observer, _inputs(subject), rounds=rounds)
         for sealed in (False, True):
             second = play(source(subject), seed, observer, _inputs(subject), replay=first, rounds=rounds, sealed=sealed)
-            _compatible_status(first, second, observer, sealed)
+            assert second.status == first.status, (observer, sealed, second.status, first.status)
             found += leaks(first, second, observer)
     assert not found, "\n".join(found)
 

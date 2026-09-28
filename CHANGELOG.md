@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Keyed trend fitting resolves each key's own time origin (a row-based origin no longer fails with a null row).
 - The negotiation recipe only lets a side offer, or accept, a price within its own limit, so every deal satisfies both
   limits; the other side's limit stays private. The buyer's default policy never offers below zero.
+- The deliberation mechanism's raise-hand, ready, yield and recognize actions are announced ("Resident 2 raises a
+  hand.") instead of being marked `announce: false`: their effects (the hands queue, the floor, readiness) are public,
+  so the flag wrongly said nobody learns of them. The noninterference test treated them as sealed choices, which made
+  `town_hall`'s ending depend on them.
 - `agents_never_played` no longer counts an actor skipped because every action it has is blocked (an eliminated
   player).
 - A circular record `visible` rule fails at the rule instead of exhausting the Python stack.

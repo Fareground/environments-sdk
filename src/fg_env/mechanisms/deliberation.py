@@ -333,7 +333,6 @@ def _member_act(world: Any, name: str, config: DeliberationConfig, state: dict[s
         if state["floor"] != actor.id:
             raise Abort("You do not hold the floor.")
         state.update(floor=None, floor_used=0)
-        world.emit(name, f"{actor.name} yields the floor.", actor=actor.id, data={"mechanism": name})
     elif act == "speak":
         _speak(world, name, config, state, actor, value.get("text"), top, where)
     elif act == "propose":
@@ -366,7 +365,6 @@ def _hand(world: Any, name: str, config: DeliberationConfig, state: dict[str, An
     state["hands"].append(actor.id)
     chairs = [c.id for c in world.entities_of(config.chair)]
     why = f"{actor.name} raised a hand and asks for the floor."
-    world.emit(name, why, actor=actor.id, to=tuple(chairs), data={"mechanism": name, "hand": actor.id})
     for chair in chairs:
         world.request_wake(chair, why)
 
@@ -378,7 +376,6 @@ def _recognize(world: Any, name: str, config: DeliberationConfig, state: dict[st
         raise Abort(f"{who.name} has not raised a hand.")
     state["hands"].remove(who.id)
     state.update(floor=who.id, floor_used=0)
-    world.emit(name, f"The chair gives the floor to {who.name}.", data={"mechanism": name, "floor": who.id})
     world.request_wake(who.id, "The chair gave you the floor.")
 
 
@@ -552,7 +549,8 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
                              {"text": {**text, "description": "Your speech."}}, outcome="You spoke."),
         f"{name}_ready": act(members, "Say you have nothing more to add this round.", {"action": "ready"},
                              open_debate + [{"expr": f"not $actor.{name}_ready", "why": "You are already ready."}],
-                             outcome="You are ready to conclude.", private=True, terminal=True),
+                             outcome="You are ready to conclude.", announce="{$actor.name} has nothing more to add.",
+                             terminal=True),
     }
     if config.floor:
         actions[f"{name}_raise_hand"] = act(
@@ -560,9 +558,10 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
             {"action": "raise_hand"}, open_debate + [
                 {"expr": f"not ({holds})", "why": _HOLDING}, {"expr": f"not ({raised})", "why": _RAISED}],
             outcome="Your hand is raised. The chair gives the floor between turns: end your turn now; you will be "
-                    "woken when you hold the floor.", private=True)
+                    "woken when you hold the floor.", announce="{$actor.name} raises a hand.")
         actions[f"{name}_yield"] = act(members, "Give the floor back to the chair.", {"action": "yield"},
-                                       open_debate + floor, outcome="You yielded the floor.", private=True)
+                                       open_debate + floor, outcome="You yielded the floor.",
+                                       announce="{$actor.name} yields the floor.")
         actions[f"{name}_recognize"] = act(chair or members, "Give the floor to a member whose hand is raised.",
                                            {"action": "recognize", "who": "$params.who"},
                                            open_debate
@@ -570,7 +569,8 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
                                                "why": "No hands are raised."}],
                                            {"who": {"type": "entity", "of": members,
                                                     "where": f"$it.id in $world.{name}.hands"}},
-                                           private=True, outcome="You recognized {$params.who.name}.")
+                                           outcome="You recognized {$params.who.name}.",
+                                           announce="The chair gives the floor to {$params.who.name}.")
     if config.motions:
         actions[f"{name}_propose"] = act(members, "Move a motion for the body to decide.",
                                          {"action": "propose", "text": "$params.text"},
