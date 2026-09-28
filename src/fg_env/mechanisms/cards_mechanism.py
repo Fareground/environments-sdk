@@ -151,14 +151,21 @@ def _events(name: str, config: CardsConfig) -> list[dict[str, Any]]:
     if config.deal_to:
         deal["to"] = f"$filter({config.who}, {config.deal_to})"
     dealing = [deal] if config.hand_size not in (0, "0") else []
-    setup: dict[str, Any] = {"name": f"{name}_setup", "at": 1, "do": [{"game": name, "action": "setup"}]}
+    dealt_at_start = config.deal == "start" and bool(dealing)
+    setup: dict[str, Any] = {"name": f"{name}_setup",
+                             "description": "The cards are set up and shuffled"
+                                            + (", and hands are dealt." if dealt_at_start else "."),
+                             "at": 1, "do": [{"game": name, "action": "setup"}]}
     if config.deal == "start":
         setup["do"] += dealing + list(config.after_deal)
     elif config.deal == "never":
         setup["do"] += list(config.after_deal)
     events = [setup]
     if config.deal == "round":
-        events.append({"name": f"{name}_deal", "every": 1,
+        events.append({"name": f"{name}_deal",
+                       "description": "Each round the cards are collected"
+                                      + (" and new hands are dealt." if dealing else "."),
+                       "every": 1,
                        "do": [{"game": name, "action": "collect"}, *dealing, *config.after_deal]})
     return events
 

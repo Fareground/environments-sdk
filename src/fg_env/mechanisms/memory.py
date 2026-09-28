@@ -146,10 +146,13 @@ def _expand_memory(name: str, config: MemoryConfig, contract: Mapping[str, Any])
             action["when"] = [condition]
         fragment["stage_hooks"] = {stage: {"actions": list(actions)} for stage in config.stages}
     if config.capture:
-        fragment["events"].append({"name": f"{name}_capture", "phase": "end",
+        fragment["events"].append({"name": f"{name}_capture",
+                                   "description": "Each agent remembers what it did and read since the last capture.",
+                                   "phase": "end",
                                    "do": [{"host": name, "action": "capture"}]})
     if config.reflect_every:
-        fragment["events"].append({"name": f"{name}_reflect", "phase": "end",
+        fragment["events"].append({"name": f"{name}_reflect",
+                                   "description": "Each agent reflects on its recent memories.", "phase": "end",
                                    "when": f"$round % {config.reflect_every} == 0",
                                    "do": [{"host": name, "action": "reflect"}]})
     if config.views:
@@ -461,7 +464,9 @@ def _expand_recap(name: str, config: RecapConfig, contract: Mapping[str, Any]) -
         "world": {"host_tape": tape_prop(), f"{name}_cursor": {"type": "int", "default": 0}},
         "records": {name: {"fields": {"text": "text", "through": "int"}, "show": "Story so far: {text}",
                            "visible": config.visible, "description": f"Recaps of {config.record}."}},
-        "events": [{"name": f"{name}_recap", "phase": "end", "when": f"$round % {config.every} == 0",
+        "events": [{"name": f"{name}_recap",
+                    "description": f"The host writes a recap of the new entries in the {spoken(config.record)} record.",
+                    "phase": "end", "when": f"$round % {config.every} == 0",
                     "do": [{"host": name, "action": "write"}]}],
     }
 

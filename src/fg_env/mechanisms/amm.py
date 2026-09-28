@@ -30,7 +30,7 @@ from ..expr import Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import Conserve, conserve_field, conserve_invariant, display, entity_of, fmt, in_words, pct, shown
+from ._common import Conserve, conserve_field, conserve_invariant, display, entity_of, fmt, in_words, named, pct, shown
 from .econ_base import money_prop
 from .expressions import Expr
 from .ledger import EPS, Account, balance, clean, move
@@ -540,7 +540,10 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
                                        "description": "Money traded."}},
     }
     if cfg.resolve_at is not None or cfg.resolve_when is not None:
-        event: dict[str, Any] = {"name": f"{name}_resolve", "phase": "end", "once": True,
+        event: dict[str, Any] = {"name": f"{name}_resolve",
+                                 "description": f"The {named(name, 'market')} resolves: each winning share pays 1 and "
+                                                "trading closes.",
+                                 "phase": "end", "once": True,
                                  "do": [{"market": name, "action": "resolve", "outcome": outcome}]}
         due = [f"$round >= ({cfg.resolve_at})" if cfg.resolve_at is not None else None,
                f"({cfg.resolve_when})" if cfg.resolve_when is not None else None]
@@ -548,7 +551,10 @@ def _expand_market(name: str, cfg: PredictionMarketConfig, contract: Mapping[str
         fragment["events"].append(event)
     names = list(actions)
     if cfg.stage is None:
-        fragment["stages"] = [{"name": name, "turns": "sequential", "order": "random", "actions": names,
+        fragment["stages"] = [{"name": name,
+                               "description": f"Traders buy and sell shares in the {named(name, 'market')} until it "
+                                              "resolves.",
+                               "turns": "sequential", "order": "random", "actions": names,
                                "max_actions": cfg.max_actions, "when": f"$world.{name}_resolved == ''",
                                "brief": f"Trade{question}, or end your turn."}]
     else:

@@ -93,6 +93,7 @@
   "stages": [
     {
       "name": "decide",
+      "description": "Each seat decides for this bar: it may trade, cancel orders or note its reasoning, or hold.",
       "when": "($round - 1) % ($inputs.substeps * $inputs.decision_every_bars) == 0",
       "who": "$it.type == seat",
       "actions": ["demo_buy", "demo_sell", "demo_cancel", "demo_cancel_all", "explain"],
@@ -102,6 +103,7 @@
     },
     {
       "name": "session",
+      "description": "Traders of the calibrated crowd, drawn at random, act on the order book in random order.",
       "who": "$it.demo_strategy != '' and $chance($acting_chance($it))",
       "order": "random",
       "actions": ["demo_algo"]
@@ -110,6 +112,7 @@
   "events": [
     {
       "name": "open_the_book",
+      "description": "In the first round, a seed trader fills the order book with bids and asks around the starting price.",
       "on": "round.start",
       "when": "$round == 1",
       "do": [
@@ -138,11 +141,13 @@
     },
     {
       "name": "value_gap",
+      "description": "The gap between the stock's latent value and the book's mid price is measured, with the market's heat.",
       "on": "round.start",
       "do": ["$world.value_gap = $abs($world.fundamental / $book(demo).mid - 1)", "$world.heat = $book(demo).heat"]
     },
     {
       "name": "pass_closes_before_the_controllers_read_the_bar",
+      "description": "The order book closes the round before the end-of-bar controllers read the bar.",
       "on": "round.end",
       "do": {"market": "demo", "action": "close"}
     }

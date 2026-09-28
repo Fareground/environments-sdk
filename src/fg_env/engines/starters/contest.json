@@ -70,7 +70,7 @@
       ]
     }
   },
-  "stages": [{"name": "submissions", "turns": "simultaneous", "must_act": true}],
+  "stages": [{"name": "submissions", "description": "Every contestant submits one performance for the round, all at once, for the judge to score.", "turns": "simultaneous", "must_act": true}],
   "views": {"private_approach": {"for": "contestant", "show": "Your assigned approach: {approach}"}},
   "outputs": {
     "winner": {"type": "text", "expr": "$leaders[0].name if [$leaders[0].score, $leaders[0].performance] != [$leaders[1].score, $leaders[1].performance] else null", "description": "The single top scorer (a rubric tie goes to the stronger hidden performance), or null when that ties too."},

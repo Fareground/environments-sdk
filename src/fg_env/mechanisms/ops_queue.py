@@ -16,6 +16,7 @@ from typing import Any, Literal
 
 from pydantic import Field, ValidationError
 
+from ..contract.base import spoken
 from ..errors import RunError
 from ..expr import ExprError, compile_expr
 from ..registry import MechanismError, family_action, mode, parsed
@@ -228,7 +229,10 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
     if any(c.scheduled is not None for c in config.channels.values()):
         world[f"{name}_schedule"] = {"type": "map", "default": {}, "private": True,
                                      "description": "Each scheduled channel's rows, read and checked once (internal)."}
-    events = [{"name": f"{name}: interval", "phase": "end", "do": [{"economy": name, "action": "tick"}]}]
+    events = [{"name": f"{name}: interval",
+               "description": f"The next interval plays out at the {spoken(name)}: customers arrive, wait, are "
+                              "served or give up.",
+               "phase": "end", "do": [{"economy": name, "action": "tick"}]}]
     totals, intervals = f"$world.{name}_totals", f"$world.{name}_intervals"
     outputs: dict[str, Any] = {
         f"{name}_service_level": {"expr": f"{totals}.service_level", "type": "number", "format": "pct",

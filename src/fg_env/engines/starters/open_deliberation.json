@@ -82,7 +82,7 @@
       "props": {"stance": "$row.stance", "perspective": "$row.perspective", "initial_stance": "$row.stance", "openness": "$uniform(0, 2 * $inputs.persuasion)"}
     }
   },
-  "stages": [{"name": "forum", "order": "random"}],
+  "stages": [{"name": "forum", "description": "Members speak in random order, giving reasons, proposing a conclusion and saying when they are ready.", "order": "random"}],
   "views": {
     "private_view": {"for": "member", "show": "Your current stance is {stance|2}. Your perspective: {perspective}"}
   },
@@ -90,6 +90,7 @@
     {
       "on": "change",
       "name": "persuasion",
+      "description": "Each new speech is scored when a judge is bound, and every member's view moves toward the speeches so far.",
       "when": "$len($records(forum)) > $world.heard",
       "do": [
         "$world.heard = $len($records(forum))",

@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import spoken
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
@@ -212,7 +213,11 @@ def _source_event(name: str, config: LedgerConfig, source: str, spec: SourceSpec
                                 "amount": f"$it.{currency}",
                               "sink": f"{source} expired"}]},
                    {**mint, "amount": spec.amount}]
-    event: dict[str, Any] = {"name": f"{name}: {source}", "phase": "start", "each": spec.to, "do": effects}
+    paid = {"add": f"Each {spoken(spec.to)} receives new money from {spoken(source)}.",
+            "top_up": f"Each {spoken(spec.to)} is topped up with money from {spoken(source)}.",
+            "reset": f"Each {spoken(spec.to)}'s unspent money expires and a fresh {spoken(source)} payment is made."}
+    event: dict[str, Any] = {"name": f"{name}: {source}", "description": paid[spec.mode], "phase": "start",
+                             "each": spec.to, "do": effects}
     if spec.start > 1:
         event["when"] = f"$round >= {spec.start} and ($round - {spec.start}) % {spec.every} == 0"
     elif spec.every > 1:
@@ -267,7 +272,10 @@ def _loans(name: str, config: LedgerConfig, loans: LoanSpec, contract: Mapping[s
             f"{name}_lending": {"type": "bool", "default": True, "description": "Whether you take new borrowers."}}
     fragment["world"][f"{name}_loans"] = {"type": "map", "default": {},
                                           "description": "Loan totals: made, repaid, defaulted, written_off."}
-    fragment["events"].append({"name": f"{name}: loans", "phase": "end", "do": [{"economy": name, "action": "tick"}]})
+    fragment["events"].append({"name": f"{name}: loans",
+                               "description": "Loans accrue interest, due loans are collected, "
+                                              "and unpaid ones default.",
+                               "phase": "end", "do": [{"economy": name, "action": "tick"}]})
     if loans.on_default:
         fragment["blocks"] = {f"{name}_on_default": {"args": ["loan", "lender", "borrower", "unpaid"],
                                                      "do": list(loans.on_default),

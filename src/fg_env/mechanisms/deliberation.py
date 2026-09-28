@@ -31,6 +31,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import spoken
 from ..errors import RunError
 from ..expr import Call, function
 from ..expr.objects import Entity
@@ -617,17 +618,24 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
         actions[f"{name}_vote"]["private"] = False
     vote_names = [f"{name}_vote"]
     talk_names = [a for a in actions if a not in vote_names]
+    body = spoken(name)
     discussion: dict[str, Any] = {
-        "name": name, "turns": "sequential", "actions": talk_names, "quiet": "skip", "passes": config.passes,
+        "name": name,
+        "description": f"Members of the {body} take the floor, move and second motions, and say when they are ready.",
+        "turns": "sequential", "actions": talk_names, "quiet": "skip", "passes": config.passes,
         "until": f"$discussion_over('{name}')", "max_actions": 2,
         "brief": "Discuss. Anything said clears everyone's readiness; end your turn (or say you are ready) when you "
                  "have nothing to add."}
-    events = [stage_event(name, "start", [{"decision": name, "action": "open"}]),
-              stage_event(name, "end", [{"decision": name, "action": "close"}])]
+    events = [stage_event(name, "start", [{"decision": name, "action": "open"}],
+                          description=f"The {body} discussion opens for the round."),
+              stage_event(name, "end", [{"decision": name, "action": "close"}],
+                          description=f"The {body} discussion ends, and a question ready for a vote is put to the "
+                                      "members.")]
     if chair:
         discussion["order"] = f"0 if $is($it, {chair}) else 1"
     if config.ready_when_silent:
-        events.append(stage_event(name, "turn", [{"decision": name, "action": "idle"}], when="not $acted"))
+        events.append(stage_event(name, "turn", [{"decision": name, "action": "idle"}], when="not $acted",
+                                  description=f"A member who ends a {body} turn without acting counts as ready."))
     if config.when:
         discussion["when"] = config.when
     viewers = [members] + ([chair] if chair else [])
@@ -640,9 +648,12 @@ def _expand(name: str, config: DeliberationConfig, contract: Mapping[str, Any]) 
                            "show": "{author} {says}{$': ' if $it.text != '' else ''}{text}"}},
         "actions": actions,
         "stages": [discussion,
-                   {"name": f"{name}_vote", "turns": "simultaneous", "actions": vote_names,
+                   {"name": f"{name}_vote",
+                    "description": f"Members vote yes, no or abstain on the question before the {body}.",
+                    "turns": "simultaneous", "actions": vote_names,
                     "when": f"$world.{name}.phase == 'voting'",
                     "brief": "Vote yes, no or abstain on the question before the body."}],
-        "events": [*events, stage_event(f"{name}_vote", "end", [{"decision": name, "action": "tally"}])],
+        "events": [*events, stage_event(f"{name}_vote", "end", [{"decision": name, "action": "tally"}],
+                                        description=f"The {body} vote is counted and the question is decided.")],
         "views": {f"{name}_house": {"for": viewers, "title": "The floor", "show": f"{{$house($actor, '{name}')}}"}},
     }

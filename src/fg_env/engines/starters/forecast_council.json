@@ -176,6 +176,7 @@
   "stages": [
     {
       "name": "initial_ballot",
+      "description": "Each panelist reads the briefing and their private information, then casts a sealed initial probability.",
       "turns": "simultaneous",
       "actions": ["cast_initial"],
       "max_actions": 1,
@@ -184,6 +185,7 @@
     },
     {
       "name": "discussion",
+      "description": "Panelists discuss in random order, revise their working estimates and mark themselves ready.",
       "turns": "sequential",
       "order": "random",
       "actions": ["say", "revise_estimate", "mark_ready"],
@@ -196,6 +198,7 @@
     },
     {
       "name": "final_ballot",
+      "description": "Each panelist weighs what they heard and casts a sealed final probability.",
       "turns": "simultaneous",
       "actions": ["cast_final"],
       "max_actions": 1,
@@ -211,6 +214,7 @@
   },
   "events": [
     {
+      "description": "A panelist who cast no initial ballot is recorded at their stated prior.",
       "on": "stage.initial_ballot.end",
       "do": [
         {
@@ -226,10 +230,12 @@
       ]
     },
     {
+      "description": "The initial ballots are revealed and the discussion opens.",
       "on": "stage.discussion.start",
       "do": [{"emit": "discussion_open", "say": "Initial ballots are revealed and the discussion is open."}]
     },
     {
+      "description": "A panelist who cast no final ballot is recorded at their working estimate.",
       "on": "stage.final_ballot.end",
       "do": [
         {"each": "panelist", "where": "$it.final == null", "do": ["$it.final = $it.working", "$it.abstained += 'final'"]}

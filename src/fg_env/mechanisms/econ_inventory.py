@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import spoken
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mode
 from ._common import raw_is_a
@@ -294,10 +295,14 @@ def _events(name: str, config: InventoryConfig) -> list[dict[str, Any]]:
             if config.on_short:
                 effects.append({"if": "$got < $need",
                                 "then": [f"$item = '{item}'", "$short = $need - $got", *config.on_short]})
-        events.append({"name": f"{name} needs of {type_name}", "phase": "end", "every": config.every,
+        events.append({"name": f"{name} needs of {type_name}",
+                       "description": f"Each {spoken(type_name)} uses up the goods it needs.",
+                       "phase": "end", "every": config.every,
                        "each": type_name, "do": effects})
     if any(s.shelf_life is not None or s.decay is not None for s in config.items.values()):
-        events.append({"name": f"{name} spoilage", "phase": "end", "do": [{"economy": name, "action": "tick"}]})
+        events.append({"name": f"{name} spoilage",
+                       "description": "Goods past their shelf life spoil, and decay is applied.",
+                       "phase": "end", "do": [{"economy": name, "action": "tick"}]})
     return events
 
 

@@ -525,7 +525,9 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     }
     names = list(actions)
     if config.stage is None:
-        stage: dict[str, Any] = {"name": name, "turns": "simultaneous", "actions": names,
+        stage: dict[str, Any] = {"name": name,
+                                 "description": f"Voters cast their ballots in the {_common.named(name, 'vote')}.",
+                                 "turns": "simultaneous", "actions": names,
                                  "brief": _common.display(config.question)}
         if config.when:
             stage["when"] = config.when
@@ -538,7 +540,9 @@ def _expand_ballot(name: str, config: BallotConfig, contract: Mapping[str, Any])
     # In a declared stage the count obeys `when` too (`close`): a stage that repeats would otherwise count a closed
     # ballot again at every end and overwrite its result with an empty one.
     count = "close" if config.stage is not None and config.when else "tally"
-    fragment["events"] = [_common.stage_event(config.stage or name, "end", [{"decision": name, "action": count}])]
+    fragment["events"] = [_common.stage_event(config.stage or name, "end", [{"decision": name, "action": count}],
+                                              description=f"The ballots in the {_common.named(name, 'vote')} are "
+                                                          "counted and the result is recorded.")]
     return fragment
 
 

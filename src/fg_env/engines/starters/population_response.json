@@ -183,7 +183,7 @@
       "announce": false
     }
   },
-  "stages": [{"name": "respond", "turns": "simultaneous", "must_act": true}],
+  "stages": [{"name": "respond", "description": "Each person privately and independently chooses a response, with a confidence and a reason.", "turns": "simultaneous", "must_act": true}],
   "views": {"private_context": {"for": "person", "show": "Segment: {segment}. Private inclination: {inclination|2}."}},
   "outputs": {
     "population_size": {"type": "int", "expr": "$count(person)"},

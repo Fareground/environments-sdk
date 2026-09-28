@@ -278,6 +278,7 @@
   "events": [
     {
       "name": "seeding",
+      "description": "In the first round, the seed people adopt the proposal.",
       "on": "round.start",
       "when": "$round == 1",
       "do": [

@@ -271,7 +271,8 @@ def _expand_roles(name: str, config: RolesConfig, contract: Mapping[str, Any]) -
             alive: {"type": "bool", "default": True},
             "revealed_role": {"type": "text", "default": "", "description": "The role, once revealed to everyone."},
         }}},
-        "events": [{"name": f"{name}_deal", "at": 1, "do": [{"groups": name, "action": "deal"}]}],
+        "events": [{"name": f"{name}_deal", "description": "The role deck is shuffled and dealt.",
+                    "at": 1, "do": [{"groups": name, "action": "deal"}]}],
         "actions": actions,
     }
     if config.views:

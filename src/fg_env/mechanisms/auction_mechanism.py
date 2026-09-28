@@ -8,7 +8,7 @@ from typing import Any
 
 from ..errors import RunError
 from ..registry import MechanismError, family_action, mode
-from ._common import conserve_invariant, declared_entity, display, entity_of, fmt, in_words, stage_event
+from ._common import conserve_invariant, declared_entity, display, entity_of, fmt, in_words, named, stage_event
 from ._social import check_expr
 from .auctions import FORMATS, MIN_PRICE, SEALED, AuctionConfig, bid, close_sealed, open_lot, tick
 from .econ_base import money_prop
@@ -296,7 +296,9 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
                                         "show": f"Lot {{lot}}: {winner_text} ({{note}})",
                                         "description": "Closed lots."}},
         "actions": actions,
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],
+        "events": [{"name": f"{name}_open",
+                    "description": f"The {named(name, 'auction')} opens its next lot when there is something to sell.",
+                    "phase": "start", "do": [{"market": name, "action": "open"}]}],
         "views": {f"{name}_lot": {"for": sorted({cfg.who, cfg.sellers or cfg.who}),
                                   "show": f"{{$auction_text({name}, $actor)}}"},
                   f"{name}_recent": {"for": sorted({cfg.who, cfg.sellers or cfg.who}), "title": "Recent results",
@@ -314,9 +316,14 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
     }
     names = list(actions)
     if not sealed:
-        fragment["events"].append({"name": f"{name}_tick", "phase": "end", "do": [{"market": name, "action": "tick"}]})
+        fragment["events"].append({"name": f"{name}_tick",
+                                   "description": f"The {named(name, 'auction')}'s clock runs: a Dutch price falls, "
+                                                  "and an English lot with no new bids is sold.",
+                                   "phase": "end", "do": [{"market": name, "action": "tick"}]})
     if cfg.stage is None:
-        stage: dict[str, Any] = {"name": name, "turns": "simultaneous" if sealed else "sequential", "actions": names,
+        stage: dict[str, Any] = {"name": name,
+                                 "description": f"Agents bid in the {named(name, 'auction')} while a lot is open.",
+                                 "turns": "simultaneous" if sealed else "sequential", "actions": names,
                                  "when": f"$auction({name}).open", "brief": f"{rules}"}
         if not sealed:
             stage["order"] = "random"
@@ -331,7 +338,9 @@ def _expand_auction(name: str, cfg: AuctionConfig, contract: Mapping[str, Any]) 
             hook["max_actions"] = cfg.packages
         fragment["stage_hooks"] = {cfg.stage: hook}
     if sealed:
-        fragment["events"].append(stage_event(cfg.stage or name, "end", [{"market": name, "action": "close"}]))
+        fragment["events"].append(stage_event(cfg.stage or name, "end", [{"market": name, "action": "close"}],
+                                              description=f"The {named(name, 'auction')} clears the sealed bids: the "
+                                                          "winners are chosen and the lot changes hands."))
     invariants = conserve_invariant(cfg.conserve, f"$auction_ok({name})",
                                     f"The {name} auction's escrow matches its open bids and every item is held once.")
     if invariants:

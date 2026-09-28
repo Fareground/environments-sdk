@@ -67,6 +67,7 @@
   "stages": [
     {
       "name": "ordering",
+      "description": "Every tier of the supply chain places its order for the week, all at the same time.",
       "turns": "simultaneous",
       "actions": ["beer_order"],
       "max_actions": 1,

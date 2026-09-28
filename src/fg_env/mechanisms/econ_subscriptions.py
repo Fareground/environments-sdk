@@ -116,7 +116,10 @@ def _expand_subscriptions(name: str, config: SubscriptionsConfig, contract: Mapp
                 "renewals": {"type": "int", "default": 0, "min": 0}, "reason": {"type": "text", "default": ""}}}},
         "entities": entities,
         "world": {f"{name}_stats": {"type": "map", "default": dict(STATS), "description": "Subscription totals."}},
-        "events": [{"name": f"{name}: renewals", "phase": "start", "do": [{"agreements": name, "action": "tick"}]}],
+        "events": [{"name": f"{name}: renewals",
+                    "description": "Subscriptions that are due renew, trials convert, and "
+                                   "cancelled or unpaid ones end.",
+                    "phase": "start", "do": [{"agreements": name, "action": "tick"}]}],
         "actions": {}, "views": {},
     }
     agents = agent_types(contract, subscribers)

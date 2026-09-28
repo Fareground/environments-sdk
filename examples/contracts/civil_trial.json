@@ -466,6 +466,7 @@
   "events": [
     {
       "name": "present_admitted",
+      "description": "Each newly admitted exhibit is presented to the jury, and every juror forms an impression of it.",
       "on": "round.end",
       "do": [
         {
@@ -553,6 +554,7 @@
           "stages": [
             {
               "name": "openings",
+              "description": "Counsel for each side give opening statements, plaintiff first.",
               "actions": ["opening_statement"],
               "brief": "Opening statements. Plaintiff's counsel speaks first, then the defense."
             }
@@ -564,12 +566,14 @@
           "stages": [
             {
               "name": "offers",
+              "description": "Each side offers one exhibit from its case file, both at once.",
               "actions": ["offer_exhibit"],
               "turns": "simultaneous",
               "brief": "Direct examination, day {$world.trial_round} of {$inputs.evidence_rounds}. Offer one exhibit from your case file."
             },
             {
               "name": "objections",
+              "description": "Counsel may object to the exhibits offered today; any exhibit not objected to is admitted.",
               "actions": ["object"],
               "max_actions": 1,
               "brief": "Objections. You may object to what opposing counsel offered today, or end your turn to let it in.",
@@ -587,6 +591,7 @@
             },
             {
               "name": "rulings",
+              "description": "The judge rules on each pending objection; one left unruled is overruled and the exhibit admitted.",
               "actions": ["rule_on_objection"],
               "max_actions": 4,
               "until": "$count(exhibit, $it.status == objected) == 0",
@@ -611,6 +616,7 @@
           "title": "Cross-examination",
           "stages": [
             {
+              "description": "Each side may cross-examine one admitted exhibit of the other side.",
               "actions": ["cross_examine"],
               "brief": "Cross-examination, day {$world.trial_round} of {$inputs.evidence_rounds}. Challenge one admitted exhibit of the other side, or end your turn."
             }
@@ -622,6 +628,7 @@
           "stages": [
             {
               "name": "closings",
+              "description": "Each side gives its closing argument, then the judge instructs the jury.",
               "actions": ["closing_argument", "instruct_jury"],
               "brief": "Closing arguments (plaintiff, then defense), then the judge instructs the jury."
             }
@@ -645,6 +652,7 @@
           "stages": [
             {
               "name": "deliberation",
+              "description": "Jurors discuss the case in the jury room until each is ready to vote.",
               "actions": ["speak", "ready_to_vote"],
               "max_actions": 2,
               "until": "$all(juror, $it.ready)",
@@ -660,6 +668,7 @@
           "stages": [
             {
               "name": "ballot",
+              "description": "Jurors cast a secret ballot, and a verdict is reached when enough of them agree.",
               "actions": ["cast_ballot"],
               "turns": "simultaneous",
               "brief": "Secret ballot {$world.ballots + 1} of {$inputs.max_ballots}. {$inputs.votes_required} of {$count(juror)} must agree.",
@@ -698,6 +707,7 @@
           "stages": [
             {
               "name": "judgment",
+              "description": "The judge enters judgment on the jury's verdict and award.",
               "actions": ["enter_judgment"],
               "brief": "The jury returned {$world.verdict} with an award of {$world.jury_award|money}. Enter judgment."
             }

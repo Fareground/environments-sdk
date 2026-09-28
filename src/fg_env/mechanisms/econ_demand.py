@@ -233,9 +233,13 @@ def _expand_demand(name: str, config: DemandConfig, contract: Mapping[str, Any])
     fragment: dict[str, Any] = {
         "types": {items: {"props": _item_props(name, config)}},
         "world": _world_props(name, config),
-        "events": [{"name": f"{name}: prices and returns", "phase": "start",
-                    "do": [{"economy": name, "action": "open"}]},
-                   {"name": f"{name}: sales", "phase": "end", "do": [{"economy": name, "action": "trade"}]}],
+        "events": [{"name": f"{name}: prices and returns",
+                    "description": "Returns that are due are taken back, and this round's prices and "
+                                   "promotions are read.",
+                    "phase": "start", "do": [{"economy": name, "action": "open"}]},
+                   {"name": f"{name}: sales",
+                    "description": "This round's customer demand is drawn and sold from stock.",
+                    "phase": "end", "do": [{"economy": name, "action": "trade"}]}],
         "metrics": {f"{name}_{measure}": {"expr": f"$sum({items}, $it.{name}_{measure})", "unit": "units"}
                     for measure in ("demand", "sold", "lost")},
         "outputs": _outputs(name, config),

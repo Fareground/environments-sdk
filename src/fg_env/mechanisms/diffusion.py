@@ -409,6 +409,8 @@ def _expand(name: str, config: DiffusionConfig, contract: Mapping[str, Any]) -> 
                          "description": "Spread state per item: adopted, exposed, rejected, frontier, thresholds."}},
     }
     if config.phase is not None:
-        fragment["events"] = [{"name": f"{name}_spread", "phase": config.phase,
+        fragment["events"] = [{"name": f"{name}_spread",
+                               "description": "Each spreading item moves one step further through the network.",
+                               "phase": config.phase,
                                "do": [{"social": name, "action": "step"}]}]
     return fragment

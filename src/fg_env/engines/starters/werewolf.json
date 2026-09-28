@@ -132,6 +132,7 @@
   "stages": [
     {
       "name": "night_wolves",
+      "description": "The living werewolves whisper and agree on tonight's victim; if they disagree, chance decides.",
       "actions": ["whisper", "choose_victim"],
       "turns": "sequential",
       "who": "$it.living and $it.role == werewolf",
@@ -143,6 +144,7 @@
     },
     {
       "name": "night_seer",
+      "description": "The seer inspects one living player.",
       "actions": ["inspect_player"],
       "turns": "simultaneous",
       "who": "$it.living and $it.role == seer",
@@ -150,6 +152,7 @@
     },
     {
       "name": "night_doctor",
+      "description": "The doctor protects one living player for the night.",
       "actions": ["protect"],
       "turns": "simultaneous",
       "who": "$it.living and $it.role == doctor",
@@ -157,6 +160,7 @@
     },
     {
       "name": "day_discussion",
+      "description": "Living players discuss who might be a werewolf until everyone is done talking.",
       "actions": ["say", "done_talking"],
       "turns": "sequential",
       "who": "$it.living",
@@ -167,8 +171,8 @@
       "max_calls": 6,
       "brief": "Day {$round}. Discuss who might be a werewolf. Say something, or mark yourself done."
     },
-    {"name": "day_vote", "actions": [], "turns": "simultaneous", "who": "$it.living", "max_calls": 4, "brief": "Day {$round}. Vote to exile one player. Most votes is exiled; a tie means nobody is."},
-    {"name": "verdict", "actions": []}
+    {"name": "day_vote", "description": "Living players vote to exile one player.", "actions": [], "turns": "simultaneous", "who": "$it.living", "max_calls": 4, "brief": "Day {$round}. Vote to exile one player. Most votes is exiled; a tie means nobody is."},
+    {"name": "verdict", "description": "The day's vote is settled: one player is exiled, or nobody.", "actions": []}
   ],
   "views": {
     "visions": {"for": "player", "title": "Your visions", "when": "$actor.role == seer", "of": "$actor.reads", "show": "{$it}", "empty": "You have not inspected anyone yet."},
@@ -178,9 +182,10 @@
     "talking": {"for": "player", "title": "Talking", "show": "{$count(player, $it.living and $it.ready)} of {$count(player, $it.living)} living players are done talking.", "when": "$stage in ['day_discussion']"}
   },
   "events": [
-    {"on": "stage.night_wolves.start", "do": [{"each": "player", "do": ["$it.nomination = ''"]}]},
-    {"on": "stage.night_doctor.start", "do": [{"each": "player", "do": ["$it.protecting = ''"]}]},
+    {"description": "The werewolves' nominations are cleared as night falls.", "on": "stage.night_wolves.start", "do": [{"each": "player", "do": ["$it.nomination = ''"]}]},
+    {"description": "The doctor's protection from the night before is cleared.", "on": "stage.night_doctor.start", "do": [{"each": "player", "do": ["$it.protecting = ''"]}]},
     {
+      "description": "At dawn the werewolves' victim dies unless the doctor protected them, and the game checks for a winner.",
       "on": "stage.night_doctor.end",
       "do": [
         "$picks = $unique($filter($map($filter(player, $it.living and $it.role == werewolf), $it.nomination), $it != ''))",
@@ -213,8 +218,9 @@
         {"call": "check_win"}
       ]
     },
-    {"on": "stage.day_discussion.start", "do": [{"each": "player", "do": ["$it.ready = false"]}]},
+    {"description": "Every player's readiness is reset as the day's discussion opens.", "on": "stage.day_discussion.start", "do": [{"each": "player", "do": ["$it.ready = false"]}]},
     {
+      "description": "The player with the most votes is exiled, or nobody on a tie, and the game checks for a winner.",
       "on": "stage.verdict.start",
       "do": [
         "$out_id = $world.exile_result.winner if $get($world.exile_result, 'round', 0) == $round else null",

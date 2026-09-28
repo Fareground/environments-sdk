@@ -20,7 +20,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from ..assets.delivery import Attachment, attached_ids, entry_assets
 from ..assets.multimodal import host_attachments
-from ..contract.base import tape_prop
+from ..contract.base import spoken, tape_prop
 from ..errors import RunError
 from ..expr import Call, ExprError, Untrusted, function
 from ..expr.objects import Entity
@@ -176,11 +176,14 @@ def _expand_judge(name: str, config: JudgeConfig, contract: Mapping[str, Any]) -
     if config.field not in (source.get("fields") or {"text": "text"}):
         raise MechanismError(f"record '{config.record}' has no field '{config.field}'", None, "field")
     fragment["world"][f"{name}_cursor"] = {"type": "int", "default": 0}
+    judged = f"The judge scores the new entries in the {spoken(config.record)} record."
     if config.stage is not None:
         fragment["stage_hooks"] = {config.stage: {}}  # it must be a stage there is
-        fragment["events"] = [stage_event(config.stage, "end", [{"host": name, "action": "judge"}])]
+        fragment["events"] = [stage_event(config.stage, "end", [{"host": name, "action": "judge"}],
+                                          description=judged)]
     else:
-        fragment["events"] = [{"name": f"{name}_judging", "phase": "end", "do": [{"host": name, "action": "judge"}]}]
+        fragment["events"] = [{"name": f"{name}_judging", "description": judged, "phase": "end",
+                               "do": [{"host": name, "action": "judge"}]}]
     return fragment
 
 

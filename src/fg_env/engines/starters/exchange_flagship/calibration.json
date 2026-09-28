@@ -18,6 +18,7 @@
   "events": [
     {
       "name": "scheduled_news",
+      "description": "At the start of each bar, scheduled news moves the stock's latent value and the market's sentiment.",
       "on": "round.start",
       "when": "($round - 1) % ($inputs.substeps) == 0",
       "do": [
@@ -35,6 +36,7 @@
     },
     {
       "name": "volume_controller",
+      "description": "At the end of each bar, order sizes are nudged so traded volume tracks its target.",
       "on": "round.end",
       "when": "$bar_ends()",
       "do": [
@@ -45,6 +47,7 @@
     },
     {
       "name": "volatility_controller",
+      "description": "At the end of each bar, speculative order sizes are nudged so price volatility tracks its target.",
       "on": "round.end",
       "when": "$bar_ends() and $len($records(demo_bars)) >= 6 and $inputs.volatility_gain > 0",
       "do": [
@@ -54,6 +57,7 @@
     },
     {
       "name": "news_fades",
+      "description": "Market sentiment fades, and news stories that have run their course drop out.",
       "on": "round.end",
       "do": [
         "$world.sentiment = $world.sentiment * $exp(-1 / ($max([5] + $map($world.news, $it.duration)) * $inputs.substeps))",
@@ -61,8 +65,8 @@
         "$world.news = $filter($world.news, $it.until > $round // $inputs.substeps + 1)"
       ]
     },
-    {"name": "fundamental_walk", "on": "round.start", "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($inputs.drift_pct_per_bar / 100 / $inputs.substeps + $world.target_sigma * 0.5 * $sqrt($world.flow_scale / $inputs.flow_scale) / $sqrt($inputs.substeps) * $pattern.fundamental_shock))"},
-    {"name": "fundamental_jumps", "on": "round.start", "when": "$pattern.jump > 0", "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($pattern.jump_size))"}
+    {"name": "fundamental_walk", "description": "The stock's latent value takes a random step.", "on": "round.start", "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($inputs.drift_pct_per_bar / 100 / $inputs.substeps + $world.target_sigma * 0.5 * $sqrt($world.flow_scale / $inputs.flow_scale) / $sqrt($inputs.substeps) * $pattern.fundamental_shock))"},
+    {"name": "fundamental_jumps", "description": "When a jump comes, the stock's latent value jumps.", "on": "round.start", "when": "$pattern.jump > 0", "do": "$world.fundamental = $max(0.01, $world.fundamental * $exp($pattern.jump_size))"}
   ],
   "defs": {
     "seed_bars": {"expr": "$slice($inputs.history, -$inputs.seed_bars)", "description": "The seed bars the run is calibrated on."},

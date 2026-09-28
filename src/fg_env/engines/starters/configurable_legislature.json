@@ -128,6 +128,7 @@
     {
       "on": "change",
       "name": "persuasion",
+      "description": "Each new floor speech is scored when a judge is bound, and every member's view moves toward the floor's.",
       "when": "$len($records(chamber)) > $world.heard",
       "do": [
         "$world.heard = $len($records(chamber))",

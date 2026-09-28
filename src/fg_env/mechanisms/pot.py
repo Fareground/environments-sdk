@@ -19,6 +19,7 @@ from typing import Any, cast
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..contract.base import spoken
 from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, compile_expr, function, is_expr
 from ..expr.objects import Entity
@@ -621,18 +622,25 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
     stages, betting = [], []
     for index, (street, effects) in enumerate(config.streets.items()):
         opening = [] if index == 0 and config.blinds else [{"game": name, "action": "open_betting"}]
+        words = spoken(street)
         if effects or opening:
-            betting.append(stage_event(street, "start", list(effects) + opening))
-        betting.append(stage_event(street, "turn", [{"game": name, "action": "timeout"}], when="not $acted"))
+            betting.append(stage_event(street, "start", list(effects) + opening,
+                                       description=f"The {words} betting round begins."))
+        betting.append(stage_event(street, "turn", [{"game": name, "action": "timeout"}], when="not $acted",
+                                   description=f"A player who does not act in the {words} round checks when nothing "
+                                               "is owed, and folds otherwise."))
         stages.append({
-            "name": street, "when": live, "turns": "sequential", "actions": [f"{name}_{move}" for move in ACTIONS],
+            "name": street,
+            "description": f"Players still in the hand check, bet, call, raise or fold in the {words} betting round.",
+            "when": live, "turns": "sequential", "actions": [f"{name}_{move}" for move in ACTIONS],
             "who": f"$it.id == $world.{name}_to_act", "until": f"$world.{name}_to_act == ''", "passes": 1000,
             "max_actions": 1, "max_calls": config.max_calls, "must_act": True,
             "brief": f"{street.replace('_', ' ').capitalize()} betting. The pot is {{$pot_total('{name}')}}; "
                      f"you need {{$pot_options('{name}', $actor).call_amount}} more chips to call.",
         })
     start = [{"game": name, "action": "new_hand"}, *config.setup]
-    if config.blinds or config.ante not in (0, "0"):
+    blinds = bool(config.blinds or config.ante not in (0, "0"))
+    if blinds:
         start.append({"game": name, "action": "post_blinds"})
     showdown_effects: list[Any] = [{"if": live, "then": list(config.before_showdown)}] if config.before_showdown else []
     world_props = {
@@ -661,8 +669,13 @@ def _expand_pot(name: str, config: PotConfig, contract: Mapping[str, Any]) -> di
         "world": world_props,
         "actions": _actions(name, config),
         "stages": stages,
-        "events": [{"name": f"{name}_hand", "phase": "start", "do": start},
-                   {"name": f"{name}_showdown", "phase": "end",
+        "events": [{"name": f"{name}_hand",
+                    "description": "A new hand starts: bets reset and the button moves"
+                                   + (", then antes and blinds are posted." if blinds else "."),
+                    "phase": "start", "do": start},
+                   {"name": f"{name}_showdown",
+                    "description": "The hand ends: every pot goes to its best eligible hand.",
+                    "phase": "end",
                     "do": showdown_effects + [{"game": name, "action": "showdown"}]}, *betting],
     }
     if config.conserve:

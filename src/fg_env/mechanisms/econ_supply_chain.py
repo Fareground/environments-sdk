@@ -12,7 +12,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import Whole, declared_entity, entity_of
+from ._common import Whole, declared_entity, entity_of, named
 from .econ_assets import destroy_items, held, put_items, take_items
 from .econ_base import (
     INVENTORY,
@@ -126,9 +126,14 @@ def _expand_supply_chain(name: str, config: SupplyChainConfig, contract: Mapping
                                      "description": "Customers' order this round."},
                   f"{name}_sold": {"type": "int", "default": 0, "min": 0,
                                    "description": "Units delivered to customers so far."}},
-        "events": [{"name": f"{name}: arrivals and shipping", "phase": "start",
-                    "do": [{"economy": name, "action": "tick"}]},
-                   {"name": f"{name}: default orders", "phase": "end", "do": [{"economy": name, "action": "close"}]}],
+        "events": [{"name": f"{name}: arrivals and shipping",
+                    "description": f"Every node of the {named(name, 'supply chain')} receives demand, deliveries "
+                                   "and orders, ships what it can and pays its costs.",
+                    "phase": "start", "do": [{"economy": name, "action": "tick"}]},
+                   {"name": f"{name}: default orders",
+                    "description": f"Every node of the {named(name, 'supply chain')} that placed no order this "
+                                   "round places its default order.",
+                    "phase": "end", "do": [{"economy": name, "action": "close"}]}],
     }
     agents = agent_types(contract, types)
     if agents and "order" in config.actions:

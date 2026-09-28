@@ -683,7 +683,9 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
     if not names:
         return fragment
     if config.stage is None:
-        fragment["stages"] = [{"name": name, "turns": config.turns, "actions": names, "max_actions": 2}]
+        fragment["stages"] = [{"name": name,
+                               "description": "Accounts take their turn, acting on what reaches their feed.",
+                               "turns": config.turns, "actions": names, "max_actions": 2}]
     else:
         fragment["stage_hooks"] = {config.stage: {"actions": names, "max_actions": 2}}
     return fragment

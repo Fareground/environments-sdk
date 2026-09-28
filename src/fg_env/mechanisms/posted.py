@@ -24,7 +24,7 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
-from ._common import declared_entity, entity_of, fmt, pct
+from ._common import declared_entity, entity_of, fmt, named, pct
 from .econ_base import money_prop
 from .ledger import Account, clean, move
 
@@ -535,7 +535,10 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                                        "visible": "$viewer.id in ($it.to or [])",
                                        "description": "Sales, visible to the buyer and the seller."}},
         "actions": actions,
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]}],
+        "events": [{"name": f"{name}_open",
+                    "description": f"The {named(name, 'market')} opens for the round and resets its per-round "
+                                   "capacity.",
+                    "phase": "start", "do": [{"market": name, "action": "open"}]}],
         "views": {f"{name}_shelf": {"for": viewers, "title": "On the shelf", "of": f"$shelf({name})",
                                     "limit": cfg.shelf,
                                     "show": f"{{$posted_line({name}, $it, $actor)}}", "empty": "Nothing is for sale."},
@@ -559,7 +562,10 @@ def _expand_posted(name: str, cfg: PostedMarketConfig, contract: Mapping[str, An
                                                      "{revenue|money}"}
     names = list(actions)
     if cfg.stage is None:
-        fragment["stages"] = [{"name": name, "turns": "sequential", "order": "random", "actions": names,
+        fragment["stages"] = [{"name": name,
+                               "description": f"Agents shop and haggle in the {named(name, 'market')}, and sellers "
+                                              "manage their listings.",
+                               "turns": "sequential", "order": "random", "actions": names,
                                "max_actions": cfg.max_actions,
                                "brief": "Shop, haggle or manage your listings, or end your turn."}]
     else:

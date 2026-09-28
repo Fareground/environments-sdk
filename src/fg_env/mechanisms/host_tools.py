@@ -92,7 +92,10 @@ def _expand_host_tool(name: str, config: HostToolConfig, contract: Mapping[str, 
         fragment["records"] = {name: {"fields": {"query": "text", "text": "text"},
                                       "show": "{author} looked up {query}: {text}",
                                       "description": f"Evidence shared from {name}."}}
-        fragment["events"] = [{"name": f"{name}_publish", "phase": "end", "do": [{"host": name, "action": "publish"}]}]
+        fragment["events"] = [{"name": f"{name}_publish",
+                               "description": f"What each agent found with {spoken(name)} is posted to the shared "
+                                              "record.",
+                               "phase": "end", "do": [{"host": name, "action": "publish"}]}]
     return fragment
 
 

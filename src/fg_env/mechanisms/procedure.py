@@ -41,7 +41,7 @@ from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, compile_expr, function
 from ..registry import MechanismError, family_action, mechanism_config, mode, parsed
 from . import _common as common
-from ._common import Config, Effects
+from ._common import Config, Effects, named
 from .expressions import Expr
 from .procedure_stack import StackConfig, check_push, check_stack_rules, expand_stack, read_stack, run_step
 
@@ -168,8 +168,14 @@ def _phases(name: str, cfg: ProcedureConfig, contract: Mapping[str, Any]) -> dic
             f"{name}_history": {"type": "list", "default": [], "description": "Phases entered, in order."},
         },
         "stages": stages,
-        "events": [{"name": f"{name}_start", "phase": "start", "do": [{"decision": name, "action": "start"}]},
-                   {"name": f"{name}_advance", "phase": "end", "do": [{"decision": name, "action": "advance"}]}],
+        "events": [{"name": f"{name}_start",
+                    "description": f"The {named(name, 'procedure')} enters its current phase, or counts another round "
+                                   "in it.",
+                    "phase": "start", "do": [{"decision": name, "action": "start"}]},
+                   {"name": f"{name}_advance",
+                    "description": f"The {named(name, 'procedure')} checks whether the phase is over and moves to the "
+                                   "next one.",
+                    "phase": "end", "do": [{"decision": name, "action": "advance"}]}],
     }
     if cfg.views:
         titles = ", ".join(f"{_quote(p)}: {_quote(s.title or p.replace('_', ' '))}" for p, s in cfg.phases.items())

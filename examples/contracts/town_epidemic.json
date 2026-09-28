@@ -188,6 +188,7 @@
   "stages": [
     {
       "name": "mayor",
+      "description": "The mayor reviews the situation and sets the day's policy on lockdown and vaccination.",
       "who": "$it.type == mayor",
       "turns": "sequential",
       "actions": {"mayor": ["impose_lockdown", "lift_lockdown", "set_vaccination"]},
@@ -197,6 +198,7 @@
     },
     {
       "name": "residents",
+      "description": "During a lockdown, every living resident decides whether to stay home today.",
       "when": "$world.lockdown",
       "who": "$it.type == resident and $it.status != D",
       "turns": "simultaneous",
@@ -216,6 +218,7 @@
   "events": [
     {
       "name": "outbreak",
+      "description": "On the first day, the seed cases are infected at random and the outbreak begins.",
       "on": "round.start",
       "when": "$round == 1",
       "do": [
@@ -228,6 +231,7 @@
     },
     {
       "name": "snapshot_trend",
+      "description": "Yesterday's and last week's active case counts are recorded, to show the trend.",
       "on": "round.start",
       "do": [
         "$world.active_yesterday = $count(resident, $it.status == I)",
@@ -236,6 +240,7 @@
     },
     {
       "name": "lockdown_budget",
+      "description": "Each lockdown day is paid for from the budget; once the budget runs out, support stops.",
       "on": "round.end",
       "when": "$world.lockdown",
       "do": [
@@ -253,6 +258,7 @@
     },
     {
       "name": "vaccination",
+      "description": "The day's vaccine doses go to unvaccinated residents most at risk while the budget lasts.",
       "on": "round.end",
       "when": "$world.daily_doses > 0",
       "do": [
@@ -274,6 +280,7 @@
     },
     {
       "name": "transmission",
+      "description": "Residents in contact with infected people may catch the virus; lockdown compliance and immunity cut the risk.",
       "on": "round.end",
       "do": [
         "$world.immunized_today = 0",
@@ -304,6 +311,7 @@
     },
     {
       "name": "progression",
+      "description": "Infected residents may die, more often when the hospital is overloaded, or recover with immunity.",
       "on": "round.end",
       "do": [
         "$world.new_deaths = 0",
@@ -336,8 +344,8 @@
         {"if": "$overloaded", "then": ["$world.days_over_capacity += 1"]}
       ]
     },
-    {"name": "death_news", "on": "round.end", "when": "$world.new_deaths > 0", "say": "{$world.new_deaths} {'resident' if $world.new_deaths == 1 else 'residents'} died of the virus today."},
-    {"name": "overload_news", "on": "round.end", "when": "$world.hospital_load > $inputs.hospital_beds and $world.days_over_capacity == 1", "once": true, "say": "The hospital is over capacity for the first time."}
+    {"name": "death_news", "description": "On a day when residents die, the town hears how many.", "on": "round.end", "when": "$world.new_deaths > 0", "say": "{$world.new_deaths} {'resident' if $world.new_deaths == 1 else 'residents'} died of the virus today."},
+    {"name": "overload_news", "description": "The town hears when the hospital goes over capacity for the first time.", "on": "round.end", "when": "$world.hospital_load > $inputs.hospital_beds and $world.days_over_capacity == 1", "once": true, "say": "The hospital is over capacity for the first time."}
   ],
   "outputs": {
     "peak_infected": {"expr": "$max($series.active, $it)", "type": "int", "description": "Most residents infected at once"},

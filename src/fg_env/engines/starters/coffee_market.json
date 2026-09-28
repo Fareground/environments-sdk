@@ -432,6 +432,7 @@
   "stages": [
     {
       "name": "weekly_pricing",
+      "description": "Once a week, every open café reviews its results and sets its price, promotion and subscription terms.",
       "when": "$round > 1 and ($round - 1) % 7 == 0",
       "turns": "simultaneous",
       "who": "$it.type == cafe and $it.open",
@@ -442,6 +443,7 @@
     },
     {
       "name": "daily_purchase",
+      "description": "Every household decides whether to buy coffee today, and where; it may also subscribe or cancel.",
       "turns": "simultaneous",
       "order": "random",
       "who": "$it.type == household",
@@ -464,12 +466,14 @@
   "events": [
     {
       "name": "sample_capacity",
+      "description": "In the first round, each café's capacity is scaled down to the sampled population.",
       "on": "round.start",
       "when": "$round == 1",
       "do": ["$per = $represents", {"each": "cafe", "do": ["$it.capacity = $it.capacity / $per"]}]
     },
     {
       "name": "new_day",
+      "description": "Each café's daily counts reset, and a launch promotion that has run its course ends.",
       "on": "round.start",
       "do": [
         {
@@ -484,11 +488,13 @@
     },
     {
       "name": "new_day_households",
+      "description": "Every household starts the day without having bought coffee.",
       "on": "round.start",
       "do": [{"each": "household", "do": ["$it.bought_today = false"]}]
     },
     {
       "name": "new_day_world",
+      "description": "Yesterday's city-wide cups and spending are kept, and today's totals start from zero.",
       "on": "round.start",
       "do": [
         "$world.cups_yesterday = $world.cups_today",
@@ -499,6 +505,7 @@
     },
     {
       "name": "week_close",
+      "description": "At the start of each week, every café's weekly sales, revenue and profit are recorded and reset.",
       "on": "round.start",
       "when": "$round > 1 and ($round - 1) % 7 == 0",
       "do": [
@@ -521,6 +528,7 @@
     },
     {
       "name": "chain_opens",
+      "description": "In the chain launch arm, the chain café opens on launch day with a launch promotion.",
       "on": "round.start",
       "when": "($arm in ['chain_launch']) and ($round == $inputs.launch_day)",
       "do": [
@@ -538,6 +546,7 @@
     },
     {
       "name": "subscription_renewal",
+      "description": "Subscriptions that are due renew for 30 more days at the café's fee; without a fee, they end.",
       "on": "round.end",
       "do": [
         {
@@ -569,6 +578,7 @@
     },
     {
       "name": "word_of_mouth",
+      "description": "Each household hears where its friends last bought coffee and takes the most common café as a tip.",
       "on": "round.end",
       "do": [
         {

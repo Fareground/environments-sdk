@@ -65,7 +65,9 @@ def _expand_personas(name: str, config: PersonaConfig, contract: Mapping[str, An
     return {
         "types": {config.who: {"props": {config.prop: {"type": "text", "default": "", "private": True}}}},
         "world": {"host_tape": tape_prop()},
-        "events": [{"name": f"{name}_personas", "at": 1, "phase": "start", "once": True,
+        "events": [{"name": f"{name}_personas",
+                    "description": "The host writes a persona for every agent that does not have one yet.",
+                    "at": 1, "phase": "start", "once": True,
                     "do": [{"host": name, "action": "write"}]}],
     }
 

@@ -37,6 +37,7 @@ from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
+from ..contract.base import spoken
 from ..errors import RunError
 from ..expr import EVERYONE, Call, ExprError, compile_expr, truthy
 from ..expr.objects import Entity
@@ -45,7 +46,7 @@ from ..expr.values import _Everyone
 from ..information.gate import render
 from ..world.abort import Abort
 from . import _common as common
-from ._common import Config, Effects, stage_event
+from ._common import Config, Effects, named, stage_event
 from ._social import check_expr, require_type
 from .expressions import Expr
 
@@ -489,16 +490,23 @@ def expand_stack(name: str, cfg: StackConfig, contract: Mapping[str, Any]) -> di
         "do": [{**op, "action": "pass"}], "outcome": "You let it stand.", "private": True, "terminal": True,
     }
     stage = cfg.stage or f"{name}_stack"
-    events = [stage_event(stage, "end", [{**op, "action": "close"}])]
+    stack = spoken(name)
+    events = [stage_event(stage, "end", [{**op, "action": "close"}],
+                          description=f"The {stack} window ends: anything still waiting for an answer stands.")]
     if cfg.silence == "pass":
-        events.append(stage_event(stage, "turn", [{**op, "action": "idle"}], when="not $acted"))
+        events.append(stage_event(stage, "turn", [{**op, "action": "idle"}], when="not $acted",
+                                  description=f"An agent who ends a {stack} turn without answering lets the item "
+                                              "on top stand."))
     fragment: dict[str, Any] = {
         "world": {f"{name}_stack": {"type": "map", "default": {"items": [], "next": 1},
                                     "description": "The stack: its items, bottom first."}},
         "actions": actions, "events": events,
     }
     if cfg.stage is None:
-        fragment["stages"] = [{"name": stage, "turns": "sequential", "actions": list(actions),
+        fragment["stages"] = [{"name": stage,
+                               "description": f"Agents answer the item on top of the {named(name, 'stack')}, or let "
+                                              "it stand.",
+                               "turns": "sequential", "actions": list(actions),
                                "who": f"$stack({name}, waiting, $it)", "until": f"$stack({name}, top) == null",
                                "when": f"$stack({name}, top) != null", "passes": cfg.passes,
                                "brief": "Answer the item on top of the stack, or let it stand."}]

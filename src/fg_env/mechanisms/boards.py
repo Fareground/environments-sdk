@@ -17,6 +17,7 @@ from ..expr import Call, ExprError, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, config_data, family_action, mode, use_key
 from ..world.abort import Abort
+from ._common import named
 from ._game import game_section
 from .board_engine import Move, Pos, has_line, in_check, legal, make, position_key, render, score
 from .board_rules import BoardConfig, Rules, compile_rules, parse_setup
@@ -652,7 +653,10 @@ def _expand_board(name: str, config: BoardConfig, contract: Mapping[str, Any]) -
     fragment.update(game_section(contract, _game(name, rules, players)))
     names = list(actions)
     if config.stage is None:
-        fragment["stages"] = [{"name": name, "turns": "sequential", "who": f"$it.id == {turn}", "actions": names,
+        fragment["stages"] = [{"name": name,
+                               "description": f"The player whose turn it is makes a move on the "
+                                              f"{named(name, 'board')}.",
+                               "turns": "sequential", "who": f"$it.id == {turn}", "actions": names,
                                "max_actions": chain_turn, "max_calls": chain_turn + 6, "must_act": True,
                                "brief": "Your move."}]
     else:

@@ -96,10 +96,11 @@
       "announce": false
     }
   },
-  "stages": [{"name": "choose", "turns": "simultaneous", "must_act": true}],
+  "stages": [{"name": "choose", "description": "Every player secretly chooses to cooperate or compete this round.", "turns": "simultaneous", "must_act": true}],
   "events": [
     {
       "name": "resolve_choices",
+      "description": "Choices are revealed, and each player scores by how many others cooperated or competed.",
       "on": "round.end",
       "do": [
         "$cooperators = $count(strategist, $it.choice == cooperate)",

@@ -120,9 +120,13 @@ def _expand(name: str, cfg: StatusConfig, contract: Mapping[str, Any]) -> dict[s
             hooks.setdefault(action, {"when": []})["when"].append(
                 {"expr": f"not $has_status($actor, '{status}')", "why": why})
     prop = {"type": "map", "default": {}, "description": f"Active statuses ({name})."}
-    events = [{"name": f"{name}_expire", "phase": "end", "do": [{"game": name, "action": "expire"}]}]
+    events = [{"name": f"{name}_expire",
+               "description": "Every status whose time is up ends.",
+               "phase": "end", "do": [{"game": name, "action": "expire"}]}]
     if any(spec.tick for spec in cfg.statuses.values()):
-        events.insert(0, {"name": f"{name}_tick", "phase": cfg.phase, "do": [{"game": name, "action": "tick"}]})
+        events.insert(0, {"name": f"{name}_tick",
+                          "description": "Every active status has its effect for the round.",
+                          "phase": cfg.phase, "do": [{"game": name, "action": "tick"}]})
     fragment: dict[str, Any] = {"action_hooks": hooks, "types": {t: {"props": {name: prop}} for t in on},
                                 "events": events}
     if cfg.views:

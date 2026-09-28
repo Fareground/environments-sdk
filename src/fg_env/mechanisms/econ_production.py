@@ -156,7 +156,10 @@ def _expand_production(name: str, config: ProductionConfig, contract: Mapping[st
         "world": {f"{name}_made": {"type": "map", "default": {}, "description": "Batches finished per recipe."}},
         "defs": {f"{name}_eta": {"description": "When each recipe's batches are ready.",
                                  "expr": "{" + ", ".join(f"'{r}': '{t}'" for r, t in etas.items()) + "}"}},
-        "events": [{"name": f"{name}: jobs", "phase": "start", "do": [{"economy": name, "action": "tick"}]}],
+        "events": [{"name": f"{name}: jobs",
+                    "description": "Jobs that are due finish; a job whose output does not fit "
+                                   "waits.",
+                    "phase": "start", "do": [{"economy": name, "action": "tick"}]}],
     }
     agents = agent_types(contract, producers)
     if agents:

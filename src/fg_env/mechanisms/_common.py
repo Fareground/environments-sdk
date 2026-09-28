@@ -18,6 +18,7 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
+from ..contract.base import spoken
 from ..effects.captures import CAPTURE_VERSION, freeze, thaw
 from ..errors import RunError
 from ..expr import Call, ExprError, compile_expr, function, is_expr, truthy
@@ -30,7 +31,7 @@ __all__ = [
     "actions_by", "types_in", "suggest", "evaluate", "condition", "number", "number_of", "whole", "entity_of",
     "entities_of", "lot_floor", "fmt", "pct", "display", "in_words", "shown",
     "freeze", "thaw", "CAPTURE_VERSION", "canonical", "modifier_terms", "check_names", "carriers", "raw_is_a",
-    "is_agent_type", "stage_event", "declared_entity", "setting_kept", "Conserve", "conserve_field",
+    "is_agent_type", "stage_event", "named", "declared_entity", "setting_kept", "Conserve", "conserve_field",
     "conserve_invariant",
 ]
 
@@ -100,10 +101,20 @@ class ModifierSpec(Config):
     mul: Number = Field(1.0, description="Multiplies the property (number or expression over $it).")
 
 
-def stage_event(stage: str, point: str, do: Effects, when: str | None = None) -> dict[str, Any]:
+def stage_event(stage: str, point: str, do: Effects, when: str | None = None,
+                description: str = "") -> dict[str, Any]:
     """An event that runs ``do`` at ``point`` of stage ``stage``: its start, its end, or after each agent's turn
-    (``turn``), under ``when``."""
-    return {"on": f"stage.{stage}.{point}", **({"when": when} if when else {}), "do": list(do)}
+    (``turn``), under ``when``. ``description`` says what it does, for people reading the rules."""
+    return {**({"description": description} if description else {}), "on": f"stage.{stage}.{point}",
+            **({"when": when} if when else {}), "do": list(do)}
+
+
+def named(name: str, kind: str) -> str:
+    """A mechanism called by its name in a rule's description: ``named("house", "auction")`` → ``house auction``, and
+    ``named("market", "market")`` → ``market``, so a name that already says what it is is not said twice."""
+    words = spoken(name)
+    last = kind.split()[-1]
+    return words if any(word in (last, last + "s") for word in words.split()) else f"{words} {kind}"
 
 
 def uses(contract: Any, kind: str) -> list[tuple[str, Mapping[str, Any]]]:

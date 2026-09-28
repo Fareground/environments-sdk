@@ -192,7 +192,7 @@
     }
   },
   "stages": [
-    {"name": "drivers", "turns": "sequential", "order": "random", "who": "$it.status == 'idle' or $it.status == 'offline'", "max_actions": 1, "max_calls": 4, "brief": "It is {$clock_label()}. Decide your move for the next 5 minutes; ending your turn without an action means you wait where you are."}
+    {"name": "drivers", "description": "Idle and offline drivers, in random order, choose their move for the next five minutes.", "turns": "sequential", "order": "random", "who": "$it.status == 'idle' or $it.status == 'offline'", "max_actions": 1, "max_calls": 4, "brief": "It is {$clock_label()}. Decide your move for the next 5 minutes; ending your turn without an action means you wait where you are."}
   ],
   "views": {
     "you": {"for": "driver", "title": "You", "show": "{name} at ({$actor.at[0]}, {$actor.at[1]}) in {$entity($zone_of($actor.at)).name} · {$get({idle: 'free', to_pickup: 'driving to a pickup', on_trip: 'carrying a rider', offline: 'offline'}, $actor.status)}{$', heading to ' + $entity($actor.heading).name if $actor.heading != 'none' else ''} · earned {earnings|money} from {trips} {$'trip' if $actor.trips == 1 else 'trips'}"},
@@ -202,6 +202,7 @@
   "events": [
     {
       "name": "rider_cancellations",
+      "description": "Riders who waited past their deadline cancel, freeing any driver assigned to them.",
       "on": "round.start",
       "do": [
         {
@@ -225,6 +226,7 @@
     },
     {
       "name": "new_requests",
+      "description": "New ride requests arrive by the hour's demand profile; riders priced out by surge do not book.",
       "on": "round.start",
       "do": [
         "$profile = $demand_now()",
@@ -256,6 +258,7 @@
     },
     {
       "name": "dispatch",
+      "description": "Each open request is offered to the nearest idle driver who has no other offer.",
       "on": "round.start",
       "do": [
         {"each": "request", "do": ["$it.offered = 'none'"]},
@@ -271,6 +274,7 @@
     },
     {
       "name": "shift_accounting",
+      "description": "Every online driver logs time online, and busy time when heading to a pickup or on a trip.",
       "on": "round.end",
       "do": [
         {
@@ -285,6 +289,7 @@
     },
     {
       "name": "driving",
+      "description": "Drivers heading to a pickup, a destination or a chosen zone move one step toward it.",
       "on": "round.end",
       "do": [
         {
@@ -300,6 +305,7 @@
     },
     {
       "name": "dropoffs",
+      "description": "Drivers who reach a rider's destination drop them off and earn their share of the fare.",
       "on": "round.end",
       "do": [
         {
@@ -323,6 +329,7 @@
     },
     {
       "name": "pickups",
+      "description": "Drivers who reach a waiting rider pick them up and head for the destination.",
       "on": "round.end",
       "do": [
         {
@@ -348,6 +355,7 @@
     },
     {
       "name": "surge_pricing",
+      "description": "When surge pricing is on, each zone's surge is set from its open requests per idle driver.",
       "on": "round.end",
       "do": [
         {

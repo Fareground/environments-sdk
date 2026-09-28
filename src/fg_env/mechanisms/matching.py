@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..errors import RunError
 from ..expr import ExprError, compile_expr, truthy
 from ..registry import MechanismError, family_action, mechanism_config, mode
-from ._common import is_agent_type, number_of, stage_event
+from ._common import is_agent_type, named, number_of, stage_event
 from ._social import check_expr, props, require_type
 from .expressions import Expr
 
@@ -187,15 +187,19 @@ def _expand_matching(name: str, config: MatchingConfig, contract: Mapping[str, A
                                         "description": f"{config.who}s matched."}},
     }
     clearing = [{"groups": name, "action": "clear"}]
+    clears = f"Deferred acceptance turns everyone's rankings into a stable {named(name, 'match')}."
     if config.stage is not None:
         fragment["stage_hooks"] = {config.stage: {"actions": list(actions)}}
-        fragment["events"] = [stage_event(config.stage, "end", clearing)]
+        fragment["events"] = [stage_event(config.stage, "end", clearing, description=clears)]
     elif actions:
-        fragment["stages"] = [{"name": name, "turns": "simultaneous", "actions": list(actions),
+        fragment["stages"] = [{"name": name,
+                               "description": f"Agents rank, best first, who they would accept in the "
+                                              f"{named(name, 'match')}.",
+                               "turns": "simultaneous", "actions": list(actions),
                                "when": f"not $world.{name}_cleared",
                                "brief": "Rank who you would accept, best first. When everyone has ranked, deferred "
                                         "acceptance makes a stable match."}]
-        fragment["events"] = [stage_event(name, "end", clearing)]
+        fragment["events"] = [stage_event(name, "end", clearing, description=clears)]
     else:
-        fragment["events"] = [{"name": f"{name}_clear", "at": 1, "do": clearing}]
+        fragment["events"] = [{"name": f"{name}_clear", "description": clears, "at": 1, "do": clearing}]
     return fragment

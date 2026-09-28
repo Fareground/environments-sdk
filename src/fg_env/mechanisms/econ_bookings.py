@@ -138,7 +138,10 @@ def _expand_bookings(name: str, config: BookingsConfig, contract: Mapping[str, A
                 "priority": {"type": "number", "default": 0}, "gives_up": {"type": "int", "default": 0}}}},
         "entities": entities,
         "world": {f"{name}_stats": {"type": "map", "default": dict(STATS), "description": "Booking totals (places)."}},
-        "events": [{"name": f"{name}: service", "phase": "start", "do": [{"agreements": name, "action": "tick"}]}],
+        "events": [{"name": f"{name}: service",
+                    "description": "This round's bookings, or the line, are served, and impatient guests give "
+                                   "up.",
+                    "phase": "start", "do": [{"agreements": name, "action": "tick"}]}],
     }
     agents = agent_types(contract, guests)
     if not agents:

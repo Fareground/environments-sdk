@@ -14,7 +14,7 @@ from typing import Any
 
 from ..registry import MechanismError, mode
 from . import book_functions  # noqa: F401  (registers $book … and the market op's order_book actions)
-from ._common import conserve_invariant, display, fmt, in_words, pct, suggest
+from ._common import conserve_invariant, display, fmt, in_words, named, pct, suggest
 from .book_rules import rules_default
 from .econ_base import money_prop
 from .order_book import OrderBookConfig, crowd_type, props_for
@@ -248,8 +248,12 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
                                             "whether a halt tripped in it and its aggressive flow by trader kind."},
         },
         "actions": _actions(name, cfg, qty_type),
-        "events": [{"name": f"{name}_open", "phase": "start", "do": [{"market": name, "action": "open"}]},
-                   {"name": f"{name}_close", "phase": "end", "do": [{"market": name, "action": "close"}]}],
+        "events": [{"name": f"{name}_open", "description": f"The {named(name, 'order book')} opens for the round.",
+                    "phase": "start", "do": [{"market": name, "action": "open"}]},
+                   {"name": f"{name}_close",
+                    "description": f"The {named(name, 'order book')} closes the round: its price bar is recorded and "
+                                   "the circuit breaker is checked.",
+                    "phase": "end", "do": [{"market": name, "action": "close"}]}],
         "views": _views(name, cfg),
         "policies": {f"{name}_algo": {"rules": [{"do": f"{name}_algo"}, {"do": "pass"}]}},
         "metrics": {f"{name}_price": f"$world.{name}_last", f"{name}_mid": f"$book({name}).mid",
@@ -272,7 +276,10 @@ def _expand_order_book(name: str, cfg: OrderBookConfig, contract: Mapping[str, A
     }
     names: list[str] = list(fragment["actions"])
     if cfg.stage is None:
-        fragment["stages"] = [{"name": name, "turns": "sequential", "actions": names, "max_actions": cfg.max_actions,
+        fragment["stages"] = [{"name": name,
+                               "description": f"Traders buy, sell or cancel orders on the {named(name, 'order book')}, "
+                                              "market makers first.",
+                               "turns": "sequential", "actions": names, "max_actions": cfg.max_actions,
                                "order": f"0 if $it.type == '{name}_market_maker' else 1 + "
                                         "$uniform(0, 1)",  # a type is public
                                "brief": f"Trade {shown_unit}: buy, sell, cancel, or end your turn."}]

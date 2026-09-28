@@ -13,7 +13,7 @@ from ..errors import RunError
 from ..expr import Call, ExprError, function
 from ..registry import MechanismError, family_action, mode
 from ..world.abort import Abort
-from ._common import entity_of
+from ._common import entity_of, named
 from .econ_assets import assets, balance, move_items, move_money
 from .econ_base import (
     INVENTORY,
@@ -250,7 +250,10 @@ def _fragment(name: str, config: NegotiationConfig, parties: list[str], agents: 
                 "penalty": {"type": "number", "default": 0, "min": 0}}}},
         "world": {f"{name}_closed": {"type": "bool", "default": False, "description": "A deal closed the negotiation."},
                   f"{name}_stats": {"type": "map", "default": dict(STATS), "description": "Negotiation totals."}},
-        "events": [{"name": f"{name}: deadlines and duties", "phase": "end",
+        "events": [{"name": f"{name}: deadlines and duties",
+                    "description": f"In the {named(name, 'negotiation')}, offers expire, due installments are carried "
+                                   "out and breaches are found.",
+                    "phase": "end",
                     "do": [{"agreements": name, "action": "tick"}]}],
         "actions": {}, "views": {}, "defs": {},
     }
