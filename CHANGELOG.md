@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Presentation fields for host UIs, none of which change a run: inputs take `group` (the section a UI lists them
   under) and `basis` (`given`, `researched` or `assumed`: where the default comes from); stages and events take a
   one-sentence `description` of what they do.
+- Every engine starter's stages and events, and every stage and event a mechanism adds, carry a `description`.
+- A generated entity whose `id` template has no `{…}` in it is a check error: every entity it made got the same id,
+  and loading failed with a run error instead.
 - **BREAKING:** a model turn cut short by the participant's call limit (`out_of_steps`) now degrades the run, even
   when the agent acted earlier in the turn: its outcome is kept, but `result.ok` is false and `out_of_steps` is in
   `result.degraded`. An explicit end of turn stays healthy.

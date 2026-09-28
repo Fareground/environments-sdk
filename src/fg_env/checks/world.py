@@ -269,9 +269,14 @@ class WorldChecks(Checker):
                       "function ($outer is the entity there)")
 
     def _generated_ids(self) -> None:
-        """A generator with a literal count and default ids makes `<key>_<n>`: none may be a named entity's id."""
+        """A generator with a literal count and default ids makes `<key>_<n>`: none may be a named entity's id. An
+        `id` template with no `{…}` gives every entity it makes the same id."""
         named = list(self.c.named_entities())
         for key, spec in self.c.entities.items():
+            if spec.generates and isinstance(spec.id, str) and "{" not in spec.id and (
+                    spec.from_ is not None or not isinstance(spec.count, int) or spec.count > 1):
+                self.error(f"entities.{key}.id", f"every entity this makes would have the id '{spec.id}'",
+                           f"vary it per entity, e.g. \"{key}_{{$i}}\" or \"{{$row.id}}\"")
             if not spec.generates or spec.id is not None or spec.from_ is not None or not isinstance(spec.count, int):
                 continue
             made = re.compile(re.escape(key) + r"_([1-9]\d*)")

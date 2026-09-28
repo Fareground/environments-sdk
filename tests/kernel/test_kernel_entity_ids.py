@@ -122,3 +122,12 @@ def test_a_winner_is_an_entity_a_list_of_them_or_a_side_s_name():
         assert result.ok, (winner, result.text)
     for winner in ("$round", "$dict(p, $it.id, 1)", "[$round]", "$round > 0"):
         assert _refused(_contract({"end": "over", "winner": winner}), "winner", ""), winner
+
+
+@pytest.mark.parametrize("entry", [{"count": 3}, {"count": "$inputs.n"}, {"from": "[{'id': 'a'}, {'id': 'b'}]"}])
+def test_a_generated_id_that_never_varies_is_a_check_error(entry):
+    contract = {"name": "Same", "clock": {"rounds": 1}, "inputs": {"n": {"type": "int", "default": 2}},
+                "types": {"t": {}}, "entities": {"t": {"type": "t", "id": "$", **entry}}}
+    assert [issue.path for issue in fg_env.check(contract) if issue.severity == "error"] == ["entities.t.id"]
+    one = {**contract, "entities": {"t": {"type": "t", "id": "only", "count": 1}}}
+    assert not [issue for issue in fg_env.check(one) if issue.severity == "error"]
