@@ -80,7 +80,13 @@ class Sandbox:
         assert process.stdin is not None
         if not self._ready:  # a new child: its start does not count against the call's time
             try:
-                self._ready = self._next(process, time.monotonic() + START_SECONDS, "", 0) == {"ready": True}
+                startup = self._next(process, time.monotonic() + START_SECONDS, "", 0)
+                if startup != {"ready": True}:
+                    self.close()
+                    if "too_big" in startup:
+                        raise TooBig("", self.memory_mb)
+                    raise RuntimeError(startup.get("error", "the test process sent an invalid startup response"))
+                self._ready = True
             except TooSlow:
                 raise RuntimeError(f"the test process did not start within {START_SECONDS:g}s") from None
         try:

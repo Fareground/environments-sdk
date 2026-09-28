@@ -272,3 +272,24 @@ def test_memory_monitor_failure_stops_the_child_instead_of_disabling_the_limit(m
         sandbox._watch_memory(200)
     assert error.value.code == 3
     assert messages == [{"error": "The test process could not measure its memory usage"}]
+
+
+@pytest.mark.parametrize("message,exception,detail", [
+    ({"too_big": True}, "TooBig", "more than 200 MB"),
+    ({"error": "Memory measurement unavailable"}, "RuntimeError", "Memory measurement unavailable"),
+    ({"value": 42}, "RuntimeError", "invalid startup response"),
+])
+def test_startup_errors_are_not_lost_before_the_ready_message(monkeypatch, message, exception, detail):
+    from io import StringIO
+
+    from fg_env.authoring.sandbox import Sandbox, TooBig
+
+    killed = []
+    stream = StringIO()
+    box = Sandbox(memory_mb=200)
+    box._process = SimpleNamespace(stdin=stream, kill=lambda: killed.append(True), wait=lambda: 0)
+    monkeypatch.setattr(box, "_next", lambda *_: message)
+    with pytest.raises(TooBig if exception == "TooBig" else RuntimeError, match=detail):
+        box.call("unused:call", {}, seconds=1)
+    assert killed == [True] and box._process is None
+    assert not box._ready and stream.getvalue() == ""
