@@ -87,7 +87,10 @@ Every section but `name` and `types` is optional; `guide('<section>')` has each 
 
 1. **Parameters** — `inputs`: `{name: {type, default, min, max, values, description}}`, read as `$inputs.name`
    and set per run (`fg_env.run(..., inputs={...})`). Types: number int bool text enum list map table file.
-   Hosts show `label`, `unit`, `display`, `group` and `basis` (given, researched, assumed).
+   Hosts show `label`, `unit`, `display`, `group`, `basis` (given, researched, assumed) and `role`: a `scenario`
+   input is a lever a person changes to ask a different question (a price, a policy, a start day, how many), kept
+   few and simple; a `calibration` input is how the model behaves (a chance, a sensitivity, a rate), set when the
+   environment is built and shown as its assumptions.
 2. **State** — `world` holds global props (`$world.fish`); `types` declare each kind's props (a bare value is the
    default: `"cash": 100`, any number; `"type": "int"` for whole ones — or `{type, default, min, max, values,
    private}`, a map `{"default": {…}}`); `entities` are named

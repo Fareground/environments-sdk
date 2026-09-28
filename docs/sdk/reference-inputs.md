@@ -20,6 +20,7 @@ Typed values supplied when the contract is loaded ($inputs.x): knobs, data table
 - `display`: any — Optional host UI control. Presentation only: does not change simulation semantics.
 - `group`: text — Section a host UI lists this input under (e.g. prices). Presentation only.
 - `basis`: any — Where the default comes from: given (by whoever asked for the environment), researched (from a source; say which in `description`) or assumed. Presentation only.
+- `role`: any = "scenario" — Who sets it: scenario (what a person changes to ask a different question: a price, a policy, a start day, a population — shown to set per run) or calibration (how the model behaves: chances, sensitivities, rates — fixed when the environment is built, shown as its assumptions). Presentation only.
 - `step`: number — Suggested numeric control increment; min/max still validate supplied values.
 - `fields`: object — Typed configurable fields of a map object or each table row; supports nested objects, defaults and control hints.
 - `items`: InputSpec — Typed elements of a list input.

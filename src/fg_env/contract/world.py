@@ -61,6 +61,11 @@ class InputSpec(_Model):
     basis: Literal["", "given", "researched", "assumed"] = Field(
         "", description="Where the default comes from: given (by whoever asked for the environment), researched "
                         "(from a source; say which in `description`) or assumed. Presentation only.")
+    role: Literal["scenario", "calibration"] = Field(
+        "scenario", description="Who sets it: scenario (what a person changes to ask a different question: a price, a "
+                                "policy, a start day, a population — shown to set per run) or calibration (how the "
+                                "model behaves: chances, sensitivities, rates — fixed when the environment is built, "
+                                "shown as its assumptions). Presentation only.")
     step: float | None = Field(None, gt=0, allow_inf_nan=False,
                                description="Suggested numeric control increment; min/max still validate supplied "
                                            "values.")

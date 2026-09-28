@@ -845,6 +845,16 @@
           "title": "Basis",
           "type": "string"
         },
+        "role": {
+          "default": "scenario",
+          "description": "Who sets it: scenario (what a person changes to ask a different question: a price, a policy, a start day, a population — shown to set per run) or calibration (how the model behaves: chances, sensitivities, rates — fixed when the environment is built, shown as its assumptions). Presentation only.",
+          "enum": [
+            "scenario",
+            "calibration"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
         "step": {
           "anyOf": [
             {

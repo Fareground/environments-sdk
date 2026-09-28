@@ -184,3 +184,11 @@ def test_an_object_of_spec_settings_with_no_type_or_default_asks_whether_a_map_w
     assert [i.severity for i in found] == ["warning"] and '{"default": {' in found[0].fix
     c["world"]["limits"] = {"default": prop}
     assert not [i for i in fg_env.check(c, rounds=0) if i.path == "world.limits"]
+
+
+def test_an_input_says_whether_a_person_sets_it_per_run_or_it_calibrates_the_model():
+    from fg_env.contract.world import InputSpec
+    assert InputSpec().role == "scenario"
+    assert InputSpec(role="calibration").role == "calibration"
+    with pytest.raises(ValueError):
+        InputSpec(role="hidden")

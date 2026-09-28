@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Inputs take `role`, a presentation field that never changes a run: `scenario` (the default; a lever a person
+  changes to ask a different question) or `calibration` (how the model behaves, set when the environment is built and
+  shown as its assumptions).
 - Presentation fields for host UIs, none of which change a run: inputs take `group` (the section a UI lists them
   under) and `basis` (`given`, `researched` or `assumed`: where the default comes from); stages and events take a
   one-sentence `description` of what they do.

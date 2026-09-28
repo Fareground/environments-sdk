@@ -61,7 +61,7 @@ FIELDS: dict[str, Reader] = {
     "InputSpec.type": W, "InputSpec.default": W, "InputSpec.values": W, "InputSpec.columns": W,
     "InputSpec.source": W, "InputSpec.description": W, "InputSpec.unit": W, "InputSpec.label": W,
     "InputSpec.caption": W, "InputSpec.alt": W, "InputSpec.tags": W, "InputSpec.describe": W,
-    "InputSpec.display": W, "InputSpec.group": W, "InputSpec.basis": W,
+    "InputSpec.display": W, "InputSpec.group": W, "InputSpec.basis": W, "InputSpec.role": W,
     # the run's length and its space: settings the build works out
     "Clock.rounds": R, "Clock.unit": W, "Clock.start": W,
     "GridSpace.rows": R, "GridSpace.cols": R, "GridSpace.neighborhood": W,
