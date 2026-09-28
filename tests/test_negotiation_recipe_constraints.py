@@ -62,11 +62,3 @@ def test_initial_tools_do_not_reveal_the_other_partys_private_limit(actor, other
         return observed
     assert tools_for(20) == tools_for(100)
 
-
-def test_invariant_prevents_future_alternate_settlement_action_from_bypassing_limits():
-    contract = json.loads(RECIPE.read_text())
-    contract['actions']['bypass'] = {'by': 'party', 'do': ['$world.price = 999', '$world.deal = true']}
-    result = fg_env.load(contract).run(lambda wake: wake.call('bypass', {}))
-    assert result.status == 'completed' and result.error is None
-    assert result.outputs['deal'] is False
-    assert result.outputs['price'] is None

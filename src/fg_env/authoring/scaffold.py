@@ -68,11 +68,6 @@ RECIPES: dict[str, Recipe] = {
     "queue": Recipe("arrivals served first come, first served", "policy:two",
                     {"served": 22, "cost": 80},
                     "2 counters serve 6 a round: 4 + 6 + 6 + 6 of the 23 arrivals; 2 counters × 10 × 4 rounds."),
-    "observed_queue": Recipe("exact recorded arrivals and service times, with agent-controlled staffing", "policy:one",
-                             {"completed_jobs": 3, "unfinished_arrived_jobs": 0, "busy_minutes": 15,
-                              "starts": [0, 5, 10], "finishes": [5, 10, 15]},
-                             "one technician serves arrivals at 0, 2 and 4 for 5 minutes each; starts are 0, 5, 10, "
-                             "finishes 5, 10, 15. At closing (20), all three are complete with 15 busy minutes."),
     "spread": Recipe("an infection passing along a contact network (no agents)"),
     "board_game": Recipe("a turn-based board game with a winner and zero-sum seats", "policy:first_free",
                          {"winner": "X"},

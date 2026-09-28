@@ -52,13 +52,12 @@ def record_for(index: int, start: float, length: float, hours: float, now: Mappi
         staff = numbers["staff"]
         busy = counts.busy.get(name, 0.0)
         paid = staff * hours / (1.0 - numbers["shrinkage"])
-        overrun = counts.overrun.get(name, 0.0)
-        overrun_hours = overrun * hours / length
-        duty = staff * length + overrun
+        # servers finishing what they started after staff drops are on duty, and paid, while they serve
+        overrun_hours = counts.overrun.get(name, 0.0) * hours / length
+        duty = staff * length + counts.overrun.get(name, 0.0)
         pools[name] = {"staff": staff, "busy": busy, "staff_time": duty, "overrun_hours": overrun_hours,
                        "utilisation": busy / duty if duty else None,
-                       "paid_hours": paid + overrun_hours,
-                       "cost": paid * numbers["cost"] + overrun_hours * numbers.get("overrun_cost", numbers["cost"])}
+                       "paid_hours": paid + overrun_hours, "cost": (paid + overrun_hours) * numbers["cost"]}
     record: dict[str, Any] = {"interval": index, "start": start, **_zero_counts(),
                               "expected": sum(c["expected"] for c in channels.values()),
                               "queue": sum(c["queue"] for c in channels.values()),
@@ -107,8 +106,8 @@ def merge_counts(records: list[dict[str, Any]], counts: Counts, targets: Mapping
 def empty_totals(channels: list[str]) -> dict[str, Any]:
     """Totals before the first interval (every key present, so expressions reading them check cleanly)."""
     return {**_zero_counts(), "channels": {name: _zero_counts() for name in channels}, "intervals": 0,
-            "intervals_below_target": 0, "staff_time": 0.0, "busy": 0.0, "paid_hours": 0.0,
-            "cost": 0.0, "overrun_hours": 0.0,
+            "intervals_below_target": 0, "staff_time": 0.0, "busy": 0.0, "paid_hours": 0.0, "cost": 0.0,
+            "overrun_hours": 0.0,
             "utilisation": None, "waiting": 0, "callbacks_waiting": 0,
             "latest": {"interval": None, "service_level": None, "offered": 0, "abandon_rate": None, "staff": 0,
                        "queue": 0.0}}

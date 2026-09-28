@@ -47,7 +47,7 @@ Reach for one of these when the core cannot say it.
 
 ## Recipe, mechanism or engine?
 
-A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `observed_queue`, `spread`, `board_game`, `economy`, `grid`, `simulation`
+A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `spread`, `board_game`, `economy`, `grid`, `simulation`
 (`guide('cookbook')` shows each with its known answer). A mechanism (`market`, `decision` …) is a building block
 inside your contract. An engine (`retail`, `council` …) is a complete, larger contract to copy and edit:
 `fg-env new --engine <id>`.
@@ -108,7 +108,6 @@ cloned, to copy and make your own (topic, roles, people, inputs, rules) rather t
 - `mechanisms` — what every family shares; `<family>` and `<family>.<mode>` (e.g. `market.auction`)
 - `engines` — every engine: what it simulates, its roles, coded policies and inputs; sampling people for it
 - `patterns` — seasons, trends, responses, random processes, draws and noise, and fitting them from data
-- `quantities` — explicit dimensions, unit conversion and the limits of dimensional checking
 - `assets` — files beside the contract (images, PDFs, text) delivered to agents: `file` inputs
 - `inspect` — debugging a run: summary, diagnostics, events, traces, replay
 - `running` — Python API: participants, runs, snapshots, experiments, traces, evaluation, games, gyms, CLI

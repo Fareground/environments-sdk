@@ -10,6 +10,7 @@ follow patterns (``"$pattern.calls * $pattern.outage"``) and agents can change w
 """
 from __future__ import annotations
 
+from bisect import bisect_left
 from collections.abc import Mapping
 from typing import Any, Literal
 
@@ -46,10 +47,6 @@ class DurationSpec(Config):
 class CallbackSpec(Config):
     """A callback offered to customers facing a long wait; callbacks are served when nobody is waiting."""
 
-    service_estimate: Number | None = Field(
-        None, description="Expected service duration used only in the callback offer's wait estimate. Required with "
-                          "scheduled arrivals; supply information available when deciding, not future realized "
-                          "service times. Poisson channels default to their service distribution mean.")
     when: Number = Field(0.0, description="Offer it when the expected wait is longer than this (the mode's unit): "
                                           "(customers waiting on the channel + 1) × mean service ÷ servers on the "
                                           "channel.")
@@ -83,11 +80,11 @@ class ChannelSpec(Config):
                                               "at that rate.")
     service: DurationSpec | None = Field(None, description="Service (handle) distribution for Poisson arrivals.")
     scheduled: list[ScheduledArrivalSpec] | str | None = Field(
-        None, description="Exact arrivals: [{at, service, patience?}], or an expression giving that list. Times are "
-                          "absolute from run start in the mode's unit; service and patience are durations. "
-                          "Alternative to arrivals/service/patience distributions. Zero service duration is allowed. "
-                          "Equal-time rows retain list order. "
-                          "Intervals include their start and exclude their end; future rows are not backlog.")
+        None, description="Exact arrivals instead of arrivals/service/patience: [{at, service, patience?}], or an "
+                          "expression giving that list ($inputs.jobs), read and checked once, when the first interval "
+                          "is played. Times are from the run's start in the mode's unit; service and patience are "
+                          "durations (no patience: never gives up). Rows at the same time arrive in list order; an "
+                          "interval takes the rows from its start up to, not including, its end.")
     patience: DurationSpec | None = Field(None, description="How long a customer waits before giving up (null: never).")
     priority: int = Field(0, description="Higher is served first; equal priorities are served in arrival order.")
     threshold: float = Field(20.0, ge=0,
@@ -109,10 +106,6 @@ class PoolSpec(Config):
                                                                   "free server takes the waiting customer first by "
                                                                   "priority, then arrival).")
     cost: Number = Field(0.0, description="Cost of one server per paid hour.")
-    overrun_cost: Number | None = Field(
-        None, description="Cost per hour of continuing service above scheduled staffing after staff drops. "
-                          "Defaults to cost; set an explicit rate for premiums or unpaid overrun. "
-                          "Overrun hours count actual service time without shrinkage gross-up.")
     shrinkage: Number = Field(0.0, description="Share of paid time not on duty (breaks, training), from 0 to below 1: "
                                                "paid hours = staff × hours ÷ (1 − shrinkage).")
     description: str = ""
@@ -121,12 +114,6 @@ class PoolSpec(Config):
 class QueueConfig(Config):
     """A service system: channels of customers served by pools of servers, interval by interval."""
 
-    record_customers: bool = Field(
-        False, description="Record arrivals, service starts, observed completions, abandonments and callbacks in "
-                           "$world.<name>_customer_events and output <name>_customer_events. Customer sequence IDs "
-                           "link events; retry attempts retain their ID. Completions at interval end are recorded "
-                           "once; scheduled_finish on a start is a plan, not observed completion. Opt in for "
-                           "per-customer diagnosis; histories grow with activity.")
     channels: dict[str, ChannelSpec] = Field(..., description="{channel: {arrivals, service, patience, priority, "
                                                               "threshold, target, callback, retry}}.")
     servers: dict[str, PoolSpec] = Field(..., description="{pool: {staff, skills, cost, shrinkage}}.")
@@ -171,11 +158,9 @@ def _check(config: QueueConfig) -> None:
         elif channel.arrivals is not None or channel.service is not None or channel.patience is not None:
             raise MechanismError("scheduled rows cannot also use arrival or duration distributions",
                                  "put service and optional patience on each scheduled row", path)
-        if channel.scheduled is not None and channel.callback is not None and channel.callback.service_estimate is None:
-            raise MechanismError("scheduled callbacks need an explicit service_estimate",
-                                 "supply the expected service duration known at offer time; "
-                                 "do not infer it from future rows",
-                                 f"{path}.callback.service_estimate")
+        elif channel.callback is not None:
+            raise MechanismError("a callback estimates the wait from the service distribution, which scheduled rows "
+                                 "do not have", "leave out `callback`, or use arrivals and service", f"{path}.callback")
         durations = [("service", channel.service), ("patience", channel.patience),
                      ("retry.delay", channel.retry.delay if channel.retry else None)]
         for field, spec in durations:
@@ -203,22 +188,22 @@ def _check_duration(spec: DurationSpec, path: str) -> None:
 
 
 @mode("economy", "queue", QueueConfig,
-      "A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at "
-      "the interval's expected `arrivals`, or exact `scheduled` rows), are answered at once by a free server "
-      "of a pool with the skill, or wait in "
-      "line — by `priority`, then arrival — and give up when their `patience` runs out; `callback` offers customers "
-      "facing a long wait a call back, served when nobody is waiting, and `retry` brings some who gave up back later. "
-      "Servers finish what they started when staff drops. Every number is read when the interval is played and may "
-      "read `$interval` (0 for the first), `$inputs`, `$world` and `$pattern`. Each round is one interval, played "
-      "after the round's stages. Results: $world.<name>_intervals (one record per "
-      "interval: offered, answered, within, abandoned, callbacks, retrials, service_level, asa, abandon_rate, staff, "
-      "utilisation, queue, max_queue, paid_hours, cost, and per channel and pool) and $world.<name>_totals; outputs "
-      "<name>_service_level, _asa, _abandon_rate, _utilisation, _offered, _abandoned, _cost, _paid_hours, "
-      "_intervals_below_target, and _offered_by_interval, _staff_by_interval, _service_level_by_interval, "
-      "_abandon_rate_by_interval; metrics <name>_service_level, _offered, _staff and _waiting (the latest interval). "
-      "Rates count customers who joined the line (offered less callbacks taken): service level is the share answered "
-      "within the channel's `threshold`. Queue operations cost O(log n); arrivals and each customer's durations come "
-      "from streams of their own, so arms with different staffing see the same customers.",
+      "A service system played natively, interval by interval: customers arrive on each channel (a Poisson process at"
+      " the interval's expected `arrivals`, or exact `scheduled` rows), are answered at once by a free server of a "
+      "pool with the skill, or wait in line — by `priority`, then arrival — and give up when their `patience` runs "
+      "out; `callback` offers customers facing a long wait a call back, served when nobody is waiting, and `retry` "
+      "brings some who gave up back later. Servers finish what they started when staff drops, paid at `cost` for that"
+      " overrun. Every number is read when the interval is played and may read `$interval` (0 for the first), "
+      "`$inputs`, `$world` and `$pattern`. Each round is one interval, played after the round's stages. Results: "
+      "$world.<name>_intervals (one record per interval: offered, answered, within, abandoned, callbacks, retrials, "
+      "service_level, asa, abandon_rate, staff, utilisation, queue, max_queue, paid_hours, cost, and per channel and "
+      "pool) and $world.<name>_totals; outputs <name>_service_level, _asa, _abandon_rate, _utilisation, _offered, "
+      "_abandoned, _cost, _paid_hours, _overrun_hours, _intervals_below_target, and _offered_by_interval, "
+      "_staff_by_interval, _service_level_by_interval, _abandon_rate_by_interval; metrics <name>_service_level, "
+      "_offered, _staff and _waiting (the latest interval). Rates count customers who joined the line (offered less "
+      "callbacks taken): service level is the share answered within the channel's `threshold`. Queue operations cost "
+      "O(log n); arrivals and each customer's durations come from streams of their own, so arms with different "
+      "staffing see the same customers.",
       example={"unit": "second", "interval": 1800,
                "channels": {"calls": {"arrivals": "$inputs.calls[$interval]",
                                       "service": {"dist": "lognormal", "mean": 380, "cv": 0.6},
@@ -240,9 +225,9 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_totals": {"type": "map", "default": empty_totals(channels),
                            "description": "Totals over every interval."},
     }
-    if config.record_customers:
-        world[f"{name}_customer_events"] = {"type": "list", "default": [],
-                                          "description": "Observed customer events; starts are not completions."}
+    if any(c.scheduled is not None for c in config.channels.values()):
+        world[f"{name}_schedule"] = {"type": "map", "default": {}, "private": True,
+                                     "description": "Each scheduled channel's rows, read and checked once (internal)."}
     events = [{"name": f"{name}: interval", "phase": "end", "do": [{"economy": name, "action": "tick"}]}]
     totals, intervals = f"$world.{name}_totals", f"$world.{name}_intervals"
     outputs: dict[str, Any] = {
@@ -260,11 +245,13 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_offered": {"expr": f"{totals}.offered", "type": "int", "description": "Customers who arrived."},
         f"{name}_abandoned": {"expr": f"{totals}.abandoned", "type": "int", "description": "Customers who gave up."},
         f"{name}_cost": {"expr": f"{totals}.cost", "type": "number", "format": "money",
-                         "description": "Scheduled paid hours × cost, plus service overrun hours × overrun cost."},
+                         "description": "Paid server hours × cost."},
         f"{name}_paid_hours": {"expr": f"{totals}.paid_hours", "type": "number", "format": "1",
-                               "description": "Scheduled hours with shrinkage, plus actual service overrun hours."},
+                               "description": "Server hours paid: staff on duty grossed up for shrinkage, plus "
+                                              "overrun hours."},
         f"{name}_overrun_hours": {"expr": f"{totals}.overrun_hours", "type": "number", "unit": "hour",
-                                  "description": "Service hours continuing above scheduled staffing."},
+                                  "description": "Hours servers kept serving above the staff on duty (they finish "
+                                                 "what they started when staff drops), paid at `cost`."},
         f"{name}_intervals_below_target": {"expr": f"{totals}.intervals_below_target", "type": "int",
                                            "description": "Intervals where a channel's service level was below its "
                                                           "target."},
@@ -279,9 +266,6 @@ def _expand_queue(name: str, config: QueueConfig, contract: Mapping[str, Any]) -
         f"{name}_service_level_by_interval": {"expr": f"$map({intervals}, $it.service_level)", "type": "list"},
         f"{name}_abandon_rate_by_interval": {"expr": f"$map({intervals}, $it.abandon_rate)", "type": "list"},
     }
-    if config.record_customers:
-        outputs[f"{name}_customer_events"] = {"expr": f"$world.{name}_customer_events", "type": "list",
-                                               "description": "Observed customer event history (opt-in)."}
     if any(c.callback for c in config.channels.values()):
         outputs[f"{name}_callbacks"] = {"expr": f"{totals}.callbacks", "type": "int", "description": "Callbacks taken."}
         outputs[f"{name}_callbacks_unserved"] = {"expr": f"{totals}.callbacks_waiting", "type": "int",
@@ -337,30 +321,47 @@ def _duration(world: Any, spec: DurationSpec, path: str, index: int) -> dict[str
     return {"dist": spec.dist, "mean": mean, "cv": cv, "k": spec.k, "low": low, "high": high}
 
 
-def _scheduled(world: Any, raw: list[ScheduledArrivalSpec] | str, path: str, index: int,
-               length: float) -> list[dict[str, Any]]:
-    """Validate the entire supplied schedule; select only this half-open interval."""
-    try:
-        rows = compile_expr(raw)(world.evaluation.scope(interval=index)) if isinstance(raw, str) else raw
-    except ExprError as exc:
-        raise RunError(str(exc), path) from None
-    if not isinstance(rows, list):
-        raise RunError("must give a list of scheduled customer rows", path)
-    selected = []
-    for offset, row in enumerate(rows):
+def _schedule(world: Any, name: str, config: QueueConfig) -> dict[str, list[list[Any]]]:
+    """Every scheduled channel's rows as ``[at, service, patience]``, in arrival order: read and checked once, the
+    first time an interval is played, and kept in ``<name>_schedule``."""
+    kept = world.props.get(f"{name}_schedule")
+    if kept:
+        return kept  # type: ignore[no-any-return]
+    out: dict[str, list[list[Any]]] = {}
+    for cname, spec in config.channels.items():
+        if spec.scheduled is None:
+            continue
+        path = f"mechanisms.{name}.channels.{cname}.scheduled"
         try:
-            item = row if isinstance(row, ScheduledArrivalSpec) else ScheduledArrivalSpec.model_validate(row)
-        except ValidationError as exc:
-            raise RunError(f"invalid scheduled customer: {exc}", f"{path}[{offset}]") from None
-        if index * length <= item.at < (index + 1) * length:
-            selected.append(item.model_dump())
-    return selected
+            rows = compile_expr(spec.scheduled)(world.evaluation.scope(interval=0)) \
+                if isinstance(spec.scheduled, str) else spec.scheduled
+        except ExprError as exc:
+            raise RunError(str(exc), path) from None
+        if not isinstance(rows, list):
+            raise RunError("must give a list of scheduled customer rows", path)
+        checked = []
+        for offset, row in enumerate(rows):
+            try:
+                item = row if isinstance(row, ScheduledArrivalSpec) else ScheduledArrivalSpec.model_validate(row)
+            except ValidationError as exc:
+                raise RunError(f"invalid scheduled customer: {exc}", f"{path}[{offset}]") from None
+            checked.append([item.at, item.service, item.patience])
+        out[cname] = sorted(checked, key=lambda row: row[0])  # stable: rows at the same time keep list order
+    world.set_world(f"{name}_schedule", out, trusted=True)
+    return out
+
+
+def _due(rows: list[list[Any]], start: float, end: float) -> list[list[Any]]:
+    """The rows arriving from ``start`` up to, not including, ``end``."""
+    return rows[bisect_left(rows, start, key=lambda row: row[0]):bisect_left(rows, end, key=lambda row: row[0])]
 
 
 def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str, Any]:
     """Every number of interval ``index``, as plain data."""
     base = f"mechanisms.{name}"
     channels = {}
+    schedule = _schedule(world, name, config) if name + "_schedule" in world.props else {}
+    length = interval_length(config, _clock_data(world))
     for cname, spec in config.channels.items():
         path = f"{base}.channels.{cname}"
         callback = retry = None
@@ -371,18 +372,12 @@ def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str,
         if spec.retry is not None:
             retry = [_number(world, spec.retry.chance, f"{path}.retry.chance", index, 0.0, 1.0),
                      _duration(world, spec.retry.delay, f"{path}.retry.delay", index), spec.retry.max]
-        scheduled = (None if spec.scheduled is None else
-                     _scheduled(world, spec.scheduled, f"{path}.scheduled", index,
-                                interval_length(config, _clock_data(world))))
-        # Scheduled service values must not leak future realized work into callback offers.
-        service = (_duration(world, spec.service, f"{path}.service", index) if spec.service is not None else
-                   {"dist": "fixed", "mean": 0.0})
-        callback_service = (_number(world, spec.callback.service_estimate,
-                                    f"{path}.callback.service_estimate", index, 0.0)
-                            if spec.callback is not None and spec.callback.service_estimate is not None else None)
+        scheduled = None if spec.scheduled is None else _due(schedule[cname], index * length, (index + 1) * length)
         channels[cname] = {"arrivals": len(scheduled) if scheduled is not None else
                            _number(world, spec.arrivals, f"{path}.arrivals", index, 0.0),
-                           "service": service, "scheduled": scheduled, "callback_service": callback_service,
+                           "service": _duration(world, spec.service, f"{path}.service", index)
+                           if spec.service is not None else {"dist": "fixed", "mean": 0.0},
+                           "scheduled": scheduled,
                            "patience": None if spec.patience is None
                            else _duration(world, spec.patience, f"{path}.patience", index),
                            "priority": spec.priority, "threshold": spec.threshold, "callback": callback, "retry": retry}
@@ -393,12 +388,9 @@ def resolve(world: Any, name: str, config: QueueConfig, index: int) -> dict[str,
         if staff != int(staff):
             raise RunError(f"must give a whole number of servers, got {staff:g} (interval {index}); round it, e.g. "
                            f"$round(...)", f"{path}.staff")
-        cost = _number(world, pool.cost, f"{path}.cost", index, 0.0)
-        overrun_cost = cost if pool.overrun_cost is None else _number(
-            world, pool.overrun_cost, f"{path}.overrun_cost", index, 0.0)
         pools[pname] = {"staff": int(staff),
                         "skills": list(config.channels) if pool.skills == "all" else list(pool.skills),
-                        "cost": cost, "overrun_cost": overrun_cost,
+                        "cost": _number(world, pool.cost, f"{path}.cost", index, 0.0),
                         "shrinkage": _number(world, pool.shrinkage, f"{path}.shrinkage", index, 0.0, 0.99)}
     return {"channels": channels, "pools": pools}
 
@@ -411,8 +403,8 @@ def _engine_inputs(now: Mapping[str, Any]) -> tuple[dict[str, Channel], dict[str
                                   None if c["patience"] is None else Duration(**c["patience"]), c["priority"],
                                   c["threshold"], tuple(c["callback"]) if c["callback"] else None,  # type: ignore[arg-type]
                                   (retry[0], Duration(**retry[1]), retry[2]) if retry else None,
-                                  tuple((row["at"], row["service"], row["patience"]) for row in c["scheduled"])
-                                  if c.get("scheduled") is not None else None, c.get("callback_service"))
+                                  tuple(tuple(row) for row in c["scheduled"])  # type: ignore[misc]
+                                  if c.get("scheduled") is not None else None)
     pools = {pname: Pool(pname, p["staff"], tuple(p["skills"])) for pname, p in now["pools"].items()}
     return channels, pools
 
@@ -423,10 +415,7 @@ def _play(world: Any, name: str, config: QueueConfig, now: dict[str, Any]) -> di
     state = world.props[f"{name}_state"]
     index = int(state["interval"])
     channels, pools = _engine_inputs(now)
-    engine_state, counts = run_interval(state, length, channels, pools, world.seeds, name, config.record_customers)
-    if config.record_customers:
-        world.set_world(f"{name}_customer_events", [*world.props[f"{name}_customer_events"], *counts.events],
-                        trusted=True)
+    engine_state, counts = run_interval(state, length, channels, pools, world.seeds, name)
     targets = {cname: spec.target for cname, spec in config.channels.items()}
     hours = length * UNIT_SECONDS[config.unit] / 3600.0
     record = record_for(index, index * length, length, hours, now, counts, targets)

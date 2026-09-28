@@ -156,9 +156,8 @@ def validate(contract: ContractLike, cases: Sequence[Mapping[str, Any]], *, runs
     degraded = sum(bool(r.degraded) for case_runs in grouped for r in case_runs if r.status != "failed")
     if degraded:
         total = sum(len(case_runs) for case_runs in grouped)
-        warnings.append(f"{degraded} of {total} run(s) had degraded execution and were excluded from accuracy scores; "
-                        "scores describe only the remaining evidence, not the full set of requested cases. "
-                        "Repair and rerun the affected cases before using this as validation.")
+        warnings.append(f"{degraded} of {total} run(s) had degraded execution and were left out of the accuracy "
+                        "scores")
     return ValidationResult(parsed.name, runs, [float(level) for level in levels], names, result_measures, rows,
                             warnings, notes)
 

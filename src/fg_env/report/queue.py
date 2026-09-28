@@ -243,9 +243,8 @@ class QueueView:
             service = channel.get("service") or {}
             patience = channel.get("patience")
             if channel.get("scheduled") is not None:
-                text = (f"{name.replace('_', ' ').capitalize()} use supplied arrival timestamps and service durations "
-                        f"in {plural(self.unit, 2)}; each row's patience controls abandonment, and omitted patience "
-                        "means waiting indefinitely. Replaying these rows does not establish future demand uncertainty")
+                text = (f"{name.replace('_', ' ').capitalize()} arrive at their scheduled times and take their "
+                        "scheduled service times; a customer with a patience gives up after it")
             else:
                 text = (f"{name.replace('_', ' ').capitalize()} arrive at random at the expected rate of each "
                         f"{unit_word(self.clock)}; service takes {_duration(service, self.unit, self.inputs)}")
@@ -257,14 +256,7 @@ class QueueView:
                 when, adjusted = _amount(callback.get("when", 0), self.inputs)
                 text += (f"; a callback is offered when the wait would pass {when} {plural(self.unit, 2)}"
                          + (" (normally)" if adjusted else ""))
-                if callback.get("service_estimate") is not None:
-                    estimate, varies = _amount(callback["service_estimate"], self.inputs)
-                    text += (f", using a declared service estimate of {estimate} {plural(self.unit, 2)}"
-                             + (" (normally)" if varies else ""))
             out.append(text + ".")
-        if self.config.get("servers"):
-            out.append("Service continuing above scheduled staffing is counted as overrun time and priced at the "
-                       "configured overrun rate (the ordinary hourly rate by default).")
         return out
 
 

@@ -7,50 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- Entity choices with a pure public-id exclusion (such as choosing someone other than yourself) filter native
-  candidates directly, preserving their order and the existing expression/privacy fallbacks while reducing crowd cost.
-
-- Fix Linux authoring sandbox memory accounting so a fresh child is not rejected for its launcher's prior peak; the configured memory ceiling is unchanged. Declare the JSON Schema test dependency in the dev extra.
-
-- Standalone reports disclose isolated failed agent turns below the degraded-run threshold, preserve unknown counts, and distinguish missing decisions from deliberate inaction.
-
-- Negotiation tools only offer prices within the proposing party's own reservation limit and acceptance within the receiving party's limit. Opponent limits remain private; bilateral settlement checks remain enforced. The buyer's default policy also respects the zero-price boundary.
-
-- Keyed trend fitting resolves each key's own numeric or calendar time origin. Row-based origins no longer fail with a null row; linear, exponential and logistic estimates retain the correct time reference.
-
-- Add opt-in input/output quantity dimensions, explicit unit and dated currency conversions, and scoped dimensional diagnostics; descriptive unit labels remain unchecked.
-
-- Outputs accept optional `presentation` metadata: authored column labels/units/formats, stable row identity, interval timeline fields, and suppression of redundant report blocks without deleting recorded values. Native reports render bounded record tables; Fareground can render timelines and export exact recorded data.
-
-- The negotiation recipe enforces both parties’ private reservation limits at settlement and with an invariant. A proposer cannot bind itself to infeasible terms by having the other party accept; generic rejection messages do not disclose private limits.
-
-- Calibration reserves bounded local sensitivity probes within the requested candidate budget, reports rank deficiency separately from searched-point support, and accepts an explicit `fit_tolerance` for normalized observation error. Joint support retains parameter correlations; no reported range is a confidence interval or proof of empirical/global identification. Unsupported or insufficient-budget diagnostics are explicitly not assessed.
-
-- Reports disclose every declared input from recorded runs, including inputs without assumption keywords, default comparisons and missing values. Displays are bounded and point to exact recorded inputs. Single-run and repeated-run uncertainty guidance separates fixed replay, stochastic variability, assumption sensitivity and empirical accuracy without inferring randomness from absent evidence.
-
-- Circular record visibility dependencies fail immediately at the authored rule, rather than exhausting the Python call stack. Failed reads release their dependency guards so later valid reads can proceed.
-
-- Grounding data sources reject duplicate or blank CSV headers, malformed CSV quoting, duplicate JSON/JSONL object keys and non-finite JSON numbers with actionable errors. Previously accepted ambiguous files must use unique nonblank column names, unique object keys, valid quoting and finite numeric values; measured values are no longer silently overwritten during parsing.
-
-- Repeated runs with entity creation/removal schedule living agents and summarize living state without rescanning removed entities. Participant binding checks known IDs directly; creation order, rollback and copy behavior remain unchanged.
-
-- The observed-queue recipe exposes optional job patience in its input table and accurately describes abandonment; omitted patience still means indefinite waiting.
-
-- Single-run batches retain the single-observation risk warning instead of claiming that no risk stands out.
-
-- Calibration stops with actionable diagnostics when search or held-out runs have degraded execution, preventing parameter fitting from absorbing incomplete agent decisions.
-
-- Accuracy validation excludes degraded agent runs and warns about the missing evidence. Validation-only reports retain warnings and omission notes before presenting scores, including when no usable runs remain.
-
-- Model turns cut short by the participant call limit now mark execution as degraded even if the agent acted earlier in the turn. Partial outcomes remain available, but owner and analyst reports disclose affected agents and withhold recommendations based on those runs. An explicit end-turn remains healthy.
-
-- **BREAKING**: the retail starter's `cups_sold` daily series, `turned_away` and `active_subscribers` now use the same city population scale as its totals. Consumers must no longer multiply these series by the household expansion weight. `cups_sold` uses `cups` (a total or a count within each daily interval), not `cups/day`; the final total remains cumulative. Fractional capacity and city-scale demand conservation are tested at multiple sample sizes. The starter now labels its defaults as illustrative and warns that the minimum sample size is not a convergence guarantee.
-- Large agent crowds reuse parsed ID suffixes and bind public entity-field comparison attributes once per candidate filter, reducing repeated tool-description and selection work without changing legal choices.
-
-- `agents_never_played` no longer treats a skipped actor whose actions are all blocked (for example, an eliminated player) as a missed participant. Previously recorded missed opportunities remain diagnostic evidence after later state changes and snapshot restoration.
-- Outputs accept `primary: true` and a short `label`. Owner reports supplied with the contract lead with these outcomes, retain boolean/structured values and disclose missing observations. The negotiation starter now leads with agreement, accepted terms and each party's surplus instead of activity counters.
-- Optimisation overlays no longer reintroduce advice into reports whose accompanying run evidence has degraded execution.
-- Reports disclose degraded execution and affected agents before outcomes, exclude degraded alternatives from recommendations, use recorded assumption values, preserve model descriptions and avoid unsupported chance claims.
+- **BREAKING:** a model turn cut short by the participant's call limit (`out_of_steps`) now degrades the run, even
+  when the agent acted earlier in the turn: its outcome is kept, but `result.ok` is false and `out_of_steps` is in
+  `result.degraded`. An explicit end of turn stays healthy.
+- **BREAKING:** `economy.queue` servers that keep serving after staff drops are paid for that time at the pool's
+  `cost` (`<name>_overrun_hours`, new, is part of `<name>_paid_hours` and `<name>_cost`), and utilisation is serving
+  time over time on duty including it, no longer capped at 1. Cutting staff mid-service used to get that work free.
+- **BREAKING:** data files are read strictly: a CSV with a blank or repeated header or bad quoting, and a JSON or JSONL
+  file with a repeated object key or a non-finite number (`NaN`, `Infinity`), are refused with the fix, instead of a
+  value being silently overwritten or kept.
+- **BREAKING:** the retail starter's daily series `cups_sold`, `turned_away` and `active_subscribers` are at the same
+  city scale as its totals (`turned_away_total` no longer scales them again). Stop multiplying them by the household
+  weight; `cups_sold`'s unit is `cups`.
+- `validate` leaves degraded runs out of the accuracy scores and warns how many; the report's data section shows the
+  check's warnings and notes beside the scores.
+- Reports open with an **Execution health** section when a run is degraded or had failed agent turns: how many runs,
+  the diagnostics, and a table of the agents affected (with call-limit cutoffs when there were any). Degraded options
+  are left out of recommendations, and so is an optimisation's recommendation when its runs are degraded. One run
+  given as a list keeps the one-run risk line.
+- Outputs take `primary: true` and a short `label`. An owner report leads with the primary outputs in a table (yes/no,
+  numbers with their range, maps as text, runs without a value counted), and names an output by its label. The
+  negotiation starter marks the deal, its terms and each party's surplus primary.
+- `economy.queue` channels take `scheduled` rows `[{at, service, patience?}]` (or an expression giving them, such as
+  `$inputs.jobs`) in place of `arrivals`/`service`/`patience`: exact arrivals, read and checked once when the first
+  interval is played. A scheduled channel has no `callback`.
+- Keyed trend fitting resolves each key's own time origin (a row-based origin no longer fails with a null row).
+- The negotiation recipe only lets a side offer, or accept, a price within its own limit, so every deal satisfies both
+  limits; the other side's limit stays private. The buyer's default policy never offers below zero.
+- `agents_never_played` no longer counts an actor skipped because every action it has is blocked (an eliminated
+  player).
+- A circular record `visible` rule fails at the rule instead of exhausting the Python stack.
+- The authoring sandbox measures a Linux child's own peak memory (`VmHWM`), so a fresh child is no longer rejected for
+  its launcher's peak, and a startup error from the child is reported instead of lost.
+- Large crowds: choosing an entity other than yourself filters candidates directly; entity-field comparisons are
+  bound once per filter; tool text caches parsed id suffixes; living agents are listed without scanning removed
+  entities.
+- Markdown report tables escape `|` and line breaks in cells.
 
 The contract language is smaller — one construct for each idea — and the documentation is rewritten around it:
 a start page, a cookbook and a generated reference. Runs are now correct or loud about what went wrong, luck and hidden

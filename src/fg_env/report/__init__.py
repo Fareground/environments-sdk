@@ -116,15 +116,9 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
     namer = Namer(first.formats if first is not None else _formats(ev.contract), [q.name for q in queues],
                   first.clock if first is not None else (queues[0].clock if queues else _clock(ev.contract)),
                   ev.contract, {q.name: q.unit for q in queues})
-    hidden = {name for name, spec in ev.contract.outputs.items()
-              if spec.presentation and spec.presentation.kind == "hidden"} if ev.contract else set()
-    primary = [name for name, spec in ev.contract.outputs.items() if spec.primary and name not in hidden] \
-        if ev.contract else []
+    primary = [name for name, spec in ev.contract.outputs.items() if spec.primary] if ev.contract else []
     measures = _measures(outputs, goal, requirements, queues, first.formats if first is not None else {}, primary)
-    # An explicit decision rule must remain visible even if its output is otherwise hidden.
-    required = {r.measure for r in requirements} | ({goal.measure} if goal else set())
-    measures = [name for name in measures if name not in hidden or name in required]
-    choice = choose(ev.options, goal, requirements)
+    choice = choose(ev.options, goal, requirements) if goal is not None else Choice(None, None, requirements)
     sure = assess(ev, choice, measures)
     sections: list[Section] = []
     if ev.options:
@@ -141,9 +135,8 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
     execution_health = health(ev)
     if execution_health is not None:
         if degraded_optimisation:
-            execution_health.lines.append("Optimisation advice is withheld because the accompanying run evidence "
-                                          "includes degraded execution; repair and rerun it before using "
-                                          "the recommendation.")
+            execution_health.lines.append("The optimisation's recommendation is left out: its runs had degraded "
+                                          "execution.")
         sections.insert(0, execution_health)
     title = (ev.contract.name if ev.contract is not None else ev.name
              or (optimisation.contract if optimisation else "")) \
@@ -230,7 +223,7 @@ def _measures(outputs: Mapping[str, Any], goal: Goal | None, requirements: list[
     for name in [*(r.measure for r in requirements), *([goal.measure] if goal else [])]:
         if name not in chosen:
             chosen.append(name)
-    # Explicit outcomes define the owner summary; queue defaults remain a fallback.
+    # declared primary outcomes lead; without them, a queue's standard measures do
     for view in ([] if primary else queues):
         for part in ("service_level", "worst_interval_service_level", "abandon_rate", "asa", "cost"):
             name = f"{view.name}_{part}"

@@ -13,7 +13,6 @@ policy (`--agent policy:<name>` plays it for every agent).
 | [`hidden_roles`](#hidden_roles) | private roles, a secret night stage and open accusations |
 | [`market`](#market) | posted prices, and buyers paying with a transfer |
 | [`queue`](#queue) | arrivals served first come, first served |
-| [`observed_queue`](#observed_queue) | exact recorded arrivals and service times, with agent-controlled staffing |
 | [`spread`](#spread) | an infection passing along a contact network (no agents) |
 | [`board_game`](#board_game) | a turn-based board game with a winner and zero-sum seats |
 | [`economy`](#economy) | gathering, eating and building with one action a day |
@@ -192,13 +191,13 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
 
 ## negotiation
 
-**Price negotiation.** Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades. Both private reservation limits are enforced as settlement constraints, independent of who proposed. Preferences are assumed, not calibrated human behavior.
+**Price negotiation.** Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades. Each side can only offer or accept a price within its own limit, so a deal always satisfies both.
 
 ```json
 {
   "fg_env": "2",
   "name": "Price negotiation",
-  "description": "Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades. Both private reservation limits are enforced as settlement constraints, independent of who proposed. Preferences are assumed, not calibrated human behavior.",
+  "description": "Alternating offers: one shared offer on the table, a sequential stage where each side either answers it or makes a counter-offer, private limits, and a deadline. Accepting ends the run with an `end` effect; without a deal by the last round nobody trades. Each side can only offer or accept a price within its own limit, so a deal always satisfies both.",
   "brief": {
     "situation": "A seller and a buyer haggle over one used car.",
     "rules": "Each round the seller, then the buyer, may accept the offer on the table (if the other side made it) or make a new offer. A deal ends the talks. After {$inputs.deadline} rounds without a deal, nobody trades.",
@@ -258,8 +257,6 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
       "description": "Accept the other side's offer.",
       "when": {"expr": "$world.offered_by != '' and $world.offered_by != $actor.id and ($world.offer >= $actor.limit if $actor.id == seller else $world.offer <= $actor.limit)", "why": "There is no offer from the other side within your reservation limit."},
       "do": [
-        {"if": "not ($world.offer >= $entity(seller).limit and $world.offer <= $entity(buyer).limit)",
-         "then": [{"fail": "The offer does not satisfy the settlement constraints."}]},
         "$world.price = $world.offer",
         "$world.deal = true",
         {"end": "deal", "say": "Deal at {$world.price|money}."}
@@ -270,7 +267,6 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
   "views": {
     "table": {"for": "party", "show": "{'On the table: ' + $text($world.offer) + ' from ' + $world.offered_by if $world.offered_by else 'No offer yet.'} Your limit is {limit|money}."}
   },
-  "invariants": [{"expr": "not $world.deal or ($world.price >= $entity(seller).limit and $world.price <= $entity(buyer).limit)", "why": "A completed deal must satisfy both parties’ reservation constraints."}],
   "outputs": {"deal": "$world.deal", "price": "$world.price if $world.deal else null"}
 }
 ```
@@ -538,207 +534,6 @@ Known answer: `fg-env new market && fg-env run market.json --agent policy:steady
 ```
 
 Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --seed 1` gives `served` 22, `cost` 80: 2 counters serve 6 a round: 4 + 6 + 6 + 6 of the 23 arrivals; 2 counters × 10 × 4 rounds.
-
-## observed_queue
-
-**Repair desk with observed arrivals.** An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences or setup time are modeled. Optional job patience limits waiting before abandonment; omitted patience means waiting indefinitely. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged. Continuing service above scheduled staffing accrues overrun hours, priced using the declared overrun-rate multiplier (ordinary rate by default).
-
-```json
-{
-  "fg_env": "2",
-  "name": "Repair desk with observed arrivals",
-  "description": "An illustrative continuous-time FCFS repair queue. Replay supplied arrival and service times exactly; they are not fitted or independently validated. A manager chooses staffing each minute. Service is non-preemptive: reducing staffing lets existing repairs finish. No breaks, skill differences or setup time are modeled. Optional job patience limits waiting before abandonment; omitted patience means waiting indefinitely. Arrivals at the closing time are outside the observation window; completions at closing count. Changing staffing assumes supplied service requirements remain unchanged. Continuing service above scheduled staffing accrues overrun hours, priced using the declared overrun-rate multiplier (ordinary rate by default).",
-  "brief": {
-    "situation": "Manage a repair desk while jobs arrive.",
-    "rules": "Each minute choose 0 to {$inputs.max_technicians} technicians. Waiting jobs start first come, first served; ongoing repairs finish even if you reduce staffing. Balance waiting and unfinished work against staffing cost. You see current aggregate queue outcomes, not the future arrival table. Service above the reduced staffing level still accrues cost at {$inputs.overrun_rate_multiplier} times the hourly rate.",
-    "roles": {
-      "manager": "Choose staffing to reduce waiting and unfinished work while controlling cost."
-    }
-  },
-  "clock": {
-    "rounds": "$inputs.horizon_minutes",
-    "unit": "minute"
-  },
-  "inputs": {
-    "jobs": {
-      "type": "table",
-      "description": "Observed or authored times in minutes from opening. Replace this illustrative data with documented operational observations.",
-      "fields": {
-        "at": {
-          "type": "number",
-          "min": 0,
-          "label": "Arrival",
-          "unit": "minute",
-          "required": true
-        },
-        "service": {
-          "type": "number",
-          "min": 0,
-          "label": "Service duration",
-          "unit": "minute",
-          "required": true
-        },
-        "patience": {
-          "type": "number",
-          "min": 0,
-          "label": "Maximum wait",
-          "unit": "minute",
-          "required": false,
-          "default": null
-        }
-      },
-      "default": [
-        {
-          "at": 0,
-          "service": 5
-        },
-        {
-          "at": 2,
-          "service": 5
-        },
-        {
-          "at": 4,
-          "service": 5
-        }
-      ]
-    },
-    "horizon_minutes": {
-      "type": "int",
-      "min": 1,
-      "default": 20,
-      "unit": "minute"
-    },
-    "max_technicians": {
-      "type": "int",
-      "min": 1,
-      "default": 3
-    },
-    "hourly_cost": {
-      "type": "number",
-      "min": 0,
-      "default": 30,
-      "unit": "USD/hour"
-    },
-    "overrun_rate_multiplier": {
-      "type": "number",
-      "default": 1,
-      "min": 0,
-      "description": "Hourly rate for service continuing above scheduled staffing, as a multiple of hourly_cost. Default 1 pays the normal rate; 0 explicitly assumes unpaid overrun."
-    }
-  },
-  "world": {
-    "staff": 1
-  },
-  "types": {
-    "manager": {
-      "agent": true,
-      "policies": {
-        "one": {
-          "rules": [
-            {
-              "do": "staff",
-              "with": {
-                "count": 1
-              }
-            }
-          ]
-        }
-      }
-    }
-  },
-  "entities": {
-    "manager": {
-      "type": "manager"
-    }
-  },
-  "actions": {
-    "staff": {
-      "by": "manager",
-      "description": "Choose on-duty staffing for the next minute. Existing service is not interrupted.",
-      "params": {
-        "count": {
-          "type": "int",
-          "min": 0,
-          "max": "$inputs.max_technicians"
-        }
-      },
-      "do": "$world.staff = $params.count"
-    }
-  },
-  "stages": [
-    {
-      "name": "staffing"
-    }
-  ],
-  "views": {
-    "status": {
-      "for": "manager",
-      "show": "{$world.q_totals.offered} arrivals so far; {$world.q_totals.waiting} waiting. Accrued busy time: {$world.q_totals.busy} minutes. Staffing cost: {$world.q_totals.cost|money}."
-    }
-  },
-  "mechanisms": {
-    "q": {
-      "kind": "economy",
-      "mode": "queue",
-      "unit": "minute",
-      "record_customers": true,
-      "channels": {
-        "repair": {
-          "scheduled": "$inputs.jobs"
-        }
-      },
-      "servers": {
-        "technicians": {
-          "staff": "$world.staff",
-          "cost": "$inputs.hourly_cost",
-          "overrun_cost": "$inputs.hourly_cost * $inputs.overrun_rate_multiplier"
-        }
-      }
-    }
-  },
-  "outputs": {
-    "completed_jobs": {
-      "expr": "$count($world.q_customer_events, $it.event == 'completed')",
-      "type": "int",
-      "description": "Jobs observed completing by closing; no retries in this room.",
-      "primary": true,
-      "label": "Completed repairs"
-    },
-    "waiting_jobs": {
-      "expr": "$world.q_totals.waiting",
-      "type": "int"
-    },
-    "unfinished_arrived_jobs": {
-      "expr": "$world.q_totals.offered - $count($world.q_customer_events, $it.event == 'completed')",
-      "type": "int",
-      "description": "Arrived jobs not complete at closing, including in-service work; excludes future arrivals.",
-      "primary": true,
-      "label": "Unfinished arrived jobs"
-    },
-    "busy_minutes": {
-      "expr": "$world.q_totals.busy",
-      "unit": "minute"
-    },
-    "starts": {
-      "expr": "$map($filter($world.q_customer_events, $it.event == 'started'), $it.time)",
-      "type": "list"
-    },
-    "finishes": {
-      "expr": "$map($filter($world.q_customer_events, $it.event == 'completed'), $it.time)",
-      "type": "list"
-    },
-    "staffing_cost": {
-      "expr": "$world.q_totals.cost",
-      "type": "number",
-      "format": "money",
-      "primary": true,
-      "label": "Staffing cost"
-    }
-  }
-}
-```
-
-Known answer: `fg-env new observed_queue && fg-env run observed_queue.json --agent policy:one --seed 1` gives `completed_jobs` 3, `unfinished_arrived_jobs` 0, `busy_minutes` 15, `starts` [0, 5, 10], `finishes` [5, 10, 15]: one technician serves arrivals at 0, 2 and 4 for 5 minutes each; starts are 0, 5, 10, finishes 5, 10, 15. At closing (20), all three are complete with 15 busy minutes.
 
 ## spread
 

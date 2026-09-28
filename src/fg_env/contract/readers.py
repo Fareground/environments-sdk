@@ -104,10 +104,6 @@ FIELDS: dict[str, Reader] = {
     # events: game logic whose headline is news to everyone
     "EventSpec.name": W, "EventSpec.on": W, "EventSpec.when": R, "EventSpec.do": E, "EventSpec.say": S,
     "OutputSpec.expr": R, "OutputSpec.type": W, "OutputSpec.description": W, "OutputSpec.unit": W,
-    "OutputColumn.label": W, "OutputColumn.unit": W, "OutputColumn.format": W,
-    "OutputTimeline.start": W, "OutputTimeline.end": W, "OutputTimeline.label": W,
-    "OutputTimeline.group": W, "OutputTimeline.unit": W, "OutputPresentation.kind": W,
-    "OutputPresentation.row_key": W,
     "OutputSpec.format": W, "OutputSpec.label": W, "OutputSpec.series": R,
     # the end is the rules' reveal; its words are news to everyone
     "EndSpec.when": R, "EndSpec.name": W, "EndSpec.winner": R, "EndSpec.say": S, "EndSpec.check": W,

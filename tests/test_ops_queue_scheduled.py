@@ -107,176 +107,19 @@ def test_an_agent_can_change_staffing_without_changing_observed_customers():
     assert actions[:3] == [(1, 1), (2, 1), (3, 2)]
 
 
-def trace(contract):
-    contract = copy.deepcopy(contract)
-    contract['mechanisms']['q']['record_customers'] = True
-    return contract
-
-
-def test_customer_history_distinguishes_started_completed_and_future_work():
-    result = measured(trace(repair()))
-    events = result.pop('q_customer_events')
-    assert result == measured(repair())  # recording changes observations, never mechanics
-    assert [e['time'] for e in events if e['event'] == 'started'] == [0, 5, 10]
-    assert [e['time'] for e in events if e['event'] == 'completed'] == [5, 10, 15]
-    assert [e['customer'] for e in events if e['event'] == 'completed'] == [1, 2, 3]
-    partial = measured(trace(repair(horizon=3)))['q_customer_events']
-    assert [e['time'] for e in partial if e['event'] == 'arrived'] == [0, 2]
-    assert not [e for e in partial if e['event'] == 'completed']
-    started = next(e for e in partial if e['event'] == 'started')
-    assert started['scheduled_finish'] == 5  # planned finish beyond horizon is not completion
-
-
-def test_completion_at_closing_is_observed_once_across_snapshot_continuation():
-    contract = trace(repair([{'at': 0, 'service': 3}, {'at': 2, 'service': 2}], horizon=6))
-    env = fg_env.load(contract)
-    partial = env.run(rounds=3)
-    assert [e['time'] for e in partial.outputs['q_customer_events'] if e['event'] == 'completed'] == [3]
-    restored = fg_env.Env.restore(contract, copy.deepcopy(env.snapshot()))
-    resumed = restored.run().outputs
-    assert resumed == measured(contract)
-    assert [e['time'] for e in resumed['q_customer_events'] if e['event'] == 'completed'] == [3, 5]
-
-
-def test_customer_history_records_abandonment_without_inventing_service():
-    result = measured(trace(repair([{'at': 0, 'service': 5},
-                                    {'at': 1, 'service': 2, 'patience': .5}], horizon=3)))
-    events = result['q_customer_events']
-    assert [(e['customer'], e['time']) for e in events if e['event'] == 'abandoned'] == [(2, 1.5)]
-    assert [e['customer'] for e in events if e['event'] == 'started'] == [1]
-    assert not [e for e in events if e['event'] == 'completed']
-
-
-@pytest.mark.parametrize('inputs, expected', [
-    ({'horizon_minutes': 3}, {'completed_jobs': 0, 'unfinished_arrived_jobs': 2, 'busy_minutes': 3}),
-    ({'jobs': [{'at': 0, 'service': 2.5}, {'at': 2, 'service': 2.5}, {'at': 4, 'service': 2.5}]},
-     {'completed_jobs': 3, 'starts': [0, 2.5, 5], 'finishes': [2.5, 5, 7.5], 'busy_minutes': 7.5}),
-    ({'jobs': [{'at': 25, 'service': 5}]}, {'completed_jobs': 0, 'unfinished_arrived_jobs': 0, 'busy_minutes': 0}),
-    ({'jobs': []}, {'completed_jobs': 0, 'unfinished_arrived_jobs': 0, 'busy_minutes': 0}),
-])
-def test_observed_queue_cookbook_exercises_the_audited_boundary_cases(inputs, expected):
-    from fg_env.authoring.scaffold import new
-    result = fg_env.run(new('observed_queue'), 'policy:one', inputs=inputs, seed=1)
-    assert result.ok and not result.output_issues
-    assert {key: result.outputs[key] for key in expected} == expected
-
-
-def test_observed_queue_cookbook_rejects_invalid_rows_before_running():
-    from fg_env.authoring.scaffold import new
-    for jobs in ([{'at': -1, 'service': 1}], [{'at': 0, 'service': -1}], [{'at': 0}]):
-        with pytest.raises(fg_env.ContractError):
-            fg_env.load(new('observed_queue'), inputs={'jobs': jobs})
-
-
-def test_scheduled_callback_history_links_service_to_the_original_customer():
-    contract = trace(repair([{'at': 0, 'service': 5}, {'at': 1, 'service': 2}], horizon=8))
-    contract['mechanisms']['q']['channels']['repair']['callback'] = {'when': 0, 'accept': 1, 'service_estimate': 3}
-    output = measured(contract)
-    events = output['q_customer_events']
-    assert [(e['customer'], e['time']) for e in events if e['event'] == 'callback'] == [(2, 1)]
-    assert [(e['customer'], e['time']) for e in events if e['event'] == 'started'] == [(1, 0), (2, 5)]
-    assert [(e['customer'], e['time']) for e in events if e['event'] == 'completed'] == [(1, 5), (2, 7)]
-    assert output['q_callbacks'] == 1 and output['q_callbacks_unserved'] == 0
-
-
-def test_retry_history_preserves_customer_identity_and_distinguishes_attempts():
-    contract = trace(repair([{'at': 0, 'service': 5}, {'at': 1, 'service': 1, 'patience': .5}], horizon=7))
-    contract['mechanisms']['q']['channels']['repair']['retry'] = {
-        'chance': 1, 'delay': {'dist': 'fixed', 'mean': 1}, 'max': 2}
-    output = measured(contract)
-    events = output['q_customer_events']
-    arrivals = [(e['customer'], e['time'], e['retry']) for e in events if e['event'] == 'arrived']
-    assert arrivals == [(1, 0, 0), (2, 1, 0), (2, 2.5, 1), (2, 4, 2)]
-    assert [(e['customer'], e['time']) for e in events if e['event'] == 'abandoned'] == [(2, 1.5), (2, 3), (2, 4.5)]
-    assert [(e['customer'], e['time']) for e in events if e['event'] == 'completed'] == [(1, 5)]
-    assert output['q_offered'] == 4  # customer attempts, not four unique people
-
-
-def test_scheduled_callbacks_require_a_known_service_estimate():
+def test_a_scheduled_channel_refuses_a_callback_it_cannot_estimate_a_wait_for():
     contract = repair()
     contract['mechanisms']['q']['channels']['repair']['callback'] = {'when': 1, 'accept': 1}
-    with pytest.raises(fg_env.ContractError, match='explicit service_estimate'):
+    with pytest.raises(fg_env.ContractError, match='callback'):
         fg_env.load(contract)
 
 
-def test_future_realized_service_cannot_change_a_current_callback_offer():
-    contract = trace(repair([{'at': 0, 'service': 5}, {'at': .1, 'service': 1},
-                            {'at': .9, 'service': 1}], horizon=1))
-    contract['mechanisms']['q']['channels']['repair']['callback'] = {
-        'when': 2, 'accept': 1, 'service_estimate': 1}
-    before = measured(contract)['q_customer_events']
-    contract['inputs']['jobs']['default'][2]['service'] = 10000
-    after = measured(contract)['q_customer_events']
-    assert [e for e in before if e['time'] < .9] == [e for e in after if e['time'] < .9]
-    assert not [e for e in before if e['event'] == 'callback']
-
-
-def test_callback_service_estimate_does_not_change_poisson_service_requirements():
-    contract = repair(horizon=20)
-    channel = {'arrivals': 3, 'service': {'dist': 'fixed', 'mean': 2},
-               'callback': {'when': 0, 'accept': 0}}
-    contract['mechanisms']['q']['channels']['repair'] = channel
-    baseline = measured(contract, seed=1)
-    channel['callback']['service_estimate'] = 10000
-    assert measured(contract, seed=1) == baseline
-    assert baseline['q_aht'] == 2
-
-
-def test_observed_queue_report_states_the_replay_assumption_and_primary_outcomes():
-    from fg_env.authoring.scaffold import new
-    contract = new('observed_queue')
-    result = fg_env.run(contract, 'policy:one', seed=1)
-    report = fg_env.analysis.report(result, contract=contract).markdown
-    assert 'supplied arrival timestamps and service durations' in report
-    assert 'does not establish future demand uncertainty' in report
-    assert 'arrive at random' not in report
-    assert 'Completed repairs' in report and 'Unfinished arrived jobs' in report
-    assert 'Staffing cost' in report
-    assert 'do not establish predictive accuracy' in report
-    assert 'pass validation=' not in report
-    expected_line = next(line for line in report.splitlines() if 'Expected:' in line)
-    assert expected_line.lower().count('staffing cost') == 1
-    assert 'service level' not in expected_line
-
-
-def test_manager_observations_do_not_reveal_future_job_rows():
-    from fg_env.authoring.scaffold import new
-
-    def observed(jobs):
-        readings = []
-        env = fg_env.load(new('observed_queue'), inputs={'jobs': jobs}, seed=1)
-
-        def manager(wake):
-            readings.append((wake.brief, wake.update,
-                             [(tool.name, tool.description, tool.input_schema) for tool in wake.tools]))
-            assert wake.call('staff', {'count': 1}).ok
-            wake.end()
-
-        env.run(manager, rounds=6)
-        return readings
-
-    first = observed([{'at': 0, 'service': 5}, {'at': 2, 'service': 5}, {'at': 4, 'service': 5}])
-    changed = observed([{'at': 0, 'service': 5}, {'at': 2, 'service': 5}, {'at': 10, 'service': 777}])
-    # Decisions at t=0 through t=4 see the same past, despite different hidden future work.
-    assert first[:5] == changed[:5]
-    assert first[5][1] != changed[5][1]  # once the job arrives, the observed queue changes
-    assert all({tool[0] for tool in tools} == {'staff', 'end_turn'} for _, _, tools in first)
-    assert all('777' not in brief + update for brief, update, _ in changed)
-
-
-@pytest.mark.parametrize('patience,completed,abandoned', [(None, 2, 0), (1, 1, 1)])
-def test_observed_queue_optional_patience_is_exposed_and_reported(patience, completed, abandoned):
-    from fg_env.authoring.scaffold import new
-    contract = new('observed_queue')
-    assert fg_env.check(contract) == []
-    assert contract['inputs']['jobs']['fields']['patience']['required'] is False
-    jobs = [{'at': 0, 'service': 5}, {'at': 1, 'service': 5}]
-    if patience is not None:
-        jobs[1]['patience'] = patience
-    result = fg_env.run(contract, 'policy:one', inputs={'jobs': jobs}, seed=1)
-    assert result.outputs['completed_jobs'] == completed
-    assert result.outputs['q_abandoned'] == abandoned
-    report = fg_env.analysis.report(result, contract=contract).markdown
-    assert 'Optional job patience limits waiting before abandonment' in report
-    assert 'omitted patience means waiting indefinitely' in report
-    assert 'or abandonment are modeled' not in report
+def test_an_expression_schedule_is_read_and_checked_once(monkeypatch):
+    from fg_env.mechanisms import ops_queue
+    checked = []
+    validate = ops_queue.ScheduledArrivalSpec.model_validate
+    monkeypatch.setattr(ops_queue.ScheduledArrivalSpec, 'model_validate',
+                        classmethod(lambda cls, row: checked.append(row) or validate(row)))
+    result = measured(repair())
+    assert result['q_offered'] == 3
+    assert len(checked) == 3  # one check per row for the whole run, not one per interval

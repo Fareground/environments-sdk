@@ -14,7 +14,6 @@ from . import (  # noqa: F401  (each module registers the functions it declares)
     lists,
     mathx,
     puzzles,
-    quantities,
     scoring,
     sets,
     space,

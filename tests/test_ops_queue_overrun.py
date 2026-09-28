@@ -1,19 +1,22 @@
-"""Staffing reductions retain service obligations and account for the continuing labor."""
+"""Servers finishing what they started after staff drops are on duty, and paid, while they serve."""
 import copy
 
 import pytest
 
 import fg_env
-from fg_env.authoring.scaffold import new
 
 
-def room(service=5, horizon=6, rate=None):
-    contract = new('observed_queue')
-    contract['inputs']['jobs']['default'] = [{'at': 0, 'service': service}]
-    contract['inputs']['horizon_minutes']['default'] = horizon
-    if rate is not None:
-        contract['mechanisms']['q']['servers']['technicians']['overrun_cost'] = rate
-    return contract
+def room(service=5, horizon=6):
+    return {
+        'name': 'Repair desk', 'clock': {'rounds': horizon, 'unit': 'minute'}, 'world': {'staff': 1},
+        'types': {'manager': {'agent': True}}, 'entities': {'manager': {'type': 'manager'}},
+        'actions': {'staff': {'by': 'manager', 'params': {'count': {'type': 'int', 'min': 0, 'max': 3}},
+                              'do': '$world.staff = $params.count'}},
+        'stages': [{'name': 'staffing'}],
+        'mechanisms': {'q': {'kind': 'economy', 'mode': 'queue', 'unit': 'minute',
+                             'channels': {'repair': {'scheduled': [{'at': 0, 'service': service}]}},
+                             'servers': {'technicians': {'staff': '$world.staff', 'cost': 30}}}},
+        'outputs': {'busy_minutes': '$world.q_totals.busy', 'staffing_cost': '$world.q_totals.cost'}}
 
 
 def cut_staff(wake):
@@ -21,21 +24,19 @@ def cut_staff(wake):
     wake.end()
 
 
-@pytest.mark.parametrize('service,horizon,rate,busy,overrun,cost', [
-    (5, 6, None, 5, 4, 2.5),
-    (5, 6, 60, 5, 4, 4.5),
-    (5, 6, 0, 5, 4, .5),  # unpaid service overrun is an explicit modeling choice
-    (5.5, 6, None, 5.5, 4.5, 2.75),
-    (5, 3, None, 3, 2, 1.5),  # only time within the observation window accrues
+@pytest.mark.parametrize('service,horizon,busy,overrun,cost', [
+    (5, 6, 5, 4, 2.5),
+    (5.5, 6, 5.5, 4.5, 2.75),
+    (5, 3, 3, 2, 1.5),  # only time within the run accrues
 ])
-def test_agent_cannot_obtain_unaccounted_labor_by_cutting_scheduled_staff(service, horizon, rate, busy, overrun, cost):
-    env = fg_env.load(room(service, horizon, rate))
+def test_cutting_staff_does_not_give_unpaid_labour(service, horizon, busy, overrun, cost):
+    env = fg_env.load(room(service, horizon))
     result = env.run(cut_staff)
     assert result.ok
     assert result.outputs['busy_minutes'] == busy
     assert result.outputs['q_overrun_hours'] == pytest.approx(overrun / 60)
     assert result.outputs['q_paid_hours'] == pytest.approx(busy / 60)
-    assert result.outputs['staffing_cost'] == pytest.approx(cost)
+    assert result.outputs['staffing_cost'] == pytest.approx(cost)  # every serving minute at the pool's cost
     assert result.outputs['q_utilisation'] == pytest.approx(1)
     for interval in env.props['q_intervals']:
         if interval['busy']:
@@ -51,7 +52,7 @@ def test_overrun_accounting_survives_snapshot_resume():
     assert restored.run(cut_staff).outputs == fg_env.run(contract, cut_staff).outputs
 
 
-def test_pool_overruns_keep_their_own_hourly_rate():
+def test_each_pool_pays_its_overrun_at_its_own_cost():
     contract = room()
     queue = contract['mechanisms']['q']
     queue['channels'] = {'a': {'scheduled': [{'at': 0, 'service': 5}]},
@@ -63,16 +64,3 @@ def test_pool_overruns_keep_their_own_hourly_rate():
     assert result.outputs['q_overrun_hours'] == pytest.approx(6.5 / 60)
     assert result.outputs['staffing_cost'] == pytest.approx(6)
     assert result.outputs['q_utilisation'] == 1
-
-
-def test_overrun_rate_changes_prices_without_resampling_customer_behavior():
-    free = room(rate=0)
-    free['mechanisms']['q']['channels']['repair'] = {
-        'arrivals': 3, 'service': {'dist': 'exponential', 'mean': 2}}
-    paid = copy.deepcopy(free)
-    paid['mechanisms']['q']['servers']['technicians']['overrun_cost'] = 60
-    left = fg_env.run(free, cut_staff, seed=17).outputs
-    right = fg_env.run(paid, cut_staff, seed=17).outputs
-    assert left['q_customer_events'] == right['q_customer_events']
-    assert left['q_overrun_hours'] == right['q_overrun_hours']
-    assert right['staffing_cost'] > left['staffing_cost']

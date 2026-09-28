@@ -112,8 +112,6 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
         self._events()
         self._policies()
         self._measure()
-        from .quantities import check_quantities
-        check_quantities(self)
         self._arms()
         self._defs()
         check_game(self)

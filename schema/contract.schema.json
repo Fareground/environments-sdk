@@ -788,18 +788,6 @@
           "title": "Unit",
           "type": "string"
         },
-        "quantity": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Quantity"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Explicit dimensions and scale of this numeric value; display unit labels alone remain unchecked. No automatic conversion."
-        },
         "label": {
           "default": "",
           "description": "Human-readable input label; defaults to the input name in a host UI.",
@@ -1199,78 +1187,6 @@
       "title": "LinkSpec",
       "type": "object"
     },
-    "OutputColumn": {
-      "additionalProperties": false,
-      "description": "Presentation of one recorded field; the source value is never modified.",
-      "properties": {
-        "label": {
-          "default": "",
-          "title": "Label",
-          "type": "string"
-        },
-        "unit": {
-          "default": "",
-          "title": "Unit",
-          "type": "string"
-        },
-        "format": {
-          "default": "",
-          "title": "Format",
-          "type": "string"
-        }
-      },
-      "title": "OutputColumn",
-      "type": "object"
-    },
-    "OutputPresentation": {
-      "additionalProperties": false,
-      "description": "Authored report semantics, independent from the output's recorded value.",
-      "properties": {
-        "kind": {
-          "default": "auto",
-          "enum": [
-            "auto",
-            "table",
-            "timeline",
-            "hidden"
-          ],
-          "title": "Kind",
-          "type": "string"
-        },
-        "columns": {
-          "additionalProperties": {
-            "$ref": "#/$defs/OutputColumn"
-          },
-          "title": "Columns",
-          "type": "object"
-        },
-        "row_key": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Row Key"
-        },
-        "timeline": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OutputTimeline"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        }
-      },
-      "title": "OutputPresentation",
-      "type": "object"
-    },
     "OutputSpec": {
       "additionalProperties": false,
       "description": "A typed field of the run result, worked out when the run ends. With ``series`` it is also sampled every round:\n``$outputs.x`` reads its latest sample, ``$series.x`` every sample so far (``result.metrics`` and\n``result.series``). One worked out from a private property (directly or through a def or another output) is not\nshown to agents: `$outputs`/`$series` reads of it in what they are shown are refused.",
@@ -1302,34 +1218,10 @@
           "title": "Primary",
           "type": "boolean"
         },
-        "presentation": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/OutputPresentation"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Report columns, row identity and optional interval timeline; hidden suppresses redundant display, not storage."
-        },
         "unit": {
           "default": "",
           "title": "Unit",
           "type": "string"
-        },
-        "quantity": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Quantity"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "Explicit dimensions and scale expected from the output expression; display unit labels alone remain unchecked."
         },
         "format": {
           "default": "",
@@ -1355,48 +1247,6 @@
         "expr"
       ],
       "title": "OutputSpec",
-      "type": "object"
-    },
-    "OutputTimeline": {
-      "additionalProperties": false,
-      "description": "Fields holding numeric interval endpoints in one shared unit.",
-      "properties": {
-        "start": {
-          "title": "Start",
-          "type": "string"
-        },
-        "end": {
-          "title": "End",
-          "type": "string"
-        },
-        "label": {
-          "title": "Label",
-          "type": "string"
-        },
-        "group": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Group"
-        },
-        "unit": {
-          "default": "",
-          "title": "Unit",
-          "type": "string"
-        }
-      },
-      "required": [
-        "start",
-        "end",
-        "label"
-      ],
-      "title": "OutputTimeline",
       "type": "object"
     },
     "ParamSpec": {
@@ -1857,47 +1707,6 @@
       },
       "title": "PropSpec",
       "type": "object"
-    },
-    "Quantity": {
-      "anyOf": [
-        {
-          "additionalProperties": false,
-          "description": "One numeric unit: base value = value * scale + offset; absolute quantities have an origin.",
-          "properties": {
-            "dimensions": {
-              "additionalProperties": {
-                "type": "integer"
-              },
-              "title": "Dimensions",
-              "type": "object"
-            },
-            "scale": {
-              "default": 1,
-              "exclusiveMinimum": 0,
-              "title": "Scale",
-              "type": "number"
-            },
-            "offset": {
-              "default": 0,
-              "title": "Offset",
-              "type": "number"
-            },
-            "absolute": {
-              "default": false,
-              "title": "Absolute",
-              "type": "boolean"
-            }
-          },
-          "title": "Quantity",
-          "type": "object"
-        },
-        {
-          "description": "Known unit or compound unit, e.g. minute, item/hour, m^3.",
-          "maxLength": 200,
-          "minLength": 1,
-          "type": "string"
-        }
-      ]
     },
     "RecordSpec": {
       "additionalProperties": false,

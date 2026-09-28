@@ -27,7 +27,7 @@ the first few entities of each type with every prop (`result.state`), so you can
 * agents all of whose attempts went wrong, or too many of whose turns failed — more than a tenth for a model
   participant, half for others (`agents_never_acted`, `agents_often_failed`, both degrading), any other failed turns of
   a model participant (or any participant out of time), with their rate (`some_turns_failed`), and turns an LLM
-  participant ended out of `max_steps` (`out_of_steps`);
+  participant ended out of `max_steps` (`out_of_steps`, degrading: the turn was cut off, not finished);
 * a stage that can never run, or a measure that reads only what no rule changes;
 * host answers that were the contract's fallback stand-ins because no host was bound (`host_fallback`), and a run its
   budget cut short (`budget_cut`) — both degrade the run; requests a host gave no usable answer to, also when asked

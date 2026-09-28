@@ -69,8 +69,6 @@ class CalibrationResult:
     #: pooled levels, the gap's standard error, whether they disagree, and the evaluated inputs closest to the pooled
     #: level.
     pooled: list[dict[str, Any]] = field(default_factory=list)
-    #: Local sensitivity evidence, separate from optimizer search support or empirical certainty.
-    identification: dict[str, Any] = field(default_factory=dict)
 
     def report(self) -> str:
         v = self.validation
@@ -87,10 +85,7 @@ class CalibrationResult:
                          f"{check['simulated']:.4g} vs recorded {check['goal']:.4g} ± {check['se']:.2g} — {verdict} "
                          "the recorded level")
         lines += _holdout_text(self.holdout)
-        lines.append("Parameter search support (evaluated joint points within noise and declared fit tolerance; "
-                     "not confidence intervals):")
-        lines.append(f"Identification: {self.identification.get('status', 'not_assessed')}. "
-                     + self.identification.get("message", "No identification diagnostic was recorded."))
+        lines.append("Parameter uncertainty (evaluated points as good as the best, within noise):")
         for name, u in self.uncertainty.items():
             lines.append(f"  {name}: {runner.describe_inputs({'best': u['best']})}, plausible "
                          f"{u['low']:.4g} to {u['high']:.4g} ({u['points']} point(s))")
@@ -101,8 +96,7 @@ class CalibrationResult:
         return {"contract": self.contract, "params": self.params, "method": self.method, "fit": self.fit,
                 "targets": self.targets, "validation": self.validation, "uncertainty": self.uncertainty,
                 "evaluations": self.evaluations, "history": self.history, "notes": self.notes, "cases": self.cases,
-                "holdout": self.holdout, "plausible": self.plausible, "pooled": self.pooled,
-                "identification": self.identification}
+                "holdout": self.holdout, "plausible": self.plausible, "pooled": self.pooled}
 
 
 def _target_text(detail: dict[str, Any]) -> str:
@@ -138,8 +132,7 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
               runs: int = 5, budget: int = 30, holdout: int | None = None, method: str = "auto",
               inputs: Mapping[str, Any] | None = None, arm: str | None = None, participants: Any = None,
               rounds: int | None = None, seed: int = 0, workers: int = 1, test: Any = None,
-              folds: int | None = None, data_dir: Any = None, hosts: Any = None,
-              fit_tolerance: float = 0.0) -> CalibrationResult:
+              folds: int | None = None, data_dir: Any = None, hosts: Any = None) -> CalibrationResult:
     """Search ``params`` (``{input: {"low", "high", "log"?}}``) so the contract matches ``targets``.
 
     ``targets``: a mapping of targets, or a list of cases ``{name?, inputs?, arm?, targets}`` (see the
@@ -151,14 +144,8 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
     With cases, ``test`` returns the fit to the other cases with its error on the held-out ones, and
     ``folds`` adds a cross-validated error to the fit on every case (one extra search per fold).
     ``data_dir`` is where inputs with a ``source`` are read (default: the contract file's folder); ``hosts`` answers
-    host requests (feeds, judges) in every run. ``fit_tolerance`` adds an explicit normalized RMS
-    observation-error allowance to retained joint search support; it is not a probabilistic noise model.
-    When the budget permits, up to two evaluations per continuous parameter are reserved within ``budget``
-    for a local sensitivity-rank diagnostic. This does not establish global or empirical identification.
+    host requests (feeds, judges) in every run.
     """
-    if isinstance(fit_tolerance, bool) or not isinstance(fit_tolerance, (int, float)) \
-            or not math.isfinite(fit_tolerance) or fit_tolerance < 0:
-        raise ValueError("fit_tolerance must be a finite nonnegative normalized RMS error allowance")
     runner.check_positive_int("runs", runs)
     runner.check_positive_int("budget", budget, 2)
     held = runner.check_positive_int("holdout", holdout if holdout is not None else runs)
@@ -175,7 +162,7 @@ def calibrate(contract: ContractLike, targets: Any, params: Mapping[str, Mapping
     if not tagged and (test is not None or folds is not None):
         raise ValueError("test and folds hold out cases: pass targets as a list of cases {name, inputs, targets}")
     parts = splits([case.name for case in cases], test=test, folds=folds, seed=seed)
-    problem = _Problem(parsed, cases, tagged, names, ranges, logs, participants, rounds, workers, hosts, fit_tolerance)
+    problem = _Problem(parsed, cases, tagged, names, ranges, logs, participants, rounds, workers, hosts)
     with runner.worker_pool(workers, participants, hosts) as pool:
         if test is not None:
             fitted = _fit(problem.subset(parts[0].train), pool, runs, held, budget, method, seed)
@@ -258,7 +245,6 @@ class _Problem:
     rounds: int | None
     workers: int
     hosts: Any = None
-    fit_tolerance: float = 0.0
 
     @property
     def goals(self) -> list[Target]:
@@ -293,12 +279,6 @@ class _Problem:
                      for i, s in enumerate(seeds)]
         results = runner.run_jobs(self.contract, jobs, participants=self.participants, rounds=self.rounds,
                                   workers=self.workers, pool=pool, hosts=self.hosts)
-        degraded = [r for r in results if r.degraded]
-        if degraded:
-            diagnostics = sorted({code for r in degraded for code in r.degraded})
-            raise runner.AnalysisError(
-                f"calibration stopped: {len(degraded)} of {len(results)} run(s) had degraded execution "
-                f"({', '.join(diagnostics)}); repair participant execution and rerun before fitting parameters")
         # targets read outputs, metrics and series only; a contract's data tables live in its inputs, and a search
         # keeps every evaluated point's runs
         return runner.by_cell(jobs, [replace(r, inputs={}) for r in results], len(self.cases))
@@ -337,13 +317,7 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
 
     evaluator = unit_search.Evaluator(objective, key=lambda u: tuple(sorted(problem.to_inputs(u).items())),
                                       budget=budget)
-    from .identification import identify, probe_budget
-
-    reserved = probe_budget(problem, budget)
-    evaluator.budget = budget - reserved
-    chosen = _search(method, problem.names, problem.goals, evaluator, evaluator.budget, seed)
-    evaluator.budget = budget
-    identification = identify(problem, evaluator, reserved)
+    chosen = _search(method, problem.names, problem.goals, evaluator, budget, seed)
     best = evaluator.best
     if best is None or not math.isfinite(best[1]):
         raise runner.AnalysisError("no evaluated point produced every target (check the target names and that runs "
@@ -359,24 +333,18 @@ def _fit(problem: _Problem, pool: Any, runs: int, held: int, budget: int, method
     validation_fit, validation_details = problem.evaluate(problem.run(values, seed, runs, held, pool))
     uncertainty = _uncertainty(problem, evaluator, best_runs, fit, SeedTree(seed))
     noise = next(iter(uncertainty.values()))["objective_noise"] if uncertainty else 0.0
-    plausible = [dict(d[0]) for _, loss, d in evaluator.history
-                 if loss <= fit + _PLAUSIBLE_SE * noise + problem.fit_tolerance]
+    plausible = [dict(d[0]) for _, loss, d in evaluator.history if loss <= fit + _PLAUSIBLE_SE * noise]
     details = problem.evaluate(best_runs)[1]
     notes += _fit_notes(problem, details, fit, validation_fit, noise, held)
     pooled = pooled_checks([case.goals for case in problem.cases], details,
                            [(d[0], d[1]) for _, _, d in evaluator.history]) if problem.tagged else []
     notes += _pooled_notes(pooled, values)
-    notes.append("Search support is not empirical parameter certainty; its joint points preserve sampled "
-                 "correlations but can miss unsearched ridges. Fix externally measured parameters or add "
-                 "independent observables to distinguish confounded mechanisms.")
-    notes.append(f"Declared normalized fit tolerance: {problem.fit_tolerance:g}; simulator bootstrap noise "
-                 "alone does not represent observation error.")
     history = [{"inputs": d[0], "fit": loss} for _, loss, d in evaluator.history]
     return CalibrationResult(problem.contract.name, values, chosen, fit, details,
                              {"runs": held, "fit": validation_fit, "targets": validation_details},
                              uncertainty, len(evaluator.history), history, notes,
                              [case.name for case in problem.cases] if problem.tagged else [], plausible=plausible,
-                             pooled=pooled, identification=identification)
+                             pooled=pooled)
 
 
 def _pooled_notes(checks: Sequence[dict[str, Any]], best: Mapping[str, Any]) -> list[str]:
@@ -487,13 +455,12 @@ def _uncertainty(problem: _Problem, evaluator: unit_search.Evaluator, best_runs:
         if math.isfinite(loss):
             draws.append(loss)
     noise = estimate(draws).sd if len(draws) > 1 else 0.0
-    threshold = fit + _PLAUSIBLE_SE * (noise or 0.0) + problem.fit_tolerance
+    threshold = fit + _PLAUSIBLE_SE * (noise or 0.0)
     good = [d[0] for _, loss, d in evaluator.history if loss <= threshold]
     best_values = evaluator.best[2][0] if evaluator.best else {}
     out = {}
     for name in problem.names:
         vals = [float(g[name]) for g in good]
         out[name] = {"best": best_values.get(name), "low": min(vals), "high": max(vals), "points": len(vals),
-                     "objective_noise": noise, "fit_tolerance": problem.fit_tolerance,
-                     "support_kind": "evaluated_joint_points"}
+                     "objective_noise": noise}
     return out

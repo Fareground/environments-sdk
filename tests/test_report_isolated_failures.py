@@ -21,7 +21,6 @@ def test_isolated_failure_is_disclosed_without_changing_degraded_classification(
     assert '1 failed turn(s), 1 timeout(s)' in report.markdown
     assert 'degraded execution' not in report.markdown
     assert 'missing decision' in report.markdown
-    assert 'Whether these failures changed an outcome requires decision-time evidence' in report.markdown
     assert 'No risk stands out' not in report.markdown
     assert 'Execution health' in str(report.to_dict())
 

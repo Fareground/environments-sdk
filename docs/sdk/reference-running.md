@@ -19,11 +19,9 @@ fg_env.analysis.sweep("shop.json", {"price": {"low": 1, "high": 5, "steps": 5}},
 # every check, experiment and analysis reads data files beside the contract file (or data_dir=) and takes hosts=
 v = fg_env.analysis.validate("shop.json", [{"name": "Q1", "inputs": {"start": "2026-01-05"}, "actuals": {"units_by_sku": {...}}}],
                     runs=20, season=4); print(v.report())   # bias, MAPE/WAPE per key, interval coverage, baselines
-cal = fg_env.analysis.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}}, fit_tolerance=0.01)   # cases: {name, inputs, targets}
+cal = fg_env.analysis.calibrate("shop.json", cases, {"demand_scale": {"low": 0.5, "high": 2}})   # cases: {name, inputs, targets}
 # a rate per case: {"value": 0.03, "count": calls} weighs it by its data; "pool": true matches the cases together
-fg_env.analysis.validate("shop.json", cases, uncertainty=cal)   # draws joint searched points, not a parameter posterior
-cal.identification   # local sensitivity rank; not global uniqueness or empirical certainty
-# fit_tolerance is a declared normalized RMS allowance. Held-out observations must remain independent.
+fg_env.analysis.validate("shop.json", cases, uncertainty=cal)   # also experiment, sweep, backtest: draw params per run
 fg_env.analysis.behavior_checks("shop.json")   # constant outputs, inputs that change nothing, actions and stages never used
 fg_env.rl.tournament("duel.json", {"greedy": "policy:greedy", "llm": my_agent}, games=20).summary()
 # seats rotate and share seeds; Elo with intervals, Glicko-2, Nash average, α-Rank, votes, cost per entrant
@@ -159,7 +157,7 @@ take ends without a model call. Retries never wait past the turn's time limit, e
 in full and cache reads at a tenth; under one, parallel turns wait while the calls under way may spend what is left.
 Their real token usage is in `result.stats` (`llm_calls`, `input_tokens` (not read from cache), `output_tokens`,
 `cache_read_tokens`, `cache_write_tokens`, `llm_retries`, `forfeits`, `truncated`, `refusals`, `no_tool_replies`,
-and `out_of_steps`: turns that used all `max_steps` model calls); a model seat more than a tenth of whose turns fail
+and `out_of_steps`: turns that used all `max_steps` model calls, which degrade the run); a model seat more than a tenth of whose turns fail
 (a turn whose reply the provider refused or cut off counts as failed) degrades the run — passing with `end_turn` where
 the stage allows it is a move, not a failure;
 your own participants can add theirs with `wake.record_usage(...)`.

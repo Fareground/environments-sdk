@@ -80,9 +80,8 @@ class Channel:
     callback: tuple[float, float, float] | None = None
     #: ``(chance an abandoned customer tries again, delay, most retries)``, or None.
     retry: tuple[float, Duration, int] | None = None
-    #: Exact absolute arrival time, service duration, patience; None selects Poisson arrivals.
+    #: Exact arrivals ``(time from the run's start, service, patience or None)``, in order; None: Poisson arrivals.
     scheduled: tuple[tuple[float, float, float | None], ...] | None = None
-    callback_service: float | None = None
 
 
 @dataclass(frozen=True)
@@ -100,13 +99,12 @@ class Counts:
 
     #: ``{arrival interval: {channel: {field: value}}}``.
     by_origin: dict[int, dict[str, dict[str, float]]] = field(default_factory=dict)
-    events: list[dict[str, Any]] = field(default_factory=list)
     #: Time-average customers waiting in the interval, per channel.
     queue: dict[str, float] = field(default_factory=dict)
     max_queue: dict[str, int] = field(default_factory=dict)
     #: Server time spent serving in the interval, per pool (in the mode's unit).
     busy: dict[str, float] = field(default_factory=dict)
-    #: Service time above scheduled pool capacity, after a staffing reduction.
+    #: Server time spent serving above the pool's staff on duty (servers finishing after staff drops), per pool.
     overrun: dict[str, float] = field(default_factory=dict)
 
     def cell(self, origin: int, channel: str) -> dict[str, float]:
@@ -133,14 +131,13 @@ class _Interval:
     """One interval being played: heaps, counters and the clock."""
 
     def __init__(self, state: dict[str, Any], index: int, length: float, channels: dict[str, Channel],
-                 pools: dict[str, Pool], seeds: Any, name: str, record_customers: bool = False):
+                 pools: dict[str, Pool], seeds: Any, name: str):
         self.index, self.name, self.seeds = index, name, seeds
         self.start, self.end = index * length, (index + 1) * length
         self.length = length
         self.channels, self.pools = channels, pools
         self.seq = int(state["seq"])
         self.counts = Counts()
-        self.record_customers = record_customers
         self.pools_of: dict[str, list[str]] = {c: [p for p, pool in pools.items() if c in pool.skills]
                                                for c in channels}
         self.queues: dict[str, list[tuple[float, float, int]]] = {c: [] for c in channels}
@@ -158,10 +155,6 @@ class _Interval:
         self.waiting = {c: len(heap) for c, heap in self.queues.items()}
         self.busy: list[tuple[float, int, str]] = [(float(f), int(s), str(p)) for f, s, p in state["busy"]]
         heapq.heapify(self.busy)
-        # Completions at the previous interval's end were observed there, although
-        # the scheduling heap releases those servers on entry to this interval.
-        self.carried_completions = ({seq for finish, seq, _ in self.busy if finish <= self.start}
-                                    if record_customers else set())
         self.busy_count = {p: 0 for p in pools}
         for _, _, pool in self.busy:
             self.busy_count[pool] = self.busy_count.get(pool, 0) + 1
@@ -208,10 +201,7 @@ class _Interval:
                 break
             self.advance(max(when, self.time))
             if when == finish:  # at equal times: completions, then abandonments, then arrivals
-                _, seq, pool = heapq.heappop(busy)
-                if seq not in self.carried_completions:
-                    self._event("completed", seq, pool=pool)
-                self.carried_completions.discard(seq)
+                _, _, pool = heapq.heappop(busy)
                 self.busy_count[pool] -= 1
                 self._pull(pool)
             elif when == deadline:
@@ -225,14 +215,6 @@ class _Interval:
                 next_arrival += 1
                 self._arrive(channel, seq, service, patience, callback_u, 0)
         self.advance(self.end)
-        if self.record_customers:
-            for finish, seq, pool in sorted(self.busy):
-                if finish == self.end:
-                    self._event("completed", seq, pool=pool)
-
-    def _event(self, event: str, customer: int, **details: Any) -> None:
-        if self.record_customers:
-            self.counts.events.append({"event": event, "customer": customer, "time": self.time, **details})
 
     # -- arrivals ----------------------------------------------------------------------------------------------
 
@@ -241,11 +223,10 @@ class _Interval:
         draw."""
         out = []
         for name, channel in self.channels.items():
-            if channel.scheduled is not None:
-                draws = self.seeds.rng(self.name, "scheduled_callbacks", name, self.index)
+            if channel.scheduled is not None:  # no callback on a scheduled channel: nothing to draw
                 for at, service, patience in channel.scheduled:
                     self.seq += 1
-                    out.append((at, self.seq, name, service, patience, draws.random()))
+                    out.append((at, self.seq, name, service, patience, 1.0))
                 continue
             if channel.arrivals <= 0:
                 continue
@@ -267,7 +248,6 @@ class _Interval:
     def _arrive(self, channel: str, seq: int, service: float, patience: float | None, callback_u: float,
                 retries: int) -> None:
         spec = self.channels[channel]
-        self._event("arrived", seq, channel=channel, service=service, patience=patience, retry=retries)
         cell = self.counts.cell(self.index, channel)
         cell["offered"] += 1
         for pool in self.pools_of[channel]:
@@ -279,7 +259,6 @@ class _Interval:
                 return
         if (spec.callback is not None and callback_u < spec.callback[1] and self._expected_wait(channel)
             > spec.callback[0]):
-            self._event("callback", seq, channel=channel)
             cell["callbacks"] += 1
             self.callbacks[channel].append([self.time, seq, channel, service, self.index])
             return
@@ -300,14 +279,11 @@ class _Interval:
     def _expected_wait(self, channel: str) -> float:
         """How long a new customer would wait: everyone in line ahead of them served at the channel's mean pace."""
         servers = sum(self.pools[pool].staff for pool in self.pools_of[channel])
-        spec = self.channels[channel]
-        estimate = spec.service.mean if spec.callback_service is None else spec.callback_service
-        return (self.waiting[channel] + 1) * estimate / max(1, servers)
+        return (self.waiting[channel] + 1) * self.channels[channel].service.mean / max(1, servers)
 
     # -- service -----------------------------------------------------------------------------------------------
 
     def _start(self, pool: str, service: float, seq: int) -> None:
-        self._event("started", seq, pool=pool, scheduled_finish=self.time + service)
         heapq.heappush(self.busy, (self.time + service, seq, pool))
         self.busy_count[pool] += 1
 
@@ -358,7 +334,6 @@ class _Interval:
         if customer is None:
             return
         channel = customer[_CHANNEL]
-        self._event("abandoned", seq, channel=channel, retry=customer[_RETRIES])
         self.waiting[channel] -= 1
         self.counts.cell(int(customer[_ORIGIN]), channel)["abandoned"] += 1
         retry = self.channels[channel].retry
@@ -383,9 +358,9 @@ class _Interval:
 
 
 def run_interval(state: dict[str, Any], length: float, channels: dict[str, Channel], pools: dict[str, Pool],
-                 seeds: Any, name: str, record_customers: bool = False) -> tuple[dict[str, Any], Counts]:
+                 seeds: Any, name: str) -> tuple[dict[str, Any], Counts]:
     """Play interval ``state["interval"]`` (``length`` long) and return the state after it and what it produced."""
-    played = _Interval(state, int(state["interval"]), length, channels, pools, seeds, name, record_customers)
+    played = _Interval(state, int(state["interval"]), length, channels, pools, seeds, name)
     played.play()
     counts = played.counts
     counts.queue = {c: area / length for c, area in played.queue_area.items()}

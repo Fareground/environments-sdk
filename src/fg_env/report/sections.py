@@ -11,7 +11,7 @@ from typing import Any
 from ..analysis.accuracy import bias_verdict
 from ..analysis.highlights import highlights
 from ..runtime.clock_words import plural, unit_word
-from ..runtime.measure import RunResult, shown, usable_output
+from ..runtime.measure import RunResult, usable_output
 from .confidence import Confidence, interval, label
 from .confidence import lines as confidence_lines
 from .demand import demand_lines
@@ -78,7 +78,6 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
     primary = _primary_outcomes(ev, namer)
     if primary is not None:
         section.tables.append(primary)
-        section.lines.append("Primary outcomes below describe the recorded model runs.")
     subject = choice.best or (ev.options[0] if len(ev.options) == 1 else None)
     if choice.goal is not None and choice.best is None and ev.options:
         wanted = "; ".join(f"{namer.name(r.measure)} {r.op} {namer.value(r.measure, r.value)}"
@@ -103,9 +102,8 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
             prefix = "Observed (degraded execution): " if any(r.degraded for r in subject.runs) else "Expected: "
             section.lines.append(prefix + "; ".join(expected) + ".")
         if ev.kind == "run":
-            section.lines.append("This is one run of the model at the recorded inputs and agent configuration; "
-                                 "it does not measure variability across runs or sensitivity to assumptions.")
-    section.tables.extend(_recorded_tables(ev))
+            section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
+                                 "one.")
     if choice.goal is None and len(ev.options) > 1:
         section.lines.append("No decision rule was given (objective and require), so the options are compared, not "
                              "ranked.")
@@ -121,15 +119,14 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
 
 
 def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
-    """Declared outcomes retain their types and missing observations, including deals and their terms."""
+    """The outputs declared ``primary``, each option's values as they are (yes/no, numbers with their range, maps and
+    lists as text), with the runs that gave none."""
     primary = {name: spec for name, spec in ev.contract.outputs.items() if spec.primary} if ev.contract else {}
     if not primary:
         return None
     rows = []
     for option in ev.options:
         for name, spec in primary.items():
-            if spec.presentation and spec.presentation.kind == "hidden":
-                continue
             values = [run.outputs[name] for run in option.runs
                       if name in run.outputs and run.outputs[name] is not None and usable_output(run, name)]
             total = len(option.runs) + option.failed
@@ -141,8 +138,6 @@ def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
                     f"Yes in {sum(values)} of {len(values)} observed runs ({sum(values) / len(values):.0%})"
             elif all(isinstance(value, (int, float)) and not isinstance(value, bool) for value in values):
                 text = _ranged(namer, name, option) or "No finite value reported"
-            elif all(isinstance(value, list) and all(isinstance(row, dict) for row in value) for value in values):
-                text = "; ".join(f"{len(value)} records" for value in values[:5]) + "; see recorded tables"
             else:
                 counts: dict[str, int] = {}
                 for value in values:
@@ -158,37 +153,6 @@ def _primary_outcomes(ev: Evidence, namer: Namer) -> Table | None:
             outcome = namer.name(name) + (f" ({spec.unit})" if spec.unit else "")
             rows.append([label(option, start=True), outcome, text])
     return Table("Primary outcomes", ["Option", "Outcome", "Observed"], rows)
-
-
-def _recorded_tables(ev: Evidence) -> list[Table]:
-    """Bounded native report tables retain authored record labels and units, without dumping JSON."""
-    if ev.contract is None:
-        return []
-    tables = []
-    for name, spec in ev.contract.outputs.items():
-        presentation = spec.presentation
-        if presentation and presentation.kind == "hidden":
-            continue
-        columns = presentation.columns if presentation else {}
-        for option in ev.options:
-            for index, run in enumerate(option.runs[:5]):
-                records = run.outputs.get(name)
-                if not isinstance(records, list) or not records or not all(isinstance(row, dict) for row in records):
-                    continue
-                fields = list(dict.fromkeys([*columns, *(key for row in records for key in row)]))
-                headings = [(columns[key].label or key) if key in columns else key for key in fields]
-                headings = [heading + (f" ({columns[key].unit})" if key in columns and columns[key].unit else "")
-                            for key, heading in zip(fields, headings)]
-                rows = [[("—" if row.get(key) is None else "Yes" if row[key] is True else "No" if row[key] is False
-                          else shown(row[key], columns[key].format if key in columns else None))
-                         for key in fields] for row in records[:20]]
-                title = f"{spec.label or name} · {label(option, start=True)} · run {index + 1}"
-                if len(option.runs) > 5:
-                    title += f" (showing first 5 of {len(option.runs)} runs)"
-                if len(records) > 20:
-                    title += f" (first 20 of {len(records)} records; exact data retained in the run)"
-                tables.append(Table(title, headings, rows))
-    return tables
 
 
 def outcomes(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], sure: Confidence) -> Table:
@@ -222,8 +186,7 @@ def drivers(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str],
                    if h.score >= _NOTABLE_SCORE and h.subject not in decided]
         section.lines += [f"In a typical run, {text}." for text in moments[: _TYPICAL_MOMENTS if owner else None]]
     if not section.lines:
-        section.lines.append("No driver was established from the recorded evidence. "
-                             "This does not establish a chance explanation.")
+        section.lines.append("Nothing in these runs separates one outcome from another beyond chance.")
     return section
 
 
@@ -332,25 +295,23 @@ def _failed_turns(run: RunResult) -> bool:
 
 
 def health(ev: Evidence) -> Section | None:
-    """Execution failures precede interpretation; private observations are never copied into this summary."""
+    """Runs with degraded execution or failed agent turns, and the agents affected; None when every run was sound."""
     degraded = [run for run in ev.runs if run.degraded]
     affected = [run for run in ev.runs if _failed_turns(run)]
     if not degraded and not affected:
         return None
     section = Section("Execution health")
     if degraded:
-        section.lines.append(f"{len(degraded)} of {len(ev.runs)} recorded runs had degraded execution. "
-                             "These outcomes do not reliably show how the agents would behave with healthy execution.")
+        section.lines.append(f"{len(degraded)} of {len(ev.runs)} runs had degraded execution; they are left out of "
+                             "recommendations.")
     if affected:
         counts = []
         for key, noun in (("failed_turns", "failed turn(s)"), ("timeouts", "timeout(s)")):
             values = [_turn_count(run, key) for run in ev.runs]
             counts.append(f"{sum(value for value in values if value is not None)} {noun}"
                           if all(value is not None for value in values) else f"{noun} count unavailable")
-        section.lines.append(f"{len(affected)} of {len(ev.runs)} recorded runs had agent failures; "
-                             f"recorded totals: {', '.join(counts)}. "
-                             "Whether these failures changed an outcome requires decision-time evidence.")
-    section.lines.append("A failed or timed-out turn is a missing decision, not an intentional choice to do nothing.")
+        section.lines.append(f"{len(affected)} of {len(ev.runs)} runs had failed agent turns: {', '.join(counts)}. "
+                             "A failed turn is a missing decision, not a choice to do nothing.")
     findings = list(dict.fromkeys(
         f"{item['code']}: {item['message']}" for run in degraded for item in run.diagnostics
         if item['code'] in run.degraded))
@@ -382,15 +343,8 @@ def health(ev: Evidence) -> Section | None:
 def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], queues: Sequence[QueueView],
           owner: bool) -> Section:
     section = Section("Risks")
-    for option in ev.options:
-        degraded = [run for run in option.runs if run.degraded]
-        if degraded:
-            section.lines.append(f"{label(option, start=True)} has degraded execution in {len(degraded)} of "
-                                 f"{len(option.runs)} recorded runs; outcomes are descriptive only, not reliable "
-                                 "evidence of agent behaviour.")
-    if any(_failed_turns(run) for run in ev.runs):
-        section.lines.append("Some agent decisions failed or timed out; see Execution health. "
-                             "Their effect on the outcomes is not established by the failure count.")
+    if any(run.degraded or _failed_turns(run) for run in ev.runs):
+        section.lines.append("Not every run executed cleanly: see Execution health.")
     for option in ev.options:
         invalid = [run for run in option.runs if run.output_issues]
         if invalid:
@@ -426,14 +380,7 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
             told = "; ".join(f"{namer.name(r.measure)} {_ranged(namer, r.measure, option)}" for r in failing)
             section.lines.append(f"With {label(option)}: {told}.")
     if ev.kind == "run" or sum(len(option.runs) for option in ev.options) == 1:
-        section.lines.append("A single recorded run does not establish whether outcomes vary. Replaying a fixed "
-                             "deterministic scenario adds no uncertainty estimate. Vary uncertain assumptions "
-                             "to assess sensitivity; use independent observations to assess predictive accuracy.")
-    elif ev.runs:
-        section.lines.append("Reported ranges describe variation in the supplied runs, not all real-world "
-                             "uncertainty. Identical recorded outcomes do not prove the model is deterministic. "
-                             "Repeated stochastic runs estimate variability under the configured model; "
-                             "varying assumptions tests sensitivity, and independent observations test accuracy.")
+        section.lines.append("One run shows one possible outcome; the range of outcomes is not known from it.")
     if ev.validation is not None:
         section.lines += _data_risks(ev, namer, owner)
     failed = sum(option.failed for option in ev.options)
@@ -466,7 +413,8 @@ def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> list[str]:
 
 
 def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Section:
-    """Recorded scenario inputs, queue assumptions and fitted parameters, without inferring provenance from prose."""
+    """What the model takes as given: the queue's behaviour, inputs described as assumed, and how many parameters the
+    data estimated. An owner reads values in words; the analyst also reads the inputs' names."""
     section = Section("What the model assumes")
     contract = ev.contract
     if contract is None:
@@ -474,81 +422,30 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
         return section
     for view in queues:
         section.lines += view.assumptions(owner)
-    for name, spec in contract.inputs.items():
-        heading = spec.description.rstrip('.') or name.replace('_', ' ')
-        if not ev.runs:
-            section.lines.append(f"{heading} — declared default {shown(spec.default)} "
-                                 "(no recorded run inputs available).")
-            continue
-        grouped: dict[str, tuple[list[str], str]] = {}
-        for option in ev.options:
-            # Deduplicate exact values before formatting: shown() deliberately rounds and truncates.
-            values: dict[str, Any] = {}
-            missing = 0
-            for run in option.runs:
-                if name not in run.inputs:
-                    missing += 1
-                    continue
-                value = run.inputs[name]
-                values.setdefault(json.dumps(value, sort_keys=True, default=str), value)
-            preview = ", ".join(_input_preview(value) for value in list(values.values())[:5]) or "not recorded"
-            if len(values) > 5:
-                preview += f"; {len(values) - 5} further distinct values in recorded run inputs"
-            source = ""
-            if values:
-                changed = sum(value != spec.default for value in values.values())
-                source = ("matches declared default" if not changed else "differs from declared default"
-                          if changed == len(values) else "includes default and non-default values")
-                source = f" ({source})"
-            if missing:
-                source += f"; absent from {missing} of {len(option.runs)} recorded runs"
-            identity = json.dumps([sorted(values), missing, len(option.runs)], sort_keys=True)
-            if identity not in grouped:
-                grouped[identity] = ([], f"{heading} — {name.replace('_', ' ')} = {preview}{source}.")
-            grouped[identity][0].append(label(option, start=True))
-        for names, text in grouped.values():
-            prefix = ""
-            if len(ev.options) > 1:
-                prefix = "All options: " if len(names) == len(ev.options) else ", ".join(names) + ": "
-            section.lines.append(prefix + text)
-    if contract.inputs and ev.runs:
-        section.lines.append("Input values above are bounded display summaries; exact values are retained in each "
-                             "recorded run's inputs. Matching a default does not establish how a value was supplied.")
+    assumed = [(name, spec) for name, spec in contract.inputs.items() if "assum" in spec.description.lower()]
+    for name, spec in assumed:
+        value = spec.default
+        shown = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
+        section.lines.append(f"{spec.description.rstrip('.')}, set to {shown}." if owner else
+                             f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
     fitted = [name for name, spec in contract.inputs.items()
               if "fitted by fg_env.analysis.fit_patterns" in spec.description]
     if fitted:
         count = (f"{len(fitted)} {plural('parameter', len(fitted))} {'is' if len(fitted) == 1 else 'are'} estimated "
                  "from the data")
         section.lines.append(f"{count}; the analyst report lists them." if owner else f"{count}: {', '.join(fitted)}.")
-    if contract.description:
+    if contract.description and not section.lines:
         section.lines.append(contract.description)
     return section
-
-
-def _input_preview(value: Any) -> str:
-    """Dataset inputs are described, not dumped as truncated record JSON into report prose."""
-    if isinstance(value, list) and value and all(isinstance(row, dict) for row in value):
-        columns = list(dict.fromkeys(key for row in value for key in row))
-        names = ", ".join(str(key) for key in columns[:6])
-        more = f", +{len(columns) - 6} more" if len(columns) > 6 else ""
-        return f"{len(value)} records ({names}{more})"
-    if isinstance(value, dict):
-        names = ", ".join(str(key) for key in list(value)[:6])
-        return f"{len(value)} fields ({names}, …)" if len(value) > 6 else shown(value)
-    if isinstance(value, list) and len(value) > 10:
-        return f"{len(value)} values; first 5: {shown(value[:5])}"
-    return shown(value)
 
 
 def fit(ev: Evidence, namer: Namer) -> Section:
     section = Section("How well it matched the data")
     validation = ev.validation
     if validation is None:
-        section.lines.append("No outcome-validation results were supplied. These runs do not establish predictive "
-                             "accuracy.")
+        section.lines.append("Not checked against data here: pass validation=fg_env.analysis.validate(contract, "
+                             "cases).")
         return section
-    # Keep evidence qualifications next to its scores, even when the owner
-    # Risks summary is shortened or a validation-only report has no such section.
     section.lines.extend(f"The data check warns: {text}" for text in validation.warnings)
     section.lines.extend(validation.notes)
     if not validation.measures:
@@ -569,7 +466,7 @@ def fit(ev: Evidence, namer: Namer) -> Section:
         if coverage is not None:
             text += f"; its 80% ranges held {coverage:.0%} of actual values"
         section.lines.append(text + ".")
-    section.lines.append(f"Requested evaluation: {len(validation.cases)} case(s) × {validation.runs} run(s).")
+    section.lines.append(f"Checked on {len(validation.cases)} case(s) × {validation.runs} run(s).")
     return section
 
 

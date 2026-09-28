@@ -20,7 +20,6 @@ from .base import (
     _Model,
 )
 from .game import ScoreSpec
-from .quantity import Quantity
 from .rules import PolicySpec
 
 __all__ = ["InputSpec", "Brief", "Clock", "LAYER_TYPES", "GridSpace", "GraphSpace", "PlaneSpace", "LayerSpec", "Space",
@@ -54,8 +53,6 @@ class InputSpec(_Model):
                                            "image, PDF, text, audio) or every file of the folder named here.")
     description: str = ""
     unit: str = ""
-    quantity: Quantity | None = Field(None, description="Explicit dimensions and scale of this numeric value; "
-                                     "display unit labels alone remain unchecked. No automatic conversion.")
     label: str = Field("", description="Human-readable input label; defaults to the input name in a host UI.")
     display: Literal["number", "text", "textarea", "select", "toggle", "date", "slider", "knob", "table", "object",
                      "list", "json"] | None = Field(
