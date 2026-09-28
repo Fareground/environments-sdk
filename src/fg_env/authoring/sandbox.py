@@ -25,6 +25,7 @@ import sys
 import threading
 import time
 from collections.abc import Mapping
+from pathlib import Path
 from typing import IO, Any
 
 __all__ = ["Sandbox", "step", "TooSlow", "TooBig", "GRACE_SECONDS", "START_SECONDS", "MEMORY_MB"]
@@ -168,14 +169,32 @@ def main() -> None:
 
 def _watch_memory(megabytes: int) -> None:
     """In the child: once it has held more than ``megabytes``, tell the parent and stop at once."""
-    import resource
-
-    unit = 1 if sys.platform == "darwin" else 1024  # ru_maxrss is in bytes on macOS, kilobytes on Linux
     while True:
-        if resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * unit > megabytes * 1024 * 1024:
+        try:
+            peak = _peak_memory_bytes()
+        except (OSError, ValueError, RuntimeError):
+            _say({"error": "The test process could not measure its memory usage"})
+            os._exit(3)
+        if peak > megabytes * 1024 * 1024:
             _say({"too_big": True})
             os._exit(3)
         time.sleep(_WATCH_SECONDS)
+
+
+def _peak_memory_bytes() -> int:
+    """Peak resident memory of this executable, excluding a Linux launcher's inherited high-water mark."""
+    if sys.platform == "linux":
+        # getrusage's ru_maxrss survives exec; a fresh child can otherwise inherit
+        # the large author's peak and be rejected before evaluating any contract.
+        # VmHWM belongs to the current address space and still catches brief peaks.
+        for line in Path("/proc/self/status").read_text().splitlines():
+            if line.startswith("VmHWM:"):
+                return int(line.split()[1]) * 1024
+        raise RuntimeError("Linux process status did not contain VmHWM")
+    import resource
+
+    unit = 1 if sys.platform == "darwin" else 1024
+    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * unit
 
 
 def _say(message: dict[str, Any]) -> None:

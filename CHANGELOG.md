@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Fix Linux authoring sandbox memory accounting so a fresh child is not rejected for its launcher's prior peak; the configured memory ceiling is unchanged. Declare the JSON Schema test dependency in the dev extra.
+
 - Standalone reports disclose isolated failed agent turns below the degraded-run threshold, preserve unknown counts, and distinguish missing decisions from deliberate inaction.
 
 - Negotiation tools only offer prices within the proposing party's own reservation limit and acceptance within the receiving party's limit. Opponent limits remain private; bilateral settlement checks remain enforced. The buyer's default policy also respects the zero-price boundary.

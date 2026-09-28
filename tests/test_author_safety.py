@@ -1,5 +1,6 @@
 """fg_env.author stays inside its budget and its sandbox, and "it works" means the contract really plays."""
 import json
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -203,10 +204,14 @@ def test_the_test_process_stops_itself_past_its_memory_ceiling_and_the_next_call
     """A contract too big to test must not push the machine into swap (audit 9 author M7)."""
     from fg_env.authoring.sandbox import Sandbox, TooBig
 
+    # Linux ru_maxrss carries the launcher's peak through exec. Hold enough in
+    # the parent to reproduce that failure even in an otherwise small test process.
+    held_by_parent = b"x" * (220 * 1024 * 1024) if sys.platform == "linux" else b""
     with Sandbox(memory_mb=200) as box:
         with pytest.raises(TooBig, match="more than 200 MB"):
             box.call("test_author_safety:hog", {"megabytes": 400}, seconds=30)
         assert box.call("test_author_safety:hog", {"megabytes": 10}, seconds=30) == 10 * 1024 * 1024
+    assert len(held_by_parent) == (220 * 1024 * 1024 if sys.platform == "linux" else 0)
 
 
 def test_what_empty_replies_cost_is_counted_even_when_they_end_the_session(monkeypatch):
@@ -236,3 +241,34 @@ def test_replies_as_plain_dicts_are_read_like_the_participants_read_them():
     client = SimpleNamespace(messages=SimpleNamespace(create=lambda **request: next(blocks)))
     result = fg_env.author("A game.", "anthropic:m", client=client)
     assert result.ok and result.stop == "done" and result.contract == WORKING
+
+
+def test_linux_sandbox_reads_its_own_address_space_peak(monkeypatch):
+    import resource
+    from pathlib import Path
+
+    from fg_env.authoring import sandbox
+
+    monkeypatch.setattr(sys, "platform", "linux")
+    monkeypatch.setattr(resource, "getrusage", lambda _: pytest.fail("Inherited peak must not be used"))
+    monkeypatch.setattr(Path, "read_text", lambda _: "VmRSS:\t100 kB\nVmHWM:\t40960 kB\n")
+    assert sandbox._peak_memory_bytes() == 40960 * 1024
+
+
+def test_memory_monitor_failure_stops_the_child_instead_of_disabling_the_limit(monkeypatch):
+    from fg_env.authoring import sandbox
+
+    def unavailable():
+        raise OSError("process status unavailable")
+
+    def exited(code):
+        raise SystemExit(code)
+
+    messages = []
+    monkeypatch.setattr(sandbox, "_peak_memory_bytes", unavailable)
+    monkeypatch.setattr(sandbox, "_say", messages.append)
+    monkeypatch.setattr(sandbox.os, "_exit", exited)
+    with pytest.raises(SystemExit) as error:
+        sandbox._watch_memory(200)
+    assert error.value.code == 3
+    assert messages == [{"error": "The test process could not measure its memory usage"}]
