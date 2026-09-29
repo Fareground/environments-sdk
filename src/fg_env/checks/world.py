@@ -78,6 +78,9 @@ class WorldChecks(Checker):
     def _brief(self) -> None:
         roots, types = BASE | {"actor"}, {"actor": set(self.agents)}
         self.template(self.c.brief.situation or None, "brief.situation", "actor", roots, types)
+        # Without a situation the description stands in for it, filled in the same way.
+        self.template(None if self.c.brief.situation else (self.c.description or None), "description", "actor",
+                      roots, types)
         self.template(self.c.brief.rules or None, "brief.rules", "actor", roots, types)
         for type_name, text in self.c.brief.roles.items():
             if self._type(type_name, f"brief.roles.{type_name}", agent=True):

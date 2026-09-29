@@ -158,6 +158,7 @@ PLACES: dict[str, Callable[[dict[str, Any]], str]] = {
     "InputSpec.display": _set(["inputs", "i"], {"default": 1, "display": "text"}),
     "InputSpec.group": _set(["inputs", "i"], {"default": 1, "group": TEXT}),
     "InputSpec.basis": _set(["inputs", "i"], {"default": 1, "basis": "assumed"}),
+    "InputSpec.role": _set(["inputs", "i"], {"default": 1, "role": "calibration"}),
     "Clock.rounds": _set(["clock", "rounds"], INT), "Clock.unit": _set(["clock", "unit"], TEXT),
     "Clock.start": _set(["clock", "start"], TEXT),
     "GridSpace.rows": _set(["space"], {"grid": {"rows": INT, "cols": 2}}),

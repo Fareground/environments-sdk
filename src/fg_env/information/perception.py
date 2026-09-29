@@ -103,7 +103,8 @@ class Perception:
 
         lines: list[str] = [f"# {c.name}"]
         if c.brief.situation or c.description:
-            lines.append(text(c.brief.situation, "brief.situation") if c.brief.situation else c.description.strip())
+            lines.append(text(c.brief.situation, "brief.situation") if c.brief.situation
+                         else text(c.description, "description"))
         if c.brief.rules:
             lines += ["", "## Rules", text(c.brief.rules, "brief.rules")]
         lines += ["", "## You", f"You are {actor.name} ({actor.entity_type}, id {actor.id})."]

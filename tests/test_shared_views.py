@@ -105,3 +105,14 @@ def test_a_list_that_reads_the_readers_handles_is_worked_out_for_each_reader(sta
     texts: dict[str, str] = {}
     fg_env.load(_crowd(3, view, stage), seed=1).run(_reading(texts), rounds=1)
     assert [text.splitlines()[-1] for text in texts.values()] == ["nobody", "- a_2", "nobody"]
+
+
+def test_a_description_standing_in_for_the_situation_is_filled_in_like_one():
+    contract = {"name": "Lake", "description": "Fishers share a lake for {$inputs.seasons} seasons.",
+                "inputs": {"seasons": {"type": "int", "default": 5}},
+                "types": {"fisher": {"agent": True}}, "entities": {"ann": {"type": "fisher"}},
+                "actions": {"fish": {"by": "fisher", "do": []}}}
+    env = fg_env.load(contract)
+    assert "Fishers share a lake for 5 seasons." in str(env.preview("ann")["brief"])
+    broken = {**contract, "description": "Fishers share a lake for {$inputs.seasons seasons."}
+    assert any(issue.path == "description" for issue in fg_env.check(broken))

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A contract `description` that stands in for a missing `brief.situation` is filled in like one: its
+  `{$inputs.x}` templates reach the agent's brief as values, not as raw text, and a malformed one is a check error.
 - Inputs take `role`, a presentation field that never changes a run: `scenario` (the default; a lever a person
   changes to ask a different question) or `calibration` (how the model behaves, set when the environment is built and
   shown as its assumptions).

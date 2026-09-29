@@ -53,7 +53,9 @@ W, R, O, S, A, K, E = (Reader.WORDS, Reader.RULES, Reader.ONE, Reader.SEVERAL, R
 #: Every contract field that can hold text or any value, by ``Model.field``.
 FIELDS: dict[str, Reader] = {
     # the contract itself
-    "Contract.fg_env": W, "Contract.name": W, "Contract.description": W, "Contract.imports": W,
+    "Contract.fg_env": W, "Contract.name": W,
+    # every agent reads it as its situation when the brief gives none
+    "Contract.description": O, "Contract.imports": W,
     "Contract.mechanisms": W,
     # what each agent is told first: rendered for that agent
     "Brief.situation": O, "Brief.rules": O, "Brief.roles": O, "Brief.attach": O,
