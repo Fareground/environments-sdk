@@ -8,6 +8,7 @@ import pytest
 
 import fg_env
 from fg_env.__main__ import main
+from fg_env.runtime.measure import RunResult
 
 SHAPED = [8, 12, 15, 15, 12, 12, 8, 8]
 CENTRE = {
@@ -45,6 +46,23 @@ def _section(written, title):
     return next(s for s in written.sections if s.title == title)
 
 
+@pytest.mark.parametrize("values,expected", [
+    ([-30] * 7 + [70, 170, 170], "mean 20 (median -30; 80% range -30–170)"),
+    ([0] * 19 + [100], "mean 5 (median 0; 80% range 0–0)"),
+    ([20, 20], "mean 20 (median 20; 80% range 20–20)"),
+    ([20], "20"),
+])
+def test_observed_outcomes_distinguish_mean_median_and_run_range(values, expected):
+    runs = [RunResult(status="completed", ended_by="rounds", rounds=1, seed=i, arm=None,
+                      inputs={}, outputs={"net_benefit": value}, metrics={}, series={})
+            for i, value in enumerate(values)]
+    report = fg_env.analysis.report(runs)
+    head = _section(report, "What the model says")
+    assert head.lines[0] == f"Observed outcomes: net benefit {expected}."
+    assert "Expected:" not in report.markdown
+    assert expected in report.markdown
+
+
 def test_an_owner_report_recommends_the_cheapest_staffing_that_meets_the_service_target(experiment):
     written = fg_env.analysis.report(experiment, contract=CENTRE)
     assert written.recommendation["option"] == "shaped"
@@ -52,7 +70,7 @@ def test_an_owner_report_recommends_the_cheapest_staffing_that_meets_the_service
     text = written.markdown
     assert "Choose staffing shaped to the morning." in text
     assert "Staff 8 agents 08:00–08:30, 12 agents 08:30–09:00, 15 agents 09:00–10:00" in text
-    assert "Expected: service level" in text and "80% range" in text and "staffing cost $" in text
+    assert "Observed outcomes: service level mean" in text and "80% range" in text and "staffing cost mean $" in text
     assert "**Staffing plan**" in text and "| 09:00–10:00 | 15 |" in text
     assert "round" not in text.lower()
 

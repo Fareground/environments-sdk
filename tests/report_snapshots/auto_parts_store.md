@@ -4,14 +4,14 @@
 
 - Choose order up to the expected demand over lead time and review, with safety stock for a 95% service level. It is the only option that meets the requirement.
 - Its fill rate is clearly above 95% (mean 98.9%, 95% CI 96.6%–100%).
-- Expected: fill rate 98.4% (80% range 98.3%–99.6%); profit $31,581 (80% range $27,632–$31,950).
+- Observed outcomes: fill rate mean 98.9% (median 98.4%; 80% range 98.3%–99.6%); profit mean $30,089 (median $31,581; 80% range $27,632–$31,950).
 
 **Options**
 
 | Option | Fill rate | Profit |
 |---|---|---|
-| The store's current rule | 92.4% (80% range 86.3%–94%) | $28,499 (80% range $26,651–$30,243) |
-| Order up to the expected demand over lead time and review, with safety stock for a 95% service level ✓ | 98.4% (80% range 98.3%–99.6%) | $31,581 (80% range $27,632–$31,950) |
+| The store's current rule | mean 90.5% (median 92.4%; 80% range 86.3%–94%) | mean $28,456 (median $28,499; 80% range $26,651–$30,243) |
+| Order up to the expected demand over lead time and review, with safety stock for a 95% service level ✓ | mean 98.9% (median 98.4%; 80% range 98.3%–99.6%) | mean $30,089 (median $31,581; 80% range $27,632–$31,950) |
 
 ## What drives it
 
@@ -24,7 +24,7 @@
 
 ## Risks
 
-- With the store's current rule: fill rate 92.4% (80% range 86.3%–94%).
+- With the store's current rule: fill rate mean 90.5% (median 92.4%; 80% range 86.3%–94%).
 
 ## What the model assumes
 

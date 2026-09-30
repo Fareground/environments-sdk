@@ -6,15 +6,15 @@
 - How sure: its staffing cost is lower than with the manager's rule by $277 (95% CI −$551 to −$3, 3 paired runs).
 - Its service level is clearly above 80% (mean 90.2%, 95% CI 83.7%–96.7%).
 - Staff between 11 and 27 agents per half-hour, most (27) 09:30–10:00; the plan table lists every change.
-- Expected: service level 90.3% (80% range 88.1%–92.3%); staffing cost $8,836 (80% range $8,836–$8,837); service level in the worst half-hour 73.3% (80% range 66.6%–73.7%); abandonment 2.9% (80% range 2.4%–3.2%); average wait to answer 4 s (80% range 3 s–5 s).
+- Observed outcomes: service level mean 90.2% (median 90.3%; 80% range 88.1%–92.3%); staffing cost mean $8,837 (median $8,836; 80% range $8,836–$8,837); service level in the worst half-hour mean 70.7% (median 73.3%; 80% range 66.6%–73.7%); abandonment mean 2.8% (median 2.9%; 80% range 2.4%–3.2%); average wait to answer mean 4 s (median 4 s; 80% range 3 s–5 s).
 
 **Options**
 
 | Option | Service level | Staffing cost | Service level in the worst half-hour | Abandonment | Average wait to answer |
 |---|---|---|---|---|---|
-| The optimised plan ✓ | 90.3% (80% range 88.1%–92.3%) | $8,836 (80% range $8,836–$8,837) | 73.3% (80% range 66.6%–73.7%) | 2.9% (80% range 2.4%–3.2%) | 4 s (80% range 3 s–5 s) |
-| The manager's rule | 93.3% (80% range 92.4%–93.9%) | $9,157 (80% range $9,022–$9,187) | 73.3% (80% range 65.1%–74.3%) | 2% (80% range 1.8%–2%) | 3 s (80% range 2 s–3 s) |
-| A network outage at 09:30 with the recommended plan | 35.6% (80% range 34.3%–37.4%) | $8,838 (80% range $8,838–$8,839) | 0% (80% range 0%–0.3%) | 37.1% (80% range 35.4%–37.4%) | 30 s (80% range 30 s–31 s) |
+| The optimised plan ✓ | mean 90.2% (median 90.3%; 80% range 88.1%–92.3%) | mean $8,837 (median $8,836; 80% range $8,836–$8,837) | mean 70.7% (median 73.3%; 80% range 66.6%–73.7%) | mean 2.8% (median 2.9%; 80% range 2.4%–3.2%) | mean 4 s (median 4 s; 80% range 3 s–5 s) |
+| The manager's rule | mean 93.2% (median 93.3%; 80% range 92.4%–93.9%) | mean $9,113 (median $9,157; 80% range $9,022–$9,187) | mean 70.3% (median 73.3%; 80% range 65.1%–74.3%) | mean 1.9% (median 2%; 80% range 1.8%–2%) | mean 3 s (median 3 s; 80% range 2 s–3 s) |
+| A network outage at 09:30 with the recommended plan | mean 35.8% (median 35.6%; 80% range 34.3%–37.4%) | mean $8,839 (median $8,838; 80% range $8,838–$8,839) | mean 0.1% (median 0%; 80% range 0%–0.3%) | mean 36.5% (median 37.1%; 80% range 35.4%–37.4%) | mean 30 s (median 30 s; 80% range 30 s–31 s) |
 
 **Staffing plan**
 
@@ -54,7 +54,7 @@
 ## Risks
 
 - 3 half-hours fall below the service target in a typical run.
-- With a network outage at 09:30 with the recommended plan: service level 35.6% (80% range 34.3%–37.4%).
+- With a network outage at 09:30 with the recommended plan: service level mean 35.8% (median 35.6%; 80% range 34.3%–37.4%).
 
 ## What the model assumes
 

@@ -65,9 +65,9 @@ def _ranged(namer: Namer, measure: str, option: Option) -> str | None:
     found = summary(option.values(measure))
     if found is None:
         return None
-    if found.n == 1 or math.isclose(found.low, found.high):
-        return namer.value(measure, found.median)
-    return (f"{namer.value(measure, found.median)} (80% range "
+    if found.n == 1:
+        return namer.value(measure, found.mean)
+    return (f"mean {namer.value(measure, found.mean)} (median {namer.value(measure, found.median)}; 80% range "
             f"{namer.value(measure, found.low)}–{namer.value(measure, found.high)})")
 
 
@@ -97,10 +97,11 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
             plan = view.plan_sentence(subject)
             if plan:
                 section.lines.append(plan)
-        expected = [f"{namer.name(m)} {text}" for m in measures for text in [_ranged(namer, m, subject)] if text]
-        if expected:
-            prefix = "Observed (degraded execution): " if any(r.degraded for r in subject.runs) else "Expected: "
-            section.lines.append(prefix + "; ".join(expected) + ".")
+        observed = [f"{namer.name(m)} {text}" for m in measures for text in [_ranged(namer, m, subject)] if text]
+        if observed:
+            prefix = ("Observed (degraded execution): " if any(r.degraded for r in subject.runs)
+                      else "Observed outcomes: ")
+            section.lines.append(prefix + "; ".join(observed) + ".")
         if ev.kind == "run":
             section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
                                  "one.")

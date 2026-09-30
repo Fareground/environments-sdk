@@ -5,15 +5,15 @@
 - Buy to a 90% service level instead of three weeks of cover and the baseline are within noise on profit: +$32 (95% CI −$335 to +$400), so the rule cannot pick between them.
 - Decide between them on something else: nothing measured here separates them.
 - With buy to a 90% service level instead of three weeks of cover, fill rate is above 95% only just: the interval crosses it (mean 97.5%, 95% CI 91.7%–100%).
-- Expected: fill rate 98.8% (80% range 95.6%–98.9%); profit $15,224 (80% range $14,934–$16,835).
+- Observed outcomes: fill rate mean 97.5% (median 98.8%; 80% range 95.6%–98.9%); profit mean $15,774 (median $15,224; 80% range $14,934–$16,835).
 
 **Options**
 
 | Option | Fill rate | Profit |
 |---|---|---|
-| The baseline ≈ | 97.2% (80% range 94.8%–98.4%) | $15,328 (80% range $14,946–$16,704) |
-| List retail 8% cheaper and sell to wholesale at 90% of value | 96.0% (80% range 92.8%–97.6%) | $14,706 (80% range $14,275–$15,327) |
-| Buy to a 90% service level instead of three weeks of cover ≈ | 98.8% (80% range 95.6%–98.9%) | $15,224 (80% range $14,934–$16,835) |
+| The baseline ≈ | mean 96.7% (median 97.2%; 80% range 94.8%–98.4%) | mean $15,742 (median $15,328; 80% range $14,946–$16,704) |
+| List retail 8% cheaper and sell to wholesale at 90% of value | mean 95.3% (median 96.0%; 80% range 92.8%–97.6%) | mean $14,785 (median $14,706; 80% range $14,275–$15,327) |
+| Buy to a 90% service level instead of three weeks of cover ≈ | mean 97.5% (median 98.8%; 80% range 95.6%–98.9%) | mean $15,774 (median $15,224; 80% range $14,934–$16,835) |
 
 ## What drives it
 
