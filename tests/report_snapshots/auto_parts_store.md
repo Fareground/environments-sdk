@@ -28,10 +28,10 @@
 
 ## What the model assumes
 
-- Demand lost after a promotion per unit of remembered promotion (assumed, not fitted), set to 0.25.
-- How strongly demand moves between tiers when their relative price changes (assumed), set to 0.8.
+- Demand lost after a promotion per unit of remembered promotion, assumed 0.25.
+- How strongly demand moves between tiers when their relative price changes, assumed 0.8.
 - 8 parameters are estimated from the data; the analyst report lists them.
 
 ## How well it matched the data
 
-- Not checked against data here: pass validation=fg_env.analysis.validate(contract, cases).
+- Not checked against real outcomes.

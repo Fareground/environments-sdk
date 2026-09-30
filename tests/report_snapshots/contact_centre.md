@@ -59,12 +59,12 @@
 ## What the model assumes
 
 - Calls arrive at random at the expected rate of each half-hour; service takes 379.5 seconds on average; customers give up after waiting 155.1 seconds on average, changed by the contract at times; a callback is offered when the wait would pass 90 seconds.
-- ASSUMED: spread of handle times (sd / mean); the history holds only half-hourly averages, set to 0.6.
-- ASSUMED: minutes for an outage surge to halve, set to 80.
-- ASSUMED: callers' patience during an outage surge, as a share of normal patience, set to 0.55.
-- ASSUMED: share of callers offered a callback who take it, set to 0.6.
+- Spread of handle times (sd / mean); the history holds only half-hourly averages, assumed 0.6.
+- Minutes for an outage surge to halve, assumed 80.
+- Callers' patience during an outage surge, as a share of normal patience, assumed 0.55.
+- Share of callers offered a callback who take it, assumed 0.6.
 - 3 parameters are estimated from the data; the analyst report lists them.
 
 ## How well it matched the data
 
-- Not checked against data here: pass validation=fg_env.analysis.validate(contract, cases).
+- Not checked against real outcomes.

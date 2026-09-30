@@ -127,7 +127,7 @@ def report(source: Any, audience: str = "owner", *, contract: ContractLike | Non
                      risks(ev, choice, namer, measures, queues, owner)]
     if optimisation is not None and not degraded_optimisation:
         _add_optimisation(sections, optimisation, namer, queues, measures_known, owner)
-    sections += [assumptions(ev, queues, owner), fit(ev, namer)]
+    sections += [assumptions(ev, queues, owner), fit(ev, namer, owner)]
     if not owner:
         sections.append(method(ev, namer, choice))
         if optimisation is not None and not degraded_optimisation:

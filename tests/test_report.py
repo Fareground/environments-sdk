@@ -116,7 +116,23 @@ def test_the_report_names_the_pattern_and_the_shock_behind_the_outcome(experimen
     assert any(line.startswith("With an outage at 09:00: service level") for line in _section(written, "Risks").lines)
     assumed = _section(written, "What the model assumes").lines
     assert any("give up after waiting 180 seconds on average" in line for line in assumed)
-    assert any("ASSUMED" in line for line in assumed)
+    assert any(line.startswith("Extra calls at an outage's peak, assumed 0 (") and line.endswith(" and 2 (an outage at "
+                                                                                                     "09:00).")
+               for line in assumed)
+
+
+def test_an_unchecked_model_names_its_assumptions_at_the_values_the_runs_used():
+    contract = {"name": "Stocking", "types": {}, "clock": {"rounds": 1},
+                "inputs": {"high": {"type": "number", "default": 18, "unit": "units", "basis": "assumed",
+                                    "description": "Busiest day's demand"}},
+                "outputs": {"sold": {"expr": "$inputs.high", "type": "number", "primary": True}}}
+    runs = [fg_env.load(contract, inputs={"high": 22}, seed=seed).run() for seed in range(3)]
+    written = fg_env.analysis.report(runs, contract=contract)
+    assert _section(written, "What the model assumes").lines == ["Busiest day's demand, assumed 22 units."]
+    assert _section(written, "Risks").lines[-1].startswith("The result rests on 1 assumed value")
+    assert _section(written, "How well it matched the data").lines == ["Not checked against real outcomes."]
+    assert "validate(" in " ".join(_section(fg_env.analysis.report(runs, "analyst", contract=contract),
+                                            "How well it matched the data").lines)
 
 
 def test_an_explicit_rule_and_the_analyst_audience_add_the_method(experiment):
