@@ -18,7 +18,7 @@ from ..contract import (
     LinkSpec,
 )
 from ..effects.runner import EffectRunner
-from ..errors import InvariantViolation, RunError
+from ..errors import InputRefused, RunError
 from ..expr import ExprError, compile_expr, is_expr, resolve, truthy  # noqa: F401
 from ..expr.objects import Entity
 from ..information.gate import render, viewer_for
@@ -262,7 +262,7 @@ def _input_laws(world: World) -> None:
             continue  # it reads what the build makes (an entity by its id): checked once it is built
         if not holds:
             why = invariant.why.strip()
-            raise InvariantViolation(f"invariant `{invariant.expr}` does not hold for these inputs"
+            raise InputRefused(f"invariant `{invariant.expr}` does not hold for these inputs"
                                      f"{f' ({why})' if why else ''}", f"invariants[{index}]", why)
 
 

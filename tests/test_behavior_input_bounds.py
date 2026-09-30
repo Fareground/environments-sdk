@@ -114,3 +114,32 @@ def test_boundary_checks_find_display_labels_used_as_unique_entity_ids():
     assert failure.evidence['input_path'] == ['rows']
     assert failure.evidence['value'] == [{'name': 'A'}, {'name': 'B'}, {'name': 'A'}]
     assert 'already exists' in failure.evidence['error']
+
+
+def test_a_law_of_the_inputs_refusing_a_sampled_value_is_the_rules_working_not_a_failure():
+    c = {'name': 'Replay', 'types': {}, 'clock': {'rounds': '$inputs.days'},
+         'inputs': {'days': {'type': 'int', 'default': 3, 'min': 1, 'max': 10},
+                    'demand': {'type': 'list', 'default': [2, 4, 6], 'min': 1, 'max': 10,
+                               'items': {'type': 'int', 'min': 0}}},
+         'world': {'sold': 0},
+         'events': [{'description': 'Sell.', 'do': '$world.sold += $get($inputs.demand, $round - 1, 0)'}],
+         'invariants': [{'expr': '$len($inputs.demand) == $inputs.days', 'why': 'one demand value per day'}],
+         'outputs': {'sold': '$world.sold'}}
+    with pytest.raises(fg_env.InputRefused, match='one demand value per day'):
+        fg_env.load(c, inputs={'demand': [1, 2]})
+    report = fg_env.analysis.behavior_checks(c, rounds=5, runs=2, boundaries=True)
+    assert report.ok
+    refused = {f.subject for f in report.findings if f.code == 'input_refused'}
+    assert refused == {'inputs.days', 'inputs.demand'}
+    assert all(f.severity == 'info' for f in report.findings if f.code == 'input_refused')
+
+
+def test_a_rule_that_crashes_on_a_sampled_value_is_still_a_boundary_failure():
+    c = {'name': 'Ratio', 'types': {}, 'clock': {'rounds': 1},
+         'inputs': {'staff': {'type': 'int', 'default': 2, 'min': 0, 'max': 5}},
+         'world': {'load': 0},
+         'events': [{'description': 'Share.', 'do': '$world.load = 10 / $inputs.staff'}],
+         'outputs': {'load': '$world.load'}}
+    report = fg_env.analysis.behavior_checks(c, runs=1, boundaries=True)
+    assert any(f.code == 'input_boundary_failure' and f.severity == 'error' for f in report.findings)
+    assert not any(f.code == 'input_refused' for f in report.findings)
