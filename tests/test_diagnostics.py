@@ -180,6 +180,29 @@ def test_a_run_in_which_no_agent_ever_has_a_turn_is_degraded(patch):
     assert not result.ok and "agents_never_played" in result.degraded
 
 
+@pytest.mark.parametrize("patch", [{}, {"stages": [{"name": "trade", "when": "false"}]}])
+def test_an_intentionally_empty_population_is_not_degraded_for_having_no_turns(patch):
+    contract = {"name": "Empty bakery", "clock": {"rounds": 1},
+                "inputs": {"customers": {"type": "int", "default": 2, "min": 0}},
+                "world": {"sold": 0}, "types": {"buyer": {"agent": True}},
+                "entities": {"buyers": {"type": "buyer", "count": "$inputs.customers"}},
+                "actions": {"buy": {"by": "buyer", "do": "$world.sold += 1"}},
+                "outputs": {"sold": "$world.sold", "profit": "$world.sold * 5 - 20"}, **patch}
+    result = fg_env.run(contract, "random", inputs={"customers": 0}, seed=1)
+    assert result.outputs == {"sold": 0, "profit": -20}
+    assert "agents_never_played" not in result.degraded
+    assert result.ok
+
+
+def test_removing_skipped_agents_does_not_hide_the_no_turn_diagnostic():
+    contract = {"clock": {"rounds": 1}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}}, "actions": {"go": {"by": "p", "do": []}},
+                "stages": [{"name": "skip", "when": "false"}],
+                "events": [{"on": "round.end", "do": {"remove": "$entity('a')"}}]}
+    result = fg_env.run(contract, "random", seed=1)
+    assert "agents_never_played" in result.degraded
+
+
 def test_a_one_round_run_whose_turns_never_offer_an_action_is_degraded():
     contract = {"name": "Locked", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
                 "entities": {"p": {"type": "p", "count": 2}},

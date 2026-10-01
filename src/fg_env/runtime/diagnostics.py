@@ -149,7 +149,10 @@ def _never_played(env: Env) -> list[dict[str, str]]:
                   if entity.alive and entity.luck is None and entity.entity_type in offered & played
                   and entity.id in diagnosis.passed_over and entity.id not in diagnosis.chance_woken
                   and not (entity.id in stats and stats[entity.id].wakes))
-    if offered and not any(entry.wakes for entry in stats.values()):
+    # An offered agent type can have an intentionally empty population (for example, zero customers).
+    # Count removed entities too: removing agents after skipping their turns must not hide a broken run.
+    populated = any(entity.entity_type in offered for entity in entities.values())
+    if populated and not any(entry.wakes for entry in stats.values()):
         return [_finding("agents_never_played", "stages",
                          f"no agent had a single turn in {env.world.round} round(s): every stage was skipped (its "
                          "`when` or `who`), the run ended before any stage (an `end` that holds at the start), or no "
