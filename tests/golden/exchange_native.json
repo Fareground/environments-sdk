@@ -1,7 +1,7 @@
 {
   "actions": 80,
-  "events": 80,
-  "events_sha256": "aeaad5ecdd205670c473b429cf0ccc1889ff0189c53cb8100fc0478800d1b428",
+  "events": 99,
+  "events_sha256": "de0ea08281848a27acd94c858dd4abc5c6e96f835d43b406d7f2a87dd037d484",
   "first_events": [
     "r1 action acme_market_maker_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 action acme_market_maker_2: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
@@ -9,10 +9,10 @@
     "r1 action acme_market_maker_4: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 action acme_momentum_5: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
     "r1 action acme_momentum_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action acme_fundamentalist_5: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action acme_fundamentalist_7: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action acme_fundamentalist_3: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action acme_fundamentalist_1: {\"action\": \"acme_algo\", \"params\": {}, \"private\": true, \"success\": true}"
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"acme\", \"maker\": \"acme_market_maker_4\", \"maker_fee\": 0.29754, \"maker_order_id\": \"acme_13\", \"maker_remaining\": 0.0, \"price\": 49.59, \"qty\": 12.0, \"taker\": \"acme_fundamentalist_5\", \"taker_fee\": 0.29754}",
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"acme\", \"maker\": \"acme_market_maker_2\", \"maker_fee\": 0.14847, \"maker_order_id\": \"acme_5\", \"maker_remaining\": 0.0, \"price\": 49.49, \"qty\": 6.0, \"taker\": \"acme_fundamentalist_5\", \"taker_fee\": 0.14847}",
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"acme\", \"maker\": \"acme_market_maker_1\", \"maker_fee\": 0.320905, \"maker_order_id\": \"acme_1\", \"maker_remaining\": 0.0, \"price\": 49.37, \"qty\": 13.0, \"taker\": \"acme_fundamentalist_5\", \"taker_fee\": 0.320905}",
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"acme\", \"maker\": \"acme_market_maker_3\", \"maker_fee\": 0.074055, \"maker_order_id\": \"acme_9\", \"maker_remaining\": 7.0, \"price\": 49.37, \"qty\": 3.0, \"taker\": \"acme_fundamentalist_5\", \"taker_fee\": 0.074055}"
   ],
   "metrics": {
     "acme_mid": 51.095,
