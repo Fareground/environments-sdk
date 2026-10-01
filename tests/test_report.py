@@ -148,10 +148,10 @@ def test_an_explicit_rule_and_the_analyst_audience_add_the_method(experiment):
         fg_env.analysis.report(experiment, require={"centre_service_level": "at least 0.8"})
 
 
-def test_a_single_run_says_it_has_no_range_and_works_without_the_contract(experiment):
+def test_a_single_run_identifies_missing_comparison_and_works_without_the_contract(experiment):
     written = fg_env.analysis.report(experiment.arms["shaped"].runs[0])
     lines = _section(written, "What the model says").lines
-    assert any("one run of the model" in line for line in lines)
+    assert any("one recorded run" in line for line in lines)
     assert any(line.startswith("Staff 8 servers") or line.startswith("Staff 8 staff") for line in lines)
     assert "The contract was not given" in written.markdown
 

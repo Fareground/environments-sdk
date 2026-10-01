@@ -178,5 +178,5 @@ def test_single_run_batch_preserves_the_single_observation_risk_warning(audience
     result = fg_env.run(contract)
     for evidence in (result, [result]):
         written = fg_env.analysis.report(evidence, audience, contract=contract)
-        assert 'One run shows one possible outcome' in written.markdown
+        assert 'One run does not establish how reliably' in written.markdown
         assert 'No risk stands out' not in written.markdown

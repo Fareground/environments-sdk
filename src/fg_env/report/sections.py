@@ -103,8 +103,7 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
                       else "Observed outcomes: ")
             section.lines.append(prefix + "; ".join(observed) + ".")
         if ev.kind == "run":
-            section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
-                                 "one.")
+            section.lines.append("These values come from one recorded run; no between-run comparison is available.")
     if choice.goal is None and len(ev.options) > 1:
         section.lines.append("No decision rule was given (objective and require), so the options are compared, not "
                              "ranked.")
@@ -187,7 +186,7 @@ def drivers(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str],
                    if h.score >= _NOTABLE_SCORE and h.subject not in decided]
         section.lines += [f"In a typical run, {text}." for text in moments[: _TYPICAL_MOMENTS if owner else None]]
     if not section.lines:
-        section.lines.append("Nothing in these runs separates one outcome from another beyond chance.")
+        section.lines.append("These results do not identify what caused the observed outcomes.")
     return section
 
 
@@ -381,7 +380,7 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
             told = "; ".join(f"{namer.name(r.measure)} {_ranged(namer, r.measure, option)}" for r in failing)
             section.lines.append(f"With {label(option)}: {told}.")
     if ev.kind == "run" or sum(len(option.runs) for option in ev.options) == 1:
-        section.lines.append("One run shows one possible outcome; the range of outcomes is not known from it.")
+        section.lines.append("One run does not establish how reliably this model represents real-world outcomes.")
     if ev.validation is not None:
         section.lines += _data_risks(ev, namer, owner)
     failed = sum(option.failed for option in ev.options)
