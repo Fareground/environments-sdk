@@ -1,18 +1,18 @@
 {
   "actions": 158,
-  "events": 158,
-  "events_sha256": "c2c39a6e1e7558abf7d3a0f427bb8f3c975d2cbb95c3cc67b035b005913dccc3",
+  "events": 201,
+  "events_sha256": "6381a3b6fa3e05cef3cda65cf3493a46b65de44e888b3758cb7b2fe01b842cd1",
   "first_events": [
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"demo\", \"maker\": \"seed\", \"maker_fee\": 0.0, \"maker_order_id\": \"demo_1\", \"maker_remaining\": 2861.0, \"price\": 99.82, \"qty\": 99.0, \"taker\": \"seat_1\", \"taker_fee\": 0.494109}",
     "r1 action seat_1: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 99}, \"private\": true, \"success\": true}",
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"demo\", \"maker\": \"seed\", \"maker_fee\": 0.0, \"maker_order_id\": \"demo_1\", \"maker_remaining\": 2761.0, \"price\": 99.82, \"qty\": 100.0, \"taker\": \"seat_2\", \"taker_fee\": 0.4991}",
     "r1 action seat_2: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"demo\", \"maker\": \"seed\", \"maker_fee\": 0.0, \"maker_order_id\": \"demo_1\", \"maker_remaining\": 2661.0, \"price\": 99.82, \"qty\": 100.0, \"taker\": \"seat_3\", \"taker_fee\": 0.4991}",
     "r1 action seat_3: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"demo\", \"maker\": \"seed\", \"maker_fee\": 0.0, \"maker_order_id\": \"demo_1\", \"maker_remaining\": 2561.0, \"price\": 99.82, \"qty\": 100.0, \"taker\": \"seat_4\", \"taker_fee\": 0.4991}",
     "r1 action seat_4: {\"action\": \"demo_sell\", \"params\": {\"price\": null, \"qty\": 100}, \"private\": true, \"success\": true}",
-    "r1 action demo_noise_104: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_fundamentalist_7: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_market_maker_1: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_market_maker_17: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_fundamentalist_1: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}",
-    "r1 action demo_market_maker_18: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
+    "r1 book_fill: {\"aggressor\": \"sell\", \"book\": \"demo\", \"maker\": \"seed\", \"maker_fee\": 0.0, \"maker_order_id\": \"demo_1\", \"maker_remaining\": 887.0, \"price\": 99.82, \"qty\": 1674.0, \"taker\": \"demo_noise_104\", \"taker_fee\": 8.354934}",
+    "r1 action demo_noise_104: {\"action\": \"demo_algo\", \"params\": {}, \"private\": true, \"success\": true}"
   ],
   "metrics": {
     "demo_mid": 100.515,
