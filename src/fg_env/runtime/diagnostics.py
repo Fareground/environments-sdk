@@ -149,11 +149,13 @@ def _never_played(env: Env) -> list[dict[str, str]]:
                   if entity.alive and entity.luck is None and entity.entity_type in offered & played
                   and entity.id in diagnosis.passed_over and entity.id not in diagnosis.chance_woken
                   and not (entity.id in stats and stats[entity.id].wakes))
-    if offered and not any(entry.wakes for entry in stats.values()):
+    # A population that is empty by its inputs (no customers today) has no one to miss a turn: that run is sound.
+    present = any(entity.entity_type in offered for entity in entities.values())
+    if present and not any(entry.wakes for entry in stats.values()):
         return [_finding("agents_never_played", "stages",
                          f"no agent had a single turn in {env.world.round} round(s): every stage was skipped (its "
-                         "`when` or `who`), the run ended before any stage (an `end` that holds at the start), or no "
-                         "entity is an agent; this run does not show how agents play",
+                         "`when` or `who`) or the run ended before any stage (an `end` that holds at the start); "
+                         "this run does not show how agents play",
                          "check each stage's `when` and `who`, and each `end` condition, against the state at the "
                          "start; fg-env preview shows what the first agent to play is offered")]
     if not idle:
