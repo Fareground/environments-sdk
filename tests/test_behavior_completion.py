@@ -66,7 +66,8 @@ def test_unfinished_variants_do_not_claim_input_has_no_effect():
 def test_failure_and_unfinished_variant_are_both_reported():
     c = contract()
     c['inputs'] = {'value': {'type': 'int', 'default': 2, 'min': 1, 'max': 3}}
-    c['invariants'] = [{'expr': '$inputs.value != 1'}]
+    # Broken while playing, not a law of the inputs refusing the value up front.
+    c['invariants'] = [{'expr': '$round == 0 or $inputs.value != 1'}]
     report = fg_env.analysis.behavior_checks(c, runs=1, rounds=1)
     assert ('input_breaks_runs', 'inputs.value') in report.codes()
     assert ('runs_incomplete', 'inputs.value') in report.codes()
