@@ -35,7 +35,16 @@ if TYPE_CHECKING:
     from .contract import Contract
     from .copying.branch import Branch
     from .copying.forks import fork
-    from .errors import ContractError, FatalRunError, InputError, InvariantViolation, Issue, RunError, SnapshotError
+    from .errors import (
+        ContractError,
+        FatalRunError,
+        InputError,
+        InputRefused,
+        InvariantViolation,
+        Issue,
+        RunError,
+        SnapshotError,
+    )
     from .experiments.experiment import ExperimentResult, experiment
     from .guides import guide, schema
     from .runtime.env import Env
@@ -50,8 +59,8 @@ _WHERE = {
     "fork": ".copying.forks", "Branch": ".copying.branch", "guide": ".guides", "schema": ".guides",
     "new": ".authoring.scaffold", "author": ".authoring.author", "Env": ".runtime.env", "Contract": ".contract",
     "RunResult": ".runtime.measure", "Wake": ".runtime.session", "ToolResult": ".runtime.session",
-    **dict.fromkeys(("Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "FatalRunError",
-                     "SnapshotError"), ".errors"),
+    **dict.fromkeys(("Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "InputRefused",
+                     "FatalRunError", "SnapshotError"), ".errors"),
     **dict.fromkeys(("participants", "analysis", "rl", "engines", "personas"), ""),
 }
 
@@ -103,6 +112,7 @@ __all__ = [
     "InputError",
     "RunError",
     "InvariantViolation",
+    "InputRefused",
     "FatalRunError",
     "SnapshotError",
     "participants",

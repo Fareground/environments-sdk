@@ -65,9 +65,9 @@ def _ranged(namer: Namer, measure: str, option: Option) -> str | None:
     found = summary(option.values(measure))
     if found is None:
         return None
-    if found.n == 1 or math.isclose(found.low, found.high):
-        return namer.value(measure, found.median)
-    return (f"{namer.value(measure, found.median)} (80% range "
+    if found.n == 1:
+        return namer.value(measure, found.mean)
+    return (f"mean {namer.value(measure, found.mean)} (median {namer.value(measure, found.median)}; 80% range "
             f"{namer.value(measure, found.low)}–{namer.value(measure, found.high)})")
 
 
@@ -97,10 +97,11 @@ def decision(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str]
             plan = view.plan_sentence(subject)
             if plan:
                 section.lines.append(plan)
-        expected = [f"{namer.name(m)} {text}" for m in measures for text in [_ranged(namer, m, subject)] if text]
-        if expected:
-            prefix = "Observed (degraded execution): " if any(r.degraded for r in subject.runs) else "Expected: "
-            section.lines.append(prefix + "; ".join(expected) + ".")
+        observed = [f"{namer.name(m)} {text}" for m in measures for text in [_ranged(namer, m, subject)] if text]
+        if observed:
+            prefix = ("Observed (degraded execution): " if any(r.degraded for r in subject.runs)
+                      else "Observed outcomes: ")
+            section.lines.append(prefix + "; ".join(observed) + ".")
         if ev.kind == "run":
             section.lines.append("This is one run of the model, so its numbers have no range: run an experiment for "
                                  "one.")
@@ -389,8 +390,17 @@ def risks(ev: Evidence, choice: Choice, namer: Namer, measures: Sequence[str], q
     if owner:
         section.lines = section.lines[:_OWNER_ITEMS]
     if not section.lines:
-        section.lines.append("No risk stands out in these runs.")
+        section.lines.append("No risk stands out in these runs." if ev.validation is not None else _unchecked(ev))
     return section
+
+
+def _unchecked(ev: Evidence) -> str:
+    """The risk of a model nothing measured was compared with: its assumptions, or its rules as written."""
+    count = len(_assumed(ev.contract)) if ev.contract is not None else 0
+    if count:
+        return (f"The result rests on {count} assumed {plural('value', count)} (see What the model assumes), not "
+                "checked against real outcomes.")
+    return "The model was not checked against real outcomes: these runs show what its rules produce."
 
 
 def _data_risks(ev: Evidence, namer: Namer, owner: bool) -> list[str]:
@@ -422,12 +432,18 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
         return section
     for view in queues:
         section.lines += view.assumptions(owner)
-    assumed = [(name, spec) for name, spec in contract.inputs.items() if "assum" in spec.description.lower()]
-    for name, spec in assumed:
-        value = spec.default
-        shown = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
-        section.lines.append(f"{spec.description.rstrip('.')}, set to {shown}." if owner else
-                             f"{spec.description.rstrip('.')} — {name.replace('_', ' ')} = {shown}.")
+    for name, spec in _assumed(contract):
+        # The values the runs used, which a run's own inputs may have changed from the default.
+        options: dict[str, list[str]] = {}
+        for option in ev.options:
+            options.setdefault(_shown(option.inputs.get(name, spec.default), spec.unit), []).append(label(option))
+        shown = next(iter(options)) if len(options) == 1 else " and ".join(
+            f"{value} ({', '.join(labels)})" for value, labels in options.items()) or _shown(spec.default, spec.unit)
+        why = re.sub(r"^\s*assumed\b\s*[:,.-]?\s*", "", spec.description, flags=re.IGNORECASE)
+        why = re.sub(r"\s*\(assumed[^)]*\)", "", why, flags=re.IGNORECASE).rstrip(". ")
+        text = f"{spec.label}: {why}" if spec.label and why else spec.label or why or name.replace("_", " ")
+        text = text[:1].upper() + text[1:]
+        section.lines.append(f"{text}, assumed {shown}." if owner else f"{text} — {name} = {shown}, assumed.")
     fitted = [name for name, spec in contract.inputs.items()
               if "fitted by fg_env.analysis.fit_patterns" in spec.description]
     if fitted:
@@ -439,11 +455,23 @@ def assumptions(ev: Evidence, queues: Sequence[QueueView], owner: bool) -> Secti
     return section
 
 
-def fit(ev: Evidence, namer: Namer) -> Section:
+def _assumed(contract: Any) -> list[tuple[str, Any]]:
+    """The inputs whose values are assumed rather than given or researched."""
+    return [(name, spec) for name, spec in contract.inputs.items()
+            if spec.basis == "assumed" or "assum" in spec.description.lower()]
+
+
+def _shown(value: Any, unit: str) -> str:
+    text = f"{value:g}" if isinstance(value, (int, float)) and not isinstance(value, bool) else str(value)
+    return f"{text} {unit}" if unit and isinstance(value, (int, float)) and not isinstance(value, bool) else text
+
+
+def fit(ev: Evidence, namer: Namer, owner: bool) -> Section:
     section = Section("How well it matched the data")
     validation = ev.validation
     if validation is None:
-        section.lines.append("Not checked against data here: pass validation=fg_env.analysis.validate(contract, "
+        section.lines.append("Not checked against real outcomes." if owner else
+                             "Not checked against data here: pass validation=fg_env.analysis.validate(contract, "
                              "cases).")
         return section
     section.lines.extend(f"The data check warns: {text}" for text in validation.warnings)

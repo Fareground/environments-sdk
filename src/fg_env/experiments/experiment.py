@@ -242,6 +242,11 @@ def failed_run(job: Job, error: BaseException) -> RunResult:
                      outputs={}, metrics={}, series={}, error=f"{type(error).__name__}: {error}")
 
 
+def refused(result: RunResult) -> bool:
+    """A run its inputs never started: they break a law of the inputs (see :class:`fg_env.InputRefused`)."""
+    return result.status == "failed" and (result.error or "").startswith("InputRefused:")
+
+
 def run_job(source: Any, job: Job, participants: Any = None, rounds: int | None = None, events: bool = True,
             data_dir: Any = None, budget: Mapping[str, Any] | None = None, exposures: bool = False,
             hosts: Any = None, time_limit: float | None = None) -> RunResult:

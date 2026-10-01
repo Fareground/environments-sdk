@@ -17,12 +17,13 @@ def contract(expr="$round == 0 or $inputs.capacity == 10"):
     }
 
 
-@pytest.mark.parametrize("at_build", [False, True])
-def test_all_failed_variants_keep_the_real_cause(at_build):
+@pytest.mark.parametrize("at_build,code", [(False, "input_breaks_runs"), (True, "input_refused")])
+def test_all_failed_variants_keep_the_real_cause(at_build, code):
+    # A law of the inputs refusing the value is the rules working; the same law broken while playing is a failure.
     c = contract("$inputs.capacity == 10") if at_build else contract()
     report = fg_env.analysis.behavior_checks(c, runs=2)
-    finding = next(f for f in report.findings if f.code == "input_breaks_runs")
-    assert finding.subject == "inputs.capacity"
+    finding = next(f for f in report.findings if f.subject == "inputs.capacity")
+    assert finding.code == code and report.ok is at_build
     assert "capacity must match staffed capacity" in finding.message
     assert "invariants[0]" in finding.evidence["error"]
     assert finding.evidence["value"] == 5
@@ -76,7 +77,7 @@ def test_all_failed_builds_are_an_actionable_behavior_report():
 def test_mixed_variant_outcomes_preserve_failure_and_do_not_claim_no_effect():
     report = fg_env.analysis.behavior_checks(contract("$inputs.capacity >= 10"), runs=2)
     found = [f for f in report.findings if f.subject == "inputs.capacity"]
-    assert len(found) == 1 and found[0].code == "input_breaks_runs"
+    assert len(found) == 1 and found[0].code == "input_refused"
     assert found[0].evidence["value"] == 5
     assert "capacity must match staffed capacity" in found[0].evidence["error"]
 

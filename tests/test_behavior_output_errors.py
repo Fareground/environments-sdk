@@ -51,7 +51,8 @@ def test_valid_baseline_does_not_hide_output_errors_in_varied_inputs(workers):
 
 def test_failed_input_variant_fails_gate_and_identifies_seed():
     c = contract('$inputs.sales')
-    c['invariants'] = [{'expr': '$inputs.sales >= 6', 'why': 'Staff cannot cover this demand.'}]
+    # Broken while playing, not a law of the inputs refusing the value up front.
+    c['invariants'] = [{'expr': '$round == 0 or $inputs.sales >= 6', 'why': 'Staff cannot cover this demand.'}]
     report = fg_env.analysis.behavior_checks(c, runs=2, seed=40)
     assert not report.ok
     error = next(f for f in report.findings if f.code == 'input_breaks_runs')

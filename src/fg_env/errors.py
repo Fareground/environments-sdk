@@ -7,8 +7,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .runtime.measure import RunResult
 
-__all__ = ["Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "FatalRunError",
-           "SnapshotError"]
+__all__ = ["Issue", "ContractError", "InputError", "RunError", "InvariantViolation", "InputRefused",
+           "FatalRunError", "SnapshotError"]
 
 
 @dataclass(frozen=True)
@@ -68,6 +68,11 @@ class InvariantViolation(RunError):
     def __init__(self, message: str, path: str | None = None, why: str = ""):
         self.why = why
         super().__init__(message, path)
+
+
+class InputRefused(InvariantViolation):
+    """The inputs break a law of the inputs (an invariant that reads nothing but them), so the contract refuses them
+    before anything is built. Not a failure of the rules: they are working, and the inputs need changing."""
 
 
 class FatalRunError(RunError):

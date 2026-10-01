@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..api import ContractLike
+from ..experiments.experiment import refused
 from ..runtime.measure import RunResult
 from . import runner
 
@@ -162,12 +163,14 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: int | None
             jobs = [runner.Job(case_inputs, None, s) for s in seeds]
             results = runner.run_jobs(parsed, jobs, participants=participants, rounds=rounds,
                                       workers=workers, hosts=hosts, require_success=False)
-            failed = [r for r in results if r.status == "failed"]
+            failed = [r for r in results if r.status == "failed" and not refused(r)]
             if failed:
                 findings.append(Finding("input_boundary_failure", "error", subject(path),
                     f"Setting this boundary value to {value!r} made a run fail: {failed[0].error}",
                     {"input_path": list(path), "value": value, "seeds": [r.seed for r in failed],
                      "error": failed[0].error}))
+            elif any(refused(r) for r in results):
+                findings.append(_refusal(subject(path), value, next(r for r in results if refused(r))))
             findings += _output_errors(results, case_inputs)
             findings += _incomplete(results, subject(path))
             if path[0] not in tested:
@@ -183,6 +186,13 @@ def behavior_checks(contract: ContractLike, *, runs: int = 4, rounds: int | None
     order = {"error": 0, "warning": 1, "info": 2}
     findings.sort(key=lambda f: order[f.severity])
     return CheckReport(parsed.name, runs, rounds, findings, tested, untested)
+
+
+def _refusal(subject: str, value: Any, result: RunResult) -> Finding:
+    """The contract's own law of the inputs refused this value: the rules working, not failing."""
+    return Finding("input_refused", "info", subject,
+                   f"The environment refuses {value!r} before it starts: {result.error}",
+                   {"value": value, "error": result.error})
 
 
 def _failures(results: Sequence[RunResult]) -> list[Finding]:
@@ -345,13 +355,16 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
     broke: dict[str, list[tuple[Any, str, int]]] = {}
     unfinished: dict[str, list[RunResult]] = {}
     compared: dict[str, int] = {}
+    refusals: dict[str, tuple[Any, RunResult]] = {}
     findings = []
     for (name, v), cell in zip(plan, grouped):
         findings += _output_errors(cell, {name: v})
         for base_print, result in zip(base_prints, cell):
             if result.status not in ("completed", "ended", "failed"):
                 unfinished.setdefault(name, []).append(result)
-            if result.status == "failed":
+            if refused(result):
+                refusals.setdefault(name, (v, result))
+            elif result.status == "failed":
                 broke.setdefault(name, []).append((v, result.error or "failed", result.seed))
             elif base_print is not None and not result.output_issues:
                 compared[name] = compared.get(name, 0) + 1
@@ -365,6 +378,8 @@ def _input_findings(contract: Any, base_inputs: Mapping[str, Any], baseline: Seq
             findings.append(Finding("input_breaks_runs", "error", f"inputs.{name}",
                                     f"Setting it to {value!r} made runs fail: {error}.",
                                     {"value": value, "error": error, "seeds": failed_seeds}))
+        elif name in refusals:
+            findings.append(_refusal(f"inputs.{name}", *refusals[name]))
         elif (name not in changed and name not in unfinished
               and compared.get(name, 0) == len(seeds) * len(tried)):
             findings.append(Finding("input_has_no_effect", "warning", f"inputs.{name}",
