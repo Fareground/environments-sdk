@@ -608,6 +608,14 @@ def place(world: Any, name: str, trader: Entity, side: str, qty: Any, price: Any
         paid += notional * taker
         fills.append(_Fill(q, px))
         world.post(f"{name}_tape", {"price": px, "qty": q, "aggressor": side}, None, None, f"mechanisms.{name}")
+        # Host audit evidence: keep the public tape anonymous and do not add
+        # counterparty identities to any participant's observations.
+        world.emit("book_fill", "", to=(), data={
+            "book": name, "maker": maker_entity.id, "taker": trader.id,
+            "maker_order_id": best["id"], "aggressor": side,
+            "qty": q, "price": px, "maker_remaining": remaining,
+            "maker_fee": notional * maker, "taker_fee": notional * taker,
+        })
         if watch and abs(px - ref) > v.halt_pct * ref + 1e-12:  # type: ignore[operator]
             tripped = True
             break
