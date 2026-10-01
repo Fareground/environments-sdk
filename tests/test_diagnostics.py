@@ -180,6 +180,17 @@ def test_a_run_in_which_no_agent_ever_has_a_turn_is_degraded(patch):
     assert not result.ok and "agents_never_played" in result.degraded
 
 
+def test_a_population_empty_by_its_inputs_is_not_degraded():
+    """No customers today is a scenario, not a run whose agents were kept from playing."""
+    contract = {"name": "Quiet day", "clock": {"rounds": 1}, "inputs": {"customers": {"type": "int", "default": 0}},
+                "types": {"p": {"agent": True, "props": {"n": 0}}},
+                "entities": {"p": {"type": "p", "count": "$inputs.customers"}},
+                "actions": {"bump": {"by": "p", "do": "$actor.n += 1"}}, "outputs": {"total": "$sum(p, $it.n)"}}
+    result = fg_env.run(contract, "random", seed=1)
+    assert result.ok and result.outputs == {"total": 0}
+    assert not fg_env.run(contract, "random", seed=1, inputs={"customers": 2}, rounds=1).degraded
+
+
 def test_a_one_round_run_whose_turns_never_offer_an_action_is_degraded():
     contract = {"name": "Locked", "clock": {"rounds": 1}, "types": {"p": {"agent": True, "props": {"n": 0}}},
                 "entities": {"p": {"type": "p", "count": 2}},
