@@ -1208,3 +1208,29 @@ def test_display_text_is_a_template_shown_worked_out_wherever_agents_read_it():
     preview = fg_env.load(c, seed=1).preview("b_1")
     assert "lot 1, a vase" in preview["update"] and "a vase shares order book" in preview["update"]
     assert "$inputs" not in json.dumps(preview)
+
+
+def test_host_fill_receipts_attribute_later_partial_fills_without_deanonymizing_tape():
+    contract = book(maker_fee_bps=-1, taker_fee_bps=2)
+    env = fg_env.load(contract, seed=1)
+    participant, replies = scripted({
+        (1, 'a'): [('acme_sell', {'qty': 10, 'price': 50})],
+        (2, 'b'): [('acme_buy', {'qty': 4})],
+        (3, 'c'): [('acme_buy', {'qty': 6})],
+    })
+    events = []
+    env.run(participant, rounds=3, on_event=events.append)
+    fills = [e for e in events if e['kind'] == 'book_fill']
+    assert [e['round'] for e in fills] == [2, 3]
+    assert [e['data']['taker'] for e in fills] == ['b', 'c']
+    assert [e['data']['qty'] for e in fills] == [4, 6]
+    assert [e['data']['maker_remaining'] for e in fills] == [6, 0]
+    assert all(e['data']['maker'] == 'a' and e['data']['maker_order_id'] == 'acme_1' for e in fills)
+    assert sum(e['data']['maker_fee'] for e in fills) == pytest.approx(-.05)
+    assert sum(e['data']['taker_fee'] for e in fills) == pytest.approx(.1)
+    assert all(e['data']['price'] == 50 and e['data']['aggressor'] == 'buy' for e in fills)
+    logged = [e for e in env.world.log if e.kind == 'book_fill']
+    assert len(logged) == 2
+    assert all(not env.world.evaluation.event_visible(e, entity) for e in logged for entity in env.world.entities.values())
+    assert all('maker' not in entry and 'taker' not in entry and 'maker_order_id' not in entry for entry in env.world.records('acme_tape'))
+    assert not order_book.audit(env.world, 'acme')
