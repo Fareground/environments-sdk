@@ -178,5 +178,23 @@ def test_single_run_batch_preserves_the_single_observation_risk_warning(audience
     result = fg_env.run(contract)
     for evidence in (result, [result]):
         written = fg_env.analysis.report(evidence, audience, contract=contract)
-        assert 'One run shows one possible outcome' in written.markdown
+        assert 'Variation across runs or inputs is not measured by this single run.' in written.markdown
         assert 'No risk stands out' not in written.markdown
+
+
+@pytest.mark.parametrize("batch", [False, True])
+@pytest.mark.parametrize("randomised", [False, True])
+def test_sparse_report_evidence_does_not_invent_randomness_or_drivers(batch, randomised):
+    contract = {
+        "name": "Audit with no driver evidence", "clock": {"rounds": 1}, "types": {"marker": {}},
+        "outputs": {"score": {"expr": "$uniform(0, 1)" if randomised else "23.3333333333",
+                                "primary": True}},
+    }
+    result = fg_env.run(contract, seed=3)
+    written = fg_env.analysis.report([result] if batch else result, contract=contract)
+    sections = {section.title: section for section in written.sections}
+    assert "beyond chance" not in written.markdown
+    assert "run an experiment for one" not in written.markdown
+    assert "No additional driver was identified from the available evidence." in sections["What drives it"].lines
+    assert "Variation across runs or inputs is not measured by this single run." in sections["Risks"].lines
+    assert "deterministic" not in written.markdown  # Missing driver evidence also occurs in random models.
