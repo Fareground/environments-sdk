@@ -413,3 +413,22 @@ def test_a_spent_refusal_never_also_says_to_simply_try_again():
 
     fg_env.run(contract, play, seed=1)
     assert "It used up this action." in replies[0] and "Try other" not in replies[0], replies
+
+
+def test_a_refusal_over_the_actors_own_private_values_stays_free_even_when_a_mechanism_names_it_otherwise():
+    """A negotiation works out what terms are worth to `$party` (the acting agent) and refuses an offer below its own
+    walk-away value: nothing in that is hidden from it, so the refusal leaves the action to use."""
+    import os
+    path = os.path.join(os.path.dirname(fg_env.__file__), "engines", "starters", "multi_issue_negotiation.json")
+    seen = []
+
+    def play(wake):
+        if wake.entity_id == "party_a" and not seen:
+            _ = wake.update
+            low = {"to": "party_b", "amount": 100, "scope": 0, "timing": 12}  # worth -62 to party_a, below 11
+            seen.append(wake.call(next(t.name for t in wake.tools if t.name.endswith("_propose")), low))
+        wake.end()
+
+    fg_env.load(path, seed=0).run(play, rounds=1)
+    assert seen and not seen[0].ok and "walk-away" in seen[0].text
+    assert not seen[0].data.get("spent") and "used up" not in seen[0].text
