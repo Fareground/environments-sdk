@@ -523,6 +523,11 @@ class EffectRunner:
             raise RunError(f"{gone} has been removed, so nothing it held changes any more (guard the transfer with "
                            "`$x.alive`, or make it before the `remove`)", where)
         amount = self._eval(effect.get("amount"), vars)
+        raw = effect.get("amount")
+        if (isinstance(raw, str) and raw.startswith("$params.") and raw[len("$params."):].isidentifier()
+                and isinstance(amount, (int, float)) and not isinstance(amount, bool) and amount < 0):
+            # The amount is the agent's own argument as given: telling it why reveals nothing it did not choose.
+            raise Abort(f"{raw[len('$params.'):]} must be zero or more, not {format_value(amount)}.")
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or amount < 0:
             raise RunError(f"transfer amount must be a number ≥ 0, got {amount!r}", where)
         into = effect.get("into") or prop

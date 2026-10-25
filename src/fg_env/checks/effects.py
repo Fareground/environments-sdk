@@ -369,6 +369,13 @@ class EffectChecks(FieldReads):
                                                              "declare it under the type's props")
             for key, held in (("from", prop), ("to", effect.get("into") or prop)):
                 self._holds(effect.get(key), held, f"{path}.{key}", types, params)
+            chosen = re.fullmatch(r"\$params\.([A-Za-z_][A-Za-z0-9_]*)", str(effect.get("amount") or "").strip())
+            argument = chosen.group(1) if chosen else None
+            amount_param = (params or {}).get(argument) if argument else None
+            if amount_param is not None and amount_param.min is None:
+                self.warn(f"{path}.amount", f"moves the argument {argument}, which has no `min`: the tool "
+                                            "offers negative amounts, and each one an agent tries is refused",
+                          "give the argument `min: 0` (or more), so the tool states what it accepts")
             for key in ("from", "to", "amount"):
                 if key not in effect:
                     self.error(path, f"`transfer` needs `{key}`")

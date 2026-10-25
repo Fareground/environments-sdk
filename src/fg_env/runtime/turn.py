@@ -324,6 +324,8 @@ class Turn:
                                           allowance=self.ledger.max_calls,
                                           must_act=self.stage.must_act and not self.ledger.acted,
                                           actions_left=self.ledger.actions_left)
+        if self._update is not None:  # what the update already names, the tools need not list again
+            tools = [_without_listed_options(tool, self._update) for tool in tools]
         if not self._offered:
             self._offered = True
             self.note(Offered(len(tools), any(tool.kind == "act" for tool in tools)))
@@ -769,3 +771,26 @@ def _names_unborn(params: dict[str, Any], born: frozenset[str]) -> str | None:
 def _args_text(params: Mapping[str, Any]) -> str:
     parts = [f"{k}={format_value(v)}" for k, v in params.items() if v is not None]
     return f" ({', '.join(parts)})" if parts else ""
+
+
+_OPTIONS = " Options: "
+
+
+def _without_listed_options(tool: ToolSpec, update: str) -> ToolSpec:
+    """``tool`` without the "Options: id = Name" list of an entity argument whose every choice the agent's update
+    already shows by its id (``Name [id]``): the same names said once."""
+    properties = (tool.input_schema or {}).get("properties") or {}
+    trimmed: dict[str, Any] = {}
+    for name, prop in properties.items():
+        text = prop.get("description") if isinstance(prop, dict) else None
+        choices = prop.get("enum") if isinstance(prop, dict) else None
+        shown = choices and all(f"[{choice}]" in update for choice in choices)
+        if isinstance(text, str) and _OPTIONS in text and shown:
+            kept = text[:text.index(_OPTIONS)].strip()
+            trimmed[name] = {key: value for key, value in prop.items() if key != "description"} | (
+                {"description": kept} if kept else {})
+    if not trimmed:
+        return tool
+    schema = {**tool.input_schema, "properties": {**properties, **trimmed}}
+    return ToolSpec(tool.name, tool.description, schema, tool.kind, tool.terminal)
+

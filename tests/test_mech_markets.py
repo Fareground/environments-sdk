@@ -1231,6 +1231,8 @@ def test_host_fill_receipts_attribute_later_partial_fills_without_deanonymizing_
     assert all(e['data']['price'] == 50 and e['data']['aggressor'] == 'buy' for e in fills)
     logged = [e for e in env.world.log if e.kind == 'book_fill']
     assert len(logged) == 2
-    assert all(not env.world.evaluation.event_visible(e, entity) for e in logged for entity in env.world.entities.values())
-    assert all('maker' not in entry and 'taker' not in entry and 'maker_order_id' not in entry for entry in env.world.records('acme_tape'))
+    assert all(not env.world.evaluation.event_visible(e, entity)
+               for e in logged for entity in env.world.entities.values())
+    assert all('maker' not in entry and 'taker' not in entry and 'maker_order_id' not in entry
+               for entry in env.world.records('acme_tape'))
     assert not order_book.audit(env.world, 'acme')

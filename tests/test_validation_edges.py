@@ -205,3 +205,22 @@ def test_a_limit_offered_is_the_limit_checked_despite_float_noise():
                                           "do": "$actor.got += $params.qty"}})
     fg_env.load(contract, seed=1).run(agent, rounds=1)
     assert seen["max"] == 3 and seen["result"].ok, seen["result"].text
+
+
+def test_a_negative_transfer_of_an_agents_own_argument_is_refused_with_its_reason():
+    told = []
+
+    def agent(wake):
+        if wake.entity_id == "ann":
+            told.append(wake.call("pay", {"to": "bob", "amt": -3}).text)
+        wake.end()
+
+    contract = _contract(entities={"ann": {"type": "player"}, "bob": {"type": "player"}},
+                         actions={"pay": {"by": "player", "params": {"to": {"type": "entity", "of": "player"},
+                                                                     "amt": {"type": "number"}},
+                                          "do": [{"transfer": "cash", "from": "$actor", "to": "$params.to",
+                                                  "amount": "$params.amt"}]}})
+    assert any("no `min`" in i.message for i in fg_env.check(contract))  # the author is told to state min 0
+    result = fg_env.load(contract, seed=1).run(agent, rounds=1)
+    assert told == ["amt must be zero or more, not -3."]
+    assert not any("failed" in (d.get("message") or "") for d in result.diagnostics)  # the agent's slip, no rule bug
