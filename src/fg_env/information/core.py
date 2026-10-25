@@ -9,6 +9,7 @@ actions are legal is the rules' to decide: it receives them.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from contextlib import nullcontext
 from typing import TYPE_CHECKING, Any
 
 from ..actions.book import ACTION_BUDGET, ActionBook
@@ -18,6 +19,7 @@ from ..expr.objects import Entity
 from ..expr.template import entity_handles
 from ..expr.values import _Everyone
 from ..world.parts import LogEvent
+from ..world.randomness import LuckAhead
 from ..world.store import World
 from .exposure import ExposureLog, Shown, asks_seen
 from .gate import render
@@ -49,6 +51,8 @@ class Information:
         self.gate = gate
         self.perception: Perception = Perception(contract, world, like.perception if like is not None else None)
         self.schemas = ToolSchemas(actions)
+        #: Agents whose brief draws luck: rendered once, kept for the run (see :meth:`brief`).
+        self._drawn: set[str] = set()
         if like is not None:
             self.inspectable, self.spectator = like.inspectable, like.spectator
             return
@@ -71,17 +75,29 @@ class Information:
     # -- brief and update ------------------------------------------------------------------------------------------
 
     def brief(self, actor: Entity) -> tuple[str, list[str]]:
-        """``actor``'s brief and the assets it attaches: rendered on its first read, then kept for the run (a brief
-        never changes, so providers can cache it)."""
+        """``actor``'s brief and the assets it attaches, as the world now has it: the same text wake after wake (so
+        providers cache it) until something it reads changes, never a value the world no longer holds. A brief that
+        draws luck is the one rendered first: drawing again would change its luck."""
         state = self.state
-        brief = state.briefs.get(actor.id)
-        if brief is None:
-            attached: list[str] = []
-            with shared_budget(ACTION_BUDGET, "brief"):
-                brief = state.briefs[actor.id] = self.perception.brief(actor, attached)
+        kept = state.briefs.get(actor.id)
+        if kept is not None and actor.id in self._drawn:
+            return kept, state.brief_assets.get(actor.id, [])
+        attached: list[str] = []
+        try:
+            with shared_budget(ACTION_BUDGET, "brief"), \
+                    (self.world.luck.forbidden() if kept is not None else nullcontext()):
+                brief = self.perception.brief(actor, attached)
+        except LuckAhead:
+            self._drawn.add(actor.id)
+            assert kept is not None
+            return kept, state.brief_assets.get(actor.id, [])
+        if brief != kept:
+            state.briefs[actor.id] = brief
             if attached:
                 state.brief_assets[actor.id] = attached
-        return brief, state.brief_assets.get(actor.id, [])
+            else:
+                state.brief_assets.pop(actor.id, None)
+        return state.briefs[actor.id], state.brief_assets.get(actor.id, [])
 
     def render_brief(self, actor: Entity) -> str:
         """``actor``'s brief as it renders now, not kept (for observers outside the run's turns)."""

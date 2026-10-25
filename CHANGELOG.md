@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A brief follows the world: one that reads a value a rule changes (`You hold {$actor.cash} coins.`) shows the value
+  the world holds now, not the one it held on the agent's first turn. While nothing it reads changes it is the same
+  text wake after wake, so providers still cache it. A brief that draws luck is kept as first rendered, and the check
+  warns of it.
 - A refusal is spent only for reading what is hidden from the agent whose action runs: a mechanism that names it
   otherwise (a negotiation's `$party`) no longer spends the action of an offer refused below the agent's own
   walk-away value.

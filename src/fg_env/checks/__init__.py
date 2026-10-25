@@ -88,6 +88,7 @@ class _Checker(RuleChecks, ActionChecks, WorldChecks):
             self.error("fg_env", f"unsupported contract version '{c.fg_env}'", f"use \"{C.CONTRACT_VERSION}\"")
         self._inputs()
         self._brief()
+        self._brief_luck()
         self._clock_space()
         self._types_and_world()
         self._keyword_names()
