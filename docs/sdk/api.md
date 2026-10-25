@@ -302,6 +302,15 @@ InvariantViolation(message: str, path: str | None = None, why: str = '')
 A declared invariant stopped holding. Broken by an agent's action, the action is refused and undone; broken by
 anything else, the run fails closed. ``why`` is the invariant's own reason (empty when it gives none).
 
+## `InputRefused`
+
+```pyi
+InputRefused(message: str, path: str | None = None, why: str = '')
+```
+
+The inputs break a law of the inputs (an invariant that reads nothing but them), so the contract refuses them
+before anything is built. Not a failure of the rules: they are working, and the inputs need changing.
+
 ## `FatalRunError`
 
 ```pyi
