@@ -131,6 +131,19 @@ class ActionChecks(EffectChecks):
                                          "ignored", "give the list `of` an entity type, or refuse other values with a "
                                                     "`when` or a `fail`")
 
+    def _brief_luck(self) -> None:
+        """A brief follows the world wake by wake, but one that draws luck is the one rendered first (drawing again
+        would change its luck), so what else it says stays as it first read."""
+        from ..describe.walk import draws  # imported late: describe imports the API, which imports the checker
+
+        texts = {"brief.situation": self.c.brief.situation, "brief.rules": self.c.brief.rules,
+                 **{f"brief.roles.{kind}": text for kind, text in self.c.brief.roles.items()}}
+        for path, text in texts.items():
+            if text and draws(self.c, [text]):
+                self.warn(path, "draws at random, so this brief is rendered once and kept: what else it reads is "
+                                "shown as it was on the agent's first turn",
+                          "draw at build time into a property (a `default` that draws) and show that property")
+
     def _undecided_by_luck(self, spec: C.ActionSpec, path: str) -> None:
         """Nothing that decides whether a call is allowed, or what its arguments may be, draws at random: the engine
         refuses it, since a refused call costs nothing and calling again would roll fresh luck."""

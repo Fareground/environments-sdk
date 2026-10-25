@@ -70,6 +70,29 @@ def test_briefs_are_templates_with_private_entity_text():
     assert env.preview("member_1")["update"].startswith("Round 1 of 1 · talk\nNow: It is your turn.")
 
 
+def test_a_brief_follows_the_world_and_stays_the_same_text_while_nothing_it_reads_changes():
+    """A brief is the same text wake after wake (providers cache it) until what it reads changes: never a value the
+    world no longer holds. One that draws luck is kept as first rendered, and the check says so."""
+    contract = {"name": "Purse", "clock": {"rounds": 4}, "brief": {"roles": {"p": "You hold {$actor.cash} coins."}},
+                "types": {"p": {"agent": True, "props": {"cash": {"type": "int", "default": 5}}}},
+                "entities": {"a": {"type": "p"}}, "actions": {"spend": {"by": "p", "do": ["$actor.cash -= 1"]}}}
+    read = []
+
+    def spend_twice(wake):
+        read.append(wake.brief.splitlines()[-2])
+        if len(read) <= 2:
+            wake.call("spend", {})
+        wake.end()
+
+    fg_env.load(contract, seed=0).run(spend_twice, rounds=4)
+    assert read == ["You hold 5 coins.", "You hold 4 coins.", "You hold 3 coins.", "You hold 3 coins."]
+    lucky = {**contract, "brief": {"roles": {"p": "Luck {$round($normal(0, 1), 2)}; {$actor.cash} coins."}}}
+    read.clear()
+    fg_env.load(lucky, seed=0).run(spend_twice, rounds=3)
+    assert len(set(read)) == 1
+    assert any(i.path == "brief.roles.p" and "draws at random" in i.message for i in fg_env.check(lucky, rounds=0))
+
+
 def test_statistics_functions_and_null_skipping():
     s = Scope({"xs": [{"v": 3}, {"v": None}, {"v": 1}, {"v": 2}, {"v": 10}]})
     assert evaluate("$median($xs, $it.v)", s) == 2.5
