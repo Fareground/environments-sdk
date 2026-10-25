@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A refusal is spent only for reading what is hidden from the agent whose action runs: a mechanism that names it
+  otherwise (a negotiation's `$party`) no longer spends the action of an offer refused below the agent's own
+  walk-away value.
 - A `when` requirement that reads a value hidden from the actor (another agent's private property, entries or events
   it cannot see) is a check error: the actor cannot know when the action is allowed. A contract already written with
   one still loads and plays as before (its refusals spend the action, so nothing leaks); `Issue.loads` marks such an

@@ -86,8 +86,9 @@ def _check_visible(owner: Any, name: str, scope: Any, source: str | None) -> Non
     what one agent is shown or offered — or text sent to several (:data:`EVERYONE`) — refuses it
     (:class:`PrivateRead`)."""
     world, viewer = scope.world, scope.vars.get("viewer")
-    if viewer is None:
-        if world.hides(owner, name, scope.vars.get("actor")):
+    if viewer is None:  # hidden from the agent whose action runs, whatever a rule names `$actor` (a party)
+        acting = world.luck.here().actor
+        if world.hides(owner, name, acting if acting is not None else scope.vars.get("actor")):
             world.read_hidden()
         return
     if not world.hides(owner, name, viewer):
