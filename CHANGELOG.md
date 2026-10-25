@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **BREAKING (text):** numbers an agent reads are shown to six significant figures with float noise dropped (a 0.996
+  chance is no longer `1`, 0.004 no longer `0`, a 1.0812 price no longer `1.08`); `|pct` keeps three figures and shows
+  0% or 100% only for exactly 0 or 1 (12.5%, not 12%); `|money` keeps two decimals and more when they matter; `|int`
+  rounds halves up. Outputs are unchanged; texts that quoted rounded numbers read the precise ones.
+- A turn's update names its round by what one round is (`Week 2 of 4` on a 7-day step, not `Day 2 of 4`).
+- A limit is checked as the tool offers it (float noise dropped on both sides): a tool that says at most 3 accepts 3.
+- A simultaneous turn offers the limits the agent's own earlier sealed choices leave: the limits its next choice is
+  checked against.
+- After an action that leaves the turn open, its result goes on with the lines of the agent's update that now read
+  differently (`Now: You have $24.00.`), so the rest of the turn is decided on the world as it is.
+- An argument whose limits or choices read a private property is left out of a default announcement; `check()` warns
+  when text an action calls private would be announced to all, and when a transfer moves an argument with no `min`.
+- A negative transfer of the agent's own argument is refused with its reason (`amt must be zero or more, not -3.`).
+- Tokens: each fact about a turn is said once. The simultaneous note is in the update, not in every tool; the free
+  reads are said once; what a turn allows is one line; an entity argument's `Options: id = Name` list is left out when
+  the update already shows every choice by its id.
+- Arguments nested deeper than `MAX_ARG_DEPTH` are refused as too deep before parsing, the same on every Python.
+
 - A contract `description` that stands in for a missing `brief.situation` is filled in like one: its
   `{$inputs.x}` templates reach the agent's brief as values, not as raw text, and a malformed one is a check error.
 - Inputs take `role`, a presentation field that never changes a run: `scenario` (the default; a lever a person
