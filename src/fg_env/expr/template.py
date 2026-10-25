@@ -14,11 +14,13 @@ lists join with commas; null renders as ``—``.
 """
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 from typing import Any
 
@@ -67,7 +69,7 @@ def format_value(value: Any) -> str:
     if isinstance(value, float):
         if value.is_integer() and abs(value) < 1e15:
             return str(int(value))
-        return f"{value:.2f}".rstrip("0").rstrip(".")
+        return plain_number(value)
     if hasattr(value, "entity_type") and hasattr(value, "name"):
         name = quoted(value.name) if isinstance(value.name, Untrusted) else str(value.name or value.id)
         show = _HANDLES.get()
@@ -81,11 +83,56 @@ def format_value(value: Any) -> str:
     return str(value)
 
 
+#: Significant figures a number is shown to: enough that no value an agent decides on is misread (a price of 1.0812,
+#: a chance of 0.996), few enough that float noise (2.9999999999999996) reads as the number it is.
+SIGNIFICANT = 6
+
+
+def plain_number(value: float, *, least: int = 0, grouped: bool = False, significant: int = SIGNIFICANT) -> str:
+    """``value`` to :data:`SIGNIFICANT` figures, at least ``least`` decimals, trailing zeros dropped past them. A value
+    that is not zero never shows as zero, and zero never shows a sign."""
+    if not math.isfinite(value):
+        return str(value)
+    if value == 0:
+        return f"{0:.{least}f}"
+    magnitude = math.floor(math.log10(abs(value)))
+    decimals = max(least, min(15, significant - 1 - magnitude))
+    text = f"{value:,.{decimals}f}" if grouped else f"{value:.{decimals}f}"
+    if decimals > least and "." in text:
+        whole, fraction = text.split(".")
+        fraction = fraction.rstrip("0").ljust(least, "0")
+        text = f"{whole}.{fraction}" if fraction else whole
+    return text[1:] if text.startswith("-") and not any(ch in "123456789" for ch in text) else text
+
+
 def _money(value: Any) -> str:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return format_value(value)
-    sign = "-" if value < 0 else ""
-    return f"{sign}${abs(value):,.2f}"
+    sign = "-" if value < 0 and plain_number(float(value), least=2) != "0.00" else ""
+    return f"{sign}${plain_number(abs(float(value)), least=2, grouped=True)}"
+
+
+def _percent(least: int) -> Callable[[Any], str]:
+    """A share shown as a percentage to three figures (12.5%, 33.3%), and 0% or 100% only for exactly 0 and 1: a
+    99.96% chance is not a certainty."""
+    def run(value: Any) -> str:
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            return format_value(value)
+        share = float(value) * 100
+        figures = 3
+        text = plain_number(share, least=least, significant=figures)
+        while figures < 9 and share not in (0.0, 100.0) and float(text) in (0.0, 100.0):
+            figures += 1
+            text = plain_number(share, least=least, significant=figures)
+        return f"{text}%"
+    return run
+
+
+def _whole(value: Any) -> str:
+    """A number to the nearest whole one, halves away from zero (2.5 is 3, as a person rounds it)."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return format_value(value)
+    return f"{int(Decimal(repr(float(value))).quantize(Decimal(1), rounding=ROUND_HALF_UP)):,}"
 
 
 def _decimals(n: int) -> Callable[[Any], str]:
@@ -99,9 +146,9 @@ def _decimals(n: int) -> Callable[[Any], str]:
 
 _FORMATS: dict[str, Callable[[Any], str]] = {
     "money": _money,
-    "pct": lambda v: f"{v * 100:.0f}%" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
-    "pct1": lambda v: f"{v * 100:.1f}%" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
-    "int": lambda v: f"{round(v):,}" if isinstance(v, (int, float)) and not isinstance(v, bool) else format_value(v),
+    "pct": _percent(0),
+    "pct1": _percent(1),
+    "int": _whole,
     "upper": lambda v: format_value(v).upper(),
     "lower": lambda v: format_value(v).lower(),
     "title": lambda v: format_value(v).title(),

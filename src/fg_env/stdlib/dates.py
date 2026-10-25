@@ -13,7 +13,7 @@ from typing import Any
 from ..expr import Call, _describe, function
 from ._args import fail, list_arg, number_arg, optional_text, text_arg
 
-__all__ = ["UNITS", "PARTS", "parse_moment", "shift", "calendar_date"]
+__all__ = ["UNITS", "PARTS", "parse_moment", "shift", "calendar_date", "round_word"]
 
 Moment = _dt.date | _dt.datetime
 
@@ -54,6 +54,25 @@ def shift(moment: Moment, amount: float, unit: str) -> Moment:
         start = moment if isinstance(moment, _dt.datetime) else _dt.datetime.combine(moment, _dt.time())
         return start + (_dt.timedelta(hours=amount) if unit == "hour" else _dt.timedelta(minutes=amount))
     return moment + _dt.timedelta(days=amount * (7 if unit == "week" else 1))
+
+
+#: Minutes per round that have a name of their own, and the sub-day units by their length in seconds.
+MINUTE_WORDS = {15: "quarter-hour", 30: "half-hour", 60: "hour"}
+SUB_DAY_SECONDS = {"second": 1, "minute": 60, "hour": 3600}
+
+
+def round_word(unit: str | None, step: int | None) -> str:
+    """What one round of a clock is called: ``half-hour`` (30 minutes), ``week`` (7 days), ``2-hour period``,
+    ``round``."""
+    unit, step = str(unit or "round").lower().rstrip("s") or "round", int(step or 1)
+    if unit in SUB_DAY_SECONDS:
+        minutes = step * SUB_DAY_SECONDS[unit] / 60
+        if minutes in MINUTE_WORDS:
+            return MINUTE_WORDS[int(minutes)]
+        return unit if step == 1 else f"{step}-{unit} period"
+    if unit == "day" and step == 7:
+        return "week"
+    return unit if step == 1 else f"{step}-{unit} period"
 
 
 def calendar_date(start: str | None, unit: str, step: int, elapsed: float) -> str | None:

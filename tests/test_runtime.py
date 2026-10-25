@@ -137,7 +137,9 @@ def test_wake_tools_corrections_and_atomic_failure():
     assert "qty must be at most 10" in seen["bad"]
     assert "That costs $35.00; you have $30.00." == seen["fail"]
     assert seen["cash_unchanged"]
-    assert seen["ok"] == "You bought 2 × Espresso for $6.00."
+    # The result goes on with what the purchase changed, so the rest of the turn is decided on the world as it is.
+    assert seen["ok"].startswith("You bought 2 × Espresso for $6.00.\nNow:\n")
+    assert "You have $24.00." in seen["ok"] and "Espresso · $3.00 · 3 left" in seen["ok"]
     assert env.world.props["revenue"] == 6
 
 

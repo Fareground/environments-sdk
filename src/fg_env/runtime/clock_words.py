@@ -11,13 +11,11 @@ import datetime as _dt
 from collections.abc import Mapping
 from typing import Any
 
-from ..stdlib.dates import calendar_date
+from ..stdlib.dates import SUB_DAY_SECONDS as _SECONDS
+from ..stdlib.dates import calendar_date, round_word
 
 __all__ = ["unit_word", "plural", "period_label", "span_label", "round_start", "sub_day"]
 
-#: Minutes per round that have a name of their own.
-_MINUTE_WORDS = {15: "quarter-hour", 30: "half-hour", 60: "hour"}
-_SECONDS = {"second": 1, "minute": 60, "hour": 3600}
 
 
 def _unit(clock: Mapping[str, Any]) -> str:
@@ -35,15 +33,7 @@ def sub_day(clock: Mapping[str, Any]) -> bool:
 
 def unit_word(clock: Mapping[str, Any]) -> str:
     """What one round is called: ``half-hour`` (30 minutes), ``week`` (7 days), ``2-hour period``, ``round``."""
-    unit, step = _unit(clock), _step(clock)
-    if unit in _SECONDS:
-        minutes = step * _SECONDS[unit] / 60
-        if minutes in _MINUTE_WORDS:
-            return _MINUTE_WORDS[int(minutes)]
-        return unit if step == 1 else f"{step}-{unit} period"
-    if unit == "day" and step == 7:
-        return "week"
-    return unit if step == 1 else f"{step}-{unit} period"
+    return round_word(_unit(clock), _step(clock))
 
 
 def plural(word: str, count: int) -> str:

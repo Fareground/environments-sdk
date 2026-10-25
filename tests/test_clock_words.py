@@ -50,3 +50,12 @@ def test_a_quiet_run_says_nothing_stood_out_and_a_short_one_still_tells_its_larg
     assert "No moment stood out" in narrative(quiet)
     short = narrative(_run({"x": [10, 11, 10, 30]}, clock={"unit": "day"}))
     assert "Too few days to tell unusual moments from usual ones" in short and "Day 4: x rose 20" in short
+
+
+def test_a_turn_names_its_round_by_what_one_round_is():
+    import fg_env
+    c = {"name": "Weeks", "clock": {"rounds": 4, "unit": "day", "step": 7, "start": "2026-01-01"},
+         "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}}}
+    env = fg_env.load(c, seed=1)
+    env.run("idle", rounds=1)
+    assert env.preview("a")["update"].startswith("Week 2 of 4 (2026-01-08)")

@@ -91,10 +91,10 @@ def test_must_act_on_idle_and_invalid_text():
 def test_preview_shows_the_next_real_turn():
     env = fg_env.load(_contract(), seed=1)
     view = env.preview("s")
-    assert view["update"].startswith("Year 1 of 3 (2025) · orders")
+    assert view["update"].startswith("5-year period 1 of 3 (2025) · orders")
     assert "Status in 2025:" in view["update"] and "Shop 1000.0%" in view["update"]
     env.run(rounds=1)
-    assert env.preview("s")["update"].startswith("Year 2 of 3 (2030)")
+    assert env.preview("s")["update"].startswith("5-year period 2 of 3 (2030)")
     assert env.props["now"] == 1  # the preview played round 2's start on a copy only
 
 

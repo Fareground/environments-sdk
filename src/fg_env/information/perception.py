@@ -154,11 +154,13 @@ class Perception:
         if time_limit is not None:
             unit = "second" if time_limit == 1 else "seconds"
             lines.append(f"You have {format_value(time_limit)} {unit} for this turn; after that it ends.")
+        # What the turn allows, in one line: its actions, the tool calls they take, the reads that cost none.
+        free = f"; up to {calls} looks and inspects are free" if calls is not None and reads else ""
+        within = f", within {calls} tool calls{free}" if calls is not None else ""
         if actions is not None:
-            ends = "; it ends your turn" if actions == 1 else "; the last one ends your turn"
-            lines.append(f"You may take {actions} action{'' if actions == 1 else 's'} this turn{ends}.")
-        if calls is not None:
-            free = f", and up to {calls} free reads (look and inspect) that do not use them" if reads else ""
+            ends = " (it ends your turn)" if actions == 1 else " (the last ends your turn)"
+            lines.append(f"You may take {actions} action{'' if actions == 1 else 's'} this turn{ends}{within}.")
+        elif calls is not None:
             lines.append(f"You have {calls} tool calls this turn{free}.")
         news, hidden = self.news(actor, since, DELTA_LIMIT, shown, attached)
         if news or hidden:
