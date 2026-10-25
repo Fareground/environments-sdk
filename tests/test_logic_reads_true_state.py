@@ -115,4 +115,4 @@ def test_policies_act_on_what_their_agent_can_see():
 def test_a_stage_held_by_what_not_every_agent_sees_is_a_check_error():
     held = contract()
     held["stages"][1]["when"] = "$len($records(notes)) > 0"
-    assert [i.path for i in fg_env.check(held, rounds=0) if i.severity == "error"] == ["stages[1].when"]
+    assert [i.path for i in fg_env.check(held, rounds=0) if i.blocks_load] == ["stages[1].when"]

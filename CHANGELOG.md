@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A `when` requirement that reads a value hidden from the actor (another agent's private property, entries or events
+  it cannot see) is a check error: the actor cannot know when the action is allowed. A contract already written with
+  one still loads and plays as before (its refusals spend the action, so nothing leaks); `Issue.loads` marks such an
+  error and `Issue.blocks_load` says whether `load` refuses an issue (`strict=True` refuses every one).
 - A tool states a ceiling the rules make exact: an argument the action's first effect moves out of one of the actor's
   own number properties (a transfer from `$actor`, or `$actor.p -= $params.x` on a property with a `min`), when
   nothing else the action does writes it, is capped at what the actor holds less the floor. No ceiling is guessed

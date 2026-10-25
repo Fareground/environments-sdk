@@ -217,11 +217,17 @@ def test_the_default_announcement_of_an_action_that_writes_a_private_property_le
     assert line["text"] == "ann: accuse." and "bob" not in json.dumps(line)  # it writes a private property
 
 
-def test_a_requirement_reading_a_chosen_agents_private_property_is_a_warning():
+def test_a_requirement_reading_a_chosen_agents_private_property_is_an_error_a_written_contract_still_loads_with():
+    """New rules may not decide by what the actor cannot see; rules already written with one keep playing, since a
+    refusal that read a hidden value spends the action (tests/test_hidden_probing.py)."""
     c = with_(actions={"poke": {"by": "player", "params": {"target": {"type": "entity", "of": "player"}}, "do": [],
                                 "when": [{"expr": "$params.target.cash < 5", "why": "too rich"}]}})
     issue = next(i for i in fg_env.check(c) if i.path == "actions.poke.when[0]")
-    assert issue.severity == "warning" and "$params.target.cash" in issue.message
+    assert issue.severity == "error" and issue.loads and "$params.target.cash" in issue.message
+    assert issue.to_dict()["loads"] is True
+    fg_env.load(c, seed=0)
+    with pytest.raises(fg_env.ContractError, match="actions.poke.when"):
+        fg_env.load(c, seed=0, strict=True)
 
 
 def test_bounds_and_outcomes_reading_a_chosen_agents_private_property_are_check_errors():

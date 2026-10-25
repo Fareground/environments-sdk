@@ -19,6 +19,14 @@ class Issue:
     message: str
     fix: str | None = None
     severity: str = "error"
+    #: An error a contract may not be written with, though one already written still loads and plays as it always
+    #: did (:func:`~fg_env.load` lets it through, unless ``strict``): what it reports is fixed by rewriting the rule.
+    loads: bool = False
+
+    @property
+    def blocks_load(self) -> bool:
+        """Whether :func:`~fg_env.load` refuses a contract with this issue (``strict`` refuses every issue)."""
+        return self.severity == "error" and not self.loads
 
     def __str__(self) -> str:
         text = f"{self.path}: {self.message}"
@@ -27,9 +35,11 @@ class Issue:
         return text if self.severity == "error" else f"[{self.severity}] {text}"
 
     def to_dict(self) -> dict:
-        out = {"path": self.path, "message": self.message, "severity": self.severity}
+        out: dict[str, str | bool] = {"path": self.path, "message": self.message, "severity": self.severity}
         if self.fix:
             out["fix"] = self.fix
+        if self.loads:
+            out["loads"] = True
         return out
 
 
