@@ -286,12 +286,25 @@ class World(ExpressionWorld):
         clock = self.contract.clock
         return calendar_date(self.start, clock.unit, clock.step, max(0, max(1, self.round) - 1))
 
+    def _ends_early(self) -> bool:
+        """Whether the run can end before its clock does: an end condition, or a rule with an `end` effect (which
+        names how it ends), worked out once."""
+        known = self.caches.get("ends_early")
+        if known is None:
+            import json
+            text = json.dumps(self.contract.model_dump(mode="json", exclude_none=True), default=str)
+            known = bool(getattr(self.contract, "end", None)) or '"end": "' in text
+            self.caches["ends_early"] = known
+        return known
+
     def clock_label(self) -> str:
         """``Week 2 of 4 (2026-01-08)``: the round named by what one round is (a clock of 7-day steps counts weeks),
         as reports name it (``runtime.clock_words``)."""
         clock = self.contract.clock
         word = round_word(clock.unit, clock.step)
-        label = f"{word[:1].upper()}{word[1:]} {max(1, self.round)} of {self.rounds}"
+        # A world that can end itself before its clock runs out counts against a most, not a schedule.
+        most = "up to " if self.rounds > 1 and self._ends_early() else ""
+        label = f"{word[:1].upper()}{word[1:]} {max(1, self.round)} of {most}{self.rounds}"
         date = self.date()
         return f"{label} ({date})" if date else label
 

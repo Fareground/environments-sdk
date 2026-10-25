@@ -31,14 +31,14 @@ Action space: 4 ids
 Current player: 0
 Legal calls of seat 0: [1] take(count=1); [2] take(count=2); [3] take(count=3)
 Seat 0 (a) reads:
-  | Move 1 of 50 · move
+  | Move 1 of up to 50 · move
   | Now: It is your turn.
   | You may take 1 action this turn (it ends your turn).
   | 
   | Stones left: 5.
 Seat 0 information state: 9e02fca0027c4614
 Seat 1 (b) reads:
-  | Move 1 of 50 · move
+  | Move 1 of up to 50 · move
   | 
   | Stones left: 5.
 Seat 1 information state: 2c1a62d319a4ed82
@@ -50,13 +50,13 @@ Step: {"args": {"count": 3}, "seat": 0, "tool": "take"}
 Current player: 1
 Legal calls of seat 1: [1] take(count=1); [2] take(count=2)
 Seat 0 (a) reads:
-  | Move 2 of 50 · move
+  | Move 2 of up to 50 · move
   | Your last turn: Done: take (count=3).
   | 
   | Stones left: 2.
 Seat 0 information state: 0d1333810032873d
 Seat 1 (b) reads:
-  | Move 2 of 50 · move
+  | Move 2 of up to 50 · move
   | Now: It is your turn.
   | You may take 1 action this turn (it ends your turn).
   | 
@@ -73,7 +73,7 @@ Step: {"args": {"count": 1}, "seat": 1, "tool": "take"}
 Current player: 0
 Legal calls of seat 0: [1] take(count=1)
 Seat 0 (a) reads:
-  | Move 3 of 50 · move
+  | Move 3 of up to 50 · move
   | Your last turn: Done: take (count=3).
   | Now: It is your turn.
   | You may take 1 action this turn (it ends your turn).
@@ -84,7 +84,7 @@ Seat 0 (a) reads:
   | Stones left: 1.
 Seat 0 information state: 47811a04d213d16c
 Seat 1 (b) reads:
-  | Move 3 of 50 · move
+  | Move 3 of up to 50 · move
   | Your last turn: Done: take (count=1).
   | 
   | Stones left: 1.

@@ -224,3 +224,30 @@ def test_a_negative_transfer_of_an_agents_own_argument_is_refused_with_its_reaso
     result = fg_env.load(contract, seed=1).run(agent, rounds=1)
     assert told == ["amt must be zero or more, not -3."]
     assert not any("failed" in (d.get("message") or "") for d in result.diagnostics)  # the agent's slip, no rule bug
+
+
+def test_a_ceiling_the_rules_make_exact_is_stated_and_no_other():
+    """Moving an argument out of what the actor holds caps it at what is held (less the property's floor): the tool
+    says so, so no call is spent finding it. A ceiling that is not exact is never guessed."""
+    def offered(do, props):
+        seen = {}
+
+        def agent(wake):
+            if wake.entity_id == "ann":
+                seen.update({t.name: t.input_schema["properties"]["amt"] for t in wake.tools if t.name == "spend"})
+            wake.end()
+
+        contract = _contract(types={"player": {"agent": True, "props": props}},
+                             entities={"ann": {"type": "player"}, "bob": {"type": "player"}},
+                             actions={"spend": {"by": "player", "params": {
+                                 "to": {"type": "entity", "of": "player"}, "amt": {"type": "int", "min": 0}},
+                                 "do": do}})
+        fg_env.load(contract, seed=1).run(agent, rounds=1)
+        return seen["spend"].get("maximum")
+
+    floored = {"cash": {"type": "number", "default": 7.5, "min": 2}}
+    assert offered(["$actor.cash -= $params.amt"], floored) == 5
+    assert offered([{"transfer": "cash", "from": "$actor", "to": "$params.to", "amount": "$params.amt"}],
+                   {"cash": {"type": "number", "default": 6, "min": 0}}) == 6
+    assert offered(["$actor.cash -= $params.amt", "$actor.cash += 1"], floored) is None  # refunded: not exact
+    assert offered(["$actor.cash -= $params.amt"], {"cash": 5}) is None  # no floor: no ceiling
