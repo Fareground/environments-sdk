@@ -557,3 +557,13 @@ def test_auction_house_collectors_shade_a_first_price_bid_by_the_equilibrium_for
                 if event["kind"] == "action" and event["data"].get("action") == "house_bid"}
         assert bids and all(bid == pytest.approx(40 + (count - 1) / count * (values[who] - 40), abs=0.006)
                             for who, bid in bids.items())
+
+
+def test_a_juror_reads_everything_said_in_the_jury_room_not_only_what_is_new():
+    """Each turn starts afresh: a juror deliberating, or voting again after a hung ballot, is shown the whole jury
+    room, not only the speeches since its last turn."""
+    env = fg_env.engines.load("dispute")
+    env.run()
+    said = [row["text"] for row in env.world.records("jury_room") if row["text"] != "(ready to vote)"]
+    update = env.preview(env.world.entities_of("juror")[0].id, stage="deliberation")["update"]
+    assert said and all(text in update for text in said) and "(ready to vote)" not in update

@@ -295,7 +295,7 @@
         "$params.exhibit.day = $world.trial_round"
       ],
       "outcome": "You offered {$params.exhibit.name} (claimed credibility {$params.claimed_credibility|pct}).",
-      "announce": "{$actor.name} offered {$params.exhibit.name} into evidence, claiming credibility {$params.claimed_credibility|pct}.",
+      "announce": false,
       "per_round": 1
     },
     "object": {
@@ -317,7 +317,7 @@
         "$world.objections += 1"
       ],
       "outcome": "You objected to {$params.exhibit.name} on {$params.grounds} grounds. The judge will rule.",
-      "announce": "{$actor.name} objected to {$params.exhibit.name} on {$params.grounds} grounds.",
+      "announce": false,
       "per_turn": 1
     },
     "rule_on_objection": {
@@ -461,6 +461,7 @@
     "verdict_status": {"for": "judge", "when": "$world.trial_phase == verdict", "title": "Verdict", "show": "{$world.verdict} ({$world.liable_votes} liable, {$world.not_liable_votes} not liable). Jury award: {$world.jury_award|money}."},
     "admitted_evidence": {"for": "juror", "title": "Admitted evidence and how it struck you", "of": "impression", "where": "$it.juror == $actor.id", "show": "{title} ({side}) — {summary} Counsel claimed credibility {claim|pct}; pitch: {pitch}. To you it seemed {feel}.", "empty": "No evidence was admitted."},
     "court_record": {"title": "Court transcript", "of": "$records(transcript)", "show": "[{kind}] {speaker}: {text}", "empty": "Nothing on the record yet.", "limit": 20, "where": "$actor.type != juror or $it.kind != ruling"},
+    "jury_room_record": {"for": "juror", "title": "What the jurors have said", "of": "$records(jury_room)", "where": "$it.text != '(ready to vote)'", "show": "{author}: {text}"},
     "jury_room_status": {"for": "juror", "title": "Jury room", "show": "Ballots taken so far: {$world.ballots} of {$inputs.max_ballots}. Ready to vote: {$count(juror, $it.ready)} of {$count(juror)}. {$inputs.votes_required} matching ballots make a verdict.", "when": "$stage in ['deliberation']"}
   },
   "events": [
