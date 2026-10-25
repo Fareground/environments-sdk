@@ -66,12 +66,37 @@ def unbounded(args: Any) -> str | None:
 def parse_arguments(text: str) -> tuple[Any, str | None]:
     """Arguments a model wrote as JSON text, parsed — or None and why they cannot be: text that is not JSON, or lists
     and objects nested so deep that parsing them would exhaust Python's stack. The one place such text is parsed."""
+    if isinstance(text, str) and _nesting(text) > MAX_ARG_DEPTH:  # said the same on every Python's parser
+        return None, f"nested far more than {MAX_ARG_DEPTH} levels deep, too deep to read"
     try:
         return json.loads(text), None
     except RecursionError:
         return None, f"nested far more than {MAX_ARG_DEPTH} levels deep, too deep to read"
     except ValueError as exc:
         return None, f"not valid JSON ({exc})"
+
+
+def _nesting(text: str) -> int:
+    """How deep JSON text nests lists and objects, read without parsing (brackets inside strings do not count)."""
+    deepest = depth = 0
+    in_string = escaped = False
+    for char in text:
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+        elif char == '"':
+            in_string = True
+        elif char in "[{":
+            depth += 1
+            if depth > deepest:
+                deepest = depth
+        elif char in "]}":
+            depth -= 1
+    return deepest
 
 
 def tidy(value: Any) -> Any:
