@@ -22,6 +22,7 @@ from .params import (
     item_spec,
     list_bounds,
     preview,
+    tidy,
 )
 
 if TYPE_CHECKING:
@@ -145,6 +146,8 @@ class ActionValidation:
                 if limit is not None and (isinstance(limit, bool) or not isinstance(limit, (int, float))):
                     raise RunError(f"the {label} bound must be a number, got {format_value(limit)}",
                                    f"actions.{action}.params.{pname}")
+                # The limit as the tool states it (float noise dropped, `tidy`): a seat offered "at most 3" may give 3.
+                limit = tidy(limit) if isinstance(limit, float) else limit
                 if limit is not None and bad(value, limit):
                     stated = int(limit) if kind == "int" and float(limit).is_integer() else limit  # 10, not 10.0
                     return None, f"must be {label} {preview(stated)} (got {preview(value)})"

@@ -187,3 +187,33 @@ def test_an_announcement_the_action_writes_repeats_only_the_arguments_it_reads(t
     world = env.world
     events = fg_env.expr.evaluate("$events(action)", world.evaluation.scope(viewer=world.entities["b"]))
     assert [(e.text, e.data["params"]) for e in events] == [("a bid on lot 4.", {"lot": 4})]
+
+
+def test_an_argument_bounded_by_a_private_property_is_left_out_of_a_default_announcement():
+    """A bid capped at its bidder's private reserve would tell everyone a bound on the reserve."""
+    told = []
+
+    def bidder(wake):
+        if wake.entity_id == "a":
+            wake.call("bid", {"amount": 41})
+        else:
+            told.append(wake.update)
+        wake.end()
+
+    c = {"name": "Reserve", "clock": {"rounds": 2},
+         "types": {"p": {"agent": True, "props": {"reserve": {"default": 42, "private": True}, "paid": 0}}},
+         "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+         "actions": {"bid": {"by": "p", "params": {"amount": {"type": "int", "min": 0, "max": "$actor.reserve"}},
+                             "do": "$actor.paid = $params.amount"}}}
+    fg_env.load(c, seed=1).run(bidder, rounds=2)
+    assert told and not any("41" in text for text in told)
+
+
+def test_text_an_action_calls_private_is_flagged_when_it_would_be_announced_to_all():
+    c = {"name": "Whisper", "clock": {"rounds": 1},
+         "types": {"p": {"agent": True, "props": {"heard": 0}}},
+         "entities": {"a": {"type": "p"}, "b": {"type": "p"}},
+         "actions": {"whisper": {"by": "p", "description": "Privately tell one player something.",
+                                 "params": {"to": {"type": "entity", "of": "p"}, "msg": {"type": "text"}},
+                                 "do": "$params.to.heard += 1"}}}
+    assert any(i.path == "actions.whisper" and "read by all" in i.message for i in fg_env.check(c))

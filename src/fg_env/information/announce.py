@@ -17,11 +17,35 @@ from typing import Any
 from ..contract import Contract, DefSpec, RecordSpec
 from ..effects.statements import compile_statement
 from ..expr import ExprError, is_expr
+from ..expr.hidden import Hidden
 from ..expr.template import compile_template
 from ..world.store import World
 from ..world.values import plain_value
 
 __all__ = ["Redaction", "notified_since"]
+
+
+def _reads_private(param: Any, private: frozenset[str] | set[str]) -> bool:
+    """Whether a parameter's bounds, filter or choices read a private property by name (``$actor.reserve``)."""
+    if not private:
+        return False
+    for bound in (param.min, param.max, getattr(param, "where", None), getattr(param, "values", None),
+                  getattr(param, "of", None)):
+        if isinstance(bound, str) and is_expr(bound) and any(
+                f".{name}" in bound and _word_after(bound, f".{name}") for name in private):
+            return True
+    return False
+
+
+def _word_after(text: str, needle: str) -> bool:
+    """Whether ``needle`` occurs in ``text`` as a whole name (``.reserve`` but not ``.reserves``)."""
+    start = text.find(needle)
+    while start != -1:
+        end = start + len(needle)
+        if end == len(text) or not (text[end].isalnum() or text[end] == "_"):
+            return True
+        start = text.find(needle, end)
+    return False
 
 
 class Redaction:
@@ -35,6 +59,12 @@ class Redaction:
         #: Per action, the arguments whose default is worked out as the actor sees the world.
         self.withheld = {name: frozenset(pname for pname, param in spec.params.items() if is_expr(param.default))
                          for name, spec in contract.actions.items()}
+        #: Per action, the arguments whose limits or choices read a private property: a bid capped at its bidder's
+        #: private reserve tells everyone a bound on it. Left out of a default announcement; an action whose own
+        #: `announce` names one (an offer meant to be heard) says it on purpose.
+        private = Hidden(contract).names
+        self.bounded = {name: frozenset(pname for pname, param in spec.params.items() if _reads_private(param, private))
+                        for name, spec in contract.actions.items()}
 
     def shared(self, name: str, params: dict[str, Any]) -> dict[str, Any]:
         """The arguments of action ``name`` text sent to several may read: all but those :attr:`withheld`."""
@@ -54,7 +84,9 @@ class Redaction:
         if self._keeps_secrets(world, name):
             return {}
         posted = [(spec, entry) for _, spec, entry in self._posted_since(world, record_mark)]
-        return _public_params(self.shared(name, params), posted)
+        bounded = self.bounded[name]
+        return _public_params({key: value for key, value in self.shared(name, params).items() if key not in bounded},
+                              posted)
 
     def restricted_since(self, world: World, record_mark: int) -> list[list[Any]]:
         """``[record, seq]`` of each entry posted after ``record_mark`` that not every agent may see (directed, or

@@ -278,3 +278,26 @@ def test_a_call_after_a_sealed_choice_that_removes_the_agent_says_so_in_the_futu
 
     fg_env.run(contract, {"a": quitter, "b": lambda wake: wake.end()}, seed=1)
     assert not seen[0].ok and "takes you out of the game when it resolves" in seen[0].text
+
+
+def test_a_sealed_turn_offers_the_limits_its_own_earlier_choices_leave():
+    """After submitting a spend of 6 from 10, the tool offers at most 4: the limit the next choice is checked
+    against."""
+    seen = {}
+
+    def agent(wake):
+        if "after" in seen:
+            return wake.end()
+        wake.call("spend", {"amt": 6})
+        seen["after"] = {t.name: t for t in wake.tools}["spend"].input_schema["properties"]["amt"]["maximum"]
+        seen["refused"] = wake.call("spend", {"amt": 5})
+        wake.end()
+
+    contract = {"name": "Budget", "clock": {"rounds": 1},
+                "types": {"p": {"agent": True, "props": {"cash": {"type": "int", "default": 10, "min": 0}}}},
+                "entities": {"a": {"type": "p"}},
+                "actions": {"spend": {"by": "p", "params": {"amt": {"type": "int", "min": 1, "max": "$actor.cash"}},
+                                      "do": "$actor.cash -= $params.amt"}},
+                "stages": [{"name": "s", "turns": "simultaneous", "max_actions": 2}]}
+    fg_env.load(contract, seed=1).run(agent, rounds=1)
+    assert seen["after"] == 4 and not seen["refused"].ok and "at most 4" in seen["refused"].text

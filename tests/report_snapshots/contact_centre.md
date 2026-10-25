@@ -13,7 +13,7 @@
 | Option | Service level | Staffing cost | Service level in the worst half-hour | Abandonment | Average wait to answer |
 |---|---|---|---|---|---|
 | The optimised plan ✓ | mean 90.2% (median 90.3%; 80% range 88.1%–92.3%) | mean $8,837 (median $8,836; 80% range $8,836–$8,837) | mean 70.7% (median 73.3%; 80% range 66.6%–73.7%) | mean 2.8% (median 2.9%; 80% range 2.4%–3.2%) | mean 4 s (median 4 s; 80% range 3 s–5 s) |
-| The manager's rule | mean 93.2% (median 93.3%; 80% range 92.4%–93.9%) | mean $9,113 (median $9,157; 80% range $9,022–$9,187) | mean 70.3% (median 73.3%; 80% range 65.1%–74.3%) | mean 1.9% (median 2%; 80% range 1.8%–2%) | mean 3 s (median 3 s; 80% range 2 s–3 s) |
+| The manager's rule | mean 93.2% (median 93.3%; 80% range 92.4%–93.9%) | mean $9,113 (median $9,157; 80% range $9,022–$9,187) | mean 70.3% (median 73.3%; 80% range 65.1%–74.3%) | mean 1.9% (median 2.02%; 80% range 1.8%–2.02%) | mean 3 s (median 3 s; 80% range 2 s–3 s) |
 | A network outage at 09:30 with the recommended plan | mean 35.8% (median 35.6%; 80% range 34.3%–37.4%) | mean $8,839 (median $8,838; 80% range $8,838–$8,839) | mean 0.1% (median 0%; 80% range 0%–0.3%) | mean 36.5% (median 37.1%; 80% range 35.4%–37.4%) | mean 30 s (median 30 s; 80% range 30 s–31 s) |
 
 **Staffing plan**

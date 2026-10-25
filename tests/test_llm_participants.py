@@ -43,7 +43,8 @@ def test_anthropic_participant_drives_a_turn_with_corrections():
     assert "cache_control" not in json.dumps(first)  # a prompt this short: no model caches it
     correction = client.requests[1]["messages"][-1]["content"][0]
     assert correction["is_error"] and "qty must be at most 10" in correction["content"]
-    assert client.requests[2]["messages"][-1]["content"][0]["content"] == "You bought 2 × Espresso for $6.00."
+    told = client.requests[2]["messages"][-1]["content"][0]["content"]
+    assert told.startswith("You bought 2 × Espresso for $6.00.\nNow:\n") and "You have $24.00." in told
     assert env.world.props["revenue"] == 6
     assert agent.usage.calls == 3 and agent.usage.cache_read_tokens == 240
 

@@ -17,6 +17,8 @@ from ..actions.params import REFUSED_ARGS, parse_arguments
 from ..assets.delivery import Attachment
 from ..contract import MAX_TURN_ACTIONS, MAX_TURN_CALLS, ActionSpec, StageSpec
 from ..contract.base import spoken
+from ..errors import RunError
+from ..expr import ExprError
 from ..expr.objects import Entity
 from ..expr.template import format_value
 from ..information.exposure import Shown
@@ -253,6 +255,28 @@ class Turn:
                     self.exposure.read_update(self._update, shown)
             return self._update
 
+    def _with_changes(self, result: ToolResult) -> ToolResult:
+        """``result`` with what the action changed in the agent's picture: the lines of its update that read differently
+        now, so the rest of the turn is decided on the world as it is, not as the turn began (cash 10 → 6)."""
+        before = self._update
+        if before is None:
+            return result
+        info = self.env.information
+        try:
+            now = info.update(self.actor, self.stage, self.reason, self._since, self.number, self.time_limit, None, [],
+                              self.ledger.calls_left if self.call_limit else None,
+                              self.call_limit and info.offers_reads(self.actor, self.ledger.max_calls),
+                              self._last, self._first, self.ledger.actions_left if self._legal() else None)
+        except (RunError, ExprError):
+            return result  # a view that cannot render now is refused where it is shown, not here
+        self._update = now
+        seen = set(before.splitlines())
+        changed = [line for line in now.splitlines() if line.strip() and line not in seen]
+        if not changed:
+            return result
+        return ToolResult(result.ok, f"{result.text}\nNow:\n" + "\n".join(changed), result.ended, result.data,
+                          result.attachments)
+
     def _deliver(self, ids: list[str], where: str) -> None:
         fresh = [key for key in ids if key not in self._delivered]
         self._delivered.extend(fresh)
@@ -293,7 +317,9 @@ class Turn:
         if self._tools is not None:  # nothing changed since the last look (reset by every call)
             return self._tools
         env = self.env
-        with self.gate:  # never while another agent's sealed choices are tried on the world
+        # Never while another agent's sealed choices are tried on the world; and on the world as this turn's next sealed
+        # choice will meet it (after its own earlier ones), so a limit offered is the limit checked.
+        with self.gate, self.after_choices():
             tools = env.information.tools(self.actor, self._legal(), staged=self.staged, atomic=self.ledger.atomic,
                                           allowance=self.ledger.max_calls,
                                           must_act=self.stage.must_act and not self.ledger.acted,
@@ -323,6 +349,8 @@ class Turn:
             acted = isinstance(name, str) and name in self.env.contract.actions
             if live and acted and not (self.staged or self.closed):
                 self._outcome(result)
+                if result.ok and not self.done:
+                    result = self._with_changes(result)
             if live and not self.peek:  # what the call told the agent is what it knows from now on
                 world = self.env.world
                 self.env.state.memory(self.actor.id).told.append((world.event_seq, world.round, result.text))

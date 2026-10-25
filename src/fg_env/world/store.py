@@ -24,7 +24,7 @@ from ..expr.template import format_value
 from ..patterns.runtime import PatternRuntime
 from ..physics.model import CompiledExpr, PhysicsModel
 from ..sampling.seeds import SeedTree
-from ..stdlib.dates import calendar_date
+from ..stdlib.dates import calendar_date, round_word
 from . import links as _links
 from .abort import Abort
 from .evaluation import EvalContext
@@ -287,9 +287,11 @@ class World(ExpressionWorld):
         return calendar_date(self.start, clock.unit, clock.step, max(0, max(1, self.round) - 1))
 
     def clock_label(self) -> str:
-        unit = self.contract.clock.unit
-        name = f"{unit[:1].upper()}{unit[1:]}"
-        label = f"{name} {max(1, self.round)} of {self.rounds}"
+        """``Week 2 of 4 (2026-01-08)``: the round named by what one round is (a clock of 7-day steps counts weeks),
+        as reports name it (``runtime.clock_words``)."""
+        clock = self.contract.clock
+        word = round_word(clock.unit, clock.step)
+        label = f"{word[:1].upper()}{word[1:]} {max(1, self.round)} of {self.rounds}"
         date = self.date()
         return f"{label} ({date})" if date else label
 

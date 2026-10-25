@@ -188,3 +188,20 @@ def test_an_action_that_removes_its_own_actor_ends_its_turn():
     ended = []
     fg_env.run(contract, lambda wake: ended.append(wake.call("act", {}).ended), seed=1)
     assert ended == [True, True]
+
+
+def test_a_limit_offered_is_the_limit_checked_despite_float_noise():
+    """cash 0.3 / 0.1 is 2.9999999999999996: the tool offers at most 3, and 3 is accepted."""
+    seen = {}
+
+    def agent(wake):
+        seen["max"] = {t.name: t for t in wake.tools}["buy"].input_schema["properties"]["qty"]["maximum"]
+        seen["result"] = wake.call("buy", {"qty": 3})
+        wake.end()
+
+    contract = _contract(types={"player": {"agent": True, "props": {"cash": 0.3, "got": 0}}},
+                         actions={"buy": {"by": "player", "params": {"qty": {"type": "int", "min": 0,
+                                                                            "max": "$actor.cash / 0.1"}},
+                                          "do": "$actor.got += $params.qty"}})
+    fg_env.load(contract, seed=1).run(agent, rounds=1)
+    assert seen["max"] == 3 and seen["result"].ok, seen["result"].text

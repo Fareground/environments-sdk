@@ -74,6 +74,14 @@ class PrivacyChecks(Checker):
                            "as the actor sees the world, and this text is sent to more than one agent",
                            "give the argument a plain default (or none), or work out what they may learn in `do` "
                            "(`\"$shown = $params.<name>\"`) and show `{$shown}`")
+        if spec.announce is None:
+            texts = [name for name, param in spec.params.items() if param.type == "text"]
+            words = f"{path.rsplit('.', 1)[-1]} {spec.description or ''}".lower()
+            if texts and any(word in words for word in _PRIVATE_WORDS):
+                self.warn(path, f"announces its arguments to every agent by default, {', '.join(texts)} included: "
+                                "what one agent writes to another is read by all",
+                          "if it is meant for its recipient only, give the action `announce: false` and post the text "
+                          "to a record entry directed `to` the recipient; if it is public, give it an `announce` text")
         with self._reading(types.get("actor", ())):
             for index, condition in enumerate(spec.when):
                 expressions = _expressions(condition.expr)
@@ -486,6 +494,10 @@ class PrivacyChecks(Checker):
         return sorted({chain[1] for expr in expressions for chain in expr.paths
                        if len(chain) > 1 and chain[0] == "it" and chain[1] in specs and specs[chain[1]].private
                        and not self._readable(specs[chain[1]])})
+
+
+#: Words in an action's name or description that say what it carries is meant to stay between few.
+_PRIVATE_WORDS = ("private", "secret", "whisper", "confidential", "only to", "directly to")
 
 
 def _said(data: object) -> list[str]:
