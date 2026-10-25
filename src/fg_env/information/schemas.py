@@ -121,6 +121,11 @@ class ToolSchemas:
                 if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
                     out[key] = math.ceil(value) if (param.type == "int" and key == "minimum") else (
                         math.floor(value) if param.type == "int" else value)
+            if param.max is None:  # a ceiling the rules imply exactly, stated so no call is spent finding it
+                implied = implied_ceiling(self.actions.contract, action, pname, actor.entity_type)
+                value = tidy(book.static(actor, implied, f"actions.{action}.params.{pname}.max")) if implied else None
+                if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+                    out["maximum"] = math.floor(value) if param.type == "int" else value
             if param.step is not None:
                 base = out.get("minimum", 0) if param.min is not None else 0
                 if param.min is None or "minimum" in out:
@@ -278,3 +283,41 @@ def _mentions_expr(value: Any) -> bool:
     if isinstance(value, dict):
         return any(_mentions_expr(item) for item in value.values())
     return False
+
+
+_TAKEN = re.compile(r"\$actor\.([A-Za-z_][A-Za-z0-9_]*)\s*-=\s*\$params\.([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def implied_ceiling(contract: Any, action: str, pname: str, actor_type: str) -> str | None:
+    """The most argument ``pname`` can be, as an expression over the actor, when the rules make it exact: the action's
+    first effect moves exactly that argument out of one of the actor's own number properties (a transfer from
+    ``$actor``, or ``$actor.p -= $params.x`` on a property with a ``min``), and nothing else the action does writes
+    that property. Anything less certain states no ceiling: a guessed one could hide moves the rules allow."""
+    spec = contract.actions[action]
+    effects = spec.do if isinstance(spec.do, list) else [spec.do]
+    if not effects:
+        return None
+    first, prop = effects[0], None
+    if isinstance(first, dict) and set(first) <= {"transfer", "from", "to", "amount", "into"} and \
+            str(first.get("from", "")).strip() == "$actor" and \
+            str(first.get("amount", "")).strip() == f"$params.{pname}":
+        prop, refuses = first["transfer"], True
+    elif isinstance(first, str) and (taken := _TAKEN.fullmatch(first.strip())) and taken.group(2) == pname:
+        prop, refuses = taken.group(1), False
+    if not isinstance(prop, str):
+        return None
+    if refuses:  # a receiver that can hold only so much refuses less than is held: then the limit is not exact
+        into = first.get("into") or prop
+        if any(getattr(contract.props_of(kind).get(into), "max", None) is not None for kind in contract.types):
+            return None
+    spec_prop = contract.props_of(actor_type).get(prop)
+    low = getattr(spec_prop, "min", None) if spec_prop is not None else None
+    if spec_prop is None or (low is None and not refuses) or (low is not None and not isinstance(low, (int, float))):
+        return None
+    # Nothing else in the action may write that property, before or after: the limit is then what is held now.
+    rest = json.dumps(effects[1:])
+    if re.search(rf"\$actor\.{re.escape(prop)}\s*(?:[-+*/]?=)", rest) or f'"transfer": "{prop}"' in rest \
+            or f'"into": "{prop}"' in rest:
+        return None
+    return f"$actor.{prop} - {low}" if low else f"$actor.{prop}"
+

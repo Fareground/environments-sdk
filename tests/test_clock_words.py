@@ -59,3 +59,11 @@ def test_a_turn_names_its_round_by_what_one_round_is():
     env = fg_env.load(c, seed=1)
     env.run("idle", rounds=1)
     assert env.preview("a")["update"].startswith("Week 2 of 4 (2026-01-08)")
+
+
+def test_a_world_that_can_end_early_counts_its_rounds_against_a_most():
+    import fg_env
+    base = {"name": "Race", "clock": {"rounds": 5}, "types": {"p": {"agent": True}}, "entities": {"a": {"type": "p"}}}
+    assert fg_env.load(base, seed=1).preview("a")["update"].startswith("Round 1 of 5 ")
+    ends = {**base, "events": [{"on": "round.end", "when": "$round == 2", "do": [{"end": "done", "say": "Over."}]}]}
+    assert fg_env.load(ends, seed=1).preview("a")["update"].startswith("Round 1 of up to 5 ")

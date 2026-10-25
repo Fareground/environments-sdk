@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A tool states a ceiling the rules make exact: an argument the action's first effect moves out of one of the actor's
+  own number properties (a transfer from `$actor`, or `$actor.p -= $params.x` on a property with a `min`), when
+  nothing else the action does writes it, is capped at what the actor holds less the floor. No ceiling is guessed
+  where it would not be exact.
+- **BREAKING (text):** a world that can end before its clock does (an end condition or an `end` effect) labels its
+  rounds against a most: `Court day 6 of up to 14`.
+
 - **BREAKING (text):** numbers an agent reads are shown to six significant figures with float noise dropped (a 0.996
   chance is no longer `1`, 0.004 no longer `0`, a 1.0812 price no longer `1.08`); `|pct` keeps three figures and shows
   0% or 100% only for exactly 0 or 1 (12.5%, not 12%); `|money` keeps two decimals and more when they matter; `|int`
