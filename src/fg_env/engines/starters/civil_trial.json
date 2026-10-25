@@ -397,7 +397,7 @@
     },
     "cast_ballot": {
       "by": "juror",
-      "description": "Cast your secret ballot. If you find the defendant liable, state the damages you would award (0 up to the amount claimed); if not liable, award is ignored.",
+      "description": "Cast your secret ballot. If you find the defendant liable, state the damages you would award (0 up to the amount claimed); if not liable, award is ignored. A liable verdict awards the average of the liable ballots' damages, rounded to the dollar.",
       "when": [{"expr": "$actor.vote == undecided", "why": "You already voted on this ballot."}],
       "params": {
         "verdict": {"type": "enum", "values": ["liable", "not_liable"]},
