@@ -87,12 +87,12 @@ class PrivacyChecks(Checker):
                 expressions = _expressions(condition.expr)
                 read = self._hidden_reads(expressions, {}, spec.params) | self._fetched_reads(expressions) \
                     | self._log_reads(expressions)
-                if read:
-                    self.warn(f"{path}.when[{index}]", f"decides by private {', '.join(sorted(read))}, which the "
-                                                       "actor cannot see: it cannot know when the action is allowed, "
-                                                       "and each refused call spends its action",
-                              "decide by what the actor may know; if the refusal is a deliberate guess at a hidden "
-                              "value, test it in `do` (`{\"if\": ..., \"then\": [{\"fail\": ...}]}`)")
+                if read:  # a contract already written with one still loads: its refusals are spent, so nothing leaks
+                    self.error(f"{path}.when[{index}]", f"decides by private {', '.join(sorted(read))}, which the "
+                                                        "actor cannot see: it cannot know when the action is allowed, "
+                                                        "and each refused call spends its action",
+                               "decide by what the actor may know; if the refusal is a deliberate guess at a hidden "
+                               "value, test it in `do` (`{\"if\": ..., \"then\": [{\"fail\": ...}]}`)", loads=True)
 
     def _private_gate(self, condition: object, path: str, learns: str, types: Types | None = None,
                       params: Mapping[str, C.ParamSpec] | None = None) -> None:

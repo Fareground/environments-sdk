@@ -12,7 +12,8 @@ load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed: int
 
 Check a contract and build a runnable :class:`Env`.
 
-Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True`` also rejects warnings.
+Errors raise :class:`ContractError` listing every problem with a fix, except one a contract may not be written with
+but that one already written keeps (:attr:`Issue.loads`); ``strict=True`` also rejects those and warnings.
 ``seed`` defaults to a fresh one (readable as ``env.seed``). Inputs with a ``source`` and the contract's ``assets``
 read their files from ``data_dir`` (default: the contract file's folder). ``hosts`` (a :class:`~fg_env.host.Hosts`
 or a mapping of host name to adapter) answers the judgment the contract asks of a host; build-time host work
@@ -264,7 +265,7 @@ What a tool call did. ``text`` is written for the agent; ``ended`` means the tur
 ## `Issue`
 
 ```pyi
-Issue(path: str, message: str, fix: str | None = None, severity: str = 'error') -> None
+Issue(path: str, message: str, fix: str | None = None, severity: str = 'error', loads: bool = False) -> None
 ```
 
 One problem found in a contract or its inputs.

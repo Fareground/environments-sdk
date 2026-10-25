@@ -3,8 +3,8 @@
 A call refused after its action rolled luck or its rules read a value hidden from the actor is played (the action is
 spent), so an agent cannot guess a hidden value again and again for free; a refusal that could tell it nothing hidden
 (a taken cell, a bad argument, a `when` over public state) stays free, and a `when` that reads a hidden value is a
-check warning. Entries posted to a record everyone reads, and the names of sealed choices announced
-to everyone, may not carry what is private either.
+check error (a contract already written with one still loads). Entries posted to a record everyone reads, and the
+names of sealed choices announced to everyone, may not carry what is private either.
 """
 import copy
 
@@ -98,8 +98,8 @@ PROBE = {
 }
 
 
-def test_check_warns_of_a_requirement_reading_another_agents_private_state_however_it_is_reached():
-    warned = {issue.path for issue in fg_env.check(PROBE) if "private" in issue.message}
+def test_check_reports_a_requirement_reading_another_agents_private_state_however_it_is_reached():
+    warned = {issue.path for issue in fg_env.check(PROBE) if "private" in issue.message and issue.loads}
     assert {"actions.pick.when[0]", "actions.probe.when[0]", "actions.count.when[0]"} <= warned
     assert "actions.mine.when[0]" not in warned  # an agent may test its own
 
@@ -359,7 +359,7 @@ def test_a_requirement_reading_entries_or_events_the_actor_cannot_see_offers_the
     assert told["accuse"][0] is True
     assert untold["accuse"][0] is False and untold["accuse"][2].get("spent")
     warned = [i for i in fg_env.check(contract, rounds=0) if i.path == "actions.accuse.when[0]"]
-    assert [i.severity for i in warned] == ["warning"] and "every agent sees" in warned[0].message
+    assert [(i.severity, i.loads) for i in warned] == [("error", True)] and "every agent sees" in warned[0].message
 
 
 def test_text_sent_to_everyone_counts_only_the_entries_everyone_sees():

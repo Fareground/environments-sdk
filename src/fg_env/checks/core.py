@@ -82,8 +82,8 @@ class Checker:
 
     # -- reporting -----------------------------------------------------------------
 
-    def error(self, path: str, message: str, fix: str | None = None) -> None:
-        self.issues.append(Issue(path, message, fix))
+    def error(self, path: str, message: str, fix: str | None = None, *, loads: bool = False) -> None:
+        self.issues.append(Issue(path, message, fix, loads=loads))
 
     def warn(self, path: str, message: str, fix: str | None = None) -> None:
         self.issues.append(Issue(path, message, fix, "warning"))

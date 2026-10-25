@@ -363,7 +363,7 @@ def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, dat
     the language gets one warning saying how to migrate it (:func:`migrate`).
     """
     contract, issues = _check_all(source, data_dir)
-    errors = [i for i in issues if i.severity == "error"]
+    errors = [i for i in issues if i.blocks_load]  # one a written contract may keep still plays, so it is played
     static = rounds is not None and rounds <= 0
     if inputs is not None and static and contract is not None and not errors:
         try:
@@ -381,7 +381,7 @@ def check(source: ContractLike, rounds: int | None = None, seed: int = 0, *, dat
             errors.extend(exc.issues)
         except RunError as exc:
             errors.append(run_issue(str(exc)))  # its text starts with its path
-    found = errors + [i for i in issues if i.severity != "error"] + warnings_from_smoke
+    found = errors + [i for i in issues if not i.blocks_load] + warnings_from_smoke
     return at_config(contract_source(contract), found) if contract is not None else found
 
 
@@ -430,7 +430,8 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
          calibrate: bool = True, events: bool = True) -> Env:
     """Check a contract and build a runnable :class:`Env`.
 
-    Errors raise :class:`ContractError` listing every problem with a fix; ``strict=True`` also rejects warnings.
+    Errors raise :class:`ContractError` listing every problem with a fix, except one a contract may not be written with
+    but that one already written keeps (:attr:`Issue.loads`); ``strict=True`` also rejects those and warnings.
     ``seed`` defaults to a fresh one (readable as ``env.seed``). Inputs with a ``source`` and the contract's ``assets``
     read their files from ``data_dir`` (default: the contract file's folder). ``hosts`` (a :class:`~fg_env.host.Hosts`
     or a mapping of host name to adapter) answers the judgment the contract asks of a host; build-time host work
@@ -450,7 +451,7 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
     """
     del calibrate  # accepted for one release: the `calibration` section is gone
     contract, issues = _check_all(source, data_dir)
-    blocking = [i for i in issues if i.severity == "error" or strict]
+    blocking = [i for i in issues if i.blocks_load or strict]
     if blocking or contract is None:
         raise ContractError(at_config(contract_source(contract), blocking or issues) if contract is not None
                             else blocking or issues)
@@ -461,7 +462,7 @@ def load(source: ContractLike, *, inputs: Mapping[str, Any] | None = None, seed:
         contract = apply_arm(contract, arm)
         if contract.arms[arm].patch:
             issues = check_contract(contract)
-            errors = [i for i in issues if i.severity == "error"]
+            errors = [i for i in issues if i.blocks_load]
             if errors:
                 raise ContractError(errors, title=f"arm '{arm}' makes the contract invalid")
         merged.update(contract.arms[arm].inputs)
