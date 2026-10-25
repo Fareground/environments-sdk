@@ -125,8 +125,8 @@ def test_inspect_is_not_offered_when_its_only_choice_is_the_agent_itself():
 
 def test_the_update_mentions_free_reads_only_when_the_turn_offers_a_read():
     update = fg_env.load(SOLO, seed=1).preview("ann")["update"]
-    assert "You have 3 tool calls this turn." in update and "free reads" not in update
-    assert "up to 3 free reads (look and inspect)" in fg_env.load(WITH_STALL, seed=1).preview("ann")["update"]
+    assert "within 3 tool calls." in update and "free" not in update
+    assert "up to 3 looks and inspects are free" in fg_env.load(WITH_STALL, seed=1).preview("ann")["update"]
 
 
 class ErrorThenBidding(EmptyThenBidding):

@@ -39,6 +39,9 @@ from .sealed import commit_sealed
 from .state import Cursor
 from .turn import Turn
 
+#: What a simultaneous stage's turn says it is, once, so no tool needs to say it again.
+_SIMULTANEOUS = "Everyone chooses at the same time."
+
 if TYPE_CHECKING:
     from .env import Env
 
@@ -385,10 +388,10 @@ class Schedule:
         if stage.quiet == "skip" and requested is None and pass_index > 0:
             if not env.information.news(actor, memory.cursor, 1)[0]:
                 return None
+        if stage.turns == "simultaneous":  # said once here, so no tool needs to say it again
+            return f"{requested} {_SIMULTANEOUS}" if requested else _SIMULTANEOUS
         if requested:
             return requested
-        if stage.turns == "simultaneous":
-            return "Everyone chooses at the same time."
         return "Your turn again." if pass_index and self._turned_here(memory.cursor, stage) else "It is your turn."
 
     def _turned_here(self, cursor: int, stage: StageSpec) -> bool:

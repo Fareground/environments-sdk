@@ -418,11 +418,11 @@ def test_the_last_action_a_turn_allows_says_it_ends_the_turn_and_the_update_stat
 
     fg_env.run(contract, {"ann": agent}, seed=1)
     (first, update), (second, _) = seen
-    assert "You may take 2 actions this turn; the last one ends your turn." in update
+    assert "You may take 2 actions this turn (the last ends your turn)." in update
     assert first["bet"] == (False, "Bet.") and second["bet"] == (True, "Bet. Ends your turn.")
     contract["stages"][0]["max_actions"] = 1
     seen.clear()
     fg_env.run(contract, {"ann": agent}, seed=1)
     (first, update), _ = seen
-    assert "You may take 1 action this turn; it ends your turn." in update
+    assert "You may take 1 action this turn (it ends your turn)." in update
     assert first["note"][0] and first["note"][1].endswith("Ends your turn.")

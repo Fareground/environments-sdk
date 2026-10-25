@@ -467,7 +467,7 @@ def test_a_ballots_tools_end_a_question_once_and_leave_a_template_question_to_th
     env = fg_env.load(ballot)
     asked = [t["description"] for t in env.preview("m_1", stage="b").tools]
     templated = [t["description"] for t in env.preview("m_1", stage="c").tools]
-    assert asked[0].startswith("Approve options on: Which projects? (") and "?." not in " ".join(asked)
+    assert asked[0].startswith("Approve options on: Which projects? ") and "?." not in " ".join(asked)
     assert not any("{" in text for text in templated)
 
 

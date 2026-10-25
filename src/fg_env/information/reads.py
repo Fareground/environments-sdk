@@ -26,7 +26,7 @@ from ..expr.scope import Scope
 from ..expr.template import format_value
 from .gate import viewer_for
 from .schemas import ToolSpec
-from .tool_text import compact_ids, free_reads
+from .tool_text import compact_ids
 
 if TYPE_CHECKING:
     from .core import Information
@@ -122,8 +122,8 @@ def _empty(value: Any) -> bool:
 def look_tool(looks: Sequence[tuple[str, str]], allowance: int) -> ToolSpec:
     """The look tool over ``looks`` (view name, title)."""
     listed = ", ".join(f"{name} ({title})" if title else name for name, title in looks)
-    description = (f"Show one of these views: {listed}. What happened since your last turn is already in your update. "
-                   f"{free_reads(allowance)}")
+    # How many reads are free is said once, in the update: not again in every look and inspect offered.
+    description = f"Show one of these views: {listed}. What happened since your last turn is already in your update."
     return ToolSpec("look", description, {
         "type": "object", "properties": {"view": {"type": "string", "enum": [name for name, _ in looks]}},
         "required": ["view"], "additionalProperties": False}, "look")
@@ -164,7 +164,7 @@ def _build_inspect_tool(info: Information, viewer: Entity, allowance: int) -> To
         description += ": one of the ids listed."
     else:
         description += f". Ids: {compact_ids(ids)}."
-    return ToolSpec("inspect", f"{description} {free_reads(allowance)}", {
+    return ToolSpec("inspect", description, {
         "type": "object", "properties": {"id": prop}, "required": ["id"], "additionalProperties": False}, "look")
 
 
