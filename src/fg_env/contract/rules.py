@@ -114,9 +114,11 @@ class ActionSpec(_Model):
     when: Annotated[list[Condition], BeforeValidator(one_or_many)] = Field(
         default_factory=list,
         description="Requirements (one or a list). Those over $actor decide whether the tool is offered; those that "
-                    "read $params refuse a call that breaks them, with their `why`. They may not draw at random (nor "
-                    "may parameters' bounds, defaults, values or `where`): a refused call costs nothing, so an agent "
-                    "could call again until luck let it through — draw in `do` or `chance`.")
+                    "read $params refuse a call that breaks them, with their `why`. A refusal that read only what the "
+                    "actor sees costs nothing; one that read a value hidden from it spends the action, so a hidden "
+                    "value cannot be guessed for free. They may not draw at random (nor may parameters' bounds, "
+                    "defaults, values or `where`): an agent could call again until luck let it through — draw in "
+                    "`do` or `chance`.")
     do: Effects = Field(default_factory=list, description="Effects applied atomically.")
     outcome: str | None = Field(None, description="What the actor is told (template over $actor, $params).")
     announce: str | Literal[False] | None = Field(

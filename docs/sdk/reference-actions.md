@@ -16,7 +16,7 @@ Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $ar
 - `by`: text | [text] (required) — Agent type(s) allowed to take it.
 - `description`: text — Tool description the agent reads.
 - `params`: object
-- `when`: [Condition] — Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`. They may not draw at random (nor may parameters' bounds, defaults, values or `where`): a refused call costs nothing, so an agent could call again until luck let it through — draw in `do` or `chance`.
+- `when`: [Condition] — Requirements (one or a list). Those over $actor decide whether the tool is offered; those that read $params refuse a call that breaks them, with their `why`. A refusal that read only what the actor sees costs nothing; one that read a value hidden from it spends the action, so a hidden value cannot be guessed for free. They may not draw at random (nor may parameters' bounds, defaults, values or `where`): an agent could call again until luck let it through — draw in `do` or `chance`.
 - `do`: effects — Effects applied atomically.
 - `outcome`: text — What the actor is told (template over $actor, $params).
 - `announce`: text | any — What everyone else is told: omitted, a default line (a simultaneous stage's leaves out the arguments); a template; or false: nobody else learns this action happened.
