@@ -126,8 +126,19 @@ def test_motion_amendment_and_vote_with_floor_control():
     assert decision["text"] == "Build it by July" and decision["passed"] and decision["counts"]["yes"] == 3
     news = [e["text"] for e in result.events if e["kind"] == "hall"]
     assert any("amendment 2 to motion 1" in t and "passes" in t for t in news)
+    # every agent is shown the floor, so the vote names the amendment without repeating its text
+    assert "The question is put to a vote: amendment 2 to motion 1 (its text is on the floor)." in news
     assert "R1 raises a hand." in script.text("mod")
     assert result.outputs["decided"] == 1
+
+
+def test_an_agent_not_shown_the_floor_is_told_the_text_put_to_a_vote():
+    from fg_env.mechanisms.deliberation import DeliberationConfig, _floor_seen_by_all
+    config = DeliberationConfig(**{k: v for k, v in HALL["mechanisms"]["hall"].items() if k not in ("kind", "mode")})
+    assert _floor_seen_by_all(fg_env.load(HALL, seed=1).world, config)
+    press = {**HALL, "types": {**HALL["types"], "reporter": {"agent": True}},
+             "entities": {**HALL["entities"], "press": {"type": "reporter"}}}
+    assert not _floor_seen_by_all(fg_env.load(press, seed=1).world, config)
 
 
 def test_speaking_needs_the_floor_and_the_speaker_limit_returns_it():

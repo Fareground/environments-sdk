@@ -1,7 +1,7 @@
 {
   "actions": 35,
   "events": 69,
-  "events_sha256": "cbac6b98150eec7e2901e297ac8353fcba3854a3ef783a642714bcd5f443cd5a",
+  "events_sha256": "1aa1cbd7b9564f7b8577ddd3acee4a57bb7f51e3e4978fcd01413a9a4f730a06",
   "first_events": [
     "r2 action r2: Resident 2 raises a hand.",
     "r2 action r6: Resident 6 raises a hand.",
