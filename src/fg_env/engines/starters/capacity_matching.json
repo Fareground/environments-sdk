@@ -127,7 +127,7 @@
   },
   "views": {
     "selectors": {"for": "applicant", "title": "Selectors", "of": "selector", "show": "{name}: appeal {appeal|2}; capacity {capacity}"},
-    "selector_position": {"for": "selector", "show": "Your capacity is {capacity}; your private minimum quality is {minimum_quality|2}."},
+    "selector_position": { "brief": true,"for": "selector", "show": "Your capacity is {capacity}; your private minimum quality is {minimum_quality|2}."},
     "applicants": {"for": "selector", "title": "Applicants", "of": "applicant", "show": "{name}: quality {quality|2}"}
   },
   "outputs": {

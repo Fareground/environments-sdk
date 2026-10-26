@@ -237,6 +237,12 @@ class ViewSpec(_Model):
                        description="Offer it on demand as look(view) instead of always including it. Randomness a view "
                                    "draws is fixed for the turn: looking again shows the same text.")
     bullet: bool = Field(True, description="Prefix each item with '- ' (false for boards and tables).")
+    brief: bool = Field(False,
+                        description="Show it in the agent's brief instead of its update: for what changes seldom or "
+                                    "never (who the agent is, its case file). It still shows the world as it is now; "
+                                    "the brief is the same text wake after wake while nothing it shows changes, so "
+                                    "providers cache it. Not for record entries or events (news belongs in the "
+                                    "update), nor with `look`.")
     attach: str | None = Field(None,
                                description="Assets delivered with the view: an expression giving an asset id, a list "
                                            "or null — per listed item ($it) with `of`, else once ($actor).")

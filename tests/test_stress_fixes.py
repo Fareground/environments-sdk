@@ -93,6 +93,28 @@ def test_a_brief_follows_the_world_and_stays_the_same_text_while_nothing_it_read
     assert any(i.path == "brief.roles.p" and "draws at random" in i.message for i in fg_env.check(lucky, rounds=0))
 
 
+def test_a_view_in_the_brief_shows_the_world_as_it_is_and_leaves_the_update():
+    contract = {"name": "Purse", "clock": {"rounds": 3},
+                "types": {"p": {"agent": True, "props": {"cash": {"type": "int", "default": 5}}}},
+                "entities": {"a": {"type": "p"}}, "actions": {"spend": {"by": "p", "do": ["$actor.cash -= 1"]}},
+                "views": {"purse": {"for": "p", "title": "Purse", "show": "{cash} coins", "brief": True}}}
+    read = []
+
+    def spend(wake):
+        read.append(("Purse: " in wake.brief and wake.brief.split("Purse: ")[1].split("\n")[0], "Purse" in wake.update))
+        wake.call("spend", {})
+        wake.end()
+
+    fg_env.load(contract, seed=0).run(spend, rounds=3)
+    assert read == [("5 coins", False), ("4 coins", False), ("3 coins", False)]
+    bad = {**contract, "records": {"chat": {"fields": {"text": "text"}}},
+           "views": {"news": {"for": "p", "of": "chat", "show": "{text}", "brief": True},
+                     "both": {"for": "p", "show": "{cash}", "brief": True, "look": True},
+                     "lucky": {"for": "p", "show": "{$round($normal(0, 1), 2)}", "brief": True}}}
+    errors = {i.path for i in fg_env.check(bad, rounds=0) if i.severity == "error"}
+    assert {"views.news.brief", "views.both.brief", "views.lucky.brief"} <= errors
+
+
 def test_statistics_functions_and_null_skipping():
     s = Scope({"xs": [{"v": 3}, {"v": None}, {"v": 1}, {"v": 2}, {"v": 10}]})
     assert evaluate("$median($xs, $it.v)", s) == 2.5

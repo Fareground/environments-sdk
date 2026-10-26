@@ -82,7 +82,7 @@
     {"name": "negotiate", "description": "The parties take turns to propose, counter, accept, reject or walk away before the deadline.", "turns": "sequential", "max_actions": 2, "max_calls": 8, "brief": "Negotiation round {$round}. Offers close after round {$inputs.deadline}."}
   ],
   "views": {
-    "private_position": {"for": "party", "title": "Your private position", "bullet": false, "show": "Walk-away value {agreement_reservation|1}. Priorities: amount {amount_weight|2}, scope {scope_weight|2}, timing {timing_weight|2}."}
+    "private_position": { "brief": true,"for": "party", "title": "Your private position", "bullet": false, "show": "Walk-away value {agreement_reservation|1}. Priorities: amount {amount_weight|2}, scope {scope_weight|2}, timing {timing_weight|2}."}
   },
   "outputs": {
     "deal_signed": {"type": "bool", "primary": true, "label": "Deal signed", "expr": "$count(agreement_deal) > 0", "description": "Whether the parties reached an agreement."},

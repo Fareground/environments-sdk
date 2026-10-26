@@ -207,8 +207,8 @@
     }
   ],
   "views": {
-    "you": {"for": "panelist", "title": "You", "show": "{name} — {expertise}. Your lens: {lens} Your starting inclination: about {prior|0}%."},
-    "private_info": {"for": "panelist", "title": "Private information (only you can see this)", "when": "$actor.private_info != ''", "show": "{private_info}"},
+    "you": { "brief": true,"for": "panelist", "title": "You", "show": "{name} — {expertise}. Your lens: {lens} Your starting inclination: about {prior|0}%."},
+    "private_info": { "brief": true,"for": "panelist", "title": "Private information (only you can see this)", "when": "$actor.private_info != ''", "show": "{private_info}"},
     "ballots": {"for": "panelist", "title": "Council estimates (initial → working)", "of": "panelist", "sort": "$it.working", "desc": true, "show": "[{id}] {name} ({expertise}): initial {initial|1}% → now {working|1}%{' · ready' if $it.ready else ''} — {initial_why}", "when": "($stage in ['discussion', 'final_ballot']) and ($all(panelist, $it.working != null))"},
     "council_state": {"for": "panelist", "title": "Council", "show": "Working estimates: mean {$avg(panelist, $it.working)|1}%, range {$min(panelist, $it.working)|1}–{$max(panelist, $it.working)|1}%. Ready: {$count(panelist, $it.ready)}/{$count(panelist)}. Messages so far: {$len($records(chat))}.", "when": "($stage in ['discussion', 'final_ballot']) and ($all(panelist, $it.working != null))"}
   },

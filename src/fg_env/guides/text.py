@@ -47,6 +47,10 @@ more for the stage's own actions), or runs out of `max_calls`.
   the first pass always wakes everyone).
 * `look` and `inspect` are free reads: up to `max_calls` of them per turn use no call, and one past that is refused
   without spending a call, so an agent can always still act. The same read twice in a turn answers "Unchanged".
+* A view that changes seldom or never (who the agent is, its private position, a case file's contents) takes
+  `"brief": true`: it is shown in the brief, which providers cache while its text is unchanged, and leaves the
+  update to what moves. It still shows the world as it is now. A list that mixes fixed text with a changing status
+  splits into two views over the same items: the fixed text in the brief, the status in the update.
 * A stage with `actions: []` wakes nobody: use it as a pure resolution step (events on its `start`/`end`).
 * A stage without `actions` offers every action but a mechanism's tools attached (`stage:`) to another stage, which
   are that stage's own. When other stages list their own, list this stage's too
