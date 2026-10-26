@@ -117,10 +117,11 @@ def _all_ready(world: Any, name: str, config: DeliberationConfig, state: Mapping
     return all(props(m).get(f"{name}_ready") or m.id == last for m in _members(world, config))
 
 
-def _describe(world: Any, item: Mapping[str, Any]) -> str:
-    """A motion or amendment by number: numbers name them in text, and no tool takes one (so no [id] handle)."""
+def _describe(world: Any, item: Mapping[str, Any], text: bool = True) -> str:
+    """A motion or amendment by number: numbers name them in text, and no tool takes one (so no [id] handle). Without
+    ``text`` the number alone, for an item every member is shown in full on the floor."""
     what = f"motion {item['id']}" if item["kind"] == "motion" else f"amendment {item['id']} to motion {item['target']}"
-    return f"{what} {format_value(item['text'])}"
+    return f"{what} {format_value(item['text'])}" if text else what
 
 
 def _person(world: Any, entity_id: str | None) -> str:
@@ -292,14 +293,24 @@ def _close(world: Any, name: str, config: DeliberationConfig, state: dict[str, A
     top = state["stack"][-1] if state["stack"] else None
     if top is not None and top["status"] == "open" and (
             (consensus and config.vote_when_ready) or (not consensus and config.backstop == "vote")):
-        _put_question(world, name, state, top)
+        _put_question(world, name, config, state, top)
     state.update(floor=None, hands=[], floor_used=0, last=None)
 
 
-def _put_question(world: Any, name: str, state: dict[str, Any], item: Mapping[str, Any]) -> None:
+def _floor_seen_by_all(world: Any, config: DeliberationConfig) -> bool:
+    """Whether every agent is shown the floor (members and the chair are): then news names a motion by number."""
+    roots = {world.contract.lineage(kind)[0] for kind in world.hidden.agents}
+    return all(world.is_a(agent.entity_type, config.who) or (config.chair is not None and world.is_a(
+        agent.entity_type, config.chair)) for kind in roots for agent in world.alive_of(kind))
+
+
+def _put_question(world: Any, name: str, config: DeliberationConfig, state: dict[str, Any],
+                  item: Mapping[str, Any]) -> None:
     state["phase"] = "voting"
     state["ballots"] = {}
-    world.emit(name, f"The question is put to a vote: {_describe(world, item)}.",
+    shown_on_floor = _floor_seen_by_all(world, config)
+    what = _describe(world, item, text=not shown_on_floor) + (" (its text is on the floor)" if shown_on_floor else "")
+    world.emit(name, f"The question is put to a vote: {what}.",
                data={"mechanism": name, "motion": item["id"]})
 
 
@@ -454,7 +465,7 @@ def _call(world: Any, name: str, config: DeliberationConfig, state: dict[str, An
     if not is_chair and top["speeches"] < config.min_debate:
         raise Abort(f"The question needs {config.min_debate} speech(es) of debate first ({top['speeches']} so far).")
     _record(world, name, actor, f"calls the question on {top['kind']} {top['id']}", "", top["id"], where)
-    _put_question(world, name, state, top)
+    _put_question(world, name, config, state, top)
 
 
 def _vote(state: dict[str, Any], actor: Entity, choice: Any) -> None:
