@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 
-GAMES = Path(__file__).parents[1] / "examples" / "contracts" / "games"
+GAMES = Path(__file__).parent / "fixtures" / "games"
 
 
 def load_game(name: str) -> dict:

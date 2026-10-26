@@ -39,10 +39,10 @@ family("decision", "Collective choice: ballots, structured deliberation with mot
                    "phases and objections.",
        {"who": "agent type that decides", "ties": SHARED["ties"], "private": SHARED["private"],
         "stage": SHARED["stage"], "when": SHARED["when"], "views": SHARED["views"]})
-family("game", "Game equipment: boards with enforced rules, cards, betting pots, and statuses on pieces (timed "
-               "conditions that tick, modify properties and block actions).",
-       {"who": "agent type that plays (for statuses: the types that carry them)", "stage": SHARED["stage"],
-        "views": SHARED["views"], "qty": SHARED["qty"], "phase": SHARED["phase"]})
+family("conditions", "Conditions on entities: named, timed statuses (on leave, suspended, sick, under review) that "
+                     "tick, change properties and block actions.",
+       {"who": "the types that carry the statuses", "stage": SHARED["stage"], "views": SHARED["views"],
+        "phase": SHARED["phase"]})
 family("groups", "Who belongs with whom: hidden roles and teams, stable matching.",
        {"who": "agent type that belongs to groups", "views": SHARED["views"]})
 family("social", "Spreading: a social feed, and diffusion over a network.",

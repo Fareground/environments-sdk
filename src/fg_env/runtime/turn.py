@@ -6,6 +6,8 @@ and invariants wait, and a turn that breaks the rules is undone as a whole.
 """
 from __future__ import annotations
 
+import math
+import re
 import time
 from collections.abc import Callable, Mapping
 from contextlib import AbstractContextManager
@@ -63,6 +65,8 @@ _UNDONE = {"error": "undone"}
 
 #: A call refused after it drew randomness or read what its agent may not see: played all the same (attempt counted).
 _SPENT = {"error": "rejected", "spent": True}
+#: A whole-number argument refused for being over its stated most (actions/validation.py words it so).
+_OVER_MOST = re.compile(r"(\w+) must be at most (-?\d+) \(got (-?[\d.]+)\)")
 #: What an atomic turn's action says in place of its outcome, until the turn commits.
 _HELD = "Its outcome is shown when your turn ends."
 #: What a closed turn reads instead of its brief or update (its participant has been left behind).
@@ -476,6 +480,52 @@ class Turn:
         with self.after_choices():
             return self._checked_act(name, spec, args, observed)
 
+    def _fitting_most(self, name: str, spec: ActionSpec, args: Any, problem: str) -> str:
+        """``problem``, or — when it is a whole-number argument over its stated most and that most would still be
+        refused by the rules (a shop's stock allows 30, the buyer's pantry holds 20) — the most the rules would accept
+        now, or why none would, so the agent's next call can be the one that works. Worked out by trials that keep
+        nothing and draw nothing; a trial that reads a value hidden from the agent ends the search, and the stated
+        most stands."""
+        found = _OVER_MOST.fullmatch(problem)
+        param = spec.params.get(found.group(1)) if found else None
+        if found is None or param is None or param.type != "int" or not isinstance(args, Mapping):
+            return problem
+        pname, most, asked = found.group(1), int(found.group(2)), found.group(3)
+        rules, luck = self.env.rules, self.env.world.luck
+
+        def tried(value: int) -> tuple[bool, str | None] | None:
+            """Whether the rules would take the call with ``pname`` = value, and the refusal if not; None when
+            finding out read something hidden from the agent."""
+            with luck.apart():
+                watched = luck.observe()
+                params, invalid = rules.validate(self.actor, name, {**args, pname: value})
+                refusal = invalid or rules.trial(self.actor, name, params)
+                hidden = watched.read_hidden
+            return None if hidden else (refusal is None, refusal)
+
+        at_most = tried(most)
+        if at_most is None or at_most[0]:  # the stated most is exact, or the rules decide by what is hidden
+            return problem
+        floor = 0 if param.min is None else self.env.actions.static(
+            self.actor, param.min, f"actions.{name}.params.{pname}.min")
+        if isinstance(floor, bool) or not isinstance(floor, (int, float)):
+            return problem  # a least worked out from the call's other arguments: the stated most stands
+        low = math.ceil(floor)
+        least = tried(low)
+        if least is None:
+            return problem
+        if not least[0]:
+            why = (least[1] or "").rstrip(".")
+            return f"{problem}; no amount fits now: {why}" if why else problem
+        fits, top = low, most  # tried(fits) is accepted, tried(top) is not
+        while top - fits > 1:
+            middle = (fits + top) // 2
+            verdict = tried(middle)
+            if verdict is None:
+                return problem
+            fits, top = (middle, top) if verdict[0] else (fits, middle)
+        return f"{pname} must be at most {fits} now (got {asked})"
+
     def after_choices(self) -> AbstractContextManager[None]:
         """The world as this turn's next sealed choice will meet it when it commits (:meth:`Rules.replay_intents`)."""
         return self.env.rules.replay_intents(self.actor, self.ledger.intents)
@@ -504,6 +554,7 @@ class Turn:
         args, cut = _cut(spec.params, args)
         params, problem = rules.validate(self.actor, name, args)
         if problem:
+            problem = self._fitting_most(name, spec, args, problem)
             self.note(INVALID)
             return (self._refused(name, f"{name} was not done: {problem}.", observed, _INVALID,
                                   " Correct the arguments and call again."), False, False)

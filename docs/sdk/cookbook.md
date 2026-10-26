@@ -10,11 +10,9 @@ policy (`--agent policy:<name>` plays it for every agent).
 | [`auction`](#auction) | sealed bids resolved together when the bidding ends |
 | [`vote`](#vote) | talk in a shared record, then a secret ballot |
 | [`negotiation`](#negotiation) | alternating offers with private limits and a deadline |
-| [`hidden_roles`](#hidden_roles) | private roles, a secret night stage and open accusations |
 | [`market`](#market) | posted prices, and buyers paying with a transfer |
 | [`queue`](#queue) | arrivals served first come, first served |
 | [`spread`](#spread) | an infection passing along a contact network (no agents) |
-| [`board_game`](#board_game) | a turn-based board game with a winner and zero-sum seats |
 | [`economy`](#economy) | gathering, eating and building with one action a day |
 | [`grid`](#grid) | moving on a grid and harvesting a regrowing layer |
 | [`simulation`](#simulation) | a population changing over time, measured every round (no agents) |
@@ -273,108 +271,6 @@ Known answer: `fg-env new vote && fg-env run vote.json --agent policy:sincere --
 
 Known answer: `fg-env new negotiation && fg-env run negotiation.json --agent policy:concede --seed 1` gives `deal` true, `price` 70: the seller asks 80, the buyer offers 30, the seller comes down to 70, and the buyer accepts any price at least 10 below its worth of 80.
 
-## hidden_roles
-
-**Wolves in the village.** Hidden roles: each player's role is a `private` prop dealt from a shuffled list; the wolves' night attack is a sealed stage open only to them (`who`, with every action unannounced), the day is an open accusation, and a role is revealed only when its player leaves. The `groups` mechanism deals, reveals and eliminates for you (guide('groups.roles')).
-
-```json
-{
-  "fg_env": "2",
-  "name": "Wolves in the village",
-  "description": "Hidden roles: each player's role is a `private` prop dealt from a shuffled list; the wolves' night attack is a sealed stage open only to them (`who`, with every action unannounced), the day is an open accusation, and a role is revealed only when its player leaves. The `groups` mechanism deals, reveals and eliminates for you (guide('groups.roles')).",
-  "brief": {
-    "situation": "A village hides {$inputs.wolves} wolf among its {$inputs.players} players.",
-    "rules": "Each night the wolves secretly choose a player to attack; that player leaves the game. Each day everyone accuses one player; the most accused leaves (a tie is broken at random). A player's role is revealed when it leaves. The village wins when no wolf is left; the wolves win when they are as many as the villagers.",
-    "roles": {"player": "Your role is in your view. Villagers: find the wolves. Wolves: stay hidden."}
-  },
-  "inputs": {"players": {"type": "int", "default": 5, "min": 3}, "wolves": {"type": "int", "default": 1, "min": 1}},
-  "clock": {"rounds": "$inputs.players", "unit": "day"},
-  "world": {
-    "deck": {"type": "list", "default": "$shuffle($map($range($inputs.players), 'wolf' if $it < $inputs.wolves else 'villager'))", "private": true}
-  },
-  "types": {
-    "player": {
-      "agent": true,
-      "props": {
-        "role": {"type": "enum", "values": ["wolf", "villager"], "default": "villager", "private": true},
-        "attacks": {"type": "int", "default": 0, "private": true},
-        "accused": 0
-      },
-      "policies": {
-        "first": {
-          "rules": [
-            {"do": "attack", "with": {"target": "$pick(player, $it.id != $actor.id)"}},
-            {"do": "accuse", "with": {"target": "$pick(player, $it.id != $actor.id)"}}
-          ]
-        }
-      }
-    }
-  },
-  "entities": {"player": {"type": "player", "count": "$inputs.players", "props": {"role": "$world.deck[$i - 1]"}}},
-  "actions": {
-    "attack": {
-      "by": "player",
-      "description": "Wolves: choose tonight's victim.",
-      "when": "$actor.role == wolf",
-      "params": {"target": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
-      "do": "$params.target.attacks += 1",
-      "announce": false,
-      "outcome": "You attack {$params.target.name}."
-    },
-    "accuse": {
-      "by": "player",
-      "description": "Accuse a player of being a wolf.",
-      "params": {"target": {"type": "entity", "of": "player", "where": "$it.id != $actor.id"}},
-      "do": "$params.target.accused += 1"
-    }
-  },
-  "stages": [
-    {"name": "night", "turns": "simultaneous", "actions": ["attack"], "who": "$it.role == wolf"},
-    {"name": "day", "turns": "simultaneous", "actions": ["accuse"]}
-  ],
-  "views": {
-    "you": {"for": "player", "show": "You are a {role}."},
-    "players": {"for": "player", "title": "Players still in", "of": "player", "show": "{name}"}
-  },
-  "events": [
-    {
-      "on": "stage.night.end",
-      "when": "$any(player, $it.attacks > 0)",
-      "do": [
-        {"call": "leave", "with": {"who": "$best(player, $it.attacks)", "how": "was attacked in the night"}},
-        {"each": "player", "do": "$it.attacks = 0"}
-      ]
-    },
-    {
-      "on": "stage.day.end",
-      "when": "$any(player, $it.accused > 0)",
-      "do": [
-        {"call": "leave", "with": {"who": "$best(player, $it.accused)", "how": "was sent away by the village"}},
-        {"each": "player", "do": "$it.accused = 0"}
-      ]
-    }
-  ],
-  "outputs": {"winner": "$result.winner", "players_left": "$count(player)"},
-  "end": [
-    {"name": "village_wins", "when": "$wolves_left == 0", "winner": "villagers", "say": "No wolf is left: the village wins."},
-    {"name": "wolves_win", "when": "$wolves_left >= $count(player) - $wolves_left", "winner": "wolves", "say": "The wolves are as many as the villagers: the wolves win."}
-  ],
-  "defs": {
-    "leave": {
-      "args": ["who", "how"],
-      "do": [
-        "$role = $who.role",
-        {"emit": "left", "say": "{$who.name} {$how}. They were a {$role}."},
-        {"remove": "$who"}
-      ]
-    },
-    "wolves_left": {"expr": "$count(player, $it.role == wolf)"}
-  }
-}
-```
-
-Try it: `fg-env new hidden_roles && fg-env run hidden_roles.json --agent policy:first --seed 1`.
-
 ## market
 
 **Bread market.** Posted prices and trading: the seller sets a price in its own stage, then buyers, in random order, buy what they can afford; each purchase moves money with one `transfer`, which refuses a buyer who is short and never lets cash go negative. An invariant guards the books.
@@ -601,69 +497,6 @@ Known answer: `fg-env new queue && fg-env run queue.json --agent policy:two --se
 ```
 
 Try it: `fg-env new spread && fg-env run spread.json --seed 1`.
-
-## board_game
-
-**Tic-tac-toe.** A turn-based board game: the board is a world list, a move's legality is a requirement on its parameter, and the move that completes a line ends the game at once with an `end` effect naming the winner. Each seat scores 1, 0 or -1 (`score`, zero-sum), so tournaments, game search and gyms can play it.
-
-```json
-{
-  "fg_env": "2",
-  "name": "Tic-tac-toe",
-  "description": "A turn-based board game: the board is a world list, a move's legality is a requirement on its parameter, and the move that completes a line ends the game at once with an `end` effect naming the winner. Each seat scores 1, 0 or -1 (`score`, zero-sum), so tournaments, game search and gyms can play it.",
-  "brief": {
-    "situation": "Two players take turns on a 3 by 3 board, X first.",
-    "rules": "On your turn mark one empty cell (0 to 8, row by row). Three of your marks in a row, column or diagonal wins; a full board with no line is a draw."
-  },
-  "clock": {"rounds": 5, "unit": "turn"},
-  "world": {"board": {"type": "list", "default": ["", "", "", "", "", "", "", "", ""]}},
-  "types": {
-    "player": {
-      "agent": true,
-      "props": {"mark": ""},
-      "policies": {
-        "first_free": {"rules": [{"do": "place", "with": {"cell": "$pick($range(9), $world.board[$it] == '')"}}]}
-      },
-      "score": {"value": "0 if $result.winner == null else 1 if $result.winner == $it else -1", "utility": "zero_sum"}
-    }
-  },
-  "entities": {
-    "x": {"type": "player", "name": "X", "props": {"mark": "X"}},
-    "o": {"type": "player", "name": "O", "props": {"mark": "O"}}
-  },
-  "actions": {
-    "place": {
-      "by": "player",
-      "description": "Mark an empty cell.",
-      "params": {"cell": {"type": "int", "min": 0, "max": 8}},
-      "when": {"expr": "$world.board[$params.cell] == ''", "why": "That cell is taken."},
-      "do": [
-        "$world.board[$params.cell] = $actor.mark",
-        {
-          "if": "$line($actor.mark)",
-          "then": {"end": "line", "winner": "$actor", "say": "{$actor.name} completes a line and wins."}
-        },
-        {"if": "$count($world.board, $it == '') == 0", "then": {"end": "draw", "say": "The board is full: a draw."}}
-      ],
-      "announce": "{$actor.name} marks cell {$params.cell}."
-    }
-  },
-  "stages": [{"name": "play", "must_act": true}],
-  "views": {
-    "board": {"for": "player", "show": "You play {mark}. Board, row by row: {$join($map($range(9), $world.board[$it] or $text($it)), ' ')} (numbers are empty cells)."}
-  },
-  "outputs": {"winner": "$result.winner.name if $result.winner else 'draw'"},
-  "defs": {
-    "line": {
-      "args": ["m"],
-      "expr": "$any([[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]], $world.board[$it[0]] == $m and $world.board[$it[1]] == $m and $world.board[$it[2]] == $m)",
-      "description": "Whether mark m holds a whole line."
-    }
-  }
-}
-```
-
-Known answer: `fg-env new board_game && fg-env run board_game.json --agent policy:first_free --seed 1` gives `winner` "X": both mark the lowest free cell, so X holds 0, 2, 4 and 6 and wins on the diagonal.
 
 ## economy
 

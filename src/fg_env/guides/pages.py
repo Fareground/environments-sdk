@@ -110,7 +110,7 @@ SECTIONS: list[tuple[str, list[type[BaseModel]], str, str]] = [
      "Rules that must always hold. An agent's action that breaks one is refused and undone (the `why` is its reason); "
      "a break by anything else fails the run."),
     ("mechanisms", [], "{name: {kind, mode, ...config}}",
-     "Native building blocks by family (markets, voting, cards, roles, physics, patterns, feeds …): see "
+     "Native building blocks by family (markets, voting, roles, statuses, physics, patterns, feeds …): see "
      "guide('mechanisms')."),
     ("space", [C.Space, C.GridSpace, C.GraphSpace, C.PlaneSpace, C.LayerSpec], "Space",
      "Positions: a grid, a graph of places or a plane, with values on cells."),
@@ -171,9 +171,9 @@ _CORE_GROUPS = {
 }
 _MODULE_GROUPS = {
     "stdlib.mathx": "math", "stdlib.linalg": "random", "stdlib.dists": "random", "stdlib.strings": "text",
-    "stdlib.words": "words", "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
+    "stdlib.dates": "dates", "stdlib.lists": "lists", "stdlib.tables": "lists",
     "stdlib.sets": "lists", "stdlib.stats": "stats",
-    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space", "stdlib.puzzles": "words",
+    "stdlib.scoring": "stats", "stdlib.space": "space", "world.networks": "space",
     "mechanisms.market_stats": "stats", "mechanisms.voting": "stats",
 }
 #: What each non-family group holds, in the order the guide lists them.
@@ -188,7 +188,6 @@ FUNCTION_GROUPS = {
     "lists": "list and map manipulation, sets",
     "stats": "statistics, time series and forecast scores",
     "space": "grids, graphs, networks and links",
-    "words": "word games and puzzles: dictionaries, anagrams, crosswords, sudoku",
 }
 _OTHER = "other"
 

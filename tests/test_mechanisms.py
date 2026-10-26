@@ -654,13 +654,6 @@ def test_a_config_error_is_told_at_the_one_field_that_holds_what_it_quotes():
                "outcome": "$if($book('x').last >= 50, 'up', 'down')"}}}
     errors = [i.path for i in fg_env.check(market) if i.severity == "error"]
     assert errors == ["mechanisms.pm.outcome"]
-    pot = {"name": "Pot", "clock": {"rounds": 1}, "types": {"player": {"agent": True}},
-           "entities": {"player": {"type": "player", "count": 3}}, "mechanisms": {
-               "deck": {"kind": "game", "mode": "cards", "who": "player", "hand_size": 0},
-               "t": {"kind": "game", "mode": "pot", "who": "player", "score": "1",
-                     "setup": [{"game": "dek", "action": "collect"}]}}}
-    errors = [i for i in fg_env.check(pot) if i.severity == "error"]
-    assert [i.path for i in errors] == ["mechanisms.t.setup[0].game"] and "did you mean 'deck'" in str(errors[0])
 
 
 def test_a_ballot_nobody_touched_is_not_counted_even_the_first_time():
@@ -688,9 +681,10 @@ def test_a_config_expression_error_is_told_once_at_its_own_field():
     """An error in the expression of one config field is told at that field alone, never also at a field whose short
     text happens to sit inside the message (the `p` of `inputs`) (audit 14 mech L1)."""
     c = {"types": {"p": {"agent": True}}, "entities": {"p": {"type": "p", "count": 2}},
-         "mechanisms": {"k": {"kind": "game", "mode": "cards", "who": "p", "hand_size": "$inputs.missing"}}}
+         "mechanisms": {"k": {"kind": "market", "mode": "auction", "format": "first_price", "who": "p",
+                              "reserve": "$inputs.missing"}}}
     errors = [(i.path, i.message) for i in fg_env.check(c, rounds=0) if i.severity == "error"]
-    assert errors == [("mechanisms.k.hand_size", "$inputs.missing: no such input")]
+    assert errors == [("mechanisms.k.reserve", "$inputs.missing: no such input")]
 
 
 def test_replacing_a_generated_action_without_an_argument_it_only_passed_at_its_default_is_not_warned():

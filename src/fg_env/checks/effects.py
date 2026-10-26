@@ -435,7 +435,7 @@ class EffectChecks(FieldReads):
             block = self.c.defs.get(called) if isinstance(called, str) else None
             given = effect.get("with") or {}
             effect_defs = [name for name, spec in self.c.defs.items() if spec.do is not None]
-            if block is None:  # a family's `call` action (a poker call) written as the op is the likely slip
+            if block is None:  # a family's `call` action written as the op is the likely slip
                 self.error(f"{path}.call", f"'{called}' is not a declared def",
                            self._suggest(str(called), effect_defs) or family_action_hint(["call"])
                            or "declare it under `defs` with `do`")

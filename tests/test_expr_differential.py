@@ -41,7 +41,7 @@ pytestmark = pytest.mark.slow  # statistical or engine-behaviour: `make test-fas
 
 CONTRACTS = Path(__file__).parents[1] / "examples" / "contracts"
 EXAMPLES = sorted(CONTRACTS.glob("*.json"))
-GAMES = sorted((CONTRACTS / "games").glob("*.json"))
+GAMES = sorted((Path(__file__).parent / "fixtures" / "games").glob("*.json"))
 FACTS = ("roots", "functions", "symbols", "paths", "calls", "item_paths", "comparisons", "item_comparisons",
          "arity_errors", "methods")
 EDGE_CASES = [

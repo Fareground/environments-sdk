@@ -141,7 +141,7 @@ def test_reads_past_the_free_allowance_are_refused_without_spending_the_call_nee
 
 
 def test_the_werewolf_seer_can_still_vote_after_reading_everyone():
-    contract = json.loads((EXAMPLES / "werewolf.json").read_text())
+    contract = json.loads((Path(__file__).parent / "fixtures" / "contracts" / "werewolf.json").read_text())
     votes = []
 
     def seer(wake):

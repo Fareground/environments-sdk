@@ -540,7 +540,8 @@ def _spec(use: Mapping[str, Any], path: str) -> Any:
                      f"write \"kind\": \"{owner}\", \"mode\": \"{kind}\" (guide('{owner}.{kind}') lists its fields)")
     hint = get_close_matches(str(kind), _kinds(), n=1)
     return Issue(f"{path}.kind", f"'{kind}' is not a mechanism family",
-                 f"did you mean '{hint[0]}'?" if hint else f"families: {', '.join(_kinds())}")
+                 f"did you mean '{hint[0]}'?" if hint else f"families: {', '.join(_kinds())}; a family of its own "
+                 "(a platform's game rules, say) is registered by importing the package that declares it")
 
 
 #: The type names pydantic tags a union member's error with (beside tags that are no field name: `constrained-float`).
@@ -784,9 +785,8 @@ def _canonical(value: Any) -> str:
 # isort: off
 from . import families  # noqa: E402,F401  (registers the mechanism families before their modes)
 from . import voting  # noqa: E402,F401  (registers the built-in mechanisms)
-from . import boards  # noqa: E402,F401  (registers the board-game mechanism)
 from . import markets  # noqa: E402,F401  (registers the market mechanisms)
-from . import card_scoring, cards, cards_mechanism, pot, roles  # noqa: E402,F401  (cards, pots, roles)
+from . import roles  # noqa: E402,F401  (hidden roles and teams)
 from . import social  # noqa: E402,F401  (registers the social mechanism family)
 from . import matching  # noqa: E402,F401  (two-sided stable matching, a groups mode)
 from . import status  # noqa: E402,F401

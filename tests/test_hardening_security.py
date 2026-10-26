@@ -360,7 +360,7 @@ def _preview_id(value):
 
 
 def test_non_string_keys_on_a_real_contract():
-    env = fg_env.load("examples/contracts/diplomacy.json", seed=1)
+    env = fg_env.load("tests/fixtures/contracts/diplomacy.json", seed=1)
     for name, spec in env.contract.actions.items():
         by = [spec.by] if isinstance(spec.by, str) else spec.by
         actor = next(e for e in env.world.entities.values() if any(env.contract.is_a(e.entity_type, t) for t in by))

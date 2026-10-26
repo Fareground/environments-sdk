@@ -13,7 +13,7 @@ from fg_env import participants
 from fg_env.__main__ import main
 from fg_env.errors import RunError
 
-CONNECT_FOUR = "examples/contracts/connect_four.json"
+TURNS = "tests/fixtures/contracts/turns.json"
 
 
 @pytest.fixture(autouse=True)
@@ -61,7 +61,7 @@ def _player(reply):
     lambda request, client: _response([NS(type="text", text="I would play the centre.")], "end_turn"),
 ], ids=["refuses", "unknown tool", "text only"])
 def test_one_seat_that_never_acts_degrades_the_run(yellow):
-    result = fg_env.run(CONNECT_FOUR, {"red": _player(_first_legal), "yellow": _player(yellow)}, seed=1)
+    result = fg_env.run(TURNS, {"red": _player(_first_legal), "yellow": _player(yellow)}, seed=1)
     assert result.degraded == ["agents_never_acted"] and not result.ok
     [found] = [d for d in result.diagnostics if d["code"] == "agents_never_acted"]
     assert found["message"].startswith("yellow took no action")
@@ -73,7 +73,7 @@ def test_a_seat_whose_turns_mostly_fail_degrades_the_run():
         turn = sum(1 for r in client.requests if len(r["messages"]) == 1)
         return _first_legal(request, client) if turn % 3 == 0 else client.tool("drop_disc", {})
 
-    result = fg_env.run(CONNECT_FOUR, {"red": _player(_first_legal), "yellow": _player(sometimes)}, seed=1)
+    result = fg_env.run(TURNS, {"red": _player(_first_legal), "yellow": _player(sometimes)}, seed=1)
     assert result.agent_stats["yellow"]["actions"] > 0
     assert result.agent_stats["yellow"]["failed_turns"] > result.agent_stats["yellow"]["wakes"] / 2
     assert result.degraded == ["agents_often_failed"] and not result.ok
@@ -86,7 +86,7 @@ def test_a_model_seat_that_fails_a_small_share_of_its_turns_degrades_the_run():
         early = sum(1 for r in client.requests if len(r["messages"]) == 1) <= 2
         return client.tool("drop_disc", {}) if early else _first_legal(request, client)
 
-    result = fg_env.run(CONNECT_FOUR, {"red": _player(_first_legal), "yellow": _player(mostly)}, seed=1)
+    result = fg_env.run(TURNS, {"red": _player(_first_legal), "yellow": _player(mostly)}, seed=1)
     stats = result.agent_stats["yellow"]
     assert stats["failed_turns"] == 2 and stats["failed_turns"] < stats["wakes"] / 2
     assert result.degraded == ["agents_often_failed"] and not result.ok
@@ -111,9 +111,9 @@ def test_a_model_that_passes_where_passing_is_allowed_made_a_move():
 
 
 def test_sound_runs_exit_zero_and_degraded_runs_exit_three(tmp_path, capsys):
-    healthy = fg_env.run(CONNECT_FOUR, _player(_first_legal), seed=1)
+    healthy = fg_env.run(TURNS, _player(_first_legal), seed=1)
     assert healthy.ok and healthy.degraded == []
-    assert main(["run", CONNECT_FOUR, "--seed", "1"]) == 0
+    assert main(["run", TURNS, "--seed", "1"]) == 0
     ledger = tmp_path / "ledger.json"
     ledger.write_text(json.dumps(LEDGER))
     assert main(["run", str(ledger), "--seed", "1", "--agent", "idle"]) == 0  # doing nothing on purpose is sound
@@ -122,13 +122,13 @@ def test_sound_runs_exit_zero_and_degraded_runs_exit_three(tmp_path, capsys):
 
 
 def test_a_run_its_budget_cut_short_is_not_ok():
-    result = fg_env.run(CONNECT_FOUR, _player(_first_legal), seed=1, budget={"calls": 3})
+    result = fg_env.run(TURNS, _player(_first_legal), seed=1, budget={"calls": 3})
     assert result.ended_by == "budget" and result.degraded == ["budget_cut"] and not result.ok
     assert result.winner is None
 
 
 def test_a_run_whose_budget_handed_its_turns_to_idle_agents_is_not_ok():
-    result = fg_env.run(CONNECT_FOUR, _player(_first_legal), seed=1, budget={"calls": 3, "on_exhaust": "idle"})
+    result = fg_env.run(TURNS, _player(_first_legal), seed=1, budget={"calls": 3, "on_exhaust": "idle"})
     assert result.budget["exhausted"] == "calls" and result.degraded == ["budget_cut"] and not result.ok
     [found] = [d for d in result.diagnostics if d["code"] == "budget_cut"]
     assert "agents take no more actions" in found["message"]
@@ -266,7 +266,7 @@ def test_a_judge_answer_cut_off_at_its_limit_says_so():
 
 def test_a_turn_that_runs_out_of_model_calls_is_counted_and_reported():
     agent = participants.anthropic(Scripted(lambda request, client: client.tool("drop_disc", {})), "m", max_steps=3)
-    result = fg_env.run(CONNECT_FOUR, {"red": _player(_first_legal), "yellow": agent}, seed=1)
+    result = fg_env.run(TURNS, {"red": _player(_first_legal), "yellow": agent}, seed=1)
     assert result.agent_stats["yellow"]["out_of_steps"] == result.agent_stats["yellow"]["wakes"] > 0
     assert agent.usage.out_of_steps == result.agent_stats["yellow"]["out_of_steps"]
     found = {d["code"]: d for d in result.diagnostics}

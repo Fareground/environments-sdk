@@ -60,7 +60,6 @@ RECIPES: dict[str, Recipe] = {
                           {"deal": True, "price": 70},
                           "the seller asks 80, the buyer offers 30, the seller comes down to 70, and the buyer "
                           "accepts any price at least 10 below its worth of 80."),
-    "hidden_roles": Recipe("private roles, a secret night stage and open accusations", "policy:first"),
     "market": Recipe("posted prices, and buyers paying with a transfer", "policy:steady",
                      {"profit": 30, "loaves_sold": 30},
                      "each household buys 2 loaves a day at 2 until its 20 runs out after 5 days: 30 loaves, each "
@@ -69,9 +68,6 @@ RECIPES: dict[str, Recipe] = {
                     {"served": 22, "cost": 80},
                     "2 counters serve 6 a round: 4 + 6 + 6 + 6 of the 23 arrivals; 2 counters × 10 × 4 rounds."),
     "spread": Recipe("an infection passing along a contact network (no agents)"),
-    "board_game": Recipe("a turn-based board game with a winner and zero-sum seats", "policy:first_free",
-                         {"winner": "X"},
-                         "both mark the lowest free cell, so X holds 0, 2, 4 and 6 and wins on the diagonal."),
     "economy": Recipe("gathering, eating and building with one action a day", "policy:balanced",
                       {"houses": 3, "settlers_left": 3},
                       "gathering food whenever it has less than 2, each settler has 6 wood after day 5 and builds a "

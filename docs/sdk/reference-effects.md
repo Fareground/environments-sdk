@@ -39,7 +39,7 @@ Operation objects (exactly one operation key each):
 - `economy`: {"economy": "<economy mechanism>", "action": ...} — actions: inventory give make use drop pickup; ledger pay mint burn lend repay; production start; supply_chain order; demand receive remove; replenishment order; queue — (guide("economy"))
 - `agreements`: {"agreements": "<agreements mechanism>", "action": ...} — actions: bookings book cancel; negotiation propose counter accept reject withdraw fulfill; subscriptions subscribe set_price (guide("agreements"))
 - `decision`: {"decision": "<decision mechanism>", "action": ...} — actions: ballot tally; deliberation speak ready raise_hand recognize yield propose second amend withdraw call_question vote; procedure push pass counter (guide("decision"))
-- `game`: {"game": "<game mechanism>", "action": ...} — actions: board move pass setup; cards shuffle collect deal draw burn move play discard give reveal peek; pot fold check call bet raise all_in; status apply cleanse (guide("game"))
+- `conditions`: {"conditions": "<conditions mechanism>", "action": ...} — actions: status apply cleanse (guide("conditions"))
 - `groups`: {"groups": "<groups mechanism>", "action": ...} — actions: roles eliminate reveal; matching — (guide("groups"))
 - `social`: {"social": "<social mechanism>", "action": ...} — actions: diffusion step seed adopt reject expose; feed post reply repost react follow unfollow befriend unfriend block unblock mute unmute label (guide("social"))
 - `host`: {"host": "<host mechanism>", "action": ...} — actions: judge judge; game_master resolve; personas write; tool call; memory note recall; recap write; feed — (guide("host"))

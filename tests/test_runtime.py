@@ -134,7 +134,7 @@ def test_wake_tools_corrections_and_atomic_failure():
     assert "# Corner shop" in seen["brief"] and "You are Shopper 1" in seen["brief"]
     assert "On the shelf:" in seen["update"] and "[espresso] Espresso · $3.00 · 5 left" in seen["update"]
     assert seen["buy_schema"]["properties"]["offer"]["enum"] == ["espresso", "latte"]
-    assert "qty must be at most 10" in seen["bad"]
+    assert "qty must be at most 6 now" in seen["bad"]  # stock allows 10; $30 at $5 a latte buys 6
     assert "That costs $35.00; you have $30.00." == seen["fail"]
     assert seen["cash_unchanged"]
     # The result goes on with what the purchase changed, so the rest of the turn is decided on the world as it is.

@@ -37,7 +37,7 @@ def test_a_folded_family_is_renamed_with_the_ops_named_after_it():
 @pytest.mark.parametrize("kind, mode, hint", [
     ("flow", "victory", "declare `end` entries with a `winner`"),
     ("flow", "order", "set the stage's `order`"),
-    ("conditions", "cooldowns", "use a `game.status` mechanism"),
+    ("conditions", "cooldowns", "use a `conditions.status` mechanism"),
     ("social", "channels", "post to a record"),
     ("mind", "beliefs", "keep each agent's beliefs in props"),
     ("agreements", "labor", "declare jobs yourself"),
@@ -75,32 +75,32 @@ def test_a_removed_function_the_contract_defines_itself_is_left_alone():
     assert fg_env.run(own, seed=1).outputs["rolls"] == [20, 20, 20]
 
 
-POT = {"name": "Pot", "clock": {"rounds": 1}, "types": {"player": {"agent": True, "props": {"chips": 100}}},
-       "entities": {"a": {"type": "player"}, "b": {"type": "player"}},
-       "outputs": {"pot": "$pot_total()"}}
+HOUSE = {"name": "House", "clock": {"rounds": 1}, "types": {"bidder": {"agent": True, "props": {"cash": 100}}},
+         "entities": {"a": {"type": "bidder"}, "b": {"type": "bidder"}},
+         "outputs": {"sold": "$auction()"}}
 
 
 def test_a_mechanism_function_needs_a_mechanism_of_its_family():
-    [issue] = _errors(POT)
-    assert issue.message == "$pot_total reads a `game` mechanism, and this contract declares none"
-    assert issue.fix.startswith("declare one (guide('game'))")
-    table = {**POT, "outputs": {"pot": "$pot_total(table)"}, "mechanisms": {"table": {
-        "kind": "game", "mode": "pot", "who": "player", "stack": 100, "blinds": [1, 2], "score": "$it.chips"}}}
-    assert _errors(table) == []
+    [issue] = _errors(HOUSE)
+    assert issue.message == "$auction reads a `market` mechanism, and this contract declares none"
+    assert issue.fix.startswith("declare one (guide('market'))")
+    house = {**HOUSE, "outputs": {"sold": "$auction(sale)"}, "mechanisms": {"sale": {
+        "kind": "market", "mode": "auction", "format": "first_price", "who": "bidder"}}}
+    assert _errors(house) == []
 
 
 @pytest.mark.parametrize("typo, hint", [("$fitler(p, true)", "$filter"), ("$total(p)", "$sum"),
-                                        ("$pot_totl()", None)])
+                                        ("$auctin()", None)])
 def test_an_unknown_function_suggests_a_core_one_first_and_never_an_undeclared_mechanisms(typo, hint):
-    issue = next(i for i in _errors({**POT, "outputs": {"x": typo}}) if "unknown function" in i.message)
+    issue = next(i for i in _errors({**HOUSE, "outputs": {"x": typo}}) if "unknown function" in i.message)
     if hint is None:
-        assert "$pot_total" not in (issue.fix or "")
+        assert "$auction" not in (issue.fix or "")
     else:
         assert issue.fix.startswith(f"did you mean {hint}?"), issue.fix
 
 
 def test_best_is_a_core_function():
-    result = fg_env.run({**POT, "outputs": {"richest": "$best(player, $it.chips, 'all')"}}, seed=1)
+    result = fg_env.run({**HOUSE, "outputs": {"richest": "$best(bidder, $it.cash, 'all')"}}, seed=1)
     assert result.ok and result.outputs["richest"] == ["a", "b"]
 
 

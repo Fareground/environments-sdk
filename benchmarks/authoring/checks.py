@@ -304,36 +304,6 @@ def town_ballots_are_secret(ctx: Ctx) -> None:
         line_leak(ctx, residents, resident, r"(?:park|garage|library)\W{1,5}(?:yes|no|abstain)")
 
 
-# -- werewolf -------------------------------------------------------------------------------------------------------
-
-def wolf_roles_are_dealt(ctx: Ctx) -> None:
-    for out in ctx.outs:
-        roles = Counter(norm(r) for r in out["roles"].values())
-        assert roles == Counter({"villager": 4, "werewolf": 2, "seer": 1}), f"roles dealt: {dict(roles)}"
-    assert len({tuple(sorted(o["roles"].items())) for o in ctx.outs}) > 1, "roles are the same every game"
-
-
-def wolf_outcome_is_consistent(ctx: Ctx) -> None:
-    for out in many(ctx):
-        players, gone, alive = set(out["roles"]), out["eliminated"], set(out["alive_end"])
-        assert len(set(gone)) == len(gone), f"someone was eliminated twice: {gone}"
-        assert set(gone) | alive == players and not set(gone) & alive, f"eliminated {gone} vs alive {alive}"
-        wolves = sum(norm(out["roles"][p]) == "werewolf" for p in alive)
-        if norm(out["winner"]) == "village":
-            assert wolves == 0, "village won with werewolves alive"
-        elif norm(out["winner"]) == "werewolves":
-            assert wolves >= len(alive) - wolves, "werewolves won while outnumbered"
-        else:
-            assert 0 < wolves < len(alive) - wolves, f"no winner, yet {wolves} wolves among {len(alive)} alive"
-
-
-def wolf_roles_stay_hidden(ctx: Ctx) -> None:
-    roles = ctx.probe().result.outputs["roles"]
-    villagers = [p for p, r in roles.items() if norm(r) == "villager"]
-    for wolf in [p for p, r in roles.items() if norm(r) == "werewolf"]:
-        line_leak(ctx, villagers, wolf, "werewolf|werewolves|wolf")
-
-
 # -- labor negotiation ----------------------------------------------------------------------------------------------
 
 def labor_strike_costs_add_up(ctx: Ctx) -> None:
@@ -446,8 +416,6 @@ BRIEFS = {
                       [auction_lots_are_well_formed, auction_money_is_conserved, auction_english_lots_sell]),
     "town_hall": (["results", "tallies", "ballots"],
                   [town_tallies_match_ballots, town_results_follow_rules, town_ballots_are_secret]),
-    "werewolf": (["winner", "roles", "eliminated", "alive_end"],
-                 [wolf_roles_are_dealt, wolf_outcome_is_consistent, wolf_roles_stay_hidden]),
     "labor_negotiation": (["agreed", "wage_increase", "strike_rounds", "company_losses", "worker_lost_wages",
                            "ratification_votes"],
                           [labor_strike_costs_add_up, labor_deal_needs_majority, labor_strike_happens_sometimes]),

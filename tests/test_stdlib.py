@@ -83,18 +83,6 @@ VALUES = [
     ("$similar('', '')", 1.0),
     ("$similar('abc', 'abc')", 1.0),
     ("$similar('abc', '')", 0.0),
-    # word games
-    ("$wordle_feedback('speed', 'abide')", ["gray", "gray", "yellow", "gray", "yellow"]),
-    ("$wordle_feedback('allee', 'apple')", ["green", "yellow", "gray", "gray", "green"]),
-    ("$wordle_feedback('lolly', 'hello')", ["gray", "yellow", "green", "green", "gray"]),
-    ("$wordle_feedback('EERIE', 'there')", ["yellow", "gray", "yellow", "gray", "green"]),
-    ("$wordle_feedback('crane', 'crane')", ["green"] * 5),
-    ("$mask('Ice-cream Sandwich', ['c', 'A'])", "_c_-c__a_ _a____c_"),
-    ("$mask('hello', 'LO', '*')", "**llo"),
-    ("$mask('hello', [])", "_____"),
-    ("$mask('abc', null)", "___"),
-    ("$anagram('Dormitory', 'dirty room!')", True),
-    ("$anagram('abc', 'abd')", False),
     # sets and maps
     ("$union([1, 2, 2], [3, 1])", [1, 2, 3]),
     ("$union(null, [1])", [1]),
@@ -289,11 +277,6 @@ ERRORS = [
     ("$matches('a', '^*')", r"anchor cannot be repeated"),
     ("$matches('a', 'a)')", r"unmatched"),
     ("$similar($pad('', 1001, 'a'), 'b')", r"up to 1,000 characters"),
-    ("$wordle_feedback('abc', 'abcd')", r"3 letters but the answer has 4"),
-    ("$wordle_feedback(5, 'abcd')", r"guess text"),
-    ("$mask('abc', 5)", r"list of letters"),
-    ("$mask('abc', [1])", r"must be text"),
-    ("$mask('abc', [], '--')", r"exactly one character"),
     ("$union(5, [1])", r"\$union: argument 1 must be a list"),
     ("$merge({a: 1}, [1])", r"must be a map"),
     ("$without([1], a)", r"must be a map"),
@@ -435,7 +418,7 @@ def test_regex_and_similarity_charge_the_budget():
 TAINTED = [
     "$split($t)", "$chars($t)", "$words($t)", "$upper($t)", "$title($t)", "$trim($t)", "$substr($t, 1)",
     "$pad($t, 20)", "$replace($t, 'o', '0')", "$replace('plain', 'a', $t)",
-    "$mask($t, [o])", "$mask('secret', [], $c)", "$pad('x', 3, $c)", "$union([$t], ['Hello World'])",
+    "$pad('x', 3, $c)", "$union([$t], ['Hello World'])",
     "$merge({a: $t}, {b: 1})", "$zip([$t], [1])", "$set_at([1], 0, $t)",
 ]
 
@@ -456,11 +439,9 @@ def test_text_derived_from_participant_text_stays_marked(source):
 
 
 def test_plain_text_stays_plain_and_labels_are_not_participant_text():
-    for source in ("$upper('abc')", "$split('a b')[0]", "$mask('abc', [a])"):
+    for source in ("$upper('abc')", "$split('a b')[0]"):
         value = ev(source)
         assert not isinstance(value, Untrusted)
-    marks = ev("$wordle_feedback($t, 'crane')", t=Untrusted("CRATE"))
-    assert marks == ["green", "green", "green", "gray", "green"] and not any(isinstance(m, Untrusted) for m in marks)
 
 
 def test_map_keys_keep_their_participant_marker():

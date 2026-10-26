@@ -397,7 +397,7 @@ def modifier_terms(world: Any, raw: Any, entity: Entity, where: str) -> tuple[fl
 @function("effective(entity, prop)",
           "The property with every active modifier applied: (base + adds) × multipliers from statuses, kept "
           "within the property's min/max, e.g. $effective($actor, 'armor').",
-          min_args=2, max_args=2, family="game")
+          min_args=2, max_args=2, family="conditions")
 def _effective(call: Call) -> Any:
     world: Any = call.scope.world
     entity = world.entity(call.arg(0))

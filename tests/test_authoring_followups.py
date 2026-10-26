@@ -115,7 +115,7 @@ def test_a_sealed_bid_receipt_names_the_item_without_a_count_for_one_unit():
 
 
 def test_diplomacy_offers_disband_only_when_an_army_can_be_disbanded():
-    env = fg_env.load(EXAMPLES / "diplomacy.json", seed=1)
+    env = fg_env.load(Path(__file__).parent / "fixtures" / "contracts" / "diplomacy.json", seed=1)
     preview = env.preview(next(e["id"] for e in env.entities("nation")))
     assert "disband" not in [tool["name"] for tool in preview["tools"]]
 
