@@ -13,7 +13,9 @@ from fg_env.effects.runner import select_ops
 from fg_env.effects.shapes import EFFECT_FIELDS
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
-BASES = [json.loads((EXAMPLES / f"{name}.json").read_text()) for name in ("werewolf", "auction_house", "kuhn_poker")]
+FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
+BASES = [json.loads(path.read_text()) for path in (FIXTURES / "werewolf.json", EXAMPLES / "auction_house.json",
+                                                   FIXTURES / "kuhn_poker.json")]
 #: What a mutation writes into a field: every JSON shape, and texts that are almost expressions.
 ODD = [None, True, 0, -1, 1.5, "", "$", "${", "$x +", [], {}, [None], {"a": None}, "all", ["p"], {"expr": "$"},
        10 ** 30]

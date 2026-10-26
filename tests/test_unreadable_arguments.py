@@ -13,7 +13,7 @@ def test_deeply_nested_argument_text_is_an_invalid_call_not_a_crashed_run():
     def agent(wake):
         told.append(wake.call("pass", DEEP).text)
 
-    result = fg_env.load("examples/contracts/games/kuhn_poker.json", seed=1).run({"*": agent})
+    result = fg_env.load("tests/fixtures/games/kuhn_poker.json", seed=1).run({"*": agent})
     assert result.status != "failed", result.error
     assert "too deep to read" in told[0]
 

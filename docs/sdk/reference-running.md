@@ -112,24 +112,24 @@ with wake.clone() as branch:          # inside a turn: a private copy paused rig
     branch.call("buy", {"offer": "latte", "qty": 2}); outcome = branch.run("random")   # the real run never changes
 twin = env.clone()                    # between rounds or stopped mid-round: continues exactly like env
 what_if = env.fork(arm="promo", patch={...}, effects=["$world.tax = 0.2"])   # between rounds; refuses what cannot follow
-game = fg_env.rl.game("kuhn_poker.json"); state = game.new_initial_state()    # OpenSpiel-style
+game = fg_env.rl.game("sealed_bid.json"); state = game.new_initial_state()    # OpenSpiel-style
 state.current_player(), state.legal_actions(), state.chance_outcomes(), state.child(action), state.returns()
 state.information_state(seat), state.observation(seat, "struct"), state.apply_actions({0: a, 1: b})
 env = fg_env.rl.gym("nim.json", "a", others="random"); obs, info = env.reset(seed=1)
 obs, reward, terminated, truncated, info = env.step({"tool": "take", "args": {"count": 2}})
-fg_env.rl.conformance("kuhn_poker.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
-print(fg_env.rl.playthrough("kuhn_poker.json", seed=1))       # every seat's reading at every decision: a golden text to diff
+fg_env.rl.conformance("sealed_bid.json", sims=20).summary()   # legal calls, chance, clone, serialize, returns, replay, resume, leaks
+print(fg_env.rl.playthrough("sealed_bid.json", seed=1))       # every seat's reading at every decision: a golden text to diff
 from fg_env.game.algorithms import CFRSolver, exploitability, minimax, MCTSBot
 policy = CFRSolver(game, plus=True).iterate(1000).average_policy(); exploitability(game, policy)
-fg_env.run("tic_tac_toe.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
-aec = fg_env.rl.pettingzoo_aec("kuhn_poker.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
+fg_env.run("two_seats.json", {"x": "mcts:200", "o": "minimax"})   # also "ismcts:200", "cfr:policy.json", "cfr:1000"
+aec = fg_env.rl.pettingzoo_aec("sealed_bid.json", seed=1)     # PettingZoo AEC (reward since last turn); pettingzoo_parallel too
 ```
 The leak check changes one step of a playout — a chance outcome, a seat's call, a sealed choice — and compares what
 each other seat reads: it finds what a seat's moves reveal, not what the starting hidden state does (a rule that
 announces news because another's private value is high shows no difference to it); `check` warns about those. It
 also holds every seat to perfect recall: two playouts a seat was told apart are two of its information states.
 Games transform into ordinary contracts: `fg_env.game.repeated(contract, 10)`, `misere`, `zerosum`;
-`game.start_at(steps)` starts part-way. Known-answer games live in `examples/contracts/games`.
+`game.start_at(steps)` starts part-way.
 CLI: `fg-env conformance file.json --sims 50`, `fg-env playthrough file.json --seed 1 [--check golden.txt]`,
 `fg-env bench --game file.json`.
 A copy is a copy of the run's state, so it is exact (state, random streams, turn numbers, log, recorded host
@@ -148,8 +148,8 @@ sends it as `max_completion_tokens`, and also takes `reasoning_effort`) and `ext
 every call (`extra={"temperature": 0}`; `{"max_tokens": 1024}` for a server that only knows that field); a reply
 cut off at the limit
 counts in `truncated` and, when it called no tool, is asked once for a short tool call (`retry_truncated`).
-Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in a Hold'em
-evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
+Every truncated reply wastes its whole output: for frequent decisions use `reasoning_effort="low"` (in one
+repeated-decision evaluation it cut cost by 38% with no visible loss in play), or keep the default effort with a larger `max_tokens`
 (6,000 was cut off 9 times in 96 turns).
 A reply that still calls no tool after one reminder ends the turn (`no_tool_replies`), and a turn with no action to
 take ends without a model call. Retries never wait past the turn's time limit, each request times out with the turn

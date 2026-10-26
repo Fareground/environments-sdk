@@ -10,7 +10,7 @@ from ..errors import ContractError, Issue
 from .normalize import rule
 
 #: ``(old family, mode)`` → the family the mode moved to (the mode keeps its name).
-MOVED_MODES = {("flow", "procedure"): "decision", ("operations", "queue"): "economy", ("conditions", "status"): "game",
+MOVED_MODES = {("flow", "procedure"): "decision", ("operations", "queue"): "economy", ("game", "status"): "conditions",
                ("mind", "memory"): "host", ("mind", "personas"): "host"}
 #: Families that no longer exist: an effect op named after one is its renamed family's op.
 _OLD_OPS = {old: new for (old, _), new in MOVED_MODES.items()}
@@ -28,8 +28,8 @@ REMOVED_MODES = {
     "game.slots": "declare each space as an entity with a `capacity`, and a `place` action whose param's `where` keeps "
                   "only spaces with room",
     "conditions.cooldowns":
-        "use a `game.status` mechanism: one status per cooldown whose `blocks` lists the action, applied in that "
-        "action's `do` ({\"game\": <name>, \"action\": \"apply\", \"status\": ..., \"who\": \"$actor\"})",
+        "use a `conditions.status` mechanism: one status per cooldown whose `blocks` lists the action, applied in "
+        "that action's `do` ({\"conditions\": <name>, \"action\": \"apply\", \"status\": ..., \"who\": \"$actor\"})",
     "conditions.channeling": "keep the channel in a property (rounds left) and resolve it in an event at the start of "
                              "the round",
     "conditions.terrain": "declare the terrain as a space layer (`space.layers`) and read it with $layer",

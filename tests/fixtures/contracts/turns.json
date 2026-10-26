@@ -1,0 +1,14 @@
+{
+  "name": "Turns",
+  "description": "Two seats take turns, each turn one choice from a short list: the smallest run that wakes every seat again and again, for run-health checks.",
+  "clock": {"rounds": 10},
+  "types": {"seat": {"agent": true, "props": {"drops": {"type": "int", "default": 0}}}},
+  "entities": {"red": {"type": "seat"}, "yellow": {"type": "seat"}},
+  "actions": {
+    "drop_disc": {"by": "seat", "description": "Drop a disc into a column.",
+                  "params": {"column": {"type": "enum", "values": ["1", "2", "3", "4", "5", "6", "7"]}},
+                  "do": ["$actor.drops += 1"]}
+  },
+  "stages": [{"name": "play", "order": "$it.id"}],
+  "outputs": {"drops": {"expr": "$sum(seat, $it.drops)", "type": "int"}}
+}

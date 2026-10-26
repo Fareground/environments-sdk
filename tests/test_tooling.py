@@ -89,9 +89,9 @@ def test_every_function_belongs_to_a_named_group():
 
 def test_the_function_map_keeps_core_functions_apart_from_mechanism_ones():
     index = guide("functions")
-    assert "$sum" in index and "$lookup" in index and "$wordle_feedback" in index  # the library, for any contract
-    assert "$poker_hand" not in index and "$board_moves" not in index  # a mechanism's: on its family's page
-    assert "$poker_hand" in guide("game") and "$poker_hand" in guide("functions.game")
+    assert "$sum" in index and "$lookup" in index and "$similar" in index  # the library, for any contract
+    assert "$has_status" not in index and "$effective" not in index  # a mechanism's: on its family's page
+    assert "$has_status" in guide("conditions") and "$has_status" in guide("functions.conditions")
 
 
 def test_an_unknown_part_suggests_the_closest_one():

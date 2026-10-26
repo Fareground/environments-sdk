@@ -38,7 +38,7 @@ Reach for one of these when the core cannot say it.
 
 | section | what it declares |
 |---|---|
-| `mechanisms` | Native building blocks by family (markets, voting, cards, roles, physics, patterns, feeds …): see guide('mechanisms'). |
+| `mechanisms` | Native building blocks by family (markets, voting, roles, statuses, physics, patterns, feeds …): see guide('mechanisms'). |
 | `space` | Positions: a grid, a graph of places or a plane, with values on cells. |
 | `relations` | Typed links between entities (trust, follows), with fields, and the links made at build (`links`): listed, from data rows, or generated networks. |
 | `arms` | Experiment variants: input overrides or contract patches. |
@@ -47,7 +47,7 @@ Reach for one of these when the core cannot say it.
 
 ## Recipe, mechanism or engine?
 
-A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `hidden_roles`, `market`, `queue`, `spread`, `board_game`, `economy`, `grid`, `simulation`
+A cookbook recipe is a small contract for one pattern to start from: `fg-env new <recipe>` with `blank`, `auction`, `vote`, `negotiation`, `market`, `queue`, `spread`, `economy`, `grid`, `simulation`
 (`guide('cookbook')` shows each with its known answer). A mechanism (`market`, `decision` …) is a building block
 inside your contract. An engine (`retail`, `council` …) is a complete, larger contract to copy and edit:
 `fg-env new --engine <id>`.
@@ -63,7 +63,7 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 | `economy` | inventory, ledger, production, supply_chain, demand, replenishment, queue | Money, goods, making things and serving customers: ledgers (currencies, taxes, loans), inventories, production, supply chains, customers' demand for stocked items and the policies that replenish them, and service queues (customers arriving on channels, served by staffed server pools). |
 | `agreements` | bookings, negotiation, subscriptions | Commitments between agents over time: negotiated deals, subscriptions and bookings. |
 | `decision` | ballot, deliberation, procedure | Collective choice: ballots, structured deliberation with motions and votes, and procedures with phases and objections. |
-| `game` | board, cards, pot, status | Game equipment: boards with enforced rules, cards, betting pots, and statuses on pieces (timed conditions that tick, modify properties and block actions). |
+| `conditions` | status | Conditions on entities: named, timed statuses (on leave, suspended, sick, under review) that tick, change properties and block actions. |
 | `groups` | roles, matching | Who belongs with whom: hidden roles and teams, stable matching. |
 | `social` | diffusion, feed | Spreading: a social feed, and diffusion over a network. |
 | `host` | judge, game_master, personas, tool, memory, recap, feed | Services the host provides during a run: an LLM judge, a game master, recaps, tools such as web search, agents' memory with recall, and generated personas. |

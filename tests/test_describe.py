@@ -10,6 +10,7 @@ from fg_env.__main__ import main
 from fg_env.describe import check_claims, describe
 
 EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
+FIXTURES = Path(__file__).parent / "fixtures" / "contracts"
 
 #: Two players take 1–3 stones in turn; whoever takes the last stone wins. Everything is on the table.
 NIM = {
@@ -108,14 +109,9 @@ def test_parametric_and_entity_choices_in_the_action_space():
 
 
 def test_example_contracts_are_classified_from_their_expanded_parts():
-    holdem = describe(EXAMPLES / "holdem_lite.json").metadata
-    assert holdem["information"] == "imperfect" and holdem["chance_mode"] == "sampled"
-    werewolf = describe(EXAMPLES / "werewolf.json").metadata
+    werewolf = describe(FIXTURES / "werewolf.json").metadata
     assert any("records.den" in line for line in werewolf["evidence"]["information"])
     assert werewolf["dynamics"] == "mixed"
-    chess = describe(EXAMPLES / "chess.json").metadata
-    assert chess["dynamics"] == "sequential" and "board" in chess["concepts"]
-    assert chess["information"] in ("perfect", "unknown")  # never imperfect: chess hides nothing
 
 
 def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_described():
@@ -129,7 +125,7 @@ def test_feeds_noise_hooks_lossy_messages_atomic_turns_and_spectators_are_descri
     assert outbreak["information"] == "imperfect"
     assert ({"entity_dynamics", "lifecycle_hooks", "external_data", "delayed_or_lossy_messages"}
             <= set(outbreak["concepts"]))
-    hop = describe(EXAMPLES / "hopscotch_race.json")
+    hop = describe(FIXTURES / "hopscotch_race.json")
     assert hop.metadata["evidence"]["dynamics"] == [
         "stage hop: sequential turns, atomic (a turn's actions stand or fall together)"]
     assert hop.metadata["observations"]["spectator"] == ["race"]

@@ -1,6 +1,6 @@
-# game / status
+# conditions / status
 
-### `game.status`
+### `conditions.status`
 Named statuses on entities: timed or permanent, stacking, ticking effects each round, property modifiers ($effective), blocked actions, immunity, expiry news and cleansing. Apply with the `apply` action, remove with `cleanse`; read with $has_status, $status_stacks, $status_rounds. State is the map property <name> on each carrier.
 
 Config:
@@ -30,10 +30,10 @@ Nested config:
 - `add`: number | text = 0.0 — Added to the property (number or expression over $it).
 - `mul`: number | text = 1.0 — Multiplies the property (number or expression over $it).
 
-Actions of the `game` op:
-- `apply` — takes `status`, `who`, `rounds`, `stacks`, `source` (needs `status`, `who`): {"game": "conditions", "action": "apply", "status": "poison", "who": "$params.target", "rounds": 3, "stacks": 1}  (rounds and stacks are optional; source defaults to $actor)
-- `cleanse` — takes `status`, `who` (needs `status`, `who`): {"game": "conditions", "action": "cleanse", "status": "poison", "who": "$params.ally"}  (a status, a list, or "all" for every cleansable one; on_expire does not run)
+Actions of the `conditions` op:
+- `apply` — takes `status`, `who`, `rounds`, `stacks`, `source` (needs `status`, `who`): {"conditions": "statuses", "action": "apply", "status": "poison", "who": "$params.target", "rounds": 3, "stacks": 1}  (rounds and stacks are optional; source defaults to $actor)
+- `cleanse` — takes `status`, `who` (needs `status`, `who`): {"conditions": "statuses", "action": "cleanse", "status": "poison", "who": "$params.ally"}  (a status, a list, or "all" for every cleansable one; on_expire does not run)
 
 ```json
-{"types": {"unit": {"agent": true, "props": {"hp": 20, "armor": 0}}}, "actions": {"attack": {"by": "unit", "do": "$actor.hp += 0"}}, "entities": {"unit": {"type": "unit", "count": 2}}, "mechanisms": {"my_status": {"kind": "game", "mode": "status", "who": "unit", "statuses": {"poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]}, "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"}, "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}}}}
+{"types": {"unit": {"agent": true, "props": {"hp": 20, "armor": 0}}}, "actions": {"attack": {"by": "unit", "do": "$actor.hp += 0"}}, "entities": {"unit": {"type": "unit", "count": 2}}, "mechanisms": {"my_status": {"kind": "conditions", "mode": "status", "who": "unit", "statuses": {"poison": {"duration": 3, "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"]}, "stun": {"duration": 1, "blocks": ["attack"], "blocked_why": "you are stunned"}, "shield": {"duration": 2, "modifiers": {"armor": 3}, "immune": ["poison"]}}}}}
 ```

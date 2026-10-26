@@ -75,16 +75,6 @@ def test_an_authors_own_entry_still_overrides_a_generated_one():
     assert errors(contract) == []
 
 
-def test_two_decks_get_their_own_card_ids_and_must_not_share_a_card_type():
-    chance = {"kind": "game", "mode": "cards", "who": "member", "type": "chance",
-              "deck": [{"name": "Advance to Go"}, {"name": "Pay tax"}]}
-    chest = {**chance, "type": "chest"}
-    env = fg_env.load(_with(chance=chance, chest=chest), seed=1)
-    assert {"chance_advance_to_go", "chest_advance_to_go"} <= set(env.world.entities)
-    assert any("decks 'chance' and 'chest' both hold cards of type 'card'" in e and '"type": "chest_card"' in e
-               for e in errors(_with(chance={**chance, "type": "card"}, chest={**chest, "type": "card"})))
-
-
 def test_a_deliberation_ends_the_run_only_when_asked():
     body = {"kind": "decision", "mode": "deliberation", "who": "member", "second": False, "min_debate": 0}
     motion = [{"decision": "hall", "action": "propose", "text": "Adjourn early"}]

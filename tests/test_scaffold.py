@@ -22,8 +22,8 @@ def test_new_writes_the_file_named_after_it_and_keeps_an_existing_one(tmp_path):
     contract = new("market", path)
     assert json.loads(path.read_text()) == contract and contract["name"] == "Harbour town"
     with pytest.raises(FileExistsError):
-        new("board_game", path)
-    assert new("board_game", path, overwrite=True, name="Noughts")["name"] == "Noughts"
+        new("auction", path)
+    assert new("auction", path, overwrite=True, name="Harbour sale")["name"] == "Harbour sale"
 
 
 def test_an_unknown_template_suggests_the_closest():

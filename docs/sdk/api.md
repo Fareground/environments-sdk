@@ -1007,7 +1007,7 @@ Agents in the loop: a contract as a game, a Gymnasium or PettingZoo environment,
 
     g = rl.game("nim.json")                              # OpenSpiel-style: seats, numbered actions, chance nodes
     env = rl.gym("nim.json", "ann", others="random")     # one agent as a Gymnasium-style environment
-    table = rl.tournament("poker.json", {"a": bot_a, "b": bot_b}, games=50)
+    table = rl.tournament("sealed_bid.json", {"a": bot_a, "b": bot_b}, games=50)
 
 * ``game`` / ``Game`` / ``GameState`` — any contract as a game for search, solving and learning code;
   ``conformance`` checks it, ``playthrough`` prints one game move by move. Transforms, benchmarks and verified

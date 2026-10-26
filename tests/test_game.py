@@ -1,6 +1,5 @@
 """`fg_env.rl.game`: contracts as OpenSpiel-style games, proven with search and a solver."""
 import copy
-import random
 from pathlib import Path
 
 import pytest
@@ -326,22 +325,6 @@ def test_a_game_without_returns_says_what_to_declare():
         state.returns()
 
 
-def test_a_domain_worked_out_from_state_the_rules_raise_is_parametric_so_play_never_hits_an_unlisted_value():
-    """holdem's `raise.to` is bounded by the actor's stack, which winning a pot raises: listing it from the start would
-    miss later values mid-game (audit 12 M3). A domain that only shrinks (nim's stones) keeps its ids."""
-    root = Path(__file__).parents[1] / "examples" / "contracts"
-    game = fg_env.rl.game(root / "holdem_lite.json")
-    assert "raise" in game.space.parametric and "stack" in game.space.parametric["raise"]
-    assert not fg_env.rl.game(root / "games" / "nim.json").space.parametric
-    rng = random.Random(0)
-    for _ in range(3):
-        state, moves = game.new_initial_state(), 0
-        while not state.is_terminal() and moves < 300:
-            options = [a for a, _ in state.chance_outcomes()] if state.is_chance_node() else state.legal_actions()
-            state, moves = state.child(rng.choice(options)), moves + 1
-        assert state.is_terminal()
-
-
 def test_a_seat_s_own_private_value_is_part_of_its_information_state_whether_or_not_a_view_shows_it():
     """A coded policy reads its own private props (`wake.me`), so states that differ only there are two information
     states, never one (audit 12 L3)."""
@@ -358,3 +341,9 @@ def test_a_seat_s_own_private_value_is_part_of_its_information_state_whether_or_
     one, two = game(1).new_initial_state(), game(2).new_initial_state()
     assert one.information_state(0) != two.information_state(0)
     assert one.information_state(1) == two.information_state(1)  # bob cannot tell them apart
+
+
+def test_a_domain_that_only_shrinks_keeps_its_ids():
+    """A domain the rules only ever narrow (nim's stones) is listed once; one they may raise is parametric (the card
+    games' stacks, tested where they are kept)."""
+    assert not fg_env.rl.game(Path(__file__).parent / "fixtures" / "games" / "nim.json").space.parametric

@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 import fg_env
-from fg_env.mechanisms.card_scoring import poker_hand
 from fg_env.mechanisms.deliberation import KIND, DeliberationConfig, _house
 from fg_env.registry import mechanism_config
 
@@ -12,7 +11,12 @@ EXAMPLES = Path(__file__).parents[1] / "examples" / "contracts"
 
 
 def _example(name):
-    return json.loads((EXAMPLES / name).read_text())
+    """An example contract, or one of the test fixtures (`games/...` for the known-answer games)."""
+    fixtures = Path(__file__).parent / "fixtures"
+    for path in (EXAMPLES / name, fixtures / "contracts" / name, fixtures / name):
+        if path.exists():
+            return json.loads(path.read_text())
+    raise FileNotFoundError(name)
 
 
 def _first_tools(contract, seat, inputs=None, rounds=1, others=None):
@@ -45,15 +49,6 @@ def test_text_limits_are_stated_in_words_and_usage_caps_before_the_first_call():
             == "Up to 4 characters (about 1 word).")
 
 
-def test_holdem_says_whether_a_hand_uses_the_hole_cards_or_is_on_the_board():
-    assert poker_hand(["AS", "KD"], ["9H", "9C", "2D"]) == "pair of nines on the board — shared by everyone"
-    assert poker_hand(["KS", "7D"], ["KH", "7C", "2D"]) == "two pair, kings and sevens, using both hole cards"
-    assert poker_hand(["QS", "2D"], ["QH", "9C", "5D", "8S"]) == "pair of queens, using one hole card"
-    assert poker_hand(["9S", "9D"], []) == "pair of nines"
-    seen = _first_tools(_example("texas_holdem.json"), "player", inputs={"players": 4, "hands": 1})
-    assert "Best hand: " in seen["update"] and seen["update"].count("Your hand") == 1  # one heading per thing
-
-
 def test_a_later_pass_says_again_only_to_an_agent_that_already_had_a_turn_in_the_stage():
     contract = {"name": "Passes", "clock": {"rounds": 2}, "world": {"open": 0},
                 "types": {"player": {"agent": True, "props": {"joins": 0}}},
@@ -74,21 +69,6 @@ def test_a_later_pass_says_again_only_to_an_agent_that_already_had_a_turn_in_the
         (2, "ben", "Your turn again.")]
     assert [turn[3] for turn in turns] == [False, False, True] + [False] * 4  # Ben's first turn: "So far:"
     assert turns[0][4].endswith("Your turn ends when you take a final action.")  # a must-act stage offers no pass
-
-
-def test_the_first_turn_reports_what_happened_so_far_not_since_a_last_turn():
-    seen = _first_tools(_example("texas_holdem.json"), "player_4", inputs={"players": 4, "hands": 1})
-    assert "So far:" in seen["update"] and "Since your last turn" not in seen["update"]
-
-
-def test_a_silent_poker_player_is_reported_and_folds_visibly():
-    result = fg_env.run(_example("texas_holdem.json"), {"*": "random", "player_1": lambda wake: None}, seed=3,
-                        inputs={"players": 4, "hands": 1})
-    texts = [event["text"] for event in result.events]
-    name = next(text.split(" did not act.")[0] for text in texts if text.endswith(" did not act."))
-    after = texts[texts.index(f"{name} did not act.") + 1]
-    assert after in (f"{name} folds.", f"{name} checks.")
-    assert result.agent_stats["player_1"]["invalid_calls"] == 0
 
 
 def test_the_floor_refusal_says_what_to_do_before_and_after_raising_a_hand():

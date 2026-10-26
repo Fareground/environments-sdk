@@ -217,9 +217,9 @@ def _team_alive_function(call: Call) -> int:
       "know each other, generates role-gated private tools, and reveals a role (public `revealed_role`) when the "
       "`eliminate` action takes its player out. Views show only your own role and known teammates. "
       "Functions: $known_role, $teammates, $team_alive.",
-      example={"who": "player", "deck": {"werewolf": 2, "seer": 1, "villager": "rest"},
-               "teams": {"wolves": ["werewolf"], "village": ["seer", "villager"]}, "know": ["wolves"],
-               "actions": {"inspect_player": {"roles": ["seer"],
+      example={"who": "player", "deck": {"insider": 2, "auditor": 1, "employee": "rest"},
+               "teams": {"insiders": ["insider"], "staff": ["auditor", "employee"]}, "know": ["insiders"],
+               "actions": {"review_file": {"roles": ["auditor"],
                                               "params": {"target": {"type": "entity", "of": "player"}},
                                               "do": ["$seen = $params.target.role"],
                                               "outcome": "{$params.target.name} is {$seen}."}}},

@@ -2,10 +2,10 @@
 
 Each text here was once rendered in the true state, as game logic reads it: a stage's `valid` why, an end's `say`
 (a condition's or an `end` effect's), a `wake`'s why, a status's news, a procedure's news and its stack's items, a
-card reveal's `say`, a pot's showdown labels, a ballot's announcement and a chance node's labels. Ana and Bo each keep
-a private `secret`; a template that reads Bo's where Ana (or everyone) reads it fails like every other agent-facing
-text, and Bo's secret appears nowhere. What static analysis can see is refused before the run; the probes that test
-the run's own gate fetch Bo's secret with `$get`, which it cannot follow (a plain `$entity(b).secret` is a check error).
+ballot's announcement and a chance node's labels. Ana and Bo each keep a private `secret`; a template that reads Bo's
+where Ana (or everyone) reads it fails like every other agent-facing text, and Bo's secret appears nowhere. What static
+analysis can see is refused before the run; the probes that test the run's own gate fetch Bo's secret with `$get`,
+which it cannot follow (a plain `$entity(b).secret` is a check error).
 """
 import pytest
 
@@ -130,9 +130,9 @@ def test_a_wake_why_shows_the_woken_agent_its_own_private_value_and_no_other():
 
 def _status(say):
     return contract(
-        actions={"poke": {"by": "p", "do": [{"game": "conditions", "action": "apply", "status": "hurt",
+        actions={"poke": {"by": "p", "do": [{"conditions": "conditions", "action": "apply", "status": "hurt",
                                              "who": "$actor"}]}},
-        mechanisms={"conditions": {"kind": "game", "mode": "status", "who": "p",
+        mechanisms={"conditions": {"kind": "conditions", "mode": "status", "who": "p",
                                    "statuses": {"hurt": {"duration": 1, "say": say}}}})
 
 
@@ -171,39 +171,6 @@ def test_a_stack_items_show_is_refused_a_private_value_in_the_news_and_the_view(
 
 def test_a_stack_items_show_reading_its_pushers_private_value_is_refused_by_the_check():
     refused_by_check(_stack("{$actor.secret}"), "mechanisms.trial.stack.kinds.claim.show")
-
-
-def _cards(to=None):
-    reveal = {"game": "cards", "action": "reveal", "cards": "$hand($actor)", "say": "{$get($entity(b), secret)}"}
-    if to is not None:
-        reveal["to"] = to
-    return contract(mechanisms={"cards": {"kind": "game", "mode": "cards", "who": "p", "hand_size": 1}},
-                    actions={"poke": {"by": "p", "do": [reveal]}})
-
-
-def test_a_card_reveals_say_is_refused_a_private_value_for_everyone_and_for_one_player():
-    refused_at_runtime(_cards(), {"a": [("poke", {})]})
-    refused_at_runtime(_cards(to="$entity(a)"), {"a": [("poke", {})]})
-
-
-def test_a_card_reveals_say_to_its_one_reader_shows_it_its_own():
-    c = _cards(to="$entity(b)")
-    result, read = play(c, {"a": [("poke", {})]})
-    assert result.status == "completed", result.error
-    assert BO in read  # told to Bo alone
-
-
-def test_a_card_reveals_say_to_everyone_reading_a_private_world_value_is_refused_by_the_check():
-    c = _cards()
-    c["actions"]["poke"]["do"][0]["say"] = "{$world.hoard}"
-    refused_by_check(c, "actions.poke.do[0].say")
-
-
-def test_a_pots_showdown_label_is_refused_a_private_value():
-    c = contract(mechanisms={"table": {"kind": "game", "mode": "pot", "who": "p", "seat": "$it.seat", "stack": 100,
-                                       "score": "$it.seat", "label": "$get($entity(b), secret)",
-                                       "streets": {"betting": []}, "blinds": [1, 2]}}, stages=[], actions={})
-    refused_at_runtime(c, {pid: [("table_call", {}), ("table_check", {})] for pid in ("a", "b")})
 
 
 def test_a_ballots_announcement_is_refused_a_private_value():

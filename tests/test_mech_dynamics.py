@@ -1,4 +1,4 @@
-"""Statuses (`game.status`) and procedures (`decision.procedure`)."""
+"""Statuses (`conditions.status`) and procedures (`decision.procedure`)."""
 import json
 import math
 from pathlib import Path
@@ -46,7 +46,7 @@ def _props(env, entity_id):
 
 
 # ---------------------------------------------------------------------------
-# game: status
+# conditions: status
 # ---------------------------------------------------------------------------
 
 ARENA = {
@@ -56,18 +56,18 @@ ARENA = {
     "entities": {"ann": {"type": "fighter"}, "bob": {"type": "fighter"}},
     "actions": {
         "poison": {"by": "fighter", "params": {"target": {"type": "entity", "of": "fighter"}},
-                   "do": [{"game": "conditions", "action": "apply", "status": "poison",
+                   "do": [{"conditions": "conditions", "action": "apply", "status": "poison",
                            "who": "$params.target"}]},
         "bash": {"by": "fighter", "params": {"target": {"type": "entity", "of": "fighter"}},
-                 "do": [{"game": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}]},
+                 "do": [{"conditions": "conditions", "action": "apply", "status": "stun", "who": "$params.target"}]},
         "guard": {"by": "fighter",
-                  "do": [{"game": "conditions", "action": "apply", "status": "shield", "who": "$actor"}]},
+                  "do": [{"conditions": "conditions", "action": "apply", "status": "shield", "who": "$actor"}]},
         "purge": {"by": "fighter",
-                  "do": [{"game": "conditions", "action": "cleanse", "status": "all", "who": "$actor"}]},
+                  "do": [{"conditions": "conditions", "action": "cleanse", "status": "all", "who": "$actor"}]},
         "wait": {"by": "fighter", "do": []},
     },
     "stages": [{"name": "fight", "turns": "sequential", "max_actions": 1}],
-    "mechanisms": {"conditions": {"kind": "game", "mode": "status", "who": "fighter", "statuses": {
+    "mechanisms": {"conditions": {"kind": "conditions", "mode": "status", "who": "fighter", "statuses": {
         "poison": {"duration": 3, "stacking": "refresh", "max_stacks": 3, "tick": ["$it.hp -= 2 * $stacks"],
                    "expire_say": "{$it.name} is no longer poisoned."},
         "stun": {"duration": 1, "blocks": ["poison", "bash", "guard"], "blocked_why": "you are stunned"},
@@ -117,7 +117,7 @@ def test_modifiers_immunity_unless_and_cleanse():
     env.run(play, rounds=1)
     assert "poison" not in _props(env, "ann")["conditions"]  # the shield grants immunity
     runner = env.effects
-    runner.run([{"game": "conditions", "action": "apply", "status": "curse", "who": "$entity(ann)"}], {}, "test")
+    runner.run([{"conditions": "conditions", "action": "apply", "status": "curse", "who": "$entity(ann)"}], {}, "test")
     assert "curse" in _props(env, "ann")["conditions"]
     env.run(play, rounds=1)  # ann purges: shield goes, the curse cannot be cleansed
     assert set(_props(env, "ann")["conditions"]) == {"curse"}
@@ -128,10 +128,10 @@ def test_independent_stacks_keep_their_own_timers():
     env = fg_env.load(ARENA, seed=1)
     runner = env.effects
     env.run("idle", rounds=1)
-    runner.run([{"game": "conditions", "action": "apply", "status": "bleed", "who": "$entity(bob)", "stacks": 2}],
+    runner.run([{"conditions": "conditions", "action": "apply", "status": "bleed", "who": "$entity(bob)", "stacks": 2}],
                {}, "test")
     env.run("idle", rounds=1)
-    runner.run([{"game": "conditions", "action": "apply", "status": "bleed", "who": "$entity(bob)", "rounds": 3}],
+    runner.run([{"conditions": "conditions", "action": "apply", "status": "bleed", "who": "$entity(bob)", "rounds": 3}],
                {}, "test")
     entry = _props(env, "bob")["conditions"]["bleed"]
     assert entry["stacks"] == 3 and len(entry["timers"]) == 3
@@ -146,7 +146,7 @@ def test_status_config_errors_name_the_path():
     with pytest.raises(ContractError, match="kick"):
         fg_env.parse(bad)
     wrong = json.loads(json.dumps(ARENA))
-    wrong["actions"]["wait"]["do"] = [{"game": "conditions", "action": "apply", "status": "posion",
+    wrong["actions"]["wait"]["do"] = [{"conditions": "conditions", "action": "apply", "status": "posion",
                                        "who": "$actor"}]
     issues = _errors(wrong)
     assert any("posion" in i.message and "did you mean 'poison'" in (i.fix or "") for i in issues)
@@ -244,11 +244,12 @@ def test_a_status_written_as_the_kind_names_its_family():
     old = json.loads(json.dumps(ARENA))
     old["mechanisms"]["conditions"] = {"kind": "status", "on": "fighter", "statuses": {}}
     issue = next(i for i in _errors(old) if i.path == "mechanisms.conditions.kind")
-    assert issue.message == "'status' is a mode of kind 'game'"
+    assert issue.message == "'status' is a mode of kind 'conditions'"
     renamed = json.loads(json.dumps(ARENA))
     renamed["mechanisms"]["conditions"]["on"] = renamed["mechanisms"]["conditions"].pop("who")
     typo = next(i for i in _errors(renamed) if i.path == "mechanisms.conditions.on")
-    assert typo.message == "`on` is not a field of `game` mode `status`" and "who, statuses, phase, views" in typo.fix
+    assert typo.message == "`on` is not a field of `conditions` mode `status`"
+    assert "who, statuses, phase, views" in typo.fix
 
 
 def test_status_actions_check_their_own_keys():
@@ -257,27 +258,29 @@ def test_status_actions_check_their_own_keys():
         contract["actions"]["wait"]["do"] = list(effects)
         return [(i.path, i.message, i.fix) for i in _errors(contract)]
 
-    assert issues({"game": "conditions", "action": "apply", "who": "$actor"})[0][1] == "`game.apply` needs `status`"
-    cleanse = {"game": "conditions", "action": "cleanse", "status": "all", "who": "$actor", "to": "$actor"}
-    assert issues(cleanse)[0][1] == "'to' is not part of `game.cleanse`"
-    path, message, fix = issues({"game": "conditions", "action": "clense", "who": "$actor"})[0]
-    assert path.endswith(".action") and "is not an action of conditions (game status)" in message
+    applied = issues({"conditions": "conditions", "action": "apply", "who": "$actor"})
+    assert applied[0][1] == "`conditions.apply` needs `status`"
+    cleanse = {"conditions": "conditions", "action": "cleanse", "status": "all", "who": "$actor", "to": "$actor"}
+    assert issues(cleanse)[0][1] == "'to' is not part of `conditions.cleanse`"
+    path, message, fix = issues({"conditions": "conditions", "action": "clense", "who": "$actor"})[0]
+    assert path.endswith(".action") and "is not an action of conditions (conditions status)" in message
     assert fix == "did you mean 'cleanse'?"
     _, _, fix = issues({"cleanse": "all"})[0]
-    assert fix.startswith('`cleanse` is an action of the `game` op: {"game": "<mechanism>", "action": "cleanse"')
+    assert fix.startswith('`cleanse` is an action of the `conditions` op: '
+                          '{"conditions": "<mechanism>", "action": "cleanse"')
 
 
 def test_guide_documents_the_families_and_their_functions():
     text = fg_env.guide("mechanisms")
-    assert "| `game` | board, cards, pot, status |" in text
+    assert "| `conditions` | status |" in text
     assert "| `decision` | ballot, deliberation, procedure |" in text
-    status = fg_env.guide("game.status")
-    assert "### `game.status`" in status and "- `apply`" in status and '"action": "tick"' not in status
+    status = fg_env.guide("conditions.status")
+    assert "### `conditions.status`" in status and "- `apply`" in status and '"action": "tick"' not in status
     procedure = fg_env.guide("decision.procedure")
     assert "### `decision.procedure`" in procedure and "- `push`" in procedure
     assert '"action": "advance"' not in procedure
     for name in ("$effective(", "$has_status("):
-        assert name in fg_env.guide("game")
+        assert name in fg_env.guide("conditions")
 
 
 # ---------------------------------------------------------------------------
