@@ -202,10 +202,9 @@ def test_an_openai_refusal_after_a_working_revision_stops_as_refused():
     assert (result.ok, result.stop, result.contract) == (True, "refused", WORKING)
 
 
-
 def test_an_output_read_from_a_stubbed_hosts_answers_is_not_called_flat():
-    """The test runs answer hosts with the SDK's stubs, the same every time: the contest starter's `judged` output is
+    """The test runs answer hosts with the SDK's stubs, the same every time: a judged contest's `judged` output is
     flat by design and not warned about (audit 12 agentif B-L3)."""
-    result = testing.tested(Path(fg_env.__file__).parent / "engines" / "starters" / "contest.json")
+    result = testing.tested(Path(__file__).parent / "fixtures" / "judged_contest.json")
     assert result.problem == "" and result.hosts
     assert not [w for w in result.warnings if w.startswith("[warning] outputs.judged:")]

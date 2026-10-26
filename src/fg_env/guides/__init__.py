@@ -93,9 +93,10 @@ FAMILIES
 
 ## Engines
 
-Runnable starters, one per kind of human interaction: each a complete contract with coded participants that runs as
-cloned, to copy and make your own (topic, roles, people, inputs, rules) rather than start blank:
-`fg-env new --engine <id> my_env.json` (`fg_env.engines.clone`); `fg-env engines` lists them.
+Runnable starters a platform registers (`fg_env.engines.register(folder)`: its manifest and starter contracts — the
+kernel ships none of its own), each a complete contract with coded participants that runs as cloned, to copy and make
+your own (topic, roles, people, inputs, rules) rather than start blank: `fg-env new --engine <id> my_env.json`
+(`fg_env.engines.clone`); `fg-env engines` lists them.
 
 ENGINES
 
@@ -136,7 +137,8 @@ def _core() -> str:
     families = ["| kind | modes | for |", "|---|---|---|"]
     families += [f"| `{name}` | {', '.join(family.modes) or '—'} | {family.doc} |" for name, family in FAMILIES.items()]
     parts = "\n".join(f"- `{name}` — {about}" for name, about in _PARTS_MAP)
-    engines = "\n".join(f"- `{engine.id}` — {engine.summary}" for engine in list_engines(available=True))
+    engines = "\n".join(f"- `{engine.id}` — {engine.summary}" for engine in list_engines(available=True)) \
+        or "None is registered here: start from a template or a recipe."
     functions = " ".join(f"`${name}`" for name in CORE_FUNCTIONS)
     return (_MAP.replace("CORE", "\n".join(core)).replace("EXTENDED", "\n".join(extended))
             .replace("FUNCTIONS", functions).replace("TEMPLATES", ", ".join(f"`{name}`" for name in STARTING_TEMPLATES))

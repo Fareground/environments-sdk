@@ -72,28 +72,12 @@ Ready-made rules that expand into ordinary actions, stages, views and outputs:
 
 ## Engines
 
-Runnable starters, one per kind of human interaction: each a complete contract with coded participants that runs as
-cloned, to copy and make your own (topic, roles, people, inputs, rules) rather than start blank:
-`fg-env new --engine <id> my_env.json` (`fg_env.engines.clone`); `fg-env engines` lists them.
+Runnable starters a platform registers (`fg_env.engines.register(folder)`: its manifest and starter contracts — the
+kernel ships none of its own), each a complete contract with coded participants that runs as cloned, to copy and make
+your own (topic, roles, people, inputs, rules) rather than start blank: `fg-env new --engine <id> my_env.json`
+(`fg_env.engines.clone`); `fg-env engines` lists them.
 
-- `retail` — households choose whether and where to buy while sellers set prices
-- `council` — a panel forecasts a yes/no question, deliberates and forecasts again (Brier-scored)
-- `dispute` — a civil trial: evidence, objections and cross-examination before a judge, then a jury verdict
-- `exchange` — a calibrated trader crowd on a limit order book, with a few trader seats
-- `legislature` — members move, second, amend, debate and vote on a measure
-- `contest` — participants submit each round and a host judge scores them on a rubric
-- `deliberation` — people exchange reasons, propose a conclusion and vote on it
-- `negotiation` — two parties trade multi-issue offers and counteroffers before a deadline
-- `population` — sampled people each respond to one situation; the responses are aggregated
-- `network` — an idea spreads over trust ties from its first adopters
-- `matching` — applicants and selectors rank each other; a stable match within capacity
-- `strategy` — repeated cooperate-or-compete choices among players under a payoff matrix
-- `supply_chain` — tiers of a supply chain order upstream and ship downstream with delays (the beer game)
-- `auction` — collectors with private values bid for identical lots under each auction format
-- `contact_centre` — a call-by-call day at a contact centre: arrivals, handling, abandonment and staffing
-- `ride_hailing` — drivers serve ride requests on a city grid while the platform can price zones by surge
-- `epidemic` — an outbreak on a contact network, with lockdowns, vaccination and hospital capacity
-- `hidden_roles` — social deduction: hidden werewolves kill at night while the village talks and votes by day
+None is registered here: start from a template or a recipe.
 
 ## Every other part
 

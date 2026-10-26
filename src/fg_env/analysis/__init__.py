@@ -14,6 +14,8 @@
 * ``report`` — any of these results as short sentences and tables a manager can act on.
 * ``describe`` — an ODD document and game metadata derived from the contract.
 * ``trace`` — a recorded run read turn by turn, and replayed offline.
+* ``scan_leaks`` — a run played by agents that read everything they are offered, searched for any other agent's
+  private value shown to them.
 """
 from __future__ import annotations
 
@@ -53,9 +55,11 @@ from .validate import ValidationResult, validate
 if TYPE_CHECKING:
     from ..report import Report, report
     from ..trace import Trace, trace
+    from .leaks import LeakScanner, scan_leaks
 
 #: Reports and traces are built on this package (they import its modules), so they load on first use.
-_LATER = {"report": "..report", "Report": "..report", "trace": "..trace", "Trace": "..trace"}
+_LATER = {"report": "..report", "Report": "..report", "trace": "..trace", "Trace": "..trace",
+          "scan_leaks": ".leaks", "LeakScanner": ".leaks"}
 
 
 def __getattr__(name: str) -> Any:
@@ -68,7 +72,7 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "fit_patterns", "FitResult", "decompose", "Decomposition", "report", "Report", "describe", "Description",
-    "trace", "Trace",
+    "trace", "Trace", "scan_leaks", "LeakScanner",
     "sweep", "SweepResult", "sensitivity", "SensitivityResult", "calibrate", "CalibrationResult",
     "score", "brier", "brier_multiclass", "log_loss", "log_loss_multiclass", "crps", "crps_ensemble",
     "interval_coverage", "reliability", "ece", "murphy", "skill_score", "backtest", "BacktestResult",

@@ -1,5 +1,5 @@
-"""No shipped contract shows an agent another agent's private values: every example, engine starter and template,
-played with random agents that read everything they are offered (_leaks.py). Generated contracts are scanned in
+"""No shipped contract shows an agent another agent's private values: every example and template, played with random
+agents that read everything they are offered (fg_env.analysis.scan_leaks). Generated contracts are scanned in
 test_fuzz_contracts.py."""
 import pytest
 from _leaks import EXAMPLES, SMALL, scan
@@ -15,14 +15,6 @@ ROUNDS = 3
 @pytest.mark.parametrize("path", EXAMPLES, ids=lambda path: path.stem)
 def test_no_example_shows_an_agent_another_agents_private_values(path):
     scanner = scan(path, rounds=ROUNDS, inputs=SMALL.get(path.stem))
-    assert scanner.result.status != "failed", scanner.result.error
-    assert scanner.leaks == []
-
-
-@pytest.mark.parametrize("engine", [spec.id for spec in fg_env.engines.list_engines()])
-def test_no_engine_starter_shows_an_agent_another_agents_private_values(engine, tmp_path):
-    path = fg_env.engines.clone(engine, tmp_path / f"{engine}.json")
-    scanner = scan(path, rounds=ROUNDS, inputs=SMALL.get(engine))
     assert scanner.result.status != "failed", scanner.result.error
     assert scanner.leaks == []
 

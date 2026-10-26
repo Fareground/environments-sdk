@@ -1,0 +1,25 @@
+{
+  "schema_version": 2,
+  "source": "tests: the engine catalog the SDK's own tests register (a platform keeps its own)",
+  "engines": [
+    {
+      "id": "negotiation",
+      "title": "Negotiation",
+      "summary": "two parties trade multi-issue offers and counteroffers before a deadline",
+      "description": "Simulates two parties exchanging complete multi-issue offers and counteroffers before a deadline; nobody can offer or accept terms worth less to them than their private walk-away value, and each party's surplus is reported; coded parties concede toward the other side as the deadline nears, each at a pace drawn every run, the issues they care least about first.",
+      "status": "native",
+      "path": "starters/multi_issue_negotiation.json"
+    },
+    {
+      "id": "contact_centre",
+      "title": "Contact centre",
+      "summary": "a call-by-call day at a contact centre: arrivals, handling, abandonment and staffing",
+      "description": "Simulates one day (08:00-20:00, half-hours) at a contact centre call by call: arrivals follow a base rate times day-of-week and time-of-day indices fitted from a call history (a bundled CSV input), handle times are lognormal around the history's average and callers give up after a patience calibrated to its abandonment; agents on duty per half-hour are an input (empty: a rule of 10% over the forecast workload plus two). Arms compare that rule with an optimised plan, a network outage and callbacks; more staff answers more calls sooner.",
+      "status": "native",
+      "path": "starters/contact_centre.json",
+      "resources": [
+        "contact_centre/history.csv"
+      ]
+    }
+  ]
+}

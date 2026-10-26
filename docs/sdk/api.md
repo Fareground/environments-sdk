@@ -460,6 +460,8 @@ Analysis: turn a contract and its runs into findings, reports and readable recor
 * ``report`` — any of these results as short sentences and tables a manager can act on.
 * ``describe`` — an ODD document and game metadata derived from the contract.
 * ``trace`` — a recorded run read turn by turn, and replayed offline.
+* ``scan_leaks`` — a run played by agents that read everything they are offered, searched for any other agent's
+  private value shown to them.
 
 ### `analysis.fit_patterns`
 
@@ -555,6 +557,24 @@ Trace(source: TraceSource)
 ```
 
 A recorded run. ``wakes`` are the exposure records in engine order; ``texts`` holds every text by hash.
+
+### `analysis.scan_leaks`
+
+```pyi
+scan_leaks(contract: Any, seed: int = 1, inner: Any = None, rounds: Any = None, **options: Any) -> LeakScanner
+```
+
+Play ``contract`` (a dict or a path) with every agent scanned — by ``inner`` (default: random agents that read
+everything they are offered) — and return the scanner: its ``leaks`` are what it found (empty: nothing hidden was
+shown), its ``result`` the run. ``options`` go to :func:`fg_env.load` (``inputs``, ``arm`` …).
+
+### `analysis.LeakScanner`
+
+```pyi
+LeakScanner(env: Env, inner: Any = None, source: Any = None)
+```
+
+Wraps a participant (default: random) for every agent of ``env`` and collects leaks as it plays.
 
 ### `analysis.sweep`
 
@@ -1193,14 +1213,14 @@ people, inputs and rules.
 ### `engines.EngineCatalog`
 
 ```pyi
-EngineCatalog(raw: Mapping[str, Any])
+EngineCatalog(raw: Mapping[str, Any], root: Path | None = None)
 ```
 
-Immutable view of the behavioral engines shipped in this SDK version.
+Immutable view of a set of behavioral engines: one catalog folder's, or every registered one's.
 
 ### `engines.EngineNotFound`
 
-An engine id is absent from the installed SDK catalog.
+An engine id is absent from every registered catalog.
 
 ### `engines.EngineUnavailable`
 
@@ -1209,7 +1229,7 @@ An engine is defined but its reusable implementation is not shipped yet.
 ### `engines.EngineSpec`
 
 ```pyi
-EngineSpec(id: str, title: str, summary: str, description: str, status: str, path: str | None = None, resources: tuple[str, ...] = ()) -> None
+EngineSpec(id: str, title: str, summary: str, description: str, status: str, path: str | None = None, resources: tuple[str, ...] = (), root: Path | None = None) -> None
 ```
 
 One reusable human-interaction engine.
@@ -1220,7 +1240,7 @@ One reusable human-interaction engine.
 catalog() -> EngineCatalog
 ```
 
-Return the engine catalog shipped with the installed SDK version.
+Every engine of the SDK's own catalog and the registered ones.
 
 ### `engines.list_engines`
 
@@ -1253,6 +1273,23 @@ load(engine_id: str, *, inputs: Mapping[str, Any] | None = None, seed: int = 0) 
 ```
 
 Load a reusable engine as :class:`fg_env.Env`.
+
+### `engines.register`
+
+```pyi
+register(directory: str | Path) -> EngineCatalog
+```
+
+Add a platform's catalog folder (a ``manifest.json`` and its starters) to what is listed, cloned and loaded;
+registering the same folder again does nothing. Returns the combined catalog.
+
+### `engines.unregister`
+
+```pyi
+unregister(directory: str | Path) -> None
+```
+
+Remove a folder :func:`register` added (tests, a platform swapping its catalog).
 
 ## `fg_env.personas`
 

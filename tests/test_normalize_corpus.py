@@ -10,7 +10,7 @@ from fg_env.contract.normalize import normalize
 
 ROOT = Path(__file__).parents[1]
 CORPUS = sorted([*(ROOT / "examples" / "contracts").rglob("*.json"),
-                 *(ROOT / "src" / "fg_env" / "engines" / "starters").rglob("*.json")])
+                 *(ROOT / "tests" / "fixtures" / "engines" / "starters").rglob("*.json")])
 
 
 @pytest.mark.parametrize("path", example_params(CORPUS))
