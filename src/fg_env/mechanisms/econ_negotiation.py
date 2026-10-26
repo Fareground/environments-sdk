@@ -292,7 +292,7 @@ def _fragment(name: str, config: NegotiationConfig, parties: list[str], agents: 
                                    "{amount} {asset} to {$entity($it.to).name} by round "
                                    "{due}{$' — yours to fulfil' if $it.manual and $it.by == $actor.id else ''}"}})
     if config.reservation is not None:
-        fragment["views"][f"{name}_walk_away"] = {"for": agents, "title": "Private", "bullet": False,
+        fragment["views"][f"{name}_walk_away"] = {"for": agents, "title": "Private", "bullet": False, "brief": True,
                                                   "when": f"not $world.{name}_closed",
                                                   "show": f"Your walk-away value: {{{name}_reservation}}"}
     return fragment

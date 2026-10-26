@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- More fixed views are shown in the brief: the capacity-matching lists (uncached update −68%), a negotiation's
+  walk-away value (−37% with the private position), the roles mechanism's "Your role", and the civil trial jurors'
+  admitted evidence, which is fixed by the time they deliberate.
 - A view can be shown in the brief (`"brief": true`) instead of the update: for what changes seldom or never (who
   the agent is, its case file). It shows the world as it is now, and the brief stays the same text while nothing it
   shows changes, so providers cache it. Starters use it for their fixed private views: what an agent reads uncached
