@@ -115,6 +115,21 @@ def test_a_view_in_the_brief_shows_the_world_as_it_is_and_leaves_the_update():
     assert {"views.news.brief", "views.both.brief", "views.lucky.brief"} <= errors
 
 
+def test_one_stage_says_its_plain_instruction_once_in_the_brief():
+    contract = {"name": "Stall", "clock": {"rounds": 2}, "types": {"p": {"agent": True}},
+                "entities": {"a": {"type": "p"}},
+                "stages": [{"name": "trade", "brief": "Sell or hold your stock.", "actions": ["hold"]}],
+                "actions": {"hold": {"by": "p", "do": []}}}
+    seen = []
+    fg_env.load(contract, seed=0).run(lambda wake: (seen.append((wake.brief, wake.update)), wake.end()), rounds=2)
+    assert all("## Each turn\nSell or hold your stock." in brief and "Sell or hold" not in update
+               for brief, update in seen)
+    staged = {**contract, "stages": [{**contract["stages"][0], "brief": "Round {$round}: sell or hold."}]}
+    seen.clear()
+    fg_env.load(staged, seed=0).run(lambda wake: (seen.append((wake.brief, wake.update)), wake.end()), rounds=2)
+    assert all("sell or hold" in update and "Each turn" not in brief for brief, update in seen)  # it changes
+
+
 def test_statistics_functions_and_null_skipping():
     s = Scope({"xs": [{"v": 3}, {"v": None}, {"v": 1}, {"v": 2}, {"v": 10}]})
     assert evaluate("$median($xs, $it.v)", s) == 2.5

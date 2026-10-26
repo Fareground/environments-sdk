@@ -77,14 +77,21 @@ class Perception:
         #: When set (``fg_env.author``'s test runs), told every view shown to someone — its `when` held — with the text
         #: it rendered (None: it showed nothing), as ``rendered(name, text)``.
         self.rendered: Callable[[str, str | None], None] | None = None
+        self._fixed_stage_brief: str | None
         if like is not None:
             self._takes_text, self._shared = like._takes_text, like._shared
             self._silent_records = like._silent_records
+            self._fixed_stage_brief = like._fixed_stage_brief
             return
         self._takes_text = any(p.type == "text" for a in contract.actions.values() for p in a.params.values())
         #: The list views whose items (`of`, `where`, `sort`, `limit`) name nothing of their reader: worked out once
         #: per world state for every reader (see :meth:`_shared_items`).
         self._shared = {name for name, view in contract.views.items() if _reads_no_reader(contract, view)}
+        # A world of one stage whose instruction is plain text says it the same every turn: in the brief (cached),
+        # not in every update.
+        stages = contract.stage_list()
+        self._fixed_stage_brief = stages[0].brief.strip() if len(stages) == 1 and stages[0].brief \
+            and "{" not in stages[0].brief else None
         # Own entries are never news; an author-only entry is invisible to everyone else.
         self._silent_records = {name for name, spec in contract.records.items() if author_only(spec.visible)}
 
@@ -118,6 +125,8 @@ class Perception:
         own = self.world.entity_briefs.get(actor.id)
         if own:
             lines.append(own)
+        if self._fixed_stage_brief:
+            lines += ["", "## Each turn", self._fixed_stage_brief]
         for name, view in c.views.items():  # what seldom changes, said where a provider caches it
             if view.brief and not view.look and self.applies(view, actor):
                 block = self.render_view(name, view, actor, None, attached)
@@ -152,7 +161,7 @@ class Perception:
         lines: list[str] = [f"{self.world.clock_label()} · {stage.name}"]
         if last:
             lines.append(f"Your last turn: {last}")
-        if stage.brief:
+        if stage.brief and not self._fixed_stage_brief:
             lines.append(self._render(stage.brief, actor, f"stages.{stage.name}.brief"))
         if reason:
             lines.append(f"Now: {reason}")
