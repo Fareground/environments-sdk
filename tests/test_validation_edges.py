@@ -251,3 +251,32 @@ def test_a_ceiling_the_rules_make_exact_is_stated_and_no_other():
                    {"cash": {"type": "number", "default": 6, "min": 0}}) == 6
     assert offered(["$actor.cash -= $params.amt", "$actor.cash += 1"], floored) is None  # refunded: not exact
     assert offered(["$actor.cash -= $params.amt"], {"cash": 5}) is None  # no floor: no ceiling
+
+
+def _pantry(capacity_private=False):
+    """A shop whose `qty` most is its stock (30) and a buyer whose pantry holds only 20 more: two limits, one stated."""
+    room = {"type": "int", "default": 20, **({"private": True} if capacity_private else {})}
+    return {"name": "Pantry", "clock": {"rounds": 1},
+            "types": {"shop": {"props": {"stock": 30}}, "buyer": {"agent": True, "props": {"room": room, "had": 0}}},
+            "entities": {"grocer": {"type": "shop"}, "ann": {"type": "buyer"}, "ben": {"type": "buyer"}},
+            "actions": {"buy": {"by": "buyer", "params": {
+                "qty": {"type": "int", "min": 1, "max": "$entity(grocer).stock"},
+                "for": {"type": "entity", "of": "buyer"}},
+                "do": [{"if": "$params.qty > $params.for.room", "then": [{"fail": "That does not fit."}]},
+                       "$params.for.had += $params.qty"]}},
+            "stages": [{"name": "shop", "order": "$it.id"}]}
+
+
+def test_a_refused_most_is_the_most_every_rule_would_accept_now_and_never_one_decided_by_a_hidden_value():
+    said = {}
+
+    def ask(wake):
+        if wake.entity_id == "ann":
+            said["own"] = wake.call("buy", {"qty": 95, "for": "ann"}).text
+            said["other"] = wake.call("buy", {"qty": 95, "for": "ben"}).text
+        wake.end()
+
+    fg_env.run(_pantry(), ask, seed=1)
+    assert "qty must be at most 20 now (got 95)" in said["own"]
+    fg_env.run(_pantry(capacity_private=True), ask, seed=1)
+    assert "qty must be at most 30 (got 95)" in said["other"]  # ben's room is hidden from ann: the stock stands
