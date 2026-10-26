@@ -9,8 +9,7 @@ Each round a sequential discussion stage (``<name>``) repeats passes until every
 or the pass cap (the backstop) is reached; agents with nothing new are skipped. Anything said — a
 speech, motion, amendment, second or withdrawal — clears every member's readiness, because each
 has something new to read; the discussion is over once every member is ready, the last speaker
-aside (a speaker whose words drew no reply hears the discussion close, as in the Fareground
-Council). An agent that ends its turn without acting becomes ready (unless
+aside (a speaker whose words drew no reply hears the discussion close). An agent that ends its turn without acting becomes ready (unless
 ``ready_when_silent`` is false). With a chair and ``floor``, members raise hands and speak only
 once recognized, for at most ``speaker_limit`` speeches.
 

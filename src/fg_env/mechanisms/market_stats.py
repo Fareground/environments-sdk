@@ -2,7 +2,7 @@
 
 The realism score compares a simulated tape with a reference on the stylized facts every real
 market shows — volatility level, fat tails, no memory in returns, volatility clustering and
-volume that tracks volatility — as in the Fareground Exchange calibration. Every component is a
+volume that tracks volatility. Every component is a
 0..1 score shown with both values, so the overall number is auditable.
 
 Expression functions: ``$market_stats`` (every stylized fact of a series), ``$market_realism`` and
