@@ -418,8 +418,7 @@ def test_a_spent_refusal_never_also_says_to_simply_try_again():
 def test_a_refusal_over_the_actors_own_private_values_stays_free_even_when_a_mechanism_names_it_otherwise():
     """A negotiation works out what terms are worth to `$party` (the acting agent) and refuses an offer below its own
     walk-away value: nothing in that is hidden from it, so the refusal leaves the action to use."""
-    import os
-    path = os.path.join(os.path.dirname(fg_env.__file__), "engines", "starters", "multi_issue_negotiation.json")
+    path = fg_env.engines.get("negotiation").file(fg_env.engines.get("negotiation").path)
     seen = []
 
     def play(wake):

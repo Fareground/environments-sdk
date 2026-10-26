@@ -2,8 +2,6 @@
 (roles, coded policies, inputs), so the page cannot drift from what ``fg-env new --engine`` clones."""
 from __future__ import annotations
 
-from importlib.resources import files
-from pathlib import Path
 from typing import Any
 
 from ..engines import EngineSpec, list_engines
@@ -14,7 +12,9 @@ _INTRO = """\
 # Engines
 
 An engine is a complete, larger contract for one kind of human interaction (a market, a trial, a vote …), with coded
-participants, that runs as cloned: copy the closest one and make it yours (its topic, roles, people, information,
+participants, that runs as cloned. The kernel ships none: a platform keeps its engines in a folder of its own (a
+`manifest.json` listing them, and their starter contracts) and registers it with `fg_env.engines.register(folder)`. Then
+copy the closest one and make it yours (its topic, roles, people, information,
 rules and measurements). Where a cookbook recipe (`guide('cookbook')`) shows one pattern in a page, an engine is a
 worked-out environment. `fg-env engines` lists them; `fg-env new --engine <id> my_env.json` clones one with its
 bundled files (`fg_env.engines.clone`). Every engine plays with its coded policies alone, so a run without language
@@ -65,7 +65,7 @@ def _expanded(engine: EngineSpec) -> dict[str, Any]:
     from ..api import expand
 
     assert engine.path is not None  # only available engines are listed
-    return expand(Path(str(files("fg_env.engines").joinpath(engine.path))))
+    return expand(engine.file(engine.path))
 
 
 def _acts(types: dict[str, Any], name: str) -> bool:

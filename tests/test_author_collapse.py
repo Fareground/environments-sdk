@@ -69,8 +69,8 @@ def test_a_starter_longer_than_a_reply_is_cut_with_where_to_read_on():
     from fg_env.authoring.workbench import MAX_RESULT, Workbench
 
     bench = Workbench()
-    first = bench.call("start_from", json.dumps({"engine": "retail"}))
-    assert len(first) < MAX_RESULT + 200 and "read on with start_from('retail', start=" in first
+    first = bench.call("start_from", json.dumps({"engine": "contact_centre"}))
+    assert len(first) < MAX_RESULT + 200 and "read on with start_from('contact_centre', start=" in first
     start = int(first.rsplit("start=", 1)[1].split(")")[0])
-    more = bench.call("start_from", json.dumps({"engine": "retail", "start": start}))
+    more = bench.call("start_from", json.dumps({"engine": "contact_centre", "start": start}))
     assert len(bench.revisions) == 1 and more and not more.startswith("Saved")

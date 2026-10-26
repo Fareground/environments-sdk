@@ -14,6 +14,8 @@ from .catalog import (
     get,
     list_engines,
     load,
+    register,
+    unregister,
 )
 
 __all__ = [
@@ -26,4 +28,6 @@ __all__ = [
     "get",
     "clone",
     "load",
+    "register",
+    "unregister",
 ]

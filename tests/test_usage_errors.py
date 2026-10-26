@@ -50,7 +50,7 @@ def test_check_reports_an_unreadable_contract_as_an_issue(tmp_path, monkeypatch,
 
 def test_cloning_an_engine_refuses_to_replace_a_file_and_says_how(tmp_path):
     path = tmp_path / "my_market.json"
-    fg_env.engines.clone("retail", path)
+    fg_env.engines.clone("negotiation", path)
     with pytest.raises(FileExistsError, match="overwrite=True"):
-        fg_env.engines.clone("retail", path)
-    assert fg_env.engines.clone("retail", path, overwrite=True) == path
+        fg_env.engines.clone("negotiation", path)
+    assert fg_env.engines.clone("negotiation", path, overwrite=True) == path

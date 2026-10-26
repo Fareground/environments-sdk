@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A world of one stage whose instruction is plain text says it once, in the brief (`## Each turn`), not in every
+  update: the uncached update drops 47% in capacity matching and 18% in the auction house.
 - More fixed views are shown in the brief: the capacity-matching lists (uncached update −68%), a negotiation's
   walk-away value (−37% with the private position), the roles mechanism's "Your role", and the civil trial jurors'
   admitted evidence, which is fixed by the time they deliberate.
