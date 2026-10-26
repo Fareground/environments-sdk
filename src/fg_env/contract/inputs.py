@@ -163,20 +163,34 @@ def resolve_inputs(contract: Contract, supplied: Mapping[str, Any] | None = None
     return resolved
 
 
+def _copied(value: Any) -> Any:
+    """A copy of input data: JSON-shaped values copied directly (a table of thousands of rows is copied once, not
+    through deepcopy's memo), anything else through deepcopy."""
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if type(value) is list:
+        return [_copied(item) for item in value]
+    if type(value) is dict:
+        return {key: _copied(item) for key, item in value.items()}
+    return copy.deepcopy(value)
+
+
 def _nested_defaults(spec: InputSpec, value: Any) -> Any:
-    """Materialize declared child defaults without changing the caller's data."""
+    """Materialize declared child defaults without changing the caller's data. Each value is copied once."""
     fields = spec.fields
     if fields is not None and value is not None:
         def row_defaults(row: dict[str, Any]) -> dict[str, Any]:
-            result = copy.deepcopy(row)
+            result = {key: (item if key in fields else _copied(item)) for key, item in row.items()}
             for name, field in fields.items():
-                if name in result or field.default is not None:
-                    result[name] = _nested_defaults(field, result.get(name, copy.deepcopy(field.default)))
+                if name in result:
+                    result[name] = _nested_defaults(field, result[name])
+                elif field.default is not None:
+                    result[name] = _nested_defaults(field, field.default)
             return result
         return [row_defaults(row) for row in value] if spec.type == "table" else row_defaults(value)
     if spec.items is not None and isinstance(value, list):
         return [_nested_defaults(spec.items, item) for item in value]
-    return copy.deepcopy(value)
+    return _copied(value)
 
 
 class _SourceProblem(Exception):
