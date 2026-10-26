@@ -498,8 +498,9 @@ def _offer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str
                               "expires": world.round + config.expires if config.expires else 0, "note": note}, None,
                              evaluation.scope(), where)
     _stat(world, name, "offers", 1)
-    emit_to(world, f"{name}_offer", f"{sender.name} offers {terms_text(config, terms)} [{made.id}].", recipients,
-            {"offer": made.id}, why=f"{sender.name} made you an offer.")
+    said = f" {note}" if note else ""  # participant text carries its own «»
+    emit_to(world, f"{name}_offer", f"{sender.name} offers {terms_text(config, terms)} [{made.id}]{said}.", recipients,
+            {"offer": made.id}, why=f"{sender.name} made you an offer.", reports=True)
 
 
 def _answer_offer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], where: str) -> None:
@@ -518,7 +519,7 @@ def _answer_offer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], whe
             raise Abort("Only its sender can withdraw an offer.")
         world.set_prop(offer, "status", "withdrawn")
         _stat(world, name, "withdrawn", 1)
-        emit_to(world, f"{name}_withdrawn", f"{who.name} withdrew offer {offer.id}.", p["recipients"])
+        emit_to(world, f"{name}_withdrawn", f"{who.name} withdrew offer {offer.id}.", p["recipients"], reports=True)
         return
     if who.id not in p["recipients"]:
         raise Abort("That offer was not made to you.")
@@ -526,7 +527,7 @@ def _answer_offer(runner: Any, effect: dict[str, Any], vars: dict[str, Any], whe
         world.set_prop(offer, "status", "rejected")
         _stat(world, name, "rejected", 1)
         emit_to(world, f"{name}_rejected", f"{who.name} rejected your offer {offer.id}.", [p["sender"]],
-                why=f"{who.name} rejected your offer.")
+                why=f"{who.name} rejected your offer.", reports=True)
         return
     deadline = _deadline(runner, config, name)
     if deadline is not None and world.round > deadline:

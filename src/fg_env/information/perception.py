@@ -379,6 +379,10 @@ class Perception:
         public_news, public_count = index.world_news(since, room)
         world_news = sorted(private_news + public_news, key=lambda event: event.seq, reverse=True)[:room]
         actions, action_count = index.others_actions(since, actor.id, room - len(world_news))
+        fresh = [event for event in actions if actor.id not in (event.data.get("told") or ())]
+        if len(fresh) < len(actions):  # an action whose own report to this agent already says it
+            action_count -= len(actions) - len(fresh)
+            actions = fresh
         kept = addressed + world_news + actions
         hidden = len(addressed) + len(private_news) + public_count + action_count - len(kept)
         delivered: list[LogEvent] = []

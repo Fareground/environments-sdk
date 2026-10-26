@@ -683,6 +683,18 @@ def test_offers_show_private_worth_and_walk_away_only_to_their_owner():
     assert "enum" not in tool(env, "ar", "trade_accept")["offer"]  # nothing is open to Arland: no empty enum
 
 
+def test_an_offer_is_news_once_to_its_recipient_and_its_announcement_to_the_rest():
+    env = fg_env.load(TRADE, seed=1)
+    env.run(scripted({("ar", 1): [("trade_propose", {"to": "bo", "price": 10, "quota": 5, "years": 1,
+                                                     "note": "fair"})]}), rounds=1)
+
+    def news(entity_id):
+        return env.information.news(env.world.entities[entity_id], 0)[0]
+
+    assert news("bo") == ["Arland offers price 10 credits, quota 5, years 1 [trade_offer_1] «fair»."]
+    assert news("cy") == ["Arland: trade propose (to=Borin, price=10, quota=5, years=1, note=«fair»)."]
+
+
 def test_a_refused_on_breach_hook_never_undoes_the_rest_of_the_negotiation_tick():
     contract = copy.deepcopy(TRADE)
     contract["mechanisms"]["trade"].update(expires=1, once=False)

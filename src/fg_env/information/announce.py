@@ -22,7 +22,7 @@ from ..expr.template import compile_template
 from ..world.store import World
 from ..world.values import plain_value
 
-__all__ = ["Redaction", "notified_since"]
+__all__ = ["Redaction", "notified_since", "reported_to"]
 
 
 def _reads_private(param: Any, private: frozenset[str] | set[str]) -> bool:
@@ -198,3 +198,14 @@ def notified_since(world: World, log_mark: int) -> bool:
             return True
     return False
 
+
+
+def reported_to(world: World, log_mark: int) -> set[str]:
+    """The agents sent, after log position ``log_mark``, news that reports the acting call in full."""
+    told: set[str] = set()
+    for event in reversed(world.log):
+        if event.seq <= log_mark:
+            break
+        if event.to is not None and event.data.get("reports_action"):
+            told.update(event.to)
+    return told

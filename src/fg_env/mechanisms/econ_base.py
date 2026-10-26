@@ -256,12 +256,13 @@ def money(value: Any) -> str:
 
 
 def emit_to(world: Any, kind: str, text: str, to: Sequence[str], data: dict[str, Any] | None = None,
-            why: str | None = None) -> None:
-    """Private news for some agents; ``why`` also asks the engine to tell them at their next turn."""
+            why: str | None = None, reports: bool = False) -> None:
+    """Private news for some agents; ``why`` also asks the engine to tell them at their next turn. ``reports``: the
+    text says all the acting call's announcement would, so its recipients are not told the same action twice."""
     recipients = [t for t in dict.fromkeys(to) if t]
     if not recipients:
         return
-    world.emit(kind, text, to=recipients, data=data or {})
+    world.emit(kind, text, to=recipients, data={**(data or {}), **({"reports_action": True} if reports else {})})
     if why:
         for entity_id in recipients:
             world.request_wake(entity_id, why)
