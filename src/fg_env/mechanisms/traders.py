@@ -1,4 +1,4 @@
-"""Coded trader strategies for the order book, ported from the Fareground Exchange population.
+"""Coded trader strategies for the order book: the classic agent-based market population.
 
 A trader whose ``<book>_strategy`` property names a strategy acts through the ``<book>_algo`` tool
 (the generated ``<book>_algo`` policy calls it), so a crowd needs no custom code. Each strategy is a

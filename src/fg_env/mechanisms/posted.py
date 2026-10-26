@@ -1,5 +1,5 @@
 """Posted-price markets (the ``market`` family's ``posted`` mode): listings with prices, stock, per-round capacity,
-promotions, sponsored placement, ratings, and haggling with a floor and a counter-offer (as in Fareground Market).
+promotions, sponsored placement, ratings, and haggling with a floor and a counter-offer.
 
 Listings are entities of the generated type ``<name>_listing`` (declared in the mechanism config,
 or by the author under ``entities``). Buyers see a ranked shelf (``$shelf``: sponsored first, then
