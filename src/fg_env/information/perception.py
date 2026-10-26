@@ -118,6 +118,11 @@ class Perception:
         own = self.world.entity_briefs.get(actor.id)
         if own:
             lines.append(own)
+        for name, view in c.views.items():  # what seldom changes, said where a provider caches it
+            if view.brief and not view.look and self.applies(view, actor):
+                block = self.render_view(name, view, actor, None, attached)
+                if block is not None:
+                    lines += ["", block]
         if c.brief.attach is not None:
             ids = attached_ids(self.world, c.brief.attach, scope, "brief.attach")
             if ids:
@@ -169,7 +174,7 @@ class Perception:
                 lines.append(f"- ({hidden} more items not shown)")
             lines += [f"- {line}" for line in news]
         for name, view in self.contract.views.items():
-            if view.look or not self.applies(view, actor):
+            if view.look or view.brief or not self.applies(view, actor):
                 continue
             listed: Shown | None = type(shown)() if shown is not None else None
             files: list[str] = []

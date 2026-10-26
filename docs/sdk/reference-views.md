@@ -24,4 +24,5 @@ Roots (plus everywhere: $inputs $world $clock $round $stage $outputs $series $ar
 - `when`: text — Show it only when true ($actor, $stage): e.g. "$stage in ['trade']".
 - `look`: bool = false — Offer it on demand as look(view) instead of always including it. Randomness a view draws is fixed for the turn: looking again shows the same text.
 - `bullet`: bool = true — Prefix each item with '- ' (false for boards and tables).
+- `brief`: bool = false — Show it in the agent's brief instead of its update: for what changes seldom or never (who the agent is, its case file). It still shows the world as it is now; the brief is the same text wake after wake while nothing it shows changes, so providers cache it. Not for record entries or events (news belongs in the update), nor with `look`.
 - `attach`: text — Assets delivered with the view: an expression giving an asset id, a list or null — per listed item ($it) with `of`, else once ($actor).

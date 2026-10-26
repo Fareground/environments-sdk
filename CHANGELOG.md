@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A view can be shown in the brief (`"brief": true`) instead of the update: for what changes seldom or never (who
+  the agent is, its case file). It shows the world as it is now, and the brief stays the same text while nothing it
+  shows changes, so providers cache it. Starters use it for their fixed private views: what an agent reads uncached
+  each wake drops 21-28% in the council, negotiation, contest and population starters and 65% in the civil trial,
+  whose case file splits into its exhibits (in the brief) and their status (in the update).
 - A brief follows the world: one that reads a value a rule changes (`You hold {$actor.cash} coins.`) shows the value
   the world holds now, not the one it held on the agent's first turn. While nothing it reads changes it is the same
   text wake after wake, so providers still cache it. A brief that draws luck is kept as first rendered, and the check

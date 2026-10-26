@@ -291,6 +291,24 @@ class ActionChecks(EffectChecks):
                           "list the actions of this stage (\"actions\": [...]); write \"actions\": \"all\" if every "
                           "action belongs in it too")
 
+    def _view_in_brief(self, view: C.ViewSpec, path: str) -> None:
+        """A view shown in the brief (`brief`) is what seldom changes: not news, which the update counts as seen, nor
+        one offered on demand, nor one that draws luck (the brief is rendered again each wake with luck forbidden)."""
+        from ..describe.walk import draws  # imported late: describe imports the API, which imports the checker
+
+        if not view.brief:
+            return
+        if view.look:
+            self.error(f"{path}.brief", "a view is either in the brief or offered by look, not both",
+                       "drop `look` to show it in the brief, or drop `brief`")
+        source = view.of or ""
+        if source in self.c.records or "$records" in source or "$events" in source:
+            self.error(f"{path}.brief", "lists record entries or events, which are news: the update shows them and "
+                                        "counts what the agent has seen", "drop `brief`")
+        if draws(self.c, [text for text in (view.show, view.of, view.where, view.when, view.sort) if text]):
+            self.error(f"{path}.brief", "draws at random, but the brief is worked out again each wake without luck",
+                       "draw at build time into a property and show that, or drop `brief`")
+
     def _views(self) -> None:
         if SPECTATOR in self.c.types:
             self.error(f"types.{SPECTATOR}", f"'{SPECTATOR}' is reserved for spectator views", "rename the type")
@@ -309,6 +327,7 @@ class ActionChecks(EffectChecks):
                 self.warn(f"{path}.when", f"`{view.when}` never holds, so no agent is ever shown this view",
                           "remove the view, or give it a `when` that reads the state it waits for")
             self.plain_text(view.empty, f"{path}.empty", "a view's `empty`")
+            self._view_in_brief(view, path)
             if view.of is None:
                 self.template(view.show, f"{path}.show", "actor", BASE | {"actor"}, types)
                 continue
