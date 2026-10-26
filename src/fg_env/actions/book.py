@@ -28,7 +28,7 @@ from ..expr import (
 )
 from ..expr.objects import Entity
 from ..expr.template import format_value
-from ..information.announce import Redaction, notified_since
+from ..information.announce import Redaction, notified_since, reported_to
 from ..information.gate import render, viewer_for
 from ..information.schemas import _ENUM_CHOICES
 from ..world.abort import Abort
@@ -365,6 +365,9 @@ class ActionBook:
                 restricted = self.redaction.restricted_since(world, record_mark) if announce is None else None
                 if restricted:
                     data["posted"] = restricted  # seen only by the readers who may see these entries
+                told = reported_to(world, log_mark) - {actor.id}
+                if told:
+                    data["told"] = sorted(told)  # sent their own report of it: not told twice
                 announcement = world.emit("action", line, actor=actor.id, to=None, data=data)
                 world.put_first(announcement, log_mark)
             else:
