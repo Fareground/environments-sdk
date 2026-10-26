@@ -126,9 +126,9 @@
     }
   },
   "views": {
-    "selectors": {"for": "applicant", "title": "Selectors", "of": "selector", "show": "{name}: appeal {appeal|2}; capacity {capacity}"},
+    "selectors": {"for": "applicant", "brief": true, "title": "Selectors", "of": "selector", "show": "{name}: appeal {appeal|2}; capacity {capacity}"},
     "selector_position": { "brief": true,"for": "selector", "show": "Your capacity is {capacity}; your private minimum quality is {minimum_quality|2}."},
-    "applicants": {"for": "selector", "title": "Applicants", "of": "applicant", "show": "{name}: quality {quality|2}"}
+    "applicants": {"for": "selector", "brief": true, "title": "Applicants", "of": "applicant", "show": "{name}: quality {quality|2}"}
   },
   "outputs": {
     "unmatched_applicants": {"type": "int", "expr": "$count(applicant, $it.placement_match == '')"},

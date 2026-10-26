@@ -278,7 +278,7 @@ def _expand_roles(name: str, config: RolesConfig, contract: Mapping[str, Any]) -
     if config.views:
         out = f"{{$'. You are out of the game' if not $actor.{alive} else ''}}"
         fragment["views"] = {
-            f"{name}_you": {"for": config.who, "title": "Your role",
+            f"{name}_you": {"for": config.who, "title": "Your role", "brief": True,
                             "show": "You are {$actor.role|upper}{$' (team ' + $actor.team + ')' if $actor.team != "
                                     f"$actor.role else ''}}{out}."},
             f"{name}_team": {"for": config.who, "title": "Your team", "of": "$teammates($actor)",
