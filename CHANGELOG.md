@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Loading copies each input value once (a table's rows were deep-copied twice); a contract with large tables loads
+  a little faster.
 - A whole-number argument refused for being over its stated most is told the most every rule would accept now
   (`qty must be at most 20 now`: the shop's stock allows 30, the buyer's pantry 20), or why no amount fits, worked out
   by trials that keep nothing and draw nothing; a most decided by a value hidden from the agent is not refined.
