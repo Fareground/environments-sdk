@@ -19,6 +19,8 @@ Config:
 - `window` (default 12): Rounds a post stays eligible for feeds and trending.
 - `discover` (default false): Feeds also rank posts from accounts the viewer does not follow.
 - `weights` (default "follows=2.0 recency=1.0 engagement=1.0 reputation=0.5"): 
+- `refresh` (default "change"): When the platform re-ranks feeds and trending: on every change, or once a round (ranked from the world as the round's first feed is read; what happens later in the round counts from the next). A score that reads $viewer is worked out on every read either way.
+- `score` (default null): Rank by this expression instead of the weighted formula (higher first): over $it (the post), $viewer, $followed (the viewer follows or befriended the author), $age (rounds since it was posted) and $engagement (reactions + 2·reposts + replies).
 - `downrank` (default "labels=[] factor=1.0"): 
 - `trending_size` (default 5): Posts in the trending list.
 - `moderators` (default null): Agent type that may label posts.

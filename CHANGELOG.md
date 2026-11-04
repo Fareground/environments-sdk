@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A `social.feed` takes a `score`: an expression that ranks the feed instead of the weighted formula, over `$it` (the
+  post), `$viewer`, `$followed`, `$age` and `$engagement`, so a platform's own distribution rule (engagement per view,
+  a follow boost that fades) is written in the contract.
+- Feeds rank faster: when a post's score depends only on the post and whether the viewer follows its author (the
+  weighted formula, or a `score` that never reads `$viewer`), every viewer's feed comes from one ranking shared in
+  that state instead of a scan of every post per viewer. A 400-account platform played by random agents runs about
+  eight times faster; the feeds are the same.
+- A `social.feed` takes `refresh: round`: the platform re-ranks once a round, from the world as the round's first
+  feed is read, and what happens later in the round counts from the next. A 400-account platform played by random
+  agents for 12 rounds drops from 83 s to 7 s.
+- A feed author's reputation stays within 0 and 1: the like that would carry a trusted author past 1 used to be
+  refused instead.
 - Loading copies each input value once (a table's rows were deep-copied twice); a contract with large tables loads
   a little faster.
 - A whole-number argument refused for being over its stated most is told the most every rule would accept now
