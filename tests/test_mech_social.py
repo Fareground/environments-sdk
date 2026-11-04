@@ -323,6 +323,16 @@ def test_reputation_stays_within_zero_and_one():
     assert env.world.entities["c"].properties["net_reputation"] == 1
 
 
+def test_a_feed_can_hide_what_others_did_with_each_post():
+    for counts, shown in ((True, True), (False, False)):
+        env = fg_env.load({**NET, "mechanisms": {"net": {**NET["mechanisms"]["net"], "counts": counts}}}, seed=1)
+        assert do(env, "c", [{"social": "net", "action": "post", "text": "hello from c"}])
+        post = next(p.id for p in env.world.entities_of("net_post"))
+        assert do(env, "b", [{"social": "net", "action": "react", "target": post, "reaction": "like"}])
+        update = env.preview("a").update
+        assert "hello from c" in update and ("1 reactions" in update) is shown
+
+
 def test_blocks_mutes_friends_and_notifications():
     env = fg_env.load(NET, seed=1)
     for author in ("a", "b", "c"):

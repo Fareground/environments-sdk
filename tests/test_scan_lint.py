@@ -78,6 +78,9 @@ def test_a_population_row_or_an_entity_filtering_an_input_table_is_told_to_use_l
             in row.message)
     assert "$lookup($inputs.sales, field, value)" in row.fix
     assert "for each sku" in found["events[0].do[0].do[1]"].message
+    capped = copy.deepcopy(SHOP)
+    capped["inputs"]["sales"]["max"] = 8
+    assert _scans(capped) == []  # a table capped at a few rows cannot grow with the population
 
 
 def test_pairing_every_entity_with_its_type_and_once_per_round_scans_are_quiet():

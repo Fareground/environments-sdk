@@ -107,6 +107,8 @@ class FeedConfig(BaseModel):
                                           "(reactions + 2·reposts + replies).")
     downrank: Downrank = Field(default_factory=Downrank)
     trending_size: int = Field(5, ge=1, le=60, description="Posts in the trending list.")
+    counts: bool = Field(True, description="Accounts see each post's reaction, repost and reply counts; false hides "
+                                           "them, to measure how much accounts copy what others did.")
     moderators: str | None = Field(None, description="Agent type that may label posts.")
     labels: list[str] = Field(default_factory=lambda: ["misleading"], description="Labels moderators may apply.")
     reputation: Reputation = Field(default_factory=Reputation)
@@ -637,10 +639,11 @@ def _relate(world: Any, name: str, config: FeedConfig, actor: Entity, act: str, 
 
 #: The posts a moderator reviews: its queue view lists them, and its label tool offers exactly these.
 _QUEUE = "$trending(10, '{name}')"
-_FEED_LINE = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.origin)) if $it.kind == 'repost' "
-              "else ($' replied to [' + $it.parent + ']' if $it.kind == 'reply' else '')}: {text} · {reacts} "
-              "reactions · {reposts} reposts · {replies} replies{$' · labelled ' + $join($it.labels) if "
-              "$len($it.labels) > 0 else ''}")
+_FEED_POST = ("[{id}] {$entity($it.author)}{$' reposted ' + $text($entity($it.origin)) if $it.kind == 'repost' "
+              "else ($' replied to [' + $it.parent + ']' if $it.kind == 'reply' else '')}: {text}")
+_FEED_COUNTS = " · {reacts} reactions · {reposts} reposts · {replies} replies"
+_FEED_LABELS = "{$' · labelled ' + $join($it.labels) if $len($it.labels) > 0 else ''}"
+_FEED_LINE = _FEED_POST + _FEED_COUNTS + _FEED_LABELS
 
 
 @mode("social", "feed", FeedConfig,
@@ -664,6 +667,7 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
             raise MechanismError(f"score: {error}", "write the score as an expression over $it, $viewer, $followed, "
                                  "$age and $engagement", "") from error
     accounts, post_type = config.who, f"{name}_post"
+    line = _FEED_LINE if config.counts else _FEED_POST + _FEED_LABELS
     rate: dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
     visible = (f"$union($map($feed($actor, null, '{name}'), $it.id), $map($trending(null, '{name}'), "
                "$it.id))")  # every post the account is shown: its feed and trending
@@ -757,15 +761,15 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
                       f"{name}_blocks": {"description": "from blocked to."},
                       f"{name}_mutes": {"description": "from muted to."}},
         "actions": actions,
-        "views": {
+        "views": {  # a moderator's queue always shows the counts it ranks by
             f"{name}_feed": {"for": accounts, "title": "Your feed", "of": f"$feed($actor, null, '{name}')",
-                             "show": _FEED_LINE, "empty": "Nothing new from the accounts you follow."},
+                             "show": line, "empty": "Nothing new from the accounts you follow."},
             f"{name}_profile": {"for": accounts,
                                 "show": f"You have {{$len($followers($actor, '{name}'))}} followers, follow "
                                         f"{{$len($following($actor, '{name}'))}}, reputation "
                                         f"{{{name}_reputation|pct}}."},
             f"{name}_trending": {"for": [accounts] + ([config.moderators] if config.moderators else []),
-                                 "title": "Trending", "of": f"$trending(null, '{name}')", "show": _FEED_LINE,
+                                 "title": "Trending", "of": f"$trending(null, '{name}')", "show": line,
                                  "empty": "Nothing is trending.", "look": True},
         },
     }
