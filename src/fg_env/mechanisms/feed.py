@@ -95,6 +95,10 @@ class FeedConfig(BaseModel):
     window: int = Field(12, ge=1, description="Rounds a post stays eligible for feeds and trending.")
     discover: bool = Field(False, description="Feeds also rank posts from accounts the viewer does not follow.")
     weights: FeedWeights = Field(default_factory=FeedWeights)
+    refresh: Literal["change", "round"] = Field(
+        "change", description="When the platform re-ranks: on every change, or once a round (ranked from the world as "
+                              "the round's first feed is read; what happens later in the round counts from the next). "
+                              "A score that reads $viewer is worked out on every read either way.")
     score: str | None = Field(None,
                               description="Rank by this expression instead of the weighted formula (higher first): "
                                           "over $it (the post), $viewer, $followed (the viewer follows or befriended "
@@ -195,7 +199,7 @@ def _blind_candidates(world: Any, name: str, config: FeedConfig, rule: Any, view
     """The posts that can make ``viewer``'s feed when a post's score depends only on the post and whether the viewer
     follows its author: every followed author's posts, plus the best ``size`` others from one ranking of every recent
     post shared by all viewers in this state. Exactly the feed a full scan gives, without scanning per viewer."""
-    state = cache(world, f"{name}:ranking")
+    state = cache(world, f"{name}:ranking") if config.refresh == "change" else _per_round(world, f"{name}:ranking")
     order = seat_order(world)
     if "by_author" not in state:
         posts = _recent_posts(world, name, config)
@@ -206,11 +210,15 @@ def _blind_candidates(world: Any, name: str, config: FeedConfig, rule: Any, view
         state["strangers"] = sorted(((-_post_score(world, name, config, rule, post, viewer, False),
                                       -order.get(post.id, 0), post) for post in posts),
                                     key=lambda t: (t[0], t[1])) if config.discover else []
-        state["followed"] = {}
+        # Kept for the round, every followed score is worked out now, from the same world as the ranking.
+        state["followed"] = ({post.id: _post_score(world, name, config, rule, post, viewer, True) for post in posts}
+                             if config.refresh == "round" else {})
     known: dict[str, float] = state["followed"]
     candidates: list[tuple[float, int, Entity]] = []
     for author in follows - hidden:
         for post in state["by_author"].get(author, ()):
+            if not post.alive:
+                continue
             if post.id not in known:
                 known[post.id] = _post_score(world, name, config, rule, post, viewer, True)
             candidates.append((-known[post.id], -order.get(post.id, 0), post))
@@ -219,11 +227,21 @@ def _blind_candidates(world: Any, name: str, config: FeedConfig, rule: Any, view
         if taken == size:
             break
         writer = str(props(entry[2]).get("author"))
-        if writer in hidden or writer in follows:
+        if writer in hidden or writer in follows or not entry[2].alive:
             continue
         candidates.append(entry)
         taken += 1
     return candidates
+
+
+def _per_round(world: Any, namespace: str) -> dict[Any, Any]:
+    """A scratch dict kept for the round (and only in this world: a copy works its own out)."""
+    store: dict[str, Any] = world.caches.setdefault("social_round", {})
+    stamp = (world.round, id(world.entities))
+    if store.get("$stamp") != stamp:
+        store.clear()
+        store["$stamp"] = stamp
+    return store.setdefault(namespace, {})
 
 
 def _post_score(world: Any, name: str, config: FeedConfig, rule: Any, post: Entity, viewer: Entity,

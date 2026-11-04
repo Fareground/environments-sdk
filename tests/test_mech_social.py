@@ -298,6 +298,21 @@ def test_a_score_expression_is_the_platforms_own_distribution_rule():
     assert _feed(env, "a")[0] == "b" and _feed(env, "d") == ["c", "b"]  # a score that reads the viewer is per viewer
 
 
+def test_a_feed_refreshed_once_a_round_ranks_what_happens_this_round_from_the_next():
+    contract = {**NET, "clock": {"rounds": 3},
+                "mechanisms": {"net": {**NET["mechanisms"]["net"], "discover": True, "refresh": "round"}}}
+    env = fg_env.load(contract, seed=1)
+    for author in ("b", "c"):
+        assert do(env, author, [{"social": "net", "action": "post", "text": f"hello from {author}"}])
+    assert _feed(env, "a") == ["c", "b"]  # ranked now, for the round
+    posts = {p.properties["author"]: p.id for p in env.world.entities_of("net_post")}
+    assert do(env, "d", [{"social": "net", "action": "react", "target": posts["b"], "reaction": "like"}])
+    assert do(env, "d", [{"social": "net", "action": "post", "text": "late"}])
+    assert _feed(env, "a") == ["c", "b"]  # the like and the late post wait for the next round
+    env.world.round += 1
+    assert _feed(env, "a")[:2] == ["b", "c"] and "d" in _feed(env, "a")
+
+
 def test_reputation_stays_within_zero_and_one():
     contract = {**NET, "mechanisms": {"net": {**NET["mechanisms"]["net"], "reputation": {"reaction": 0.6}}}}
     env = fg_env.load(contract, seed=1)
