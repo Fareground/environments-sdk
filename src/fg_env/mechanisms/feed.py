@@ -96,9 +96,10 @@ class FeedConfig(BaseModel):
     discover: bool = Field(False, description="Feeds also rank posts from accounts the viewer does not follow.")
     weights: FeedWeights = Field(default_factory=FeedWeights)
     refresh: Literal["change", "round"] = Field(
-        "change", description="When the platform re-ranks: on every change, or once a round (ranked from the world as "
-                              "the round's first feed is read; what happens later in the round counts from the next). "
-                              "A score that reads $viewer is worked out on every read either way.")
+        "change", description="When the platform re-ranks feeds and trending: on every change, or once a round "
+                              "(ranked from the world as the round's first feed is read; what happens later in the "
+                              "round counts from the next). A score that reads $viewer is worked out on every read "
+                              "either way.")
     score: str | None = Field(None,
                               description="Rank by this expression instead of the weighted formula (higher first): "
                                           "over $it (the post), $viewer, $followed (the viewer follows or befriended "
@@ -272,11 +273,12 @@ def _scored(world: Any, name: str, rule: Any, post: Entity, viewer: Entity, foll
 
 
 def _trending(world: Any, name: str, config: FeedConfig, n: int) -> list[Entity]:
-    """The ``n`` posts trending now (cached per state: every legality check of every agent reads them)."""
-    found = cache(world, f"{name}:trending")
+    """The ``n`` posts trending now (cached per state, or for the round with ``refresh: round``: every legality check
+    of every agent reads them)."""
+    found = cache(world, f"{name}:trending") if config.refresh == "change" else _per_round(world, f"{name}:trending")
     if n not in found:
         found[n] = _rank_trending(world, name, config, n)
-    return list(found[n])
+    return [post for post in found[n] if post.alive]
 
 
 def _rank_trending(world: Any, name: str, config: FeedConfig, n: int) -> list[Entity]:
@@ -666,7 +668,8 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
     visible = (f"$union($map($feed($actor, null, '{name}'), $it.id), $map($trending(null, '{name}'), "
                "$it.id))")  # every post the account is shown: its feed and trending
     in_feed = {"type": "enum", "values": visible, "description": "The [id] of a post in your feed or trending."}
-    feed_when = [{"expr": f"$len({visible}) > 0", "why": "There is no post to see: your feed and trending are empty."}]
+    feed_when = [{"expr": f"$len($feed($actor, null, '{name}')) > 0 or $len($trending(null, '{name}')) > 0",
+                  "why": "There is no post to see: your feed and trending are empty."}]
     text = {"type": "text", "max_len": config.max_chars}
     who = {"type": "entity", "of": accounts, "description": "The account (not yourself)."}
 
