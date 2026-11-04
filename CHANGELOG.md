@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A `social.feed` takes `counts: false`: feeds and trending show each post without its reaction, repost and
+  reply counts, to measure how much accounts copy what others did. A moderator's queue still shows them.
 - A `social.feed` takes a `score`: an expression that ranks the feed instead of the weighted formula, over `$it` (the
   post), `$viewer`, `$followed`, `$age` and `$engagement`, so a platform's own distribution rule (engagement per view,
   a follow boost that fades) is written in the contract.

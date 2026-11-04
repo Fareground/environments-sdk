@@ -23,6 +23,7 @@ Config:
 - `score` (default null): Rank by this expression instead of the weighted formula (higher first): over $it (the post), $viewer, $followed (the viewer follows or befriended the author), $age (rounds since it was posted) and $engagement (reactions + 2·reposts + replies).
 - `downrank` (default "labels=[] factor=1.0"): 
 - `trending_size` (default 5): Posts in the trending list.
+- `counts` (default true): Accounts see each post's reaction, repost and reply counts; false hides them, to measure how much accounts copy what others did.
 - `moderators` (default null): Agent type that may label posts.
 - `labels` (default ["misleading"]): Labels moderators may apply.
 - `reputation` (default "start=0.5 reaction=0.005 repost=0.02 reply=0.005 label=-0.05"): 
