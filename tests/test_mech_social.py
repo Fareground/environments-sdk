@@ -279,6 +279,35 @@ def test_feeds_rank_followed_posts_and_moderation_downranks_labels():
     assert not do(env, "m", [{"social": "net", "action": "post", "text": "moderators have no account"}])
 
 
+def test_a_score_expression_is_the_platforms_own_distribution_rule():
+    contract = {**NET, "mechanisms": {"net": {**NET["mechanisms"]["net"], "discover": True,
+                                              "score": "($engagement if $followed else 3 * $engagement) - $age"}}}
+    env = fg_env.load(contract, seed=1)
+    for author in ("b", "c", "d"):
+        assert do(env, author, [{"social": "net", "action": "post", "text": f"hello from {author}"}])
+    posts = {p.properties["author"]: p.id for p in env.world.entities_of("net_post")}
+    assert do(env, "b", [{"social": "net", "action": "react", "target": posts["d"], "reaction": "like"}])
+    assert _feed(env, "a") == ["d", "c", "b"]  # a stranger's liked post outranks the followed ones under this rule
+    with pytest.raises(fg_env.ContractError, match="score"):
+        fg_env.load({**contract, "mechanisms": {"net": {**contract["mechanisms"]["net"], "score": "$age +"}}})
+    personal = {**contract, "mechanisms": {"net": {**contract["mechanisms"]["net"],
+                                                   "score": "10 if $viewer.id == 'a' and $it.author == 'b' else 0"}}}
+    env = fg_env.load(personal, seed=1)
+    for author in ("b", "c", "d"):
+        assert do(env, author, [{"social": "net", "action": "post", "text": f"hello from {author}"}])
+    assert _feed(env, "a")[0] == "b" and _feed(env, "d") == ["c", "b"]  # a score that reads the viewer is per viewer
+
+
+def test_reputation_stays_within_zero_and_one():
+    contract = {**NET, "mechanisms": {"net": {**NET["mechanisms"]["net"], "reputation": {"reaction": 0.6}}}}
+    env = fg_env.load(contract, seed=1)
+    assert do(env, "c", [{"social": "net", "action": "post", "text": "popular"}])
+    post = next(p.id for p in env.world.entities_of("net_post"))
+    for fan in ("a", "b"):
+        assert do(env, fan, [{"social": "net", "action": "react", "target": post, "reaction": "like"}])
+    assert env.world.entities["c"].properties["net_reputation"] == 1
+
+
 def test_blocks_mutes_friends_and_notifications():
     env = fg_env.load(NET, seed=1)
     for author in ("a", "b", "c"):

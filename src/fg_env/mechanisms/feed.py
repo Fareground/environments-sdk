@@ -15,8 +15,9 @@ starting graph and ``$neighbors``/``$linked`` read it.
 
 A feed ranks recent posts (``window`` rounds) from accounts the viewer follows or befriended —
 plus everyone else's with ``discover`` — by
-``follows·followed + recency/(1+age) + engagement·ln(1+reacts+2·reposts+replies) + reputation·author``,
-multiplied by ``downrank.factor`` when a post carries a downranked label. Blocked and muted
+``follows·followed + recency/(1+age) + engagement·ln(1+reacts+2·reposts+replies) + reputation·author``, or by the
+``score`` expression when one is given (a platform's own distribution rule), multiplied by ``downrank.factor`` when
+a post carries a downranked label. Blocked and muted
 accounts never appear; nor do accounts that block the viewer. Ties go to the newer post.
 """
 from __future__ import annotations
@@ -28,7 +29,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..errors import RunError
-from ..expr import Call, ExprError, function
+from ..expr import Call, ExprError, compile_expr, function
 from ..expr.objects import Entity
 from ..registry import MechanismError, family_action, mechanism_config, mode
 from ..world.abort import Abort
@@ -94,6 +95,11 @@ class FeedConfig(BaseModel):
     window: int = Field(12, ge=1, description="Rounds a post stays eligible for feeds and trending.")
     discover: bool = Field(False, description="Feeds also rank posts from accounts the viewer does not follow.")
     weights: FeedWeights = Field(default_factory=FeedWeights)
+    score: str | None = Field(None,
+                              description="Rank by this expression instead of the weighted formula (higher first): "
+                                          "over $it (the post), $viewer, $followed (the viewer follows or befriended "
+                                          "the author), $age (rounds since it was posted) and $engagement "
+                                          "(reactions + 2·reposts + replies).")
     downrank: Downrank = Field(default_factory=Downrank)
     trending_size: int = Field(5, ge=1, le=60, description="Posts in the trending list.")
     moderators: str | None = Field(None, description="Agent type that may label posts.")
@@ -162,34 +168,89 @@ def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: int | Non
     """The ranked feed ``viewer`` reads now."""
     size = config.feed_size if n is None else n
     found = cache(world, f"{name}:feed")
-    key = (viewer.id, size)
-    if key in found:
-        return list(found[key])
+    if (viewer.id, size) in found:
+        return list(found[(viewer.id, size)])
     follows = _connections(world, name, config, viewer.id)
     hidden = set(_out(world, f"{name}_blocks", viewer.id)) | set(_in(world, f"{name}_blocks", viewer.id))
     if config.mute:
         hidden |= set(_out(world, f"{name}_mutes", viewer.id))
-    weights, order = config.weights, seat_order(world)
-    scored: list[tuple[float, int, Entity]] = []
-    for post in _recent_posts(world, name, config):
-        author = props(post).get("author")
-        if author == viewer.id or author in hidden:
-            continue
-        followed = author in follows
-        if not followed and not config.discover:
-            continue
-        writer = world.entities.get(author)
-        reputation = float(props(writer).get(f"{name}_reputation", 0)) if writer is not None else 0.0
-        age = max(0, world.round - int(props(post).get("born", 0)))
-        score = (weights.follows * followed + weights.recency / (1 + age)
-                 + weights.engagement * math.log1p(_engagement(post)) + weights.reputation * reputation)
-        if _downranked(config, post):
-            score *= config.downrank.factor
-        scored.append((-score, -order.get(post.id, 0), post))
+    hidden.add(viewer.id)
+    rule = compile_expr(config.score) if config.score else None
+    if rule is None or _viewer_blind(world, rule):
+        scored = _blind_candidates(world, name, config, rule, viewer, follows, hidden, size)
+    else:
+        order = seat_order(world)
+        scored = [(-_post_score(world, name, config, rule, post, viewer, followed), -order.get(post.id, 0), post)
+                  for post in _recent_posts(world, name, config)
+                  if props(post).get("author") not in hidden
+                  for followed in [props(post).get("author") in follows] if followed or config.discover]
     scored.sort(key=lambda t: (t[0], t[1]))
     ranked = [post for _, _, post in scored[:size]]
-    found[key] = ranked
+    found[(viewer.id, size)] = ranked
     return list(ranked)
+
+
+def _blind_candidates(world: Any, name: str, config: FeedConfig, rule: Any, viewer: Entity, follows: set[str],
+                      hidden: set[str], size: int) -> list[tuple[float, int, Entity]]:
+    """The posts that can make ``viewer``'s feed when a post's score depends only on the post and whether the viewer
+    follows its author: every followed author's posts, plus the best ``size`` others from one ranking of every recent
+    post shared by all viewers in this state. Exactly the feed a full scan gives, without scanning per viewer."""
+    state = cache(world, f"{name}:ranking")
+    order = seat_order(world)
+    if "by_author" not in state:
+        posts = _recent_posts(world, name, config)
+        by_author: dict[str, list[Entity]] = {}
+        for post in posts:
+            by_author.setdefault(str(props(post).get("author")), []).append(post)
+        state["by_author"] = by_author
+        state["strangers"] = sorted(((-_post_score(world, name, config, rule, post, viewer, False),
+                                      -order.get(post.id, 0), post) for post in posts),
+                                    key=lambda t: (t[0], t[1])) if config.discover else []
+        state["followed"] = {}
+    known: dict[str, float] = state["followed"]
+    candidates: list[tuple[float, int, Entity]] = []
+    for author in follows - hidden:
+        for post in state["by_author"].get(author, ()):
+            if post.id not in known:
+                known[post.id] = _post_score(world, name, config, rule, post, viewer, True)
+            candidates.append((-known[post.id], -order.get(post.id, 0), post))
+    taken = 0
+    for entry in state["strangers"]:
+        if taken == size:
+            break
+        writer = str(props(entry[2]).get("author"))
+        if writer in hidden or writer in follows:
+            continue
+        candidates.append(entry)
+        taken += 1
+    return candidates
+
+
+def _post_score(world: Any, name: str, config: FeedConfig, rule: Any, post: Entity, viewer: Entity,
+                followed: bool) -> float:
+    age = max(0, world.round - int(props(post).get("born", 0)))
+    if rule is not None:
+        score = _scored(world, name, rule, post, viewer, followed, age)
+    else:
+        weights, writer = config.weights, world.entities.get(props(post).get("author"))
+        reputation = float(props(writer).get(f"{name}_reputation", 0)) if writer is not None else 0.0
+        score = (weights.follows * followed + weights.recency / (1 + age)
+                 + weights.engagement * math.log1p(_engagement(post)) + weights.reputation * reputation)
+    return score * config.downrank.factor if _downranked(config, post) else score
+
+
+def _viewer_blind(world: Any, rule: Any) -> bool:
+    """Whether a score gives every viewer the same number: it reads neither the viewer nor the acting agent, and calls
+    no def of the contract's (which could)."""
+    return not ({"viewer", "actor"} & rule.roots) and not any(f in world.contract.defs for f in rule.functions)
+
+
+def _scored(world: Any, name: str, rule: Any, post: Entity, viewer: Entity, followed: bool, age: int) -> float:
+    value = rule(world.evaluation.scope(it=post, viewer=viewer, followed=followed, age=age,
+                                        engagement=_engagement(post)))
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+        raise RunError(f"feed {name}: score gave {value!r} for post {post.id}, not a number")
+    return float(value)
 
 
 def _trending(world: Any, name: str, config: FeedConfig, n: int) -> list[Entity]:
@@ -404,6 +465,12 @@ def _bump(world: Any, owner: Entity, prop: str, by: float) -> None:
     world.set_prop(owner, prop, props(owner).get(prop, 0) + by)
 
 
+def _repute(world: Any, name: str, owner: Entity, by: float) -> None:
+    """Move an author's reputation, clamped to 0–1: the thousandth like on a trusted author is not an error."""
+    prop = f"{name}_reputation"
+    world.set_prop(owner, prop, min(1.0, max(0.0, float(props(owner).get(prop, 0)) + by)))
+
+
 def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str, text: Any,
             parent: Entity | None, where: str) -> Entity:
     if not isinstance(text, str) or not text.strip():
@@ -416,7 +483,7 @@ def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str
         _bump(world, parent, "replies", 1)
         owner = world.entities.get(props(parent).get("author"))
         if owner is not None:
-            _bump(world, owner, f"{name}_reputation", config.reputation.reply)
+            _repute(world, name, owner, config.reputation.reply)
             _notify(world, name, config, "reply", author, owner.id,
                     f"{author.name} replied to your post [{parent.id}] with [{post.id}].")
     return post
@@ -448,7 +515,7 @@ def _repost(world: Any, name: str, config: FeedConfig, actor: Entity, target: En
     world.set_prop(post, "labels", list(props(root).get("labels") or []))
     owner = world.entities.get(props(root).get("author"))
     if owner is not None:
-        _bump(world, owner, f"{name}_reputation", config.reputation.repost)
+        _repute(world, name, owner, config.reputation.repost)
         _bump(world, owner, f"{name}_reposts_received", 1)
         _notify(world, name, config, "repost", actor, owner.id, f"{actor.name} reposted your post [{root.id}].")
 
@@ -468,7 +535,7 @@ def _react(world: Any, name: str, config: FeedConfig, actor: Entity, post: Entit
     _bump(world, post, "reacts", 1)
     owner = world.entities.get(props(post).get("author"))
     if owner is not None and owner.id != actor.id:
-        _bump(world, owner, f"{name}_reputation", config.reputation.reaction)
+        _repute(world, name, owner, config.reputation.reaction)
         _bump(world, owner, f"{name}_reactions_received", 1)
         _notify(world, name, config, "reaction", actor, owner.id,
                 f"{actor.name} reacted {reaction} to your post [{post.id}].")
@@ -491,7 +558,7 @@ def _label(world: Any, name: str, config: FeedConfig, actor: Entity, post: Entit
         raise Abort(f"That post is already labelled {label}.")
     owner = world.entities.get(props(world.entities[root]).get("author")) if root in world.entities else None
     if owner is not None:
-        _bump(world, owner, f"{name}_reputation", config.reputation.label)
+        _repute(world, name, owner, config.reputation.label)
         _notify(world, name, config, "label", actor, owner.id, f"Your post [{root}] was labelled {label}.")
 
 
@@ -570,6 +637,12 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
     require_type(contract, config.moderators, "moderators", agent=True)
     if f"{name}_post" in (contract.get("types") or {}):
         raise MechanismError(f"type '{name}_post' is generated by this mechanism", "rename your type", "")
+    if config.score:
+        try:
+            compile_expr(config.score)
+        except ExprError as error:
+            raise MechanismError(f"score: {error}", "write the score as an expression over $it, $viewer, $followed, "
+                                 "$age and $engagement", "") from error
     accounts, post_type = config.who, f"{name}_post"
     rate: dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
     visible = (f"$union($map($feed($actor, null, '{name}'), $it.id), $map($trending(null, '{name}'), "
