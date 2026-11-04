@@ -313,6 +313,41 @@ def test_a_feed_refreshed_once_a_round_ranks_what_happens_this_round_from_the_ne
     assert _feed(env, "a")[:2] == ["b", "c"] and "d" in _feed(env, "a")
 
 
+FORUM = {**NET, "types": {**NET["types"], "community": {"props": {}}},
+         "entities": {**NET["entities"], "pets": {"type": "community", "name": "Pets"},
+                      "cars": {"type": "community", "name": "Cars"}},
+         "links": [{"relation": "net_members", "from": "a", "to": "pets"},
+                   {"relation": "net_members", "from": "b", "to": "cars"}],
+         "mechanisms": {"net": {**NET["mechanisms"]["net"], "follows": False, "communities": "community",
+                                "reactions": ["up", "down"]}}}
+
+
+def test_posts_are_made_in_communities_and_reach_the_feeds_of_their_members():
+    env = fg_env.load(FORUM, seed=1)
+    assert do(env, "c", [{"social": "net", "action": "post", "text": "my cat", "community": "pets"}])
+    assert do(env, "d", [{"social": "net", "action": "post", "text": "my car", "community": "cars"}])
+    posts = {p.properties["text"]: p for p in env.world.entities_of("net_post")}
+    assert _feed(env, "a") == ["c"] and _feed(env, "b") == ["d"]  # only joined communities, nobody followed
+    assert do(env, "b", [{"social": "net", "action": "react", "target": posts["my cat"].id, "reaction": "down"}])
+    assert "in Pets: my cat · 0 up · 1 down" in env.preview("a").update  # votes read apart
+    assert do(env, "b", [{"social": "net", "action": "reply", "target": posts["my cat"].id, "text": "cute"}])
+    reply = next(p for p in env.world.entities_of("net_post") if p.properties["kind"] == "reply")
+    assert reply.properties["community"] == "pets"  # a reply stays in its post's community
+    assert do(env, "a", [{"social": "net", "action": "repost", "target": posts["my car"].id, "community": "pets"}])
+    crosspost = next(p for p in env.world.entities_of("net_post") if p.properties["kind"] == "repost")
+    assert crosspost.properties["community"] == "pets"  # a crosspost goes to the community it names
+    assert do(env, "b", [{"social": "net", "action": "join", "community": "pets"}])
+    assert sorted(ev(env, "$joined(b)")) == ["cars", "pets"] and sorted(ev(env, "$members(pets)")) == ["a", "b"]
+    assert not do(env, "b", [{"social": "net", "action": "join", "community": "pets"}])  # once
+    assert do(env, "b", [{"social": "net", "action": "leave", "community": "cars"}])
+    assert "a" in _feed(env, "b") and "d" not in _feed(env, "b")  # Pets' crosspost now, not Cars' post
+    assert not do(env, "c", [{"social": "net", "action": "post", "text": "x", "community": "nowhere"}])
+    tools = {t["name"] for t in env.preview("a").tools}
+    assert {"net_post", "net_crosspost", "net_join", "net_leave", "net_react"} <= tools
+    with pytest.raises(fg_env.ContractError, match="communities"):
+        fg_env.load({**FORUM, "mechanisms": {"net": {**FORUM["mechanisms"]["net"], "communities": "club"}}})
+
+
 def test_reputation_stays_within_zero_and_one():
     contract = {**NET, "mechanisms": {"net": {**NET["mechanisms"]["net"], "reputation": {"reaction": 0.6}}}}
     env = fg_env.load(contract, seed=1)
