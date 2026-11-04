@@ -8,8 +8,8 @@ ranked feeds, trending, reputation, influence and insularity.
                            "downrank": {"labels": ["misleading"], "factor": 0.2}}}
 
 Posts are entities of the type ``<name>_post`` (props: author, text, kind, parent, origin, born,
-reacts, reactions, reposts, replies, labels, reacted, reposters). The network is ordinary
-relations — ``<name>_follows`` (from follows to), ``<name>_friends`` (symmetric),
+reacts, reactions, reposts, replies, labels, reacted, reposters; and community, with ``communities``).
+The network is ordinary relations — ``<name>_follows`` (from follows to), ``<name>_friends`` (symmetric),
 ``<name>_requests``, ``<name>_blocks``, ``<name>_mutes`` — so ``links`` generators build the
 starting graph and ``$neighbors``/``$linked`` read it.
 
@@ -19,6 +19,11 @@ plus everyone else's with ``discover`` — by
 ``score`` expression when one is given (a platform's own distribution rule), multiplied by ``downrank.factor`` when
 a post carries a downranked label. Blocked and muted
 accounts never appear; nor do accounts that block the viewer. Ties go to the newer post.
+
+With ``communities`` (a type), posts are made in communities that accounts join (``<name>_members``, account →
+community): a feed ranks posts from joined communities as it does followed accounts, and ``$followed`` is true for
+them too. A post's community is the one it names; a reply stays in its post's; a crosspost (``repost`` naming a
+community) goes to that one.
 """
 from __future__ import annotations
 
@@ -109,6 +114,9 @@ class FeedConfig(BaseModel):
     trending_size: int = Field(5, ge=1, le=60, description="Posts in the trending list.")
     counts: bool = Field(True, description="Accounts see each post's reaction, repost and reply counts; false hides "
                                            "them, to measure how much accounts copy what others did.")
+    communities: str | None = Field(None, description="Type of the communities posts are made in: accounts join them "
+                                                      "and their feeds rank posts from joined communities as from "
+                                                      "followed accounts. None: no communities.")
     moderators: str | None = Field(None, description="Agent type that may label posts.")
     labels: list[str] = Field(default_factory=lambda: ["misleading"], description="Labels moderators may apply.")
     reputation: Reputation = Field(default_factory=Reputation)
@@ -149,6 +157,10 @@ def _connections(world: Any, name: str, config: FeedConfig, account: str) -> set
     return linked
 
 
+def _joined(world: Any, name: str, config: FeedConfig, account: str) -> set[str]:
+    return set(_out(world, f"{name}_members", account)) if config.communities else set()
+
+
 def _recent_posts(world: Any, name: str, config: FeedConfig) -> list[Entity]:
     """Alive posts born within the window, newest first (cached per state)."""
     found = cache(world, f"{name}:recent")
@@ -178,19 +190,21 @@ def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: int | Non
     if (viewer.id, size) in found:
         return list(found[(viewer.id, size)])
     follows = _connections(world, name, config, viewer.id)
+    joined = _joined(world, name, config, viewer.id)
     hidden = set(_out(world, f"{name}_blocks", viewer.id)) | set(_in(world, f"{name}_blocks", viewer.id))
     if config.mute:
         hidden |= set(_out(world, f"{name}_mutes", viewer.id))
     hidden.add(viewer.id)
     rule = compile_expr(config.score) if config.score else None
     if rule is None or _viewer_blind(world, rule):
-        scored = _blind_candidates(world, name, config, rule, viewer, follows, hidden, size)
+        scored = _blind_candidates(world, name, config, rule, viewer, follows, joined, hidden, size)
     else:
         order = seat_order(world)
         scored = [(-_post_score(world, name, config, rule, post, viewer, followed), -order.get(post.id, 0), post)
                   for post in _recent_posts(world, name, config)
                   if props(post).get("author") not in hidden
-                  for followed in [props(post).get("author") in follows] if followed or config.discover]
+                  for followed in [props(post).get("author") in follows or props(post).get("community") in joined]
+                  if followed or config.discover]
     scored.sort(key=lambda t: (t[0], t[1]))
     ranked = [post for _, _, post in scored[:size]]
     found[(viewer.id, size)] = ranked
@@ -198,18 +212,23 @@ def feed(world: Any, name: str, config: FeedConfig, viewer: Entity, n: int | Non
 
 
 def _blind_candidates(world: Any, name: str, config: FeedConfig, rule: Any, viewer: Entity, follows: set[str],
-                      hidden: set[str], size: int) -> list[tuple[float, int, Entity]]:
+                      joined: set[str], hidden: set[str], size: int) -> list[tuple[float, int, Entity]]:
     """The posts that can make ``viewer``'s feed when a post's score depends only on the post and whether the viewer
-    follows its author: every followed author's posts, plus the best ``size`` others from one ranking of every recent
-    post shared by all viewers in this state. Exactly the feed a full scan gives, without scanning per viewer."""
+    follows its author (or joined its community): every followed author's and joined community's posts, plus the best
+    ``size`` others from one ranking of every recent post shared by all viewers in this state. Exactly the feed a full
+    scan gives, without scanning per viewer."""
     state = cache(world, f"{name}:ranking") if config.refresh == "change" else _per_round(world, f"{name}:ranking")
     order = seat_order(world)
     if "by_author" not in state:
         posts = _recent_posts(world, name, config)
         by_author: dict[str, list[Entity]] = {}
+        by_community: dict[str, list[Entity]] = {}
         for post in posts:
             by_author.setdefault(str(props(post).get("author")), []).append(post)
+            if props(post).get("community"):
+                by_community.setdefault(str(props(post).get("community")), []).append(post)
         state["by_author"] = by_author
+        state["by_community"] = by_community
         state["strangers"] = sorted(((-_post_score(world, name, config, rule, post, viewer, False),
                                       -order.get(post.id, 0), post) for post in posts),
                                     key=lambda t: (t[0], t[1])) if config.discover else []
@@ -218,19 +237,23 @@ def _blind_candidates(world: Any, name: str, config: FeedConfig, rule: Any, view
                              if config.refresh == "round" else {})
     known: dict[str, float] = state["followed"]
     candidates: list[tuple[float, int, Entity]] = []
-    for author in follows - hidden:
-        for post in state["by_author"].get(author, ()):
-            if not post.alive:
-                continue
-            if post.id not in known:
-                known[post.id] = _post_score(world, name, config, rule, post, viewer, True)
-            candidates.append((-known[post.id], -order.get(post.id, 0), post))
+    taken_ids: set[str] = set()
+    mine = [post for author in follows - hidden for post in state["by_author"].get(author, ())]
+    mine += [post for community in sorted(joined) for post in state["by_community"].get(community, ())
+             if str(props(post).get("author")) not in hidden]
+    for post in mine:
+        if not post.alive or post.id in taken_ids:
+            continue
+        taken_ids.add(post.id)
+        if post.id not in known:
+            known[post.id] = _post_score(world, name, config, rule, post, viewer, True)
+        candidates.append((-known[post.id], -order.get(post.id, 0), post))
     taken = 0
     for entry in state["strangers"]:
         if taken == size:
             break
         writer = str(props(entry[2]).get("author"))
-        if writer in hidden or writer in follows or not entry[2].alive:
+        if writer in hidden or writer in follows or entry[2].id in taken_ids or not entry[2].alive:
             continue
         candidates.append(entry)
         taken += 1
@@ -350,6 +373,22 @@ def _followers_fn(call: Call) -> list[str]:
     return list(_in(world, f"{name}_follows", eid(call.arg(0), call.source)))
 
 
+@function("joined(account, mechanism?)", "Ids of the communities this account joined.", min_args=1, max_args=2,
+          family="social")
+def _joined_fn(call: Call) -> list[str]:
+    world: Any = call.scope.world
+    name, _ = _use(call, 1)
+    return list(_out(world, f"{name}_members", eid(call.arg(0), call.source)))
+
+
+@function("members(community, mechanism?)", "Ids of the accounts that joined this community.", min_args=1,
+          max_args=2, family="social")
+def _members_fn(call: Call) -> list[str]:
+    world: Any = call.scope.world
+    name, _ = _use(call, 1)
+    return list(_in(world, f"{name}_members", eid(call.arg(0), call.source)))
+
+
 @function("influence(account, mechanism?)",
           "Followers + friends + reposts received: how far an account's voice carries.", min_args=1, max_args=2,
           family="social")
@@ -405,7 +444,8 @@ def _homophily_fn(call: Call) -> float | None:
 # The social op's feed actions
 # ---------------------------------------------------------------------------
 
-#: action → (the keys it needs, example keys, what it does). `who`, the acting account, defaults to $actor.
+#: action → (the keys it needs, example keys, what it does). `who`, the acting account, defaults to $actor; with
+#: communities, `post` and `repost` also take `community` (a crosspost when a repost names one).
 _ACTIONS: dict[str, tuple[tuple[str, ...], str, str]] = {
     "post": (("text",), '"text": "$params.text"', "publish a post to the account's followers"),
     "reply": (("target", "text"), '"target": "$params.post", "text": "$params.text"', "reply to a post"),
@@ -422,7 +462,11 @@ _ACTIONS: dict[str, tuple[tuple[str, ...], str, str]] = {
     "unmute": (("account",), '"account": "$params.who"', "unmute an account"),
     "label": (("target", "label"), '"target": "$params.post", "label": "$params.label"',
               "a moderator labels a post and its reposts"),
+    "join": (("community",), '"community": "$params.community"', "join a community: its posts reach the feed"),
+    "leave": (("community",), '"community": "$params.community"', "leave a community"),
 }
+#: Keys an action may take beyond those it needs.
+_OPTIONAL: dict[str, tuple[str, ...]] = {"post": ("community",), "repost": ("community",)}
 
 
 def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str], None]:
@@ -443,8 +487,11 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
             return
         if not world.is_a(actor.entity_type, config.who):
             raise Abort(f"{actor.name} has no account here.")
+        community = _community(world, config, arg("community"), where) if "community" in effect else None
         if action == "post":
-            _create(world, name, config, actor, "post", arg("text"), None, where)
+            _create(world, name, config, actor, "post", arg("text"), None, where, community)
+        elif action in ("join", "leave"):
+            _membership(world, name, actor, action, _community(world, config, arg("community"), where), where)
         elif action in _RELATING:
             _relate(world, name, config, actor, action, entity(world, arg("account"), where, config.who), where)
         else:
@@ -454,7 +501,7 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
             if action == "reply":
                 _create(world, name, config, actor, "reply", arg("text"), target, where)
             elif action == "repost":
-                _repost(world, name, config, actor, target, where)
+                _repost(world, name, config, actor, target, where, community)
             else:
                 _react(world, name, config, actor, target, arg("reaction"))
 
@@ -464,11 +511,32 @@ def _runner(action: str) -> Callable[[Any, dict[str, Any], dict[str, Any], str],
 def _register_actions() -> None:
     for action, (needs, fields, doc) in _ACTIONS.items():
         example = '{"social": "net", "action": "' + action + f'", {fields}}}  ({doc})'
-        family_action("social", ("feed",), action, keys=(*needs, "who"), required=needs,
+        family_action("social", ("feed",), action, keys=(*needs, *_OPTIONAL.get(action, ()), "who"), required=needs,
                       example=example)(_runner(action))
 
 
 _register_actions()
+
+
+def _community(world: Any, config: FeedConfig, value: Any, where: str) -> Entity:
+    if not config.communities:
+        raise RunError("this feed has no communities: set `communities` to their type", where)
+    found = world.entities.get(eid(value, where)) if isinstance(value, (str, Entity)) else None
+    if found is None or not found.alive or not world.is_a(found.entity_type, config.communities):
+        raise Abort(f"There is no community {value!r}.")
+    return found  # type: ignore[no-any-return]
+
+
+def _membership(world: Any, name: str, actor: Entity, action: str, community: Entity, where: str) -> None:
+    members = f"{name}_members"
+    if action == "join":
+        if _has(world, members, actor.id, community.id):
+            raise Abort(f"You already joined {community.name}.")
+        world.link(members, actor, community, 1, where)
+    else:
+        if not _has(world, members, actor.id, community.id):
+            raise Abort(f"You are not in {community.name}.")
+        world.unlink(members, actor, community, where)
 
 
 def _post(world: Any, name: str, value: Any, where: str) -> Entity:
@@ -494,12 +562,15 @@ def _repute(world: Any, name: str, owner: Entity, by: float) -> None:
 
 
 def _create(world: Any, name: str, config: FeedConfig, author: Entity, kind: str, text: Any,
-            parent: Entity | None, where: str) -> Entity:
+            parent: Entity | None, where: str, community: Entity | None = None) -> Entity:
     if not isinstance(text, str) or not text.strip():
         raise Abort("A post needs some text.")
     if len(text) > config.max_chars:
         raise Abort(f"Posts are at most {config.max_chars} characters; yours has {len(text)}.")
     post = _new_post(world, name, author, kind, text, parent, where)
+    if config.communities:  # a reply stays in its post's community
+        world.set_prop(post, "community", props(parent).get("community", "") if parent is not None
+                       else community.id if community is not None else "")
     _bump(world, author, f"{name}_posts", 1)
     if parent is not None:
         _bump(world, parent, "replies", 1)
@@ -522,7 +593,8 @@ def _new_post(world: Any, name: str, author: Entity, kind: str, text: Any, paren
     return post  # type: ignore[no-any-return]
 
 
-def _repost(world: Any, name: str, config: FeedConfig, actor: Entity, target: Entity, where: str) -> None:
+def _repost(world: Any, name: str, config: FeedConfig, actor: Entity, target: Entity, where: str,
+            community: Entity | None = None) -> None:
     root = target
     if props(target).get("kind") == "repost":
         found = world.entities.get(props(target).get("parent"))
@@ -535,6 +607,8 @@ def _repost(world: Any, name: str, config: FeedConfig, actor: Entity, target: En
     _bump(world, root, "reposts", 1)
     post = _new_post(world, name, actor, "repost", props(root).get("text"), root, where)
     world.set_prop(post, "labels", list(props(root).get("labels") or []))
+    if config.communities:  # a crosspost goes to the community it names
+        world.set_prop(post, "community", community.id if community is not None else props(root).get("community", ""))
     owner = world.entities.get(props(root).get("author"))
     if owner is not None:
         _repute(world, name, owner, config.reputation.repost)
@@ -646,6 +720,14 @@ _FEED_LABELS = "{$' · labelled ' + $join($it.labels) if $len($it.labels) > 0 el
 _FEED_LINE = _FEED_POST + _FEED_COUNTS + _FEED_LABELS
 
 
+def _feed_line(config: FeedConfig) -> str:
+    """A post as feeds show it: with several reactions, each one's count (votes up and down read apart)."""
+    if len(config.reactions) < 2:
+        return _FEED_LINE
+    each = "".join(f" · {{$get($it.reactions, '{r}', 0)}} {r}" for r in config.reactions)
+    return _FEED_POST + _FEED_COUNTS.replace(" · {reacts} reactions", each) + _FEED_LABELS
+
+
 @mode("social", "feed", FeedConfig,
            "A social network: posts (type `<name>_post`), replies, reposts, reactions, follows, friend requests, "
            "blocks and mutes (relations `<name>_follows`, `<name>_friends`, `<name>_blocks` …), a ranked feed view "
@@ -658,6 +740,7 @@ _FEED_LINE = _FEED_POST + _FEED_COUNTS + _FEED_LABELS
 def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[str, Any]:
     require_type(contract, config.who, "who", agent=True)
     require_type(contract, config.moderators, "moderators", agent=True)
+    require_type(contract, config.communities, "communities")
     if f"{name}_post" in (contract.get("types") or {}):
         raise MechanismError(f"type '{name}_post' is generated by this mechanism", "rename your type", "")
     if config.score:
@@ -667,7 +750,10 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
             raise MechanismError(f"score: {error}", "write the score as an expression over $it, $viewer, $followed, "
                                  "$age and $engagement", "") from error
     accounts, post_type = config.who, f"{name}_post"
-    line = _FEED_LINE if config.counts else _FEED_POST + _FEED_LABELS
+    line = _feed_line(config) if config.counts else _FEED_POST + _FEED_LABELS
+    if config.communities:  # where each post was made
+        line = line.replace(": {text}", "{$' in ' + $text($entity($it.community)) if $it.community != '' else ''}"
+                                        ": {text}", 1)
     rate: dict[str, Any] = {"per_turn": config.per_turn} if config.per_turn else {}
     visible = (f"$union($map($feed($actor, null, '{name}'), $it.id), $map($trending(null, '{name}'), "
                "$it.id))")  # every post the account is shown: its feed and trending
@@ -683,7 +769,13 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
                 "do": [{"social": name, **do}], "private": True, **extra}
 
     actions: dict[str, Any] = {}
-    if config.posts:
+    joined = {"type": "enum", "values": f"$joined($actor, '{name}')", "description": "A community you joined."}
+    member_when = [{"expr": f"$len($joined($actor, '{name}')) > 0", "why": "You have joined no community."}]
+    if config.posts and config.communities:
+        actions[f"{name}_post"] = act("Publish a post in a community you joined.",
+                                      {"action": "post", "text": "$params.text", "community": "$params.community"},
+                                      {"community": joined, "text": text}, member_when, outcome="Posted.", **rate)
+    elif config.posts:
         actions[f"{name}_post"] = act("Publish a post to your followers.", {"action": "post", "text": "$params.text"},
                                       {"text": text}, outcome="Posted.", **rate)
     if config.replies:
@@ -695,6 +787,20 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
         actions[f"{name}_repost"] = act("Repost a post from your feed or trending to your followers.",
                                         {"action": "repost", "target": "$params.post"},
                                         {"post": in_feed}, feed_when, outcome="Reposted [{$params.post}].", **rate)
+    if config.reposts and config.communities:
+        actions[f"{name}_crosspost"] = act("Crosspost a post from your feed or trending into a community you joined.",
+                                           {"action": "repost", "target": "$params.post",
+                                            "community": "$params.community"},
+                                           {"post": in_feed, "community": joined}, feed_when + member_when,
+                                           outcome="Crossposted [{$params.post}].", **rate)
+    if config.communities:
+        actions[f"{name}_join"] = act("Join a community: its posts reach your feed.",
+                                      {"action": "join", "community": "$params.community"},
+                                      {"community": {"type": "entity", "of": config.communities,
+                                                     "description": "The community."}},
+                                      outcome="You joined {$params.community.name}.")
+        actions[f"{name}_leave"] = act("Leave a community.", {"action": "leave", "community": "$params.community"},
+                                       {"community": joined}, member_when, outcome="You left {$params.community}.")
     if len(config.reactions) == 1:
         reaction = config.reactions[0]
         actions[f"{name}_{reaction}"] = act(f"React '{reaction}' to a post in your feed or trending.",
@@ -753,13 +859,16 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
                 "reacts": {"type": "int", "default": 0}, "reactions": {"type": "map", "default": {}},
                 "reposts": {"type": "int", "default": 0}, "replies": {"type": "int", "default": 0},
                 "labels": {"type": "list", "default": []}, "reacted": {"type": "map", "default": {}},
-                "reposters": {"type": "list", "default": []}}},
+                "reposters": {"type": "list", "default": []},
+                **({"community": ""} if config.communities else {})}},
         },
         "relations": {f"{name}_follows": {"description": "from follows to: to's posts reach from's feed."},
                       f"{name}_friends": {"symmetric": True, "description": "Mutual friends."},
                       f"{name}_requests": {"description": "from asked to to be friends."},
                       f"{name}_blocks": {"description": "from blocked to."},
-                      f"{name}_mutes": {"description": "from muted to."}},
+                      f"{name}_mutes": {"description": "from muted to."},
+                      **({f"{name}_members": {"description": "from joined the community to: its posts reach from's "
+                                                             "feed."}} if config.communities else {})},
         "actions": actions,
         "views": {  # a moderator's queue always shows the counts it ranks by
             f"{name}_feed": {"for": accounts, "title": "Your feed", "of": f"$feed($actor, null, '{name}')",
@@ -775,7 +884,7 @@ def _expand(name: str, config: FeedConfig, contract: Mapping[str, Any]) -> dict[
     }
     if config.moderators:
         fragment["views"][f"{name}_queue"] = {"for": config.moderators, "title": "Most engaged recent posts",
-                                              "of": _QUEUE.format(name=name), "show": _FEED_LINE,
+                                              "of": _QUEUE.format(name=name), "show": _feed_line(config),
                                               "empty": "Nothing to review."}
     names = list(actions)
     if not names:
