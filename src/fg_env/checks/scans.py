@@ -4,10 +4,10 @@ type from a block that runs once per arrival, so the cost grows with the square 
 A `$filter($inputs.sales, $it.sku == $row.sku)` for every population row, or a `$count(call, $it.status == waiting)`
 in a block that schedules itself again for every arrival, is invisible at a few dozen and dominates a run at thousands.
 Input tables never change during a run, so a table scan repeated per entity or row always has a better form
-(`$lookup`); it is reported in events and `each` effects over a type, type hooks, population rows and recurring blocks.
-Reading every entity of a type per entity is often the model itself (a random partner, a neighbourhood), so type scans
-are reported only in blocks that schedule themselves again through `after`. A def read there counts too when its
-body scans. Once-per-round scans are never reported.
+(`$lookup`); it is reported, unless the table is capped at a few rows, in events and `each` effects over a type, type
+hooks, population rows and recurring blocks. Reading every entity of a type per entity is often the model itself (a
+random partner, a neighbourhood), so type scans are reported only in blocks that schedule themselves again through
+`after`. A def read there counts too when its body scans. Once-per-round scans are never reported.
 """
 from __future__ import annotations
 
@@ -29,6 +29,8 @@ _NESTED = ("then", "else", "do")
 _TABLE_SCAN = re.compile(r"\$([a-z_]+)\(\s*\$inputs\.([A-Za-z_][A-Za-z0-9_]*)")
 _TYPE_FIX = ("keep what this needs in a world list or map updated when it changes (a queue of ids: "
              "`$world.queue += $made.id`, then `$world.queue[0]`), or compute it once per round and read that")
+#: The most rows a table may be capped at and still be read per entity without a warning.
+_FEW_ROWS = 50
 _TABLE_FIX = "`$lookup($inputs.{table}, field, value)` finds the matching rows through an index built once per run"
 
 
@@ -52,7 +54,9 @@ class _Scans:
         self.checker = checker
         self.c = checker.c
         self.scanners = checker.collection_funcs
-        self.tables = {name for name, spec in self.c.inputs.items() if spec.type == "table"}
+        # A table capped at a few rows (`max`) cannot grow with the population, so reading it per entity is no scan.
+        self.tables = {name for name, spec in self.c.inputs.items()
+                       if spec.type == "table" and not (spec.max is not None and spec.max <= _FEW_ROWS)}
         self.def_scans: dict[str, list[_Scan]] = {}
 
     # -- what an expression scans ------------------------------------------------------

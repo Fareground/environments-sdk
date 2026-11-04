@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- The scan lint no longer warns about reading an input table per entity when the table is capped at a few rows
+  (`max` of 50 or less): a short list of audience segments cannot grow with the population.
 - A `social.feed` takes `counts: false`: feeds and trending show each post without its reaction, repost and
   reply counts, to measure how much accounts copy what others did. A moderator's queue still shows them.
 - A `social.feed` takes a `score`: an expression that ranks the feed instead of the weighted formula, over `$it` (the
