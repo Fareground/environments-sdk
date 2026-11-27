@@ -43,9 +43,10 @@ class Context:
     """What one thread or asyncio task is running: its random stream, a turn's ``$pending`` (what the turn did or
     submitted so far, with its version) and deadline (``time.monotonic()``), the agent whose action runs and which
     action it is, how deep defs call each other, why draws are forbidden (None: they are not; empty: a trial), and how
-    many draws and reads of values hidden from the acting agent it has made (what an :class:`Observation` compares)."""
+    many draws, reads of values hidden from the acting agent and mechanism calls it has made (what an
+    :class:`Observation` compares)."""
 
-    __slots__ = ("rng", "pending", "deadline", "actor", "action", "depth", "forbid", "draws", "hidden")
+    __slots__ = ("rng", "pending", "deadline", "actor", "action", "depth", "forbid", "draws", "hidden", "mechanisms")
 
     def __init__(self, rng: Any = None, pending: Any = None, deadline: float | None = None):
         self.rng = rng
@@ -57,6 +58,7 @@ class Context:
         self.forbid: str | None = None
         self.draws = 0
         self.hidden = 0
+        self.mechanisms = 0
 
 
 class Observation:
@@ -64,12 +66,13 @@ class Observation:
     read a value hidden from the acting agent. Work that did neither in an unchanged state is pure (:meth:`pure`): run
     again, it gives the same result and costs nothing."""
 
-    __slots__ = ("_context", "_draws", "_hidden")
+    __slots__ = ("_context", "_draws", "_hidden", "_mechanisms")
 
     def __init__(self, context: Context):
         self._context = context
         self._draws = context.draws
         self._hidden = context.hidden
+        self._mechanisms = context.mechanisms
 
     @property
     def drew(self) -> bool:
@@ -78,6 +81,13 @@ class Observation:
     @property
     def read_hidden(self) -> bool:
         return self._context.hidden != self._hidden
+
+    @property
+    def ran_mechanism(self) -> bool:
+        """Whether the work called a mechanism. A mechanism's own code reads balances directly, and notes a read
+        hidden from the acting agent only when the value refuses it (``ledger.move``), so work that called one may
+        have turned on a hidden value without :attr:`read_hidden` saying so."""
+        return self._context.mechanisms != self._mechanisms
 
     @property
     def spends(self) -> bool:
@@ -156,6 +166,10 @@ class Randomness:
         """Game logic read a value hidden from the acting agent: a refusal after it spends the action."""
         self.here().hidden += 1
 
+    def count_mechanism(self) -> None:
+        """An effect called a mechanism (see :attr:`Observation.ran_mechanism`)."""
+        self.here().mechanisms += 1
+
     def observe(self) -> Observation:
         """Watch what the running context draws and reads hidden from now on."""
         return Observation(self.here())
@@ -163,13 +177,13 @@ class Randomness:
     @contextmanager
     def apart(self) -> Iterator[None]:
         """Work inside the block is not the running context's own (the run's diagnostics trying a tool's choices): what
-        it draws and reads hidden counts toward no observation outside it. What it draws stays spent."""
+        it draws, reads hidden and calls counts toward no observation outside it. What it draws stays spent."""
         context = self.here()
-        draws, hidden = context.draws, context.hidden
+        draws, hidden, mechanisms = context.draws, context.hidden, context.mechanisms
         try:
             yield
         finally:
-            context.draws, context.hidden = draws, hidden
+            context.draws, context.hidden, context.mechanisms = draws, hidden, mechanisms
 
     @contextmanager
     def turn_context(self, rng: Any, pending: Any, deadline: float | None = None) -> Iterator[None]:

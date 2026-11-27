@@ -280,3 +280,21 @@ def test_a_refused_most_is_the_most_every_rule_would_accept_now_and_never_one_de
     assert "qty must be at most 20 now (got 95)" in said["own"]
     fg_env.run(_pantry(capacity_private=True), ask, seed=1)
     assert "qty must be at most 30 (got 95)" in said["other"]  # ben's room is hidden from ann: the stock stands
+
+
+def test_a_refused_most_worked_out_through_a_mechanism_is_the_stated_one(tmp_path):
+    """A mechanism's code reads balances directly and notes a hidden one only when it refuses: a buy that would fill
+    against another trader's hidden reserved shares must not be refined from them. With the calls to probe it (60 a
+    turn), the probing agent finds nothing to read out for free."""
+    import json
+    import shutil
+    from pathlib import Path
+
+    examples = Path(__file__).parents[1] / "examples" / "contracts"
+    shutil.copytree(examples / "exchange_flagship", tmp_path / "exchange_flagship")
+    contract = json.loads((examples / "exchange_flagship.json").read_text())
+    for stage in contract["stages"]:
+        if "max_calls" in stage:
+            stage["max_calls"] = 60
+    (tmp_path / "exchange_flagship.json").write_text(json.dumps(contract))
+    assert not [issue for issue in fg_env.check(tmp_path / "exchange_flagship.json") if "for free" in issue.message]

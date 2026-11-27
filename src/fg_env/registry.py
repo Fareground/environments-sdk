@@ -341,6 +341,7 @@ def _family_op(spec: FamilySpec) -> OpSpec:
         missing = [key for key in chosen.required if key not in effect]
         if missing:
             raise RunError(f"`{chosen.name}` needs {', '.join(f'`{k}`' for k in missing)}", where)
+        runner.world.luck.count_mechanism()
         try:
             chosen.run(runner, effect, vars, where)
         except _engine_errors():

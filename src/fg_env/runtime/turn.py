@@ -484,8 +484,9 @@ class Turn:
         """``problem``, or — when it is a whole-number argument over its stated most and that most would still be
         refused by the rules (a shop's stock allows 30, the buyer's pantry holds 20) — the most the rules would accept
         now, or why none would, so the agent's next call can be the one that works. Worked out by trials that keep
-        nothing and draw nothing; a trial that reads a value hidden from the agent ends the search, and the stated
-        most stands."""
+        nothing and draw nothing; a trial that reads a value hidden from the agent, or calls a mechanism (whose code
+        may turn on one unnoted: :attr:`~fg_env.world.randomness.Observation.ran_mechanism`), ends the search, and
+        the stated most stands: what is said never depends on a value hidden from the agent."""
         found = _OVER_MOST.fullmatch(problem)
         param = spec.params.get(found.group(1)) if found else None
         if found is None or param is None or param.type != "int" or not isinstance(args, Mapping):
@@ -495,12 +496,12 @@ class Turn:
 
         def tried(value: int) -> tuple[bool, str | None] | None:
             """Whether the rules would take the call with ``pname`` = value, and the refusal if not; None when
-            finding out read something hidden from the agent."""
+            finding out read something hidden from the agent, or may have."""
             with luck.apart():
                 watched = luck.observe()
                 params, invalid = rules.validate(self.actor, name, {**args, pname: value})
                 refusal = invalid or rules.trial(self.actor, name, params)
-                hidden = watched.read_hidden
+                hidden = watched.read_hidden or watched.ran_mechanism
             return None if hidden else (refusal is None, refusal)
 
         at_most = tried(most)
