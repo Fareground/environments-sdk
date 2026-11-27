@@ -43,10 +43,11 @@ class Context:
     """What one thread or asyncio task is running: its random stream, a turn's ``$pending`` (what the turn did or
     submitted so far, with its version) and deadline (``time.monotonic()``), the agent whose action runs and which
     action it is, how deep defs call each other, why draws are forbidden (None: they are not; empty: a trial), and how
-    many draws, reads of values hidden from the acting agent and mechanism calls it has made (what an
-    :class:`Observation` compares)."""
+    many draws, reads of values hidden from the acting agent and mechanism calls it has made, and how many reads of
+    the acting agent's own private values (what an :class:`Observation` compares)."""
 
-    __slots__ = ("rng", "pending", "deadline", "actor", "action", "depth", "forbid", "draws", "hidden", "mechanisms")
+    __slots__ = ("rng", "pending", "deadline", "actor", "action", "depth", "forbid", "draws", "hidden", "mechanisms",
+                 "own")
 
     def __init__(self, rng: Any = None, pending: Any = None, deadline: float | None = None):
         self.rng = rng
@@ -59,6 +60,7 @@ class Context:
         self.draws = 0
         self.hidden = 0
         self.mechanisms = 0
+        self.own = 0
 
 
 class Observation:
@@ -66,13 +68,14 @@ class Observation:
     read a value hidden from the acting agent. Work that did neither in an unchanged state is pure (:meth:`pure`): run
     again, it gives the same result and costs nothing."""
 
-    __slots__ = ("_context", "_draws", "_hidden", "_mechanisms")
+    __slots__ = ("_context", "_draws", "_hidden", "_mechanisms", "_own")
 
     def __init__(self, context: Context):
         self._context = context
         self._draws = context.draws
         self._hidden = context.hidden
         self._mechanisms = context.mechanisms
+        self._own = context.own
 
     @property
     def drew(self) -> bool:
@@ -88,6 +91,12 @@ class Observation:
         hidden from the acting agent only when the value refuses it (``ledger.move``), so work that called one may
         have turned on a hidden value without :attr:`read_hidden` saying so."""
         return self._context.mechanisms != self._mechanisms
+
+    @property
+    def read_own_private(self) -> bool:
+        """Whether the work read a private value of the acting agent's own (a limit its owner set): a refusal after
+        it gives the tool call back (see runtime/turn.py)."""
+        return self._context.own != self._own
 
     @property
     def spends(self) -> bool:
@@ -170,6 +179,10 @@ class Randomness:
         """An effect called a mechanism (see :attr:`Observation.ran_mechanism`)."""
         self.here().mechanisms += 1
 
+    def count_own_read(self) -> None:
+        """Game logic read a private value of the acting agent's own."""
+        self.here().own += 1
+
     def observe(self) -> Observation:
         """Watch what the running context draws and reads hidden from now on."""
         return Observation(self.here())
@@ -179,11 +192,11 @@ class Randomness:
         """Work inside the block is not the running context's own (the run's diagnostics trying a tool's choices): what
         it draws, reads hidden and calls counts toward no observation outside it. What it draws stays spent."""
         context = self.here()
-        draws, hidden, mechanisms = context.draws, context.hidden, context.mechanisms
+        draws, hidden, mechanisms, own = context.draws, context.hidden, context.mechanisms, context.own
         try:
             yield
         finally:
-            context.draws, context.hidden, context.mechanisms = draws, hidden, mechanisms
+            context.draws, context.hidden, context.mechanisms, context.own = draws, hidden, mechanisms, own
 
     @contextmanager
     def turn_context(self, rng: Any, pending: Any, deadline: float | None = None) -> Iterator[None]:

@@ -223,6 +223,12 @@ class World(ExpressionWorld):
     def read_hidden(self) -> None:
         self.luck.count_hidden_read()
 
+    def read_own(self, owner: Any, prop: str, agent: Any) -> None:
+        """Note a read of ``owner``'s ``prop`` by game logic acting for ``agent``, when it is a private value of the
+        agent's own."""
+        if type(owner) is Entity and self.hidden.own_private(owner, prop, agent):
+            self.luck.count_own_read()
+
     def records(self, name: str) -> list[Entry]:
         if name not in self.records_store:
             known = ", ".join(self.records_store) or "none declared"

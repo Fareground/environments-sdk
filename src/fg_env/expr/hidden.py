@@ -63,6 +63,12 @@ class Hidden:
         reader = getattr(agent, "id", None)
         return reader != entity.id and not self.owns(entity, reader) and not self._reads(agent, allowed)
 
+    def own_private(self, entity: Any, prop: str, agent: Any) -> bool:
+        """Whether ``entity``'s ``prop`` is private and ``agent`` is that entity itself: a value of its own that the
+        others may not read, such as a limit its owner set."""
+        return (getattr(agent, "id", None) == getattr(entity, "id", None) is not None
+                and self.types.get(entity.entity_type, {}).get(prop) is not None)
+
     def owns(self, entity: Any, reader: Any) -> bool:
         """Whether the agent with id ``reader`` owns ``entity``: its type's `owner` property holds that id (or a list
         holding it)."""

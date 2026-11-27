@@ -94,16 +94,20 @@ class EvalContext:
     def remembered(self, key: tuple[Any, ...], work: Callable[[], Any]) -> Any:
         """``work()``, reused under ``key`` while the world stays as it is: one turn asks for the same choices and
         tools several times (legality, its tools, validating a call, diagnostics). Work that drew at random or read a
-        hidden value is never reused: each call draws and counts its hidden reads afresh."""
+        hidden value is never reused: each call draws and counts its hidden reads afresh. A reuse of work that read
+        the acting agent's own private values counts that read again, as the work itself would have."""
         state = self.state_version()
         if state != self._remembered_state:
             self._remembered, self._remembered_state = {}, state
         elif key in self._remembered:
-            return self._remembered[key]
+            value, own = self._remembered[key]
+            if own:
+                self.world.luck.count_own_read()
+            return value
         observed = self.world.luck.observe()
         value = work()
         if observed.pure(state, self.state_version()):
-            self._remembered[key] = value
+            self._remembered[key] = (value, observed.read_own_private)
         return value
 
     # -- defs -----------------------------------------------------------------------------------------------------
@@ -127,7 +131,10 @@ class EvalContext:
             if state != self._defs_state:
                 self._defs, self._defs_state = {}, state
             elif key in self._defs:
-                return self._defs[key]
+                value, own = self._defs[key]
+                if own:
+                    luck.count_own_read()
+                return value
         depth = here.depth
         if depth >= 32:
             raise ExprError(f"${name}: defs call each other too deeply (recursion?)", source)
@@ -143,7 +150,7 @@ class EvalContext:
         # Only a pure call is reused (a reuse would neither draw nor count a hidden read); with the same state and
         # arguments it takes the same path again, so its value is exactly what a fresh call would return.
         if key is not None and observed.pure(state, self._version(here)) and isinstance(value, _CACHEABLE):
-            self._defs[key] = value
+            self._defs[key] = (value, observed.read_own_private)
         return value
 
     def _def_key(self, name: str, args: list[Any], viewer: Any) -> tuple[Any, ...] | None:
@@ -166,10 +173,11 @@ class EvalContext:
         """The refusal of a rule about ``entity``'s ``prop``: ``told``, or ``instead`` — which says nothing of it —
         when the value is hidden from the agent whose action is running (the read is noted, so the refusal spends the
         action; see expr/hidden.py)."""
-        world = self.world
-        if world.hides(entity, prop, world.luck.here().actor):
+        world, acting = self.world, self.world.luck.here().actor
+        if world.hides(entity, prop, acting):
             world.read_hidden()
             return Abort(instead)
+        world.read_own(entity, prop, acting)
         return Abort(told)
 
     def visible_records(self, name: str, viewer: Any) -> list[Entry]:
