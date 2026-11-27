@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A whole-number argument refused for being over its stated most is told the most every rule would accept now
   (`qty must be at most 20 now`: the shop's stock allows 30, the buyer's pantry 20), or why no amount fits, worked out
   by trials that keep nothing and draw nothing; a most decided by a value hidden from the agent is not refined.
+  Nor is one worked out through a mechanism: its code reads balances directly and notes a hidden one only when it
+  refuses, so a buy that fills against another trader's hidden reserved shares was refined from them, and an agent
+  could read the shares out with free refused calls. The stated most stands.
 - **BREAKING:** the kernel ships no specific game. The `game` family's `board`, `cards` and `pot` modes, the card,
   board and pot functions (`$poker_rank`, `$board_moves`, `$pot_total` …) and the word-game and puzzle functions
   (`$wordle_feedback`, `$mask`, `$anagram`, `$puzzle`, `$solve`) moved to the platform that hosts games, which
