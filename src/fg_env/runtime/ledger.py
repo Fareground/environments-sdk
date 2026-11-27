@@ -84,6 +84,8 @@ class AttemptLedger:
         #: Looks and inspects that do not spend a call (see :mod:`fg_env.information.reads`); below zero, the refused
         #: ones.
         self.reads_left = max_calls
+        #: Calls a refusal by the actor's own private value may still give back (:meth:`give_back_call`).
+        self.given_back_left = max_calls
         self.actions_left = max_actions
         #: This turn's uses of each action (this round's are the world's: ``world.used_round``).
         self.used: dict[str, int] = {}
@@ -121,6 +123,16 @@ class AttemptLedger:
         if self.calls_left <= 0:
             return False
         self.calls_left -= 1
+        return True
+
+    def give_back_call(self) -> bool:
+        """Give back the call that a refusal by one of the actor's own private values took (a limit its owner set:
+        the agent cannot see where the bound lies until it meets it). At most ``max_calls`` a turn, the backstop for
+        an agent that keeps asking past its own limit. Whether one was given back."""
+        if self.given_back_left <= 0:
+            return False
+        self.given_back_left -= 1
+        self.calls_left += 1
         return True
 
     @property

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 from ..errors import Issue
 from ..participants.builtin import sample_args
 from ..runtime.session import ToolResult
+from ..runtime.turn import GIVEN_BACK
 
 if TYPE_CHECKING:
     from ..contract import Contract
@@ -111,8 +112,9 @@ def _around(spec: Any, middle: Any, span: Any) -> tuple[Any, Any] | None:
 
 
 def _said(result: ToolResult) -> str:
-    """What a result says, without the note of the calls the turn has left (it changes with every call)."""
-    return _CALLS_NOTE.sub("", result.text)
+    """What a result says, without the notes of what the call cost and the calls the turn has left (they change with
+    every call)."""
+    return _CALLS_NOTE.sub("", result.text).replace(GIVEN_BACK, "")
 
 
 def _free(result: ToolResult) -> bool:

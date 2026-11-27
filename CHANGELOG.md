@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- A refusal by one of the agent's own private values (a limit its owner set, read in a `when` or a bound) gives its
+  tool call back and says so: the agent cannot see where its own bound lies until it meets it. At most `max_calls`
+  such calls are given back a turn, and never for a refusal that drew luck or read a value hidden from the agent.
+- The preview of a turn in a stage where seats take turns says "The seats take turns here: you are told when it is
+  yours." instead of "It is your turn.", which a seat that moves second read before the start.
+
 - The scan lint no longer warns about reading an input table per entity when the table is capped at a few rows
   (`max` of 50 or less): a short list of audience segments cannot grow with the population.
 - A `social.feed` takes `counts: false`: feeds and trending show each post without its reaction, repost and

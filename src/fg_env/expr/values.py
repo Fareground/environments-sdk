@@ -88,8 +88,11 @@ def _check_visible(owner: Any, name: str, scope: Any, source: str | None) -> Non
     world, viewer = scope.world, scope.vars.get("viewer")
     if viewer is None:  # hidden from the agent whose action runs, whatever a rule names `$actor` (a party)
         acting = world.luck.here().actor
-        if world.hides(owner, name, acting if acting is not None else scope.vars.get("actor")):
+        acting = acting if acting is not None else scope.vars.get("actor")
+        if world.hides(owner, name, acting):
             world.read_hidden()
+        else:
+            world.read_own(owner, name, acting)
         return
     if not world.hides(owner, name, viewer):
         return

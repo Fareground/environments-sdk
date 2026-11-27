@@ -57,6 +57,10 @@ if TYPE_CHECKING:
 __all__ = ["Turn", "entity_dict"]
 
 
+
+#: What a refusal by one of the agent's own private values says it cost (see :meth:`AttemptLedger.give_back_call`).
+GIVEN_BACK = " (Your own private limit refused it, so this try did not count.)"
+
 _INVALID = {"error": "invalid"}
 _REJECTED = {"error": "rejected"}
 _ENDED = {"error": "ended"}
@@ -454,6 +458,11 @@ class Turn:
             result, applied = self._refused(name, refused_text(name, fault), observed, _REJECTED, RETRY), False
         else:
             result, applied, spent = acted
+        # Never for a refusal that drew luck or read what is hidden from the agent: that one stays spent, or a
+        # given-back call would let the agent probe the hidden value for free.
+        if (not applied and not result.ok and observed.read_own_private and not observed.spends
+                and self.ledger.give_back_call()):
+            result.text += GIVEN_BACK
         if spent and self.ledger.part_open:  # luck or a hidden read settles an atomic turn: nothing may undo it
             undo = self.settle()
             if undo is not None:

@@ -110,8 +110,12 @@ class Previews:
         reason = "Everyone chooses at the same time." if spec.turns == "simultaneous" else "It is your turn."
         if not env.schedule.stage_runs(spec):
             reason = f"(Preview only: stage {spec.name} does not run now.)"
-        elif actor not in env.schedule.eligible(spec, ordered=False):
+        elif actor not in (woken := env.schedule.eligible(spec, ordered=False)):
             reason = f"(Preview only: {actor.name} would not be woken in {spec.name} now.)"
+        elif spec.turns != "simultaneous" and len(woken) > 1:
+            # Who goes first is not worked out here (it may draw luck): a seat that moves second must not read that
+            # it is its turn.
+            reason = "The seats take turns here: you are told when it is yours."
         return self.turn(entity_id, spec, reason)
 
     def turn(self, entity_id: str, spec: StageSpec, reason: str) -> Preview:
